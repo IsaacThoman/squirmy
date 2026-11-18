@@ -334,13 +334,16 @@ function SongRow({ track, number, onPlay, onTrackMenu }: { track: Track; number?
   const { state, actions } = usePlaybackState();
   const liked = state.favorites.includes(track.id);
   const current = state.trackId === track.id;
+  const playNext = () => {
+    tapFeedback();
+    actions.addToQueue(track.id, 'next');
+  };
   return <ReanimatedSwipeable
     friction={1.8}
     overshootRight={false}
     rightThreshold={35}
-    renderRightActions={(_progress, _drag, controls) => <Pressable accessibilityRole="button" accessibilityLabel={`Play ${track.title} next`} style={({ pressed }) => [styles.swipeAction, pressed && styles.pressed]} onPress={() => {
-      tapFeedback();
-      actions.addToQueue(track.id, 'next');
+    renderRightActions={(_progress, _drag, controls) => <Pressable accessibilityRole="button" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={({ pressed }) => [styles.swipeAction, pressed && styles.pressed]} onPress={() => {
+      playNext();
       controls.close();
     }}>
       <Icon name="text.badge.plus" size={19} color={ink} />
@@ -348,7 +351,9 @@ function SongRow({ track, number, onPlay, onTrackMenu }: { track: Track; number?
     </Pressable>}
   >
     <View style={[styles.songRow, current && styles.songCurrent]}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Play ${track.title} by ${track.artist}`} style={({ pressed }) => [styles.songInfo, pressed && styles.pressed]} onPress={onPlay} onLongPress={() => onTrackMenu(track.id)}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Play ${track.title} by ${track.artist}`} style={({ pressed }) => [styles.songInfo, pressed && styles.pressed]} onPress={onPlay} onLongPress={() => onTrackMenu(track.id)}
+        accessibilityActions={[{ name: 'playNext', label: 'Play next' }]}
+        onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'playNext') playNext(); }}>
         {typeof number === 'number' ? <View style={styles.songPosition}>
           {current ? <Icon name={state.playing ? 'waveform' : 'pause.fill'} size={17} color={lilac} /> : <Text style={styles.songNumber}>{number}</Text>}
         </View> : <Cover source={albums[track.albumId].artwork} size={42} radius={8} />}
