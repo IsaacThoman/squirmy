@@ -13,6 +13,16 @@ npx expo start --go
 
 With an SDK 58-compatible Expo Go installed, press `i` in the Expo terminal to preview on an iOS simulator. To build the standalone app in Xcode, run `npm run ios`. The system Liquid Glass tab bar and mini-player accessory require iOS 26 or later.
 
+## Development build on an iPhone
+
+Set `TONE_APP_VARIANT=development` when generating and building the native project in a separate checkout. This installs TONE Dev alongside TONE. Start Metro from the checkout you are editing, with your Mac and iPhone on the same network.
+
+```sh
+TONE_APP_VARIANT=development npx expo start --dev-client --lan --scheme tone-dev
+```
+
+Open the project in TONE Dev using the terminal QR code or the Metro URL. JavaScript changes use Fast Refresh. Rebuild TONE Dev when native dependencies change.
+
 ## Try the prototype
 
 - Tap the mini-player to expand it. Tap the grabber or swipe down across the artwork or song details to collapse it back into the mini-player.
