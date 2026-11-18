@@ -1,7 +1,7 @@
 import { Image, type ImageSource } from 'expo-image';
 import { SymbolView, type AndroidSymbol } from 'expo-symbols';
 import type { ComponentProps } from 'react';
-import { type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, PlatformColor, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
 
 export const colors = {
   background: '#111014',
@@ -10,6 +10,8 @@ export const colors = {
   muted: '#a9a2b4',
   accent: '#cbc1ff',
 } as const;
+
+export const screenBackground = Platform.OS === 'ios' ? PlatformColor('systemBackgroundColor') : colors.background;
 
 type AppleSymbol = Extract<ComponentProps<typeof SymbolView>['name'], string>;
 

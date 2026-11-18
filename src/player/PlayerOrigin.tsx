@@ -11,15 +11,19 @@ export type PlayerOrigin = {
   compact: boolean;
 };
 
+export function miniCoverSize(compact: boolean, native: boolean) {
+  return compact ? 28 : native ? 36 : 42;
+}
+
 const OriginContext = createContext<{
   origin: RefObject<PlayerOrigin | null>;
-  coverInPlayer: SharedValue<boolean>;
+  accessoryInPlayer: SharedValue<boolean>;
 } | null>(null);
 
 export function PlayerOriginProvider({ children }: PropsWithChildren) {
   const origin = useRef<PlayerOrigin | null>(null);
-  const coverInPlayer = useSharedValue(false);
-  const value = useMemo(() => ({ origin, coverInPlayer }), [coverInPlayer]);
+  const accessoryInPlayer = useSharedValue(false);
+  const value = useMemo(() => ({ origin, accessoryInPlayer }), [accessoryInPlayer]);
   return <OriginContext.Provider value={value}>{children}</OriginContext.Provider>;
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
@@ -13,7 +13,8 @@ import { usePlayback, usePlaybackState } from './playback';
 import { Icon } from './ui';
 import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
-import { PlayerButton, playerColors as c, selectionFeedback } from './player/design';
+import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
+import { playerColors as c, selectionFeedback } from './player/design';
 
 const artworkRadius = 21;
 const artworkGap = 14;
@@ -26,7 +27,7 @@ const compactArtworkTop = 7;
 const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
 const panelMotion = { duration: 210 };
 const expandMotion = { duration: 390, easing: Easing.out(Easing.cubic) };
-const collapseMotion = { duration: 290, easing: Easing.inOut(Easing.cubic) };
+const collapseMotion = { duration: 380, easing: Easing.bezier(0.32, 0.06, 0.23, 1) };
 
 type PlayerPage = 'player' | 'lyrics' | 'queue';
 type DetailPage = Exclude<PlayerPage, 'player'>;
@@ -59,15 +60,15 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
   const artX = (width - insets.left - insets.right - artSize) / 2;
   const artY = Math.max(0, (availableHeight - artSize - artworkGap - metadataHeight) / 2);
   const artworkPage = page === 'player';
-  const { coverInPlayer } = usePlayerOrigin();
+  const { accessoryInPlayer } = usePlayerOrigin();
   const isFavorite = state.favorites.includes(track.id);
   const hasLayout = availableHeight > 0;
 
   useLayoutEffect(() => {
     if (!bubble) return;
-    coverInPlayer.set(true);
-    return () => coverInPlayer.set(false);
-  }, [bubble, coverInPlayer]);
+    accessoryInPlayer.set(true);
+    return () => accessoryInPlayer.set(false);
+  }, [bubble, accessoryInPlayer]);
 
   useEffect(() => {
     if (bubble && hasLayout && !closing.get()) progress.set(withTiming(1, expandMotion));
@@ -154,18 +155,20 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
       top: bubble.y * (1 - p),
       width: bubble.width + (width - bubble.width) * p,
       height: bubble.height + (height - bubble.height) * p,
-      borderRadius: (bubble.height / 2) * (1 - p),
+      borderRadius: interpolate(p, [0, 0.78, 1], [bubble.height / 2, 30, 0]),
     };
   });
 
-  const contentStyle = useAnimatedStyle(() => {
-    const p = progress.value;
-    if (!bubble) return { opacity: 1 };
-    return { opacity: interpolate(p, [0.08, 0.85], [0, 1], Extrapolation.CLAMP) };
-  });
+  const backgroundStyle = useAnimatedStyle(() => ({
+    opacity: bubble ? interpolate(progress.value, [0, 0.14, 0.47], [0, 0.42, 1], Extrapolation.CLAMP) : 1,
+  }));
+
+  const contentStyle = useAnimatedStyle(() => ({
+    opacity: bubble ? interpolate(progress.value, [0.28, 0.81], [0, 1], Extrapolation.CLAMP) : 1,
+  }));
 
   const previewStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 0.33], [1, 0], Extrapolation.CLAMP),
+    opacity: interpolate(progress.value, [0.05, 0.38], [1, 0], Extrapolation.CLAMP),
   }));
 
   const artworkStyle = useAnimatedStyle(() => {
@@ -213,30 +216,27 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
         label={isFavorite ? 'Remove from favorites' : 'Favorite song'}
         selected={isFavorite}
         onPress={() => { selectionFeedback(); actions.toggleFavorite(track.id); }}
-        style={styles.trackAction}
         color={isFavorite ? c.lilac : c.text}
       />
-      <PlayerButton icon="ellipsis" label="Song options" onPress={() => onTrackMenu(track.id)} style={styles.trackAction} />
+      <TrackMenuButton trackId={track.id} onPress={() => onTrackMenu(track.id)} />
     </>
   );
 
   return (
     <Animated.View accessibilityViewIsModal style={[styles.screen, frameStyle]}>
-      <Animated.View style={[styles.content, { width, height }, contentStyle]}>
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: album.color }]} pointerEvents="none">
+      <View style={[styles.content, { width, height }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: album.color }, backgroundStyle]} pointerEvents="none">
           <Image source={album.artwork} blurRadius={70} contentFit="cover" transition={210} style={styles.backdropArt} />
           <LinearGradient
             colors={['#11101B8A', '#181322AF', '#100E18', '#0E0C15']}
             locations={[0, 0.39, 0.85, 1]}
             style={StyleSheet.absoluteFill}
           />
-        </View>
-        <View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }]}>
+        </Animated.View>
+        <Animated.View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }, contentStyle]}>
           <GestureDetector gesture={grabberDismiss}>
             <View style={styles.grabberTouch}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Collapse player" onPress={close} style={styles.grabberPress} hitSlop={6}>
-                <View style={styles.grabber} />
-              </Pressable>
+              <CollapseButton onPress={close} />
             </View>
           </GestureDetector>
           <View style={styles.deckFrame} onLayout={(event) => setAvailableHeight(event.nativeEvent.layout.height)}>
@@ -268,8 +268,8 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
             </Animated.View>
           </View>
           <Transport key={track.id} compact={smallScreen} page={page} onToggle={togglePage} onDevices={onDevices} />
-        </View>
-      </Animated.View>
+        </Animated.View>
+      </View>
       {bubble && (
         <Animated.View pointerEvents="none" style={[styles.preview, { width: bubble.width, height: bubble.height }, previewStyle]}>
           <MiniPlayerContent native={bubble.native} compact={bubble.compact} preview />
@@ -309,20 +309,13 @@ function LyricsPage({ visible }: { visible: boolean }) {
           showsVerticalScrollIndicator={false}
         >
           {lines.map((line, index) => (
-            <Pressable
-              key={`${index}-${line}`}
-              accessibilityRole="button"
-              accessibilityHint="Seek to this line"
-              accessibilityState={{ selected: index === active }}
-              onLayout={(event) => {
-                const { y, height } = event.nativeEvent.layout;
-                lineCenters.current[index] = y + height / 2;
-              }}
-              onPress={() => { selectionFeedback(); actions.seek((index + 1) * step); }}
-              style={styles.lyricLine}
-            >
-              <Text style={[styles.lyric, index === active && styles.lyricActive]}>{line}</Text>
-            </Pressable>
+            <View key={index} onLayout={(event) => {
+              const { y, height } = event.nativeEvent.layout;
+              lineCenters.current[index] = y + height / 2;
+            }}>
+              <LyricButton line={line} active={index === active}
+                onPress={() => { selectionFeedback(); actions.seek((index + 1) * step); }} />
+            </View>
           ))}
         </ScrollView>
       ) : (
@@ -374,8 +367,8 @@ function Transport({ compact, page, onToggle, onDevices }: {
         <PlayerButton
           icon={state.playing ? 'pause.fill' : 'play.fill'}
           label={state.playing ? 'Pause' : 'Play'}
-          size={29}
-          color={c.ink}
+          size={40}
+          color={c.text}
           onPress={() => { selectionFeedback(); actions.playPause(); }}
           style={[styles.primaryButton, compact && styles.primaryButtonCompact]}
         />
@@ -397,18 +390,10 @@ function Transport({ compact, page, onToggle, onDevices }: {
             color={page === 'lyrics' ? c.lilac : c.muted}
             onPress={() => onToggle('lyrics')} />
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Playback device: ${device.name}`}
-          onPress={() => { selectionFeedback(); onDevices(); }}
-          style={({ pressed }) => [styles.output, pressed && styles.controlPressed]}
-        >
-          <View style={styles.outputIcon}>
-            <Icon name={device.icon} size={21} color={c.lilac} />
-            <View style={styles.deviceSignal} />
-          </View>
-          <Text numberOfLines={1} style={styles.deviceName}>{device.name}</Text>
-        </Pressable>
+        <View style={styles.output}>
+          <DeviceButton icon={device.icon} name={device.name}
+            onPress={() => { selectionFeedback(); onDevices(); }} />
+        </View>
         <View style={styles.footerSide}>
           <PlayerButton icon="list.bullet"
             label={page === 'queue' ? 'Hide queue' : 'Show queue'}
@@ -423,15 +408,12 @@ function Transport({ compact, page, onToggle, onDevices }: {
 }
 
 const styles = StyleSheet.create({
-  screen: { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', backgroundColor: '#25212E', overflow: 'hidden' },
-  content: { position: 'absolute', top: 0, left: 0, backgroundColor: '#100E18' },
+  screen: { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', overflow: 'hidden' },
+  content: { position: 'absolute', top: 0, left: 0 },
   preview: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
   grabberTouch: { height: grabberHeight, alignItems: 'center', justifyContent: 'center' },
-  grabberPress: { width: 105, height: grabberHeight, alignItems: 'center', justifyContent: 'center' },
-  grabber: { width: 32, height: 4, borderRadius: 2, backgroundColor: '#FFFFFF66' },
-  controlPressed: { opacity: 0.66 },
   deckFrame: { flex: 1 },
   nowPlaying: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: artworkInset, gap: artworkGap },
   artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: '#191624' },
@@ -446,11 +428,7 @@ const styles = StyleSheet.create({
   trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: c.text },
   compactTitle: { fontSize: 25 },
   artist: { marginTop: 3, color: c.muted, fontWeight: '500', fontSize: 16 },
-  trackAction: { borderRadius: 22, backgroundColor: c.surface, borderWidth: 1, borderColor: c.stroke },
   lyricPage: { flex: 1, paddingHorizontal: 25 },
-  lyricLine: { paddingBottom: 21 },
-  lyric: { color: '#BAB1CB86', fontWeight: '700', fontSize: 32, letterSpacing: -0.7, maxWidth: 530 },
-  lyricActive: { color: c.text },
   noLyrics: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   noLyricsTitle: { color: c.muted, fontSize: 16, fontWeight: '600' },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: 25, paddingTop: 8, paddingBottom: 6 },
@@ -459,14 +437,11 @@ const styles = StyleSheet.create({
   time: { color: c.quiet, fontVariant: ['tabular-nums'], fontSize: 12, fontWeight: '600' },
   transportButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', marginTop: 12, marginBottom: 10 },
   transportButtonsCompact: { marginTop: 6, marginBottom: 5 },
-  primaryButton: { width: 66, height: 66, borderRadius: 33, backgroundColor: c.lilac },
-  primaryButtonCompact: { width: 56, height: 56, borderRadius: 28 },
+  primaryButton: { width: 66, height: 66 },
+  primaryButtonCompact: { width: 56, height: 56 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   volumeSlider: { flex: 1 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
   footerSide: { flex: 1, alignItems: 'center' },
-  output: { flex: 1.3, minWidth: 0, alignItems: 'center', minHeight: 56, justifyContent: 'flex-start' },
-  outputIcon: { width: 44, height: 39, justifyContent: 'center', alignItems: 'center' },
-  deviceSignal: { position: 'absolute', right: 4, top: 8, width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#BCE9CD' },
-  deviceName: { color: c.lilac, fontSize: 11, fontWeight: '600' },
+  output: { flex: 1.3, minWidth: 0 },
 });

@@ -1,16 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ComponentRef, type Ref } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActionSheetIOS,
   Alert,
   Keyboard,
-  Platform,
-  PlatformColor,
-  Pressable,
   ScrollView,
   Share,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -20,20 +15,22 @@ import { useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album, type Track } from './catalog';
 import { usePlaybackState } from './playback';
-import { colors, Cover, Icon } from './ui';
+import { colors, Cover, Icon, screenBackground } from './ui';
 import { AlbumNavButton, AlbumPlaybackButtons } from './library/AlbumButtons';
 import { AlbumStatusBlur } from './library/AlbumStatusBlur';
 import { SongList } from './library/SongList';
+import {
+  AlbumMetadata, BrowseButton, CollectionGrid, CollectionRow, CollectionTile, GenreGrid, HeroActions, LibraryFilters,
+  LibrarySort, SearchField, type SearchHandle,
+} from './library/BrowseControls';
 
 const ink = colors.background;
-const panel = colors.surface;
 const ivory = colors.text;
 const muted = colors.muted;
 const faint = '#857F8E';
 const lilac = colors.accent;
 const gutter = 22;
 const albumNavSize = 44;
-const albumBackground = Platform.OS === 'ios' ? PlatformColor('systemBackgroundColor') : ink;
 
 export type BrowseProps = {
   onOpenAlbum: (albumId: string) => void;
@@ -68,45 +65,6 @@ function tapFeedback() {
   void Haptics.selectionAsync();
 }
 
-type SearchInput = ComponentRef<typeof TextInput>;
-
-function SearchField({ value, onChange, placeholder, autoFocus, inputRef }: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  autoFocus?: boolean;
-  inputRef?: Ref<SearchInput>;
-}) {
-  return (
-    <View style={styles.searchField}>
-      <Icon name="magnifyingglass" size={19} color={muted} />
-      <TextInput
-        ref={inputRef}
-        accessibilityLabel={placeholder}
-        autoFocus={autoFocus}
-        autoCorrect={false}
-        autoCapitalize="none"
-        placeholder={placeholder}
-        placeholderTextColor={faint}
-        returnKeyType="search"
-        selectionColor={lilac}
-        style={styles.searchInput}
-        value={value}
-        onChangeText={onChange}
-      />
-      {value.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} onPress={() => onChange('')}>
-        <Icon name="xmark.circle.fill" size={18} color={muted} />
-      </Pressable>}
-    </View>
-  );
-}
-
-function RoundButton({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]} onPress={onPress}>
-    <Icon name={icon} size={19} color={ivory} />
-  </Pressable>;
-}
-
 function CollectionCover({ item, size, radius = 13 }: { item: Collection; size: number; radius?: number }) {
   if (item.album) return <Cover source={item.album.artwork} size={size} radius={item.round ? size / 2 : radius} />;
 
@@ -121,38 +79,17 @@ function CollectionCover({ item, size, radius = 13 }: { item: Collection; size: 
   </LinearGradient>;
 }
 
-function CollectionTile({ item, size, onPress }: { item: Collection; size: number; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${item.title}, ${item.subtitle}`} onPress={onPress} style={({ pressed }) => [{ width: size }, pressed && styles.pressed]}>
-    <CollectionCover item={item} size={size} />
-    <Text numberOfLines={1} style={styles.tileTitle}>{item.title}</Text>
-    <Text numberOfLines={1} style={styles.tileSub}>{item.subtitle}</Text>
-  </Pressable>;
-}
-
-function CollectionRow({ item, onPress }: { item: Collection; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${item.title}, ${item.subtitle}`} onPress={onPress} style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}>
-    <CollectionCover item={item} size={54} radius={9} />
-    <View style={styles.flex}>
-      <Text numberOfLines={1} style={styles.rowTitle}>{item.title}</Text>
-      <Text numberOfLines={1} style={styles.rowSub}>{item.subtitle}</Text>
-    </View>
-    <Icon name="chevron.right" size={13} color={faint} />
-  </Pressable>;
-}
-
 function CollectionRail({ items, onOpenAlbum, size = 131 }: { items: Collection[]; onOpenAlbum: BrowseProps['onOpenAlbum']; size?: number }) {
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railContent}>
-    {items.map(item => <CollectionTile key={item.id} item={item} size={size} onPress={() => onOpenAlbum(item.id)} />)}
+    {items.map(item => <CollectionTile key={item.id} title={item.title} subtitle={item.subtitle} size={size}
+      cover={<CollectionCover item={item} size={size} />} onPress={() => onOpenAlbum(item.id)} />)}
   </ScrollView>;
 }
 
 function SectionTitle({ title, onPress }: { title: string; onPress?: () => void }) {
   return <View style={styles.sectionTitle}>
     <Text accessibilityRole="header" style={styles.sectionText}>{title}</Text>
-    {onPress && <Pressable accessibilityRole="button" accessibilityLabel={`See ${title.toLowerCase()}`} hitSlop={9} onPress={onPress} style={styles.sectionLink}>
-      <Text style={styles.sectionLinkText}>See all</Text>
-      <Icon name="chevron.right" size={10} color={lilac} />
-    </Pressable>}
+    {onPress && <BrowseButton label={`See ${title.toLowerCase()}`} title="See all" icon="chevron.right" onPress={onPress} />}
   </View>;
 }
 
@@ -172,25 +109,14 @@ export function HomeScreen({ onOpenAlbum, onOpenDevices, bottomInset = 155 }: Br
         <View style={styles.brandMark}><Icon name="waveform" size={16} color={ink} /></View>
         <Text style={styles.wordmark}>TONE</Text>
       </View>
-      {onOpenDevices && <Pressable accessibilityRole="button" accessibilityLabel="Playback devices" onPress={onOpenDevices} style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}>
-        <Text style={styles.avatarText}>I</Text>
-      </Pressable>}
+      {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
     </View>
     <Text accessibilityRole="header" style={[styles.pageTitle, styles.homeTitle]}>Listen now</Text>
     <View style={[styles.hero, { minHeight: Math.min(350, heroSize * 0.85) }]}>
       <Cover source={hero.artwork} size={heroSize} radius={0} style={styles.heroCover} />
       <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
-      <Pressable accessible={false} onPress={() => onOpenAlbum(hero.id)} style={StyleSheet.absoluteFill} />
-      <View pointerEvents="box-none" style={styles.heroBottom}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Open ${hero.title}`} onPress={() => onOpenAlbum(hero.id)} style={styles.flex}>
-          <Text style={styles.heroCategory}>{hero.kind === 'Playlist' ? 'FEATURED MIX' : 'ALBUM SPOTLIGHT'}</Text>
-          <Text numberOfLines={2} style={styles.heroTitle}>{hero.title}</Text>
-          <Text numberOfLines={1} style={styles.heroCaption}>{hero.artist}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Play ${hero.title}`} onPress={() => { tapFeedback(); actions.playAlbum(hero.id); }} style={({ pressed }) => [styles.heroPlay, pressed && styles.pressed]}>
-          <Icon name="play.fill" size={20} color={ink} />
-        </Pressable>
-      </View>
+      <HeroActions title={hero.title} artist={hero.artist} onOpen={() => onOpenAlbum(hero.id)}
+        onPlay={() => { tapFeedback(); actions.playAlbum(hero.id); }} />
     </View>
     <View style={styles.homeSection}>
       <SectionTitle title="Recently played" onPress={() => onOpenAlbum('recent')} />
@@ -237,24 +163,10 @@ export function LibraryScreen({ onOpenAlbum, bottomInset = 155 }: BrowseProps) {
     return collections.filter(item => matches(query, item.title, item.subtitle, item.album?.kind ?? ''));
   }, [filter, query, sort, state.history, state.trackId]);
 
-  function openSort() {
-    tapFeedback();
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions({
-        options: [...sortOptions.map(option => option === sort ? `✓  ${option}` : option), 'Cancel'],
-        cancelButtonIndex: sortOptions.length,
-        title: 'Sort your library',
-        userInterfaceStyle: 'dark',
-      }, index => { if (index < sortOptions.length) setSort(sortOptions[index]); });
-      return;
-    }
-    Alert.alert('Sort your library', undefined, sortOptions.map(option => ({ text: option, onPress: () => setSort(option) })), { cancelable: true });
-  }
-
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
       <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Your library</Text>
-      <RoundButton icon={showFilter ? 'xmark' : 'magnifyingglass'} label={showFilter ? 'Close library search' : 'Search library'} onPress={() => {
+      <BrowseButton glass icon={showFilter ? 'xmark' : 'magnifyingglass'} label={showFilter ? 'Close library search' : 'Search library'} onPress={() => {
         tapFeedback();
         if (showFilter) setQuery('');
         setShowFilter(!showFilter);
@@ -262,24 +174,20 @@ export function LibraryScreen({ onOpenAlbum, bottomInset = 155 }: BrowseProps) {
     </View>
     {showFilter && <View style={styles.librarySearch}><SearchField value={query} onChange={setQuery} placeholder="Find in your library" autoFocus /></View>}
     <View style={styles.filters}>
-      {filters.map(value => <Pressable accessibilityRole="button" accessibilityState={{ selected: value === filter }} key={value} onPress={() => { tapFeedback(); setFilter(value); }} style={({ pressed }) => [styles.filter, filter === value && styles.filterActive, pressed && styles.pressed]}>
-        <Text style={[styles.filterText, filter === value && styles.filterTextActive]}>{value}</Text>
-      </Pressable>)}
+      <LibraryFilters options={filters} value={filter} onChange={value => { tapFeedback(); setFilter(value); }} />
     </View>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.libraryBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}>
       <View style={styles.sortRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Sort library, ${sort}`} hitSlop={7} style={styles.sortLabel} onPress={openSort}>
-          <Icon name="arrow.up.arrow.down" size={14} color={muted} />
-          <Text style={styles.sortText}>{sort}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={grid ? 'Show list view' : 'Show grid view'} style={styles.viewMode} hitSlop={8} onPress={() => { tapFeedback(); setGrid(!grid); }}>
-          <Icon name={grid ? 'list.bullet' : 'square.grid.2x2'} size={19} color={muted} />
-        </Pressable>
+        <LibrarySort options={sortOptions} value={sort} onChange={setSort} />
+        <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
+          onPress={() => { tapFeedback(); setGrid(!grid); }} />
       </View>
       {items.length === 0 && <EmptyState icon="magnifyingglass" title="No collections found" description="Try another search or filter." />}
-      {grid ? <View style={styles.libraryGrid}>
-        {items.map(item => <CollectionTile key={item.id} item={item} size={size} onPress={() => onOpenAlbum(item.id)} />)}
-      </View> : items.map(item => <CollectionRow key={item.id} item={item} onPress={() => onOpenAlbum(item.id)} />)}
+      {grid ? <CollectionGrid columns={columns} items={items.map(item => ({
+        id: item.id, title: item.title, subtitle: item.subtitle, size,
+        cover: <CollectionCover item={item} size={size} />, onPress: () => onOpenAlbum(item.id),
+      }))} /> : items.map(item => <CollectionRow key={item.id} title={item.title} subtitle={item.subtitle} size={50}
+      cover={<CollectionCover item={item} size={50} radius={9} />} onPress={() => onOpenAlbum(item.id)} />)}
     </ScrollView>
   </View>;
 }
@@ -299,7 +207,7 @@ export function SearchScreen({ onOpenAlbum, onTrackMenu, bottomInset = 155 }: Br
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [query, setQuery] = useState('');
-  const searchInput = useRef<SearchInput>(null);
+  const searchInput = useRef<SearchHandle>(null);
   const navigation = useNavigation();
   const tabs = useNavigation<{ addListener: (event: 'tabPress', listener: () => void) => () => void }>('/(tabs)');
 
@@ -321,10 +229,15 @@ export function SearchScreen({ onOpenAlbum, onTrackMenu, bottomInset = 155 }: Br
       {!active ? <>
         <SectionTitle title="Browse by genre" />
         <View style={styles.genres}>
-          {genreCards.map((album, index) => <Pressable key={album.genre} accessibilityRole="button" accessibilityLabel={`Browse ${album.genre}`} onPress={() => { Keyboard.dismiss(); setQuery(album.genre); }} style={({ pressed }) => [styles.genreCard, { width: genreWidth, backgroundColor: ['#3E365A', '#3C5053', '#604640', '#303956', '#53374A', '#4A4C38'][index] }, pressed && styles.pressed]}>
-            <Text style={styles.genreTitle}>{album.genre}</Text>
-            <View pointerEvents="none" style={styles.genreArt}><Cover source={album.artwork} size={85} radius={8} /></View>
-          </Pressable>)}
+          <GenreGrid items={genreCards.map(album => ({
+            id: album.genre, title: album.genre, width: genreWidth, color: album.color,
+            cover: <Cover source={album.artwork} size={85} radius={8} />,
+            onPress: () => {
+              searchInput.current?.setText(album.genre);
+              searchInput.current?.blur();
+              Keyboard.dismiss();
+            },
+          }))} />
         </View>
       </> : <>
         {artistResults.length > 0 && <View style={styles.resultSection}>
@@ -391,9 +304,8 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
         {album && <LinearGradient pointerEvents="none" colors={[`${album.color}60`, `${album.color}00`]}
           locations={[0, 1]} style={StyleSheet.absoluteFill} />}
         <View style={styles.detailArt}><CollectionCover item={item} size={artSize} radius={17} /></View>
-        <Text style={styles.detailMeta}>{album ? [album.kind, album.genre, String(album.year)].join('  ·  ') : item.subtitle}</Text>
-        <Text accessibilityRole="header" style={styles.detailTitle}>{item.title}</Text>
-        {album && <Text style={styles.detailArtist}>{album.artist}</Text>}
+        <AlbumMetadata title={item.title} artist={album?.artist}
+          info={album ? [album.kind, album.genre, String(album.year)].join('  ·  ') : item.subtitle} />
         {hasSongs && <AlbumPlaybackButtons title={item.title} onPlay={() => play()} onShuffle={() => play(true)} />}
       </View>
       {album?.description && <Text style={styles.detailDescription}>{album.description}</Text>}
@@ -412,70 +324,38 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: ink },
+  page: { flex: 1, backgroundColor: screenBackground },
   flex: { flex: 1 },
-  pressed: { opacity: 0.72 },
   homeHeader: { paddingHorizontal: gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 41 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   brandMark: { width: 27, height: 27, borderRadius: 9, backgroundColor: lilac, alignItems: 'center', justifyContent: 'center' },
   wordmark: { color: ivory, fontWeight: '800', letterSpacing: 3.8, fontSize: 12 },
-  avatar: { width: 39, height: 39, borderRadius: 21, backgroundColor: '#282235', borderWidth: 1, borderColor: '#514660', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: lilac, fontSize: 16, fontWeight: '700' },
   homeTitle: { marginHorizontal: gutter, marginTop: 13, marginBottom: 19 },
   pageTitle: { color: ivory, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
   hero: { marginHorizontal: gutter, borderRadius: 26, overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: '#322940' },
   heroCover: { position: 'absolute', top: 0, left: 0 },
-  heroBottom: { flexDirection: 'row', alignItems: 'flex-end', padding: 20, gap: 14 },
-  heroCategory: { color: '#E9DFFF', fontSize: 10, fontWeight: '800', letterSpacing: 2.1, marginBottom: 5 },
-  heroTitle: { color: ivory, fontSize: 37, lineHeight: 39, letterSpacing: -1.6, fontWeight: '800' },
-  heroCaption: { color: '#E5DBEF', fontSize: 13, marginTop: 5, fontWeight: '500' },
-  heroPlay: { backgroundColor: lilac, width: 53, height: 53, borderRadius: 27, alignItems: 'center', justifyContent: 'center', paddingLeft: 2 },
   homeSection: { marginTop: 26 },
   sectionTitle: { marginHorizontal: gutter, marginBottom: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   sectionText: { color: ivory, fontSize: 22, fontWeight: '700', letterSpacing: -0.65 },
-  sectionLink: { flexDirection: 'row', gap: 5, alignItems: 'center' },
-  sectionLinkText: { color: lilac, fontSize: 12, fontWeight: '700' },
   railContent: { paddingHorizontal: gutter, gap: 12 },
   specialCover: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   coverRing: { position: 'absolute', borderColor: '#FFF8FF50', borderWidth: StyleSheet.hairlineWidth },
-  tileTitle: { fontSize: 13, fontWeight: '700', color: ivory, marginTop: 8 },
-  tileSub: { color: muted, fontSize: 12, marginTop: 3 },
-  roundButton: { width: 43, height: 43, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: '#25212D', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF21' },
   librarySearch: { paddingHorizontal: gutter, paddingTop: 11 },
-  filters: { flexDirection: 'row', paddingHorizontal: gutter, gap: 8, marginTop: 15, marginBottom: 12 },
-  filter: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 19, minHeight: 35, justifyContent: 'center', backgroundColor: panel, borderWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF18' },
-  filterActive: { backgroundColor: lilac, borderColor: lilac },
-  filterText: { fontSize: 13, color: ivory, fontWeight: '600' },
-  filterTextActive: { color: ink },
+  filters: { paddingHorizontal: gutter, marginTop: 13, marginBottom: 10 },
   libraryBody: { paddingHorizontal: gutter },
   sortRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 43, marginBottom: 4 },
-  sortLabel: { minHeight: 38, flexDirection: 'row', gap: 8, alignItems: 'center' },
-  sortText: { color: muted, fontSize: 13, fontWeight: '600' },
-  viewMode: { width: 38, height: 38, alignItems: 'flex-end', justifyContent: 'center' },
-  libraryGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 19 },
-  collectionRow: { paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF12' },
-  rowTitle: { color: ivory, fontWeight: '600', fontSize: 15, letterSpacing: -0.2 },
-  rowSub: { marginTop: 3, color: muted, fontSize: 12 },
   searchHeader: { marginHorizontal: gutter, marginTop: 13, marginBottom: 25 },
-  searchField: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 47, paddingHorizontal: 13, borderRadius: 13, backgroundColor: panel, borderWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF16' },
-  searchInput: { color: ivory, fontSize: 15, flex: 1, minHeight: 43, paddingVertical: 0 },
-  genres: { paddingHorizontal: gutter, gap: 12, flexDirection: 'row', flexWrap: 'wrap' },
-  genreCard: { minHeight: 108, borderRadius: 15, padding: 14, overflow: 'hidden' },
-  genreTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
-  genreArt: { position: 'absolute', bottom: -17, right: -7, transform: [{ rotate: '24deg' }] },
+  genres: { paddingHorizontal: gutter },
   resultSection: { marginBottom: 23 },
   empty: { alignItems: 'center', gap: 7, padding: 28, marginTop: 22 },
   emptyTitle: { color: ivory, fontSize: 19, fontWeight: '700', textAlign: 'center', marginTop: 6 },
   emptyDescription: { color: muted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
   detailNav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: gutter },
   detailUnavailableNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
-  albumPage: { flex: 1, backgroundColor: albumBackground },
+  albumPage: { flex: 1, backgroundColor: screenBackground },
   detailHeader: { alignItems: 'center', paddingHorizontal: gutter },
   detailArt: { marginTop: 8, marginBottom: 21, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
-  detailMeta: { color: '#D7CDEF', fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
-  detailTitle: { color: ivory, fontSize: 33, fontWeight: '800', textAlign: 'center', letterSpacing: -1.1, marginTop: 5 },
-  detailArtist: { color: muted, fontSize: 16, fontWeight: '500', textAlign: 'center', marginTop: 3 },
   detailDescription: { marginHorizontal: gutter, color: muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
   trackListHeader: { marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 8 },
   trackListTitle: { color: ivory, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },

@@ -1,18 +1,16 @@
-import { Button, ContextMenu, Host, HStack, Image, List, Menu, RNHostView, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, ContextMenu, Host, HStack, Image, List, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, background, buttonStyle, clipShape, contentShape, font, foregroundStyle, frame,
-  labelStyle, lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, menuIndicator, padding,
-  scrollContentBackground, scrollDisabled, shapes, tint,
+  accessibilityLabel, background, buttonStyle, clipShape, font, foregroundStyle, frame,
+  labelStyle, lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, padding,
+  scrollContentBackground, scrollDisabled, tint,
 } from '@expo/ui/swift-ui/modifiers';
-import { View } from 'react-native';
-import { albums, tracks } from '../catalog';
+import { tracks } from '../catalog';
+import { IconButton, TrackActions, TrackCover, TrackMenu, hitShape } from '../native/Controls';
 import { usePlaybackState } from '../playback';
-import { colors, Cover } from '../ui';
+import { colors } from '../ui';
 import type { SongListProps } from './SongList';
 
 const rowHeight = 58;
-const tapArea = frame({ width: 44, height: 44 });
-const tappable = contentShape(shapes.rectangle());
 const swipeLabelStyle = labelStyle('iconOnly');
 
 export function SongList({ trackIds, numbered, onPlay }: SongListProps) {
@@ -27,18 +25,6 @@ export function SongList({ trackIds, numbered, onPlay }: SongListProps) {
           const favoriteLabel = liked ? `Unlike ${track.title}` : `Like ${track.title}`;
           const playNext = () => actions.addToQueue(id, 'next');
           const toggleFavorite = () => actions.toggleFavorite(id);
-
-          const menuItems = (
-            <>
-              <Button label="Play now" systemImage="play.fill" onPress={() => {
-                if (!current || !state.playing) actions.playTrack(id);
-              }} />
-              <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" onPress={playNext} />
-              <Button label="Play last" systemImage="text.badge.plus" onPress={() => actions.addToQueue(id, 'last')} />
-              <Button label={liked ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
-                systemImage={liked ? 'heart.slash' : 'heart'} onPress={toggleFavorite} />
-            </>
-          );
 
           return (
             <SwipeActions key={id} modifiers={[
@@ -55,7 +41,7 @@ export function SongList({ trackIds, numbered, onPlay }: SongListProps) {
                   <ContextMenu.Trigger>
                     <Button onPress={() => onPlay(id)}
                       modifiers={[buttonStyle('plain'), accessibilityLabel(`Play ${track.title} by ${track.artist}`)]}>
-                      <HStack spacing={10} modifiers={[frame({ height: rowHeight }), tappable]}>
+                      <HStack spacing={10} modifiers={[frame({ height: rowHeight }), hitShape]}>
                         {numbered ? (
                           <HStack modifiers={[frame({ width: 27 })]}>
                             {current ? <Image systemName={state.playing ? 'waveform' : 'pause.fill'} color={colors.accent} size={16} /> : (
@@ -63,11 +49,7 @@ export function SongList({ trackIds, numbered, onPlay }: SongListProps) {
                             )}
                           </HStack>
                         ) : (
-                          <RNHostView matchContents>
-                            <View style={{ width: 42, height: 42 }}>
-                              <Cover source={albums[track.albumId].artwork} size={42} radius={8} />
-                            </View>
-                          </RNHostView>
+                          <TrackCover trackId={id} />
                         )}
                         <VStack alignment="leading" spacing={3}>
                           <Text modifiers={[foregroundStyle(current ? colors.accent : colors.text), font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
@@ -77,17 +59,11 @@ export function SongList({ trackIds, numbered, onPlay }: SongListProps) {
                       </HStack>
                     </Button>
                   </ContextMenu.Trigger>
-                  <ContextMenu.Items>{menuItems}</ContextMenu.Items>
+                  <ContextMenu.Items><TrackActions trackId={id} /></ContextMenu.Items>
                 </ContextMenu>
-                <Button onPress={toggleFavorite}
-                  modifiers={[buttonStyle('plain'), accessibilityLabel(favoriteLabel), ...(liked ? [accessibilityAddTraits(['isSelected'])] : [])]}>
-                  <Image systemName={liked ? 'heart.fill' : 'heart'} size={19}
-                    color={liked ? colors.accent : colors.muted} modifiers={[tapArea, tappable]} />
-                </Button>
-                <Menu label={<Image systemName="ellipsis" size={19} color={colors.muted} modifiers={[tapArea, tappable]} />}
-                  modifiers={[buttonStyle('plain'), menuIndicator('hidden'), accessibilityLabel(`More options for ${track.title}`)]}>
-                  {menuItems}
-                </Menu>
+                <IconButton symbol={liked ? 'heart.fill' : 'heart'} size={19} label={favoriteLabel} selected={liked}
+                  color={liked ? colors.accent : colors.muted} onPress={toggleFavorite} />
+                <TrackMenu trackId={id} />
               </HStack>
               <SwipeActions.Actions edge="leading">
                 <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" modifiers={[swipeLabelStyle, tint('#8071D4')]} onPress={playNext} />

@@ -1,11 +1,11 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { AlbumScreen, HomeScreen, LibraryScreen, SearchScreen } from './Library';
-import { colors } from './ui';
+import { screenBackground } from './ui';
 
 type Tab = 'home' | 'library' | 'search';
 
 export function BrowseStack() {
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />;
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: screenBackground } }} />;
 }
 
 function useBrowseProps(tab: Tab) {

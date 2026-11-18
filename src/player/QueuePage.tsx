@@ -6,7 +6,8 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { albums, tracks } from '../catalog';
 import { type QueueEntry, usePlaybackState } from '../playback';
 import { Cover, Icon } from '../ui';
-import { PlayerButton, playerColors as c, selectionFeedback } from './design';
+import { PlayerButton } from './Controls';
+import { playerColors as c, selectionFeedback } from './design';
 
 const rowHeight = 62;
 const historyLead = 48;
@@ -14,7 +15,7 @@ const historyTrail = 15;
 const motion = { duration: 140 };
 const actionWidth = 102;
 
-type QueueProps = {
+export type QueueProps = {
   onTrackMenu: (trackId: string) => void;
 };
 

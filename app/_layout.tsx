@@ -1,17 +1,18 @@
 import { Stack } from 'expo-router';
+import { Platform, PlatformColor } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PlayerOriginProvider } from '../src/player/PlayerOrigin';
 import { PlaybackProvider } from '../src/playback';
-import { colors } from '../src/ui';
+import { screenBackground } from '../src/ui';
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: screenBackground }}>
       <PlaybackProvider>
         <PlayerOriginProvider>
           <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: screenBackground } }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="player" options={{ presentation: 'transparentModal', animation: 'none', gestureEnabled: false, contentStyle: { backgroundColor: 'transparent' } }} />
             <Stack.Screen name="devices" options={sheetOptions} />
@@ -29,5 +30,5 @@ const sheetOptions = {
   sheetAllowedDetents: 'fitToContents',
   sheetGrabberVisible: true,
   sheetCornerRadius: 34,
-  contentStyle: { backgroundColor: '#201c29' },
+  contentStyle: { backgroundColor: Platform.OS === 'ios' ? PlatformColor('secondarySystemBackgroundColor') : '#201c29' },
 } as const;
