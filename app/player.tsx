@@ -5,7 +5,7 @@ import { usePlayerOrigin } from '../src/player/PlayerOrigin';
 export default function PlayerRoute() {
   const router = useRouter();
   const { page, fromMini } = useLocalSearchParams<{ page?: string; fromMini?: string }>();
-  const origin = usePlayerOrigin();
+  const { origin } = usePlayerOrigin();
   return <Player
     origin={fromMini === '1' ? origin.current : null}
     initialPage={page === 'queue' || page === 'lyrics' ? page : 'player'}

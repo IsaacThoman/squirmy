@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useRef, type ComponentRef, type Ref } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { usePlayback } from './playback';
 import { usePlayerOrigin } from './player/PlayerOrigin';
 import { colors, Cover, Icon } from './ui';
@@ -11,7 +12,7 @@ type Appearance = { compact?: boolean; native?: boolean };
 
 export function MiniPlayer({ compact = false, native = false }: Appearance) {
   const router = useRouter();
-  const origin = usePlayerOrigin();
+  const { origin } = usePlayerOrigin();
   const bubble = useRef<BubbleView>(null);
   const opening = useRef(false);
 
@@ -35,15 +36,17 @@ function coverSize(compact: boolean, native: boolean) {
   return compact ? 28 : native ? 36 : 42;
 }
 
-export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false, hideArtwork = false }: Appearance & {
+export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: Appearance & {
   containerRef?: Ref<BubbleView>;
   onOpen?: () => void;
   onDevices?: () => void;
   preview?: boolean;
-  hideArtwork?: boolean;
 }) {
   const { track, album, device, state, actions, position } = usePlayback();
   const progress = Math.min(1, position / track.duration) * 100;
+  const size = coverSize(compact, native);
+  const { coverInPlayer } = usePlayerOrigin();
+  const coverVisibility = useAnimatedStyle(() => ({ opacity: coverInPlayer.value ? 0 : 1 }));
 
   return (
     <View ref={containerRef} collapsable={false}
@@ -52,8 +55,11 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
       style={[styles.container, compact && styles.compact]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Open Now Playing, ${track.title}`}
         onPress={onOpen} style={styles.info}>
-        <Cover source={album.artwork} size={coverSize(compact, native)} radius={8}
-          style={hideArtwork ? styles.hidden : undefined} />
+        {preview ? <View style={{ width: size, height: size }} /> : (
+          <Animated.View style={coverVisibility}>
+            <Cover source={album.artwork} size={size} radius={8} />
+          </Animated.View>
+        )}
         <View style={styles.copy}>
           <Text numberOfLines={1} style={styles.title}>{track.title}</Text>
           {!compact && <Text numberOfLines={1} style={styles.subtitle}>{track.artist}</Text>}
@@ -84,5 +90,4 @@ const styles = StyleSheet.create({
   control: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   progress: { position: 'absolute', left: 26, right: 26, bottom: 1, height: 2, borderRadius: 2, backgroundColor: '#ffffff14', overflow: 'hidden' },
   progressFill: { height: 2, backgroundColor: colors.accent, borderRadius: 2 },
-  hidden: { opacity: 0 },
 });

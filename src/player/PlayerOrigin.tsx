@@ -1,4 +1,5 @@
-import { createContext, useContext, useRef, type PropsWithChildren, type RefObject } from 'react';
+import { createContext, useContext, useMemo, useRef, type PropsWithChildren, type RefObject } from 'react';
+import { useSharedValue, type SharedValue } from 'react-native-reanimated';
 
 export type PlayerOrigin = {
   x: number;
@@ -10,15 +11,20 @@ export type PlayerOrigin = {
   compact: boolean;
 };
 
-const OriginContext = createContext<RefObject<PlayerOrigin | null> | null>(null);
+const OriginContext = createContext<{
+  origin: RefObject<PlayerOrigin | null>;
+  coverInPlayer: SharedValue<boolean>;
+} | null>(null);
 
 export function PlayerOriginProvider({ children }: PropsWithChildren) {
   const origin = useRef<PlayerOrigin | null>(null);
-  return <OriginContext.Provider value={origin}>{children}</OriginContext.Provider>;
+  const coverInPlayer = useSharedValue(false);
+  const value = useMemo(() => ({ origin, coverInPlayer }), [coverInPlayer]);
+  return <OriginContext.Provider value={value}>{children}</OriginContext.Provider>;
 }
 
 export function usePlayerOrigin() {
-  const origin = useContext(OriginContext);
-  if (!origin) throw new Error('PlayerOriginProvider is missing');
-  return origin;
+  const value = useContext(OriginContext);
+  if (!value) throw new Error('PlayerOriginProvider is missing');
+  return value;
 }

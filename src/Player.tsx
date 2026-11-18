@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,9 +8,9 @@ import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-
 import { scheduleOnRN } from 'react-native-worklets';
 import { formatTime } from './catalog';
 import { MiniPlayerContent } from './MiniPlayer';
-import type { PlayerOrigin } from './player/PlayerOrigin';
+import { usePlayerOrigin, type PlayerOrigin } from './player/PlayerOrigin';
 import { usePlayback, usePlaybackState } from './playback';
-import { Cover, Icon } from './ui';
+import { Icon } from './ui';
 import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { PlayerButton, playerColors as c, selectionFeedback } from './player/design';
@@ -59,9 +59,15 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
   const artX = (width - insets.left - insets.right - artSize) / 2;
   const artY = Math.max(0, (availableHeight - artSize - artworkGap - metadataHeight) / 2);
   const artworkPage = page === 'player';
-  const shareArtwork = bubble !== null && artworkPage;
+  const { coverInPlayer } = usePlayerOrigin();
   const isFavorite = state.favorites.includes(track.id);
   const hasLayout = availableHeight > 0;
+
+  useLayoutEffect(() => {
+    if (!bubble) return;
+    coverInPlayer.set(true);
+    return () => coverInPlayer.set(false);
+  }, [bubble, coverInPlayer]);
 
   useEffect(() => {
     if (bubble && hasLayout && !closing.get()) progress.set(withTiming(1, expandMotion));
@@ -164,15 +170,22 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
 
   const artworkStyle = useAnimatedStyle(() => {
     const d = detail.value;
-    const size = artSize + (compactArtworkSize - artSize) * d;
+    const p = bubble ? progress.value : 1;
+    const targetSize = artSize + (compactArtworkSize - artSize) * d;
+    const targetRadius = artworkRadius + (compactArtworkRadius - artworkRadius) * d;
+    const targetX = insets.left + artX + (artworkInset - artX) * d + trackDrag.value * (1 - d);
+    const targetY = top + grabberHeight + artY + (compactArtworkTop - artY) * d;
+    const startX = bubble?.compact ? 10 : 12;
+    const startSize = bubble?.artworkSize ?? targetSize;
+    const startY = bubble ? (bubble.height - startSize) / 2 : targetY;
+    const size = startSize + (targetSize - startSize) * p;
+
     return {
-      opacity: !shareArtwork ? 1 : interpolate(progress.value, [0.86, 1], [0, 1], Extrapolation.CLAMP),
-      left: artX + (artworkInset - artX) * d,
-      top: artY + (compactArtworkTop - artY) * d,
+      left: startX + (targetX - startX) * p,
+      top: startY + (targetY - startY) * p,
       width: size,
       height: size,
-      borderRadius: artworkRadius + (compactArtworkRadius - artworkRadius) * d,
-      transform: [{ translateX: trackDrag.value * (1 - d) }],
+      borderRadius: 8 + (targetRadius - 8) * p,
     };
   });
   const artworkDetailsStyle = useAnimatedStyle(() => ({
@@ -184,22 +197,6 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
   }));
   const lyricsStyle = useAnimatedStyle(() => ({ opacity: withTiming(page === 'lyrics' ? 1 : 0, panelMotion) }));
   const queueStyle = useAnimatedStyle(() => ({ opacity: withTiming(page === 'queue' ? 1 : 0, panelMotion) }));
-
-  const floatingArtStyle = useAnimatedStyle(() => {
-    if (!bubble || !shareArtwork) return { opacity: 0 };
-    const p = progress.value;
-    const startX = bubble.compact ? 10 : 12;
-    const startY = (bubble.height - bubble.artworkSize) / 2;
-    const size = bubble.artworkSize + (artSize - bubble.artworkSize) * p;
-    return {
-      opacity: interpolate(p, [0.86, 1], [1, 0], Extrapolation.CLAMP),
-      left: startX + (insets.left + artX - startX) * p,
-      top: startY + (top + grabberHeight + artY - startY) * p,
-      width: size,
-      height: size,
-      borderRadius: 8 + (artworkRadius - 8) * p,
-    };
-  });
 
   const togglePage = (next: DetailPage) => {
     selectionFeedback();
@@ -269,23 +266,18 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
                 </Animated.View>
               </View>
             </Animated.View>
-            <Animated.View pointerEvents="none" style={[styles.artwork, artworkStyle]}>
-              <Image source={album.artwork} transition={reduceMotion ? 0 : 145} contentFit="cover" style={StyleSheet.absoluteFill} />
-            </Animated.View>
           </View>
           <Transport key={track.id} compact={smallScreen} page={page} onToggle={togglePage} onDevices={onDevices} />
         </View>
       </Animated.View>
       {bubble && (
         <Animated.View pointerEvents="none" style={[styles.preview, { width: bubble.width, height: bubble.height }, previewStyle]}>
-          <MiniPlayerContent native={bubble.native} compact={bubble.compact} preview hideArtwork={shareArtwork} />
+          <MiniPlayerContent native={bubble.native} compact={bubble.compact} preview />
         </Animated.View>
       )}
-      {shareArtwork && (
-        <Animated.View pointerEvents="none" style={[styles.floatingArt, floatingArtStyle]}>
-          <Cover source={album.artwork} radius={0} style={StyleSheet.absoluteFill} />
-        </Animated.View>
-      )}
+      <Animated.View pointerEvents="none" style={[styles.artwork, artworkStyle]}>
+        <Image source={album.artwork} contentFit="cover" style={StyleSheet.absoluteFill} />
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -434,7 +426,6 @@ const styles = StyleSheet.create({
   screen: { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', backgroundColor: '#25212E', overflow: 'hidden' },
   content: { position: 'absolute', top: 0, left: 0, backgroundColor: '#100E18' },
   preview: { position: 'absolute', top: 0, left: 0 },
-  floatingArt: { position: 'absolute', overflow: 'hidden', backgroundColor: '#191624' },
   safe: { flex: 1 },
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
   grabberTouch: { height: grabberHeight, alignItems: 'center', justifyContent: 'center' },
