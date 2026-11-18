@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "TONE",
+    "slug": "music",
+    "scheme": "tone",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#111014",
+    "icon": "./assets/icon.png",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#111014"
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.isaacthoman.music",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.isaacthoman.music"
+    }
+  }
+}
