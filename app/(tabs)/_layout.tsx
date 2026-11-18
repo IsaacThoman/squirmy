@@ -31,7 +31,7 @@ export default function TabLayout() {
         <NativeTabs.Trigger.Icon sf="music.note.list" />
         <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(search)" disableAutomaticContentInsets>
+      <NativeTabs.Trigger name="(search)" disableAutomaticContentInsets disableScrollToTop>
         <NativeTabs.Trigger.Icon sf="magnifyingglass" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

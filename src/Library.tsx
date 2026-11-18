@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentRef, type Ref } from 'react';
 import {
   ActionSheetIOS,
   Alert,
@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from 'expo-router';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -64,11 +65,20 @@ function tapFeedback() {
   void Haptics.selectionAsync();
 }
 
-function SearchField({ value, onChange, placeholder, autoFocus }: { value: string; onChange: (value: string) => void; placeholder: string; autoFocus?: boolean }) {
+type SearchInput = ComponentRef<typeof TextInput>;
+
+function SearchField({ value, onChange, placeholder, autoFocus, inputRef }: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  autoFocus?: boolean;
+  inputRef?: Ref<SearchInput>;
+}) {
   return (
     <View style={styles.searchField}>
       <Icon name="magnifyingglass" size={19} color={muted} />
       <TextInput
+        ref={inputRef}
         accessibilityLabel={placeholder}
         autoFocus={autoFocus}
         autoCorrect={false}
@@ -286,6 +296,14 @@ export function SearchScreen({ onOpenAlbum, onTrackMenu, bottomInset = 155 }: Br
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [query, setQuery] = useState('');
+  const searchInput = useRef<SearchInput>(null);
+  const navigation = useNavigation();
+  const tabs = useNavigation<{ addListener: (event: 'tabPress', listener: () => void) => () => void }>('/(tabs)');
+
+  useEffect(() => tabs.addListener('tabPress', () => {
+    if (navigation.isFocused()) searchInput.current?.focus();
+  }), [navigation, tabs]);
+
   const active = Boolean(query.trim());
   const albumResults = active ? allAlbums.filter(album => matches(query, album.title, album.artist, album.genre)) : [];
   const trackResults = active ? allTracks.filter(track => matches(query, track.title, track.artist, albums[track.albumId].genre)) : [];
@@ -295,7 +313,7 @@ export function SearchScreen({ onOpenAlbum, onTrackMenu, bottomInset = 155 }: Br
 
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}><Text accessibilityRole="header" style={styles.pageTitle}>Search</Text></View>
-    <View style={styles.searchHeader}><SearchField value={query} onChange={setQuery} placeholder="Songs, albums, artists" /></View>
+    <View style={styles.searchHeader}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists" /></View>
     <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       {!active ? <>
         <SectionTitle title="Browse by genre" />
