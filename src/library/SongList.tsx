@@ -37,7 +37,6 @@ function PlayNextSwipeAction({ translation, onPress }: { translation: SharedValu
     <Animated.View style={[styles.swipeTray, reveal]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Pressable accessibilityRole="button" style={({ pressed }) => [styles.swipeAction, pressed && styles.pressed]} onPress={onPress}>
         <Icon name="text.badge.plus" size={19} color={ink} />
-        <Text style={styles.swipeText}>Play next</Text>
       </Pressable>
     </Animated.View>
   );
@@ -97,6 +96,5 @@ const styles = StyleSheet.create({
   currentTitle: { color: lilac },
   rowIcon: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
   swipeTray: { width: swipeActionWidth },
-  swipeAction: { flex: 1, backgroundColor: lilac, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
-  swipeText: { color: ink, fontSize: 10, fontWeight: '700' },
+  swipeAction: { flex: 1, backgroundColor: lilac, alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
 });

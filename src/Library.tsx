@@ -15,7 +15,6 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +22,7 @@ import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album, type Tra
 import { usePlaybackState } from './playback';
 import { colors, Cover, Icon } from './ui';
 import { AlbumNavButton, AlbumPlaybackButtons } from './library/AlbumButtons';
+import { AlbumStatusBlur } from './library/AlbumStatusBlur';
 import { SongList } from './library/SongList';
 
 const ink = colors.background;
@@ -377,8 +377,7 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
   }
 
   return <View style={styles.albumPage}>
-    {Platform.OS === 'ios' && <BlurView pointerEvents="none" tint="systemThinMaterialDark" intensity={25}
-      style={[styles.detailStatusBlur, { height: top }]} />}
+    <AlbumStatusBlur height={top} />
     <View pointerEvents="box-none" style={[styles.detailNav, { top: top + 6 }]}>
       <AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} />
       {(album || artist) && <AlbumNavButton icon="square.and.arrow.up" label={`Share ${item.title}`} onPress={() => {
@@ -470,7 +469,6 @@ const styles = StyleSheet.create({
   emptyTitle: { color: ivory, fontSize: 19, fontWeight: '700', textAlign: 'center', marginTop: 6 },
   emptyDescription: { color: muted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
   detailNav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: gutter },
-  detailStatusBlur: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
   detailUnavailableNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
   albumPage: { flex: 1, backgroundColor: albumBackground },
   detailHeader: { alignItems: 'center', paddingHorizontal: gutter },

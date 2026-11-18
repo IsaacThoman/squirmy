@@ -1,7 +1,7 @@
 import { Button, ContextMenu, Host, HStack, Image, List, Menu, RNHostView, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, background, buttonStyle, clipShape, contentShape, font, foregroundStyle, frame,
-  lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, menuIndicator, padding,
+  labelStyle, lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, menuIndicator, padding,
   scrollContentBackground, scrollDisabled, shapes, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
@@ -13,6 +13,7 @@ import type { SongListProps } from './SongList';
 const rowHeight = 58;
 const tapArea = frame({ width: 44, height: 44 });
 const tappable = contentShape(shapes.rectangle());
+const swipeLabelStyle = labelStyle('iconOnly');
 
 export function SongList({ trackIds, numbered, onPlay }: SongListProps) {
   const { state, actions } = usePlaybackState();
@@ -89,11 +90,11 @@ export function SongList({ trackIds, numbered, onPlay }: SongListProps) {
                 </Menu>
               </HStack>
               <SwipeActions.Actions edge="leading">
-                <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" modifiers={[tint('#8071D4')]} onPress={playNext} />
+                <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" modifiers={[swipeLabelStyle, tint('#8071D4')]} onPress={playNext} />
               </SwipeActions.Actions>
               <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
-                <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" modifiers={[tint('#8071D4')]} onPress={playNext} />
-                <Button label="Play last" systemImage="text.badge.plus" modifiers={[tint('#3D826D')]} onPress={() => actions.addToQueue(id, 'last')} />
+                <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" modifiers={[swipeLabelStyle, tint('#8071D4')]} onPress={playNext} />
+                <Button label="Play last" systemImage="text.badge.plus" modifiers={[swipeLabelStyle, tint('#3D826D')]} onPress={() => actions.addToQueue(id, 'last')} />
               </SwipeActions.Actions>
             </SwipeActions>
           );
