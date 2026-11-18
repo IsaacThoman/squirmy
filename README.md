@@ -15,7 +15,8 @@ With an SDK 58-compatible Expo Go installed, press `i` in the Expo terminal to p
 
 ## Try the prototype
 
-- Swipe horizontally between Lyrics, Now Playing, and Queue. The footer buttons are another way to switch views.
+- Tap the mini-player to expand it. Tap or drag down the grabber to collapse it back into the mini-player.
+- Swipe horizontally between Lyrics, Now Playing, and Queue. The Lyrics and Queue buttons sit below the volume slider. Tap either button again to return to the artwork.
 - In Queue, pull the list down to reveal tracks played earlier. Scroll past Up Next for Autoplay. Drag a reorder handle, or swipe left on a track for Play Next and Remove.
 - Open any album and tap the heart next to a song’s overflow button. Find it again in Library under Liked Songs.
 - Open Playback Device from the mini-player or Now Playing to move the simulated output. Use Preview Remote Controls in the device sheet to control the same session from a simulated MacBook.
