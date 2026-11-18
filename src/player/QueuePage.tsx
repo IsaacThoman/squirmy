@@ -15,12 +15,11 @@ const motion = { duration: 140 };
 const actionWidth = 102;
 
 type QueueProps = {
-  pagerGesture: NativeGesture;
   onTrackMenu: (trackId: string) => void;
 };
 
-export default function QueuePage({ pagerGesture, onTrackMenu }: QueueProps) {
-  const { state, track, actions } = usePlaybackState();
+export default function QueuePage({ onTrackMenu }: QueueProps) {
+  const { state, actions } = usePlaybackState();
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const scrollGesture = useNativeGesture();
   const historyHeight = state.history.length ? historyLead + state.history.length * rowHeight + historyTrail : 0;
@@ -111,13 +110,6 @@ export default function QueuePage({ pagerGesture, onTrackMenu }: QueueProps) {
               ))}
             </View>
           )}
-          <View style={styles.current}>
-            <View style={styles.currentLabel}>
-              <Icon name="waveform" size={14} color={c.lilac} />
-              <Text style={styles.currentLabelText}>NOW PLAYING</Text>
-            </View>
-            <TrackRow trackId={track.id} onPress={actions.playPause} onTrackMenu={onTrackMenu} />
-          </View>
           <View style={styles.modeActions}>
             <QueueMode icon="shuffle" label="Shuffle" active={state.shuffle} onPress={actions.toggleShuffle} />
             <QueueMode
@@ -134,7 +126,7 @@ export default function QueuePage({ pagerGesture, onTrackMenu }: QueueProps) {
             <Text style={styles.sectionDetail}>{state.queue.length} {state.queue.length === 1 ? 'track' : 'tracks'}</Text>
           </View>
           {state.queue.length ? (
-            <SortableRows entries={state.queue} scrollGesture={scrollGesture} pagerGesture={pagerGesture} onTrackMenu={onTrackMenu} />
+            <SortableRows entries={state.queue} scrollGesture={scrollGesture} onTrackMenu={onTrackMenu} />
           ) : (
             <Text style={styles.sectionNote}>Songs you add to the queue will appear here.</Text>
           )}
@@ -149,7 +141,7 @@ export default function QueuePage({ pagerGesture, onTrackMenu }: QueueProps) {
             <SortableRows
               entries={state.autoplayQueue}
               scrollGesture={scrollGesture}
-              pagerGesture={pagerGesture}
+
               onTrackMenu={onTrackMenu}
               autoplay
             />
@@ -181,7 +173,7 @@ function QueueMode({ icon, label, active, onPress, announcement }: {
   );
 }
 
-function SortableRows({ entries, scrollGesture, pagerGesture, onTrackMenu, autoplay = false }: QueueProps & {
+function SortableRows({ entries, scrollGesture, onTrackMenu, autoplay = false }: QueueProps & {
   entries: readonly QueueEntry[];
   scrollGesture: NativeGesture;
   autoplay?: boolean;
@@ -236,7 +228,7 @@ function SortableRows({ entries, scrollGesture, pagerGesture, onTrackMenu, autop
           }}
           openSwipe={openSwipe}
           scrollGesture={scrollGesture}
-          pagerGesture={pagerGesture}
+
           onTrackMenu={onTrackMenu}
         />
       ))}
@@ -244,7 +236,7 @@ function SortableRows({ entries, scrollGesture, pagerGesture, onTrackMenu, autop
   );
 }
 
-function SortableRow({ entry, index, lastIndex, from, destination, offset, onCommit, onPlay, onRemove, onPromote, openSwipe, scrollGesture, pagerGesture, onTrackMenu }: QueueProps & {
+function SortableRow({ entry, index, lastIndex, from, destination, offset, onCommit, onPlay, onRemove, onPromote, openSwipe, scrollGesture, onTrackMenu }: QueueProps & {
   entry: QueueEntry;
   index: number;
   lastIndex: number;
@@ -270,7 +262,6 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
     activeOffsetX: -9,
     failOffsetX: 9,
     failOffsetY: [-11, 11],
-    block: pagerGesture,
     onActivate: () => {
       startSwipeOffset.value = swipeOffset.value;
       openSwipe.value = entry.id;
@@ -290,7 +281,7 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
     enabled: lastIndex > 0,
     activeOffsetY: [-5, 5],
     failOffsetX: [-12, 12],
-    block: [scrollGesture, pagerGesture],
+    block: scrollGesture,
     onActivate: () => {
       from.value = index;
       destination.value = index;
@@ -438,9 +429,6 @@ const styles = StyleSheet.create({
   sectionNote: { color: c.muted, fontSize: 13, marginBottom: 7 },
   clearAction: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   clearText: { fontSize: 14, fontWeight: '600', color: c.lilac },
-  current: { borderRadius: 17, backgroundColor: '#D2C3FF13', borderWidth: 1, borderColor: '#D2C3FF26', paddingHorizontal: 9, paddingTop: 9, paddingBottom: 2 },
-  currentLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 1 },
-  currentLabelText: { color: c.lilac, fontSize: 9, fontWeight: '700', letterSpacing: 1.1 },
   modeActions: { flexDirection: 'row', gap: 7, marginTop: 11, marginBottom: 10 },
   modeAction: { flex: 1, minHeight: 38, borderRadius: 20, backgroundColor: c.surface, borderWidth: 1, borderColor: c.stroke, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
   modeActive: { backgroundColor: c.lilac, borderColor: c.lilac },

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { GestureDetector, useNativeGesture, usePanGesture } from 'react-native-gesture-handler';
+import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { Easing, Extrapolation, interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -11,20 +11,25 @@ import { MiniPlayerContent } from './MiniPlayer';
 import type { PlayerOrigin } from './player/PlayerOrigin';
 import { usePlayback, usePlaybackState } from './playback';
 import { Cover, Icon } from './ui';
-import PageDeck from './player/PageDeck';
 import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { PlayerButton, playerColors as c, selectionFeedback } from './player/design';
 
-const pageIndex = { lyrics: 0, player: 1, queue: 2 } as const;
 const artworkRadius = 21;
 const artworkGap = 14;
 const grabberHeight = 32;
 const metadataHeight = 60;
+const compactArtworkSize = 54;
+const compactArtworkRadius = 11;
+const artworkInset = 24;
+const compactArtworkTop = 7;
+const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
+const panelMotion = { duration: 210 };
 const expandMotion = { duration: 390, easing: Easing.out(Easing.cubic) };
 const collapseMotion = { duration: 290, easing: Easing.inOut(Easing.cubic) };
 
-type PlayerPage = keyof typeof pageIndex;
+type PlayerPage = 'player' | 'lyrics' | 'queue';
+type DetailPage = Exclude<PlayerPage, 'player'>;
 
 type PlayerProps = {
   initialPage?: PlayerPage;
@@ -35,30 +40,36 @@ type PlayerProps = {
 };
 
 export default function Player({ initialPage = 'player', origin, onClose, onDevices, onTrackMenu }: PlayerProps) {
-  const [page, setPage] = useState<number>(pageIndex[initialPage]);
+  const [page, setPage] = useState<PlayerPage>(initialPage);
   const [availableHeight, setAvailableHeight] = useState(0);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
   const { track, album, state, actions } = usePlaybackState();
-  const pagerGesture = useNativeGesture();
   const reduceMotion = useReducedMotion();
   const bubble = reduceMotion ? null : origin;
   const progress = useSharedValue(bubble ? 0 : 1);
   const closing = useSharedValue(false);
+  const detail = useSharedValue(initialPage === 'player' ? 0 : 1);
+  const trackDrag = useSharedValue(0);
   const smallScreen = height < 750;
   const artSize = Math.min(width - insets.left - insets.right - 48, 440,
     Math.max(96, (availableHeight || height - 360) - artworkGap - metadataHeight));
-  const artX = (width + insets.left - insets.right - artSize) / 2;
-  const artY = top + grabberHeight + Math.max(0, (availableHeight - artSize - artworkGap - metadataHeight) / 2);
-  const shareArtwork = bubble !== null && page === pageIndex.player;
+  const artX = (width - insets.left - insets.right - artSize) / 2;
+  const artY = Math.max(0, (availableHeight - artSize - artworkGap - metadataHeight) / 2);
+  const artworkPage = page === 'player';
+  const shareArtwork = bubble !== null && artworkPage;
   const isFavorite = state.favorites.includes(track.id);
   const hasLayout = availableHeight > 0;
 
   useEffect(() => {
     if (bubble && hasLayout && !closing.get()) progress.set(withTiming(1, expandMotion));
   }, [bubble, closing, hasLayout, progress]);
+
+  useEffect(() => {
+    detail.set(withTiming(artworkPage ? 0 : 1, modeMotion));
+  }, [artworkPage, detail]);
 
   const close = () => {
     if (closing.get()) return;
@@ -72,18 +83,22 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
     }));
   };
 
-  const dismiss = usePanGesture({
+  const dismissPan = {
     activeOffsetY: 8,
+    failOffsetY: -10,
     failOffsetX: [-14, 14],
     onActivate: () => {
+      'worklet';
       if (!reduceMotion && !closing.value) progress.value = 1;
     },
     onUpdate: (event) => {
+      'worklet';
       if (!reduceMotion && !closing.value) {
         progress.value = 1 - Math.min(1, Math.max(0, event.translationY) / (height * 0.7));
       }
     },
     onDeactivate: (event) => {
+      'worklet';
       if (closing.value) return;
       if (!event.canceled && (event.translationY > 88 || event.velocityY > 760)) {
         closing.value = true;
@@ -98,7 +113,32 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
         progress.value = withSpring(1, { damping: 28, stiffness: 300, overshootClamping: true });
       }
     },
+  } satisfies Parameters<typeof usePanGesture>[0];
+  const grabberDismiss = usePanGesture(dismissPan);
+  const artworkDismiss = usePanGesture(dismissPan);
+  const skipTrack = (direction: number) => {
+    selectionFeedback();
+    if (direction < 0) actions.next();
+    else actions.previous();
+  };
+  const skipSwipe = usePanGesture({
+    activeOffsetX: [-14, 14],
+    failOffsetY: [-12, 12],
+    onUpdate: (event) => {
+      if (!reduceMotion && !closing.value) {
+        trackDrag.value = Math.max(-48, Math.min(48, event.translationX * 0.32));
+      }
+    },
+    onDeactivate: (event) => {
+      const distance = Math.abs(event.translationX);
+      if (!closing.value && !event.canceled &&
+        (distance > 60 || (distance > 20 && Math.abs(event.velocityX) > 720))) {
+        scheduleOnRN(skipTrack, event.translationX);
+      }
+      trackDrag.value = withSpring(0, { damping: 25, stiffness: 280 });
+    },
   });
+  const artworkGesture = useCompetingGestures(artworkDismiss, skipSwipe);
 
   const frameStyle = useAnimatedStyle(() => {
     const p = progress.value;
@@ -122,9 +162,28 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
     opacity: interpolate(progress.value, [0, 0.33], [1, 0], Extrapolation.CLAMP),
   }));
 
-  const artStyle = useAnimatedStyle(() => ({
-    opacity: !shareArtwork ? 1 : interpolate(progress.value, [0.86, 1], [0, 1], Extrapolation.CLAMP),
+  const artworkStyle = useAnimatedStyle(() => {
+    const d = detail.value;
+    const size = artSize + (compactArtworkSize - artSize) * d;
+    return {
+      opacity: !shareArtwork ? 1 : interpolate(progress.value, [0.86, 1], [0, 1], Extrapolation.CLAMP),
+      left: artX + (artworkInset - artX) * d,
+      top: artY + (compactArtworkTop - artY) * d,
+      width: size,
+      height: size,
+      borderRadius: artworkRadius + (compactArtworkRadius - artworkRadius) * d,
+      transform: [{ translateX: trackDrag.value * (1 - d) }],
+    };
+  });
+  const artworkDetailsStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(detail.value, [0, 0.44], [1, 0], Extrapolation.CLAMP),
+    transform: [{ translateX: trackDrag.value }],
   }));
+  const compactDetailsStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(detail.value, [0.38, 0.92], [0, 1], Extrapolation.CLAMP),
+  }));
+  const lyricsStyle = useAnimatedStyle(() => ({ opacity: withTiming(page === 'lyrics' ? 1 : 0, panelMotion) }));
+  const queueStyle = useAnimatedStyle(() => ({ opacity: withTiming(page === 'queue' ? 1 : 0, panelMotion) }));
 
   const floatingArtStyle = useAnimatedStyle(() => {
     if (!bubble || !shareArtwork) return { opacity: 0 };
@@ -134,18 +193,35 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
     const size = bubble.artworkSize + (artSize - bubble.artworkSize) * p;
     return {
       opacity: interpolate(p, [0.86, 1], [1, 0], Extrapolation.CLAMP),
-      left: startX + (artX - startX) * p,
-      top: startY + (artY - startY) * p,
+      left: startX + (insets.left + artX - startX) * p,
+      top: startY + (top + grabberHeight + artY - startY) * p,
       width: size,
       height: size,
       borderRadius: 8 + (artworkRadius - 8) * p,
     };
   });
 
-  const togglePage = (next: number) => {
+  const togglePage = (next: DetailPage) => {
     selectionFeedback();
-    setPage(current => current === next ? pageIndex.player : next);
+    setPage(current => current === next ? 'player' : next);
   };
+  const trackDetails = (compact: boolean) => (
+    <>
+      <View style={styles.trackCopy}>
+        <Text numberOfLines={1} style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{track.title}</Text>
+        <Text numberOfLines={1} style={compact ? styles.compactTrackArtist : styles.artist}>{track.artist}</Text>
+      </View>
+      <PlayerButton
+        icon={isFavorite ? 'heart.fill' : 'heart'}
+        label={isFavorite ? 'Remove from favorites' : 'Favorite song'}
+        selected={isFavorite}
+        onPress={() => { selectionFeedback(); actions.toggleFavorite(track.id); }}
+        style={styles.trackAction}
+        color={isFavorite ? c.lilac : c.text}
+      />
+      <PlayerButton icon="ellipsis" label="Song options" onPress={() => onTrackMenu(track.id)} style={styles.trackAction} />
+    </>
+  );
 
   return (
     <Animated.View accessibilityViewIsModal style={[styles.screen, frameStyle]}>
@@ -159,7 +235,7 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
           />
         </View>
         <View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }]}>
-          <GestureDetector gesture={dismiss}>
+          <GestureDetector gesture={grabberDismiss}>
             <View style={styles.grabberTouch}>
               <Pressable accessibilityRole="button" accessibilityLabel="Collapse player" onPress={close} style={styles.grabberPress} hitSlop={6}>
                 <View style={styles.grabber} />
@@ -167,35 +243,35 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
             </View>
           </GestureDetector>
           <View style={styles.deckFrame} onLayout={(event) => setAvailableHeight(event.nativeEvent.layout.height)}>
-            <PageDeck
-              gesture={pagerGesture}
-              page={page}
-              onPageChange={setPage}
-              pages={[
-                <LyricsPage key={track.id} visible={page === pageIndex.lyrics} />,
-                <View style={styles.nowPlaying}>
-                  <Animated.View style={[styles.artShadow, { width: artSize, height: artSize }, artStyle]}>
-                    <Cover source={album.artwork} size={artSize} radius={artworkRadius} />
-                  </Animated.View>
-                  <View style={styles.metadata}>
-                    <View style={styles.trackCopy}>
-                      <Text numberOfLines={1} style={[styles.trackTitle, smallScreen && styles.compactTitle]}>{track.title}</Text>
-                      <Text numberOfLines={1} style={styles.artist}>{track.artist}</Text>
-                    </View>
-                    <PlayerButton
-                      icon={isFavorite ? 'heart.fill' : 'heart'}
-                      label={isFavorite ? 'Remove from favorites' : 'Favorite song'}
-                      selected={isFavorite}
-                      onPress={() => { selectionFeedback(); actions.toggleFavorite(track.id); }}
-                      style={styles.trackAction}
-                      color={isFavorite ? c.lilac : c.text}
-                    />
-                    <PlayerButton icon="ellipsis" label="Song options" onPress={() => onTrackMenu(track.id)} style={styles.trackAction} />
-                  </View>
-                </View>,
-                <QueuePage pagerGesture={pagerGesture} onTrackMenu={onTrackMenu} />,
-              ]}
-            />
+            <GestureDetector gesture={artworkGesture} touchAction="none">
+              <View collapsable={false} style={styles.nowPlaying}
+                pointerEvents={artworkPage ? 'auto' : 'none'} accessibilityElementsHidden={!artworkPage}
+                importantForAccessibility={artworkPage ? 'auto' : 'no-hide-descendants'}>
+                <View style={{ height: artSize }} />
+                <Animated.View style={[styles.metadata, artworkDetailsStyle]}>{trackDetails(false)}</Animated.View>
+              </View>
+            </GestureDetector>
+            <Animated.View style={[styles.details, compactDetailsStyle]} pointerEvents={artworkPage ? 'none' : 'auto'}
+              accessibilityElementsHidden={artworkPage} importantForAccessibility={artworkPage ? 'no-hide-descendants' : 'auto'}>
+              <View style={[styles.metadata, styles.compactMetadata]}>{trackDetails(true)}</View>
+              <View style={styles.panel}>
+                <Animated.View pointerEvents={page === 'lyrics' ? 'auto' : 'none'}
+                  accessibilityElementsHidden={page !== 'lyrics'}
+                  importantForAccessibility={page === 'lyrics' ? 'auto' : 'no-hide-descendants'}
+                  style={[StyleSheet.absoluteFill, lyricsStyle]}>
+                  <LyricsPage key={track.id} visible={page === 'lyrics'} />
+                </Animated.View>
+                <Animated.View pointerEvents={page === 'queue' ? 'auto' : 'none'}
+                  accessibilityElementsHidden={page !== 'queue'}
+                  importantForAccessibility={page === 'queue' ? 'auto' : 'no-hide-descendants'}
+                  style={[StyleSheet.absoluteFill, queueStyle]}>
+                  <QueuePage onTrackMenu={onTrackMenu} />
+                </Animated.View>
+              </View>
+            </Animated.View>
+            <Animated.View pointerEvents="none" style={[styles.artwork, artworkStyle]}>
+              <Image source={album.artwork} transition={reduceMotion ? 0 : 145} contentFit="cover" style={StyleSheet.absoluteFill} />
+            </Animated.View>
           </View>
           <Transport key={track.id} compact={smallScreen} page={page} onToggle={togglePage} onDevices={onDevices} />
         </View>
@@ -215,7 +291,7 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
 }
 
 function LyricsPage({ visible }: { visible: boolean }) {
-  const { track, album, position, actions } = usePlayback();
+  const { track, position, actions } = usePlayback();
   const lines = track.lyrics ?? [];
   const step = track.duration / (lines.length + 2);
   const active = Math.min(lines.length - 1, Math.max(0, Math.floor(position / step) - 1));
@@ -232,13 +308,6 @@ function LyricsPage({ visible }: { visible: boolean }) {
 
   return (
     <View style={styles.lyricPage}>
-      <View style={styles.lyricTrack}>
-        <Cover source={album.artwork} size={45} radius={9} />
-        <View style={styles.trackCopy}>
-          <Text numberOfLines={1} style={styles.lyricTrackTitle}>{track.title}</Text>
-          <Text numberOfLines={1} style={styles.lyricTrackArtist}>{track.artist}</Text>
-        </View>
-      </View>
       {lines.length ? (
         <ScrollView
           ref={scroll}
@@ -276,8 +345,8 @@ function LyricsPage({ visible }: { visible: boolean }) {
 
 function Transport({ compact, page, onToggle, onDevices }: {
   compact: boolean;
-  page: number;
-  onToggle: (page: number) => void;
+  page: PlayerPage;
+  onToggle: (page: DetailPage) => void;
   onDevices: () => void;
 }) {
   const { track, state, device, position, actions } = usePlayback();
@@ -330,11 +399,11 @@ function Transport({ compact, page, onToggle, onDevices }: {
       <View style={styles.footer}>
         <View style={styles.footerSide}>
           <PlayerButton icon="quote.bubble"
-            label={page === pageIndex.lyrics ? 'Hide lyrics' : 'Show lyrics'}
-            selected={page === pageIndex.lyrics}
+            label={page === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'}
+            selected={page === 'lyrics'}
             size={22}
-            color={page === pageIndex.lyrics ? c.lilac : c.muted}
-            onPress={() => onToggle(pageIndex.lyrics)} />
+            color={page === 'lyrics' ? c.lilac : c.muted}
+            onPress={() => onToggle('lyrics')} />
         </View>
         <Pressable
           accessibilityRole="button"
@@ -350,11 +419,11 @@ function Transport({ compact, page, onToggle, onDevices }: {
         </Pressable>
         <View style={styles.footerSide}>
           <PlayerButton icon="list.bullet"
-            label={page === pageIndex.queue ? 'Hide queue' : 'Show queue'}
-            selected={page === pageIndex.queue}
+            label={page === 'queue' ? 'Hide queue' : 'Show queue'}
+            selected={page === 'queue'}
             size={22}
-            color={page === pageIndex.queue ? c.lilac : c.muted}
-            onPress={() => onToggle(pageIndex.queue)} />
+            color={page === 'queue' ? c.lilac : c.muted}
+            onPress={() => onToggle('queue')} />
         </View>
       </View>
     </View>
@@ -373,8 +442,14 @@ const styles = StyleSheet.create({
   grabber: { width: 32, height: 4, borderRadius: 2, backgroundColor: '#FFFFFF66' },
   controlPressed: { opacity: 0.66 },
   deckFrame: { flex: 1 },
-  nowPlaying: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, gap: artworkGap },
-  artShadow: { borderRadius: artworkRadius, backgroundColor: '#191624', boxShadow: '0 12px 34px #00000055' },
+  nowPlaying: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: artworkInset, gap: artworkGap },
+  artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: '#191624' },
+  details: { ...StyleSheet.absoluteFill, paddingTop: compactArtworkTop },
+  panel: { flex: 1 },
+  compactMetadata: { alignSelf: 'stretch', width: 'auto', maxWidth: undefined, minHeight: compactArtworkSize,
+    marginLeft: artworkInset + compactArtworkSize + 12, marginRight: artworkInset, marginBottom: 9 },
+  compactTrackTitle: { color: c.text, fontWeight: '700', fontSize: 18 },
+  compactTrackArtist: { color: c.muted, marginTop: 2, fontSize: 14 },
   metadata: { width: '100%', maxWidth: 440, minHeight: metadataHeight, flexDirection: 'row', alignItems: 'center', gap: 5 },
   trackCopy: { minWidth: 0, flex: 1 },
   trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: c.text },
@@ -382,9 +457,6 @@ const styles = StyleSheet.create({
   artist: { marginTop: 3, color: c.muted, fontWeight: '500', fontSize: 16 },
   trackAction: { borderRadius: 22, backgroundColor: c.surface, borderWidth: 1, borderColor: c.stroke },
   lyricPage: { flex: 1, paddingHorizontal: 25 },
-  lyricTrack: { flexDirection: 'row', gap: 11, alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.stroke },
-  lyricTrackTitle: { color: c.text, fontWeight: '700', fontSize: 17 },
-  lyricTrackArtist: { color: c.muted, marginTop: 2, fontSize: 13 },
   lyricLine: { paddingBottom: 21 },
   lyric: { color: '#BAB1CB86', fontWeight: '700', fontSize: 32, letterSpacing: -0.7, maxWidth: 530 },
   lyricActive: { color: c.text },
