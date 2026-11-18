@@ -3,16 +3,20 @@ import { accessibilityHidden, accessibilityLabel, font, foregroundStyle, frame, 
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { IconButton, hitShape, plainButton } from '../native/Controls';
-import { usePlayback } from '../playback';
+import { usePlayback, usePlaybackState } from '../playback';
 import { Cover, colors } from '../ui';
-import { miniCoverSize, usePlayerOrigin } from './PlayerOrigin';
+import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
 
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
-  const { track, album, device, state, actions, position } = usePlayback();
+  const { track, album, device, state, actions } = usePlaybackState();
   const size = miniCoverSize(compact, native);
-  const { accessoryInPlayer } = usePlayerOrigin();
-  const visibility = useAnimatedStyle(() => ({ opacity: preview || !accessoryInPlayer.value ? 1 : 0 }));
+  const { motion } = usePlayerTransition();
+  // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
+  // visible rather than hidden so the controls still take touches as the player settles back in.
+  const visibility = useAnimatedStyle(() => ({
+    opacity: preview || !motion.active.value || !motion.bubble.value ? 1 : 0.02,
+  }));
 
   return <View ref={containerRef} collapsable={false} pointerEvents={preview ? 'none' : 'auto'}
     accessibilityElementsHidden={preview} style={styles.container}>
@@ -41,12 +45,18 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
             <IconButton symbol={state.playing ? 'pause.fill' : 'play.fill'} label={state.playing ? 'Pause' : 'Play'}
               size={22} onPress={preview ? undefined : actions.playPause} />
           </HStack>
-          {!compact && <ProgressView value={Math.min(1, position / track.duration)}
-            modifiers={[tint(colors.accent), padding({ horizontal: 26, bottom: 1 }), accessibilityHidden(true)]} />}
+          {!compact && <Progress />}
         </ZStack>
       </Host>
     </Animated.View>
   </View>;
+}
+
+/** The only part of the bubble that follows the playback clock, so each tick redraws just this. */
+function Progress() {
+  const { track, position } = usePlayback();
+  return <ProgressView value={Math.min(1, position / track.duration)}
+    modifiers={[tint(colors.accent), padding({ horizontal: 26, bottom: 1 }), accessibilityHidden(true)]} />;
 }
 
 const styles = StyleSheet.create({ container: { flex: 1 } });

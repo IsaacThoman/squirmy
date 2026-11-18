@@ -25,7 +25,7 @@ Open the project in TONE Dev using the terminal QR code or the Metro URL. JavaSc
 
 ## Try the prototype
 
-- Tap the mini-player to expand it. Tap the grabber or swipe down across the artwork or song details to collapse it back into the mini-player.
+- Tap the mini-player, or pull it up, to expand it. Tap the grabber or drag down across the artwork or song details to collapse it back into the mini-player. Either way the player follows your finger, and you can let go partway.
 - Swipe left on Now Playing for the next track or right for the previous-track action. The Lyrics and Queue buttons sit below the volume slider. Tap either button again to return to the artwork.
 - In Queue, pull the list down to reveal tracks played earlier. Scroll past Up Next for Autoplay. Drag a reorder handle, or swipe left on a track for Play Next and Remove.
 - Open any album and tap the heart next to a song’s overflow button. Find it again in Library under Liked Songs.

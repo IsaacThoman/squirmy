@@ -1,14 +1,21 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { usePathname, useRouter } from 'expo-router';
+import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { BackHandler, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { cancelAnimation, Easing, Extrapolation, interpolate, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, {
+  Easing, Extrapolation, interpolate, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay,
+  withSpring, withTiming,
+} from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { formatTime } from './catalog';
 import { MiniPlayerContent } from './MiniPlayer';
-import { usePlayerOrigin, type PlayerOrigin } from './player/PlayerOrigin';
+import {
+  grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type PlayerPage,
+} from './player/transition';
 import { usePlayback, usePlaybackState } from './playback';
 import { Icon } from './ui';
 import QueuePage from './player/QueuePage';
@@ -24,130 +31,120 @@ const compactArtworkSize = 54;
 const compactArtworkRadius = 11;
 const artworkInset = 24;
 const compactArtworkTop = 7;
+const miniCoverRadius = 8;
+const cardRadius = 38;
+const handover = 50;
+const sheetRoutes = ['/devices', '/track-actions', '/session'];
 const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
 const panelMotion = { duration: 210 };
-const expandMotion = { duration: 430, easing: Easing.bezier(0.2, 0.67, 0.28, 1) };
-const collapseMotion = { duration: 410, easing: Easing.bezier(0.35, 0.08, 0.26, 1) };
-const cancelPullMotion = { duration: 230, easing: Easing.out(Easing.cubic) };
-const settleOpen = { damping: 29, stiffness: 270, overshootClamping: true };
+const clamp = Extrapolation.CLAMP;
 
-type PlayerPage = 'player' | 'lyrics' | 'queue';
+const Glass = Animated.createAnimatedComponent(BlurView);
+
 type DetailPage = Exclude<PlayerPage, 'player'>;
+type Artwork = { x: number; y: number; size: number; radius: number };
 
-type PlayerProps = {
-  initialPage?: PlayerPage;
-  origin: PlayerOrigin | null;
-  onClose: () => void;
-  onDevices: () => void;
-  onTrackMenu: (trackId: string) => void;
-};
+/** The artwork on its way between the bubble's cover and its place in the player, `y` from the panel's top. */
+function artworkInFlight(bubble: Bubble, follow: number, placed: Artwork) {
+  'worklet';
+  const coverX = bubble.x + bubble.coverInset;
+  const coverY = (bubble.height - bubble.coverSize) / 2;
+  // Drop clear of the bubble's title before growing across it.
+  const drop = 1 - (1 - follow) ** 3;
+  return {
+    x: coverX + (placed.x - coverX) * follow,
+    y: coverY + (placed.y - coverY) * drop,
+    size: bubble.coverSize + (placed.size - bubble.coverSize) * follow,
+    radius: miniCoverRadius + (placed.radius - miniCoverRadius) * follow,
+    margin: coverY,
+  };
+}
 
-export default function Player({ initialPage = 'player', origin, onClose, onDevices, onTrackMenu }: PlayerProps) {
-  const [page, setPage] = useState<PlayerPage>(initialPage);
-  const [seenLyrics, setSeenLyrics] = useState(initialPage === 'lyrics');
-  const [seenQueue, setSeenQueue] = useState(initialPage === 'queue');
+/**
+ * Now Playing stays mounted above the tabs so it can grow out of the mini-player the moment
+ * it is touched. Collapsed, it is invisible and lets every touch through.
+ */
+export default function Player() {
+  const router = useRouter();
+  const { motion, variants, showPage, close } = usePlayerTransition();
+  const [page, setPage] = useState<PlayerPage>('player');
+  const [seenLyrics, setSeenLyrics] = useState(false);
+  const [seenQueue, setSeenQueue] = useState(false);
   const [availableHeight, setAvailableHeight] = useState(0);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
   const { track, album, state, actions } = usePlaybackState();
-  const reduceMotion = useReducedMotion();
-  const bubble = reduceMotion ? null : origin;
-  const progress = useSharedValue(bubble ? 0 : 1);
-  const dismissStart = useSharedValue(1);
-  const closing = useSharedValue(false);
-  const detail = useSharedValue(initialPage === 'player' ? 0 : 1);
+  const detail = useSharedValue(0);
   const trackDrag = useSharedValue(0);
+  const dragStart = useSharedValue(0);
+  const startLead = useSharedValue(1);
+  const startFollow = useSharedValue(1);
   const smallScreen = height < 750;
   const artSize = Math.min(width - insets.left - insets.right - 48, 440,
     Math.max(96, (availableHeight || height - 360) - artworkGap - metadataHeight));
   const artX = (width - insets.left - insets.right - artSize) / 2;
   const artY = Math.max(0, (availableHeight - artSize - artworkGap - metadataHeight) / 2);
   const artworkPage = page === 'player';
-  const { accessoryInPlayer, miniPull } = usePlayerOrigin();
   const isFavorite = state.favorites.includes(track.id);
-  const hasLayout = availableHeight > 0;
-
-  useLayoutEffect(() => {
-    if (!bubble) return;
-    accessoryInPlayer.set(true);
-    return () => {
-      accessoryInPlayer.set(false);
-      if (bubble.fromPull) miniPull.set(null);
-    };
-  }, [bubble, accessoryInPlayer, miniPull]);
+  // Phones with a home indicator have rounded displays; a square card would show in their corners.
+  const screenCorner = Platform.OS === 'ios' && !Platform.isPad && bottom > 0 ? 40 : 0;
 
   useEffect(() => {
-    if (bubble && !bubble.fromPull && hasLayout && !closing.get()) progress.set(withTiming(1, expandMotion));
-  }, [bubble, closing, hasLayout, progress]);
-
-  const followsPull = !!bubble?.fromPull;
-  const travel = Math.max(240, bubble?.y ?? height * 0.7);
-  useAnimatedReaction(
-    () => followsPull ? miniPull.value : null,
-    (pull) => {
-      if (!pull || closing.value) return;
-      progress.value = Math.min(1, pull.distance / travel);
-      if (pull.phase === 'open') {
-        progress.value = withSpring(1, { ...settleOpen, velocity: pull.velocity / travel });
-      } else if (pull.phase === 'cancel') {
-        closing.value = true;
-        progress.value = withTiming(0, cancelPullMotion, (finished) => {
-          if (finished) scheduleOnRN(onClose);
-        });
-      }
-    },
-  );
+    showPage.current = (next) => {
+      if (next === 'lyrics') setSeenLyrics(true);
+      else if (next === 'queue') setSeenQueue(true);
+      setPage(next);
+      if (!motion.active.get()) detail.set(next === 'player' ? 0 : 1);
+    };
+    return () => { showPage.current = null; };
+  }, [detail, motion, showPage]);
 
   useEffect(() => {
     detail.set(withTiming(artworkPage ? 0 : 1, modeMotion));
   }, [artworkPage, detail]);
 
-  const close = () => {
-    if (closing.get()) return;
-    if (reduceMotion) {
-      onClose();
-      return;
-    }
-    closing.set(true);
-    progress.set(withTiming(0, collapseMotion, (finished) => {
-      if (finished) scheduleOnRN(onClose);
-    }));
+  const rest = () => {
+    setPage('player');
+    setSeenLyrics(false);
+    setSeenQueue(false);
+    detail.set(0);
+    trackDrag.set(0);
   };
+  useAnimatedReaction(
+    () => motion.active.value,
+    (now, before) => {
+      if (before && !now) scheduleOnRN(rest);
+    },
+  );
 
   const dismissPan = {
     activeOffsetY: 8,
     failOffsetY: -10,
     failOffsetX: [-14, 14],
-    onActivate: () => {
+    onActivate: (event) => {
       'worklet';
-      if (!reduceMotion && !closing.value) {
-        cancelAnimation(progress);
-        dismissStart.value = progress.value;
-      }
+      if (!motion.active.value || !motion.bubble.value) return;
+      grab(motion);
+      startLead.value = motion.lead.value;
+      startFollow.value = motion.follow.value;
+      dragStart.value = event.translationY;
     },
     onUpdate: (event) => {
       'worklet';
-      if (!reduceMotion && !closing.value) {
-        progress.value = Math.max(0, Math.min(1, dismissStart.value - event.translationY / travel));
-      }
+      const bubble = motion.bubble.value;
+      if (!bubble || !motion.dragging.value) return;
+      const moved = (event.translationY - dragStart.value) / travel(bubble);
+      motion.lead.value = Math.min(1, Math.max(0, startLead.value - moved));
+      motion.follow.value = Math.min(1, Math.max(0, startFollow.value - moved));
     },
     onDeactivate: (event) => {
       'worklet';
-      if (closing.value) return;
-      if (!event.canceled && (event.translationY > 88 || event.velocityY > 760)) {
-        closing.value = true;
-        if (reduceMotion) {
-          scheduleOnRN(onClose);
-          return;
-        }
-        progress.value = withTiming(0, collapseMotion, (finished) => {
-          if (finished) scheduleOnRN(onClose);
-        });
-      } else if (!reduceMotion) {
-        progress.value = withSpring(1, settleOpen);
-      }
+      if (!motion.active.value) return;
+      const bubble = motion.bubble.value;
+      const closes = !event.canceled && event.velocityY > -300 && (event.translationY > 88 || event.velocityY > 760);
+      settle(motion, !closes, bubble ? -event.velocityY / travel(bubble) : 0);
     },
   } satisfies Parameters<typeof usePanGesture>[0];
   const grabberDismiss = usePanGesture(dismissPan);
@@ -161,13 +158,11 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
     activeOffsetX: [-14, 14],
     failOffsetY: [-12, 12],
     onUpdate: (event) => {
-      if (!reduceMotion && !closing.value) {
-        trackDrag.value = Math.max(-48, Math.min(48, event.translationX * 0.32));
-      }
+      if (motion.expanding.value) trackDrag.value = Math.max(-48, Math.min(48, event.translationX * 0.32));
     },
     onDeactivate: (event) => {
       const distance = Math.abs(event.translationX);
-      if (!closing.value && !event.canceled &&
+      if (motion.expanding.value && !event.canceled &&
         (distance > 60 || (distance > 20 && Math.abs(event.velocityX) > 720))) {
         scheduleOnRN(skipTrack, event.translationX);
       }
@@ -176,68 +171,79 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
   });
   const artworkGesture = useCompetingGestures(artworkDismiss, skipSwipe);
 
-  const frameStyle = useAnimatedStyle(() => {
-    const p = progress.value;
-    if (!bubble) return { opacity: p, transform: [{ translateY: (1 - p) * 42 }] };
+  const placedArtwork = (d: number, drag: number): Artwork => {
+    'worklet';
     return {
-      left: bubble.x * (1 - p),
-      top: bubble.y * (1 - p),
-      width: bubble.width + (width - bubble.width) * p,
-      height: bubble.height + (height - bubble.height) * p,
-      borderRadius: interpolate(p, [0, 0.84, 1], [bubble.height / 2, 32, 0]),
+      x: insets.left + artX + (artworkInset - artX) * d + drag * (1 - d),
+      y: top + grabberHeight + artY + (compactArtworkTop - artY) * d,
+      size: artSize + (compactArtworkSize - artSize) * d,
+      radius: artworkRadius + (compactArtworkRadius - artworkRadius) * d,
+    };
+  };
+
+  const panelStyle = useAnimatedStyle(() => {
+    const bubble = motion.bubble.value;
+    const { lead, follow } = progress(motion);
+    if (!bubble) return { left: 0, top: 0, width, height, borderRadius: 0, opacity: lead };
+    const { left, right } = sideInsets(bubble, follow, width);
+    const art = artworkInFlight(bubble, follow, placedArtwork(detail.value, trackDrag.value));
+    const edge = bubble.y * (1 - lead);
+    const floor = bubble.y + bubble.height + (height - bubble.y - bubble.height) * follow;
+    return {
+      left,
+      top: edge,
+      width: width - left - right,
+      // Never shorter than the artwork it carries: collapsing, the glass closes around the cover last.
+      height: Math.max(bubble.height, floor - edge, art.y + art.size + art.margin),
+      borderRadius: interpolate(follow, [0, 0.3, 1], [bubble.height / 2, cardRadius, screenCorner]),
+      opacity: 1,
     };
   });
 
-  const backgroundStyle = useAnimatedStyle(() => ({
-    opacity: bubble ? interpolate(progress.value, [0, 0.13, 0.34], [0, 0.55, 1], Extrapolation.CLAMP) : 1,
+  // The page keeps its place on screen sideways and rides the panel's top edge.
+  const pageStyle = useAnimatedStyle(() => {
+    const bubble = motion.bubble.value;
+    return { transform: [{ translateX: bubble ? -sideInsets(bubble, progress(motion).follow, width).left : 0 }] };
+  });
+
+  const glassProps = useAnimatedProps(() => ({
+    intensity: motion.bubble.value ? interpolate(progress(motion).follow, [0, 0.1, 0.45, 0.6], [0, 70, 70, 0], clamp) : 0,
   }));
 
-  // Keep the player laid out at its full size and scale the surface inside the moving frame.
-  const surfaceStyle = useAnimatedStyle(() => {
-    if (!bubble) return {};
-    const p = progress.value;
-    return {
-      transform: [
-        { scaleX: interpolate(p, [0, 1], [bubble.width / width, 1]) },
-        { scaleY: interpolate(p, [0, 1], [bubble.height / height, 1]) },
-      ],
-    };
-  });
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: motion.bubble.value ? interpolate(progress(motion).follow, [0, 0.4], [0, 1], clamp) : 1,
+  }));
 
   const contentStyle = useAnimatedStyle(() => ({
-    opacity: bubble ? interpolate(progress.value, [0.25, 0.55, 0.85], [0, 0.65, 1], Extrapolation.CLAMP) : 1,
+    opacity: motion.bubble.value ? interpolate(progress(motion).lead, [0.3, 0.62], [0, 1], clamp) : 1,
   }));
 
-  const previewStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0.07, 0.32], [1, 0], Extrapolation.CLAMP),
+  // Whatever sits where the bubble's own title rides gives way to it first.
+  const grabberStyle = useAnimatedStyle(() => ({
+    opacity: motion.bubble.value ? interpolate(progress(motion).lead, [0.72, 0.95], [0, 1], clamp) : 1,
   }));
 
   const artworkStyle = useAnimatedStyle(() => {
-    const d = detail.value;
-    const p = bubble ? progress.value : 1;
-    const targetSize = artSize + (compactArtworkSize - artSize) * d;
-    const targetRadius = artworkRadius + (compactArtworkRadius - artworkRadius) * d;
-    const targetX = insets.left + artX + (artworkInset - artX) * d + trackDrag.value * (1 - d);
-    const targetY = top + grabberHeight + artY + (compactArtworkTop - artY) * d;
-    const startX = bubble?.compact ? 10 : 12;
-    const startSize = bubble?.artworkSize ?? targetSize;
-    const startY = bubble ? (bubble.height - startSize) / 2 : targetY;
-    const size = startSize + (targetSize - startSize) * p;
-
+    const placed = placedArtwork(detail.value, trackDrag.value);
+    const bubble = motion.bubble.value;
+    if (!bubble) return { left: placed.x, top: placed.y, width: placed.size, height: placed.size, borderRadius: placed.radius };
+    const { follow } = progress(motion);
+    const art = artworkInFlight(bubble, follow, placed);
     return {
-      left: startX + (targetX - startX) * p,
-      top: startY + (targetY - startY) * p,
-      width: size,
-      height: size,
-      borderRadius: 8 + (targetRadius - 8) * p,
+      left: art.x - sideInsets(bubble, follow, width).left,
+      top: art.y,
+      width: art.size,
+      height: art.size,
+      borderRadius: art.radius,
     };
   });
   const artworkDetailsStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(detail.value, [0, 0.44], [1, 0], Extrapolation.CLAMP),
+    opacity: interpolate(detail.value, [0, 0.44], [1, 0], clamp),
     transform: [{ translateX: trackDrag.value }],
   }));
   const compactDetailsStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(detail.value, [0.38, 0.92], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(detail.value, [0.38, 0.92], [0, 1], clamp) *
+      (motion.bubble.value ? interpolate(progress(motion).lead, [0.72, 0.95], [0, 1], clamp) : 1),
   }));
   const lyricsStyle = useAnimatedStyle(() => ({ opacity: withTiming(page === 'lyrics' ? 1 : 0, panelMotion) }));
   const queueStyle = useAnimatedStyle(() => ({ opacity: withTiming(page === 'queue' ? 1 : 0, panelMotion) }));
@@ -248,6 +254,7 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
     else setSeenQueue(true);
     setPage(current => current === next ? 'player' : next);
   };
+  const openTrackMenu = (trackId: string) => router.push({ pathname: '/track-actions', params: { id: trackId } });
   const trackDetails = (compact: boolean) => (
     <>
       <View style={styles.trackCopy}>
@@ -261,66 +268,132 @@ export default function Player({ initialPage = 'player', origin, onClose, onDevi
         onPress={() => { selectionFeedback(); actions.toggleFavorite(track.id); }}
         color={isFavorite ? c.lilac : c.text}
       />
-      <TrackMenuButton trackId={track.id} onPress={() => onTrackMenu(track.id)} />
+      <TrackMenuButton trackId={track.id} onPress={() => openTrackMenu(track.id)} />
     </>
   );
 
   return (
-    <Animated.View accessibilityViewIsModal style={[styles.screen, frameStyle]}>
-      <Animated.View style={[styles.content, { width, height }, surfaceStyle]}>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: album.color }, backgroundStyle]} pointerEvents="none">
-          <Image source={album.artwork} blurRadius={70} contentFit="cover" transition={210} style={styles.backdropArt} />
-          <LinearGradient
-            colors={['#11101B8A', '#181322AF', '#100E18', '#0E0C15']}
-            locations={[0, 0.39, 0.85, 1]}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-        <Animated.View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }, contentStyle]}>
-          <GestureDetector gesture={grabberDismiss}>
-            <View style={styles.grabberTouch}>
-              <CollapseButton onPress={close} />
-            </View>
-          </GestureDetector>
-          <View style={styles.deckFrame} onLayout={(event) => setAvailableHeight(event.nativeEvent.layout.height)}>
-            <GestureDetector gesture={artworkGesture} touchAction="none">
-              <View collapsable={false} style={styles.nowPlaying}
-                pointerEvents={artworkPage ? 'auto' : 'none'} accessibilityElementsHidden={!artworkPage}
-                importantForAccessibility={artworkPage ? 'auto' : 'no-hide-descendants'}>
-                <View style={{ height: artSize }} />
-                <Animated.View style={[styles.metadata, artworkDetailsStyle]}>{trackDetails(false)}</Animated.View>
-              </View>
+    <Overlay>
+      <Animated.View style={[styles.panel, panelStyle]}>
+        <Glass tint="systemThinMaterialDark" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
+        <Animated.View style={[styles.page, { width, height }, pageStyle]}>
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: album.color }, backdropStyle]} pointerEvents="none">
+            <Image source={album.artwork} blurRadius={70} contentFit="cover" transition={210} style={styles.backdropArt} />
+            <LinearGradient
+              colors={['#11101B8A', '#181322AF', '#100E18', '#0E0C15']}
+              locations={[0, 0.39, 0.85, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+          <Animated.View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }, contentStyle]}>
+            <GestureDetector gesture={grabberDismiss}>
+              <Animated.View style={[styles.grabberTouch, grabberStyle]}>
+                <CollapseButton onPress={close} />
+              </Animated.View>
             </GestureDetector>
-            {(seenLyrics || seenQueue) && <Animated.View style={[styles.details, compactDetailsStyle]} pointerEvents={artworkPage ? 'none' : 'auto'}
-              accessibilityElementsHidden={artworkPage} importantForAccessibility={artworkPage ? 'no-hide-descendants' : 'auto'}>
-              <View style={[styles.metadata, styles.compactMetadata]}>{trackDetails(true)}</View>
-              <View style={styles.panel}>
-                {seenLyrics && <Animated.View pointerEvents={page === 'lyrics' ? 'auto' : 'none'}
-                  accessibilityElementsHidden={page !== 'lyrics'}
-                  importantForAccessibility={page === 'lyrics' ? 'auto' : 'no-hide-descendants'}
-                  style={[StyleSheet.absoluteFill, lyricsStyle]}>
-                  <LyricsPage key={track.id} visible={page === 'lyrics'} />
-                </Animated.View>}
-                {seenQueue && <Animated.View pointerEvents={page === 'queue' ? 'auto' : 'none'}
-                  accessibilityElementsHidden={page !== 'queue'}
-                  importantForAccessibility={page === 'queue' ? 'auto' : 'no-hide-descendants'}
-                  style={[StyleSheet.absoluteFill, queueStyle]}>
-                  <QueuePage onTrackMenu={onTrackMenu} />
-                </Animated.View>}
-              </View>
-            </Animated.View>}
-          </View>
-          <Transport key={track.id} compact={smallScreen} page={page} onToggle={togglePage} onDevices={onDevices} />
+            <View style={styles.deckFrame} onLayout={(event) => setAvailableHeight(event.nativeEvent.layout.height)}>
+              <GestureDetector gesture={artworkGesture} touchAction="none">
+                <View collapsable={false} style={styles.nowPlaying}
+                  pointerEvents={artworkPage ? 'auto' : 'none'} accessibilityElementsHidden={!artworkPage}
+                  importantForAccessibility={artworkPage ? 'auto' : 'no-hide-descendants'}>
+                  <View style={{ height: artSize }} />
+                  <Animated.View style={[styles.metadata, artworkDetailsStyle]}>{trackDetails(false)}</Animated.View>
+                </View>
+              </GestureDetector>
+              {(seenLyrics || seenQueue) && <Animated.View style={[styles.details, compactDetailsStyle]} pointerEvents={artworkPage ? 'none' : 'auto'}
+                accessibilityElementsHidden={artworkPage} importantForAccessibility={artworkPage ? 'no-hide-descendants' : 'auto'}>
+                <View style={[styles.metadata, styles.compactMetadata]}>{trackDetails(true)}</View>
+                <View style={styles.detailPanel}>
+                  {seenLyrics && <Animated.View pointerEvents={page === 'lyrics' ? 'auto' : 'none'}
+                    accessibilityElementsHidden={page !== 'lyrics'}
+                    importantForAccessibility={page === 'lyrics' ? 'auto' : 'no-hide-descendants'}
+                    style={[StyleSheet.absoluteFill, lyricsStyle]}>
+                    <LyricsPage key={track.id} visible={page === 'lyrics'} />
+                  </Animated.View>}
+                  {seenQueue && <Animated.View pointerEvents={page === 'queue' ? 'auto' : 'none'}
+                    accessibilityElementsHidden={page !== 'queue'}
+                    importantForAccessibility={page === 'queue' ? 'auto' : 'no-hide-descendants'}
+                    style={[StyleSheet.absoluteFill, queueStyle]}>
+                    <QueuePage onTrackMenu={openTrackMenu} />
+                  </Animated.View>}
+                </View>
+              </Animated.View>}
+            </View>
+            <Transport key={track.id} compact={smallScreen} page={page} onToggle={togglePage}
+              onDevices={() => router.push('/devices')} />
+          </Animated.View>
+        </Animated.View>
+        {variants.map(variant => (
+          <BubbleContent key={`${variant.native}-${variant.compact}`} variant={variant} width={width} />
+        ))}
+        <Animated.View pointerEvents="none" style={[styles.artwork, artworkStyle]}>
+          <Image source={album.artwork} contentFit="cover" style={StyleSheet.absoluteFill} />
         </Animated.View>
       </Animated.View>
-      {bubble && (
-        <Animated.View pointerEvents="none" style={[styles.preview, { width: bubble.width, height: bubble.height }, previewStyle]}>
-          <MiniPlayerContent native={bubble.native} compact={bubble.compact} preview />
-        </Animated.View>
-      )}
-      <Animated.View pointerEvents="none" style={[styles.artwork, artworkStyle]}>
-        <Image source={album.artwork} contentFit="cover" style={StyleSheet.absoluteFill} />
-      </Animated.View>
+    </Overlay>
+  );
+}
+
+/**
+ * Covers the screen while the player is up. Touches are taken and released on the animation's
+ * own thread, and React hears about the player only once it has settled, so nothing re-renders
+ * while it is moving.
+ */
+function Overlay({ children }: PropsWithChildren) {
+  const pathname = usePathname();
+  const { motion, close } = usePlayerTransition();
+  const [expanded, setExpanded] = useState(false);
+  const sheetOpen = sheetRoutes.includes(pathname);
+
+  useAnimatedReaction(
+    () => {
+      if (!motion.active.value) return false;
+      return motion.expanding.value && !motion.dragging.value && motion.lead.value > 0.985 ? true : null;
+    },
+    (now, before) => {
+      if (now !== null && now !== before) scheduleOnRN(setExpanded, now);
+    },
+  );
+
+  useEffect(() => {
+    if (!expanded || sheetOpen) return;
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      close();
+      return true;
+    });
+    return () => back.remove();
+  }, [close, expanded, sheetOpen]);
+
+  const style = useAnimatedStyle(() => ({
+    // Collapsed, the overlay draws exactly what the mini-player does. Linger a few frames so the
+    // bubble is never empty while its own content comes back.
+    opacity: motion.active.value ? 1 : withDelay(handover, withTiming(0, { duration: 0 })),
+    // Let touches through to the tabs again once the player is most of the way back in the bubble.
+    pointerEvents: motion.active.value && (motion.expanding.value || motion.lead.value > 0.25) ? 'auto' : 'none',
+  }));
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, style]} aria-modal={expanded} aria-hidden={!expanded}>
+      {children}
+    </Animated.View>
+  );
+}
+
+/** The mini-player's own content, riding the top of the panel until the player has taken shape. */
+function BubbleContent({ variant, width }: { variant: BubbleVariant; width: number }) {
+  const { motion } = usePlayerTransition();
+  const style = useAnimatedStyle(() => {
+    const bubble = motion.bubble.value;
+    if (!bubble || bubble.compact !== variant.compact) return { opacity: 0, transform: [{ translateX: 0 }] };
+    const { lead, follow } = progress(motion);
+    return {
+      opacity: interpolate(lead, [0.5, 0.85], [1, 0], clamp),
+      transform: [{ translateX: bubble.x - sideInsets(bubble, follow, width).left }],
+    };
+  });
+  return (
+    <Animated.View pointerEvents="none" style={[styles.bubbleContent, { width: variant.width, height: variant.height }, style]}>
+      <MiniPlayerContent native={variant.native} compact={variant.compact} preview />
     </Animated.View>
   );
 }
@@ -371,13 +444,9 @@ function LyricsPage({ visible }: { visible: boolean }) {
   );
 }
 
-function Transport({ compact, page, onToggle, onDevices }: {
-  compact: boolean;
-  page: PlayerPage;
-  onToggle: (page: DetailPage) => void;
-  onDevices: () => void;
-}) {
-  const { track, state, device, position, actions } = usePlayback();
+/** The only part of the transport that follows the playback clock, so each tick redraws just this. */
+function Scrubber() {
+  const { track, position, actions } = usePlayback();
   const [scrubbing, setScrubbing] = useState(false);
   const [draft, setDraft] = useState(position);
   const scrubRef = useRef({ active: false, position });
@@ -399,12 +468,27 @@ function Transport({ compact, page, onToggle, onDevices }: {
   };
 
   return (
-    <View style={[styles.transport, compact && styles.transportCompact]}>
+    <>
       <TransportSlider label="Playback position" value={shown} maximum={track.duration} onChange={seekChange} onEdit={seekEditing} />
       <View style={styles.timeRow}>
         <Text style={styles.time}>{formatTime(shown)}</Text>
         <Text style={styles.time}>−{formatTime(Math.max(0, track.duration - shown))}</Text>
       </View>
+    </>
+  );
+}
+
+function Transport({ compact, page, onToggle, onDevices }: {
+  compact: boolean;
+  page: PlayerPage;
+  onToggle: (page: DetailPage) => void;
+  onDevices: () => void;
+}) {
+  const { state, device, actions } = usePlaybackState();
+
+  return (
+    <View style={[styles.transport, compact && styles.transportCompact]}>
+      <Scrubber />
       <View style={[styles.transportButtons, compact && styles.transportButtonsCompact]}>
         <PlayerButton icon="backward.fill" label="Previous track" size={27} onPress={() => { selectionFeedback(); actions.previous(); }} />
         <PlayerButton
@@ -451,9 +535,9 @@ function Transport({ compact, page, onToggle, onDevices }: {
 }
 
 const styles = StyleSheet.create({
-  screen: { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', overflow: 'hidden' },
-  content: { position: 'absolute', top: 0, left: 0, transformOrigin: 'top left' },
-  preview: { position: 'absolute', top: 0, left: 0 },
+  panel: { position: 'absolute', overflow: 'hidden', borderCurve: 'continuous' },
+  page: { position: 'absolute', top: 0, left: 0 },
+  bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
   grabberTouch: { height: grabberHeight, alignItems: 'center', justifyContent: 'center' },
@@ -461,7 +545,7 @@ const styles = StyleSheet.create({
   nowPlaying: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: artworkInset, gap: artworkGap },
   artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: '#191624' },
   details: { ...StyleSheet.absoluteFill, paddingTop: compactArtworkTop },
-  panel: { flex: 1 },
+  detailPanel: { flex: 1 },
   compactMetadata: { alignSelf: 'stretch', width: 'auto', maxWidth: undefined, minHeight: compactArtworkSize,
     marginLeft: artworkInset + compactArtworkSize + 12, marginRight: artworkInset, marginBottom: 9 },
   compactTrackTitle: { color: c.text, fontWeight: '700', fontSize: 18 },

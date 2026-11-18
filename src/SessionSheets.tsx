@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { type ReactNode } from 'react';
 import { devices, formatTime, tracks } from './catalog';
+import { usePlayerTransition } from './player/transition';
 import { usePlayback, usePlaybackState } from './playback';
 import { SheetFrame, SheetRows, SheetRow, SheetTransport, TrackSummary } from './SheetUI';
 import { colors } from './ui';
@@ -70,6 +71,7 @@ export function TrackActionSheet({ id }: { id: string }) {
 
 export function RemoteSessionSheet() {
   const router = useRouter();
+  const player = usePlayerTransition();
   const { track, device, state, position, actions } = usePlayback();
   const next = state.queue[0] ?? (state.autoplay ? state.autoplayQueue[0] : undefined);
   return (
@@ -79,7 +81,10 @@ export function RemoteSessionSheet() {
         playing={state.playing} onPrevious={actions.previous} onPlayPause={actions.playPause} onNext={actions.next} />
       <SheetRows>
         <SheetRow title="Up next" subtitle={next ? tracks[next.trackId].title : 'Queue is empty'}
-          icon="list.bullet" trailing="chevron.right" onPress={() => router.replace({ pathname: '/player', params: { page: 'queue' } })} />
+          icon="list.bullet" trailing="chevron.right" onPress={() => {
+            closeSheet(router);
+            player.open('queue');
+          }} />
       </SheetRows>
     </Sheet>
   );

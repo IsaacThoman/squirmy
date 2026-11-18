@@ -1,9 +1,9 @@
 import type { ComponentRef, Ref } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { usePlayback } from '../playback';
+import { usePlayback, usePlaybackState } from '../playback';
 import { colors, Cover, Icon } from '../ui';
-import { miniCoverSize, usePlayerOrigin } from './PlayerOrigin';
+import { miniCoverSize, usePlayerTransition } from './transition';
 
 type BubbleView = ComponentRef<typeof View>;
 type Appearance = { compact?: boolean; native?: boolean };
@@ -16,11 +16,14 @@ export type MiniPlayerContentProps = Appearance & {
 };
 
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
-  const { track, album, device, state, actions, position } = usePlayback();
-  const progress = Math.min(1, position / track.duration) * 100;
+  const { track, album, device, state, actions } = usePlaybackState();
   const size = miniCoverSize(compact, native);
-  const { accessoryInPlayer } = usePlayerOrigin();
-  const visibility = useAnimatedStyle(() => ({ opacity: preview || !accessoryInPlayer.value ? 1 : 0 }));
+  const { motion } = usePlayerTransition();
+  // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
+  // visible rather than hidden so the controls still take touches as the player settles back in.
+  const visibility = useAnimatedStyle(() => ({
+    opacity: preview || !motion.active.value || !motion.bubble.value ? 1 : 0.02,
+  }));
 
   return (
     <View ref={containerRef} collapsable={false}
@@ -46,10 +49,18 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
           onPress={preview ? undefined : actions.playPause} style={styles.control}>
           <Icon name={state.playing ? 'pause.fill' : 'play.fill'} size={23} />
         </Pressable>
-        {!compact && <View style={styles.progress} pointerEvents="none">
-          <View style={[styles.progressFill, { width: `${progress}%` }]} />
-        </View>}
+        {!compact && <Progress />}
       </Animated.View>
+    </View>
+  );
+}
+
+/** The only part of the bubble that follows the playback clock, so each tick redraws just this. */
+function Progress() {
+  const { track, position } = usePlayback();
+  return (
+    <View style={styles.progress} pointerEvents="none">
+      <View style={[styles.progressFill, { width: `${Math.min(1, position / track.duration) * 100}%` }]} />
     </View>
   );
 }
