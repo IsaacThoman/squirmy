@@ -4,6 +4,7 @@ import {
   Alert,
   Keyboard,
   Platform,
+  PlatformColor,
   Pressable,
   ScrollView,
   Share,
@@ -14,14 +15,15 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from 'expo-router';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album, type Track } from './catalog';
 import { usePlaybackState } from './playback';
 import { colors, Cover, Icon } from './ui';
+import { AlbumNavButton, AlbumPlaybackButtons } from './library/AlbumButtons';
+import { SongList } from './library/SongList';
 
 const ink = colors.background;
 const panel = colors.surface;
@@ -30,7 +32,8 @@ const muted = colors.muted;
 const faint = '#857F8E';
 const lilac = colors.accent;
 const gutter = 22;
-const swipeActionWidth = 78;
+const albumNavSize = 44;
+const albumBackground = Platform.OS === 'ios' ? PlatformColor('systemBackgroundColor') : ink;
 
 export type BrowseProps = {
   onOpenAlbum: (albumId: string) => void;
@@ -334,7 +337,7 @@ export function SearchScreen({ onOpenAlbum, onTrackMenu, bottomInset = 155 }: Br
         </View>}
         {trackResults.length > 0 && <View style={styles.resultSection}>
           <SectionTitle title="Songs" />
-          <View style={styles.trackList}>{trackResults.map(track => <SongRow key={track.id} track={track} onPlay={() => actions.playTrack(track.id)} onTrackMenu={onTrackMenu} />)}</View>
+          <View style={styles.trackList}><SongList trackIds={trackResults.map(track => track.id)} onPlay={actions.playTrack} onTrackMenu={onTrackMenu} /></View>
         </View>}
         {albumResults.length + trackResults.length + artistResults.length === 0 && <EmptyState icon="magnifyingglass" title="No results" description="Try a different song, album, or artist." />}
       </>}
@@ -350,62 +353,6 @@ function EmptyState({ icon, title, description }: { icon: string; title: string;
   </View>;
 }
 
-function PlayNextSwipeAction({ translation, onPress }: { translation: SharedValue<number>; onPress: () => void }) {
-  const reveal = useAnimatedStyle(() => ({
-    transform: [{ translateX: Math.max(0, Math.min(swipeActionWidth, swipeActionWidth + translation.value)) }],
-  }));
-
-  return (
-    <Animated.View style={[styles.swipeTray, reveal]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Pressable accessibilityRole="button" style={({ pressed }) => [styles.swipeAction, pressed && styles.pressed]} onPress={onPress}>
-        <Icon name="text.badge.plus" size={19} color={ink} />
-        <Text style={styles.swipeText}>Play next</Text>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-function SongRow({ track, number, onPlay, onTrackMenu }: { track: Track; number?: number; onPlay: () => void; onTrackMenu: BrowseProps['onTrackMenu'] }) {
-  const { state, actions } = usePlaybackState();
-  const liked = state.favorites.includes(track.id);
-  const current = state.trackId === track.id;
-  const playNext = () => {
-    tapFeedback();
-    actions.addToQueue(track.id, 'next');
-  };
-  return <ReanimatedSwipeable
-    friction={1.8}
-    overshootRight={false}
-    rightThreshold={35}
-    renderRightActions={(_progress, translation, controls) => (
-      <PlayNextSwipeAction translation={translation} onPress={() => {
-        playNext();
-        controls.close();
-      }} />
-    )}
-  >
-    <View style={[styles.songRow, current && styles.songCurrent]}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Play ${track.title} by ${track.artist}`} style={({ pressed }) => [styles.songInfo, pressed && styles.pressed]} onPress={onPlay} onLongPress={() => onTrackMenu(track.id)}
-        accessibilityActions={[{ name: 'playNext', label: 'Play next' }]}
-        onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'playNext') playNext(); }}>
-        {typeof number === 'number' ? <View style={styles.songPosition}>
-          {current ? <Icon name={state.playing ? 'waveform' : 'pause.fill'} size={17} color={lilac} /> : <Text style={styles.songNumber}>{number}</Text>}
-        </View> : <Cover source={albums[track.albumId].artwork} size={42} radius={8} />}
-        <View style={styles.flex}>
-          <Text numberOfLines={1} style={[styles.rowTitle, current && styles.currentTitle]}>{track.title}</Text>
-          <Text numberOfLines={1} style={styles.rowSub}>{track.artist}</Text>
-        </View>
-      </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={liked ? `Unlike ${track.title}` : `Like ${track.title}`} accessibilityState={{ selected: liked }} onPress={() => { tapFeedback(); actions.toggleFavorite(track.id); }} style={styles.rowIcon}>
-        <Icon name={liked ? 'heart.fill' : 'heart'} size={19} color={liked ? lilac : muted} />
-      </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${track.title}`} onPress={() => onTrackMenu(track.id)} style={styles.rowIcon}>
-        <Icon name="ellipsis" size={19} color={muted} />
-      </Pressable>
-    </View>
-  </ReanimatedSwipeable>;
-}
-
 export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }: AlbumProps) {
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -418,8 +365,8 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const hasSongs = trackIds.length > 0;
 
-  if (!item) return <View style={[styles.page, { paddingTop: top + 8 }]}>
-    <View style={styles.detailNav}><RoundButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
+  if (!item) return <View style={[styles.albumPage, { paddingTop: top + 8 }]}>
+    <View style={styles.detailUnavailableNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
     <EmptyState icon="music.note" title="Collection unavailable" description="Go back to browse your library." />
   </View>;
 
@@ -429,28 +376,26 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
     else actions.playCollection(trackIds, { shuffled, trackId });
   }
 
-  return <View style={styles.page}>
-    <LinearGradient pointerEvents="none" colors={[album?.color ?? '#4F466A', ink]} locations={[0, 1]} style={styles.detailGradient} />
-    <View style={[styles.detailNav, { paddingTop: top + 6 }]}>
-      <RoundButton icon="chevron.left" label="Go back" onPress={onBack} />
-      {(album || artist) && <RoundButton icon="square.and.arrow.up" label={`Share ${item.title}`} onPress={() => {
+  return <View style={styles.albumPage}>
+    {Platform.OS === 'ios' && <BlurView pointerEvents="none" tint="systemThinMaterialDark" intensity={25}
+      style={[styles.detailStatusBlur, { height: top }]} />}
+    <View pointerEvents="box-none" style={[styles.detailNav, { top: top + 6 }]}>
+      <AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} />
+      {(album || artist) && <AlbumNavButton icon="square.and.arrow.up" label={`Share ${item.title}`} onPress={() => {
         void Share.share({ message: album ? `${item.title} · ${album.artist}` : item.title }).catch(() => Alert.alert('Sharing unavailable'));
       }} />}
     </View>
-    <ScrollView contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
-      <View style={styles.detailHeader}>
+    <ScrollView contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={{ paddingBottom: bottomInset }}
+      showsVerticalScrollIndicator={false}>
+      <View style={[styles.detailHeader, { paddingTop: top + albumNavSize + 12 }]}>
+        {album && <LinearGradient pointerEvents="none" colors={[`${album.color}60`, `${album.color}00`]}
+          locations={[0, 1]} style={StyleSheet.absoluteFill} />}
         <View style={styles.detailArt}><CollectionCover item={item} size={artSize} radius={17} /></View>
         <Text style={styles.detailMeta}>{album ? [album.kind, album.genre, String(album.year)].join('  ·  ') : item.subtitle}</Text>
         <Text accessibilityRole="header" style={styles.detailTitle}>{item.title}</Text>
         {album && <Text style={styles.detailArtist}>{album.artist}</Text>}
-        {hasSongs && <View style={styles.detailControls}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Play ${item.title}`} onPress={() => play()} style={({ pressed }) => [styles.detailPlay, pressed && styles.pressed]}>
-            <Icon name="play.fill" size={16} color={ink} /><Text style={styles.playText}>Play</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Shuffle ${item.title}`} onPress={() => play(true)} style={({ pressed }) => [styles.detailShuffle, pressed && styles.pressed]}>
-            <Icon name="shuffle" size={18} color={ivory} /><Text style={styles.shuffleText}>Shuffle</Text>
-          </Pressable>
-        </View>}
+        {hasSongs && <AlbumPlaybackButtons title={item.title} onPlay={() => play()} onShuffle={() => play(true)} />}
       </View>
       {album?.description && <Text style={styles.detailDescription}>{album.description}</Text>}
       {hasSongs && <>
@@ -459,7 +404,7 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
           <Text style={styles.trackCount}>{trackIds.length} {trackIds.length === 1 ? 'song' : 'songs'} · {Math.max(1, Math.round(totalSeconds / 60))} min</Text>
         </View>
         <View style={styles.trackList}>
-          {trackIds.map((id, index) => <SongRow key={`${id}-${index}`} track={tracks[id]} number={album?.kind === 'Album' ? index + 1 : undefined} onPlay={() => play(false, id)} onTrackMenu={onTrackMenu} />)}
+          <SongList trackIds={trackIds} numbered={album?.kind === 'Album'} onPlay={(id) => play(false, id)} onTrackMenu={onTrackMenu} />
         </View>
       </>}
       {!hasSongs && <EmptyState icon={item.icon ?? 'music.note'} title={albumId === 'favorites' ? 'Your favorites go here' : 'Nothing played yet'} description={albumId === 'favorites' ? 'Tap a heart next to any song to save it here.' : 'Play a song and it will appear in your history.'} />}
@@ -524,31 +469,18 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: 7, padding: 28, marginTop: 22 },
   emptyTitle: { color: ivory, fontSize: 19, fontWeight: '700', textAlign: 'center', marginTop: 6 },
   emptyDescription: { color: muted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
-  detailNav: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: gutter, paddingBottom: 6 },
-  detailGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 460 },
+  detailNav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: gutter },
+  detailStatusBlur: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
+  detailUnavailableNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
+  albumPage: { flex: 1, backgroundColor: albumBackground },
   detailHeader: { alignItems: 'center', paddingHorizontal: gutter },
   detailArt: { marginTop: 8, marginBottom: 21, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
   detailMeta: { color: '#D7CDEF', fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
   detailTitle: { color: ivory, fontSize: 33, fontWeight: '800', textAlign: 'center', letterSpacing: -1.1, marginTop: 5 },
   detailArtist: { color: muted, fontSize: 16, fontWeight: '500', textAlign: 'center', marginTop: 3 },
-  detailControls: { flexDirection: 'row', gap: 9, marginTop: 18, alignSelf: 'stretch' },
-  detailPlay: { backgroundColor: lilac, borderRadius: 24, minHeight: 46, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, flex: 1 },
-  detailShuffle: { backgroundColor: '#27232E', borderRadius: 24, minHeight: 46, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, flex: 1, borderWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF18' },
-  playText: { color: ink, fontSize: 15, fontWeight: '700' },
-  shuffleText: { color: ivory, fontSize: 15, fontWeight: '700' },
   detailDescription: { marginHorizontal: gutter, color: muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
   trackListHeader: { marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 8 },
   trackListTitle: { color: ivory, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   trackCount: { color: faint, fontSize: 12, fontWeight: '600' },
   trackList: { marginHorizontal: gutter - 4 },
-  songRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF15', paddingLeft: 5, paddingRight: 2, minHeight: 58 },
-  songCurrent: { backgroundColor: '#CBC1FF12', borderRadius: 11 },
-  songInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: 10 },
-  songPosition: { width: 25, alignItems: 'center', marginRight: 2 },
-  songNumber: { fontSize: 13, color: faint, fontVariant: ['tabular-nums'] },
-  currentTitle: { color: lilac },
-  rowIcon: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
-  swipeTray: { width: swipeActionWidth },
-  swipeAction: { flex: 1, backgroundColor: lilac, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
-  swipeText: { color: ink, fontSize: 10, fontWeight: '700' },
 });
