@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePlayback } from './playback';
 import { colors, Cover, Icon } from './ui';
 
-export function MiniPlayer({ compact = false }: { compact?: boolean }) {
+export function MiniPlayer({ compact = false, native = false }: { compact?: boolean; native?: boolean }) {
   const router = useRouter();
   const { track, album, device, state, actions, position } = usePlayback();
   const progress = Math.min(1, position / track.duration) * 100;
@@ -12,7 +12,7 @@ export function MiniPlayer({ compact = false }: { compact?: boolean }) {
     <View style={[styles.container, compact && styles.compact]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Open Now Playing, ${track.title}`}
         onPress={() => router.push('/player')} style={styles.info}>
-        <Cover source={album.artwork} size={compact ? 29 : 42} radius={8} />
+        <Cover source={album.artwork} size={compact ? 28 : native ? 36 : 42} radius={8} />
         <View style={styles.copy}>
           <Text numberOfLines={1} style={styles.title}>{track.title}</Text>
           {!compact && <Text numberOfLines={1} style={styles.subtitle}>{track.artist}</Text>}
@@ -34,13 +34,13 @@ export function MiniPlayer({ compact = false }: { compact?: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 59, paddingHorizontal: 12, paddingVertical: 5 },
-  compact: { minHeight: 41 },
+  container: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 2 },
+  compact: { paddingHorizontal: 10 },
   info: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: 10 },
   copy: { flex: 1, paddingRight: 8, gap: 1 },
   title: { color: colors.text, fontSize: 14, fontWeight: '700' },
   subtitle: { color: colors.muted, fontSize: 12, fontWeight: '500' },
   control: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  progress: { position: 'absolute', left: 26, right: 26, bottom: 0, height: 2, borderRadius: 2, backgroundColor: '#ffffff14', overflow: 'hidden' },
+  progress: { position: 'absolute', left: 26, right: 26, bottom: 1, height: 2, borderRadius: 2, backgroundColor: '#ffffff14', overflow: 'hidden' },
   progressFill: { height: 2, backgroundColor: colors.accent, borderRadius: 2 },
 });

@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GestureDetector, useNativeGesture, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { formatTime } from './catalog';
 import { usePlayback, usePlaybackState } from './playback';
@@ -33,6 +33,9 @@ export default function Player({ initialPage = 'player', onClose, onDevices, onT
   const [page, setPage] = useState(() => pages.findIndex((item) => item.id === initialPage));
   const [availableHeight, setAvailableHeight] = useState(0);
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const top = insets.top || initialWindowMetrics?.insets.top || 0;
+  const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
   const { track, album, state, actions } = usePlaybackState();
   const pagerGesture = useNativeGesture();
   const sheetOffset = useSharedValue(0);
@@ -64,7 +67,7 @@ export default function Player({ initialPage = 'player', onClose, onDevices, onT
   };
 
   return (
-    <Animated.View style={[styles.screen, sheetStyle]}>
+    <Animated.View accessibilityViewIsModal style={[styles.screen, sheetStyle]}>
       <View style={[StyleSheet.absoluteFill, { backgroundColor: album.color }]} pointerEvents="none">
         <Image source={album.artwork} blurRadius={70} contentFit="cover" transition={210} style={styles.backdropArt} />
         <LinearGradient
@@ -73,7 +76,7 @@ export default function Player({ initialPage = 'player', onClose, onDevices, onT
           style={StyleSheet.absoluteFill}
         />
       </View>
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}>
+      <View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }]}>
         <GestureDetector gesture={dismiss}>
           <View style={styles.grabberTouch}>
             <Pressable accessibilityRole="button" accessibilityLabel="Close player" onPress={onClose} style={styles.grabberPress} hitSlop={6}>
@@ -131,7 +134,7 @@ export default function Player({ initialPage = 'player', onClose, onDevices, onT
           />
         </View>
         <Transport key={track.id} compact={smallScreen} onDevices={onDevices} />
-      </SafeAreaView>
+      </View>
     </Animated.View>
   );
 }

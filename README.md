@@ -8,10 +8,10 @@ Use Node.js 22.13 or newer and install the dependencies.
 
 ```sh
 npm ci
-npm run ios
+npx expo start --go
 ```
 
-The iOS command builds and launches the app using Xcode. iOS 26 or later brings the system Liquid Glass tab bar and mini-player accessory. You can also run the project as a development server with `npm start`.
+With an SDK 58-compatible Expo Go installed, press `i` in the Expo terminal to preview on an iOS simulator. To build the standalone app in Xcode, run `npm run ios`. The system Liquid Glass tab bar and mini-player accessory require iOS 26 or later.
 
 ## Try the prototype
 

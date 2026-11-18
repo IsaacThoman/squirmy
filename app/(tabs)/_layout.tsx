@@ -14,7 +14,7 @@ const tabs = [
 ] as const;
 
 function Accessory() {
-  return <MiniPlayer compact={NativeTabs.BottomAccessory.usePlacement() === 'inline'} />;
+  return <MiniPlayer native compact={NativeTabs.BottomAccessory.usePlacement() === 'inline'} />;
 }
 
 export default function TabLayout() {
