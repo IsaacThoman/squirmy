@@ -9,7 +9,12 @@ export type PlayerOrigin = {
   artworkSize: number;
   native: boolean;
   compact: boolean;
+  fromPull: boolean;
 };
+
+type MiniPull =
+  | { phase: 'dragging' | 'cancel'; distance: number }
+  | { phase: 'open'; distance: number; velocity: number };
 
 export function miniCoverSize(compact: boolean, native: boolean) {
   return compact ? 28 : native ? 36 : 42;
@@ -18,12 +23,14 @@ export function miniCoverSize(compact: boolean, native: boolean) {
 const OriginContext = createContext<{
   origin: RefObject<PlayerOrigin | null>;
   accessoryInPlayer: SharedValue<boolean>;
+  miniPull: SharedValue<MiniPull | null>;
 } | null>(null);
 
 export function PlayerOriginProvider({ children }: PropsWithChildren) {
   const origin = useRef<PlayerOrigin | null>(null);
   const accessoryInPlayer = useSharedValue(false);
-  const value = useMemo(() => ({ origin, accessoryInPlayer }), [accessoryInPlayer]);
+  const miniPull = useSharedValue<MiniPull | null>(null);
+  const value = useMemo(() => ({ origin, accessoryInPlayer, miniPull }), [accessoryInPlayer, miniPull]);
   return <OriginContext.Provider value={value}>{children}</OriginContext.Provider>;
 }
 
