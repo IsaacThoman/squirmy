@@ -16,6 +16,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album, type Track } from './catalog';
 import { usePlaybackState } from './playback';
@@ -28,6 +29,7 @@ const muted = colors.muted;
 const faint = '#857F8E';
 const lilac = colors.accent;
 const gutter = 22;
+const swipeActionWidth = 78;
 
 export type BrowseProps = {
   onOpenAlbum: (albumId: string) => void;
@@ -330,6 +332,21 @@ function EmptyState({ icon, title, description }: { icon: string; title: string;
   </View>;
 }
 
+function PlayNextSwipeAction({ translation, onPress }: { translation: SharedValue<number>; onPress: () => void }) {
+  const reveal = useAnimatedStyle(() => ({
+    transform: [{ translateX: Math.max(0, Math.min(swipeActionWidth, swipeActionWidth + translation.value)) }],
+  }));
+
+  return (
+    <Animated.View style={[styles.swipeTray, reveal]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Pressable accessibilityRole="button" style={({ pressed }) => [styles.swipeAction, pressed && styles.pressed]} onPress={onPress}>
+        <Icon name="text.badge.plus" size={19} color={ink} />
+        <Text style={styles.swipeText}>Play next</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 function SongRow({ track, number, onPlay, onTrackMenu }: { track: Track; number?: number; onPlay: () => void; onTrackMenu: BrowseProps['onTrackMenu'] }) {
   const { state, actions } = usePlaybackState();
   const liked = state.favorites.includes(track.id);
@@ -342,13 +359,12 @@ function SongRow({ track, number, onPlay, onTrackMenu }: { track: Track; number?
     friction={1.8}
     overshootRight={false}
     rightThreshold={35}
-    renderRightActions={(_progress, _drag, controls) => <Pressable accessibilityRole="button" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={({ pressed }) => [styles.swipeAction, pressed && styles.pressed]} onPress={() => {
-      playNext();
-      controls.close();
-    }}>
-      <Icon name="text.badge.plus" size={19} color={ink} />
-      <Text style={styles.swipeText}>Play next</Text>
-    </Pressable>}
+    renderRightActions={(_progress, translation, controls) => (
+      <PlayNextSwipeAction translation={translation} onPress={() => {
+        playNext();
+        controls.close();
+      }} />
+    )}
   >
     <View style={[styles.songRow, current && styles.songCurrent]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Play ${track.title} by ${track.artist}`} style={({ pressed }) => [styles.songInfo, pressed && styles.pressed]} onPress={onPlay} onLongPress={() => onTrackMenu(track.id)}
@@ -514,6 +530,7 @@ const styles = StyleSheet.create({
   songNumber: { fontSize: 13, color: faint, fontVariant: ['tabular-nums'] },
   currentTitle: { color: lilac },
   rowIcon: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
-  swipeAction: { backgroundColor: lilac, width: 78, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
+  swipeTray: { width: swipeActionWidth },
+  swipeAction: { flex: 1, backgroundColor: lilac, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
   swipeText: { color: ink, fontSize: 10, fontWeight: '700' },
 });
