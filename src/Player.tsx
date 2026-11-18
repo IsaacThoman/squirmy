@@ -332,9 +332,9 @@ function Transport({ compact, page, onToggle, onDevices }: {
           <PlayerButton icon="quote.bubble"
             label={page === pageIndex.lyrics ? 'Hide lyrics' : 'Show lyrics'}
             selected={page === pageIndex.lyrics}
-            color={page === pageIndex.lyrics ? c.ink : c.muted}
-            onPress={() => onToggle(pageIndex.lyrics)}
-            style={[styles.footerButton, page === pageIndex.lyrics && styles.footerSelected]} />
+            size={22}
+            color={page === pageIndex.lyrics ? c.lilac : c.muted}
+            onPress={() => onToggle(pageIndex.lyrics)} />
         </View>
         <Pressable
           accessibilityRole="button"
@@ -352,9 +352,9 @@ function Transport({ compact, page, onToggle, onDevices }: {
           <PlayerButton icon="list.bullet"
             label={page === pageIndex.queue ? 'Hide queue' : 'Show queue'}
             selected={page === pageIndex.queue}
-            color={page === pageIndex.queue ? c.ink : c.muted}
-            onPress={() => onToggle(pageIndex.queue)}
-            style={[styles.footerButton, page === pageIndex.queue && styles.footerSelected]} />
+            size={22}
+            color={page === pageIndex.queue ? c.lilac : c.muted}
+            onPress={() => onToggle(pageIndex.queue)} />
         </View>
       </View>
     </View>
@@ -402,8 +402,6 @@ const styles = StyleSheet.create({
   volumeSlider: { flex: 1 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
   footerSide: { flex: 1, alignItems: 'center' },
-  footerButton: { borderRadius: 22, backgroundColor: c.surface, borderWidth: 1, borderColor: c.stroke },
-  footerSelected: { backgroundColor: c.lilac, borderColor: c.lilac },
   output: { flex: 1.3, minWidth: 0, alignItems: 'center', minHeight: 56, justifyContent: 'flex-start' },
   outputIcon: { width: 44, height: 39, justifyContent: 'center', alignItems: 'center' },
   deviceSignal: { position: 'absolute', right: 4, top: 8, width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#BCE9CD' },
