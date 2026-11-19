@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "TONE",
-    "slug": "music",
-    "scheme": "tone",
+    "name": "Squirmy",
+    "slug": "squirmy",
+    "scheme": ["squirmy", "tone"],
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",

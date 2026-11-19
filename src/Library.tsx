@@ -107,7 +107,7 @@ export function HomeScreen({ onOpenAlbum, onOpenDevices, bottomInset = 155 }: Br
     <View style={styles.homeHeader}>
       <View style={styles.brand}>
         <View style={styles.brandMark}><Icon name="waveform" size={16} color={ink} /></View>
-        <Text style={styles.wordmark}>TONE</Text>
+        <Text style={styles.wordmark}>Squirmy</Text>
       </View>
       {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
     </View>

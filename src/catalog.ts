@@ -204,7 +204,7 @@ const mixes: Album[] = [
   {
     id: 'after-dark',
     title: 'After Dark',
-    artist: 'Tone',
+    artist: 'Squirmy',
     artwork: require('../assets/covers/11.jpg'),
     color: '#4d324b',
     genre: 'Electronic',
@@ -219,7 +219,7 @@ const mixes: Album[] = [
   {
     id: 'first-light',
     title: 'First Light',
-    artist: 'Tone',
+    artist: 'Squirmy',
     artwork: require('../assets/covers/12.jpg'),
     color: '#54523d',
     genre: 'Indie & Ambient',

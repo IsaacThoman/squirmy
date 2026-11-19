@@ -42,6 +42,7 @@ type Command =
 
 type TimedCommand = { command: Command; now: number }
 
+// Keep the original key so existing installs retain their playback state.
 const storageKey = 'tone.playback.v1'
 const initialHistory = ['tail-lights', 'fern-line', 'paper-flowers', 'after-the-rain']
 const historyLimit = 50

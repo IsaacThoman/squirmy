@@ -1,19 +1,20 @@
 module.exports = ({ config }) => {
-  const development = process.env.TONE_APP_VARIANT === 'development';
+  const variant = process.env.SQUIRMY_APP_VARIANT ?? process.env.TONE_APP_VARIANT;
+  const development = variant === 'development';
   const plugins = [...config.plugins, ['expo-dev-client', { addGeneratedScheme: false }]];
 
   if (!development) return { ...config, plugins };
 
   return {
     ...config,
-    name: 'TONE Dev',
-    scheme: 'tone-dev',
+    name: 'Squirmy Dev',
+    scheme: ['squirmy-dev', 'tone-dev'],
     ios: {
       ...config.ios,
       bundleIdentifier: 'com.isaacthoman.music.dev',
       infoPlist: {
         ...config.ios.infoPlist,
-        NSLocalNetworkUsageDescription: 'TONE Dev connects to Metro on your Mac to load the latest app code.',
+        NSLocalNetworkUsageDescription: 'Squirmy Dev connects to Metro on your Mac to load the latest app code.',
       },
     },
     android: { ...config.android, package: 'com.isaacthoman.music.dev' },

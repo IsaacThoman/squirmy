@@ -1,6 +1,6 @@
-# TONE
+# Squirmy
 
-TONE is an iOS-first Expo music prototype. Browse the fictional catalog, open an album, and tap the mini-player to open Now Playing. Playback, favorites, queue state, and the selected output persist locally.
+Squirmy is an iOS-first Expo music prototype. Browse the fictional catalog, open an album, and tap the mini-player to open Now Playing. Playback, favorites, queue state, and the selected output persist locally.
 
 ## Run locally
 
@@ -15,13 +15,13 @@ With an SDK 58-compatible Expo Go installed, press `i` in the Expo terminal to p
 
 ## Development build on an iPhone
 
-Set `TONE_APP_VARIANT=development` when generating and building the native project in a separate checkout. This installs TONE Dev alongside TONE. Start Metro from the checkout you are editing, with your Mac and iPhone on the same network.
+Set `SQUIRMY_APP_VARIANT=development` when generating and building the native project in a separate checkout. This installs Squirmy Dev alongside Squirmy. Start Metro from the checkout you are editing, with your Mac and iPhone on the same network.
 
 ```sh
-TONE_APP_VARIANT=development npx expo start --dev-client --lan --scheme tone-dev
+SQUIRMY_APP_VARIANT=development npx expo start --dev-client --lan --scheme squirmy-dev
 ```
 
-Open the project in TONE Dev using the terminal QR code or the Metro URL. JavaScript changes use Fast Refresh. Rebuild TONE Dev when native dependencies change.
+Open the project in Squirmy Dev using the terminal QR code or the Metro URL. JavaScript changes use Fast Refresh. Rebuild Squirmy Dev when native dependencies change.
 
 ## Try the prototype
 
