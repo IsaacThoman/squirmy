@@ -1,0 +1,41 @@
+diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+index 5da1196..f9a0389 100644
+--- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
++++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+@@ -662,6 +662,25 @@ - (void)setModalViewControllers:(NSArray<UIViewController *> *)controllers
+   finish();
+ }
+ 
++// Since iOS 26 UINavigationController can push while a pop is still animating; the pop finishes at once and the push
++// begins. A zoom pop keeps its transition coordinator alive well after the page looks closed, so waiting for it made a
++// tap on the screen underneath feel ignored for most of a second.
++- (BOOL)canPushDuringPop:(NSArray<UIViewController *> *)controllers
++{
++  if (@available(iOS 26.0, *)) {
++    id<UIViewControllerTransitionCoordinator> coordinator = _controller.transitionCoordinator;
++    UIViewController *from = [coordinator viewControllerForKey:UITransitionContextFromViewControllerKey];
++    BOOL popping = from != nil && ![_controller.viewControllers containsObject:from];
++    if (!popping || coordinator.isInteractive || controllers.count != _controller.viewControllers.count + 1) {
++      return NO;
++    }
++    // Only a single push on top of the stack the pop is landing on.
++    NSArray<UIViewController *> *below = [controllers subarrayWithRange:NSMakeRange(0, controllers.count - 1)];
++    return [below isEqualToArray:_controller.viewControllers];
++  }
++  return NO;
++}
++
+ - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
+ {
+   // when there is no change we return immediately
+@@ -681,6 +700,10 @@ - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
+   // making any updated when transition is ongoing and schedule updates for when the transition
+   // is complete.
+   if (_controller.transitionCoordinator != nil) {
++    if ([self canPushDuringPop:controllers]) {
++      [_controller pushViewController:controllers.lastObject animated:YES];
++      return;
++    }
+     if (!_updateScheduled) {
+       _updateScheduled = YES;
+       __weak RNSScreenStackView *weakSelf = self;
