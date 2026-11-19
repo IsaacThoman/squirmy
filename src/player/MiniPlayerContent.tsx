@@ -2,8 +2,9 @@ import type { ComponentRef, Ref } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { usePlayback, usePlaybackState } from '../playback';
-import { colors, Cover, Icon } from '../ui';
+import { Cover, Icon } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
+import { createThemedStyles, useColors } from '../theme';
 
 type BubbleView = ComponentRef<typeof View>;
 type Appearance = { compact?: boolean; native?: boolean };
@@ -16,6 +17,8 @@ export type MiniPlayerContentProps = Appearance & {
 };
 
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
+  const colors = useColors();
+  const styles = useStyles();
   const { track, album, device, state, actions } = usePlaybackState();
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
@@ -57,6 +60,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
 
 /** The only part of the bubble that follows the playback clock, so each tick redraws just this. */
 function Progress() {
+  const styles = useStyles();
   const { track, position } = usePlayback();
   return (
     <View style={styles.progress} pointerEvents="none">
@@ -65,7 +69,7 @@ function Progress() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => StyleSheet.create({
   flex: { flex: 1 },
   container: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 2 },
   compact: { paddingHorizontal: 10 },
@@ -74,6 +78,6 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 14, fontWeight: '700' },
   subtitle: { color: colors.muted, fontSize: 12, fontWeight: '500' },
   control: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  progress: { position: 'absolute', left: 26, right: 26, bottom: 1, height: 2, borderRadius: 2, backgroundColor: '#ffffff14', overflow: 'hidden' },
+  progress: { position: 'absolute', left: 26, right: 26, bottom: 1, height: 2, borderRadius: 2, backgroundColor: colors.stroke, overflow: 'hidden' },
   progressFill: { height: 2, backgroundColor: colors.accent, borderRadius: 2 },
-});
+}));

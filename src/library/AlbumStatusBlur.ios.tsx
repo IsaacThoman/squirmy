@@ -10,9 +10,9 @@ const fade = foregroundStyle({
   endPoint: { x: 0.5, y: 1 },
 });
 
-export function AlbumStatusBlur({ height }: { height: number }) {
+export function AlbumStatusBlur() {
   return (
-    <Host colorScheme="dark" ignoreSafeArea="container" pointerEvents="none" style={[styles.blur, { height }]}>
+    <Host ignoreSafeArea="container" style={StyleSheet.absoluteFill}>
       <Mask modifiers={[accessibilityHidden(true)]}>
         <Rectangle modifiers={[material]} />
         <Mask.Content>
@@ -22,7 +22,3 @@ export function AlbumStatusBlur({ height }: { height: number }) {
     </Host>
   );
 }
-
-const styles = StyleSheet.create({
-  blur: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
-});

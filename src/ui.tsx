@@ -1,17 +1,8 @@
 import { Image, type ImageSource } from 'expo-image';
 import { SymbolView, type AndroidSymbol } from 'expo-symbols';
 import type { ComponentProps } from 'react';
-import { Platform, PlatformColor, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
-
-export const colors = {
-  background: '#111014',
-  surface: '#1c1a22',
-  text: '#f5f2ff',
-  muted: '#a9a2b4',
-  accent: '#cbc1ff',
-} as const;
-
-export const screenBackground = Platform.OS === 'ios' ? PlatformColor('systemBackgroundColor') : colors.background;
+import { type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
+import { useColors } from './theme';
 
 type AppleSymbol = Extract<ComponentProps<typeof SymbolView>['name'], string>;
 
@@ -34,12 +25,13 @@ const material: Record<string, AndroidSymbol> = {
   'square.grid.2x2': 'grid_view', 'music.note.list': 'library_music', 'music.note.house': 'home',
 };
 
-export function Icon({ name, size = 22, color = colors.text, style }: {
+export function Icon({ name, size = 22, color, style }: {
   name: string;
   size?: number;
   color?: ColorValue;
   style?: StyleProp<ViewStyle>;
 }) {
+  const colors = useColors();
   const alternate = material[name] ?? 'music_note';
   return <SymbolView
     name={{ ios: name as AppleSymbol, android: alternate, web: alternate }}
@@ -47,7 +39,7 @@ export function Icon({ name, size = 22, color = colors.text, style }: {
     accessibilityElementsHidden
     importantForAccessibility="no"
     size={size}
-    tintColor={color}
+    tintColor={color ?? colors.text}
     weight="medium"
     resizeMode="scaleAspectFit"
   />;
@@ -59,6 +51,7 @@ export function Cover({ source, size, style, radius = 10 }: {
   style?: ComponentProps<typeof Image>['style'];
   radius?: number;
 }) {
+  const colors = useColors();
   return <Image
     source={source}
     contentFit="cover"

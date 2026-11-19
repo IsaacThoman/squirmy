@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, Icon } from '../ui';
+import { Icon } from '../ui';
+import { createThemedStyles, useColors } from '../theme';
 
 export type AlbumNavProps = {
   icon: 'chevron.left' | 'square.and.arrow.up';
@@ -14,6 +15,7 @@ export type AlbumPlaybackProps = {
 };
 
 export function AlbumNavButton({ icon, label, onPress }: AlbumNavProps) {
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
     style={({ pressed }) => [styles.nav, pressed && styles.pressed]} onPress={onPress}>
     <Icon name={icon} size={20} />
@@ -21,10 +23,12 @@ export function AlbumNavButton({ icon, label, onPress }: AlbumNavProps) {
 }
 
 export function AlbumPlaybackButtons({ title, onPlay, onShuffle }: AlbumPlaybackProps) {
+  const colors = useColors();
+  const styles = useStyles();
   return <View style={styles.controls}>
     <Pressable accessibilityRole="button" accessibilityLabel={`Play ${title}`}
       style={({ pressed }) => [styles.action, styles.play, pressed && styles.pressed]} onPress={onPlay}>
-      <Icon name="play.fill" size={16} color={colors.background} />
+      <Icon name="play.fill" size={16} color={colors.onAccent} />
       <Text style={[styles.label, styles.playLabel]}>Play</Text>
     </Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel={`Shuffle ${title}`}
@@ -35,12 +39,12 @@ export function AlbumPlaybackButtons({ title, onPlay, onShuffle }: AlbumPlayback
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => StyleSheet.create({
   nav: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.72 },
   controls: { flexDirection: 'row', gap: 9, marginTop: 18, alignSelf: 'stretch' },
   action: { backgroundColor: colors.surface, borderRadius: 24, minHeight: 46, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, flex: 1 },
   play: { backgroundColor: colors.accent },
   label: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  playLabel: { color: colors.background },
-});
+  playLabel: { color: colors.onAccent },
+}));

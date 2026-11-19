@@ -1,27 +1,35 @@
-import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { Platform, PlatformColor } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Player from '../src/Player';
 import { PlayerTransitionProvider } from '../src/player/transition';
 import { PlaybackProvider } from '../src/playback';
-import { screenBackground } from '../src/ui';
+import { useAppearance, useColors } from '../src/theme';
 
 export default function RootLayout() {
+  const appearance = useAppearance();
+  const colors = useColors();
+  const theme = appearance === 'dark' ? DarkTheme : DefaultTheme;
+  const sheetBackground = Platform.OS === 'ios' ? PlatformColor('secondarySystemBackgroundColor') : colors.sheet;
+  const sheet = { ...sheetOptions, contentStyle: { backgroundColor: sheetBackground } };
+
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: screenBackground }}>
-      <PlaybackProvider>
-        <PlayerTransitionProvider>
-          <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: screenBackground } }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="devices" options={sheetOptions} />
-            <Stack.Screen name="track-actions" options={sheetOptions} />
-            <Stack.Screen name="session" options={sheetOptions} />
-          </Stack>
-          <Player />
-        </PlayerTransitionProvider>
-      </PlaybackProvider>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ThemeProvider value={theme}>
+        <PlaybackProvider>
+          <PlayerTransitionProvider>
+            <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="devices" options={sheet} />
+              <Stack.Screen name="track-actions" options={sheet} />
+              <Stack.Screen name="session" options={sheet} />
+            </Stack>
+            <Player />
+          </PlayerTransitionProvider>
+        </PlaybackProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
@@ -31,5 +39,4 @@ const sheetOptions = {
   sheetAllowedDetents: 'fitToContents',
   sheetGrabberVisible: true,
   sheetCornerRadius: 34,
-  contentStyle: { backgroundColor: Platform.OS === 'ios' ? PlatformColor('secondarySystemBackgroundColor') : '#201c29' },
 } as const;

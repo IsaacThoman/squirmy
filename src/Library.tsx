@@ -12,10 +12,11 @@ import {
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from 'expo-router';
+import Animated, { Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album, type Track } from './catalog';
 import { usePlaybackState } from './playback';
-import { colors, Cover, Icon, screenBackground } from './ui';
+import { Cover, Icon } from './ui';
 import { AlbumNavButton, AlbumPlaybackButtons } from './library/AlbumButtons';
 import { AlbumStatusBlur } from './library/AlbumStatusBlur';
 import { SongList } from './library/SongList';
@@ -23,12 +24,8 @@ import {
   AlbumMetadata, BrowseButton, CollectionGrid, CollectionRow, CollectionTile, GenreGrid, HeroActions, LibraryFilters,
   LibrarySort, SearchField, type SearchHandle,
 } from './library/BrowseControls';
+import { createThemedStyles, useColors } from './theme';
 
-const ink = colors.background;
-const ivory = colors.text;
-const muted = colors.muted;
-const faint = '#857F8E';
-const lilac = colors.accent;
 const gutter = 22;
 const albumNavSize = 44;
 
@@ -66,6 +63,7 @@ function tapFeedback() {
 }
 
 function CollectionCover({ item, size, radius = 13 }: { item: Collection; size: number; radius?: number }) {
+  const styles = useStyles();
   if (item.album) return <Cover source={item.album.artwork} size={size} radius={item.round ? size / 2 : radius} />;
 
   return <LinearGradient
@@ -80,6 +78,7 @@ function CollectionCover({ item, size, radius = 13 }: { item: Collection; size: 
 }
 
 function CollectionRail({ items, onOpenAlbum, size = 131 }: { items: Collection[]; onOpenAlbum: BrowseProps['onOpenAlbum']; size?: number }) {
+  const styles = useStyles();
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railContent}>
     {items.map(item => <CollectionTile key={item.id} title={item.title} subtitle={item.subtitle} size={size}
       cover={<CollectionCover item={item} size={size} />} onPress={() => onOpenAlbum(item.id)} />)}
@@ -87,6 +86,7 @@ function CollectionRail({ items, onOpenAlbum, size = 131 }: { items: Collection[
 }
 
 function SectionTitle({ title, onPress }: { title: string; onPress?: () => void }) {
+  const styles = useStyles();
   return <View style={styles.sectionTitle}>
     <Text accessibilityRole="header" style={styles.sectionText}>{title}</Text>
     {onPress && <BrowseButton label={`See ${title.toLowerCase()}`} title="See all" icon="chevron.right" onPress={onPress} />}
@@ -94,6 +94,8 @@ function SectionTitle({ title, onPress }: { title: string; onPress?: () => void 
 }
 
 export function HomeScreen({ onOpenAlbum, onOpenDevices, bottomInset = 155 }: BrowseProps) {
+  const colors = useColors();
+  const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { state, album: currentAlbum, actions } = usePlaybackState();
@@ -103,30 +105,35 @@ export function HomeScreen({ onOpenAlbum, onOpenDevices, bottomInset = 155 }: Br
   const discovery = Array.from(new Set([...featuredAlbumIds, ...libraryAlbumIds])).filter(id => id !== hero.id).map(id => albumCollection(albums[id]));
   const heroSize = width - gutter * 2;
 
-  return <ScrollView style={styles.page} contentContainerStyle={{ paddingTop: top + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
-    <View style={styles.homeHeader}>
-      <View style={styles.brand}>
-        <View style={styles.brandMark}><Icon name="waveform" size={16} color={ink} /></View>
-        <Text style={styles.wordmark}>Squirmy</Text>
+  return <View style={styles.page}>
+    <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
+      locations={[0, top / (top + 14), 1]} style={[styles.detailStatus, { height: top + 14 }]} />
+    <ScrollView contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={{ paddingTop: top + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
+      <View style={styles.homeHeader}>
+        <View style={styles.brand}>
+          <View style={styles.brandMark}><Icon name="waveform" size={16} color={colors.onAccent} /></View>
+          <Text style={styles.wordmark}>Squirmy</Text>
+        </View>
+        {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
       </View>
-      {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
-    </View>
-    <Text accessibilityRole="header" style={[styles.pageTitle, styles.homeTitle]}>Listen now</Text>
-    <View style={[styles.hero, { minHeight: Math.min(350, heroSize * 0.85) }]}>
-      <Cover source={hero.artwork} size={heroSize} radius={0} style={styles.heroCover} />
-      <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
-      <HeroActions title={hero.title} artist={hero.artist} onOpen={() => onOpenAlbum(hero.id)}
-        onPlay={() => { tapFeedback(); actions.playAlbum(hero.id); }} />
-    </View>
-    <View style={styles.homeSection}>
-      <SectionTitle title="Recently played" onPress={() => onOpenAlbum('recent')} />
-      <CollectionRail items={recent} onOpenAlbum={onOpenAlbum} />
-    </View>
-    <View style={styles.homeSection}>
-      <SectionTitle title="Discover more" />
-      <CollectionRail items={discovery} size={146} onOpenAlbum={onOpenAlbum} />
-    </View>
-  </ScrollView>;
+      <Text accessibilityRole="header" style={[styles.pageTitle, styles.homeTitle]}>Listen now</Text>
+      <View style={[styles.hero, { minHeight: Math.min(350, heroSize * 0.85) }]}>
+        <Cover source={hero.artwork} size={heroSize} radius={0} style={styles.heroCover} />
+        <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
+        <HeroActions title={hero.title} artist={hero.artist} onOpen={() => onOpenAlbum(hero.id)}
+          onPlay={() => { tapFeedback(); actions.playAlbum(hero.id); }} />
+      </View>
+      <View style={styles.homeSection}>
+        <SectionTitle title="Recently played" onPress={() => onOpenAlbum('recent')} />
+        <CollectionRail items={recent} onOpenAlbum={onOpenAlbum} />
+      </View>
+      <View style={styles.homeSection}>
+        <SectionTitle title="Discover more" />
+        <CollectionRail items={discovery} size={146} onOpenAlbum={onOpenAlbum} />
+      </View>
+    </ScrollView>
+  </View>;
 }
 
 const filters = ['All', 'Playlists', 'Albums', 'Artists'] as const;
@@ -135,6 +142,7 @@ type LibraryFilter = (typeof filters)[number];
 type LibrarySort = (typeof sortOptions)[number];
 
 export function LibraryScreen({ onOpenAlbum, bottomInset = 155 }: BrowseProps) {
+  const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { state } = usePlaybackState();
@@ -204,6 +212,7 @@ function matches(query: string, ...values: string[]) {
 const genreCards = Array.from(new Map(allAlbums.map(album => [album.genre, album])).values()).slice(0, 6);
 
 export function SearchScreen({ onOpenAlbum, onTrackMenu, bottomInset = 155 }: BrowseProps) {
+  const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [query, setQuery] = useState('');
@@ -259,17 +268,32 @@ export function SearchScreen({ onOpenAlbum, onTrackMenu, bottomInset = 155 }: Br
 }
 
 function EmptyState({ icon, title, description }: { icon: string; title: string; description: string }) {
+  const colors = useColors();
+  const styles = useStyles();
   return <View style={styles.empty}>
-    <Icon name={icon} size={30} color={lilac} />
+    <Icon name={icon} size={30} color={colors.accent} />
     <Text style={styles.emptyTitle}>{title}</Text>
     <Text style={styles.emptyDescription}>{description}</Text>
   </View>;
 }
 
 export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }: AlbumProps) {
+  const colors = useColors();
+  const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { state, actions } = usePlaybackState();
+  const scrollOffset = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler(event => {
+    scrollOffset.value = event.contentOffset.y;
+  });
+  // Leave the album's gradient uninterrupted until the artwork approaches the status bar.
+  const blurStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollOffset.value, [albumNavSize, albumNavSize + 20], [0, 1], Extrapolation.CLAMP),
+  }));
+  const overscrollStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: scrollOffset.value < 0 ? 1 - scrollOffset.value : 0 }],
+  }));
   const album = Object.hasOwn(albums, albumId) ? albums[albumId] : undefined;
   const artist = artistCollections.find(item => item.id === albumId);
   const item = album ? albumCollection(album) : albumId === 'favorites' ? favorites : albumId === 'recent' ? recentlyPlayed : artist;
@@ -277,6 +301,7 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
   const totalSeconds = trackIds.reduce((seconds, id) => seconds + tracks[id].duration, 0);
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const hasSongs = trackIds.length > 0;
+  const headerColor = album ? interpolateColor(colors.albumTint, [0, 1], [colors.background, album.color], 'RGB', { gamma: 1 }) : colors.background;
 
   if (!item) return <View style={[styles.albumPage, { paddingTop: top + 8 }]}>
     <View style={styles.detailUnavailableNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
@@ -290,18 +315,21 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
   }
 
   return <View style={styles.albumPage}>
-    <AlbumStatusBlur height={top} />
+    <Animated.View pointerEvents="none" style={[styles.overscrollFill, { backgroundColor: headerColor }, overscrollStyle]} />
+    <Animated.View pointerEvents="none" style={[styles.detailStatus, { height: top }, blurStyle]}>
+      <AlbumStatusBlur />
+    </Animated.View>
     <View pointerEvents="box-none" style={[styles.detailNav, { top: top + 6 }]}>
       <AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} />
       {(album || artist) && <AlbumNavButton icon="square.and.arrow.up" label={`Share ${item.title}`} onPress={() => {
         void Share.share({ message: album ? `${item.title} · ${album.artist}` : item.title }).catch(() => Alert.alert('Sharing unavailable'));
       }} />}
     </View>
-    <ScrollView contentInsetAdjustmentBehavior="never"
+    <Animated.ScrollView contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
       contentContainerStyle={{ paddingBottom: bottomInset }}
       showsVerticalScrollIndicator={false}>
       <View style={[styles.detailHeader, { paddingTop: top + albumNavSize + 12 }]}>
-        {album && <LinearGradient pointerEvents="none" colors={[`${album.color}60`, `${album.color}00`]}
+        {album && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
           locations={[0, 1]} style={StyleSheet.absoluteFill} />}
         <View style={styles.detailArt}><CollectionCover item={item} size={artSize} radius={17} /></View>
         <AlbumMetadata title={item.title} artist={album?.artist}
@@ -319,25 +347,25 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
         </View>
       </>}
       {!hasSongs && <EmptyState icon={item.icon ?? 'music.note'} title={albumId === 'favorites' ? 'Your favorites go here' : 'Nothing played yet'} description={albumId === 'favorites' ? 'Tap a heart next to any song to save it here.' : 'Play a song and it will appear in your history.'} />}
-    </ScrollView>
+    </Animated.ScrollView>
   </View>;
 }
 
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: screenBackground },
+const useStyles = createThemedStyles(colors => StyleSheet.create({
+  page: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   homeHeader: { paddingHorizontal: gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 41 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  brandMark: { width: 27, height: 27, borderRadius: 9, backgroundColor: lilac, alignItems: 'center', justifyContent: 'center' },
-  wordmark: { color: ivory, fontWeight: '800', letterSpacing: 3.8, fontSize: 12 },
+  brandMark: { width: 27, height: 27, borderRadius: 9, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  wordmark: { color: colors.text, fontWeight: '800', letterSpacing: 3.8, fontSize: 12 },
   homeTitle: { marginHorizontal: gutter, marginTop: 13, marginBottom: 19 },
-  pageTitle: { color: ivory, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
+  pageTitle: { color: colors.text, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
   hero: { marginHorizontal: gutter, borderRadius: 26, overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: '#322940' },
   heroCover: { position: 'absolute', top: 0, left: 0 },
   homeSection: { marginTop: 26 },
   sectionTitle: { marginHorizontal: gutter, marginBottom: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
-  sectionText: { color: ivory, fontSize: 22, fontWeight: '700', letterSpacing: -0.65 },
+  sectionText: { color: colors.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.65 },
   railContent: { paddingHorizontal: gutter, gap: 12 },
   specialCover: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   coverRing: { position: 'absolute', borderColor: '#FFF8FF50', borderWidth: StyleSheet.hairlineWidth },
@@ -349,16 +377,18 @@ const styles = StyleSheet.create({
   genres: { paddingHorizontal: gutter },
   resultSection: { marginBottom: 23 },
   empty: { alignItems: 'center', gap: 7, padding: 28, marginTop: 22 },
-  emptyTitle: { color: ivory, fontSize: 19, fontWeight: '700', textAlign: 'center', marginTop: 6 },
-  emptyDescription: { color: muted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
+  emptyTitle: { color: colors.text, fontSize: 19, fontWeight: '700', textAlign: 'center', marginTop: 6 },
+  emptyDescription: { color: colors.muted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
   detailNav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: gutter },
   detailUnavailableNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
-  albumPage: { flex: 1, backgroundColor: screenBackground },
+  albumPage: { flex: 1, overflow: 'hidden', backgroundColor: colors.background },
+  overscrollFill: { position: 'absolute', bottom: '100%', height: '100%', left: 0, right: 0 },
+  detailStatus: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
   detailHeader: { alignItems: 'center', paddingHorizontal: gutter },
   detailArt: { marginTop: 8, marginBottom: 21, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
-  detailDescription: { marginHorizontal: gutter, color: muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
+  detailDescription: { marginHorizontal: gutter, color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
   trackListHeader: { marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 8 },
-  trackListTitle: { color: ivory, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
-  trackCount: { color: faint, fontSize: 12, fontWeight: '600' },
+  trackListTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
+  trackCount: { color: colors.quiet, fontSize: 12, fontWeight: '600' },
   trackList: { marginHorizontal: gutter - 4 },
-});
+}));

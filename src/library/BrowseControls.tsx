@@ -1,6 +1,7 @@
 import { useImperativeHandle, useRef, type ComponentRef, type ReactElement, type Ref } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { colors, Icon } from '../ui';
+import { Icon } from '../ui';
+import { createThemedStyles, useColors } from '../theme';
 
 export type SearchHandle = Pick<ComponentRef<typeof TextInput>, 'focus' | 'blur'> & { setText: (text: string) => void };
 
@@ -22,6 +23,8 @@ export type GenreGridProps = { items: readonly (GenreCardProps & { id: string })
 export type AlbumMetadataProps = { title: string; info: string; artist?: string };
 
 export function SearchField({ value, onChange, placeholder, autoFocus, inputRef }: SearchFieldProps) {
+  const colors = useColors();
+  const styles = useStyles();
   const field = useRef<ComponentRef<typeof TextInput>>(null);
   useImperativeHandle(inputRef, () => ({
     focus: () => field.current?.focus(),
@@ -38,6 +41,8 @@ export function SearchField({ value, onChange, placeholder, autoFocus, inputRef 
 }
 
 export function BrowseButton({ label, icon, title, glass, onPress }: BrowseButtonProps) {
+  const colors = useColors();
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
     style={({ pressed }) => [styles.button, glass && styles.glass, pressed && styles.pressed]}>
     {icon && <Icon name={icon} size={title ? 15 : 19} color={colors.text} />}
@@ -46,10 +51,12 @@ export function BrowseButton({ label, icon, title, glass, onPress }: BrowseButto
 }
 
 export function LibraryFilters<T extends string>({ options, value, onChange }: FilterProps<T>) {
+  const colors = useColors();
+  const styles = useStyles();
   return <View style={styles.filterRow}>
     {options.map(option => <Pressable key={option} accessibilityRole="button" accessibilityState={{ selected: value === option }}
       style={[styles.filter, value === option && styles.activeFilter]} onPress={() => onChange(option)}>
-      <Text style={[styles.buttonTitle, value === option && { color: colors.background }]}>{option}</Text>
+      <Text style={[styles.buttonTitle, value === option && { color: colors.onAccent }]}>{option}</Text>
     </Pressable>)}
   </View>;
 }
@@ -60,6 +67,7 @@ export function LibrarySort<T extends string>({ options, value, onChange }: Filt
 }
 
 export function CollectionTile({ title, subtitle, cover, size, onPress }: CollectionButtonProps) {
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
     style={({ pressed }) => [{ width: size }, pressed && styles.pressed]}>
     {cover}
@@ -69,12 +77,15 @@ export function CollectionTile({ title, subtitle, cover, size, onPress }: Collec
 }
 
 export function CollectionGrid({ items }: CollectionGridProps) {
+  const styles = useStyles();
   return <View style={styles.collectionGrid}>
     {items.map(({ id, ...item }) => <CollectionTile key={id} {...item} />)}
   </View>;
 }
 
 export function CollectionRow({ title, subtitle, cover, onPress }: CollectionButtonProps) {
+  const colors = useColors();
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
     style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}>
     {cover}
@@ -87,6 +98,7 @@ export function CollectionRow({ title, subtitle, cover, onPress }: CollectionBut
 }
 
 export function GenreCard({ title, color, width, cover, onPress }: GenreCardProps) {
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`Browse ${title}`} onPress={onPress}
     style={({ pressed }) => [styles.genre, { width, backgroundColor: color }, pressed && styles.pressed]}>
     <Text style={styles.genreTitle}>{title}</Text>
@@ -95,22 +107,25 @@ export function GenreCard({ title, color, width, cover, onPress }: GenreCardProp
 }
 
 export function GenreGrid({ items }: GenreGridProps) {
+  const styles = useStyles();
   return <View style={styles.genreGrid}>
     {items.map(({ id, ...item }) => <GenreCard key={id} {...item} />)}
   </View>;
 }
 
 export function HeroActions({ title, artist, onOpen, onPlay }: HeroActionsProps) {
+  const styles = useStyles();
   return <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onOpen} style={[StyleSheet.absoluteFill, styles.heroOpen]}>
       <Text style={styles.heroTitle}>{title}</Text>
-      <Text style={styles.subtitle}>{artist}</Text>
+      <Text style={[styles.subtitle, styles.heroSubtitle]}>{artist}</Text>
     </Pressable>
     <View style={styles.heroPlay}><BrowseButton icon="play.fill" label={`Play ${title}`} onPress={onPlay} glass /></View>
   </View>;
 }
 
 export function AlbumMetadata({ title, info, artist }: AlbumMetadataProps) {
+  const styles = useStyles();
   return <View style={styles.metadata}>
     <Text accessibilityRole="header" style={styles.albumTitle}>{title}</Text>
     {artist && <Text style={styles.artist}>{artist}</Text>}
@@ -118,7 +133,7 @@ export function AlbumMetadata({ title, info, artist }: AlbumMetadataProps) {
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.68 },
   button: { minWidth: 44, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
@@ -130,18 +145,19 @@ const styles = StyleSheet.create({
   filter: { borderRadius: 17, paddingHorizontal: 10, minHeight: 34, justifyContent: 'center', backgroundColor: colors.surface },
   activeFilter: { backgroundColor: colors.accent },
   collectionRow: { paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 11,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF22' },
+    borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
   collectionTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
   subtitle: { color: colors.muted, fontSize: 13, marginTop: 3 },
   collectionGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 19 },
   genreGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   genre: { minHeight: 106, padding: 12, borderRadius: 15, overflow: 'hidden' },
-  genreTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  genreTitle: { color: '#F5F2FF', fontSize: 17, fontWeight: '700' },
   genreCover: { position: 'absolute', bottom: -11, right: -6, transform: [{ rotate: '19deg' }] },
   heroOpen: { justifyContent: 'flex-end', padding: 20, paddingRight: 80 },
-  heroTitle: { color: colors.text, fontSize: 36, fontWeight: '800', letterSpacing: -1.4 },
+  heroTitle: { color: '#F5F2FF', fontSize: 36, fontWeight: '800', letterSpacing: -1.4 },
+  heroSubtitle: { color: '#F0E6FA' },
   heroPlay: { position: 'absolute', right: 19, bottom: 19 },
   metadata: { alignItems: 'center', gap: 3 },
   albumTitle: { color: colors.text, fontWeight: '800', fontSize: 31, textAlign: 'center' },
   artist: { color: colors.text, fontSize: 17, textAlign: 'center' },
-});
+}));

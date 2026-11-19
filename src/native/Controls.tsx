@@ -6,7 +6,8 @@ import { View } from 'react-native';
 import type { ComponentProps } from 'react';
 import { albums, tracks } from '../catalog';
 import { usePlaybackState } from '../playback';
-import { Cover, colors } from '../ui';
+import { Cover } from '../ui';
+import { useColors } from '../theme';
 
 type SymbolName = ComponentProps<typeof Image>['systemName'];
 export const plainButton = buttonStyle('plain');
@@ -17,7 +18,7 @@ export function Symbol({ name, size = 20, color }: { name: string; size?: number
   return <Image systemName={name as SymbolName} size={size} color={color} />;
 }
 
-export function IconButton({ symbol, label, size = 20, color = colors.text, width = 44, height = 44, selected, onPress }: {
+export function IconButton({ symbol, label, size = 20, color, width = 44, height = 44, selected, onPress }: {
   symbol: string;
   label: string;
   size?: number;
@@ -27,12 +28,13 @@ export function IconButton({ symbol, label, size = 20, color = colors.text, widt
   selected?: boolean;
   onPress?: () => void;
 }) {
+  const colors = useColors();
   return (
     <Button onPress={onPress} modifiers={[
       plainButton, accessibilityLabel(label),
       ...(selected ? [accessibilityAddTraits(['isSelected'])] : []),
     ]}>
-      <Image systemName={symbol as SymbolName} size={size} color={color}
+      <Image systemName={symbol as SymbolName} size={size} color={color ?? colors.text}
         modifiers={[frame({ width, height }), hitShape]} />
     </Button>
   );
@@ -63,10 +65,11 @@ export function TrackActions({ trackId }: { trackId: string }) {
   </>;
 }
 
-export function TrackMenu({ trackId, label, color = colors.muted, children }: {
+export function TrackMenu({ trackId, label, color, children }: {
   trackId: string; label?: string; color?: string; children?: React.ReactNode;
 }) {
-  return <Menu label={<Image systemName="ellipsis" size={19} color={color} modifiers={[iconFrame, hitShape]} />}
+  const colors = useColors();
+  return <Menu label={<Image systemName="ellipsis" size={19} color={color ?? colors.muted} modifiers={[iconFrame, hitShape]} />}
     modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(label ?? `More options for ${tracks[trackId].title}`)]}>
     <TrackActions trackId={trackId} />
     {children}

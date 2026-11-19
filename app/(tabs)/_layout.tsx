@@ -5,7 +5,8 @@ import { NativeTabs } from 'expo-router/native-tabs';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MiniPlayer } from '../../src/MiniPlayer';
-import { colors, Icon } from '../../src/ui';
+import { useColors } from '../../src/theme';
+import { Icon } from '../../src/ui';
 
 const tabs = [
   { route: '(home)', label: 'Home', icon: 'music.note.house' },
@@ -18,6 +19,7 @@ function Accessory() {
 }
 
 export default function TabLayout() {
+  const colors = useColors();
   if (Platform.OS !== 'ios' || !isLiquidGlassAvailable()) return <FallbackTabs />;
 
   return (
@@ -40,6 +42,7 @@ export default function TabLayout() {
 }
 
 function FallbackTabs() {
+  const colors = useColors();
   const { bottom } = useSafeAreaInsets();
   return (
     <View style={styles.root}>
@@ -47,7 +50,7 @@ function FallbackTabs() {
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: styles.bar,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.stroke },
         tabBarLabelStyle: styles.label,
         tabBarHideOnKeyboard: true,
       }}>
@@ -56,7 +59,9 @@ function FallbackTabs() {
           tabBarIcon: ({ color, size }) => <Icon name={tab.icon} color={color} size={size} />,
         }} />)}
       </Tabs>
-      <BlurView tint="systemMaterialDark" intensity={50} style={[styles.floating, { bottom: 69 + bottom }]}>
+      <BlurView tint="systemMaterial" intensity={50} style={[styles.floating, {
+        bottom: 69 + bottom, borderColor: colors.stroke, backgroundColor: colors.floating,
+      }]}>
         <MiniPlayer />
       </BlurView>
     </View>
@@ -65,7 +70,6 @@ function FallbackTabs() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  bar: { backgroundColor: '#19161f', borderTopColor: '#ffffff18' },
   label: { fontSize: 11, fontWeight: '600' },
-  floating: { position: 'absolute', left: 14, right: 14, height: 60, borderRadius: 30, overflow: 'hidden', borderWidth: 1, borderColor: '#ffffff26', backgroundColor: '#282333d9' },
+  floating: { position: 'absolute', left: 14, right: 14, height: 60, borderRadius: 30, overflow: 'hidden', borderWidth: 1 },
 });

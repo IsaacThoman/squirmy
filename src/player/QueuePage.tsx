@@ -7,7 +7,8 @@ import { albums, tracks } from '../catalog';
 import { type QueueEntry, usePlaybackState } from '../playback';
 import { Cover, Icon } from '../ui';
 import { PlayerButton } from './Controls';
-import { playerColors as c, selectionFeedback } from './design';
+import { selectionFeedback } from './design';
+import { createThemedStyles, useColors } from '../theme';
 
 const rowHeight = 62;
 const historyLead = 48;
@@ -20,6 +21,8 @@ export type QueueProps = {
 };
 
 export default function QueuePage({ onTrackMenu }: QueueProps) {
+  const colors = useColors();
+  const styles = useStyles();
   const { state, actions } = usePlaybackState();
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const scrollGesture = useNativeGesture();
@@ -67,7 +70,7 @@ export default function QueuePage({ onTrackMenu }: QueueProps) {
         <Text accessibilityRole="header" style={styles.queueTitle}>Play queue</Text>
         {state.history.length > 0 && (
           <Pressable style={styles.historyJump} accessibilityRole="button" onPress={historyVisible ? jumpToCurrent : showHistory}>
-            <Icon name={historyVisible ? 'waveform' : 'clock.arrow.circlepath'} color={c.lilac} size={14} />
+            <Icon name={historyVisible ? 'waveform' : 'clock.arrow.circlepath'} color={colors.accent} size={14} />
             <Text style={styles.historyJumpText}>{historyVisible ? 'Now playing' : 'History'}</Text>
           </Pressable>
         )}
@@ -133,7 +136,7 @@ export default function QueuePage({ onTrackMenu }: QueueProps) {
           )}
           <View style={[styles.sectionHeader, styles.autoplayHeader]}>
             <View style={styles.autoplayTitle}>
-              <Icon name="infinity" size={17} color={state.autoplay ? c.lilac : c.quiet} />
+              <Icon name="infinity" size={17} color={state.autoplay ? colors.accent : colors.quiet} />
               <Text style={styles.sectionTitle}>Autoplay</Text>
             </View>
           </View>
@@ -160,6 +163,8 @@ function QueueMode({ icon, label, active, onPress, announcement }: {
   onPress: () => void;
   announcement?: string;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <Pressable
       style={({ pressed }) => [styles.modeAction, active && styles.modeActive, pressed && styles.pressed]}
@@ -168,7 +173,7 @@ function QueueMode({ icon, label, active, onPress, announcement }: {
       accessibilityState={{ checked: active }}
       onPress={() => { selectionFeedback(); onPress(); }}
     >
-      <Icon name={icon} size={16} color={active ? c.ink : c.text} />
+      <Icon name={icon} size={16} color={active ? colors.onAccent : colors.text} />
       <Text style={[styles.modeText, active && styles.modeActiveText]} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
@@ -179,6 +184,7 @@ function SortableRows({ entries, scrollGesture, onTrackMenu, autoplay = false }:
   scrollGesture: NativeGesture;
   autoplay?: boolean;
 }) {
+  const styles = useStyles();
   const { actions } = usePlaybackState();
   const from = useSharedValue(-1);
   const destination = useSharedValue(-1);
@@ -251,6 +257,8 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
   openSwipe: SharedValue<string | null>;
   scrollGesture: NativeGesture;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const swipeOffset = useSharedValue(0);
   const startSwipeOffset = useSharedValue(0);
   const trackTitle = tracks[entry.trackId].title;
@@ -312,7 +320,7 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
   const trayMotion = useAnimatedStyle(() => ({ transform: [{ translateX: actionWidth + swipeOffset.value }] }));
   const rowMotion = useAnimatedStyle(() => {
     if (from.value === index) {
-      return { zIndex: 2, transform: [{ translateY: offset.value }], backgroundColor: '#332A49' };
+      return { zIndex: 2, transform: [{ translateY: offset.value }], backgroundColor: colors.draggedRow };
     }
     let shift = 0;
     if (index > from.value && index <= destination.value) shift = -rowHeight;
@@ -330,7 +338,7 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
     <Animated.View style={[styles.sortableRow, rowMotion]}>
       <View style={styles.swipeable}>
         <Animated.View style={[styles.swipeActions, trayMotion]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <PlayerButton icon="text.insert" label="Play next" size={20} color={c.ink} style={styles.promote} onPress={() => swipeAction(onPromote)} />
+          <PlayerButton icon="text.insert" label="Play next" size={20} color={colors.onAccent} style={styles.promote} onPress={() => swipeAction(onPromote)} />
           <PlayerButton icon="trash" label="Remove from queue" size={19} color="#FFE9EE" style={styles.remove} onPress={() => swipeAction(onRemove)} />
         </Animated.View>
         <GestureDetector gesture={swipe} touchAction="pan-y">
@@ -355,7 +363,7 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
                     }}
                     style={styles.handle}
                   >
-                    <Icon name="line.3.horizontal" size={18} color={c.quiet} />
+                    <Icon name="line.3.horizontal" size={18} color={colors.quiet} />
                   </View>
                 </GestureDetector>
               )}
@@ -375,6 +383,8 @@ function TrackRow({ trackId, onPress, handle, onTrackMenu, onPromote, onRemove }
   onPromote?: () => void;
   onRemove?: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const { state, actions } = usePlaybackState();
   const track = tracks[trackId];
   const album = albums[track.albumId];
@@ -405,50 +415,50 @@ function TrackRow({ trackId, onPress, handle, onTrackMenu, onPromote, onRemove }
         size={17}
         label={favorite ? `Remove ${track.title} from favorites` : `Favorite ${track.title}`}
         selected={favorite}
-        color={favorite ? c.lilac : c.muted}
+        color={favorite ? colors.accent : colors.muted}
         onPress={() => { selectionFeedback(); actions.toggleFavorite(track.id); }}
         style={styles.rowAction}
       />
-      <PlayerButton icon="ellipsis" label={`Options for ${track.title}`} size={16} color={c.muted} onPress={() => onTrackMenu(track.id)} style={styles.rowAction} />
+      <PlayerButton icon="ellipsis" label={`Options for ${track.title}`} size={16} color={colors.muted} onPress={() => onTrackMenu(track.id)} style={styles.rowAction} />
       {handle}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => StyleSheet.create({
   screen: { flex: 1 },
   queueHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, paddingBottom: 7, minHeight: 46 },
-  queueTitle: { color: c.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8 },
-  historyJump: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderColor: c.stroke, backgroundColor: c.surface },
-  historyJumpText: { color: c.lilac, fontWeight: '600', fontSize: 12 },
+  queueTitle: { color: colors.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8 },
+  historyJump: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderColor: colors.stroke, backgroundColor: colors.overlay },
+  historyJumpText: { color: colors.accent, fontWeight: '600', fontSize: 12 },
   queueContent: { paddingHorizontal: 24, paddingBottom: 28 },
   historySection: { paddingBottom: historyTrail },
   historyHeader: { height: historyLead },
   sectionHeader: { minHeight: 35, justifyContent: 'space-between', alignItems: 'center', flexDirection: 'row' },
-  sectionTitle: { color: c.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.3 },
-  sectionDetail: { color: c.quiet, fontSize: 12, fontWeight: '500', fontVariant: ['tabular-nums'] },
-  sectionNote: { color: c.muted, fontSize: 13, marginBottom: 7 },
+  sectionTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.3 },
+  sectionDetail: { color: colors.quiet, fontSize: 12, fontWeight: '500', fontVariant: ['tabular-nums'] },
+  sectionNote: { color: colors.muted, fontSize: 13, marginBottom: 7 },
   clearAction: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  clearText: { fontSize: 14, fontWeight: '600', color: c.lilac },
+  clearText: { fontSize: 14, fontWeight: '600', color: colors.accent },
   modeActions: { flexDirection: 'row', gap: 7, marginTop: 11, marginBottom: 10 },
-  modeAction: { flex: 1, minHeight: 38, borderRadius: 20, backgroundColor: c.surface, borderWidth: 1, borderColor: c.stroke, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
-  modeActive: { backgroundColor: c.lilac, borderColor: c.lilac },
-  modeText: { color: c.text, fontSize: 11, fontWeight: '600', flexShrink: 1 },
-  modeActiveText: { color: c.ink },
+  modeAction: { flex: 1, minHeight: 38, borderRadius: 20, backgroundColor: colors.overlay, borderWidth: 1, borderColor: colors.stroke, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
+  modeActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  modeText: { color: colors.text, fontSize: 11, fontWeight: '600', flexShrink: 1 },
+  modeActiveText: { color: colors.onAccent },
   autoplayHeader: { marginTop: 15 },
   autoplayTitle: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   trackRow: { height: rowHeight, flexDirection: 'row', alignItems: 'center' },
   trackLink: { flex: 1, minHeight: rowHeight, flexDirection: 'row', alignItems: 'center', gap: 10 },
   trackCopy: { flex: 1, minWidth: 0 },
-  trackName: { color: c.text, fontSize: 15, fontWeight: '600' },
-  trackArtist: { color: c.muted, fontSize: 12, marginTop: 3 },
+  trackName: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  trackArtist: { color: colors.muted, fontSize: 12, marginTop: 3 },
   rowAction: { width: 34 },
   handle: { width: 33, height: 44, justifyContent: 'center', alignItems: 'flex-end' },
   pressed: { opacity: 0.62 },
   sortable: { zIndex: 1 },
   sortableRow: { borderRadius: 10 },
   swipeable: { borderRadius: 10, overflow: 'hidden' },
-  swipeActions: { position: 'absolute', right: 0, top: 0, bottom: 0, width: actionWidth, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#211A32', paddingHorizontal: 5 },
-  promote: { borderRadius: 21, backgroundColor: c.lilac },
+  swipeActions: { position: 'absolute', right: 0, top: 0, bottom: 0, width: actionWidth, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.sheet, paddingHorizontal: 5 },
+  promote: { borderRadius: 21, backgroundColor: colors.accent },
   remove: { borderRadius: 21, backgroundColor: '#A03757' },
-});
+}));

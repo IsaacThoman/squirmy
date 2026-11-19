@@ -3,18 +3,19 @@ import {
   accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, font, foregroundStyle, frame, shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { colors } from '../ui';
 import type { AlbumNavProps, AlbumPlaybackProps } from './AlbumButtons';
+import { useColors } from '../theme';
 
 const hitShape = contentShape(shapes.rectangle());
 
 export function AlbumNavButton({ icon, label, onPress }: AlbumNavProps) {
+  const colors = useColors();
   const glass = isLiquidGlassAvailable();
   return (
-    <Host colorScheme="dark" style={{ width: 44, height: 44 }}>
+    <Host style={{ width: 44, height: 44 }}>
       <Button onPress={onPress} modifiers={glass
         ? [buttonStyle('glass'), buttonBorderShape('circle'), accessibilityLabel(label)]
-        : [buttonStyle('plain'), background('#26232D'), clipShape('circle'), accessibilityLabel(label)]}>
+        : [buttonStyle('plain'), background(colors.surface), clipShape('circle'), accessibilityLabel(label)]}>
         <Image systemName={icon} size={20} color={colors.text}
           modifiers={[frame(glass ? { width: 26, height: 26 } : { width: 44, height: 44 }), hitShape]} />
       </Button>
@@ -23,13 +24,14 @@ export function AlbumNavButton({ icon, label, onPress }: AlbumNavProps) {
 }
 
 export function AlbumPlaybackButtons({ title, onPlay, onShuffle }: AlbumPlaybackProps) {
+  const colors = useColors();
   const actions = [
-    { label: 'Play', symbol: 'play.fill', onPress: onPlay, color: colors.background, surface: colors.accent },
-    { label: 'Shuffle', symbol: 'shuffle', onPress: onShuffle, color: colors.text, surface: '#27232E' },
+    { label: 'Play', symbol: 'play.fill', onPress: onPlay, color: colors.onAccent, surface: colors.accent },
+    { label: 'Shuffle', symbol: 'shuffle', onPress: onShuffle, color: colors.text, surface: colors.surface },
   ] as const;
 
   return (
-    <Host colorScheme="dark" style={{ height: 46, marginTop: 18, alignSelf: 'stretch' }}>
+    <Host style={{ height: 46, marginTop: 18, alignSelf: 'stretch' }}>
       <HStack spacing={9}>
         {actions.map(({ label, symbol, onPress, color, surface }) => (
           <Button key={label} onPress={onPress}

@@ -5,15 +5,15 @@
     "scheme": ["squirmy", "tone"],
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#111014",
+    "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#111014"
+          "backgroundColor": "#ffffff",
+          "dark": { "backgroundColor": "#111014" }
         }
       ],
       "expo-sqlite"
