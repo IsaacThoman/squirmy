@@ -9,9 +9,11 @@ import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { StyleSheet, View } from 'react-native';
 import { IconButton, Symbol, hitShape, plainButton } from '../native/Controls';
 import type {
-  AlbumMetadataProps, BrowseButtonProps, CollectionButtonProps, CollectionGridProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps, SearchFieldProps,
+  AlbumMetadataProps, BrowseButtonProps, CollectionButtonProps, CollectionGridProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
+  LinkedButtonProps, SearchFieldProps,
 } from './BrowseControls';
 import { useColors } from '../theme';
+import { ZoomLink, ZoomSource } from './ZoomLink';
 
 const footnote = font({ textStyle: 'footnote' });
 const labelFont = font({ textStyle: 'subheadline', weight: 'semibold' });
@@ -80,8 +82,12 @@ export function LibrarySort<T extends string>({ options, value, onChange }: Filt
   </Host>;
 }
 
-function HostedCover({ cover, size }: { cover: React.ReactElement; size: number }) {
-  return <RNHostView matchContents><View style={{ width: size, height: size }}>{cover}</View></RNHostView>;
+/** A React Native cover inside SwiftUI. With `zoom`, the linked page grows out of it. */
+function HostedCover({ cover, size, zoom }: { cover: React.ReactElement; size: number; zoom?: boolean }) {
+  const frame = { width: size, height: size };
+  return <RNHostView matchContents>
+    {zoom ? <ZoomSource style={frame}>{cover}</ZoomSource> : <View style={frame}>{cover}</View>}
+  </RNHostView>;
 }
 
 export function CollectionTile(props: CollectionButtonProps) {
@@ -94,11 +100,15 @@ export function CollectionGrid({ items, columns }: CollectionGridProps) {
   return <TileGrid items={items} columns={columns} verticalSpacing={19} render={item => <CollectionTileButton {...item} />} />;
 }
 
-function CollectionTileButton({ title, subtitle, cover, size, onPress }: CollectionButtonProps) {
+function CollectionTileButton({ href, ...props }: CollectionButtonProps) {
+  return <ZoomLink href={href}><TileButton {...props} /></ZoomLink>;
+}
+
+function TileButton({ title, subtitle, cover, size, onPress }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   return <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
     <VStack alignment="leading" spacing={6} modifiers={[frame({ width: size, alignment: 'leading' }), hitShape]}>
-      <HostedCover cover={cover} size={size} />
+      <HostedCover cover={cover} size={size} zoom />
       <VStack alignment="leading" spacing={2}>
         <Text modifiers={[labelFont, lineLimit(1)]}>{title}</Text>
         <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
@@ -107,24 +117,28 @@ function CollectionTileButton({ title, subtitle, cover, size, onPress }: Collect
   </Button>;
 }
 
-export function CollectionRow({ title, subtitle, cover, size, onPress }: CollectionButtonProps) {
-  const colors = useColors();
+export function CollectionRow({ href, ...props }: CollectionButtonProps) {
   return <Host matchContents={{ vertical: true }}>
-    <VStack spacing={0}>
-      <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
-        <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape]}>
-          <HostedCover cover={cover} size={size} />
-          <VStack alignment="leading" spacing={3}>
-            <Text modifiers={[labelFont, lineLimit(1)]}>{title}</Text>
-            <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
-          </VStack>
-          <Spacer minLength={4} />
-          <Symbol name="chevron.right" size={12} color={colors.muted} />
-        </HStack>
-      </Button>
-      <Divider modifiers={[padding({ leading: size + 12 })]} />
-    </VStack>
+    <ZoomLink href={href}><RowButton {...props} /></ZoomLink>
   </Host>;
+}
+
+function RowButton({ title, subtitle, cover, size, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+  const colors = useColors();
+  return <VStack spacing={0}>
+    <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
+      <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape]}>
+        <HostedCover cover={cover} size={size} zoom />
+        <VStack alignment="leading" spacing={3}>
+          <Text modifiers={[labelFont, lineLimit(1)]}>{title}</Text>
+          <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
+        </VStack>
+        <Spacer minLength={4} />
+        <Symbol name="chevron.right" size={12} color={colors.muted} />
+      </HStack>
+    </Button>
+    <Divider modifiers={[padding({ leading: size + 12 })]} />
+  </VStack>;
 }
 
 export function GenreGrid({ items }: GenreGridProps) {
