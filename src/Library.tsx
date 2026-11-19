@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, type Href } from 'expo-router';
+import { useNavigation, usePreventZoomTransitionDismissal, type Href } from 'expo-router';
 import Animated, { Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album, type Track } from './catalog';
@@ -29,6 +29,8 @@ import { createThemedStyles, useColors } from './theme';
 
 const gutter = 22;
 const albumNavSize = 44;
+/** How far in from the left edge a swipe can start and still close a zoomed collection. */
+const backSwipeEdge = 40;
 
 export type BrowseProps = {
   onOpenAlbum: (albumId: string) => void;
@@ -287,6 +289,17 @@ function EmptyState({ icon, title, description }: { icon: string; title: string;
   </View>;
 }
 
+/**
+ * Only a swipe from the left edge closes a page that zoomed open; pulling down scrolls it instead.
+ * The bounds go on after the first render because the zoom transition registers itself in an
+ * effect, and the hook only applies bounds when one of them changes.
+ */
+function useBackSwipeOnly() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  usePreventZoomTransitionDismissal({ unstable_dismissalBoundsRect: mounted ? { maxX: backSwipeEdge } : undefined });
+}
+
 export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }: AlbumProps) {
   const colors = useColors();
   const styles = useStyles();
@@ -312,6 +325,7 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const hasSongs = trackIds.length > 0;
   const headerColor = album ? interpolateColor(colors.albumTint, [0, 1], [colors.background, album.color], 'RGB', { gamma: 1 }) : colors.background;
+  useBackSwipeOnly();
 
   if (!item) return <View style={[styles.albumPage, { paddingTop: top + 8 }]}>
     <View style={styles.detailUnavailableNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
