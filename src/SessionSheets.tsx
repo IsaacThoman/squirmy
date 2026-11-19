@@ -1,10 +1,9 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { type ReactNode } from 'react';
-import { devices, formatTime, tracks } from './catalog';
-import { usePlayerTransition } from './player/transition';
-import { usePlayback, usePlaybackState } from './playback';
-import { SheetFrame, SheetRows, SheetRow, SheetTransport, TrackSummary } from './SheetUI';
+import { devices, tracks } from './catalog';
+import { usePlaybackState } from './playback';
+import { SheetFrame, SheetRows, SheetRow, TrackSummary } from './SheetUI';
 import { colors } from './ui';
 
 export function closeSheet(router: ReturnType<typeof useRouter>) {
@@ -18,7 +17,6 @@ function Sheet({ title, children }: { title: string; children?: ReactNode }) {
 }
 
 export function DeviceSheet() {
-  const router = useRouter();
   const { track, device, actions } = usePlaybackState();
   return (
     <Sheet title="Playback device">
@@ -34,8 +32,6 @@ export function DeviceSheet() {
               void Haptics.selectionAsync();
             }} />
         ))}
-        <SheetRow title="Preview remote controls" icon="laptopcomputer" trailing="chevron.right"
-          onPress={() => router.replace('/session')} />
       </SheetRows>
     </Sheet>
   );
@@ -64,27 +60,6 @@ export function TrackActionSheet({ id }: { id: string }) {
           onPress={() => perform(() => actions.addToQueue(id, 'last'))} />
         <SheetRow title={favorite ? 'Remove from Liked Songs' : 'Add to Liked Songs'} icon={favorite ? 'heart.fill' : 'heart'}
           onPress={() => perform(() => actions.toggleFavorite(id))} />
-      </SheetRows>
-    </Sheet>
-  );
-}
-
-export function RemoteSessionSheet() {
-  const router = useRouter();
-  const player = usePlayerTransition();
-  const { track, device, state, position, actions } = usePlayback();
-  const next = state.queue[0] ?? (state.autoplay ? state.autoplayQueue[0] : undefined);
-  return (
-    <Sheet title="MacBook remote">
-      <TrackSummary id={track.id} />
-      <SheetTransport position={`${formatTime(position)} / ${formatTime(track.duration)}`} device={device.name}
-        playing={state.playing} onPrevious={actions.previous} onPlayPause={actions.playPause} onNext={actions.next} />
-      <SheetRows>
-        <SheetRow title="Up next" subtitle={next ? tracks[next.trackId].title : 'Queue is empty'}
-          icon="list.bullet" trailing="chevron.right" onPress={() => {
-            closeSheet(router);
-            player.open('queue');
-          }} />
       </SheetRows>
     </Sheet>
   );

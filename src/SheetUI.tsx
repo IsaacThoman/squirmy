@@ -7,10 +7,7 @@ import { Cover, Icon, colors } from './ui';
 export type SheetFrameProps = { title: string; onClose: () => void; children?: ReactNode };
 export type SheetRowProps = {
   title: string; subtitle?: string; icon: string; color?: string;
-  selected?: boolean; onPress: () => void; trailing?: string;
-};
-export type SheetTransportProps = {
-  position: string; device: string; playing: boolean; onPrevious: () => void; onPlayPause: () => void; onNext: () => void;
+  selected?: boolean; onPress: () => void;
 };
 
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
@@ -33,7 +30,7 @@ export function SheetRows({ children }: { children: ReactNode }) {
   return <View style={styles.rows}>{children}</View>;
 }
 
-export function SheetRow({ title, subtitle, icon, color = colors.text, selected, onPress, trailing }: SheetRowProps) {
+export function SheetRow({ title, subtitle, icon, color = colors.text, selected, onPress }: SheetRowProps) {
   return (
     <Pressable accessibilityRole="button" accessibilityState={selected === undefined ? undefined : { selected }}
       onPress={onPress}
@@ -43,7 +40,7 @@ export function SheetRow({ title, subtitle, icon, color = colors.text, selected,
         <Text style={styles.rowTitle}>{title}</Text>
         {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
       </View>
-      {(selected || trailing) && <Icon name={selected ? 'checkmark' : trailing!} size={17} color={selected ? colors.accent : colors.muted} />}
+      {selected && <Icon name="checkmark" size={17} color={colors.accent} />}
     </Pressable>
   );
 }
@@ -62,27 +59,6 @@ export function TrackSummary({ id }: { id: string }) {
   );
 }
 
-export function SheetTransport({ position, device, playing, onPrevious, onPlayPause, onNext }: SheetTransportProps) {
-  return <>
-    <View style={styles.remoteStatus}>
-      <Text style={styles.rowSubtitle}>{position}</Text>
-      <Text style={styles.rowSubtitle}>{device}</Text>
-    </View>
-    <View style={styles.remoteControls}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Previous track" style={styles.control} onPress={onPrevious}>
-        <Icon name="backward.fill" size={25} />
-      </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={playing ? 'Pause' : 'Play'}
-        style={[styles.control, styles.primaryControl]} onPress={onPlayPause}>
-        <Icon name={playing ? 'pause.fill' : 'play.fill'} size={26} color="#1a1424" />
-      </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Next track" style={styles.control} onPress={onNext}>
-        <Icon name="forward.fill" size={25} />
-      </Pressable>
-    </View>
-  </>;
-}
-
 const styles = StyleSheet.create({
   sheet: { paddingTop: 27, paddingHorizontal: 22, gap: 15 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36 },
@@ -98,8 +74,4 @@ const styles = StyleSheet.create({
   selectedIcon: { backgroundColor: '#cbc1ff23' },
   rowTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
   rowSubtitle: { color: colors.muted, fontSize: 13, fontWeight: '500' },
-  remoteStatus: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, gap: 10 },
-  remoteControls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 28, paddingVertical: 8 },
-  control: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
-  primaryControl: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.accent },
 });
