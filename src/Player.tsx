@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { BackHandler, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
+import { GestureDetector, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, Extrapolation, interpolate, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay,
   withSpring, withTiming,
@@ -447,32 +447,56 @@ function LyricsPage({ visible }: { visible: boolean }) {
 /** The only part of the transport that follows the playback clock, so each tick redraws just this. */
 function Scrubber() {
   const { track, position, actions } = usePlayback();
-  const [scrubbing, setScrubbing] = useState(false);
-  const [draft, setDraft] = useState(position);
-  const scrubRef = useRef({ active: false, position });
-  const shown = scrubbing ? draft : position;
-  const seekEditing = (editing: boolean) => {
-    scrubRef.current.active = editing;
-    if (editing) {
-      scrubRef.current.position = position;
-      setDraft(position);
-    } else {
-      actions.seek(scrubRef.current.position);
-    }
-    setScrubbing(editing);
+  const [draft, setDraft] = useState<number | null>(null);
+  const width = useRef(0);
+  const { duration } = track;
+  const shown = draft ?? position;
+  const positionAt = (x: number) => Math.max(0, Math.min(1, x / width.current)) * duration;
+  const preview = ({ x }: { x: number }) => {
+    if (width.current > 0) setDraft(positionAt(x));
   };
-  const seekChange = (seconds: number) => {
-    scrubRef.current.position = seconds;
-    if (scrubRef.current.active) setDraft(seconds);
-    else actions.seek(seconds);
-  };
+  const drag = usePanGesture({
+    runOnJS: true,
+    activeOffsetX: [-4, 4],
+    onActivate: preview,
+    onUpdate: preview,
+    onDeactivate: ({ x, canceled }) => {
+      if (!canceled && width.current > 0) actions.seek(positionAt(x));
+      setDraft(null);
+    },
+  });
+  const tap = useTapGesture({
+    runOnJS: true,
+    onActivate: ({ x }) => {
+      if (width.current > 0) actions.seek(positionAt(x));
+    },
+  });
+  const gesture = useCompetingGestures(drag, tap);
 
   return (
     <>
-      <TransportSlider label="Playback position" value={shown} maximum={track.duration} onChange={seekChange} onEdit={seekEditing} />
+      <GestureDetector gesture={gesture} touchAction="none">
+        <View
+          style={styles.scrubberTouch}
+          onLayout={({ nativeEvent }) => { width.current = nativeEvent.layout.width; }}
+          accessible
+          accessibilityLabel="Playback position"
+          accessibilityRole="adjustable"
+          accessibilityValue={{ min: 0, max: duration, now: Math.floor(shown), text: formatTime(shown) }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+          onAccessibilityAction={({ nativeEvent }) => {
+            const delta = nativeEvent.actionName === 'increment' ? 5 : -5;
+            actions.seek(shown + delta);
+          }}
+        >
+          <View pointerEvents="none" style={styles.scrubberTrack}>
+            <View style={[styles.scrubberProgress, { width: `${duration > 0 ? shown / duration * 100 : 0}%` }]} />
+          </View>
+        </View>
+      </GestureDetector>
       <View style={styles.timeRow}>
         <Text style={styles.time}>{formatTime(shown)}</Text>
-        <Text style={styles.time}>−{formatTime(Math.max(0, track.duration - shown))}</Text>
+        <Text style={styles.time}>−{formatTime(Math.max(0, duration - shown))}</Text>
       </View>
     </>
   );
@@ -560,6 +584,9 @@ const styles = StyleSheet.create({
   noLyricsTitle: { color: c.muted, fontSize: 16, fontWeight: '600' },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: 25, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },
+  scrubberTouch: { height: 28, width: '100%', justifyContent: 'center' },
+  scrubberTrack: { height: 6, borderRadius: 3, backgroundColor: '#5d586b' },
+  scrubberProgress: { height: '100%', borderRadius: 3, backgroundColor: c.lilac },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -1, paddingHorizontal: 1 },
   time: { color: c.quiet, fontVariant: ['tabular-nums'], fontSize: 12, fontWeight: '600' },
   transportButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', marginTop: 12, marginBottom: 10 },
