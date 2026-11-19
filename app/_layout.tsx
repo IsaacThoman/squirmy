@@ -24,7 +24,6 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="devices" options={sheet} />
               <Stack.Screen name="track-actions" options={sheet} />
-              <Stack.Screen name="session" options={sheet} />
             </Stack>
             <Player />
           </PlayerTransitionProvider>

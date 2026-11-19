@@ -29,7 +29,7 @@ Open the project in Squirmy Dev using the terminal QR code or the Metro URL. Jav
 - Swipe left on Now Playing for the next track or right for the previous-track action. The Lyrics and Queue buttons sit below the volume slider. Tap either button again to return to the artwork.
 - In Queue, pull the list down to reveal tracks played earlier. Scroll past Up Next for Autoplay. Drag a reorder handle, or swipe left on a track for Play Next and Remove.
 - Open any album and tap the heart next to a song’s overflow button. Find it again in Library under Liked Songs.
-- Open Playback Device from the mini-player or Now Playing to move the simulated output. Use Preview Remote Controls in the device sheet to control the same session from a simulated MacBook.
+- Open Playback Device from the mini-player or Now Playing to move the simulated output. The mini-player and Now Playing continue to display and control the same playback session when the output changes.
 
 The playback clock, music catalog, lyrics, autoplay, and device switching are demo data and behavior. The prototype does not stream audio, connect to physical playback devices, or synchronize separate app installations.
 
