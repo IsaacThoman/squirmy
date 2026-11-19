@@ -1,4 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Platform } from 'react-native';
 import { AlbumScreen, HomeScreen, LibraryScreen, SearchScreen } from './Library';
 import { useColors } from './theme';
 
@@ -6,18 +7,24 @@ type Tab = 'home' | 'library' | 'search';
 
 export function BrowseStack() {
   const colors = useColors();
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />;
-}
-
-function albumHref(tab: Tab, id: string) {
-  return { pathname: `/(tabs)/(${tab})/album/[id]`, params: { id } } as const;
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+      <Stack.Screen name="album/[id]" options={Platform.OS === 'ios' ? {
+        // Keep the time before another collection can open bounded by the short slide.
+        animation: 'simple_push',
+        animationDuration: 180,
+        fullScreenGestureEnabled: true,
+        gestureResponseDistance: { end: 40 },
+        animationMatchesGesture: true,
+      } : undefined} />
+    </Stack>
+  );
 }
 
 function useBrowseProps(tab: Tab) {
   const router = useRouter();
   return {
-    albumHref: (id: string) => albumHref(tab, id),
-    onOpenAlbum: (id: string) => router.push(albumHref(tab, id)),
+    onOpenAlbum: (id: string) => router.push({ pathname: `/(tabs)/(${tab})/album/[id]`, params: { id } }),
     onTrackMenu: (id: string) => router.push({ pathname: '/track-actions', params: { id } }),
     onOpenDevices: () => router.push('/devices'),
   };
