@@ -9,10 +9,15 @@ export function BrowseStack() {
   return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />;
 }
 
+function albumHref(tab: Tab, id: string) {
+  return { pathname: `/(tabs)/(${tab})/album/[id]`, params: { id } } as const;
+}
+
 function useBrowseProps(tab: Tab) {
   const router = useRouter();
   return {
-    onOpenAlbum: (id: string) => router.push({ pathname: `/(tabs)/(${tab})/album/[id]`, params: { id } }),
+    albumHref: (id: string) => albumHref(tab, id),
+    onOpenAlbum: (id: string) => router.push(albumHref(tab, id)),
     onTrackMenu: (id: string) => router.push({ pathname: '/track-actions', params: { id } }),
     onOpenDevices: () => router.push('/devices'),
   };
