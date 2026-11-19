@@ -1,9 +1,9 @@
-import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
 import { NativeTabs } from 'expo-router/native-tabs';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialBlur } from '../../src/MaterialBlur';
 import { MiniPlayer } from '../../src/MiniPlayer';
 import { colors, Icon } from '../../src/ui';
 
@@ -56,9 +56,10 @@ function FallbackTabs() {
           tabBarIcon: ({ color, size }) => <Icon name={tab.icon} color={color} size={size} />,
         }} />)}
       </Tabs>
-      <BlurView tint="systemMaterialDark" intensity={50} style={[styles.floating, { bottom: 69 + bottom }]}>
+      <View style={[styles.floating, { bottom: 69 + bottom }]}>
+        <MaterialBlur style={StyleSheet.absoluteFill} fallbackColor="#282333d9" />
         <MiniPlayer />
-      </BlurView>
+      </View>
     </View>
   );
 }
@@ -67,5 +68,5 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   bar: { backgroundColor: '#19161f', borderTopColor: '#ffffff18' },
   label: { fontSize: 11, fontWeight: '600' },
-  floating: { position: 'absolute', left: 14, right: 14, height: 60, borderRadius: 30, overflow: 'hidden', borderWidth: 1, borderColor: '#ffffff26', backgroundColor: '#282333d9' },
+  floating: { position: 'absolute', left: 14, right: 14, height: 60, borderRadius: 30, overflow: 'hidden', borderWidth: 1, borderColor: '#ffffff26' },
 });

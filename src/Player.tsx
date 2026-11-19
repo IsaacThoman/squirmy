@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
@@ -6,12 +5,13 @@ import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { BackHandler, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
-  Easing, Extrapolation, interpolate, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay,
+  Easing, Extrapolation, interpolate, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay,
   withSpring, withTiming,
 } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { formatTime } from './catalog';
+import { MaterialBlur } from './MaterialBlur';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
   grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type PlayerPage,
@@ -38,8 +38,6 @@ const sheetRoutes = ['/devices', '/track-actions', '/session'];
 const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
 const panelMotion = { duration: 210 };
 const clamp = Extrapolation.CLAMP;
-
-const Glass = Animated.createAnimatedComponent(BlurView);
 
 type DetailPage = Exclude<PlayerPage, 'player'>;
 type Artwork = { x: number; y: number; size: number; radius: number };
@@ -206,8 +204,8 @@ export default function Player() {
     return { transform: [{ translateX: bubble ? -sideInsets(bubble, progress(motion).follow, width).left : 0 }] };
   });
 
-  const glassProps = useAnimatedProps(() => ({
-    intensity: motion.bubble.value ? interpolate(progress(motion).follow, [0, 0.1, 0.45, 0.6], [0, 70, 70, 0], clamp) : 0,
+  const materialStyle = useAnimatedStyle(() => ({
+    opacity: motion.bubble.value ? interpolate(progress(motion).follow, [0, 0.1, 0.45, 0.6], [0, 1, 1, 0], clamp) : 0,
   }));
 
   const backdropStyle = useAnimatedStyle(() => ({
@@ -275,7 +273,9 @@ export default function Player() {
   return (
     <Overlay>
       <Animated.View style={[styles.panel, panelStyle]}>
-        <Glass tint="systemThinMaterialDark" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, materialStyle]}>
+          <MaterialBlur style={StyleSheet.absoluteFill} />
+        </Animated.View>
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: album.color }, backdropStyle]} pointerEvents="none">
             <Image source={album.artwork} blurRadius={70} contentFit="cover" transition={210} style={styles.backdropArt} />
