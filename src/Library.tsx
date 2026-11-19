@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from 'expo-router';
+import { useNavigation, usePreventZoomTransitionDismissal, type Href } from 'expo-router';
 import Animated, { Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album, type Track } from './catalog';
@@ -20,6 +20,7 @@ import { Cover, Icon } from './ui';
 import { AlbumNavButton, AlbumPlaybackButtons } from './library/AlbumButtons';
 import { AlbumStatusBlur } from './library/AlbumStatusBlur';
 import { SongList } from './library/SongList';
+import { ZoomLink, ZoomSource, ZoomTarget } from './library/ZoomLink';
 import {
   AlbumMetadata, BrowseButton, CollectionGrid, CollectionRow, CollectionTile, GenreGrid, HeroActions, LibraryFilters,
   LibrarySort, SearchField, type SearchHandle,
@@ -28,9 +29,13 @@ import { createThemedStyles, useColors } from './theme';
 
 const gutter = 22;
 const albumNavSize = 44;
+/** How far in from the left edge a swipe can start and still close a zoomed collection. */
+const backSwipeEdge = 40;
 
 export type BrowseProps = {
   onOpenAlbum: (albumId: string) => void;
+  /** Where a collection's page lives. Tiles link here so the page can zoom out of their cover. */
+  albumHref: (albumId: string) => Href;
   onTrackMenu: (trackId: string) => void;
   onOpenDevices?: () => void;
   bottomInset?: number;
@@ -77,12 +82,24 @@ function CollectionCover({ item, size, radius = 13 }: { item: Collection; size: 
   </LinearGradient>;
 }
 
-function CollectionRail({ items, onOpenAlbum, size = 131 }: { items: Collection[]; onOpenAlbum: BrowseProps['onOpenAlbum']; size?: number }) {
+function CollectionRail({ items, albumHref, size = 131 }: { items: Collection[]; albumHref: BrowseProps['albumHref']; size?: number }) {
   const styles = useStyles();
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railContent}>
     {items.map(item => <CollectionTile key={item.id} title={item.title} subtitle={item.subtitle} size={size}
-      cover={<CollectionCover item={item} size={size} />} onPress={() => onOpenAlbum(item.id)} />)}
+      cover={<CollectionCover item={item} size={size} />} href={albumHref(item.id)} />)}
   </ScrollView>;
+}
+
+/** The featured album. Its page zooms out of the whole card; the enclosing `ZoomLink` supplies `onPress`. */
+function HeroCard({ album, size, onPress }: { album: Album; size: number; onPress?: () => void }) {
+  const { actions } = usePlaybackState();
+  const styles = useStyles();
+  return <ZoomSource style={[styles.hero, { minHeight: Math.min(350, size * 0.85) }]}>
+    <Cover source={album.artwork} size={size} radius={0} style={styles.heroCover} />
+    <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
+    <HeroActions title={album.title} artist={album.artist} onOpen={() => onPress?.()}
+      onPlay={() => { tapFeedback(); actions.playAlbum(album.id); }} />
+  </ZoomSource>;
 }
 
 function SectionTitle({ title, onPress }: { title: string; onPress?: () => void }) {
@@ -93,12 +110,12 @@ function SectionTitle({ title, onPress }: { title: string; onPress?: () => void 
   </View>;
 }
 
-export function HomeScreen({ onOpenAlbum, onOpenDevices, bottomInset = 155 }: BrowseProps) {
+export function HomeScreen({ onOpenAlbum, albumHref, onOpenDevices, bottomInset = 155 }: BrowseProps) {
   const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { state, album: currentAlbum, actions } = usePlaybackState();
+  const { state, album: currentAlbum } = usePlaybackState();
   const hero = albums['blue-hour'];
   const recentIds = Array.from(new Set([currentAlbum.id, ...[...state.history].reverse().map(entry => tracks[entry.trackId].albumId)]));
   const recent = recentIds.slice(0, 6).map(id => albumCollection(albums[id]));
@@ -118,19 +135,14 @@ export function HomeScreen({ onOpenAlbum, onOpenDevices, bottomInset = 155 }: Br
         {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
       </View>
       <Text accessibilityRole="header" style={[styles.pageTitle, styles.homeTitle]}>Listen now</Text>
-      <View style={[styles.hero, { minHeight: Math.min(350, heroSize * 0.85) }]}>
-        <Cover source={hero.artwork} size={heroSize} radius={0} style={styles.heroCover} />
-        <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
-        <HeroActions title={hero.title} artist={hero.artist} onOpen={() => onOpenAlbum(hero.id)}
-          onPlay={() => { tapFeedback(); actions.playAlbum(hero.id); }} />
-      </View>
+      <ZoomLink href={albumHref(hero.id)}><HeroCard album={hero} size={heroSize} /></ZoomLink>
       <View style={styles.homeSection}>
         <SectionTitle title="Recently played" onPress={() => onOpenAlbum('recent')} />
-        <CollectionRail items={recent} onOpenAlbum={onOpenAlbum} />
+        <CollectionRail items={recent} albumHref={albumHref} />
       </View>
       <View style={styles.homeSection}>
         <SectionTitle title="Discover more" />
-        <CollectionRail items={discovery} size={146} onOpenAlbum={onOpenAlbum} />
+        <CollectionRail items={discovery} size={146} albumHref={albumHref} />
       </View>
     </ScrollView>
   </View>;
@@ -141,7 +153,7 @@ const sortOptions = ['Recently played', 'Title', 'Artist'] as const;
 type LibraryFilter = (typeof filters)[number];
 type LibrarySort = (typeof sortOptions)[number];
 
-export function LibraryScreen({ onOpenAlbum, bottomInset = 155 }: BrowseProps) {
+export function LibraryScreen({ albumHref, bottomInset = 155 }: BrowseProps) {
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -193,9 +205,9 @@ export function LibraryScreen({ onOpenAlbum, bottomInset = 155 }: BrowseProps) {
       {items.length === 0 && <EmptyState icon="magnifyingglass" title="No collections found" description="Try another search or filter." />}
       {grid ? <CollectionGrid columns={columns} items={items.map(item => ({
         id: item.id, title: item.title, subtitle: item.subtitle, size,
-        cover: <CollectionCover item={item} size={size} />, onPress: () => onOpenAlbum(item.id),
+        cover: <CollectionCover item={item} size={size} />, href: albumHref(item.id),
       }))} /> : items.map(item => <CollectionRow key={item.id} title={item.title} subtitle={item.subtitle} size={50}
-      cover={<CollectionCover item={item} size={50} radius={9} />} onPress={() => onOpenAlbum(item.id)} />)}
+      cover={<CollectionCover item={item} size={50} radius={9} />} href={albumHref(item.id)} />)}
     </ScrollView>
   </View>;
 }
@@ -211,7 +223,7 @@ function matches(query: string, ...values: string[]) {
 
 const genreCards = Array.from(new Map(allAlbums.map(album => [album.genre, album])).values()).slice(0, 6);
 
-export function SearchScreen({ onOpenAlbum, onTrackMenu, bottomInset = 155 }: BrowseProps) {
+export function SearchScreen({ albumHref, onTrackMenu, bottomInset = 155 }: BrowseProps) {
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -251,11 +263,11 @@ export function SearchScreen({ onOpenAlbum, onTrackMenu, bottomInset = 155 }: Br
       </> : <>
         {artistResults.length > 0 && <View style={styles.resultSection}>
           <SectionTitle title="Artists" />
-          <CollectionRail items={artistResults} size={92} onOpenAlbum={onOpenAlbum} />
+          <CollectionRail items={artistResults} size={92} albumHref={albumHref} />
         </View>}
         {albumResults.length > 0 && <View style={styles.resultSection}>
           <SectionTitle title="Collections" />
-          <CollectionRail items={albumResults.map(albumCollection)} size={115} onOpenAlbum={onOpenAlbum} />
+          <CollectionRail items={albumResults.map(albumCollection)} size={115} albumHref={albumHref} />
         </View>}
         {trackResults.length > 0 && <View style={styles.resultSection}>
           <SectionTitle title="Songs" />
@@ -275,6 +287,17 @@ function EmptyState({ icon, title, description }: { icon: string; title: string;
     <Text style={styles.emptyTitle}>{title}</Text>
     <Text style={styles.emptyDescription}>{description}</Text>
   </View>;
+}
+
+/**
+ * Only a swipe from the left edge closes a page that zoomed open; pulling down scrolls it instead.
+ * The bounds go on after the first render because the zoom transition registers itself in an
+ * effect, and the hook only applies bounds when one of them changes.
+ */
+function useBackSwipeOnly() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  usePreventZoomTransitionDismissal({ unstable_dismissalBoundsRect: mounted ? { maxX: backSwipeEdge } : undefined });
 }
 
 export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }: AlbumProps) {
@@ -302,6 +325,7 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const hasSongs = trackIds.length > 0;
   const headerColor = album ? interpolateColor(colors.albumTint, [0, 1], [colors.background, album.color], 'RGB', { gamma: 1 }) : colors.background;
+  useBackSwipeOnly();
 
   if (!item) return <View style={[styles.albumPage, { paddingTop: top + 8 }]}>
     <View style={styles.detailUnavailableNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
@@ -331,7 +355,7 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
       <View style={[styles.detailHeader, { paddingTop: top + albumNavSize + 12 }]}>
         {album && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
           locations={[0, 1]} style={StyleSheet.absoluteFill} />}
-        <View style={styles.detailArt}><CollectionCover item={item} size={artSize} radius={17} /></View>
+        <ZoomTarget style={styles.detailArt}><CollectionCover item={item} size={artSize} radius={17} /></ZoomTarget>
         <AlbumMetadata title={item.title} artist={album?.artist}
           info={album ? [album.kind, album.genre, String(album.year)].join('  ·  ') : item.subtitle} />
         {hasSongs && <AlbumPlaybackButtons title={item.title} onPlay={() => play()} onShuffle={() => play(true)} />}
