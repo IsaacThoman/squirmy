@@ -5,7 +5,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tracks } from './catalog';
 import { IconButton, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
-import type { SheetFrameProps, SheetRowProps, SheetTransportProps } from './SheetUI';
+import type { SheetFrameProps, SheetRowProps } from './SheetUI';
 import { useColors } from './theme';
 
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
@@ -27,7 +27,7 @@ export function SheetRows({ children }: { children: React.ReactNode }) {
   return <VStack alignment="leading" spacing={0}>{children}</VStack>;
 }
 
-export function SheetRow({ title, subtitle, icon, selected, onPress, trailing }: SheetRowProps) {
+export function SheetRow({ title, subtitle, icon, selected, onPress }: SheetRowProps) {
   const colors = useColors();
   return <>
     <Button onPress={onPress} modifiers={[
@@ -43,8 +43,7 @@ export function SheetRow({ title, subtitle, icon, selected, onPress, trailing }:
           {subtitle && <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>{subtitle}</Text>}
         </VStack>
         <Spacer minLength={4} />
-        {(selected || trailing) && <Symbol name={selected ? 'checkmark' : trailing!} size={15}
-          color={selected ? colors.accent : colors.muted} />}
+        {selected && <Symbol name="checkmark" size={15} color={colors.accent} />}
       </HStack>
     </Button>
     <Divider modifiers={[padding({ leading: 39 })]} />
@@ -62,21 +61,4 @@ export function TrackSummary({ id }: { id: string }) {
     </VStack>
     <Spacer minLength={0} />
   </HStack>;
-}
-
-export function SheetTransport({ position, device, playing, onPrevious, onPlayPause, onNext }: SheetTransportProps) {
-  const colors = useColors();
-  return <VStack spacing={8}>
-    <HStack>
-      <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted)]}>{position}</Text>
-      <Spacer minLength={4} />
-      <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted)]}>{device}</Text>
-    </HStack>
-    <HStack spacing={34} modifiers={[frame({ maxWidth: Infinity })]}>
-      <IconButton symbol="backward.fill" size={25} label="Previous track" onPress={onPrevious} />
-      <IconButton symbol={playing ? 'pause.fill' : 'play.fill'} size={34} width={52} height={52}
-        label={playing ? 'Pause' : 'Play'} onPress={onPlayPause} />
-      <IconButton symbol="forward.fill" size={25} label="Next track" onPress={onNext} />
-    </HStack>
-  </VStack>;
 }
