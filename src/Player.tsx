@@ -454,32 +454,25 @@ function LyricsPage({ visible }: { visible: boolean }) {
 function Scrubber() {
   const styles = useStyles();
   const { track, position, actions } = usePlayback();
-  const [scrubbing, setScrubbing] = useState(false);
-  const [draft, setDraft] = useState(position);
-  const scrubRef = useRef({ active: false, position });
-  const shown = scrubbing ? draft : position;
-  const seekEditing = (editing: boolean) => {
-    scrubRef.current.active = editing;
-    if (editing) {
-      scrubRef.current.position = position;
-      setDraft(position);
-    } else {
-      actions.seek(scrubRef.current.position);
-    }
-    setScrubbing(editing);
-  };
-  const seekChange = (seconds: number) => {
-    scrubRef.current.position = seconds;
-    if (scrubRef.current.active) setDraft(seconds);
-    else actions.seek(seconds);
-  };
+  const [draft, setDraft] = useState<number | null>(null);
+  const duration = track.duration;
+  const shown = draft ?? position;
+  const elapsed = formatTime(shown);
 
   return (
     <>
-      <TransportSlider label="Playback position" value={shown} maximum={track.duration} onChange={seekChange} onEdit={seekEditing} />
+      <TransportSlider
+        label="Playback position"
+        value={shown}
+        maximum={duration}
+        accessibilityStep={10}
+        valueText={elapsed}
+        onChange={actions.seek}
+        onPreview={setDraft}
+      />
       <View style={styles.timeRow}>
-        <Text style={styles.time}>{formatTime(shown)}</Text>
-        <Text style={styles.time}>−{formatTime(Math.max(0, track.duration - shown))}</Text>
+        <Text style={styles.time}>{elapsed}</Text>
+        <Text style={styles.time}>−{formatTime(Math.max(0, duration - shown))}</Text>
       </View>
     </>
   );
@@ -513,7 +506,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
       <View style={styles.volumeRow}>
         <Icon name="speaker.fill" size={13} color={colors.muted} />
         <View style={styles.volumeSlider}>
-          <TransportSlider label="Volume" value={state.volume} maximum={1} onChange={actions.setVolume} />
+          <TransportSlider label="Volume" value={state.volume} maximum={1} accessibilityStep={0.1} onChange={actions.setVolume} />
         </View>
         <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
       </View>
