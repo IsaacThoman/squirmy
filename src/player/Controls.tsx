@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon } from '../ui';
-import { playerColors as c } from './design';
+import { createThemedStyles, useColors } from '../theme';
 
 export type PlayerButtonProps = {
   icon: string;
@@ -16,15 +16,18 @@ export type DeviceButtonProps = { icon: string; name: string; onPress: () => voi
 export type TrackMenuButtonProps = { trackId: string; onPress: () => void };
 export type LyricButtonProps = { line: string; active: boolean; onPress: () => void };
 
-export function PlayerButton({ icon, label, size = 20, color = c.text, onPress, style, selected }: PlayerButtonProps) {
+export function PlayerButton({ icon, label, size = 20, color, onPress, style, selected }: PlayerButtonProps) {
+  const colors = useColors();
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
     accessibilityState={selected === undefined ? undefined : { selected }} onPress={onPress}
     style={({ pressed }) => [styles.icon, style, pressed && styles.pressed]}>
-    <Icon name={icon} size={size} color={color} />
+    <Icon name={icon} size={size} color={color ?? colors.text} />
   </Pressable>;
 }
 
 export function CollapseButton({ onPress }: { onPress: () => void }) {
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel="Collapse player" onPress={onPress} style={styles.grabberPress}>
     <View style={styles.grabber} />
   </Pressable>;
@@ -35,29 +38,32 @@ export function TrackMenuButton({ onPress }: TrackMenuButtonProps) {
 }
 
 export function DeviceButton({ icon, name, onPress }: DeviceButtonProps) {
+  const colors = useColors();
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`Playback device: ${name}`}
     style={({ pressed }) => [styles.device, pressed && styles.pressed]} onPress={onPress}>
-    <View style={styles.deviceIcon}><Icon name={icon} size={21} color={c.lilac} /></View>
+    <View style={styles.deviceIcon}><Icon name={icon} size={21} color={colors.accent} /></View>
     <Text numberOfLines={1} style={styles.deviceName}>{name}</Text>
   </Pressable>;
 }
 
 export function LyricButton({ line, active, onPress }: LyricButtonProps) {
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityHint="Seek to this line"
     accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => [styles.lyricButton, pressed && styles.pressed]}>
     <Text style={[styles.lyric, active && styles.lyricActive]}>{line}</Text>
   </Pressable>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => StyleSheet.create({
   icon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.65 },
   grabberPress: { width: 105, height: 32, alignItems: 'center', justifyContent: 'center' },
-  grabber: { width: 32, height: 4, borderRadius: 2, backgroundColor: '#FFFFFF66' },
+  grabber: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.grabber },
   device: { height: 56, alignItems: 'center' },
   deviceIcon: { height: 38, justifyContent: 'center' },
-  deviceName: { color: c.lilac, fontSize: 11, fontWeight: '600' },
+  deviceName: { color: colors.accent, fontSize: 11, fontWeight: '600' },
   lyricButton: { paddingBottom: 21, maxWidth: 530 },
-  lyric: { color: '#BAB1CB86', fontWeight: '700', fontSize: 32, letterSpacing: -0.7 },
-  lyricActive: { color: c.text },
-});
+  lyric: { color: colors.quiet, fontWeight: '700', fontSize: 32, letterSpacing: -0.7 },
+  lyricActive: { color: colors.text },
+}));

@@ -1,3 +1,3 @@
-export function AlbumStatusBlur(_props: { height: number }) {
+export function AlbumStatusBlur() {
   return null;
 }

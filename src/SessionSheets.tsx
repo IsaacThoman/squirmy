@@ -4,7 +4,7 @@ import { type ReactNode } from 'react';
 import { devices, tracks } from './catalog';
 import { usePlaybackState } from './playback';
 import { SheetFrame, SheetRows, SheetRow, TrackSummary } from './SheetUI';
-import { colors } from './ui';
+import { useColors } from './theme';
 
 export function closeSheet(router: ReturnType<typeof useRouter>) {
   if (router.canGoBack()) router.back();
@@ -17,6 +17,7 @@ function Sheet({ title, children }: { title: string; children?: ReactNode }) {
 }
 
 export function DeviceSheet() {
+  const colors = useColors();
   const { track, device, actions } = usePlaybackState();
   return (
     <Sheet title="Playback device">

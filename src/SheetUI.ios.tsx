@@ -5,12 +5,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tracks } from './catalog';
 import { IconButton, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
-import { colors } from './ui';
 import type { SheetFrameProps, SheetRowProps } from './SheetUI';
+import { useColors } from './theme';
 
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
+  const colors = useColors();
   const { bottom } = useSafeAreaInsets();
-  return <Host colorScheme="dark" matchContents={{ vertical: true }}>
+  return <Host matchContents={{ vertical: true }}>
     <VStack alignment="leading" spacing={14} modifiers={[padding({ top: 22, horizontal: 22, bottom: Math.max(23, bottom + 8) })]}>
       <HStack spacing={8}>
         <Text modifiers={[font({ textStyle: 'title2', weight: 'bold' }), accessibilityAddTraits(['isHeader'])]}>{title}</Text>
@@ -27,6 +28,7 @@ export function SheetRows({ children }: { children: React.ReactNode }) {
 }
 
 export function SheetRow({ title, subtitle, icon, selected, onPress }: SheetRowProps) {
+  const colors = useColors();
   return <>
     <Button onPress={onPress} modifiers={[
       plainButton, accessibilityLabel(subtitle ? `${title}, ${subtitle}` : title),
@@ -49,6 +51,7 @@ export function SheetRow({ title, subtitle, icon, selected, onPress }: SheetRowP
 }
 
 export function TrackSummary({ id }: { id: string }) {
+  const colors = useColors();
   const track = tracks[id];
   return <HStack spacing={12} modifiers={[padding({ bottom: 4 })]}>
     <TrackCover trackId={id} size={53} radius={9} />

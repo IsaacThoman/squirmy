@@ -1,4 +1,5 @@
 import Slider from '@react-native-community/slider';
+import { useColors } from '../theme';
 
 export type TransportSliderProps = {
   label: string;
@@ -9,15 +10,16 @@ export type TransportSliderProps = {
 };
 
 export default function TransportSlider({ label, value, maximum, onChange, onEdit }: TransportSliderProps) {
+  const colors = useColors();
   return (
     <Slider
       accessibilityLabel={label}
       value={value}
       minimumValue={0}
       maximumValue={maximum}
-      minimumTrackTintColor="#CBC1FF"
-      maximumTrackTintColor="#5d586b"
-      thumbTintColor="#F2ECFF"
+      minimumTrackTintColor={colors.accent}
+      maximumTrackTintColor={colors.stroke}
+      thumbTintColor={colors.text}
       onSlidingStart={() => onEdit?.(true)}
       onValueChange={onChange}
       onSlidingComplete={() => onEdit?.(false)}

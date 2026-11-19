@@ -4,11 +4,13 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { IconButton, hitShape, plainButton } from '../native/Controls';
 import { usePlayback, usePlaybackState } from '../playback';
-import { Cover, colors } from '../ui';
+import { Cover } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
+import { useColors } from '../theme';
 
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
+  const colors = useColors();
   const { track, album, device, state, actions } = usePlaybackState();
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
@@ -21,7 +23,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   return <View ref={containerRef} collapsable={false} pointerEvents={preview ? 'none' : 'auto'}
     accessibilityElementsHidden={preview} style={styles.container}>
     <Animated.View style={[styles.container, visibility]}>
-      <Host colorScheme="dark" ignoreSafeArea="container" style={styles.container}>
+      <Host ignoreSafeArea="container" style={styles.container}>
         <ZStack alignment="bottom">
           <HStack spacing={0} modifiers={[padding({ horizontal: compact ? 10 : 12 }), frame({ maxHeight: Infinity })]}>
             <Button onPress={onOpen} modifiers={[plainButton, accessibilityLabel(`Open Now Playing, ${track.title}`)]}>
@@ -54,6 +56,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
 
 /** The only part of the bubble that follows the playback clock, so each tick redraws just this. */
 function Progress() {
+  const colors = useColors();
   const { track, position } = usePlayback();
   return <ProgressView value={Math.min(1, position / track.duration)}
     modifiers={[tint(colors.accent), padding({ horizontal: 26, bottom: 1 }), accessibilityHidden(true)]} />;

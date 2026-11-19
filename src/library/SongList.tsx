@@ -4,10 +4,9 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { albums, tracks, type Track } from '../catalog';
 import { usePlaybackState } from '../playback';
-import { colors, Cover, Icon } from '../ui';
+import { Cover, Icon } from '../ui';
+import { createThemedStyles, useColors } from '../theme';
 
-const { background: ink, accent: lilac, muted, text: ivory } = colors;
-const faint = '#857F8E';
 const swipeActionWidth = 78;
 
 export type SongListProps = {
@@ -29,6 +28,8 @@ function tapFeedback() {
 }
 
 function PlayNextSwipeAction({ translation, onPress }: { translation: SharedValue<number>; onPress: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const reveal = useAnimatedStyle(() => ({
     transform: [{ translateX: Math.max(0, Math.min(swipeActionWidth, swipeActionWidth + translation.value)) }],
   }));
@@ -36,13 +37,15 @@ function PlayNextSwipeAction({ translation, onPress }: { translation: SharedValu
   return (
     <Animated.View style={[styles.swipeTray, reveal]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Pressable accessibilityRole="button" style={({ pressed }) => [styles.swipeAction, pressed && styles.pressed]} onPress={onPress}>
-        <Icon name="text.badge.plus" size={19} color={ink} />
+        <Icon name="text.badge.plus" size={19} color={colors.onAccent} />
       </Pressable>
     </Animated.View>
   );
 }
 
 function SongRow({ track, number, onPlay, onTrackMenu }: { track: Track; number?: number; onPlay: () => void; onTrackMenu: SongListProps['onTrackMenu'] }) {
+  const colors = useColors();
+  const styles = useStyles();
   const { state, actions } = usePlaybackState();
   const liked = state.favorites.includes(track.id);
   const current = state.trackId === track.id;
@@ -66,7 +69,7 @@ function SongRow({ track, number, onPlay, onTrackMenu }: { track: Track; number?
         accessibilityActions={[{ name: 'playNext', label: 'Play next' }]}
         onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'playNext') playNext(); }}>
         {typeof number === 'number' ? <View style={styles.songPosition}>
-          {current ? <Icon name={state.playing ? 'waveform' : 'pause.fill'} size={17} color={lilac} /> : <Text style={styles.songNumber}>{number}</Text>}
+          {current ? <Icon name={state.playing ? 'waveform' : 'pause.fill'} size={17} color={colors.accent} /> : <Text style={styles.songNumber}>{number}</Text>}
         </View> : <Cover source={albums[track.albumId].artwork} size={42} radius={8} />}
         <View style={styles.flex}>
           <Text numberOfLines={1} style={[styles.rowTitle, current && styles.currentTitle]}>{track.title}</Text>
@@ -74,27 +77,27 @@ function SongRow({ track, number, onPlay, onTrackMenu }: { track: Track; number?
         </View>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={liked ? `Unlike ${track.title}` : `Like ${track.title}`} accessibilityState={{ selected: liked }} onPress={() => { tapFeedback(); actions.toggleFavorite(track.id); }} style={styles.rowIcon}>
-        <Icon name={liked ? 'heart.fill' : 'heart'} size={19} color={liked ? lilac : muted} />
+        <Icon name={liked ? 'heart.fill' : 'heart'} size={19} color={liked ? colors.accent : colors.muted} />
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${track.title}`} onPress={() => onTrackMenu(track.id)} style={styles.rowIcon}>
-        <Icon name="ellipsis" size={19} color={muted} />
+        <Icon name="ellipsis" size={19} color={colors.muted} />
       </Pressable>
     </View>
   </ReanimatedSwipeable>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.72 },
-  rowTitle: { color: ivory, fontWeight: '600', fontSize: 15, letterSpacing: -0.2 },
-  rowSub: { marginTop: 3, color: muted, fontSize: 12 },
-  songRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF15', paddingLeft: 5, paddingRight: 2, minHeight: 58 },
-  songCurrent: { backgroundColor: '#CBC1FF12', borderRadius: 11 },
+  rowTitle: { color: colors.text, fontWeight: '600', fontSize: 15, letterSpacing: -0.2 },
+  rowSub: { marginTop: 3, color: colors.muted, fontSize: 12 },
+  songRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke, paddingLeft: 5, paddingRight: 2, minHeight: 58 },
+  songCurrent: { backgroundColor: colors.selection, borderRadius: 11 },
   songInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: 10 },
   songPosition: { width: 25, alignItems: 'center', marginRight: 2 },
-  songNumber: { fontSize: 13, color: faint, fontVariant: ['tabular-nums'] },
-  currentTitle: { color: lilac },
+  songNumber: { fontSize: 13, color: colors.quiet, fontVariant: ['tabular-nums'] },
+  currentTitle: { color: colors.accent },
   rowIcon: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
   swipeTray: { width: swipeActionWidth },
-  swipeAction: { flex: 1, backgroundColor: lilac, alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
-});
+  swipeAction: { flex: 1, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
+}));

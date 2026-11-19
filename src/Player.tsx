@@ -21,7 +21,8 @@ import { Icon } from './ui';
 import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
-import { playerColors as c, selectionFeedback } from './player/design';
+import { selectionFeedback } from './player/design';
+import { createThemedStyles, useColors } from './theme';
 
 const artworkRadius = 21;
 const artworkGap = 14;
@@ -65,6 +66,8 @@ function artworkInFlight(bubble: Bubble, follow: number, placed: Artwork) {
  * it is touched. Collapsed, it is invisible and lets every touch through.
  */
 export default function Player() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const { motion, variants, showPage, close } = usePlayerTransition();
   const [page, setPage] = useState<PlayerPage>('player');
@@ -266,7 +269,7 @@ export default function Player() {
         label={isFavorite ? 'Remove from favorites' : 'Favorite song'}
         selected={isFavorite}
         onPress={() => { selectionFeedback(); actions.toggleFavorite(track.id); }}
-        color={isFavorite ? c.lilac : c.text}
+        color={isFavorite ? colors.accent : colors.text}
       />
       <TrackMenuButton trackId={track.id} onPress={() => openTrackMenu(track.id)} />
     </>
@@ -275,12 +278,12 @@ export default function Player() {
   return (
     <Overlay>
       <Animated.View style={[styles.panel, panelStyle]}>
-        <Glass tint="systemThinMaterialDark" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
+        <Glass tint="systemThinMaterial" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: album.color }, backdropStyle]} pointerEvents="none">
             <Image source={album.artwork} blurRadius={70} contentFit="cover" transition={210} style={styles.backdropArt} />
             <LinearGradient
-              colors={['#11101B8A', '#181322AF', '#100E18', '#0E0C15']}
+              colors={colors.playerGradient}
               locations={[0, 0.39, 0.85, 1]}
               style={StyleSheet.absoluteFill}
             />
@@ -381,6 +384,7 @@ function Overlay({ children }: PropsWithChildren) {
 
 /** The mini-player's own content, riding the top of the panel until the player has taken shape. */
 function BubbleContent({ variant, width }: { variant: BubbleVariant; width: number }) {
+  const styles = useStyles();
   const { motion } = usePlayerTransition();
   const style = useAnimatedStyle(() => {
     const bubble = motion.bubble.value;
@@ -399,6 +403,8 @@ function BubbleContent({ variant, width }: { variant: BubbleVariant; width: numb
 }
 
 function LyricsPage({ visible }: { visible: boolean }) {
+  const colors = useColors();
+  const styles = useStyles();
   const { track, position, actions } = usePlayback();
   const lines = track.lyrics ?? [];
   const step = track.duration / (lines.length + 2);
@@ -436,7 +442,7 @@ function LyricsPage({ visible }: { visible: boolean }) {
         </ScrollView>
       ) : (
         <View style={styles.noLyrics}>
-          <Icon name="quote.bubble" size={29} color={c.quiet} />
+          <Icon name="quote.bubble" size={29} color={colors.quiet} />
           <Text style={styles.noLyricsTitle}>No lyrics available</Text>
         </View>
       )}
@@ -446,6 +452,7 @@ function LyricsPage({ visible }: { visible: boolean }) {
 
 /** The only part of the transport that follows the playback clock, so each tick redraws just this. */
 function Scrubber() {
+  const styles = useStyles();
   const { track, position, actions } = usePlayback();
   const [scrubbing, setScrubbing] = useState(false);
   const [draft, setDraft] = useState(position);
@@ -484,6 +491,8 @@ function Transport({ compact, page, onToggle, onDevices }: {
   onToggle: (page: DetailPage) => void;
   onDevices: () => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const { state, device, actions } = usePlaybackState();
 
   return (
@@ -495,18 +504,18 @@ function Transport({ compact, page, onToggle, onDevices }: {
           icon={state.playing ? 'pause.fill' : 'play.fill'}
           label={state.playing ? 'Pause' : 'Play'}
           size={40}
-          color={c.text}
+          color={colors.text}
           onPress={() => { selectionFeedback(); actions.playPause(); }}
           style={[styles.primaryButton, compact && styles.primaryButtonCompact]}
         />
         <PlayerButton icon="forward.fill" label="Next track" size={27} onPress={() => { selectionFeedback(); actions.next(); }} />
       </View>
       <View style={styles.volumeRow}>
-        <Icon name="speaker.fill" size={13} color={c.muted} />
+        <Icon name="speaker.fill" size={13} color={colors.muted} />
         <View style={styles.volumeSlider}>
           <TransportSlider label="Volume" value={state.volume} maximum={1} onChange={actions.setVolume} />
         </View>
-        <Icon name="speaker.wave.3.fill" size={15} color={c.muted} />
+        <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
       </View>
       <View style={styles.footer}>
         <View style={styles.footerSide}>
@@ -514,7 +523,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
             label={page === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'}
             selected={page === 'lyrics'}
             size={22}
-            color={page === 'lyrics' ? c.lilac : c.muted}
+            color={page === 'lyrics' ? colors.accent : colors.muted}
             onPress={() => onToggle('lyrics')} />
         </View>
         <View style={styles.output}>
@@ -526,7 +535,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
             label={page === 'queue' ? 'Hide queue' : 'Show queue'}
             selected={page === 'queue'}
             size={22}
-            color={page === 'queue' ? c.lilac : c.muted}
+            color={page === 'queue' ? colors.accent : colors.muted}
             onPress={() => onToggle('queue')} />
         </View>
       </View>
@@ -534,7 +543,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => StyleSheet.create({
   panel: { position: 'absolute', overflow: 'hidden', borderCurve: 'continuous' },
   page: { position: 'absolute', top: 0, left: 0 },
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
@@ -543,25 +552,25 @@ const styles = StyleSheet.create({
   grabberTouch: { height: grabberHeight, alignItems: 'center', justifyContent: 'center' },
   deckFrame: { flex: 1 },
   nowPlaying: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: artworkInset, gap: artworkGap },
-  artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: '#191624' },
+  artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.surface },
   details: { ...StyleSheet.absoluteFill, paddingTop: compactArtworkTop },
   detailPanel: { flex: 1 },
   compactMetadata: { alignSelf: 'stretch', width: 'auto', maxWidth: undefined, minHeight: compactArtworkSize,
     marginLeft: artworkInset + compactArtworkSize + 12, marginRight: artworkInset, marginBottom: 9 },
-  compactTrackTitle: { color: c.text, fontWeight: '700', fontSize: 18 },
-  compactTrackArtist: { color: c.muted, marginTop: 2, fontSize: 14 },
+  compactTrackTitle: { color: colors.text, fontWeight: '700', fontSize: 18 },
+  compactTrackArtist: { color: colors.muted, marginTop: 2, fontSize: 14 },
   metadata: { width: '100%', maxWidth: 440, minHeight: metadataHeight, flexDirection: 'row', alignItems: 'center', gap: 5 },
   trackCopy: { minWidth: 0, flex: 1 },
-  trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: c.text },
+  trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: colors.text },
   compactTitle: { fontSize: 25 },
-  artist: { marginTop: 3, color: c.muted, fontWeight: '500', fontSize: 16 },
+  artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
   lyricPage: { flex: 1, paddingHorizontal: 25 },
   noLyrics: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  noLyricsTitle: { color: c.muted, fontSize: 16, fontWeight: '600' },
+  noLyricsTitle: { color: colors.muted, fontSize: 16, fontWeight: '600' },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: 25, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -1, paddingHorizontal: 1 },
-  time: { color: c.quiet, fontVariant: ['tabular-nums'], fontSize: 12, fontWeight: '600' },
+  time: { color: colors.quiet, fontVariant: ['tabular-nums'], fontSize: 12, fontWeight: '600' },
   transportButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', marginTop: 12, marginBottom: 10 },
   transportButtonsCompact: { marginTop: 6, marginBottom: 5 },
   primaryButton: { width: 66, height: 66 },
@@ -571,4 +580,4 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
   footerSide: { flex: 1, alignItems: 'center' },
   output: { flex: 1.3, minWidth: 0 },
-});
+}));

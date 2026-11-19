@@ -7,16 +7,17 @@ import {
 import { tracks } from '../catalog';
 import { IconButton, TrackActions, TrackCover, TrackMenu, hitShape } from '../native/Controls';
 import { usePlaybackState } from '../playback';
-import { colors } from '../ui';
 import type { SongListProps } from './SongList';
+import { useColors } from '../theme';
 
 const rowHeight = 58;
 const swipeLabelStyle = labelStyle('iconOnly');
 
 export function SongList({ trackIds, numbered, onPlay }: SongListProps) {
+  const colors = useColors();
   const { state, actions } = usePlaybackState();
   return (
-    <Host colorScheme="dark" style={{ height: trackIds.length * rowHeight }}>
+    <Host style={{ height: trackIds.length * rowHeight }}>
       <List modifiers={[listStyle('plain'), scrollContentBackground('hidden'), scrollDisabled()]}>
         {trackIds.map((id, index) => {
           const track = tracks[id];
@@ -31,11 +32,11 @@ export function SongList({ trackIds, numbered, onPlay }: SongListProps) {
               listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
               listRowBackground('clear'),
               listRowSeparator(current ? 'hidden' : 'visible', 'bottom'),
-              listRowSeparatorTint('#FFFFFF16', 'bottom'),
+              listRowSeparatorTint(colors.stroke, 'bottom'),
             ]}>
               <HStack spacing={0} modifiers={[
                 padding({ leading: 5, trailing: 2 }), frame({ height: rowHeight }),
-                background(current ? '#CBC1FF12' : 'clear'), clipShape('roundedRectangle', 11),
+                background(current ? colors.selection : 'clear'), clipShape('roundedRectangle', 11),
               ]}>
                 <ContextMenu>
                   <ContextMenu.Trigger>
