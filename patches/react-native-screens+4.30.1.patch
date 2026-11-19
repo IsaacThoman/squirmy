@@ -1,0 +1,33 @@
+diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+index 5da1196..631f0ea 100644
+--- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
++++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+@@ -674,6 +674,28 @@ - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
+   if (self.window == nil) {
+     return;
+   }
++
++#if !TARGET_OS_TV && !TARGET_OS_VISION
++  if (@available(iOS 26.0, *)) {
++    id<UIViewControllerTransitionCoordinator> transition = _controller.transitionCoordinator;
++    NSArray<UIViewController *> *current = _controller.viewControllers;
++    UIViewController *from = [transition viewControllerForKey:UITransitionContextFromViewControllerKey];
++    UIViewController *to = [transition viewControllerForKey:UITransitionContextToViewControllerKey];
++    UIViewController *next = controllers.lastObject;
++    // A tap on the revealed browse screen can arrive while its zoom pop is still settling.
++    // UIKit can interrupt it with a push when JS and UIKit already agree on the stack below it.
++    if (transition != nil && !transition.initiallyInteractive &&
++        transition.presentationStyle == UIModalPresentationNone && from.preferredTransition != nil &&
++        next.preferredTransition != nil && to == current.lastObject &&
++        ![current containsObject:from] && ![current containsObject:next] && next != from &&
++        controllers.count == current.count + 1 &&
++        [[controllers subarrayWithRange:NSMakeRange(0, current.count)] isEqualToArray:current]) {
++      [_controller pushViewController:next animated:YES];
++      return;
++    }
++  }
++#endif
++
+   // when transition is ongoing, any updates made to the controller will not be reflected until the
+   // transition is complete. In particular, when we push/pop view controllers we expect viewControllers
+   // property to be updated immediately. Based on that property we then calculate future updates.
