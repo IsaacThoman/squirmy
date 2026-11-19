@@ -18,12 +18,12 @@ import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album, type Tra
 import { usePlaybackState } from './playback';
 import { Cover, Icon } from './ui';
 import { AlbumNavButton, AlbumPlaybackButtons } from './library/AlbumButtons';
-import { AlbumStatusBlur } from './library/AlbumStatusBlur';
 import { SongList } from './library/SongList';
 import {
   AlbumMetadata, BrowseButton, CollectionGrid, CollectionRow, CollectionTile, GenreGrid, HeroActions, LibraryFilters,
   LibrarySort, SearchField, type SearchHandle,
 } from './library/BrowseControls';
+import { StatusBlur } from './StatusBlur';
 import { createThemedStyles, useColors } from './theme';
 
 const gutter = 22;
@@ -106,8 +106,7 @@ export function HomeScreen({ onOpenAlbum, onOpenDevices, bottomInset = 155 }: Br
   const heroSize = width - gutter * 2;
 
   return <View style={styles.page}>
-    <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
-      locations={[0, top / (top + 14), 1]} style={[styles.detailStatus, { height: top + 14 }]} />
+    <View pointerEvents="none" style={[styles.detailStatus, { height: top }]}><StatusBlur /></View>
     <ScrollView contentInsetAdjustmentBehavior="never"
       contentContainerStyle={{ paddingTop: top + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       <View style={styles.homeHeader}>
@@ -317,7 +316,7 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
   return <View style={styles.albumPage}>
     <Animated.View pointerEvents="none" style={[styles.overscrollFill, { backgroundColor: headerColor }, overscrollStyle]} />
     <Animated.View pointerEvents="none" style={[styles.detailStatus, { height: top }, blurStyle]}>
-      <AlbumStatusBlur />
+      <StatusBlur />
     </Animated.View>
     <View pointerEvents="box-none" style={[styles.detailNav, { top: top + 6 }]}>
       <AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} />

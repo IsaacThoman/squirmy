@@ -53,3 +53,9 @@ export function createThemedStyles<T>(create: (colors: ReturnType<typeof useColo
     return styles[useAppearance()];
   };
 }
+
+/** The one translucent material every blurred surface uses, matching the album status bar's SwiftUI `ultraThin`. */
+export const material = { tint: 'systemUltraThinMaterial', intensity: 100 } as const;
+
+/** Alpha stops, top to bottom, for blurs that fade out beneath the status bar. */
+export const statusFade = ['FF', 'F0', '80', '00'] as const;

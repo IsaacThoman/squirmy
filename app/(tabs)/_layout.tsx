@@ -5,7 +5,7 @@ import { NativeTabs } from 'expo-router/native-tabs';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MiniPlayer } from '../../src/MiniPlayer';
-import { useColors } from '../../src/theme';
+import { material, useColors } from '../../src/theme';
 import { Icon } from '../../src/ui';
 
 const tabs = [
@@ -59,8 +59,9 @@ function FallbackTabs() {
           tabBarIcon: ({ color, size }) => <Icon name={tab.icon} color={color} size={size} />,
         }} />)}
       </Tabs>
-      <BlurView tint="systemMaterial" intensity={50} style={[styles.floating, {
-        bottom: 69 + bottom, borderColor: colors.stroke, backgroundColor: colors.floating,
+      {/* Android has no system material to blur with, so it keeps the frosted fill. */}
+      <BlurView {...material} style={[styles.floating, {
+        bottom: 69 + bottom, borderColor: colors.stroke, backgroundColor: Platform.OS === 'ios' ? undefined : colors.floating,
       }]}>
         <MiniPlayer />
       </BlurView>

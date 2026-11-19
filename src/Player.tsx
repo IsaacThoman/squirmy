@@ -22,7 +22,7 @@ import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
-import { createThemedStyles, useColors } from './theme';
+import { createThemedStyles, material, useColors } from './theme';
 
 const artworkRadius = 21;
 const artworkGap = 14;
@@ -210,7 +210,7 @@ export default function Player() {
   });
 
   const glassProps = useAnimatedProps(() => ({
-    intensity: motion.bubble.value ? interpolate(progress(motion).follow, [0, 0.1, 0.45, 0.6], [0, 70, 70, 0], clamp) : 0,
+    intensity: motion.bubble.value ? interpolate(progress(motion).follow, [0, 0.1, 0.45, 0.6], [0, material.intensity, material.intensity, 0], clamp) : 0,
   }));
 
   const backdropStyle = useAnimatedStyle(() => ({
@@ -278,7 +278,7 @@ export default function Player() {
   return (
     <Overlay>
       <Animated.View style={[styles.panel, panelStyle]}>
-        <Glass tint="systemThinMaterial" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
+        <Glass tint={material.tint} animatedProps={glassProps} style={StyleSheet.absoluteFill} />
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: album.color }, backdropStyle]} pointerEvents="none">
             <Image source={album.artwork} blurRadius={70} contentFit="cover" transition={210} style={styles.backdropArt} />
