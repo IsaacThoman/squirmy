@@ -1,8 +1,8 @@
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 5da1196..f9a0389 100644
+index 5da1196..0782de6 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-@@ -662,6 +662,25 @@ - (void)setModalViewControllers:(NSArray<UIViewController *> *)controllers
+@@ -662,6 +662,30 @@ - (void)setModalViewControllers:(NSArray<UIViewController *> *)controllers
    finish();
  }
  
@@ -13,14 +13,19 @@ index 5da1196..f9a0389 100644
 +{
 +  if (@available(iOS 26.0, *)) {
 +    id<UIViewControllerTransitionCoordinator> coordinator = _controller.transitionCoordinator;
++    NSArray<UIViewController *> *current = _controller.viewControllers;
 +    UIViewController *from = [coordinator viewControllerForKey:UITransitionContextFromViewControllerKey];
-+    BOOL popping = from != nil && ![_controller.viewControllers containsObject:from];
-+    if (!popping || coordinator.isInteractive || controllers.count != _controller.viewControllers.count + 1) {
++    // A zoom dismissed by a swipe reports itself as interactive until it settles, even after the finger lifts.
++    BOOL zoom = from.preferredTransition != nil;
++    if (from == nil || [current containsObject:from] || coordinator.isCancelled || (coordinator.isInteractive && !zoom)) {
 +      return NO;
 +    }
++    // A screen closed by a back swipe stays in the JS state until its pop completes, so drop it here.
++    NSMutableArray<UIViewController *> *pending = [controllers mutableCopy];
++    [pending removeObject:from];
 +    // Only a single push on top of the stack the pop is landing on.
-+    NSArray<UIViewController *> *below = [controllers subarrayWithRange:NSMakeRange(0, controllers.count - 1)];
-+    return [below isEqualToArray:_controller.viewControllers];
++    return pending.count == current.count + 1 &&
++        [[pending subarrayWithRange:NSMakeRange(0, current.count)] isEqualToArray:current];
 +  }
 +  return NO;
 +}
@@ -28,7 +33,7 @@ index 5da1196..f9a0389 100644
  - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
  {
    // when there is no change we return immediately
-@@ -681,6 +700,10 @@ - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
+@@ -681,6 +705,10 @@ - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
    // making any updated when transition is ongoing and schedule updates for when the transition
    // is complete.
    if (_controller.transitionCoordinator != nil) {
