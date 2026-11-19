@@ -3,8 +3,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { BackHandler, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
+import { BackHandler, I18nManager, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { GestureDetector, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, Extrapolation, interpolate, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay,
   withSpring, withTiming,
@@ -454,32 +454,57 @@ function LyricsPage({ visible }: { visible: boolean }) {
 function Scrubber() {
   const styles = useStyles();
   const { track, position, actions } = usePlayback();
-  const [scrubbing, setScrubbing] = useState(false);
-  const [draft, setDraft] = useState(position);
-  const scrubRef = useRef({ active: false, position });
-  const shown = scrubbing ? draft : position;
-  const seekEditing = (editing: boolean) => {
-    scrubRef.current.active = editing;
-    if (editing) {
-      scrubRef.current.position = position;
-      setDraft(position);
-    } else {
-      actions.seek(scrubRef.current.position);
-    }
-    setScrubbing(editing);
+  const [draft, setDraft] = useState<number | null>(null);
+  const width = useRef(0);
+  const duration = track.duration;
+  const shown = draft ?? position;
+  const positionAt = (x: number) => {
+    if (!width.current) return shown;
+    const fraction = Math.min(1, Math.max(0, x / width.current));
+    return (I18nManager.isRTL ? 1 - fraction : fraction) * duration;
   };
-  const seekChange = (seconds: number) => {
-    scrubRef.current.position = seconds;
-    if (scrubRef.current.active) setDraft(seconds);
-    else actions.seek(seconds);
-  };
+  const drag = usePanGesture({
+    runOnJS: true,
+    maxPointers: 1,
+    onActivate: ({ x }) => setDraft(positionAt(x)),
+    onUpdate: ({ x }) => setDraft(positionAt(x)),
+    onDeactivate: ({ x, canceled }) => {
+      if (!canceled) actions.seek(positionAt(x));
+      setDraft(null);
+    },
+  });
+  const tap = useTapGesture({
+    runOnJS: true,
+    onDeactivate: ({ x, canceled }) => {
+      if (!canceled) actions.seek(positionAt(x));
+    },
+  });
+  const seekGesture = useCompetingGestures(drag, tap);
 
   return (
     <>
-      <TransportSlider label="Playback position" value={shown} maximum={track.duration} onChange={seekChange} onEdit={seekEditing} />
+      <GestureDetector gesture={seekGesture} touchAction="none">
+        <View
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel="Playback position"
+          accessibilityValue={{ min: 0, max: duration, now: Math.floor(shown), text: formatTime(shown) }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+          onAccessibilityAction={({ nativeEvent: { actionName } }) => {
+            if (actionName === 'increment') actions.seek(Math.min(duration, shown + 10));
+            if (actionName === 'decrement') actions.seek(Math.max(0, shown - 10));
+          }}
+          onLayout={({ nativeEvent: { layout } }) => { width.current = layout.width; }}
+          style={styles.scrubberTouch}
+        >
+          <View pointerEvents="none" style={styles.scrubberTrack}>
+            <View style={[styles.scrubberFill, { width: `${duration > 0 ? (shown / duration) * 100 : 0}%` }]} />
+          </View>
+        </View>
+      </GestureDetector>
       <View style={styles.timeRow}>
         <Text style={styles.time}>{formatTime(shown)}</Text>
-        <Text style={styles.time}>−{formatTime(Math.max(0, track.duration - shown))}</Text>
+        <Text style={styles.time}>−{formatTime(Math.max(0, duration - shown))}</Text>
       </View>
     </>
   );
@@ -569,6 +594,9 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   noLyricsTitle: { color: colors.muted, fontSize: 16, fontWeight: '600' },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: 25, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },
+  scrubberTouch: { height: 28, justifyContent: 'center' },
+  scrubberTrack: { height: 6, borderRadius: 3, backgroundColor: colors.stroke, overflow: 'hidden' },
+  scrubberFill: { height: '100%', borderRadius: 3, backgroundColor: colors.accent },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -1, paddingHorizontal: 1 },
   time: { color: colors.quiet, fontVariant: ['tabular-nums'], fontSize: 12, fontWeight: '600' },
   transportButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', marginTop: 12, marginBottom: 10 },
