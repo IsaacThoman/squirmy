@@ -113,7 +113,7 @@ Modules reach each other in three ways, in this order of preference:
 
 ### Configuration
 
-Environment variables are parsed in `config.ts`; see that file for the full list. The ones a self-hoster sets: `DATABASE_URL` (required), `SQUIRMY_DATA_DIR`, `SQUIRMY_LIBRARY_PATHS`, `SQUIRMY_INBOX_PATH`, `PORT`, `PUBLIC_URL`, `TRUST_PROXY`, `SQUIRMY_ROLE`. `SQUIRMY_SECRET` is generated into the data directory on first boot when unset.
+Environment variables are parsed in `config.ts`; see that file for the full list. The ones a self-hoster sets: `DATABASE_URL` (required), `SQUIRMY_DATA_DIR`, `SQUIRMY_LIBRARY_PATHS` (read-only roots) and `SQUIRMY_MANAGED_LIBRARY_PATHS` (managed roots), `SQUIRMY_INBOX_PATH`, `PORT`, `PUBLIC_URL`, `TRUST_PROXY`, `SQUIRMY_ROLE`. `SQUIRMY_SECRET` is generated into the data directory on first boot when unset.
 
 Operator settings that change at runtime (provider toggles, API keys, thresholds) live in the `server_settings` table and are edited in the admin UI. Shape: `ServerSettings` in contracts. Secrets are stored encrypted under separate keys and never returned.
 
@@ -121,7 +121,7 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 
 ```
 <data>/secret.key                     generated root secret (0600)
-<data>/assets/ab/cd/<sha256>.<ext>    original images, content addressed
+<data>/assets/ab/cd/<sha256>.<ext>    original images, content addressed; rebuilt from their source when lost
 <data>/art/<assetId>/<size>.webp      derived renditions, safe to delete
 <data>/transcodes/<fileId>/<profile>.<ext>
 <data>/staging/<importId>/            files being imported
@@ -130,6 +130,8 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 ### Artwork
 
 Images are rows in `assets`. `storeImage(bytes)` stores an image now and de-duplicates by content. `remoteImage(url)` only records where an image lives; it is downloaded the first time `GET /art/:id/:size` asks for it, so search results for music you do not own can show covers without downloading every one. A failed download answers 404, is not cached, and is retried after an hour.
+
+Lost originals rebuild themselves (`artwork/recover.ts`). When a file under `assets/` is gone, `readOriginal` (used by renditions and Subsonic's `getCoverArt`) reads it back from disk while the request waits: the folder image of a `folder:` source, or the pictures of the source file and of any present file whose `embedded_art_asset_id` it is. Only bytes with the stored SHA-256 are accepted, so an id never shows a different picture. A URL source is queued as `artwork.recover` and the request answers 404 without cache headers; the job downloads it again (a `remote_url` asset goes back to `remote` and is fetched as on its first request; any other must match its hash). An asset nothing rebuilds is `missing`, answers 404 at once, and is left alone. `artwork.sweep` (daily, 04:40) queues assets whose file is gone, `missing` assets whose file is back, and `missing` assets last tried a week ago.
 
 ### Authentication
 
@@ -189,7 +191,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/PATCH /me/settings` | userdata | `UserSettings` |
 | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/:id`; `GET/POST /admin/invites`, `DELETE /admin/invites/:id` | admin | the last active admin cannot be demoted, disabled or deleted |
 | `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists directories only, symlinks resolved; home directory by default |
-| `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | |
+| `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | a folder that is already a root is 409 `duplicate_root` with `details.rootId`; `template` is checked with organize's `validateTemplate`; a bad one is `invalid_request` with an issue on `template` |
 | `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` |
 | `GET /home` | catalog | `HomeResponse` |
 | `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
@@ -206,7 +208,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /scrobbling/lastfm/callback` | scrobble | no session needed: the signed `state` names the user; redirects to `/settings?lastfm=…` |
 | `POST /radio/track/:id`, `POST /radio/artist/:id` | radio | `RadioResponse`, played with `playTracks` |
 | `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files; candidates come with the album's files |
-| `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
+| `GET /admin/organize/template`, `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `GET/POST /imports`, `GET /imports/options`, `GET/DELETE /imports/:id`, `GET /imports/:id/albums`, `POST /imports/:id/files`, `POST /imports/:id/commit` | imports | admins and members with `canUpload`; multipart upload; `DELETE` cancels while receiving; a list shows your own imports, or all for an admin; `options` says whether uploads can be filed and gives the size limits |
 | `GET/POST /admin/acquisition/providers`, `PATCH/DELETE /admin/acquisition/providers/:id`, `POST /admin/acquisition/providers/:id/test`, `GET/PATCH /admin/acquisition/policy`, `GET /admin/acquisition/jobs` | acquisition | the secret is never returned; `test` calls `capabilities` |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request, 202 with the jobs; play does it implicitly |
@@ -232,6 +234,8 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 ### Search
 
 `modules/search/`. Both routes return `SearchResults` built with the catalog summary builders, so availability comes out the same as everywhere else. Queries whose `matchKey` is shorter than two characters answer nothing.
+
+- **`top`** (`top.ts`, both routes): the single result a client can lead with, as `{ type, id }` naming an item of the lists, or null. Each result's name is compared with the query by `matchKey`: the whole name, or for albums and tracks "artist title" and "title artist", equal to it scores 3; equal once edition suffixes are dropped (`editionFreeKey`) 2; starting with it 1; anything else is never top. Ties go to popularity (a track's `popularity`; an album's or artist's is the best of the returned tracks on it or by them), then artist before album before track, then list order. The field is optional in the contract, so older servers and clients are unaffected.
 
 - **`GET /search/library`** (`library.ts`): owned music only (artists credited on an owned track or an album with a present file, albums with a present file, owned tracks). Candidates per kind come from bounded index lookups: a byte-order prefix btree on `name_key`/`title_key`; every split of the query into "artist title" or "title artist", looked up from that artist's rows; albums and tracks whose primary artist's name starts with the query; and, from three characters, trigram word similarity on `name_key` or the whole `match_key` (artist and title, so typos and word order are tolerated). Ranking: exact, then prefix (title, name or artist), then similarity; ties go to the user's plays among their last 1,000, then likes. Each kind is one query run with `enable_seqscan` off, because the planner prices `word_similarity` too low. `performance.test.ts` measures it on 10,000 albums and 150,000 tracks.
 - **`GET /search/catalog`**: one provider per request (`providers.ts`), in this order: the local index when `isCatalogIndexReady()`, Deezer when enabled, MusicBrainz when enabled. A provider that throws falls through to the next; `provider` names the one that answered. Identical queries in flight share one provider call, and `cachedFetch` keeps search responses for a day. MusicBrainz free text matches titles only, so "artist title" queries are only understood by the other two.
@@ -305,7 +309,7 @@ Jobs, in order. Each is idempotent and keyed by file or album group.
 2. `library.probe` reads tags and technical details with `music-metadata` (ffprobe fills gaps and takes over when it cannot parse), normalizes them into `FileTags`, reads ReplayGain (and Opus R128) into the `tag_*` columns, stores the embedded picture, sets `probe_stage 1` and the group key, then queues ingest for the group. A file nothing can read gets `probe_error` and is left alone until it changes.
 3. `library.ingest` `{ rootId, groupKey }` creates or reuses local-only catalog rows (artists, album, release, recordings, release tracks) from the group's tags and links the files, in one transaction. Rows the files already use are reused unless another group has more files on them (or as many and an older file), so a group that loses a file keeps its rows whichever of the two is ingested first; rows with a MusicBrainz id in the tags are found by it or created with it, and are never renamed from tags afterwards. A group with a matched or locked file is only relinked. Rows that end up unused (no files, no user data, no MusicBrainz id) are removed. Then album and artist art from the folder and files, lyrics (embedded or a `.lrc` sidecar), and `matching.match-album`. After this step the music is browsable and playable.
 4. `library.analyze` (low priority) computes the audio hash and sets `probe_stage 2`. A new file whose hash matches a row whose file is gone is that row moved: the old row takes the new path and keeps its id, links and match state. Then `loudness.measure`.
-5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. It applies under the catalog lock, like ingest. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start. Both leave alone files in `_Incoming/<importId>/` while that import is processing and has no `duplicates_decided_at`, so no provider is asked about copies about to be deleted or about half an album; the import queues their matching once it has decided.
+5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. It applies under the catalog lock, like ingest. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start. When `PATCH /admin/settings` switches MusicBrainz on, `queueNewlyPossibleMatching` (`matching/retry.ts`) queues a sweep at once; when an AcoustID key appears it queues `matching.retry-fingerprints`, which sets unlocked `unmatched` files with no known AcoustID back to `pending` in groups the matcher would fingerprint (no album artist and title to search by), then sweeps. Groups searched by their tags are not retried: the key could not change their answer. Both leave alone files in `_Incoming/<importId>/` while that import is processing and has no `duplicates_decided_at`, so no provider is asked about copies about to be deleted or about half an album; the import queues their matching once it has decided.
 6. `enrichment.album` and `enrichment.artist` (queued by the match) fill in covers, images, bios, Deezer ids and lyrics; see "Enrichment".
 
 `library.purge-missing` runs daily and deletes files missing longer than `missingFileGraceDays`. The grouping and album artist rules are written out at the top of `modules/library/grouping.ts`. In short, the album grouping key is root id, parent directory (ignoring `CD1`/`Disc 2` subfolders), and `matchKey` of album artist and album.
@@ -351,7 +355,7 @@ All clients live in `modules/metadata/` and go through `lib/http.ts`:
 
 - `cachedFetch(provider, url, { ttlSeconds, … })` stores responses in `http_cache` and serves them until they expire. 404s are cached for at most six hours, 5xx never; 429/503 are retried honoring `Retry-After`. `cache: 'reload' | 'no-store'` bypasses the cache for one call.
 - `rateLimit(key, intervalMs)` reserves the next slot in the `rate_limits` table, so the limit holds across processes. MusicBrainz uses 1100 ms (only against musicbrainz.org; a mirror is not limited).
-- User-Agent: `Squirmy/<version> ( https://github.com/IsaacThoman/squirmy )`.
+- User-Agent: `Squirmy/<version> ( https://github.com/IsaacThoman/squirmy )`, with the version from `lib/version.ts`: `SQUIRMY_VERSION` (release images), else `dev+<short commit>` read once at start from git, else `dev`.
 - Every provider checks its toggle or key in `ServerSettings` and returns null or an empty list rather than throwing when it is off. "Not found" is null too; a provider failure (network, timeout, 5xx, bad key) throws `ProviderError`.
 - Other modules import the clients from `modules/metadata/index.ts`, e.g. `musicbrainz.getRelease(mbid)`.
 - Tests never touch the network. `useHttpFixtures(provider)` from `src/test/http.ts` serves recorded responses from `src/test/http/<provider>/` and fails on any unrecorded request. `SQUIRMY_RECORD_HTTP=1` records missing fixtures from the real service.

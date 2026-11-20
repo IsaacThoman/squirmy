@@ -14,7 +14,7 @@ Or turn on **Let Squirmy organize this folder** when you add the folder.
 
 ## The naming template
 
-Every managed folder uses this template:
+Each managed folder has its own naming template. Unless you set one, it uses the default:
 
 ```
 {albumartist}/{album}[ ({year})]/[[{disc}-]{track} ]{title}.{ext}
@@ -43,7 +43,18 @@ Text in square brackets is left out when a token inside it has no value: an albu
 
 Each folder and file name is made safe for Linux, macOS, Windows and SMB shares: the characters `< > : " / \ | ? *` become `_`, leading dots and trailing dots or spaces are removed, Windows device names such as `CON` get a `_`, and each name is cut to 200 bytes. Folder names reuse the spelling of a folder that already exists, so "abba" and "ABBA" share one folder. When two files would land on the same name, one keeps it and the others get ` (2)`, ` (3)` and so on.
 
-There is no setting to change the template yet. The database stores a template per folder, but no screen or API sets it in this version.
+### Changing the template
+
+A template is a path of literal text, tokens and `[optional]` parts, separated by `/`. The rules:
+
+- The file name (after the last `/`) must contain `{title}` and end with `.{ext}`, and `{ext}` may appear nowhere else.
+- Square brackets must contain a token and may not contain `/`.
+- No empty folder names (`//`, or a `/` at either end), no `.` or `..` folders, and none of `< > : " \ | ? *` or control characters.
+- At most 500 characters.
+
+The admin screens do not edit the template yet. Set it through the API with the folder's `template` field: `POST /api/v1/admin/library/roots` when adding a folder, or `PATCH /api/v1/admin/library/roots/<id>` later. `null` goes back to the default. A template that breaks a rule is refused with error code `invalid_request` and the reason, for example `The file name must end with .{ext}`. `GET /api/v1/admin/organize/template` returns the default template and the tokens with their descriptions.
+
+Changing the template moves nothing by itself: the next preview plans moves to the new layout. A batch already previewed keeps the template it was planned with.
 
 ## Preview, apply, undo
 

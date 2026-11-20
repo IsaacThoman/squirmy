@@ -74,6 +74,8 @@ describe('GET /search/catalog', () => {
       ['MCP Performs Radiohead: OK Computer (Instrumental Version)', 'none'],
     ])
     expect(results.albums[0]!.id).toBe(owned.albumId)
+    // "Artist title" matches the album exactly, ahead of its popular tracks.
+    expect(results.top).toEqual({ type: 'album', id: owned.albumId })
     expect(results.tracks.map((one) => [one.title, one.availability, one.album?.id])).toEqual([
       ['Lucky', 'server', owned.albumId],
       ['Airbag', 'server', owned.albumId],
@@ -283,9 +285,9 @@ describe('GET /search/catalog', () => {
   })
 
   it('answers nothing for queries under two characters or with every provider off', async () => {
-    expect(await search('a', 3)).toEqual({ artists: [], albums: [], tracks: [], provider: null })
+    expect(await search('a', 3)).toEqual({ artists: [], albums: [], tracks: [], provider: null, top: null })
     await updateServerSettings({ deezerEnabled: false, musicBrainzEnabled: false })
-    expect(await search('radiohead', 3)).toEqual({ artists: [], albums: [], tracks: [], provider: null })
+    expect(await search('radiohead', 3)).toEqual({ artists: [], albums: [], tracks: [], provider: null, top: null })
     expect(http.requests).toEqual([])
   })
 

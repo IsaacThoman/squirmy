@@ -9,17 +9,32 @@ This page says what to back up, what is safe to delete, and gives the commands t
 | **The database** | the `postgres` service (`squirmy_db` volume) | Accounts, likes, playlists, history, wantlists, identification and manual matches, organize history, settings. |
 | **Your music** | your `MUSIC_DIR` | The audio itself. Squirmy never keeps a second copy. |
 | **`secret.key`** | `/data/secret.key` in the `app` container (`squirmy_data` volume) | The key that encrypts app passwords, API keys, provider secrets and scrobbling connections, and signs stream URLs. Not needed if you set `SQUIRMY_SECRET` yourself; then keep that value safe instead. |
-| **`assets/`** | `/data/assets/` | Original artwork: covers and images that were downloaded or taken out of your files. |
+| **`assets/`** | `/data/assets/` | Original artwork: covers and images that were downloaded or taken out of your files. Most of it can be rebuilt (see below), but backing it up saves the downloads and covers images whose source has changed. |
 
 ### What is in the data folder
 
 | Path | Safe to delete? |
 |---|---|
 | `secret.key` | **No.** Without it, everything encrypted with it is unreadable: users have to make new app passwords and reconnect scrobbling, and an admin has to enter the API keys and provider secrets again. Sign-ins survive. |
-| `assets/` | **No.** The database still lists the images as stored, so covers and artist images whose files are gone show as missing, and they are not downloaded or extracted again on their own. |
+| `assets/` | **Better not**, but it is mostly rebuilt. See [When `assets/` is lost](#when-assets-is-lost). |
 | `art/` | Yes. Resized copies of the artwork, rendered again on first request. |
 | `transcodes/` | Yes. Converted streams, made again as people listen. The cache index is reconciled with the folder hourly and when the worker starts. |
 | `staging/` | Only while no upload or inbox import is in progress. It holds files being imported; leftovers of finished imports are removed every 15 minutes. |
+
+### When `assets/` is lost
+
+If image files under `assets/` are deleted, or the data folder is restored from a backup older than the database, Squirmy rebuilds each image from where it came from. It does this when the image is first asked for, and a daily check at 04:40 UTC finds the rest.
+
+| Image | Rebuilt from | Rebuilt when |
+|---|---|---|
+| A picture embedded in a music file | The music file, read again while the request waits | A file in the library still has exactly that picture |
+| A cover or artist image from the album's folder (`cover.jpg`, `folder.jpg`…) | The image file, read again while the request waits | The image is still at the same path and unchanged |
+| A cover downloaded while identifying an album (Cover Art Archive, Deezer) | The same URL, downloaded again in the background | The URL still serves exactly the same image |
+| A cover or image shown for music you browse (search results, artist pages, discographies) | The same URL, downloaded again in the background | The URL still serves an image; it may be a newer version |
+
+While an image is being downloaded again it answers "not found" and is not cached, so it appears on a later visit.
+
+What cannot be rebuilt: a picture the music files no longer contain (the file was retagged, or removed from the library), a folder image that was edited, deleted or moved (organizing an album moves its folder image, so the stored path no longer exists), and a downloaded cover the URL no longer serves or serves differently. Squirmy marks such an image as missing and stops trying; the daily check tries it once a week again, and makes it ready as soon as its file is back, for example after you restore `assets/` from a backup. An identified album whose cover is missing gets a new one from Cover Art Archive or Deezer the next time it is enriched (for example after switching one of them off and on again).
 
 Everything else in the database can be rebuilt from the music by scanning, except user data and manual decisions, which is why the database dump matters.
 

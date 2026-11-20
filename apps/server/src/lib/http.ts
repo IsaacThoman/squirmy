@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { db } from '../database/client.js'
 import { httpCache } from '../database/schema.js'
 import { AppError } from './errors.js'
+import { getVersion } from './version.js'
 
 /** A response as cachedFetch returns it, from the network or from `http_cache`. */
 export type HttpResult = {
@@ -80,15 +80,9 @@ const maxRetryWaitMs = 60_000
 /** Query parameters that carry credentials; masked in the stored URL. */
 const secretParams = new Set(['api_key', 'client', 'client_key', 'token', 'sk', 'api_sig'])
 
-let cachedUserAgent: string | undefined
-
 /** `Squirmy/<version> ( https://github.com/IsaacThoman/squirmy )`, as every provider asks. */
 export function userAgent(): string {
-  if (!cachedUserAgent) {
-    const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }
-    cachedUserAgent = `Squirmy/${manifest.version} ( https://github.com/IsaacThoman/squirmy )`
-  }
-  return cachedUserAgent
+  return `Squirmy/${getVersion()} ( https://github.com/IsaacThoman/squirmy )`
 }
 
 let rateLimitsEnabled = true

@@ -7,7 +7,7 @@ const Env = z.object({
   HOST: z.string().default('0.0.0.0'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4747),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
-  /** Artwork, transcodes, staging and the generated secret live here. Only `art/` and `transcodes/` are rebuilt on their own. */
+  /** Artwork, transcodes, staging and the generated secret live here. `art/`, `transcodes/` and most of `assets/` are rebuilt on their own. */
   SQUIRMY_DATA_DIR: z.string().default('./data'),
   /**
    * Root secret for signing URLs and encrypting stored credentials. When unset, one is
@@ -20,6 +20,8 @@ const Env = z.object({
   SQUIRMY_WEB_DIST: z.string().optional(),
   /** Comma separated paths added as read-only library roots on first boot. */
   SQUIRMY_LIBRARY_PATHS: z.string().optional(),
+  /** Comma separated paths added as managed library roots (organized by the server) on first boot. */
+  SQUIRMY_MANAGED_LIBRARY_PATHS: z.string().optional(),
   /** Folder watched for music to import, used while the `inboxPath` server setting is unset. */
   SQUIRMY_INBOX_PATH: z.string().optional(),
   /** Public origin, e.g. https://music.example.com. Used for absolute links only. */
@@ -29,7 +31,7 @@ const Env = z.object({
   FFMPEG_PATH: z.string().default('ffmpeg'),
   FFPROBE_PATH: z.string().default('ffprobe'),
   FPCALC_PATH: z.string().default('fpcalc'),
-  /** Set by release builds; development falls back to the root package.json. */
+  /** Set by release builds; otherwise the version is dev, with the git commit when there is one. */
   SQUIRMY_VERSION: z.string().optional(),
 })
 

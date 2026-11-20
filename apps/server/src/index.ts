@@ -4,6 +4,7 @@ import { getConfig } from './config.js'
 import { closeDb } from './database/client.js'
 import { runMigrations } from './database/migrate.js'
 import { jobs, startJobs, stopJobs } from './jobs/index.js'
+import { getVersion } from './lib/version.js'
 import { modules } from './modules/index.js'
 import { startRealtime } from './realtime/index.js'
 
@@ -11,6 +12,8 @@ const config = getConfig()
 const role = config.SQUIRMY_ROLE
 const serveApi = role !== 'worker'
 const runWorker = role !== 'api'
+// Worked out now, so no request waits for it.
+const version = getVersion()
 
 await runMigrations()
 
@@ -64,7 +67,7 @@ try {
   }
 
   if (app) await app.listen({ host: config.HOST, port: config.PORT })
-  console.info(`[squirmy] running as ${role}`)
+  console.info(`[squirmy] ${version} running as ${role}`)
 } catch (error) {
   console.error('[squirmy] failed to start', error)
   await shutdown('startup failure', 1)

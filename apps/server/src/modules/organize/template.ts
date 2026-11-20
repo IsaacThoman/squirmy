@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS } from '@squirmy/contracts'
+import { DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS, type OrganizeTemplateInfo } from '@squirmy/contracts'
 
 /**
  * Path templates and file-name sanitizing for managed roots.
@@ -27,6 +27,22 @@ const placeholders: Record<Exclude<TemplateToken, 'ext'>, string> = {
   disc: '1',
   track: '00',
   title: 'Untitled',
+}
+
+const descriptions: Record<TemplateToken, string> = {
+  albumartist: 'The album\'s artist credit, or Various Artists for a compilation',
+  artist: 'The track\'s artist credit',
+  album: 'The album title',
+  year: 'The album\'s year',
+  disc: 'The disc number, only on releases with more than one disc',
+  track: 'The track number, zero-padded to at least two digits',
+  title: 'The track title',
+  ext: 'The file\'s extension, lowercase; the file name must end with .{ext}',
+}
+
+/** The default template and every token with its description, for `GET /admin/organize/template`. */
+export function templateInfo(): OrganizeTemplateInfo {
+  return { defaultTemplate: DEFAULT_ORGANIZE_TEMPLATE, tokens: ORGANIZE_TEMPLATE_TOKENS.map((token) => ({ token, description: descriptions[token] })) }
 }
 
 /** Each path component is capped at this many bytes of UTF-8, extension included. */

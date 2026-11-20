@@ -1,3 +1,4 @@
+import { DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS } from '@squirmy/contracts'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
@@ -65,6 +66,14 @@ describe('organize routes', () => {
 
     const list = await call({ url: `/api/v1/admin/organize/batches?rootId=${root.id}&limit=1`, headers: admin })
     expect(list.json()).toMatchObject({ items: [{ id: batch.id, status: 'reverted' }], nextCursor: null })
+  })
+
+  it('describes the default template and its tokens', async () => {
+    expect((await call({ url: '/api/v1/admin/organize/template' })).statusCode).toBe(401)
+    const info = (await call({ url: '/api/v1/admin/organize/template', headers: admin })).json()
+    expect(info.defaultTemplate).toBe(DEFAULT_ORGANIZE_TEMPLATE)
+    expect(info.tokens.map((token: { token: string }) => token.token)).toEqual([...ORGANIZE_TEMPLATE_TOKENS])
+    expect(info.tokens.every((token: { description: string }) => token.description.length > 0)).toBe(true)
   })
 
   it('validates input and requires an admin', async () => {

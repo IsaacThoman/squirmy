@@ -9,7 +9,7 @@ import { conflict, notFound } from '../../lib/errors.js'
 import { invalidate } from '../../realtime/index.js'
 import { lockCatalog, removeOrphans } from './cleanup.js'
 import { invalidateSoon } from './progress.js'
-import { insertRoot, listRoots, requestScan, resolveRootPath } from './roots.js'
+import { checkTemplate, insertRoot, listRoots, requestScan, resolveRootPath } from './roots.js'
 import { refreshWatchers } from './watch.js'
 
 const IdParams = z.object({ id: Id })
@@ -52,6 +52,7 @@ export async function libraryRoutes(app: FastifyInstance) {
 
   app.post('/admin/library/roots', async (request, reply): Promise<LibraryRoot> => {
     const body = CreateLibraryRootRequest.parse(request.body)
+    checkTemplate(body.template)
     const root = await insertRoot({ ...body, path: await resolveRootPath(body.path) })
     await requestScan(root.id)
     await refreshWatchers()
@@ -63,6 +64,7 @@ export async function libraryRoutes(app: FastifyInstance) {
   app.patch('/admin/library/roots/:id', async (request): Promise<LibraryRoot> => {
     const { id } = IdParams.parse(request.params)
     const body = UpdateLibraryRootRequest.parse(request.body)
+    checkTemplate(body.template)
     const [before] = await db.select({ enabled: libraryRoots.enabled }).from(libraryRoots).where(eq(libraryRoots.id, id))
     if (!before) throw notFound('No such library root')
     await db.update(libraryRoots).set({ ...body, updatedAt: new Date() }).where(eq(libraryRoots.id, id))

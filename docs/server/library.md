@@ -15,7 +15,7 @@ Each folder is one of two kinds:
 | Squirmy writes tags into files | never | only when you ask for it in an organize batch |
 | Uploads and acquired music can be filed into it | no | yes |
 
-Folders added from `SQUIRMY_LIBRARY_PATHS` (in Docker, `/music`) start read-only. [Organizing files](./organizing.md) explains managed folders.
+Folders added from `SQUIRMY_LIBRARY_PATHS` (in Docker, `/music`) start read-only; folders added from `SQUIRMY_MANAGED_LIBRARY_PATHS` start managed ([configuration](./configuration.md#environment-variables)). [Organizing files](./organizing.md) explains managed folders.
 
 ### Add a folder
 
@@ -90,6 +90,14 @@ How an album is matched, in order:
 1. MusicBrainz ids already in the tags (as written by Picard and most taggers).
 2. A search for the album artist and title, scored on track count, titles, lengths and year.
 3. For files with no album and artist tags, and only when an [AcoustID key](./metadata-and-privacy.md#api-keys) is set: the audio fingerprint.
+
+### Turning identification on later
+
+Switching **MusicBrainz** on starts on the albums left **Waiting** while it was off straight away, instead of at the next 10-minute retry.
+
+Adding an **AcoustID** key gives files that could only be identified by fingerprint another go: loose files and albums without an album artist and title that went to **From tags only** are set back to **Waiting** and matched by fingerprint. Albums that were searched by their artist and title and found nothing are not tried again, because a fingerprint is only used when there is nothing to search for; use **Fix match** for those. Albums you locked with **Keep as it is** or **Use this release** stay as they are.
+
+Either way, the work uses the same matching queue and MusicBrainz rate limit as a scan. Albums are queued 100 at a time; the rest follow at the next 10-minute retries.
 
 Music plays the whole time, whatever its state.
 

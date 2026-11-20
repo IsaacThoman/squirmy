@@ -119,7 +119,8 @@ jobs:
         run: |
           docker exec squirmy ffmpeg -version | head -1
           docker exec squirmy fpcalc -version
-          curl --silent --fail http://127.0.0.1:4747/api/v1/setup/status
+          # Built without SQUIRMY_VERSION and without git, the image reports "dev".
+          curl --silent --fail http://127.0.0.1:4747/api/v1/setup/status | tee /dev/stderr | grep -q '"version":"dev"'
           curl --silent --fail http://127.0.0.1:4747/ | grep -qi "<!doctype html"
 
   release:

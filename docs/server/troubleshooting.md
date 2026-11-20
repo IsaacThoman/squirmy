@@ -44,7 +44,7 @@ Confirm in **Admin → Library**: the folder's card shows its file count, "not s
 
 - **The folder is not inside the container.** The folder picker browses the container's file system, not the host's. Check with `docker compose exec app ls /music`. Add the folder as a volume in `compose.yaml` and choose its path inside the container.
 - **The server cannot read it.** Adding fails with "The server cannot read that folder", or the scan finds 0 files. The container runs as uid 1000; give that user read access (and write access for a managed folder): `ls -ln` on the host shows the owner.
-- **A configured folder was skipped.** The log says `Not adding … from SQUIRMY_LIBRARY_PATHS: …` with the reason (the path does not exist, or it overlaps another folder).
+- **A configured folder was skipped.** The log says `Not adding … from SQUIRMY_LIBRARY_PATHS: …` (or `SQUIRMY_MANAGED_LIBRARY_PATHS`) with the reason (the path does not exist, or it overlaps another folder).
 - **New files in an existing folder do not show up.** The folder may not be watched: network mounts and Docker Desktop bind mounts often deliver no change events. Choose **Scan now**, or wait for the nightly scan. See [When watching does not work](./library.md#when-watching-does-not-work).
 - **Unreadable files** are files no tag reader could parse; they are left alone until they change.
 
@@ -67,7 +67,7 @@ Confirm in **Admin → Library** under **Identification**: **Waiting** means not
 
 - **Unidentified albums** have no MusicBrainz id, so their cover can only come from the files: a picture embedded in the tags, or an image in the album's folder named `cover`, `front`, `folder`, `album` or `albumart…`.
 - **Identified albums** get covers in the background, every 30 minutes for albums still missing one. Check that **Cover Art Archive** (and **Deezer**, the fallback) are on in **Admin → Server settings**, and that the server can reach the internet.
-- **Covers that used to work and now do not**: the data folder's `assets/` may have been deleted or not restored. It is not rebuilt; restore it from a backup ([what is in the data folder](./backup.md#what-is-in-the-data-folder)).
+- **Covers that used to work and now do not**: the data folder's `assets/` may have been deleted or not restored. Most images are rebuilt from the music files, folder images and the URLs they came from on their own, some only after a background download, so reload after a minute. Images whose source has changed are not; restore `assets/` from a backup for those ([When `assets/` is lost](./backup.md#when-assets-is-lost)).
 
 ## The app cannot connect
 

@@ -25,7 +25,7 @@ describe('auth', () => {
 
   it('sets up the first admin once', async () => {
     expect((await call({ url: '/api/v1/setup/status' })).json()).toMatchObject({ needsSetup: true, serverName: 'Squirmy', registrationRequiresInvite: true })
-    expect((await call({ url: '/api/v1/setup/status' })).json().version).toMatch(/\d+\.\d+\.\d+/)
+    expect((await call({ url: '/api/v1/setup/status' })).json().version).toMatch(/^(\d+\.\d+\.\d+|dev(\+[0-9a-f]+)?)$/)
 
     // Concurrent attempts: exactly one wins.
     const attempts = await Promise.all(['admin', 'other'].map((username) =>

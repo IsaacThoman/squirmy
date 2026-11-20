@@ -1,6 +1,6 @@
 import {
   Id, OrganizeBatchListQuery, OrganizePreviewRequest, queryKeys,
-  type OrganizeBatch, type OrganizeBatchAccepted, type OrganizeBatchList,
+  type OrganizeBatch, type OrganizeBatchAccepted, type OrganizeBatchList, type OrganizeTemplateInfo,
 } from '@squirmy/contracts'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -14,6 +14,7 @@ import { invalidate } from '../../realtime/index.js'
 import { getBatch, getBatchSummary, listBatches } from './batches.js'
 import { assertManaged, loadBatch } from './journal.js'
 import { planOrganize } from './plan.js'
+import { templateInfo } from './template.js'
 
 const IdParams = z.object({ id: Id })
 
@@ -43,6 +44,8 @@ export async function organizeRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request) => {
     requireAdmin(request)
   })
+
+  app.get('/admin/organize/template', async (): Promise<OrganizeTemplateInfo> => templateInfo())
 
   app.post('/admin/organize/preview', async (request, reply): Promise<OrganizeBatch> => {
     const body = OrganizePreviewRequest.parse(request.body)

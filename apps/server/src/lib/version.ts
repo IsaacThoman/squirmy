@@ -1,20 +1,31 @@
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { getConfig } from '../config.js'
 
-let packageVersion: string | undefined
+let development: string | undefined
 
-/** The running version: SQUIRMY_VERSION, else the repository's root package.json. */
+/**
+ * The running version: SQUIRMY_VERSION when it is set (release images pass it as a build
+ * argument), else a development marker, worked out once per process.
+ */
 export function getVersion(): string {
-  const fromEnv = getConfig().SQUIRMY_VERSION
-  if (fromEnv) return fromEnv
-  if (packageVersion === undefined) {
-    try {
-      // The same depth from src/lib and dist/lib.
-      const file = new URL('../../../../package.json', import.meta.url)
-      packageVersion = (JSON.parse(readFileSync(file, 'utf8')) as { version?: string }).version ?? '0.0.0'
-    } catch {
-      packageVersion = '0.0.0'
-    }
+  return getConfig().SQUIRMY_VERSION?.trim() || (development ??= developmentVersion())
+}
+
+/**
+ * `dev+<short commit>` when the server runs from a git checkout and git is installed,
+ * else `dev` (an image built without SQUIRMY_VERSION has neither).
+ */
+export function developmentVersion(): string {
+  try {
+    const commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+      cwd: fileURLToPath(new URL('.', import.meta.url)),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 2000,
+    }).trim()
+    return /^[0-9a-f]{4,40}$/.test(commit) ? `dev+${commit}` : 'dev'
+  } catch {
+    return 'dev'
   }
-  return packageVersion
 }

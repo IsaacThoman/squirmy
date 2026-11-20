@@ -4,7 +4,8 @@ import type { FastifyInstance } from 'fastify'
 import sharp from 'sharp'
 import { z } from 'zod'
 import { notFound } from '../../lib/errors.js'
-import { dataPath, ensureStored, writeAtomic } from './store.js'
+import { readOriginal } from './recover.js'
+import { dataPath, writeAtomic } from './store.js'
 
 const Params = z.object({
   assetId: z.uuid(),
@@ -17,7 +18,7 @@ const rendering = new Map<string, Promise<Buffer>>()
 /**
  * The square WebP rendition of an asset, cropped to fill. Rendered on first request and
  * kept under `<data>/art/<assetId>/<size>.webp`; that folder is safe to delete. A remote
- * image is downloaded first.
+ * image is downloaded first, and a lost original is rebuilt (see `recover.ts`).
  */
 export async function rendition(assetId: string, size: ArtSize): Promise<Buffer> {
   const file = dataPath('art', assetId, `${size}.webp`)
@@ -33,10 +34,7 @@ export async function rendition(assetId: string, size: ArtSize): Promise<Buffer>
 }
 
 async function render(assetId: string, size: ArtSize, file: string) {
-  const asset = await ensureStored(assetId)
-  const original = await readFile(dataPath(asset.storagePath)).catch(() => {
-    throw notFound('The artwork file is missing')
-  })
+  const { bytes: original } = await readOriginal(assetId)
   const output = await sharp(original).autoOrient().resize(size, size, { fit: 'cover' }).webp({ quality: 82 }).toBuffer()
   await writeAtomic(file, output)
   return output

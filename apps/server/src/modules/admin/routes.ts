@@ -20,6 +20,7 @@ import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
 import { hashPassword, insertUser, revokeUserSessions, toUser } from '../auth/service.js'
 import { markEnrichmentStale } from '../enrichment/stale.js'
+import { queueNewlyPossibleMatching } from '../matching/retry.js'
 import { checkImportSettings } from '../imports/settings.js'
 
 const IdParams = z.object({ id: Id })
@@ -180,6 +181,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const settings = await updateServerSettings(patch)
     // Owned by the enrichment module: music enriched without a source that is now on.
     await markEnrichmentStale(before, settings)
+    // Owned by the matching module: identification that was not possible before.
+    await queueNewlyPossibleMatching(before, settings)
     await invalidate('admins', [queryKeys.admin()])
     return settings
   })

@@ -29,6 +29,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `SQUIRMY_SECRET` | unset | The root secret for signing stream URLs and encrypting stored credentials, at least 16 characters. When unset, a random one is generated on first start and kept in `<data>/secret.key`. Do not set or change it on a server that already has data: everything encrypted under the old secret (app passwords, API keys, provider secrets, scrobbling connections) becomes unreadable. |
 | `SQUIRMY_ROLE` | `all` | `all`, `api` or `worker`. |
 | `SQUIRMY_LIBRARY_PATHS` | unset (compose: `/music`) | Comma-separated absolute paths. On every start, each one that is not already a library folder is added as a **read-only** folder, watched, and scanned. A path that does not exist or overlaps another folder is skipped with a warning in the log. Removing a path from this variable does not remove the folder from the library. |
+| `SQUIRMY_MANAGED_LIBRARY_PATHS` | unset | The same, but each folder is added as a **managed** folder, which Squirmy may organize and file uploads into ([Organizing files](./organizing.md)). The folder must be writable by the server. A path in both variables is added as managed. Either variable only adds folders: a folder that is already in the library keeps the mode it has; change it in **Admin → Library**. |
 | `SQUIRMY_INBOX_PATH` | unset | A folder watched for music to import, used while the `inboxPath` server setting is unset. See [Adding music](./adding-music.md#the-inbox-folder). |
 | `SQUIRMY_WEB_DIST` | unset (image: `/app/apps/web/dist`) | The built web app to serve. Unset, the server serves only the API; the Vite dev server proxies to it during development. |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
@@ -36,7 +37,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `FFPROBE_PATH` | `ffprobe` | The `ffprobe` binary. |
 | `FPCALC_PATH` | `fpcalc` | The `fpcalc` binary (Chromaprint), used for AcoustID fingerprints. |
 | `NODE_ENV` | `development` (image: `production`) | Outside production, the API also accepts cross-origin requests from the Vite dev server on port 5173. |
-| `SQUIRMY_VERSION` | unset (image: the build argument) | The version reported by `/api/v1/setup/status` and to Subsonic apps. Set by release builds. |
+| `SQUIRMY_VERSION` | unset (image: the build argument) | The version reported by `/api/v1/setup/status`, to Subsonic apps and in the User-Agent sent to metadata services. Release images set it to the release number. Unset or empty, the server reports `dev+<commit>` when it runs from a git checkout (the short commit, read once at start) and `dev` otherwise, as in an image built without the argument. |
 
 `compose.yaml` itself reads these from `.env` or the shell:
 
@@ -149,7 +150,7 @@ services:
       disable: true
 ```
 
-Leave `SQUIRMY_LIBRARY_PATHS` on the `app` service: any process adds the configured folders on start, so one is enough.
+Leave `SQUIRMY_LIBRARY_PATHS` and `SQUIRMY_MANAGED_LIBRARY_PATHS` on the `app` service: any process adds the configured folders on start, so one is enough.
 
 ## Scheduled work
 
@@ -158,6 +159,7 @@ These run on their own; nothing needs configuring. Times are UTC.
 | Job | When |
 |---|---|
 | Full scan of every enabled folder | daily at 04:00 |
+| Check for lost artwork files and rebuild them | daily at 04:40 |
 | Remove files missing longer than the grace period | daily at 05:30 |
 | Remove search results nobody kept (catalog stubs older than 30 days) | daily at 05:45 |
 | New releases from artists in your library | Mondays at 06:00 |

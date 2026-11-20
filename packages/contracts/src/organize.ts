@@ -19,6 +19,21 @@ export const ORGANIZE_TEMPLATE_TOKENS = ['albumartist', 'artist', 'album', 'year
  */
 export const DEFAULT_ORGANIZE_TEMPLATE = '{albumartist}/{album}[ ({year})]/[[{disc}-]{track} ]{title}.{ext}'
 
+export const OrganizeTemplateToken = z.object({
+  token: z.enum(ORGANIZE_TEMPLATE_TOKENS),
+  /** One line for a UI to show next to the token. */
+  description: z.string(),
+})
+export type OrganizeTemplateToken = z.infer<typeof OrganizeTemplateToken>
+
+/** `GET /admin/organize/template`: what a template editor needs, so no client hard-codes it. */
+export const OrganizeTemplateInfo = z.object({
+  /** Used by every root whose `template` is null. */
+  defaultTemplate: z.string(),
+  tokens: z.array(OrganizeTemplateToken),
+})
+export type OrganizeTemplateInfo = z.infer<typeof OrganizeTemplateInfo>
+
 /** What the admin UI says about undo when a batch writes tags. */
 export const ORGANIZE_TAGS_NOT_REVERTED =
   'Undo moves files back to where they were, but tags written by this batch stay as they are.'
