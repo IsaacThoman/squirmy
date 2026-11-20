@@ -46,7 +46,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /data /music && chown node:node /data
 WORKDIR /app
-ARG SQUIRMY_VERSION=0.0.0
+# Release builds pass the version; without it the server reports "dev".
+ARG SQUIRMY_VERSION=
 ENV NODE_ENV=production \
     SQUIRMY_VERSION=${SQUIRMY_VERSION} \
     SQUIRMY_DATA_DIR=/data \

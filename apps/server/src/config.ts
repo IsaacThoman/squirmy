@@ -31,7 +31,7 @@ const Env = z.object({
   FFMPEG_PATH: z.string().default('ffmpeg'),
   FFPROBE_PATH: z.string().default('ffprobe'),
   FPCALC_PATH: z.string().default('fpcalc'),
-  /** Set by release builds; development falls back to the root package.json. */
+  /** Set by release builds; otherwise the version is dev, with the git commit when there is one. */
   SQUIRMY_VERSION: z.string().optional(),
 })
 

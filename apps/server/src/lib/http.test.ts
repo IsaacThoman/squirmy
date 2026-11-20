@@ -30,7 +30,7 @@ describe('lib/http', () => {
     const calls = stubFetch(() => json({ hello: 'world' }))
     const result = await cachedFetch('test', 'https://example.test/ua', { ttlSeconds: 60 })
     expect(result).toEqual({ status: 200, json: { hello: 'world' }, text: '{"hello":"world"}', cached: false })
-    expect(userAgent()).toMatch(/^Squirmy\/\d+\.\d+\.\d+ \( https:\/\/github\.com\/IsaacThoman\/squirmy \)$/)
+    expect(userAgent()).toMatch(/^Squirmy\/(\d+\.\d+\.\d+|dev(\+[0-9a-f]+)?) \( https:\/\/github\.com\/IsaacThoman\/squirmy \)$/)
     expect((calls[0]!.init.headers as Record<string, string>)['User-Agent']).toBe(userAgent())
   })
 
