@@ -9,9 +9,10 @@ import { TrackList } from '@/components/music/TrackList'
 import { Badge } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
-import { albumTypeLabel } from '@/lib/catalog'
+import { albumTypeLabel, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { useLibrary } from '@/player/library-context'
+import { useOnDemand } from '@/player/on-demand-context'
 import { usePlayer } from '@/player/player-context'
 import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
 
@@ -21,12 +22,13 @@ const groupTitles: Partial<Record<AlbumType, string>> = { album: 'Albums', ep: '
 export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPlayAlbum: (album: AlbumSummary) => void }) {
   const artUrl = useArtUrl()
   const library = useLibrary()
+  const { canRequest } = useOnDemand()
   const { controls } = usePlayer()
   const context = { type: 'artist' as const, id: artist.id, title: artist.name }
   const actions = useTrackActions(artist.topTracks, context)
   const wants = useAlbumWants()
   const owned = artist.albums.filter(album => album.availability === 'full' || album.availability === 'partial').length
-  const playable = artist.topTracks.some(track => track.availability !== 'none')
+  const playable = artist.topTracks.some(track => isPlayable(track, canRequest))
   const groups = typeOrder
     .map(type => ({ type, albums: artist.albums.filter(album => album.type === type) }))
     .filter(group => group.albums.length)

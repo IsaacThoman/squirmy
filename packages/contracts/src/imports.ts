@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AlbumSummary } from './catalog.js'
 import { Id, IsoDateTime, PageQuery, page } from './common.js'
 
 /**
@@ -92,6 +93,24 @@ export const Import = z.object({
 })
 export type Import = z.infer<typeof Import>
 
+/** Why uploads cannot start: the error `POST /imports` would fail with. */
+export const ImportUnavailable = z.enum(['no_managed_root', 'import_root_not_set', 'import_root_unavailable'])
+export type ImportUnavailable = z.infer<typeof ImportUnavailable>
+
+/**
+ * `GET /imports/options`: what an upload may be before one starts, so a client can say why
+ * uploading is not possible and refuse files over the limits without sending them.
+ */
+export const ImportOptions = z.object({
+  /** Null when uploads can be filed. */
+  unavailable: ImportUnavailable.nullable(),
+  /** Largest single file, archives included (`importMaxFileBytes`). */
+  maxFileBytes: z.number().int(),
+  /** Largest import, counting what its archives extract to (`importMaxBytes`). */
+  maxBytes: z.number().int(),
+})
+export type ImportOptions = z.infer<typeof ImportOptions>
+
 /** `POST /imports`. */
 export const CreateImportRequest = z.object({
   label: z.string().trim().min(1).max(200).optional(),
@@ -128,3 +147,18 @@ export type ImportListQuery = z.infer<typeof ImportListQuery>
 
 export const ImportList = page(Import)
 export type ImportList = z.infer<typeof ImportList>
+
+/**
+ * `GET /imports/:id/albums`: the albums an import's present audio files belong to, in title
+ * order, with `nextCursor: null`. `filed` is false while any of them is still in
+ * `_Incoming/<importId>/`, waiting for review.
+ */
+export const ImportAlbum = z.object({
+  album: AlbumSummary,
+  files: z.number().int(),
+  filed: z.boolean(),
+})
+export type ImportAlbum = z.infer<typeof ImportAlbum>
+
+export const ImportAlbumList = page(ImportAlbum)
+export type ImportAlbumList = z.infer<typeof ImportAlbumList>

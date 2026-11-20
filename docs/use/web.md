@@ -4,9 +4,9 @@ The web app is served by your Squirmy server at its own address, such as `https:
 
 ## Getting around
 
-The sidebar has **Home**, **Search**, your **Library** (**Albums**, **Artists**, **Songs**), the **Wantlist**, and your **Playlists** with **Liked Songs** at the top. **New playlist** (the **+** next to Playlists) makes one. Admins also see **Admin**.
+The sidebar has **Home**, **Search**, your **Library** (**Albums**, **Artists**, **Songs**), the **Wantlist**, **Add music** (for admins and people who may upload), and your **Playlists** with **Liked Songs** at the top. **New playlist** (the **+** next to Playlists) makes one. Admins also see **Admin**.
 
-The menu under your name, top right, has **Settings**, **Admin** (for admins) and **Log out**.
+The menu under your name, top right, has **Settings**, **Add music** (for people who may upload), **Admin** (for admins) and **Log out**.
 
 - **Home** shows a featured album (what you played last, else what was added last) and rows of recently added and recently played albums, most played songs, your playlists, liked albums, your wantlist and new releases by artists in your library. On a server with no music yet it says so; admins get **Add a music folder**, which opens **Admin → Library**.
 - **Library** pages load as you scroll and can be sorted and filtered by genre. Counts read "60+" until the last page arrives.
@@ -30,6 +30,14 @@ Click a song, or the play button on an album or playlist. The player bar at the 
 - **Queue**: reorder by dragging, or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history. **Autoplay** keeps music going with similar songs from your library when the queue runs out.
 - **Your settings** in **Settings → Playback**: **Volume normalization**, **Streaming quality**, **Cellular quality** (for the iOS app), and **This browser's name**. See [Playback](../server/playback.md).
 
+## Music the server does not have
+
+With an [acquisition provider](../server/acquisition.md) connected, gray songs it can supply show a cloud icon, "Plays on demand". Play one and it shows **Preparing…** until the file arrives, then plays; an album page offers **Get this album**. If a fetch fails, a notice says so and the song is skipped. Without permission to fetch music, those songs stay gray, and their row says to ask an admin.
+
+## Adding music
+
+**Add music** uploads album folders, files or zip archives from your computer, with progress for each file, **Pause** and **Cancel**. The server identifies what arrives and files it into the library; the page follows each import to its albums and lists your recent imports. See [Adding music](../server/adding-music.md#uploading).
+
 ## Devices
 
 Every open tab is a device in your one playback session. When music plays somewhere else, the player bar says "Playing on …" with **Play here**; the controls drive that device and this tab plays nothing. **Devices** lists where you can play, including **Play in this tab**. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
@@ -50,15 +58,13 @@ Admins manage the server here. Each page has its own guide:
 | **Review queue** | [The review queue and Fix match](../server/library.md#the-review-queue-and-fix-match) |
 | **Organize** | [Organizing files](../server/organizing.md) |
 | **Search index** | [The local search index](../server/metadata-and-privacy.md#the-local-search-index) |
-| **Providers** | A placeholder for now; see [Acquisition providers](../server/acquisition.md) |
+| **Providers** | [Acquisition providers](../server/acquisition.md) |
 | **Users & invites** | [Users and access](../server/users.md) |
 | **Server settings** | [Configuration](../server/configuration.md#server-settings) |
 | **Jobs** | [Troubleshooting](../server/troubleshooting.md#logs-and-the-jobs-page) |
 
 ## Not there yet
 
-- **Uploading from the browser.** There is no upload screen yet; uploads go through the API ([Adding music](../server/adding-music.md#uploading)).
-- **Managing acquisition providers.** **Admin → Providers** shows placeholder entries; providers are managed through the API.
 - **Full pages for music you do not own.** Opening a gray album or artist shows what the catalog knows, which can be thin until its details are fetched.
 - **A history page.** Recent listening is under **History** at the top of the queue panel and in Home's "Recently played".
 

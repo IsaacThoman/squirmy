@@ -3,18 +3,20 @@ import path from 'node:path'
 import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import {
-  Id, INCOMING_FOLDER,
-  type Import, type ImportCounts, type ImportFileRejection, type ImportFileResult, type ImportKind, type ImportList, type ImportListQuery,
+  Id, INCOMING_FOLDER, ImportUnavailable,
+  type Import, type ImportAlbum, type ImportCounts, type ImportFileRejection, type ImportFileResult, type ImportKind, type ImportList, type ImportListQuery,
+  type ImportOptions,
 } from '@squirmy/contracts'
-import { and, desc, eq, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { acquisitionJobs, imports, libraryRoots } from '../../database/schema.js'
+import { acquisitionJobs, imports, libraryRoots, mediaFiles } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import type { AuthUser } from '../../lib/auth.js'
 import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { publish } from '../../realtime/index.js'
+import { albumSummaries } from '../catalog/summaries.js'
 import { errorCode } from '../organize/files.js'
 import { checkRelativePath } from './paths.js'
 import { moveTree, stagingDir, TEMP_PREFIX, TooLargeError, writeLimited } from './staging.js'
@@ -107,6 +109,20 @@ export async function resolveImportRoot(rootId?: string | null): Promise<RootRow
   if (managed.length === 0) throw conflict('Imports need a managed library root to file music into. Add one first.', 'no_managed_root')
   if (managed.length > 1) throw conflict('Choose which managed library root imports go to in the server settings', 'import_root_not_set')
   return managed[0]!
+}
+
+/** The upload limits, and the reason uploads cannot start when there is no root to file into. */
+export async function importOptions(): Promise<ImportOptions> {
+  const { importMaxFileBytes, importMaxBytes } = await getServerSettings()
+  let unavailable: ImportUnavailable | null = null
+  try {
+    await resolveImportRoot()
+  } catch (error) {
+    const reason = error instanceof AppError ? ImportUnavailable.safeParse(error.code) : null
+    if (!reason?.success) throw error
+    unavailable = reason.data
+  }
+  return { unavailable, maxFileBytes: importMaxFileBytes, maxBytes: importMaxBytes }
 }
 
 export type CreateImportInput = {
@@ -321,4 +337,29 @@ export async function listImports(user: AuthUser, query: ImportListQuery): Promi
   )).orderBy(desc(imports.id)).limit(query.limit + 1)
   const page = rows.slice(0, query.limit)
   return { items: page.map(toImport), nextCursor: rows.length > query.limit ? page[page.length - 1]!.id : null }
+}
+
+/**
+ * The albums an import's present audio files belong to, in title order. An album is filed
+ * once none of its files from the import is left in `_Incoming/<importId>/`.
+ */
+export async function importAlbums(importId: string): Promise<ImportAlbum[]> {
+  const waiting = `${incomingFolder(importId)}/`
+  const rows = await db.select({
+    albumId: mediaFiles.albumId,
+    files: sql<number>`count(*)::int`,
+    waiting: sql<number>`count(*) filter (where starts_with(${mediaFiles.relPath}, ${waiting}))::int`,
+  }).from(mediaFiles)
+    .where(and(eq(mediaFiles.importId, importId), isNull(mediaFiles.missingSince), isNotNull(mediaFiles.albumId)))
+    .groupBy(mediaFiles.albumId)
+  const summaries = await albumSummaries(rows.map((row) => row.albumId!))
+  // Merged albums answer with the same summary; their files count together.
+  const byAlbum = new Map<string, ImportAlbum>()
+  rows.forEach((row, index) => {
+    const album = summaries[index]
+    if (!album) return
+    const seen = byAlbum.get(album.id)
+    byAlbum.set(album.id, { album, files: (seen?.files ?? 0) + row.files, filed: (seen?.filed ?? true) && row.waiting === 0 })
+  })
+  return [...byAlbum.values()].sort((a, b) => a.album.title.localeCompare(b.album.title))
 }

@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
-import { Badge, EmptyState, Skeleton } from '@/components/ui/feedback'
+import { Badge, EmptyState, ProgressBar, Skeleton } from '@/components/ui/feedback'
 import { Select } from '@/components/ui/select'
 import { formatRelative, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { AdminHeader, ProgressBar } from './AdminLayout'
+import { AdminHeader } from './AdminLayout'
 import { SwitchRow } from './ManagedSwitch'
 
 export type OrganizeOptions = { includeUnmatched: boolean; writeTags: boolean }

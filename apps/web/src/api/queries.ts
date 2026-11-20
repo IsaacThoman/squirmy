@@ -25,6 +25,9 @@ async function everything<T>(load: (cursor: string | undefined) => Promise<Page<
 
 const silent = { silent: true }
 
+/** Imports: their list, each one, and the upload options. `import.updated` refreshes them all. */
+export const importsKey = ['imports'] as const
+
 export function useHome() {
   const api = useApi()
   return useQuery({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home(), meta: silent })

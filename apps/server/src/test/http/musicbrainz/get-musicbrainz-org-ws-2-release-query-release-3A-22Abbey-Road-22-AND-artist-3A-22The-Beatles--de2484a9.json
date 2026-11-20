@@ -1,0 +1,796 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=release%3A%22Abbey+Road%22+AND+artist%3A%22The+Beatles%22+tracks%3A16&limit=10&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T20:41:15.362Z",
+      "count": 97,
+      "offset": 0,
+      "releases": [
+        {
+          "id": "53f352b2-983c-4af2-b19d-577dec0f9f4a",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 1,
+          "title": "Abbey Road",
+          "status": "Official",
+          "packaging": "Cardboard/Paper Sleeve",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "date": "1973",
+          "country": "JP",
+          "release-events": [
+            {
+              "date": "1973",
+              "area": {
+                "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+                "name": "Japan",
+                "sort-name": "Japan",
+                "iso-3166-1-codes": [
+                  "JP"
+                ]
+              }
+            }
+          ],
+          "barcode": "",
+          "label-info": [
+            {
+              "catalog-number": "AP-8815",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            }
+          ],
+          "track-count": 16,
+          "media": [
+            {
+              "id": "56291fe3-1d7c-361d-a4c2-50d69a635c25",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 16
+            }
+          ]
+        },
+        {
+          "id": "d23f0ad2-f0d5-4714-9fb0-ed80189799d3",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "c1668fc7-8944-4a00-bc3e-46e8d861d211",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 3,
+          "title": "Abbey Road",
+          "status": "Official",
+          "packaging": "Box",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "date": "2019-09-27",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "2019-09-27",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "barcode": "602508007446",
+          "label-info": [
+            {
+              "catalog-number": "0602508007446",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            }
+          ],
+          "track-count": 40,
+          "media": [
+            {
+              "id": "27a1aec2-a38c-492b-83a7-dbf2bc407d3a",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 17
+            },
+            {
+              "id": "d20f4b5c-c000-43e7-91eb-8b6a07ae78b9",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 12
+            },
+            {
+              "id": "bdeea7a7-6b53-4c23-99c0-e02e7394ddaa",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 11
+            }
+          ]
+        },
+        {
+          "id": "b25a1e5d-3247-41ea-9920-f93c58a6e479",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 2,
+          "title": "Abbey Road",
+          "status": "Official",
+          "disambiguation": "2CD anniversary edition",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "date": "2019-09-27",
+          "country": "JP",
+          "release-events": [
+            {
+              "date": "2019-09-27",
+              "area": {
+                "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+                "name": "Japan",
+                "sort-name": "Japan",
+                "iso-3166-1-codes": [
+                  "JP"
+                ]
+              }
+            }
+          ],
+          "barcode": "4988031353004",
+          "asin": "B07W93DCNH",
+          "label-info": [
+            {
+              "catalog-number": "UICY-79051/2",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            }
+          ],
+          "track-count": 33,
+          "media": [
+            {
+              "id": "ec3130ce-57df-3c79-960c-9e4d9a71a837",
+              "format": "SHM-CD",
+              "disc-count": 1,
+              "track-count": 17
+            },
+            {
+              "id": "2609e598-5da5-3bf8-80c9-8b1ed20bb0fc",
+              "format": "SHM-CD",
+              "disc-count": 1,
+              "track-count": 16
+            }
+          ]
+        },
+        {
+          "id": "e12f53a3-e912-321d-bdc7-ed17ec525ec0",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 1,
+          "title": "Abbey Road",
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "date": "1995-12-05",
+          "country": "US",
+          "release-events": [
+            {
+              "date": "1995-12-05",
+              "area": {
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "sort-name": "United States",
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              }
+            }
+          ],
+          "barcode": "077774644617",
+          "asin": "B000002UB2",
+          "label-info": [
+            {
+              "catalog-number": "C1 46446 1",
+              "label": {
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records"
+              }
+            },
+            {
+              "catalog-number": "C1 46446 1",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            }
+          ],
+          "track-count": 17,
+          "media": [
+            {
+              "id": "d2dce450-54a6-31c6-b0af-9585f41b41e1",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 17
+            }
+          ]
+        },
+        {
+          "id": "7a2075a2-ab80-4225-b20d-63b6b9c6a20d",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 1,
+          "title": "Abbey Road",
+          "status": "Official",
+          "disambiguation": "anniversary edition",
+          "packaging": "Cardboard/Paper Sleeve",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "date": "2019-09-27",
+          "country": "XE",
+          "release-events": [
+            {
+              "date": "2019-09-27",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "barcode": "602577915123",
+          "label-info": [
+            {
+              "catalog-number": "0602577915123",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            }
+          ],
+          "track-count": 17,
+          "media": [
+            {
+              "id": "82b385a8-9afc-385a-9ae0-21f1b62806cb",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 17
+            }
+          ],
+          "tags": [
+            {
+              "count": 1,
+              "name": "rock"
+            },
+            {
+              "count": 1,
+              "name": "pop rock"
+            }
+          ]
+        },
+        {
+          "id": "982b992e-c783-43e3-a999-dae2123bd862",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 1,
+          "title": "Abbey Road",
+          "status": "Official",
+          "disambiguation": "Europe reissue, made in Holland",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "date": "1992",
+          "country": "XE",
+          "release-events": [
+            {
+              "date": "1992",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "barcode": "077774644624",
+          "label-info": [
+            {
+              "catalog-number": "CD-PCS 7088",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            },
+            {
+              "catalog-number": "CDP 7 46446 2",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            },
+            {
+              "catalog-number": "CD-PCS 7088",
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            },
+            {
+              "catalog-number": "CDP 7 46446 2",
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            }
+          ],
+          "track-count": 17,
+          "media": [
+            {
+              "id": "9f805fce-9759-370c-bbe4-6e98fe192d74",
+              "format": "CD",
+              "disc-count": 1,
+              "track-count": 17
+            }
+          ]
+        },
+        {
+          "id": "da056866-c5f8-43f3-b563-8f25fb96b86a",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 1,
+          "title": "Abbey Road",
+          "status": "Official",
+          "disambiguation": "made in Holland, “Beatles”,“Apple” and the Apple logos are trademarks of Apple Corps.Ltd.",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "date": "1992",
+          "country": "XE",
+          "release-events": [
+            {
+              "date": "1992",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "barcode": "077774644624",
+          "label-info": [
+            {
+              "catalog-number": "CDP 7 46446 2",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            },
+            {
+              "catalog-number": "CD-PCS 7088",
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            },
+            {
+              "catalog-number": "CD-PCS 7088",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            },
+            {
+              "catalog-number": "CDP 7 46446 2",
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            }
+          ],
+          "track-count": 17,
+          "media": [
+            {
+              "id": "5826a843-e4e6-45a9-8691-280e32a26d1f",
+              "format": "CD",
+              "disc-count": 1,
+              "track-count": 17
+            }
+          ]
+        },
+        {
+          "id": "fb8422c6-e6c8-405c-b713-2b22485a812a",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 1,
+          "title": "Abbey Road",
+          "status": "Official",
+          "disambiguation": "green",
+          "text-representation": {
+            "language": "eng"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "barcode": "602478627637",
+          "label-info": [
+            {
+              "catalog-number": "7791512",
+              "label": {
+                "id": "edaafb43-0124-4732-a2e3-f7a9936c8bd4",
+                "name": "Universal Music Group International"
+              }
+            },
+            {
+              "catalog-number": "7791512",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            },
+            {
+              "catalog-number": "0602478627637",
+              "label": {
+                "id": "edaafb43-0124-4732-a2e3-f7a9936c8bd4",
+                "name": "Universal Music Group International"
+              }
+            },
+            {
+              "catalog-number": "0602478627637",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            }
+          ],
+          "track-count": 17,
+          "media": [
+            {
+              "id": "3f81b8c3-88f0-4fcc-9e9b-a0dbbab21e6a",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 17
+            }
+          ]
+        },
+        {
+          "id": "31765b9f-e969-4257-855f-c7ea1f657b2a",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 1,
+          "title": "Abbey Road",
+          "status": "Official",
+          "packaging": "None",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "date": "2015-12-24",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "2015-12-24",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "barcode": "00602547670342",
+          "label-info": [
+            {
+              "label": {
+                "id": "ad4aeb00-9557-4a95-a111-5d422e65b1c6",
+                "name": "EMI Catalogue"
+              }
+            }
+          ],
+          "track-count": 17,
+          "media": [
+            {
+              "id": "4122c7c6-4675-314f-bc0a-75c10cce65eb",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 17
+            }
+          ],
+          "tags": [
+            {
+              "count": 1,
+              "name": "rock"
+            },
+            {
+              "count": 1,
+              "name": "pop"
+            },
+            {
+              "count": 1,
+              "name": "psychedelic rock"
+            },
+            {
+              "count": 1,
+              "name": "classic rock"
+            },
+            {
+              "count": 1,
+              "name": "pop rock"
+            },
+            {
+              "count": 1,
+              "name": "merseybeat"
+            },
+            {
+              "count": 1,
+              "name": "beat music"
+            }
+          ]
+        },
+        {
+          "id": "e3e99a28-628b-31a2-9579-36cd98d8bb64",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "artist-credit-id": "c81491ca-a4b0-3bd7-92c0-8467809c8500",
+          "count": 1,
+          "title": "Abbey Road",
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "The Beatles",
+              "artist": {
+                "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                "name": "The Beatles",
+                "sort-name": "Beatles, The",
+                "disambiguation": "UK rock band, “The Fab Four”"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Abbey Road",
+            "primary-type": "Album"
+          },
+          "date": "2004-01-21",
+          "country": "JP",
+          "release-events": [
+            {
+              "date": "2004-01-21",
+              "area": {
+                "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+                "name": "Japan",
+                "sort-name": "Japan",
+                "iso-3166-1-codes": [
+                  "JP"
+                ]
+              }
+            }
+          ],
+          "label-info": [
+            {
+              "catalog-number": "TOJP-60142",
+              "label": {
+                "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+                "name": "Apple Records"
+              }
+            }
+          ],
+          "track-count": 17,
+          "media": [
+            {
+              "id": "6e701e69-78a2-3edf-a692-81467f37f841",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 17
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

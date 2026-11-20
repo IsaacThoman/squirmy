@@ -95,7 +95,11 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
                 <h2 className="truncate text-2xl font-bold tracking-[-0.03em] md:text-[28px]">{item?.track.title ?? 'Nothing playing'}</h2>
                 {item && (
                   <p className="truncate text-base font-medium text-muted">
-                    {item.track.artists[0] ? <Link to={`/artist/${item.track.artists[0].id}`} onClick={() => onOpenChange(false)} className="hover:text-foreground hover:underline">{item.track.artistCredit}</Link> : item.track.artistCredit}
+                    {item.entry.state === 'preparing'
+                      ? <span className="text-accent">Preparing…</span>
+                      : item.track.artists[0]
+                        ? <Link to={`/artist/${item.track.artists[0].id}`} onClick={() => onOpenChange(false)} className="hover:text-foreground hover:underline">{item.track.artistCredit}</Link>
+                        : item.track.artistCredit}
                   </p>
                 )}
               </div>

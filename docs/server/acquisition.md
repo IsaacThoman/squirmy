@@ -10,10 +10,19 @@ This page explains how to connect one, the coverage modes, the policy settings, 
 - **Squirmy ships no providers that fetch from third parties and names none.** The [protocol](../provider-protocol.md) is generic. What you connect is your decision and your responsibility.
 - The repository includes two reference providers: **cold storage**, which serves files from a folder of your own music that you keep off the main library, and a **mock** that makes quiet test tones, for trying the feature out.
 - **Priced offers are ignored in this version.** The protocol reserves a `price` field for a later purchasing feature. Until then the server never chooses an offer that has one, and a track with only priced offers stays gray.
-- **There is no admin screen for providers yet.** **Admin → Providers** shows placeholder entries and does not reflect what is connected. Providers are added and managed through the API, as shown below.
 - Acquired music is filed into a [managed folder](./organizing.md#make-a-folder-managed), so you need one.
 
 ## Connecting a provider
+
+In **Admin → Providers**:
+
+1. **Add provider**, with a name, its base URL and the shared secret you configured on the provider (at least 8 characters). The server asks it for its capabilities right away; the card shows what it reports (its name, single songs or whole albums, formats, how many requests at once) and when it last answered, or its last error. **Test connection** asks again. The secret is never shown again; editing leaves it alone unless you type a new one.
+2. **Tell the provider where to deliver**, under **Policy → Delivery address**, when it reaches the server at another address than `PUBLIC_URL` or `http://localhost:4747` (see below).
+3. **Allow people to fetch.** Admins always can. For members, turn on **Can fetch missing music** in **Admin → Users & invites**.
+
+The switch on a provider's card turns it off and on, and its menu edits or deletes it. **Requests**, at the bottom, lists every fetch with who asked, what for, the provider, the state and the error, as they happen; filter it by state.
+
+### Through the API
 
 All of these need an admin token:
 
@@ -62,7 +71,7 @@ A provider says how it covers music, which decides what turns from gray to playa
 
 ## Policy
 
-`GET` and `PATCH /api/v1/admin/acquisition/policy`:
+Under **Admin → Providers → Policy**, or `GET` and `PATCH /api/v1/admin/acquisition/policy`:
 
 | Key | Default | What it does |
 |---|---|---|
@@ -75,10 +84,10 @@ A provider says how it covers music, which decides what turns from gray to playa
 
 ## What users see
 
-- Albums and tracks a provider can supply show a cloud icon, "Plays on demand", in the web app. An album page says "Not on the server yet. Press play and it will be fetched; songs show as preparing until they arrive."
-- Pressing play queues them as usual. A track being fetched shows **Preparing…** and the session waits at its start; it plays as soon as the file arrives. Upcoming tracks in the queue are fetched ahead of time.
-- If a fetch fails, the track is skipped with a notice and shows gray for a day.
-- A member without **Can fetch missing music** sees the same tracks, but playing them skips them.
+- Albums and tracks a provider can supply show a cloud icon, "Plays on demand", in the web app. An album page offers **Get this album**, which fetches its missing songs and shows how many have arrived; the menu offers it on albums you have part of.
+- Pressing play queues them as usual. A track being fetched shows **Preparing…** wherever it appears (lists, the queue, the player and Now Playing), and the session waits at its start; it plays as soon as the file arrives. Upcoming tracks in the queue are fetched ahead of time.
+- If a fetch fails, a notice says so, the track is skipped, and it shows gray for a day.
+- A member without **Can fetch missing music** sees those tracks gray, and their row and menu say to ask an admin.
 - One fetch runs per track or album at a time. If two people or devices ask for the same thing, they share it.
 - Subsonic apps never see on-demand music; they show only what is on the server.
 

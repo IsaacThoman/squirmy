@@ -80,13 +80,17 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 | | Last.fm | `lastFmKey`, `lastFmSecret` | not set | Lets users connect Last.fm for scrobbling. |
 | Matching | Accept matches automatically above | `matchAutoAcceptScore` | 90% | Matches at or above this score are applied; lower ones (down to 50%) wait in the review queue. |
 | Library | Keep missing files for | `missingFileGraceDays` | 14 days | How long a vanished file stays in the library before it is removed. 0 to 365. |
+| Imports | Import into | `importRootId` | not chosen | The managed library folder uploads and inbox imports are filed into. Not chosen means the only enabled managed folder, when there is exactly one. |
+| | Inbox folder | `inboxPath` | not set | The [inbox](./adding-music.md#the-inbox-folder). Empty falls back to `SQUIRMY_INBOX_PATH`. It may not be inside a library folder or the data folder; the screen says why a folder is refused. |
+| | Largest file | `importMaxFileBytes` | 4 GB | Largest single file an import accepts, zip archives included. |
+| | Largest import | `importMaxBytes` | 64 GB | Largest import, counting what its archives extract to. |
 | Transcoding | Transcode cache | `transcodeCacheMaxBytes` | 10 GB | Converted streams kept on disk; the least recently used go first. |
 
 Turning a metadata source off stops new requests to it; what it already provided stays. API keys are stored encrypted and are never shown again: the screen says **Set** or **Not set**, with **Change** or **Add key**, and **Remove key** in the dialog.
 
-### Settings without a screen
+### Through the API
 
-These are set with `PATCH /api/v1/admin/settings` by an admin. Sign in to get a token first:
+Every setting can also be set with `PATCH /api/v1/admin/settings` by an admin. Sign in to get a token first:
 
 ```sh
 TOKEN=$(curl -s -X POST https://music.example.com/api/v1/auth/login \
@@ -102,12 +106,7 @@ curl -X PATCH https://music.example.com/api/v1/admin/settings \
   -d '{"inboxPath": "/inbox", "importMaxFileBytes": 8589934592}'
 ```
 
-| Key | Default | What it does |
-|---|---|---|
-| `importRootId` | `null` | The managed library folder uploads and inbox imports are filed into. `null` means the only enabled managed folder, when there is exactly one. Folder ids are in `GET /api/v1/admin/library/roots`. |
-| `inboxPath` | `null` | The inbox folder. `null` falls back to `SQUIRMY_INBOX_PATH`. It may not be inside a library folder or the data folder. |
-| `importMaxFileBytes` | 4 GiB (`4294967296`) | Largest single file an import accepts, zip archives included. |
-| `importMaxBytes` | 64 GiB (`68719476736`) | Largest import, counting what its archives extract to. |
+Sizes are in bytes, and `importRootId` takes a folder id from `GET /api/v1/admin/library/roots`.
 
 `GET /api/v1/admin/settings` returns every setting; secrets come back only as `listenBrainzTokenSet`, `acoustIdKeySet`, `fanartKeySet` and `lastFmKeySet`. A secret set to `null` or `""` is removed.
 

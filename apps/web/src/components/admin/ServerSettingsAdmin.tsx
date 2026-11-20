@@ -1,32 +1,36 @@
-import { UpdateServerSettings, type ServerSettings } from '@squirmy/contracts'
-import { Check } from 'lucide-react'
+import { UpdateServerSettings, type LibraryRoot, type ServerSettings } from '@squirmy/contracts'
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { errorsFromIssues } from '@/api/errors'
+import { Link } from 'react-router'
 import { SettingRow, SettingsSection } from '@/components/layout/Settings'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
-import { Badge, Skeleton, Spinner } from '@/components/ui/feedback'
+import { Badge, Skeleton } from '@/components/ui/feedback'
 import { Field, Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { cn } from '@/lib/utils'
 import { AdminHeader } from './AdminLayout'
+import { inGigabytes } from '@/lib/format'
+import { DraftField, SaveStatus, type SavePatch, type SaveState } from './DraftField'
 
-type Save = (patch: UpdateServerSettings) => Promise<unknown>
+type Save = SavePatch<UpdateServerSettings>
 type Toggle = 'musicBrainzEnabled' | 'coverArtArchiveEnabled' | 'deezerEnabled' | 'wikidataEnabled' | 'lrclibEnabled' | 'registrationRequiresInvite'
 type Secret = 'listenBrainz' | 'acoustId' | 'fanart' | 'lastFm'
-
-const GIB = 1024 ** 3
 
 type ServerSettingsProps = {
   /** Undefined while loading. */
   settings: ServerSettings | undefined
+  /** The managed library folders imports can go to. */
+  managedRoots: LibraryRoot[] | undefined
   onSave: Save
-  status: 'idle' | 'saving' | 'saved'
+  status: SaveState
 }
 
+/** The import folder setting's "nothing chosen" choice; a select cannot hold null. */
+const ONLY_ROOT = 'only'
+
 /** Every operator setting. Each change is saved as soon as it is made; text fields save when they lose focus. */
-export function ServerSettingsAdmin({ settings, onSave, status }: ServerSettingsProps) {
+export function ServerSettingsAdmin({ settings, managedRoots, onSave, status }: ServerSettingsProps) {
   const [editing, setEditing] = useState<Secret | null>(null)
   if (!settings) return <SettingsSkeleton />
   const toggle = (key: Toggle, label: string, description?: string) => (
@@ -48,7 +52,7 @@ export function ServerSettingsAdmin({ settings, onSave, status }: ServerSettings
 
       <SettingsSection title="General" className="-mt-6">
         <SettingRow htmlFor="server-name" label="Server name" description="Shown on the sign-in page and in Subsonic apps.">
-          <DraftField id="server-name" field="serverName" value={settings.serverName} onSave={onSave} className="w-48" />
+          <DraftField id="server-name" field="serverName" value={settings.serverName} schema={UpdateServerSettings} onSave={onSave} className="w-48" />
         </SettingRow>
       </SettingsSection>
 
@@ -59,7 +63,7 @@ export function ServerSettingsAdmin({ settings, onSave, status }: ServerSettings
       <SettingsSection title="Metadata sources" description="Every source is optional. Turning one off keeps what it already provided.">
         {toggle('musicBrainzEnabled', 'MusicBrainz', 'Identifies albums and fills in discographies.')}
         <SettingRow htmlFor="mb-url" label="MusicBrainz server" description="Point at your own mirror to lift the rate limit.">
-          <DraftField id="mb-url" field="musicBrainzBaseUrl" value={settings.musicBrainzBaseUrl} onSave={onSave} className="w-64 font-mono text-[13px]" />
+          <DraftField id="mb-url" field="musicBrainzBaseUrl" value={settings.musicBrainzBaseUrl} schema={UpdateServerSettings} onSave={onSave} className="w-64 font-mono text-[13px]" />
         </SettingRow>
         {toggle('coverArtArchiveEnabled', 'Cover Art Archive', 'Album covers.')}
         {toggle('deezerEnabled', 'Deezer', 'Search, artist images and top songs.')}
@@ -80,16 +84,17 @@ export function ServerSettingsAdmin({ settings, onSave, status }: ServerSettings
 
       <SettingsSection title="Library">
         <SettingRow htmlFor="grace-days" label="Keep missing files for" description="An unmounted drive does not empty the library during this time.">
-          <DraftField id="grace-days" field="missingFileGraceDays" value={settings.missingFileGraceDays} onSave={onSave} type="number" inputMode="numeric" className="w-20 text-right" unit="days" />
+          <DraftField id="grace-days" field="missingFileGraceDays" value={settings.missingFileGraceDays} schema={UpdateServerSettings} onSave={onSave} type="number" inputMode="numeric" className="w-20 text-right" unit="days" />
         </SettingRow>
       </SettingsSection>
+
+      <ImportSettings settings={settings} managedRoots={managedRoots} onSave={onSave} />
 
       <SettingsSection title="Transcoding">
         <SettingRow htmlFor="transcode-cache" label="Transcode cache" description="Converted streams are kept on disk up to this size; the oldest go first.">
           <DraftField
-            id="transcode-cache" field="transcodeCacheMaxBytes" value={settings.transcodeCacheMaxBytes} onSave={onSave}
-            type="number" inputMode="decimal" step="any" className="w-24 text-right" unit="GB"
-            format={bytes => String(Math.round((bytes / GIB) * 10) / 10)} parse={text => Math.round(Number(text) * GIB)}
+            id="transcode-cache" field="transcodeCacheMaxBytes" value={settings.transcodeCacheMaxBytes} schema={UpdateServerSettings} onSave={onSave}
+            type="number" inputMode="decimal" step="any" className="w-24 text-right" unit="GB" {...inGigabytes}
           />
         </SettingRow>
       </SettingsSection>
@@ -99,70 +104,40 @@ export function ServerSettingsAdmin({ settings, onSave, status }: ServerSettings
   )
 }
 
-function SaveStatus({ status }: { status: ServerSettingsProps['status'] }) {
-  if (status === 'idle') return null
+function ImportSettings({ settings, managedRoots, onSave }: { settings: ServerSettings; managedRoots: LibraryRoot[] | undefined; onSave: Save }) {
+  const roots = managedRoots ?? []
+  const chosen = settings.importRootId
+  const options = [
+    { value: ONLY_ROOT, label: roots.length === 1 ? `${roots[0].name} (the only one)` : 'Not chosen' },
+    ...roots.map(root => ({ value: root.id, label: root.name })),
+    ...(chosen && managedRoots && !roots.some(root => root.id === chosen) ? [{ value: chosen, label: 'A folder that is no longer managed' }] : []),
+  ]
   return (
-    <span role="status" className="flex h-10 items-center gap-2 text-sm font-semibold text-muted">
-      {status === 'saving' ? <><Spinner className="size-4" label="Saving" />Saving…</> : <><Check className="size-4 text-accent" />Saved</>}
-    </span>
-  )
-}
-
-type Editable = Exclude<keyof UpdateServerSettings, Toggle>
-
-type DraftFieldProps<K extends Editable> = {
-  id: string
-  field: K
-  value: NonNullable<UpdateServerSettings[K]>
-  onSave: Save
-  className?: string
-  unit?: string
-  type?: 'text' | 'number'
-  inputMode?: 'numeric' | 'decimal'
-  step?: string
-  format?: (value: NonNullable<UpdateServerSettings[K]>) => string
-  parse?: (text: string) => unknown
-}
-
-/**
- * An input that saves on blur or Enter. Until then it holds a draft, checked with the
- * contract schema; a value the server refuses stays in the field to be corrected.
- */
-function DraftField<K extends Editable>({ id, field, value, onSave, className, unit, type = 'text', inputMode, step, format = String, parse }: DraftFieldProps<K>) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const [error, setError] = useState<string>()
-  const toValue = parse ?? (type === 'number' ? (text: string) => (text.trim() ? Number(text) : Number.NaN) : (text: string) => text.trim())
-  const commit = async () => {
-    if (draft === null) return
-    const next = toValue(draft)
-    const parsed = UpdateServerSettings.safeParse({ [field]: next })
-    if (!parsed.success) return setError(errorsFromIssues(parsed.error.issues)[field])
-    setError(undefined)
-    if (next === value) return setDraft(null)
-    try {
-      await onSave({ [field]: next })
-      setDraft(null)
-    } catch {
-      // The failure is reported by the page; the draft stays for another try.
-    }
-  }
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center gap-2">
-        <Input
-          id={id} type={type} inputMode={inputMode} step={step} min={type === 'number' ? 0 : undefined}
-          value={draft ?? format(value)}
-          onChange={event => setDraft(event.target.value)}
-          onBlur={() => void commit()}
-          onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
-          aria-invalid={!!error}
-          aria-describedby={error ? `${id}-error` : undefined}
-          className={cn('h-9', className)}
-        />
-        {unit && <span className="text-sm text-muted">{unit}</span>}
-      </div>
-      {error && <p id={`${id}-error`} className="text-xs font-medium text-danger">{error}</p>}
-    </div>
+    <SettingsSection title="Imports" description="Uploads, the inbox and music fetched on demand are filed into a managed music folder once they are identified.">
+      <SettingRow
+        label="Import into"
+        description={managedRoots && roots.length === 0
+          ? <>No folder is managed yet. Make one in <Link to="/admin/library" className="font-semibold text-accent hover:underline">Library</Link>.</>
+          : 'With several managed folders, imports wait until one is chosen.'}
+      >
+        {roots.length > 0 && (
+          <Select label="Import into" value={chosen ?? ONLY_ROOT} options={options} onValueChange={value => void onSave({ importRootId: value === ONLY_ROOT ? null : value }).catch(() => {})} />
+        )}
+      </SettingRow>
+      <SettingRow
+        htmlFor="inbox-path"
+        label="Inbox folder"
+        description="A folder on the server to drop music into, for example from a file share. What appears there is imported and moved into the library; what cannot be imported is put in “Not imported” inside it."
+      >
+        <DraftField id="inbox-path" field="inboxPath" value={settings.inboxPath} schema={UpdateServerSettings} onSave={onSave} placeholder="Not set" className="w-64 font-mono text-[13px]" parse={text => text.trim() || null} />
+      </SettingRow>
+      <SettingRow htmlFor="import-file-limit" label="Largest file" description="Archives count as one file.">
+        <DraftField id="import-file-limit" field="importMaxFileBytes" value={settings.importMaxFileBytes} schema={UpdateServerSettings} onSave={onSave} type="number" inputMode="decimal" step="any" className="w-24 text-right" unit="GB" {...inGigabytes} />
+      </SettingRow>
+      <SettingRow htmlFor="import-limit" label="Largest import" description="Counting what zip archives unpack to.">
+        <DraftField id="import-limit" field="importMaxBytes" value={settings.importMaxBytes} schema={UpdateServerSettings} onSave={onSave} type="number" inputMode="decimal" step="any" className="w-24 text-right" unit="GB" {...inGigabytes} />
+      </SettingRow>
+    </SettingsSection>
   )
 }
 

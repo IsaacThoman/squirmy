@@ -27,7 +27,7 @@ import { realFileOps, type FileOps } from '../organize/files.js'
 import { planOrganize } from '../organize/plan.js'
 import { wantEntity } from '../userdata/wants.js'
 import { processImport, runStep, type ProcessOptions } from './process.js'
-import { addImportFile, commitImport, createImport, getImport, type ImportWork } from './service.js'
+import { addImportFile, commitImport, createImport, getImport, importAlbums, type ImportWork } from './service.js'
 import { stagingDir, stagingRoot } from './staging.js'
 import { writeZip } from './test-zip.js'
 
@@ -211,6 +211,7 @@ describe('import processing', () => {
     expect(rows.some((row) => row.recordingId === linked!.id)).toBe(true)
     const [want] = await db.select().from(wants).where(eq(wants.userId, fan.id))
     expect(want!.fulfilledAt).not.toBeNull()
+    expect(await importAlbums(id)).toMatchObject([{ album: { id: album!.id, title: 'OK Computer', availability: 'full' }, files: 12, filed: true }])
   }, 120_000)
 
   it('removes audio the library already has, and repeats within one import', async () => {
@@ -332,6 +333,7 @@ describe('import processing', () => {
     expect(await tree(root.path)).toEqual(blueHour.map((file) => `${INCOMING_FOLDER}/${id}/Blue Hour/${path.basename(file)}`))
     const rows = await rowsOf(id)
     expect(rows.every((row) => row.matchStatus === 'unmatched' && row.recordingId && row.source === 'upload')).toBe(true)
+    expect(await importAlbums(id)).toMatchObject([{ album: { title: 'Blue Hour' }, files: 5, filed: false }])
 
     const app = await buildApp()
     const listener = await signIn()

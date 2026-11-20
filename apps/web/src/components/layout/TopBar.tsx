@@ -1,10 +1,11 @@
 import type { User } from '@squirmy/contracts'
-import { ChevronLeft, ChevronRight, LogOut, Settings, Shield } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LogOut, Settings, Shield, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { IconButton } from '@/components/ui/icon-button'
 import { DropdownMenu } from '@/components/ui/menu'
 import { SearchField } from '@/components/ui/search-field'
+import { canUploadMusic } from '@/lib/catalog'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { cn } from '@/lib/utils'
 import { useScrollContainer } from './scroll-context'
@@ -65,6 +66,7 @@ function UserMenu({ user, onLogout }: { user: User; onLogout: () => void }) {
       entries={[
         { kind: 'label', label: `${name} · ${user.role === 'admin' ? 'Admin' : 'Member'}` },
         { label: 'Settings', icon: <Settings />, onSelect: () => navigate('/settings') },
+        ...(canUploadMusic(user) ? [{ label: 'Add music', icon: <Upload />, onSelect: () => navigate('/imports') }] : []),
         ...(user.role === 'admin' ? [{ label: 'Admin', icon: <Shield />, onSelect: () => navigate('/admin') }] : []),
         { kind: 'separator' },
         { label: 'Log out', icon: <LogOut />, onSelect: onLogout },

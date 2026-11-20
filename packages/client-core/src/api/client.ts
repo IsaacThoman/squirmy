@@ -35,9 +35,11 @@ import {
   HistoryItem,
   HomeResponse,
   Import,
+  ImportAlbumList,
   ImportFilesResponse,
   ImportList,
   type ImportListQuery,
+  ImportOptions,
   Invite,
   InviteList,
   JobQueueStats,
@@ -436,8 +438,12 @@ export function createApiClient(options: ApiClientOptions) {
     imports: {
       /** Your own imports, or every import for an admin, newest first. */
       list: (query: Partial<ImportListQuery> = {}) => get('/imports', ImportList, query),
+      /** Whether uploads can be filed (and why not), and their size limits. */
+      options: () => get('/imports/options', ImportOptions),
       create: (body: CreateImportRequest = {}) => send('POST', '/imports', Import, body),
       get: (importId: string) => get(`/imports/${id(importId)}`, Import),
+      /** The albums an import's files belong to, and whether each was filed. */
+      albums: (importId: string) => get(`/imports/${id(importId)}/albums`, ImportAlbumList),
       /**
        * Uploads files into an import that is receiving; several calls may add to one. A file
        * over the limits fails the request with 413, and the files before it are kept.
