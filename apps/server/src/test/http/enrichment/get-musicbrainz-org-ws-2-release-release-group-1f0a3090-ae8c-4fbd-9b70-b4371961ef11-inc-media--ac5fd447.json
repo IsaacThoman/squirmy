@@ -1,0 +1,453 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?release-group=1f0a3090-ae8c-4fbd-9b70-b4371961ef11&inc=media+labels&limit=100&offset=0&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-offset": 0,
+      "releases": [
+        {
+          "disambiguation": "",
+          "cover-art-archive": {
+            "count": 1,
+            "back": false,
+            "front": true,
+            "artwork": true,
+            "darkened": false
+          },
+          "title": "Antisocialites",
+          "quality": "normal",
+          "barcode": "644110033420",
+          "asin": "B071WQD5YS",
+          "release-events": [
+            {
+              "area": {
+                "sort-name": "United States",
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "type": null,
+                "name": "United States",
+                "disambiguation": "",
+                "type-id": null
+              },
+              "date": "2017-09-08"
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "media": [
+            {
+              "id": "456cfb3f-7325-3391-968c-a9b7d4043307",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "title": "",
+              "position": 1,
+              "format": "CD",
+              "track-count": 10
+            }
+          ],
+          "id": "1f2f93b4-7b9b-4fef-85fb-20f7439d9fbd",
+          "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246",
+          "date": "2017-09-08",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "country": "US",
+          "label-info": [
+            {
+              "catalog-number": "PRC-334",
+              "label": {
+                "id": "2ad60482-164f-4e5c-ac78-1f5267d4fdc0",
+                "sort-name": "Polyvinyl",
+                "type": "Original Production",
+                "name": "Polyvinyl",
+                "disambiguation": "",
+                "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                "label-code": null
+              }
+            }
+          ],
+          "packaging": "Digipak",
+          "status": "Official"
+        },
+        {
+          "barcode": "644110033499",
+          "asin": null,
+          "release-events": [
+            {
+              "date": "2017-09-08",
+              "area": {
+                "type-id": null,
+                "disambiguation": "",
+                "name": "[Worldwide]",
+                "type": null,
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f"
+              }
+            }
+          ],
+          "quality": "normal",
+          "title": "Antisocialites",
+          "media": [
+            {
+              "position": 1,
+              "format": "Digital Media",
+              "track-count": 10,
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "id": "c18203d0-d3ee-3221-8607-1c136b9a7f3b",
+              "title": ""
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "id": "49a79669-60fe-4563-a508-d3158b91b014",
+          "cover-art-archive": {
+            "artwork": true,
+            "darkened": false,
+            "count": 1,
+            "back": false,
+            "front": true
+          },
+          "disambiguation": "",
+          "label-info": [
+            {
+              "label": {
+                "type": "Original Production",
+                "id": "2ad60482-164f-4e5c-ac78-1f5267d4fdc0",
+                "sort-name": "Polyvinyl",
+                "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                "label-code": null,
+                "name": "Polyvinyl",
+                "disambiguation": ""
+              },
+              "catalog-number": null
+            }
+          ],
+          "country": "XW",
+          "packaging": "None",
+          "status": "Official",
+          "date": "2017-09-08",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "id": "5a13b603-784d-44b3-a2aa-eb8815b69920",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "media": [
+            {
+              "title": "",
+              "id": "b6ae9ef1-beba-3989-bf3e-019e749f78a8",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "track-count": 10,
+              "position": 1,
+              "format": "CD"
+            }
+          ],
+          "quality": "normal",
+          "title": "Antisocialites",
+          "asin": "B071ZCPFMB",
+          "barcode": "5414939962745",
+          "release-events": [
+            {
+              "date": "2017-09-08",
+              "area": {
+                "type": null,
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type-id": null,
+                "name": "Europe",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "cover-art-archive": {
+            "artwork": true,
+            "darkened": false,
+            "count": 1,
+            "front": true,
+            "back": false
+          },
+          "disambiguation": "",
+          "status": "Official",
+          "packaging": "Digipak",
+          "country": "XE",
+          "label-info": [
+            {
+              "catalog-number": "TRANS306CD",
+              "label": {
+                "sort-name": "Transgressive Records",
+                "id": "0682fcd0-7372-4e2d-8503-710abd12883e",
+                "type": "Original Production",
+                "disambiguation": "",
+                "name": "Transgressive Records",
+                "label-code": null,
+                "type-id": "7aaa37fe-2def-3476-b359-80245850062d"
+              }
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246",
+          "date": "2017-09-08"
+        },
+        {
+          "disambiguation": "clear with yellow splatter vinyl",
+          "cover-art-archive": {
+            "artwork": true,
+            "darkened": false,
+            "count": 4,
+            "back": true,
+            "front": true
+          },
+          "media": [
+            {
+              "format": "12\" Vinyl",
+              "position": 1,
+              "track-count": 10,
+              "id": "7109dc04-efeb-3009-96e8-522669490625",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "title": ""
+            }
+          ],
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "release-events": [
+            {
+              "date": "2017-09-08",
+              "area": null
+            }
+          ],
+          "barcode": "644110033413",
+          "asin": null,
+          "title": "Antisocialites",
+          "quality": "normal",
+          "id": "87629656-71b5-43fa-b40a-5b17a7609a54",
+          "date": "2017-09-08",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "label-info": [
+            {
+              "label": {
+                "disambiguation": "",
+                "name": "Polyvinyl",
+                "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                "label-code": null,
+                "sort-name": "Polyvinyl",
+                "id": "2ad60482-164f-4e5c-ac78-1f5267d4fdc0",
+                "type": "Original Production"
+              },
+              "catalog-number": "PRC-334"
+            }
+          ],
+          "country": null,
+          "status": "Official",
+          "packaging": "Cardboard/Paper Sleeve"
+        },
+        {
+          "id": "b5f8394b-f3f7-481f-89c5-d000a0fbb617",
+          "asin": null,
+          "barcode": null,
+          "release-events": [
+            {
+              "date": "2017-09-08",
+              "area": null
+            }
+          ],
+          "title": "Antisocialites",
+          "quality": "normal",
+          "media": [
+            {
+              "format-id": "f5e6e254-8f39-331c-936b-9c69d686dc47",
+              "id": "ffacf79a-b1c0-31b3-8ec0-acef0fe58d70",
+              "title": "",
+              "position": 1,
+              "format": "Cassette",
+              "track-count": 10
+            }
+          ],
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "disambiguation": "",
+          "cover-art-archive": {
+            "back": false,
+            "front": true,
+            "count": 1,
+            "darkened": false,
+            "artwork": true
+          },
+          "packaging": "Cassette Case",
+          "status": "Official",
+          "label-info": [
+            {
+              "label": {
+                "label-code": null,
+                "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                "disambiguation": "",
+                "name": "Polyvinyl",
+                "type": "Original Production",
+                "sort-name": "Polyvinyl",
+                "id": "2ad60482-164f-4e5c-ac78-1f5267d4fdc0"
+              },
+              "catalog-number": null
+            }
+          ],
+          "country": null,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "date": "2017-09-08",
+          "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906"
+        },
+        {
+          "disambiguation": "",
+          "cover-art-archive": {
+            "darkened": false,
+            "artwork": false,
+            "back": false,
+            "front": false,
+            "count": 0
+          },
+          "media": [
+            {
+              "track-count": 10,
+              "format": "CD",
+              "position": 1,
+              "title": "",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "id": "9d2f98af-299c-46c5-be5e-252c65581a81"
+            }
+          ],
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "barcode": "680889093418",
+          "asin": null,
+          "release-events": [
+            {
+              "area": {
+                "type-id": null,
+                "name": "Canada",
+                "disambiguation": "",
+                "type": null,
+                "id": "71bbafaa-e825-3e15-8ca9-017dcad1748b",
+                "sort-name": "Canada",
+                "iso-3166-1-codes": [
+                  "CA"
+                ]
+              },
+              "date": "2017-09-08"
+            }
+          ],
+          "title": "Antisocialites",
+          "quality": "normal",
+          "id": "e22284a1-d19a-4eeb-a96c-4a3f4f3fee8c",
+          "date": "2017-09-08",
+          "packaging-id": null,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "label-info": [
+            {
+              "catalog-number": "RMR-065",
+              "label": {
+                "id": "564dc8fb-cbd0-453b-ad29-dd867556d041",
+                "sort-name": "Royal Mountain Records",
+                "type": null,
+                "name": "Royal Mountain Records",
+                "disambiguation": "",
+                "type-id": null,
+                "label-code": null
+              }
+            }
+          ],
+          "country": "CA",
+          "status": "Official",
+          "packaging": null
+        },
+        {
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+                "label-code": null,
+                "name": "Transgressive Records",
+                "disambiguation": "",
+                "type": "Original Production",
+                "id": "0682fcd0-7372-4e2d-8503-710abd12883e",
+                "sort-name": "Transgressive Records"
+              }
+            }
+          ],
+          "country": "XW",
+          "packaging": "None",
+          "status": "Official",
+          "date": "2017-09-08",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "barcode": "5414939962721",
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "sort-name": "[Worldwide]",
+                "type-id": null,
+                "disambiguation": "",
+                "name": "[Worldwide]"
+              },
+              "date": "2017-09-08"
+            }
+          ],
+          "asin": null,
+          "title": "Antisocialites",
+          "quality": "normal",
+          "media": [
+            {
+              "id": "09e1b5c5-3e9f-3fd6-87a6-8f5eb1e26855",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "title": "",
+              "format": "Digital Media",
+              "position": 1,
+              "track-count": 10
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "id": "e5b2bec0-633e-46cf-9925-81cf067bc7f7",
+          "cover-art-archive": {
+            "artwork": true,
+            "darkened": false,
+            "count": 1,
+            "front": true,
+            "back": false
+          },
+          "disambiguation": ""
+        }
+      ],
+      "release-count": 7
+    }
+  }
+}

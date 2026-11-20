@@ -1,0 +1,47 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group/a6ccb4c7-5d38-4140-8482-14fc4db43480?inc=artist-credits+genres+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "secondary-type-ids": [],
+      "disambiguation": "",
+      "title": "Miraculé",
+      "id": "a6ccb4c7-5d38-4140-8482-14fc4db43480",
+      "primary-type": "Album",
+      "relations": [],
+      "genres": [],
+      "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "first-release-date": "2014-06-09",
+      "secondary-types": [],
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "name": "Niro",
+          "artist": {
+            "genres": [
+              {
+                "count": 1,
+                "id": "52faa157-6bad-4d86-a0ab-d4dec7d2513c",
+                "disambiguation": "",
+                "name": "hip hop"
+              }
+            ],
+            "sort-name": "Niro",
+            "name": "Niro",
+            "country": "FR",
+            "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+            "type": "Person",
+            "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+          }
+        }
+      ]
+    }
+  }
+}

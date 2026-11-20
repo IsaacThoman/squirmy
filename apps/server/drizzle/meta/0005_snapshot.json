@@ -1,5 +1,5 @@
 {
-  "id": "1d7cdbd8-c0c2-40e0-aacb-d83f572356f6",
+  "id": "b7716408-3710-44de-b227-ae39db198808",
   "prevId": "f5170ee9-3669-4f71-b9e9-4d1738e2ff0c",
   "version": "7",
   "dialect": "postgresql",
@@ -573,6 +573,12 @@
         },
         "fetched_at": {
           "name": "fetched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enriched_at": {
+          "name": "enriched_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -1908,12 +1914,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
@@ -1939,52 +1939,14 @@
           "notNull": true,
           "default": "'receiving'"
         },
-        "step": {
-          "name": "step",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "step_started_at": {
-          "name": "step_started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "staging_path": {
           "name": "staging_path",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "received_files": {
-          "name": "received_files",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "received_bytes": {
-          "name": "received_bytes",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
         "stats": {
           "name": "stats",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "work": {
-          "name": "work",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -2002,13 +1964,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
         "completed_at": {
           "name": "completed_at",
           "type": "timestamp with time zone",
@@ -2016,50 +1971,7 @@
           "notNull": false
         }
       },
-      "indexes": {
-        "imports_status": {
-          "name": "imports_status",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "imports_user": {
-          "name": "imports_user",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "imports_user_id_users_id_fk": {
           "name": "imports_user_id_users_id_fk",
@@ -3118,21 +3030,6 @@
           ],
           "isUnique": false,
           "where": "\"media_files\".\"missing_since\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_files_import": {
-          "name": "media_files_import",
-          "columns": [
-            {
-              "expression": "import_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

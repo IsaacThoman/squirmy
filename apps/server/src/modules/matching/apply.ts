@@ -1,5 +1,6 @@
 /**
  * Turns a chosen MusicBrainz release into catalog rows and links a group's files to them.
+ * `upsertRelease` is the one writer of MusicBrainz releases; enrichment uses it too.
  *
  * Adopt, don't duplicate: when no row carries a MusicBrainz id yet, the local-only row the
  * files were linked to is updated in place, so ids that likes, playlists and sessions
@@ -55,12 +56,24 @@ async function byMbid(tx: Transaction, table: typeof artists | typeof albums | t
   return row ? resolveMerged(tx, table, row.id) : null
 }
 
-/** Artists by MBID: existing rows, adopted local-only ones with the same name, or new rows. */
-async function upsertArtists(tx: Transaction, release: MbRelease, localArtistIds: string[]): Promise<Map<string, string>> {
+/**
+ * Serializes writes of MusicBrainz-backed rows until the transaction ends: concurrent
+ * upserts share artists and adopt rows by MBID.
+ */
+export async function lockUpserts(tx: Transaction) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('squirmy:matching:apply'))`)
+}
+
+/**
+ * Artists by MBID for every credit: existing rows, else a local-only row among
+ * `localArtistIds` with the same name (which takes the MBID), else a new row. Returns
+ * MBID → row id. Call it under `lockUpserts`.
+ */
+export async function upsertArtists(tx: Transaction, credits: readonly MbArtistCredit[], localArtistIds: readonly string[] = []): Promise<Map<string, string>> {
   const locals = localArtistIds.length === 0 ? [] : await tx.select({ id: artists.id, nameKey: artists.nameKey }).from(artists)
-    .where(and(inArray(artists.id, localArtistIds), isNull(artists.mbid), isNull(artists.mergedIntoId)))
+    .where(and(inArray(artists.id, [...localArtistIds]), isNull(artists.mbid), isNull(artists.mergedIntoId)))
   const ids = new Map<string, string>()
-  for (const credit of allCredits(release)) {
+  for (const credit of credits) {
     if (ids.has(credit.mbid)) continue
     const nameKey = matchKey(credit.name)
     const localIndex = locals.findIndex((local) => local.nameKey === nameKey)
@@ -79,7 +92,8 @@ async function upsertArtists(tx: Transaction, release: MbRelease, localArtistIds
   return ids
 }
 
-async function replaceCredits(tx: Transaction, table: typeof albumArtists | typeof recordingArtists, ownerId: string, credits: MbArtistCredit[], artistIds: Map<string, string>) {
+/** Replaces an album's or recording's credit rows. Every credit's MBID must be in `artistIds`. */
+export async function replaceCredits(tx: Transaction, table: typeof albumArtists | typeof recordingArtists, ownerId: string, credits: readonly MbArtistCredit[], artistIds: Map<string, string>) {
   if (table === albumArtists) {
     await tx.delete(albumArtists).where(eq(albumArtists.albumId, ownerId))
     if (credits.length > 0) {
@@ -97,45 +111,51 @@ async function replaceCredits(tx: Transaction, table: typeof albumArtists | type
   }
 }
 
+/** Rows `upsertRelease` may take over instead of creating new ones. Ids that carry an MBID are ignored. */
+export type Adoption = {
+  /** Local-only artists credited on the rows being replaced; one with a credit's name takes its MBID. */
+  artistIds?: readonly string[]
+  /**
+   * Album rows that stand for this release group. When no row has the group's MBID the
+   * first one takes it; every other one is merged into the album that does.
+   */
+  albumIds?: readonly string[]
+  /** Local-only editions that may become this release (their tracks are replaced) when no row has its MBID. */
+  releaseIds?: readonly string[]
+  /** Local-only recordings to take each track's MBID, keyed `disc:position` of that track. */
+  recordings?: ReadonlyMap<string, { id: string; isrcs: string[] }>
+}
+
+export type UpsertOptions = {
+  /**
+   * `always` makes the release the album's canonical one. `unless-owned` leaves an album
+   * that has present files with the canonical release it has.
+   */
+  canonical: 'always' | 'unless-owned'
+}
+
+export type UpsertedRelease = {
+  albumId: string
+  releaseId: string
+  /** Albums merged into `albumId`. */
+  mergedAlbumIds: string[]
+  /** MBID → artist row id for everyone credited. */
+  artistIds: Map<string, string>
+  /** `disc:position` → the rows written for that track. */
+  tracks: Map<string, { recordingId: string; releaseTrackId: string }>
+}
+
 /**
- * Applies `input.release` to the files in the caller's transaction: upserts its artists,
- * album (release group), release, recordings and every medium's tracks, links assigned
- * files as `matched`, and attaches extras (when asked) as `unmatched` with no track.
- * Queues enrichment for the album and artists with the transaction.
+ * Writes a MusicBrainz release as catalog rows in the caller's transaction: its artists,
+ * album (the release group, at least `detail_level` 1), the release with every medium's
+ * tracks, recordings with their ISRCs, and all credits. Rows are found by MBID, else
+ * adopted from `adoption`, else created; running it twice changes nothing.
  */
-export async function applyMatch(tx: Transaction, input: ApplyInput): Promise<ApplyResult> {
-  // One apply at a time: concurrent matches share artists and adopt rows by MBID.
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('squirmy:matching:apply'))`)
-  const { release, evaluation } = input
+export async function upsertRelease(tx: Transaction, release: MbRelease, adoption: Adoption = {}, options: UpsertOptions = { canonical: 'always' }): Promise<UpsertedRelease> {
+  await lockUpserts(tx)
   const group = release.releaseGroup
   const now = new Date()
-
-  const files = await tx.select({ id: mediaFiles.id, recordingId: mediaFiles.recordingId, releaseId: mediaFiles.releaseId, albumId: mediaFiles.albumId })
-    .from(mediaFiles).where(inArray(mediaFiles.id, input.fileIds))
-  const fileIds = new Set(files.map((file) => file.id))
-  const linkedAlbumIds = [...new Set(files.flatMap((file) => (file.albumId ? [file.albumId] : [])))]
-  const linkedRecordingIds = [...new Set(files.flatMap((file) => (file.recordingId ? [file.recordingId] : [])))]
-  const linkedReleaseIds = [...new Set(files.flatMap((file) => (file.releaseId ? [file.releaseId] : [])))]
-
-  const localAlbums = linkedAlbumIds.length === 0 ? [] : await tx.select({ id: albums.id, primaryArtistId: albums.primaryArtistId }).from(albums)
-    .where(and(inArray(albums.id, linkedAlbumIds), isNull(albums.mbid), isNull(albums.mergedIntoId)))
-  const localRecordings = linkedRecordingIds.length === 0 ? [] : await tx.select({ id: recordings.id, isrcs: recordings.isrcs }).from(recordings)
-    .where(and(inArray(recordings.id, linkedRecordingIds), isNull(recordings.mbid), isNull(recordings.mergedIntoId)))
-  const localReleaseIds = linkedReleaseIds.length === 0 ? [] : (await tx.select({ id: releases.id }).from(releases)
-    .where(and(inArray(releases.id, linkedReleaseIds), isNull(releases.mbid)))).map((row) => row.id)
-  // Adopting an edition replaces its tracks, so only one no other file (a locked one) uses.
-  const sharedReleaseIds = new Set(localReleaseIds.length === 0 ? [] : (await tx.selectDistinct({ id: mediaFiles.releaseId }).from(mediaFiles)
-    .where(and(inArray(mediaFiles.releaseId, localReleaseIds), notInArray(mediaFiles.id, input.fileIds)))).map((row) => row.id))
-
-  // Artists credited on the local rows are the ones that may be adopted.
-  const localArtistIds = new Set(localAlbums.flatMap((album) => (album.primaryArtistId ? [album.primaryArtistId] : [])))
-  if (localAlbums.length > 0) {
-    for (const row of await tx.select({ id: albumArtists.artistId }).from(albumArtists).where(inArray(albumArtists.albumId, localAlbums.map((album) => album.id)))) localArtistIds.add(row.id)
-  }
-  if (localRecordings.length > 0) {
-    for (const row of await tx.select({ id: recordingArtists.artistId }).from(recordingArtists).where(inArray(recordingArtists.recordingId, localRecordings.map((recording) => recording.id)))) localArtistIds.add(row.id)
-  }
-  const artistIds = await upsertArtists(tx, release, [...localArtistIds])
+  const artistIds = await upsertArtists(tx, allCredits(release), adoption.artistIds)
   const primaryArtist = (credits: MbArtistCredit[]) => (credits[0] ? artistIds.get(credits[0].mbid)! : null)
 
   // The album is the release group.
@@ -154,27 +174,24 @@ export async function applyMatch(tx: Transaction, input: ApplyInput): Promise<Ap
     fetchedAt: now,
     updatedAt: now,
   }
+  const candidates = adoption.albumIds?.length ? (await tx.select({ id: albums.id }).from(albums)
+    .where(and(inArray(albums.id, [...adoption.albumIds]), isNull(albums.mbid), isNull(albums.mergedIntoId)))).map((row) => row.id) : []
+  const localAlbums = (adoption.albumIds ?? []).filter((id) => candidates.includes(id))
   const mergedAlbumIds: string[] = []
-  let albumId = await byMbid(tx, albums, group.mbid)
-  if (!albumId && localAlbums[0]) {
-    // The album most of the files sit on is the one user data most likely points at.
-    const counts = new Map<string, number>()
-    for (const file of files) if (file.albumId) counts.set(file.albumId, (counts.get(file.albumId) ?? 0) + 1)
-    albumId = [...localAlbums].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0))[0]!.id
-  }
+  let albumId = await byMbid(tx, albums, group.mbid) ?? localAlbums[0]
   if (albumId) await tx.update(albums).set(albumValues).where(eq(albums.id, albumId))
   else {
     albumId = newId()
     await tx.insert(albums).values({ id: albumId, ...albumValues, detailLevel: 1 })
   }
   for (const local of localAlbums) {
-    if (local.id === albumId) continue
-    await mergeAlbum(local.id, albumId, tx)
-    mergedAlbumIds.push(local.id)
+    if (local === albumId) continue
+    await mergeAlbum(local, albumId, tx)
+    mergedAlbumIds.push(local)
   }
   await replaceCredits(tx, albumArtists, albumId, group.artistCredit, artistIds)
 
-  // The release: the existing row, else the files' local edition adopted, else a new row.
+  // The release: the existing row, else an adoptable local edition, else a new row.
   const releaseValues = {
     mbid: release.mbid,
     albumId,
@@ -193,7 +210,9 @@ export async function applyMatch(tx: Transaction, input: ApplyInput): Promise<Ap
     updatedAt: now,
   }
   const [existingRelease] = await tx.select({ id: releases.id }).from(releases).where(eq(releases.mbid, release.mbid))
-  let releaseId = existingRelease?.id ?? localReleaseIds.find((id) => !sharedReleaseIds.has(id))
+  const adoptable = existingRelease || !adoption.releaseIds?.length ? [] : await tx.select({ id: releases.id }).from(releases)
+    .where(and(inArray(releases.id, [...adoption.releaseIds]), isNull(releases.mbid)))
+  let releaseId = existingRelease?.id ?? adoptable[0]?.id
   if (releaseId) {
     if (!existingRelease) await tx.delete(releaseTracks).where(eq(releaseTracks.releaseId, releaseId))
     await tx.update(releases).set(releaseValues).where(eq(releases.id, releaseId))
@@ -201,21 +220,21 @@ export async function applyMatch(tx: Transaction, input: ApplyInput): Promise<Ap
     releaseId = newId()
     await tx.insert(releases).values({ id: releaseId, ...releaseValues })
   }
-  await tx.update(albums).set({ canonicalReleaseId: releaseId }).where(eq(albums.id, albumId))
+  const owned = sql`exists (select 1 from ${mediaFiles} f where f.album_id = ${albums.id} and f.missing_since is null)`
+  await tx.update(albums).set({ canonicalReleaseId: releaseId })
+    .where(and(eq(albums.id, albumId), options.canonical === 'unless-owned' ? sql`not ${owned}` : undefined))
 
-  // Recordings and tracks, adopting the local recording of the file assigned to each track.
-  const pairs = new Map(evaluation.pairs.filter((pair) => fileIds.has(pair.fileId)).map((pair) => [`${pair.disc}:${pair.position}`, pair]))
-  const recordingOf = new Map(files.map((file) => [file.id, file.recordingId]))
-  const adoptable = new Map(localRecordings.map((recording) => [recording.id, recording]))
-  const links = new Map<string, { recordingId: string; releaseTrackId: string }>()
-  const keptTracks: string[] = []
+  // Recordings and tracks.
+  const localRecordingIds = [...(adoption.recordings?.values() ?? [])].map((recording) => recording.id)
+  const adoptableRecordings = new Set(localRecordingIds.length === 0 ? [] : (await tx.select({ id: recordings.id }).from(recordings)
+    .where(and(inArray(recordings.id, localRecordingIds), isNull(recordings.mbid), isNull(recordings.mergedIntoId)))).map((row) => row.id))
+  const tracks = new Map<string, { recordingId: string; releaseTrackId: string }>()
   for (const medium of release.mediums) {
     for (const track of medium.tracks) {
       const mb = track.recording
-      const pair = pairs.get(`${medium.position}:${track.position}`)
-      const localId = pair ? recordingOf.get(pair.fileId) : undefined
-      const local = localId ? adoptable.get(localId) : undefined
-      if (local) adoptable.delete(local.id)
+      const key = `${medium.position}:${track.position}`
+      const candidate = adoption.recordings?.get(key)
+      const local = candidate && adoptableRecordings.delete(candidate.id) ? candidate : undefined
       const values = {
         mbid: mb.mbid,
         title: mb.title,
@@ -251,12 +270,78 @@ export async function applyMatch(tx: Transaction, input: ApplyInput): Promise<Ap
       const [row] = await tx.insert(releaseTracks).values({ id: newId(), releaseId, disc: medium.position, position: track.position, ...trackValues })
         .onConflictDoUpdate({ target: [releaseTracks.releaseId, releaseTracks.disc, releaseTracks.position], set: trackValues })
         .returning({ id: releaseTracks.id })
-      keptTracks.push(row!.id)
-      if (pair) links.set(pair.fileId, { recordingId, releaseTrackId: row!.id })
+      tracks.set(key, { recordingId, releaseTrackId: row!.id })
     }
   }
   // A track MusicBrainz no longer lists on this release.
-  await tx.delete(releaseTracks).where(and(eq(releaseTracks.releaseId, releaseId), notInArray(releaseTracks.id, keptTracks)))
+  const kept = [...tracks.values()].map((track) => track.releaseTrackId)
+  await tx.delete(releaseTracks).where(and(eq(releaseTracks.releaseId, releaseId), kept.length > 0 ? notInArray(releaseTracks.id, kept) : undefined))
+  return { albumId, releaseId, mergedAlbumIds, artistIds, tracks }
+}
+
+/**
+ * Applies `input.release` to the files in the caller's transaction: upserts its artists,
+ * album (release group), release, recordings and every medium's tracks, links assigned
+ * files as `matched`, and attaches extras (when asked) as `unmatched` with no track.
+ * Queues enrichment for the album and artists with the transaction.
+ */
+export async function applyMatch(tx: Transaction, input: ApplyInput): Promise<ApplyResult> {
+  await lockUpserts(tx)
+  const { release, evaluation } = input
+  const now = new Date()
+
+  const files = await tx.select({ id: mediaFiles.id, recordingId: mediaFiles.recordingId, releaseId: mediaFiles.releaseId, albumId: mediaFiles.albumId })
+    .from(mediaFiles).where(inArray(mediaFiles.id, input.fileIds))
+  const fileIds = new Set(files.map((file) => file.id))
+  const linkedAlbumIds = [...new Set(files.flatMap((file) => (file.albumId ? [file.albumId] : [])))]
+  const linkedRecordingIds = [...new Set(files.flatMap((file) => (file.recordingId ? [file.recordingId] : [])))]
+  const linkedReleaseIds = [...new Set(files.flatMap((file) => (file.releaseId ? [file.releaseId] : [])))]
+
+  const localAlbums = linkedAlbumIds.length === 0 ? [] : await tx.select({ id: albums.id, primaryArtistId: albums.primaryArtistId }).from(albums)
+    .where(and(inArray(albums.id, linkedAlbumIds), isNull(albums.mbid), isNull(albums.mergedIntoId)))
+  const localRecordings = linkedRecordingIds.length === 0 ? [] : await tx.select({ id: recordings.id, isrcs: recordings.isrcs }).from(recordings)
+    .where(and(inArray(recordings.id, linkedRecordingIds), isNull(recordings.mbid), isNull(recordings.mergedIntoId)))
+  const localReleaseIds = linkedReleaseIds.length === 0 ? [] : (await tx.select({ id: releases.id }).from(releases)
+    .where(and(inArray(releases.id, linkedReleaseIds), isNull(releases.mbid)))).map((row) => row.id)
+  // Adopting an edition replaces its tracks, so only one no other file (a locked one) uses.
+  const sharedReleaseIds = new Set(localReleaseIds.length === 0 ? [] : (await tx.selectDistinct({ id: mediaFiles.releaseId }).from(mediaFiles)
+    .where(and(inArray(mediaFiles.releaseId, localReleaseIds), notInArray(mediaFiles.id, input.fileIds)))).map((row) => row.id))
+
+  // Artists credited on the local rows are the ones that may be adopted.
+  const localArtistIds = new Set(localAlbums.flatMap((album) => (album.primaryArtistId ? [album.primaryArtistId] : [])))
+  if (localAlbums.length > 0) {
+    for (const row of await tx.select({ id: albumArtists.artistId }).from(albumArtists).where(inArray(albumArtists.albumId, localAlbums.map((album) => album.id)))) localArtistIds.add(row.id)
+  }
+  if (localRecordings.length > 0) {
+    for (const row of await tx.select({ id: recordingArtists.artistId }).from(recordingArtists).where(inArray(recordingArtists.recordingId, localRecordings.map((recording) => recording.id)))) localArtistIds.add(row.id)
+  }
+
+  // The album most of the files sit on is the one user data most likely points at.
+  const counts = new Map<string, number>()
+  for (const file of files) if (file.albumId) counts.set(file.albumId, (counts.get(file.albumId) ?? 0) + 1)
+  const albumOrder = localAlbums.map((album) => album.id).sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0))
+
+  // Each track adopts the local recording of the file assigned to it.
+  const pairs = new Map(evaluation.pairs.filter((pair) => fileIds.has(pair.fileId)).map((pair) => [`${pair.disc}:${pair.position}`, pair]))
+  const recordingOf = new Map(files.map((file) => [file.id, file.recordingId]))
+  const local = new Map(localRecordings.map((recording) => [recording.id, recording]))
+  const adoptRecordings = new Map<string, { id: string; isrcs: string[] }>()
+  for (const [key, pair] of pairs) {
+    const recording = local.get(recordingOf.get(pair.fileId) ?? '')
+    if (recording) adoptRecordings.set(key, recording)
+  }
+
+  const upserted = await upsertRelease(tx, release, {
+    artistIds: [...localArtistIds],
+    albumIds: albumOrder,
+    releaseIds: localReleaseIds.filter((id) => !sharedReleaseIds.has(id)),
+    recordings: adoptRecordings,
+  })
+  const { albumId, releaseId } = upserted
+  const links = new Map([...pairs].flatMap(([key, pair]) => {
+    const track = upserted.tracks.get(key)
+    return track ? [[pair.fileId, track] as const] : []
+  }))
 
   for (const file of files) {
     const link = links.get(file.id)
@@ -273,8 +358,8 @@ export async function applyMatch(tx: Transaction, input: ApplyInput): Promise<Ap
   }
   await deleteOrphanLocalReleases(tx, localReleaseIds.filter((id) => id !== releaseId))
 
-  const touchedArtists = [...new Set(artistIds.values())]
+  const touchedArtists = [...new Set(upserted.artistIds.values())]
   await enqueue('enrichment.album', { albumId }, { singletonKey: albumId, tx })
   for (const artistId of touchedArtists) await enqueue('enrichment.artist', { artistId }, { singletonKey: artistId, tx })
-  return { albumId, releaseId, albumIds: [albumId, ...mergedAlbumIds], artistIds: touchedArtists }
+  return { albumId, releaseId, albumIds: [albumId, ...upserted.mergedAlbumIds], artistIds: touchedArtists }
 }

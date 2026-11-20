@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Discovery%22+AND+artist%3A%22Data+Punk%22&limit=5&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T17:53:32.971Z",
+      "count": 0,
+      "offset": 0,
+      "release-groups": []
+    }
+  }
+}

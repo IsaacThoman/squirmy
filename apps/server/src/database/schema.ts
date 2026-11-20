@@ -212,6 +212,8 @@ export const albums = pgTable('albums', {
   canonicalReleaseId: uuid('canonical_release_id'),
   detailLevel: smallint('detail_level').notNull().default(0),
   fetchedAt: at('fetched_at'),
+  /** When enrichment last finished the extras owned albums get: stored cover, description, external ids, lyrics. */
+  enrichedAt: at('enriched_at'),
   mergedIntoId: uuid('merged_into_id'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

@@ -1,0 +1,1033 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/01fe375e-6d9f-4328-b870-010288d84863?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "status": "Official",
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "artist": {
+            "type": "Person",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+            "sort-name": "Niro",
+            "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+            "name": "Niro",
+            "country": "FR",
+            "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+          },
+          "name": "Niro"
+        }
+      ],
+      "text-representation": {
+        "script": "Latn",
+        "language": "fra"
+      },
+      "quality": "normal",
+      "packaging": "None",
+      "id": "01fe375e-6d9f-4328-b870-010288d84863",
+      "release-events": [
+        {
+          "date": "2014-06-09",
+          "area": {
+            "disambiguation": "",
+            "iso-3166-1-codes": [
+              "FR"
+            ],
+            "type": null,
+            "sort-name": "France",
+            "type-id": null,
+            "name": "France",
+            "id": "08310658-51eb-3801-80de-5a0739207115"
+          }
+        }
+      ],
+      "title": "Miraculé",
+      "date": "2014-06-09",
+      "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+      "asin": null,
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "cover-art-archive": {
+        "front": true,
+        "artwork": true,
+        "back": false,
+        "count": 1,
+        "darkened": false
+      },
+      "disambiguation": "",
+      "barcode": null,
+      "release-group": {
+        "secondary-types": [],
+        "title": "Miraculé",
+        "primary-type": "Album",
+        "first-release-date": "2014-06-09",
+        "id": "a6ccb4c7-5d38-4140-8482-14fc4db43480",
+        "disambiguation": "",
+        "secondary-type-ids": [],
+        "artist-credit": [
+          {
+            "name": "Niro",
+            "artist": {
+              "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+              "country": "FR",
+              "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+              "sort-name": "Niro",
+              "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+              "name": "Niro",
+              "type": "Person"
+            },
+            "joinphrase": ""
+          }
+        ],
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+      },
+      "label-info": [
+        {
+          "label": {
+            "label-code": null,
+            "disambiguation": "",
+            "type": null,
+            "id": "e1934827-eee2-44e6-9500-6827179bb889",
+            "name": "Classic Publishing",
+            "type-id": null,
+            "sort-name": "Classic Publishing"
+          },
+          "catalog-number": null
+        }
+      ],
+      "media": [
+        {
+          "track-offset": 0,
+          "format": "Digital Media",
+          "position": 1,
+          "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+          "track-count": 17,
+          "title": "",
+          "tracks": [
+            {
+              "recording": {
+                "video": false,
+                "title": "#TKT.MM.PAS",
+                "length": 312067,
+                "first-release-date": "2014-06-09",
+                "id": "121d649b-c4eb-44e5-a942-13836b8d9b6c",
+                "isrcs": [],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Niro",
+                    "artist": {
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                      "country": "FR",
+                      "type": "Person",
+                      "name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "sort-name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    }
+                  }
+                ],
+                "disambiguation": ""
+              },
+              "number": "1",
+              "position": 1,
+              "artist-credit": [
+                {
+                  "name": "Niro",
+                  "artist": {
+                    "sort-name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "type": "Person",
+                    "country": "FR",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "title": "#TKT.MM.PAS",
+              "length": 312067,
+              "id": "5f30fc11-a07c-40c2-ab3f-4fdafc3c7842"
+            },
+            {
+              "title": "VivaStreet",
+              "length": 216507,
+              "artist-credit": [
+                {
+                  "name": "Niro",
+                  "artist": {
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                    "country": "FR",
+                    "sort-name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "type": "Person"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "id": "98df7a9b-d608-47f4-9f44-fea2e29d9f8e",
+              "number": "2",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Niro",
+                    "artist": {
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                      "country": "FR",
+                      "name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Niro",
+                      "type": "Person"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "id": "32d6ea14-1e6c-47bf-a5cf-f1119afed554",
+                "first-release-date": "2014-06-09",
+                "isrcs": [],
+                "video": false,
+                "title": "VivaStreet",
+                "length": 216507
+              },
+              "position": 2
+            },
+            {
+              "number": "3",
+              "recording": {
+                "title": "La mort ou TchiTchi",
+                "length": 255053,
+                "video": false,
+                "isrcs": [],
+                "id": "e45b5015-1bcf-4ec3-ab7f-496169a3edd9",
+                "first-release-date": "2014-06-09",
+                "artist-credit": [
+                  {
+                    "joinphrase": " feat. ",
+                    "artist": {
+                      "country": "FR",
+                      "type": "Person",
+                      "sort-name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                    },
+                    "name": "Niro"
+                  },
+                  {
+                    "name": "Kaaris",
+                    "artist": {
+                      "country": "FR",
+                      "type": "Person",
+                      "id": "81920682-bb79-4b62-afa8-fe8dece0227c",
+                      "name": "Kaaris",
+                      "sort-name": "Kaaris",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "French rapper"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": ""
+              },
+              "position": 3,
+              "length": 255053,
+              "title": "La mort ou TchiTchi",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "name": "Niro",
+                    "sort-name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "country": "FR"
+                  },
+                  "name": "Niro",
+                  "joinphrase": " feat. "
+                },
+                {
+                  "name": "Kaaris",
+                  "artist": {
+                    "type": "Person",
+                    "sort-name": "Kaaris",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "81920682-bb79-4b62-afa8-fe8dece0227c",
+                    "name": "Kaaris",
+                    "country": "FR",
+                    "disambiguation": "French rapper"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "id": "76a56d0e-dce9-4f64-8ffc-e2e16894d393"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Niro",
+                  "artist": {
+                    "name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Niro",
+                    "type": "Person",
+                    "country": "FR",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 247320,
+              "title": "Perdu",
+              "id": "c0f06680-8b96-4426-b5a7-165bda6bbe43",
+              "recording": {
+                "video": false,
+                "title": "Perdu",
+                "length": 247320,
+                "id": "5bd06156-eb34-46ab-9778-3c28410597ea",
+                "isrcs": [],
+                "first-release-date": "2014-06-09",
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Niro",
+                    "artist": {
+                      "country": "FR",
+                      "sort-name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "name": "Niro",
+                      "type": "Person",
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "number": "4",
+              "position": 4
+            },
+            {
+              "id": "f61ce320-50d2-4ab3-a8e8-620419dac624",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Niro",
+                  "artist": {
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "name": "Niro",
+                    "sort-name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "country": "FR",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  }
+                }
+              ],
+              "length": 270400,
+              "title": "Enemy",
+              "position": 5,
+              "recording": {
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                      "country": "FR",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Niro",
+                      "name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a"
+                    },
+                    "name": "Niro"
+                  }
+                ],
+                "length": 270400,
+                "title": "Enemy",
+                "video": false,
+                "id": "6fbaec8f-d658-4ad6-bf58-3c6ec0a6e4a2",
+                "first-release-date": "2014-06-09",
+                "isrcs": []
+              },
+              "number": "5"
+            },
+            {
+              "position": 6,
+              "number": "6",
+              "recording": {
+                "title": "Toto Ronii",
+                "length": 161880,
+                "video": false,
+                "id": "d07e6bd9-9727-45b9-9734-21f5ed7ba711",
+                "isrcs": [],
+                "first-release-date": "2014-06-09",
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Niro",
+                    "artist": {
+                      "country": "FR",
+                      "type": "Person",
+                      "sort-name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "id": "b49bf5c7-2ed0-4a8d-8280-905a96c03321",
+              "length": 161880,
+              "title": "Toto Ronii",
+              "artist-credit": [
+                {
+                  "name": "Niro",
+                  "artist": {
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                    "type": "Person",
+                    "name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Niro",
+                    "country": "FR"
+                  },
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "recording": {
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Niro",
+                    "artist": {
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Niro",
+                      "type": "Person",
+                      "country": "FR"
+                    }
+                  }
+                ],
+                "first-release-date": "2014-06-09",
+                "id": "3f4361dc-a079-46ee-85af-2280f1612fe8",
+                "isrcs": [],
+                "video": false,
+                "title": "Chacun ses raisons",
+                "length": 210707
+              },
+              "number": "7",
+              "position": 7,
+              "artist-credit": [
+                {
+                  "name": "Niro",
+                  "artist": {
+                    "type": "Person",
+                    "sort-name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "name": "Niro",
+                    "country": "FR",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 210707,
+              "title": "Chacun ses raisons",
+              "id": "dfce2724-098f-4a40-8f2c-25672b576db6"
+            },
+            {
+              "id": "57d7545c-450d-4bdb-9706-3bfbb2b31f0a",
+              "length": 317747,
+              "title": "Live in the Ghetto",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "FR",
+                    "type": "Person",
+                    "sort-name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "name": "Niro",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  },
+                  "name": "Niro",
+                  "joinphrase": " feat. "
+                },
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "JM",
+                    "type": "Person",
+                    "sort-name": "Levy, Barrington",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "8ddf3da1-dfa9-490a-93cc-7d4072319995",
+                    "name": "Barrington Levy"
+                  },
+                  "name": "Barrington Levy",
+                  "joinphrase": ""
+                }
+              ],
+              "position": 8,
+              "number": "8",
+              "recording": {
+                "id": "c0a3ff77-fbe3-4413-b954-db8a651e467e",
+                "first-release-date": "2014-06-09",
+                "isrcs": [],
+                "length": 317747,
+                "title": "Live in the Ghetto",
+                "video": false,
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": " feat. ",
+                    "name": "Niro",
+                    "artist": {
+                      "sort-name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "type": "Person",
+                      "country": "FR",
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                    }
+                  },
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "8ddf3da1-dfa9-490a-93cc-7d4072319995",
+                      "name": "Barrington Levy",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Levy, Barrington",
+                      "type": "Person",
+                      "country": "JM",
+                      "disambiguation": ""
+                    },
+                    "name": "Barrington Levy"
+                  }
+                ]
+              }
+            },
+            {
+              "number": "9",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "Niro",
+                    "artist": {
+                      "country": "FR",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Niro",
+                      "name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                    },
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "joinphrase": " & ",
+                    "artist": {
+                      "disambiguation": "french rap",
+                      "country": "FR",
+                      "type": "Person",
+                      "id": "c64c10cf-6a14-4308-80f5-bbf1f48b6741",
+                      "name": "Koro",
+                      "sort-name": "Koro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "name": "Koro"
+                  },
+                  {
+                    "name": "Nino Brown",
+                    "artist": {
+                      "country": "US",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Brown, Nino",
+                      "id": "f5a575e2-88a9-4595-b6a5-1bc751d5f911",
+                      "name": "Nino Brown",
+                      "disambiguation": "US rapper from Los Angeles"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "",
+                "id": "edc0505e-ec40-4ab9-ae6e-e4f11bbb1b02",
+                "isrcs": [],
+                "first-release-date": "2014-06-09",
+                "title": "Fourmis",
+                "length": 256947,
+                "video": false
+              },
+              "position": 9,
+              "length": 256947,
+              "title": "Fourmis",
+              "artist-credit": [
+                {
+                  "name": "Niro",
+                  "artist": {
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "name": "Niro",
+                    "sort-name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "country": "FR",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  },
+                  "joinphrase": " feat. "
+                },
+                {
+                  "joinphrase": " & ",
+                  "name": "Koro",
+                  "artist": {
+                    "disambiguation": "french rap",
+                    "type": "Person",
+                    "id": "c64c10cf-6a14-4308-80f5-bbf1f48b6741",
+                    "name": "Koro",
+                    "sort-name": "Koro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "FR"
+                  }
+                },
+                {
+                  "artist": {
+                    "disambiguation": "US rapper from Los Angeles",
+                    "type": "Person",
+                    "name": "Nino Brown",
+                    "id": "f5a575e2-88a9-4595-b6a5-1bc751d5f911",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Brown, Nino",
+                    "country": "US"
+                  },
+                  "name": "Nino Brown",
+                  "joinphrase": ""
+                }
+              ],
+              "id": "cf21bf5c-8814-48b7-8a0f-d72dbe00524e"
+            },
+            {
+              "id": "992aa9f8-5446-413e-9328-c4c9ff63565b",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "FR",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "name": "Niro",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  },
+                  "name": "Niro",
+                  "joinphrase": ""
+                }
+              ],
+              "length": 229267,
+              "title": "Voilà",
+              "position": 10,
+              "recording": {
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                      "country": "FR",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "name": "Niro"
+                    },
+                    "name": "Niro",
+                    "joinphrase": ""
+                  }
+                ],
+                "length": 229267,
+                "title": "Voilà",
+                "video": false,
+                "first-release-date": "2014-06-09",
+                "id": "41dcfea5-9657-4758-bc81-203914c8cb90",
+                "isrcs": []
+              },
+              "number": "10"
+            },
+            {
+              "position": 11,
+              "recording": {
+                "id": "1fc0978e-2153-48b9-81d6-052ded799254",
+                "first-release-date": "2014-06-09",
+                "isrcs": [],
+                "video": false,
+                "title": "J’prends sur moi",
+                "length": 245973,
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Person",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Niro",
+                      "country": "FR",
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                    },
+                    "name": "Niro"
+                  }
+                ],
+                "disambiguation": ""
+              },
+              "number": "11",
+              "id": "22a096f6-92c4-4c7c-8e5f-acd53956e375",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Niro",
+                  "artist": {
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                    "sort-name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "name": "Niro",
+                    "type": "Person",
+                    "country": "FR"
+                  }
+                }
+              ],
+              "title": "J’prends sur moi",
+              "length": 245973
+            },
+            {
+              "position": 12,
+              "number": "12",
+              "recording": {
+                "video": false,
+                "length": 313587,
+                "title": "Mama",
+                "id": "f927efdb-7c74-4761-857a-27013d2d3656",
+                "first-release-date": "2014-06-09",
+                "isrcs": [],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Person",
+                      "name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "sort-name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "FR",
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                    },
+                    "name": "Niro"
+                  }
+                ]
+              },
+              "id": "f6911c91-cece-42b0-9ac7-5a53c09507d4",
+              "title": "Mama",
+              "length": 313587,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Niro",
+                  "artist": {
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                    "country": "FR",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Niro",
+                    "name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "type": "Person"
+                  }
+                }
+              ]
+            },
+            {
+              "position": 13,
+              "number": "13",
+              "recording": {
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Niro",
+                    "artist": {
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                      "country": "FR",
+                      "type": "Person",
+                      "name": "Niro",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Niro"
+                    }
+                  }
+                ],
+                "id": "3ee22639-8d92-4d4d-9980-b88696603826",
+                "isrcs": [],
+                "first-release-date": "2014-06-09",
+                "video": false,
+                "title": "Bertrand Kata",
+                "length": 210547
+              },
+              "id": "11eb9323-c09d-4f9d-b71b-7bcf2ac4ba40",
+              "title": "Bertrand Kata",
+              "length": 210547,
+              "artist-credit": [
+                {
+                  "name": "Niro",
+                  "artist": {
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                    "country": "FR",
+                    "type": "Person",
+                    "name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Niro"
+                  },
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "recording": {
+                "isrcs": [],
+                "id": "38e88c1f-5a49-43dc-bc04-f574e14a193b",
+                "first-release-date": "2014-06-09",
+                "video": false,
+                "title": "Phénomène",
+                "length": 195013,
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Niro",
+                    "artist": {
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                      "sort-name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "name": "Niro",
+                      "type": "Person",
+                      "country": "FR"
+                    }
+                  }
+                ],
+                "disambiguation": ""
+              },
+              "number": "14",
+              "position": 14,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Niro",
+                  "artist": {
+                    "type": "Person",
+                    "name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "sort-name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "FR",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  }
+                }
+              ],
+              "length": 195013,
+              "title": "Phénomène",
+              "id": "1aa8280e-9859-4b57-a325-28fdbdf45320"
+            },
+            {
+              "position": 15,
+              "number": "15",
+              "recording": {
+                "first-release-date": "2014-06-09",
+                "id": "53e512d2-78da-441c-b45f-f550a9d1f649",
+                "isrcs": [],
+                "title": "Petit Boy",
+                "length": 243907,
+                "video": false,
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Niro",
+                    "artist": {
+                      "country": "FR",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "name": "Niro",
+                      "sort-name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person",
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                    },
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "joinphrase": "",
+                    "name": "Nassi",
+                    "artist": {
+                      "country": "FR",
+                      "type": "Person",
+                      "name": "Nassi",
+                      "id": "db31b286-87a0-4447-ad14-7f32a7368410",
+                      "sort-name": "Nassi",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": ""
+                    }
+                  }
+                ]
+              },
+              "id": "7e129ce7-7f6e-4927-99ef-fa91d51c2500",
+              "length": 243907,
+              "title": "Petit Boy",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "FR",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Niro",
+                    "name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  },
+                  "name": "Niro",
+                  "joinphrase": " feat. "
+                },
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "sort-name": "Nassi",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "db31b286-87a0-4447-ad14-7f32a7368410",
+                    "name": "Nassi",
+                    "type": "Person",
+                    "country": "FR"
+                  },
+                  "name": "Nassi",
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                    "country": "FR",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Niro",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "name": "Niro"
+                  },
+                  "name": "Niro"
+                }
+              ],
+              "title": "Fi Dounia",
+              "length": 293027,
+              "id": "57927972-7428-4efa-887a-61119f9c31ae",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Niro",
+                    "artist": {
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Niro",
+                      "type": "Person",
+                      "country": "FR",
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [],
+                "id": "de6f7488-fa88-4f92-bf08-77566e99fee3",
+                "first-release-date": "2014-06-09",
+                "title": "Fi Dounia",
+                "length": 293027,
+                "video": false
+              },
+              "number": "16",
+              "position": 16
+            },
+            {
+              "number": "17",
+              "recording": {
+                "id": "51cd11c0-07c0-4ac1-b0d2-c08e4c5362ab",
+                "first-release-date": "2014-06-09",
+                "isrcs": [],
+                "video": false,
+                "length": 253467,
+                "title": "Me revoilà",
+                "artist-credit": [
+                  {
+                    "name": "Niro",
+                    "artist": {
+                      "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd",
+                      "country": "FR",
+                      "type": "Person",
+                      "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                      "name": "Niro",
+                      "sort-name": "Niro",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": ""
+              },
+              "position": 17,
+              "title": "Me revoilà",
+              "length": 253467,
+              "artist-credit": [
+                {
+                  "name": "Niro",
+                  "artist": {
+                    "type": "Person",
+                    "id": "4c89fcfd-49c0-4a61-9d5f-61b9c6ae8f0a",
+                    "name": "Niro",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Niro",
+                    "country": "FR",
+                    "disambiguation": "French rapper from Blois / born 1987 ex-Street Lourd"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "id": "df6e20c8-1451-4b78-9542-625a5ea2ccf4"
+            }
+          ],
+          "id": "0a923ac1-e33e-3eae-a363-3bb7099b664d"
+        }
+      ],
+      "country": "FR",
+      "relations": []
+    }
+  }
+}

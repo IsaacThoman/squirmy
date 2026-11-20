@@ -1,0 +1,77 @@
+{
+  "note": "Trimmed: the embedded track list (10 entries) is left out; the client reads tracks from album/<id>/tracks.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/369493327"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 369493327,
+      "title": "Antisocialites",
+      "upc": "644110033499",
+      "link": "https://www.deezer.com/album/369493327",
+      "share": "https://www.deezer.com/album/369493327?utm_source=deezer&utm_content=album-369493327&utm_term=0_1795197198&utm_medium=web",
+      "cover": "https://api.deezer.com/album/369493327/image",
+      "cover_small": "https://cdn-images.dzcdn.net/images/cover/0a035b7aa9478337c283d121c02537c5/56x56-000000-80-0-0.jpg",
+      "cover_medium": "https://cdn-images.dzcdn.net/images/cover/0a035b7aa9478337c283d121c02537c5/250x250-000000-80-0-0.jpg",
+      "cover_big": "https://cdn-images.dzcdn.net/images/cover/0a035b7aa9478337c283d121c02537c5/500x500-000000-80-0-0.jpg",
+      "cover_xl": "https://cdn-images.dzcdn.net/images/cover/0a035b7aa9478337c283d121c02537c5/1000x1000-000000-80-0-0.jpg",
+      "md5_image": "0a035b7aa9478337c283d121c02537c5",
+      "genre_id": 85,
+      "genres": {
+        "data": [
+          {
+            "id": 85,
+            "name": "Alternative",
+            "picture": "https://api.deezer.com/genre/85/image",
+            "type": "genre"
+          }
+        ]
+      },
+      "label": "Polyvinyl Records",
+      "nb_tracks": 10,
+      "duration": 1950,
+      "fans": 1385,
+      "release_date": "2017-09-08",
+      "record_type": "album",
+      "available": true,
+      "tracklist": "https://api.deezer.com/album/369493327/tracks",
+      "explicit_lyrics": false,
+      "explicit_content_lyrics": 0,
+      "explicit_content_cover": 2,
+      "contributors": [
+        {
+          "id": 5298885,
+          "name": "Alvvays",
+          "link": "https://www.deezer.com/artist/5298885",
+          "share": "https://www.deezer.com/artist/5298885?utm_source=deezer&utm_content=artist-5298885&utm_term=0_1795197198&utm_medium=web",
+          "picture": "https://api.deezer.com/artist/5298885/image",
+          "picture_small": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/56x56-000000-80-0-0.jpg",
+          "picture_medium": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/250x250-000000-80-0-0.jpg",
+          "picture_big": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/500x500-000000-80-0-0.jpg",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/1000x1000-000000-80-0-0.jpg",
+          "radio": true,
+          "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 5298885,
+        "name": "Alvvays",
+        "picture": "https://api.deezer.com/artist/5298885/image",
+        "picture_small": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/56x56-000000-80-0-0.jpg",
+        "picture_medium": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/250x250-000000-80-0-0.jpg",
+        "picture_big": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/500x500-000000-80-0-0.jpg",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/1000x1000-000000-80-0-0.jpg",
+        "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+        "type": "artist"
+      },
+      "type": "album"
+    }
+  }
+}
