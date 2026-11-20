@@ -1,0 +1,32 @@
+{
+  "name": "@squirmy/adapter-cold-storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "An acquisition provider that serves audio files you own from a folder outside the library.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@squirmy/contracts": "0.0.0",
+    "@squirmy/provider-kit": "0.0.0",
+    "music-metadata": "^11.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}
