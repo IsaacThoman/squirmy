@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Id } from './common.js'
+import { Id, page, PageQuery } from './common.js'
 
 /**
  * Whether a track can be played.
@@ -135,3 +135,39 @@ export const TrackSummariesRequest = z.object({
 export type TrackSummariesRequest = z.infer<typeof TrackSummariesRequest>
 export const TrackSummariesResponse = z.object({ tracks: z.array(TrackSummary) })
 export type TrackSummariesResponse = z.infer<typeof TrackSummariesResponse>
+export const TrackPage = page(TrackSummary)
+export type TrackPage = z.infer<typeof TrackPage>
+export const AlbumPage = page(AlbumSummary)
+export type AlbumPage = z.infer<typeof AlbumPage>
+export const ArtistPage = page(ArtistSummary)
+export type ArtistPage = z.infer<typeof ArtistPage>
+
+/** `GET /api/v1/tracks/:id?albumId=`: the album decides `album`, `disc` and `position`. */
+export const TrackQuery = z.object({ albumId: Id.optional() })
+export type TrackQuery = z.infer<typeof TrackQuery>
+
+/**
+ * Orderings of the library lists. `recent` is newest file first, `year` is newest first,
+ * `title` and `artist` are alphabetical, ignoring a leading "The", "A" or "An".
+ */
+export const LibrarySort = z.enum(['recent', 'title', 'artist', 'year'])
+export type LibrarySort = z.infer<typeof LibrarySort>
+export const LibraryTrackSort = LibrarySort.exclude(['year'])
+export type LibraryTrackSort = z.infer<typeof LibraryTrackSort>
+
+/** `GET /api/v1/library/albums`. `genre` matches one of the album's genres exactly. */
+export const LibraryAlbumsQuery = PageQuery.extend({
+  sort: LibrarySort.default('recent'),
+  genre: z.string().min(1).max(200).optional(),
+})
+export type LibraryAlbumsQuery = z.infer<typeof LibraryAlbumsQuery>
+
+/** `GET /api/v1/library/tracks`. */
+export const LibraryTracksQuery = PageQuery.extend({ sort: LibraryTrackSort.default('recent') })
+export type LibraryTracksQuery = z.infer<typeof LibraryTracksQuery>
+
+/** `GET /api/v1/library/genres` lists genres of owned albums, alphabetically. */
+export const Genre = z.object({ name: z.string(), albumCount: z.number().int() })
+export type Genre = z.infer<typeof Genre>
+export const GenrePage = page(Genre)
+export type GenrePage = z.infer<typeof GenrePage>
