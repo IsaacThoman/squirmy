@@ -1,45 +1,17 @@
 // Captures the main screens in both color schemes for design review and pull requests.
 // Usage: SQUIRMY_USER=admin SQUIRMY_PASSWORD=… node scripts/screenshots.mjs [baseUrl] [outDir]
-// Needs the dev server in front of a running server. On a server that is not set up yet it
-// also captures the setup wizard, creating the admin from SQUIRMY_USER and SQUIRMY_PASSWORD.
+// Needs the dev server in front of a running server with the demo library
+// (`npm run demo:library -w @squirmy/server`, prepared by `scripts/e2e-playback.mjs --prepare`).
+// On a server that is not set up yet it also captures the setup wizard, creating the admin
+// from SQUIRMY_USER and SQUIRMY_PASSWORD. It plays a few seconds of the quiet demo tones.
 import { mkdir } from 'node:fs/promises'
 import { chromium } from 'playwright'
 
 const base = process.argv[2] ?? 'http://localhost:5173'
 const out = process.argv[3] ?? '.screenshots'
 const credentials = { username: process.env.SQUIRMY_USER ?? 'admin', password: process.env.SQUIRMY_PASSWORD ?? 'correct horse battery' }
-const album = '/album/00000000-0000-4000-8200-000000000001'
-const artist = '/artist/00000000-0000-4000-8100-000000000001'
 const headers = { 'X-Squirmy-Client': 'web', 'X-Squirmy-Request': '1' }
-
-const shots = [
-  { name: 'home', path: '/' },
-  { name: 'album', path: album },
-  { name: 'artist', path: artist },
-  { name: 'search', path: '/search?q=soft', wait: 900 },
-  { name: 'library-songs', path: '/library/songs' },
-  { name: 'queue', path: album, click: 'Queue' },
-  { name: 'now-playing', path: '/', click: 'Lyrics', wait: 600 },
-  { name: 'playing-elsewhere', path: '/', devices: 'Living Room' },
-  { name: 'settings', path: '/settings' },
-  { name: 'app-password', path: '/settings', create: 'Car stereo' },
-  { name: 'admin-users', path: '/admin/users' },
-  { name: 'admin-invite', path: '/admin/users', click: 'Invite someone', then: 'Create invite' },
-  { name: 'admin-settings', path: '/admin/settings', height: 1500 },
-  { name: 'admin-jobs', path: '/admin/jobs' },
-  { name: 'kitchen-sink', path: '/dev/kitchen-sink', height: 6200 },
-  { name: 'audio-blocked', path: '/dev/engine?autoplay=a', strict: true, wait: 1500 },
-  { name: 'home', path: '/', width: 1024 },
-  { name: 'album', path: album, width: 1024 },
-  { name: 'admin-users', path: '/admin/users', width: 1024 },
-  { name: 'admin-settings', path: '/admin/settings', width: 1024 },
-  { name: 'home', path: '/', width: 390, height: 844 },
-  { name: 'album', path: album, width: 390, height: 844 },
-  { name: 'now-playing', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming' },
-  { name: 'settings', path: '/settings', width: 390, height: 844 },
-  { name: 'admin-users', path: '/admin/users', width: 390, height: 844 },
-  { name: 'admin-settings', path: '/admin/settings', width: 390, height: 844 },
-]
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const signedOutShots = [
   { name: 'login', path: '/login', width: 1024 },
@@ -48,7 +20,7 @@ const signedOutShots = [
 ]
 
 await mkdir(out, { recursive: true })
-const browser = await chromium.launch()
+const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] })
 // Without a gesture this browser refuses to start audio, which is what the blocked shot shows.
 const strict = await chromium.launch({ args: ['--autoplay-policy=user-gesture-required'] })
 
@@ -58,22 +30,25 @@ async function capture(target, shot, scheme, storageState) {
   const page = await context.newPage()
   await page.goto(base + shot.path)
   await page.waitForLoadState('networkidle')
-  if (shot.click) await page.getByRole('button', { name: shot.click, exact: true }).first().click()
-  if (shot.then) await page.getByRole('button', { name: shot.then, exact: true }).click()
+  for (const name of [shot.click, shot.then].filter(Boolean)) await page.getByRole('button', { name, exact: true }).filter({ visible: true }).first().click()
   if (shot.create) {
+    // The settings rows load in and move the button; wait for the last of them.
+    await page.getByRole('button', { name: /^(Connect|Disconnect)$/ }).first().waitFor()
     await page.getByRole('button', { name: 'Create', exact: true }).click()
-    await page.getByLabel('Name').fill(shot.create)
+    await page.getByLabel('Name', { exact: true }).fill(shot.create)
     await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
-  }
-  if (shot.devices) {
-    await page.getByRole('button', { name: 'Devices' }).first().click()
-    await page.getByRole('button', { name: new RegExp(shot.devices) }).click()
   }
   await page.mouse.move(0, 0)
   if (!shot.strict) await page.evaluate(() => document.activeElement?.blur())
   await page.waitForTimeout(shot.wait ?? 600)
   await page.screenshot({ path: `${out}/${shot.name}-${width}-${scheme}.png` })
   await context.close()
+}
+
+async function api(context, method, path, data) {
+  const response = await context.request.fetch(`${base}/api/v1${path}`, { method, headers, data })
+  if (!response.ok()) throw new Error(`${method} ${path}: ${response.status()}`)
+  return response.json()
 }
 
 /** Signs in once (sign-in is rate limited) and returns the cookies for every later context. */
@@ -100,10 +75,95 @@ if (status.needsSetup) {
   }
 }
 
+// The music the shots show: the demo library's Blue Hour, its artist, and a playlist.
+const setup = await browser.newContext({ storageState: session, viewport: { width: 1440, height: 900 } })
+const albums = await api(setup, 'GET', '/library/albums?sort=title&limit=200')
+const blueHour = albums.items.find(album => album.title === 'Blue Hour')
+const album = `/album/${blueHour.id}`
+const artist = `/artist/${blueHour.artists[0].id}`
+const detail = await api(setup, 'GET', `/albums/${blueHour.id}`)
+const playlists = await api(setup, 'GET', '/playlists')
+let playlist = playlists.items.find(item => item.name === 'Late Night')
+if (!playlist) {
+  playlist = await api(setup, 'POST', '/playlists', { name: 'Late Night', description: 'Slow songs for the drive home.', isPublic: true })
+  const others = (await api(setup, 'GET', '/library/tracks?sort=title&limit=40')).items.filter(track => track.album?.id !== blueHour.id).slice(0, 6)
+  await api(setup, 'POST', `/playlists/${playlist.id}/items`, { tracks: [...detail.discs[0].tracks.slice(0, 3), ...others].map(track => ({ trackId: track.id, albumId: track.album?.id })) })
+}
+
+// A paused session on Night Swimming, a line of its lyrics in: play it here, then leave, so
+// that no device is active (after the server's 20 second grace period).
+const prepare = await setup.newPage()
+await prepare.goto(base + album)
+await prepare.getByRole('button', { name: 'Play Night Swimming' }).click()
+await prepare.getByRole('slider', { name: 'Seek' }).first().focus()
+await prepare.keyboard.press('Home')
+for (let press = 0; press < 13; press += 1) await prepare.keyboard.press('ArrowRight')
+await prepare.getByRole('button', { name: 'Pause', exact: true }).first().click()
+await sleep(500)
+await setup.close()
+await sleep(21_000)
+
+const shots = [
+  { name: 'home', path: '/' },
+  { name: 'library', path: '/library/albums' },
+  { name: 'album', path: album },
+  { name: 'artist', path: artist },
+  { name: 'playlist', path: `/playlist/${playlist.id}` },
+  { name: 'search', path: '/search?q=blue', wait: 1200 },
+  { name: 'library-songs', path: '/library/songs' },
+  { name: 'queue', path: album, click: 'Queue' },
+  { name: 'now-playing', path: '/', click: 'Lyrics', wait: 900 },
+  { name: 'settings', path: '/settings' },
+  { name: 'app-password', path: '/settings', create: 'Car stereo' },
+  { name: 'admin-users', path: '/admin/users' },
+  { name: 'admin-invite', path: '/admin/users', click: 'Invite someone', then: 'Create invite' },
+  { name: 'admin-settings', path: '/admin/settings', height: 1500 },
+  { name: 'admin-jobs', path: '/admin/jobs' },
+  { name: 'kitchen-sink', path: '/dev/kitchen-sink', height: 6200 },
+  { name: 'audio-blocked', path: '/dev/engine?autoplay=a', strict: true, wait: 1500 },
+  ...['home', 'library', 'album', 'artist', 'playlist', 'search'].map(name => ({ name, path: { home: '/', library: '/library/albums', album, artist, playlist: `/playlist/${playlist.id}`, search: '/search?q=blue' }[name], width: 1024, height: 768, wait: 1200 })),
+  { name: 'queue', path: album, click: 'Queue', width: 1024, height: 768 },
+  { name: 'now-playing', path: '/', click: 'Lyrics', width: 1024, height: 768, wait: 900 },
+  { name: 'admin-users', path: '/admin/users', width: 1024 },
+  { name: 'admin-settings', path: '/admin/settings', width: 1024 },
+  ...['home', 'library', 'album', 'artist', 'playlist', 'search'].map(name => ({ name, path: { home: '/', library: '/library/albums', album, artist, playlist: `/playlist/${playlist.id}`, search: '/search?q=blue' }[name], width: 390, height: 844, wait: 1200 })),
+  { name: 'now-playing', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming', then: 'Show lyrics', wait: 900 },
+  { name: 'queue', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming', then: 'Show queue' },
+  { name: 'settings', path: '/settings', width: 390, height: 844 },
+  { name: 'admin-users', path: '/admin/users', width: 390, height: 844 },
+  { name: 'admin-settings', path: '/admin/settings', width: 390, height: 844 },
+]
+
 for (const scheme of ['light', 'dark']) {
   for (const shot of shots) await capture(shot.strict ? strict : browser, shot, scheme, session)
   for (const shot of signedOutShots) await capture(browser, shot, scheme)
 }
+
+// Another device plays: every page shows where, and the devices list offers to bring it here.
+const speaker = await browser.newContext({ storageState: session, viewport: { width: 1024, height: 768 } })
+const playing = await speaker.newPage()
+await playing.goto(`${base}/settings`)
+await playing.getByLabel('This browser’s name').fill('Living Room')
+await playing.getByLabel('This browser’s name').press('Enter')
+await playing.locator('body').click({ position: { x: 5, y: 5 } })
+for (let press = 0; press < 16; press += 1) await playing.keyboard.press('ArrowDown')
+await playing.getByRole('button', { name: 'Play', exact: true }).first().click()
+await sleep(1500)
+const elsewhere = [
+  { name: 'playing-elsewhere', path: album },
+  { name: 'devices', path: album, click: 'Devices', wait: 900 },
+  { name: 'playing-elsewhere', path: album, width: 1024, height: 768 },
+  { name: 'devices', path: album, click: 'Devices', width: 1024, height: 768, wait: 900 },
+  { name: 'playing-elsewhere', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming' },
+  { name: 'devices', path: '/', width: 390, height: 844, click: 'Devices', wait: 900 },
+]
+for (const scheme of ['light', 'dark']) {
+  for (const shot of elsewhere) await capture(browser, shot, scheme, session)
+}
+await playing.getByRole('button', { name: 'Pause', exact: true }).first().click()
+await sleep(500)
+await speaker.close()
+
 await strict.close()
 await browser.close()
 console.log(`Saved to ${out}`)

@@ -205,7 +205,7 @@ await step('likes', async () => {
 
 await step('playlists', async () => {
   await page.getByRole('button', { name: 'New playlist' }).first().click()
-  await page.getByLabel('Name').fill('E2E Mix')
+  await page.getByLabel('Name', { exact: true }).fill('E2E Mix')
   await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
   await page.getByRole('heading', { name: 'E2E Mix', level: 1 }).waitFor()
   check('a new playlist opens', true)
