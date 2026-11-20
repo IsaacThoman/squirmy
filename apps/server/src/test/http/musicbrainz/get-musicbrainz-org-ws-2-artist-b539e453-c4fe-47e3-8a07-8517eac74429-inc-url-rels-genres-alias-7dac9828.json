@@ -1,0 +1,1802 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/artist/b539e453-c4fe-47e3-8a07-8517eac74429?inc=url-rels+genres+aliases&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "aliases": [
+        {
+          "ended": false,
+          "primary": false,
+          "end": null,
+          "type": "Artist name",
+          "name": "Cubic U",
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+          "sort-name": "Cubic U",
+          "begin": null,
+          "locale": "en"
+        },
+        {
+          "type": "Search hint",
+          "end": null,
+          "type-id": "1937e404-b981-3cb7-8151-4c86ebfc8d8e",
+          "sort-name": "Cubic U (Utada Hikaru)",
+          "name": "Cubic U (Utada Hikaru)",
+          "primary": null,
+          "ended": false,
+          "begin": null,
+          "locale": null
+        },
+        {
+          "begin": null,
+          "locale": "en",
+          "primary": true,
+          "ended": false,
+          "type": "Artist name",
+          "end": null,
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+          "sort-name": "Utada, Hikaru",
+          "name": "Hikaru Utada"
+        },
+        {
+          "begin": null,
+          "locale": "en",
+          "primary": false,
+          "ended": false,
+          "type": "Legal name",
+          "end": null,
+          "type-id": "d4dcd0c0-b341-3612-a332-c0ce797b25cf",
+          "sort-name": "Utada, Hikaru",
+          "name": "Hikaru Utada"
+        },
+        {
+          "begin": null,
+          "locale": "lt",
+          "ended": false,
+          "primary": true,
+          "end": null,
+          "type": "Artist name",
+          "name": "Hikaru Utada",
+          "sort-name": "Utada, Hikaru",
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc"
+        },
+        {
+          "end": null,
+          "type": "Artist name",
+          "name": "Hikki",
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+          "sort-name": "Hikki",
+          "ended": false,
+          "primary": false,
+          "begin": null,
+          "locale": "en"
+        },
+        {
+          "begin": null,
+          "locale": "en",
+          "end": null,
+          "type": "Artist name",
+          "name": "Utada",
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+          "sort-name": "Utada",
+          "ended": false,
+          "primary": false
+        },
+        {
+          "begin": null,
+          "locale": "ja",
+          "end": null,
+          "type": "Artist name",
+          "name": "ヒッキー",
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+          "sort-name": "ヒッキー",
+          "ended": false,
+          "primary": false
+        },
+        {
+          "locale": "ja",
+          "begin": null,
+          "name": "宇多田ヒカル",
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+          "sort-name": "うただ ヒカル",
+          "end": null,
+          "type": "Artist name",
+          "ended": false,
+          "primary": true
+        },
+        {
+          "locale": "ja",
+          "begin": null,
+          "name": "宇多田光",
+          "type-id": "d4dcd0c0-b341-3612-a332-c0ce797b25cf",
+          "sort-name": "うただひかる",
+          "end": null,
+          "type": "Legal name",
+          "ended": false,
+          "primary": false
+        },
+        {
+          "begin": null,
+          "locale": "zh_Hans",
+          "end": null,
+          "type": "Artist name",
+          "name": "宇多田光",
+          "sort-name": "宇多田光",
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+          "ended": false,
+          "primary": true
+        },
+        {
+          "begin": null,
+          "locale": "zh_Hant_TW",
+          "end": null,
+          "type": "Artist name",
+          "name": "宇多田光",
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+          "sort-name": "宇多田光",
+          "ended": false,
+          "primary": false
+        },
+        {
+          "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+          "sort-name": "히카루, 우타다",
+          "name": "우타다히카루",
+          "type": "Artist name",
+          "end": null,
+          "primary": false,
+          "ended": false,
+          "locale": "ko",
+          "begin": null
+        }
+      ],
+      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+      "sort-name": "Utada, Hikaru",
+      "name": "宇多田ヒカル",
+      "type": "Person",
+      "gender": "Non-binary",
+      "relations": [
+        {
+          "type-id": "6b3e3c85-0002-4f34-aca6-80ace0d7e846",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "allmusic",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.allmusic.com/artist/mn0000435885",
+            "id": "b1dc03df-8cb6-44d4-a4ba-51ea6552f443"
+          },
+          "begin": null
+        },
+        {
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "id": "6e9e1153-0d74-4612-9f13-1c7f9b93d5a3",
+            "resource": "https://www.discogs.com/artist/304053"
+          },
+          "target-credit": "",
+          "begin": null,
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "04a5b104-a4c2-4bac-99a1-7b837c37d9e4",
+          "type": "discogs",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": []
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "Cubic U",
+          "type": "discogs",
+          "type-id": "04a5b104-a4c2-4bac-99a1-7b837c37d9e4",
+          "direction": "forward",
+          "attribute-ids": {},
+          "begin": null,
+          "url": {
+            "resource": "https://www.discogs.com/artist/447186",
+            "id": "6e287dd2-475b-4b4b-861d-f0693c2bf4f9"
+          },
+          "target-credit": "",
+          "ended": false,
+          "target-type": "url",
+          "end": null
+        },
+        {
+          "begin": null,
+          "ended": true,
+          "target-credit": "",
+          "url": {
+            "id": "6084b53e-3b84-42de-bfb0-74aa7c994681",
+            "resource": "http://www.geocities.co.jp/MusicStar-Guitar/8537/"
+          },
+          "end": "2019-03-31",
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "f484f897-81cc-406e-96f9-cd799a04ee24",
+          "type": "fanpage"
+        },
+        {
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://music.yandex.com/artist/141914",
+            "id": "6007db9a-25d9-4332-b2d5-0cd1a13b2174"
+          },
+          "attribute-values": {},
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+          "type": "free streaming",
+          "source-credit": ""
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+          "type": "free streaming",
+          "source-credit": "Utada",
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "id": "902ff7a7-5d9c-4078-985e-0470d009832c",
+            "resource": "https://open.spotify.com/artist/3cOksS0L23DEPJd3JwMuVs"
+          },
+          "target-credit": ""
+        },
+        {
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "id": "fca51709-8837-455d-bca6-a5fb8fc2761d",
+            "resource": "https://open.spotify.com/artist/7lbSsjYACZHn1MSDXPxNF2"
+          },
+          "target-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+          "type": "free streaming",
+          "source-credit": "Hikaru Utada"
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+          "type": "free streaming",
+          "source-credit": "",
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "resource": "https://vk.ru/artist/utadahikaru",
+            "id": "0e172ff8-09af-4b3a-a2c4-e04a5333e76c"
+          },
+          "target-credit": ""
+        },
+        {
+          "begin": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.deezer.com/artist/211217",
+            "id": "93078259-1cbf-44b3-b606-d4f1f10d1ad6"
+          },
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "Hikaru Utada",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+          "type": "free streaming"
+        },
+        {
+          "ended": false,
+          "url": {
+            "resource": "https://commons.wikimedia.org/wiki/File:Utada_Hikaru_2004.jpg",
+            "id": "b90e90ea-365b-46d5-a00e-fa411db7e6de"
+          },
+          "target-credit": "",
+          "end": null,
+          "target-type": "url",
+          "begin": "2007-06-12",
+          "source-credit": "",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "type": "image",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "type": "image",
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "target-credit": "",
+          "url": {
+            "id": "c0f2bfce-5b76-4d8f-839a-90982336a766",
+            "resource": "https://commons.wikimedia.org/wiki/File:Utada_at_Sephora.JPG"
+          },
+          "ended": false,
+          "begin": "2009-04-13"
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "type": "image",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "source-credit": "",
+          "begin": "2013-10-27",
+          "end": null,
+          "target-type": "url",
+          "url": {
+            "id": "341ef29b-79c7-4b2f-8409-d0f685bedf50",
+            "resource": "https://commons.wikimedia.org/wiki/File:Utada_Hikaru.jpg"
+          },
+          "target-credit": "",
+          "ended": false
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "type": "image",
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": "",
+          "begin": "2014-05-30",
+          "target-type": "url",
+          "end": null,
+          "target-credit": "",
+          "url": {
+            "id": "8853ad74-1846-4203-a308-4c6f092f5810",
+            "resource": "https://commons.wikimedia.org/wiki/File:Utada_United_2006.jpg"
+          },
+          "ended": false
+        },
+        {
+          "begin": "2015-06-01",
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "id": "9e3ccb7a-a902-4683-917a-b78f7f684b0c",
+            "resource": "https://commons.wikimedia.org/wiki/File:Hikaru_Utada_in_New_York_20090325.jpg"
+          },
+          "target-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "type": "image",
+          "source-credit": ""
+        },
+        {
+          "ended": false,
+          "url": {
+            "resource": "https://commons.wikimedia.org/wiki/File:Utada_Hikaru_2018_(3).jpg",
+            "id": "b5422bd0-e46f-4985-81c0-f6cd43f4817b"
+          },
+          "target-credit": "",
+          "target-type": "url",
+          "end": null,
+          "begin": "2020-12-17",
+          "source-credit": "",
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "image",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "type": "image",
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": "",
+          "begin": "2020-12-17",
+          "target-type": "url",
+          "end": null,
+          "target-credit": "",
+          "url": {
+            "id": "07007f55-62a6-48ef-bb2f-4ceb0203ba13",
+            "resource": "https://commons.wikimedia.org/wiki/File:Utada_Hikaru_2018.png"
+          },
+          "ended": false
+        },
+        {
+          "source-credit": "",
+          "type": "image",
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "attribute-ids": {},
+          "direction": "forward",
+          "attributes": [],
+          "attribute-values": {},
+          "url": {
+            "resource": "https://commons.wikimedia.org/wiki/File:Utada_Hikaru_2018_(cropped).png",
+            "id": "3789e787-a929-4fa2-8396-4a4936cc7bd7"
+          },
+          "target-credit": "",
+          "ended": false,
+          "target-type": "url",
+          "end": null,
+          "begin": "2021-03-28"
+        },
+        {
+          "begin": "2022-09-22",
+          "target-credit": "",
+          "url": {
+            "resource": "https://commons.wikimedia.org/wiki/File:Utada_United_2006_Outfits_(cropped)_(1).jpg",
+            "id": "3c67da91-79b8-4cd9-82e3-abf1b5bc9444"
+          },
+          "ended": false,
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "type": "image",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c"
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "image",
+          "begin": "2022-09-22",
+          "ended": false,
+          "url": {
+            "resource": "https://commons.wikimedia.org/wiki/File:Utada_United_2006_Outfits_(cropped)_(2).jpg",
+            "id": "60e8166a-fd8c-4c13-8ec2-440981dfb8f8"
+          },
+          "target-credit": "",
+          "target-type": "url",
+          "end": null
+        },
+        {
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.generasia.com/w/images/c/cd/Utada_Hikaru_(2008).jpg",
+            "id": "dcf787e9-b2cf-4f71-956f-06c1e8c84627"
+          },
+          "ended": false,
+          "end": null,
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "",
+          "type": "image",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "221132e9-e30e-43f2-a741-15afc4c5fa7c",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "resource": "https://www.imdb.com/name/nm0882483/",
+            "id": "2e679ef1-c729-4111-9a8c-984036a5b805"
+          },
+          "target-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "94c8b0cc-4477-4106-932c-da60e63de61c",
+          "type": "IMDb",
+          "source-credit": ""
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "08db8098-c0df-4b78-82c3-c8697b4bba7f",
+          "type": "last.fm",
+          "source-credit": "Cubic U",
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "resource": "https://www.last.fm/music/Cubic%2BU",
+            "id": "8ef1bcb9-7b4d-40ee-b115-3b3a24f37772"
+          },
+          "target-credit": ""
+        },
+        {
+          "target-credit": "",
+          "url": {
+            "id": "6a5b1e69-c34c-42f3-8794-12c43e549c4d",
+            "resource": "https://www.last.fm/music/%E5%AE%87%E5%A4%9A%E7%94%B0%E3%83%92%E3%82%AB%E3%83%AB"
+          },
+          "ended": false,
+          "target-type": "url",
+          "end": null,
+          "begin": null,
+          "source-credit": "",
+          "type": "last.fm",
+          "type-id": "08db8098-c0df-4b78-82c3-c8697b4bba7f",
+          "direction": "forward",
+          "attribute-ids": {},
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "target-type": "url",
+          "end": null,
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.last.fm/music/Utada",
+            "id": "87a422b5-8076-410a-94b8-cc0e05612705"
+          },
+          "ended": false,
+          "begin": null,
+          "type": "last.fm",
+          "type-id": "08db8098-c0df-4b78-82c3-c8697b4bba7f",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": "Utada",
+          "attribute-values": {},
+          "attributes": []
+        },
+        {
+          "type": "lyrics",
+          "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+          "attribute-ids": {},
+          "direction": "forward",
+          "source-credit": "宇多田ヒカル (Hikaru Utada)",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "url": {
+            "id": "665bcbaa-78b1-4441-a131-4aab967a223b",
+            "resource": "https://genius.com/artists/Hikaru-utada"
+          },
+          "target-credit": "",
+          "ended": false,
+          "begin": null
+        },
+        {
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "url": {
+            "id": "90a4b492-169e-4581-b1d5-960c636ceb1c",
+            "resource": "https://j-lyric.net/artist/a001c7c/"
+          },
+          "target-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "lyrics",
+          "source-credit": ""
+        },
+        {
+          "begin": null,
+          "url": {
+            "resource": "https://www.uta-net.com/artist/1892/",
+            "id": "be39ccf3-fecb-4a47-a23d-81d83641a676"
+          },
+          "target-credit": "",
+          "ended": false,
+          "target-type": "url",
+          "end": null,
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "type": "lyrics",
+          "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+          "direction": "forward",
+          "attribute-ids": {}
+        },
+        {
+          "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "lyrics",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "url": {
+            "id": "a5941e05-d3e2-456c-ac4b-3c3a54461195",
+            "resource": "https://www.uta-net.com/composer/29930/"
+          },
+          "target-credit": "",
+          "begin": null
+        },
+        {
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.uta-net.com/lyricist/28092/",
+            "id": "e655ae95-ec61-4fab-93a3-4a6bcf85cf07"
+          },
+          "ended": false,
+          "target-type": "url",
+          "end": null,
+          "begin": null,
+          "source-credit": "",
+          "type": "lyrics",
+          "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+          "attribute-ids": {},
+          "direction": "forward",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "source-credit": "",
+          "type": "myspace",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "bac47923-ecde-4b59-822e-d08f0cd10156",
+          "attributes": [],
+          "attribute-values": {},
+          "target-credit": "",
+          "url": {
+            "resource": "https://myspace.com/utada",
+            "id": "dcccc691-e5b5-4c38-8cf6-64089f50d530"
+          },
+          "ended": false,
+          "end": null,
+          "target-type": "url",
+          "begin": null
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "type": "official homepage",
+          "type-id": "fe33d22f-c3b0-4d68-bd53-a856badf2b15",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": "",
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.universal-music.co.jp/utada-hikaru/",
+            "id": "a0aeef8b-3bf2-4a18-8243-453494f4b09c"
+          },
+          "ended": false
+        },
+        {
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "25ce0ab2-09be-4da5-9212-5c9d3d1e0947",
+            "resource": "https://www.utadahikaru.jp/"
+          },
+          "end": null,
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "fe33d22f-c3b0-4d68-bd53-a856badf2b15",
+          "type": "official homepage",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "target-type": "url",
+          "end": "2025-12-17",
+          "target-credit": "",
+          "url": {
+            "resource": "https://jaxsta.com/profile/a85e6d89-5441-4a6b-85b6-5f73cd56f5d9",
+            "id": "be8e80b1-c678-4362-b679-9c10198e0d36"
+          },
+          "ended": true,
+          "begin": null,
+          "type": "other databases",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": []
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "other databases",
+          "begin": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "672e5673-65b9-4213-b1f4-08a4aee2e27e",
+            "resource": "http://id.loc.gov/authorities/names/no2005051925"
+          },
+          "target-type": "url",
+          "end": null
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "other databases",
+          "source-credit": "",
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "url": {
+            "resource": "https://catalogue.bnf.fr/ark:/12148/cb14447955p",
+            "id": "50c7d8e6-536b-4ac2-8f12-6b829eb9a8c0"
+          },
+          "target-credit": ""
+        },
+        {
+          "target-type": "url",
+          "end": null,
+          "url": {
+            "resource": "https://ci.nii.ac.jp/author/DA13959958",
+            "id": "b21fc92c-6d8a-4fed-a6a2-0e64e0775ef1"
+          },
+          "target-credit": "",
+          "ended": false,
+          "begin": null,
+          "type": "other databases",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": []
+        },
+        {
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "target-credit": "",
+          "url": {
+            "resource": "https://d-nb.info/gnd/13538849X",
+            "id": "8abaf54c-9f2d-48b8-8429-4184b34b735d"
+          },
+          "ended": false,
+          "attribute-values": {},
+          "attributes": [],
+          "type": "other databases",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": ""
+        },
+        {
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "url": {
+            "resource": "https://id.ndl.go.jp/auth/ndlna/00798890",
+            "id": "8c125f6e-efbe-4afe-a675-7ad114eea9ab"
+          },
+          "target-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "other databases",
+          "source-credit": ""
+        },
+        {
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "bd41ce71-27c4-461e-859a-b792a881fa24",
+            "resource": "https://imvdb.com/n/utada-hikaru"
+          },
+          "target-type": "url",
+          "end": null,
+          "begin": null,
+          "source-credit": "",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "other databases",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "end": null,
+          "target-type": "url",
+          "target-credit": "",
+          "url": {
+            "resource": "https://rateyourmusic.com/artist/cubic_u",
+            "id": "7832076a-d12d-4390-b410-60c98fcfeba6"
+          },
+          "ended": false,
+          "begin": null,
+          "type": "other databases",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "source-credit": "Cubic U",
+          "attribute-values": {},
+          "attributes": []
+        },
+        {
+          "source-credit": "",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "other databases",
+          "attributes": [],
+          "attribute-values": {},
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://rateyourmusic.com/artist/%E5%AE%87%E5%A4%9A%E7%94%B0%E3%83%92%E3%82%AB%E3%83%AB",
+            "id": "ce2f2b4f-d957-43c2-899d-f90e6560dfb6"
+          },
+          "target-type": "url",
+          "end": null,
+          "begin": null
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "other databases",
+          "source-credit": "",
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "url": {
+            "id": "cd2bd2c8-928d-42dc-ba5b-3bbee61a7e87",
+            "resource": "https://www.generasia.com/wiki/Utada_Hikaru"
+          },
+          "target-credit": ""
+        },
+        {
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "other databases",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "url": {
+            "id": "7fe940bb-a957-4c32-b6c1-4f25c4709d90",
+            "resource": "https://www.mobygames.com/person/69689"
+          },
+          "target-credit": "",
+          "begin": null
+        },
+        {
+          "ended": false,
+          "url": {
+            "id": "0124fa01-c1a2-4698-a141-523c08174265",
+            "resource": "https://www.muziekweb.nl/Link/M00000184372/POPULAR/"
+          },
+          "target-credit": "",
+          "end": null,
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "type": "other databases",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "url": {
+            "resource": "https://www.themoviedb.org/person/225448",
+            "id": "aeb1b5b7-2f15-4aa7-ab5b-4b7ebab59ba0"
+          },
+          "target-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "other databases",
+          "source-credit": ""
+        },
+        {
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "id": "7ee07cd7-5923-44af-970c-33f90ba0f15a",
+            "resource": "https://www.whosampled.com/Utada-Hikaru/"
+          },
+          "target-credit": "",
+          "begin": null,
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "type": "other databases",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": []
+        },
+        {
+          "type": "other databases",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "attribute-ids": {},
+          "direction": "forward",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "url": {
+            "id": "be4656b5-e113-460d-ba6a-4089609b6f30",
+            "resource": "https://www.worldcat.org/identities/lccn-no2005051925"
+          },
+          "target-credit": "",
+          "ended": false,
+          "begin": null
+        },
+        {
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "url": {
+            "resource": "https://mora.jp/artist/15108/",
+            "id": "f308d0c1-2eaf-4a8a-8dc6-bfa9ed97c25b"
+          },
+          "target-credit": "",
+          "ended": false,
+          "attribute-values": {},
+          "attributes": [],
+          "type": "purchase for download",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": "Utada"
+        },
+        {
+          "source-credit": "",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "purchase for download",
+          "attributes": [],
+          "attribute-values": {},
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://mora.jp/artist/839085/",
+            "id": "42bbe718-2eb7-4df2-840f-40c0efe6f163"
+          },
+          "target-type": "url",
+          "end": null,
+          "begin": null
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "type": "purchase for download",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "attribute-ids": {},
+          "direction": "forward",
+          "begin": null,
+          "target-credit": "",
+          "url": {
+            "resource": "https://musescore.com/artist/136580",
+            "id": "7921d42f-b23e-43bf-be69-5aaafe14e94f"
+          },
+          "ended": false,
+          "target-type": "url",
+          "end": null
+        },
+        {
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "c4963424-ec5f-4bdd-8adb-836c26326bae",
+            "resource": "https://music.apple.com/jp/artist/18756224"
+          },
+          "begin": null,
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "purchase for download",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": []
+        },
+        {
+          "url": {
+            "resource": "https://music.apple.com/us/artist/18756224",
+            "id": "b3e9750b-4dfc-4dba-8b1b-3d82665ca90b"
+          },
+          "target-credit": "",
+          "ended": false,
+          "end": null,
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "Hikaru Utada",
+          "type": "purchase for download",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "ended": false,
+          "url": {
+            "resource": "https://music.bugs.co.kr/artist/12632",
+            "id": "8ee0249b-3c9a-490d-9221-ebad5ef98ab0"
+          },
+          "target-credit": "",
+          "end": null,
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "Hikaru Utada(우타다 히카루/宇多田ヒカル)",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "type": "purchase for download",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "type": "purchase for download",
+          "source-credit": "",
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://music.sonyselect.net/page/artist.html?artistId=7398",
+            "id": "9357edf1-43d4-4d00-b594-241ffafb845f"
+          }
+        },
+        {
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "target-credit": "",
+          "url": {
+            "id": "f3d373b4-b9e3-47f6-8361-14743f613986",
+            "resource": "https://ototoy.jp/_/default/a/536"
+          },
+          "ended": false,
+          "attribute-values": {},
+          "attributes": [],
+          "type": "purchase for download",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": ""
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "type": "purchase for download",
+          "begin": null,
+          "ended": false,
+          "url": {
+            "resource": "https://recochoku.jp/artist/2000000619/",
+            "id": "ebde2188-29d3-4bef-9148-5ecf9e6e75f4"
+          },
+          "target-credit": "",
+          "end": null,
+          "target-type": "url"
+        },
+        {
+          "type": "purchase for download",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "end": null,
+          "target-type": "url",
+          "url": {
+            "id": "142fb927-f0d5-4949-b526-6a02a60d1d1a",
+            "resource": "https://vibe.naver.com/artist/2892"
+          },
+          "target-credit": "",
+          "ended": false,
+          "begin": null
+        },
+        {
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "purchase for download",
+          "source-credit": "Hikaru Utada",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.amazon.com/gp/product/B001O1EEAG",
+            "id": "8735e47c-30e8-42de-8a51-cb8dfe54fa21"
+          },
+          "begin": null
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "purchase for download",
+          "source-credit": "",
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "0f5d53ba-f0f2-42ee-b7e8-1ea69535e759",
+            "resource": "https://www.qobuz.com/jp-ja/interpreter/utada-hikaru/54036"
+          }
+        },
+        {
+          "ended": true,
+          "target-credit": "",
+          "url": {
+            "resource": "https://play.google.com/store/music/artist?id=Anqcmus4e5wwgi2htptlu2mz4py",
+            "id": "74331bde-40d3-4ea0-847d-d15fddb84450"
+          },
+          "target-type": "url",
+          "end": null,
+          "begin": null,
+          "source-credit": "",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "purchase for download",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "id": "3a51b39c-3882-462f-841e-5877f857ebfe",
+            "resource": "https://www.cdjapan.co.jp/person/193854"
+          },
+          "target-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "611b1862-67af-4253-a64f-34adba305d1d",
+          "type": "purchase for mail-order",
+          "source-credit": ""
+        },
+        {
+          "begin": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.yesasia.com/0-aid406-0-bpt.47-en/list.html",
+            "id": "421b0315-98d0-4d30-b36c-50c7adfcfc8a"
+          },
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "611b1862-67af-4253-a64f-34adba305d1d",
+          "type": "purchase for mail-order"
+        },
+        {
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "resource": "https://secondhandsongs.com/artist/132441",
+            "id": "23732457-f37c-46c1-b5ab-1531659c51f7"
+          },
+          "target-credit": "",
+          "begin": null,
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "79c5b84d-a206-4f4c-9832-78c028c312c3",
+          "type": "secondhandsongs",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": []
+        },
+        {
+          "type": "social network",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "end": null,
+          "target-type": "url",
+          "url": {
+            "id": "f557755b-5ac0-4d49-85c4-1f3fc5679960",
+            "resource": "https://twitter.com/utadahikaru"
+          },
+          "target-credit": "",
+          "ended": false,
+          "begin": "2010-09-28"
+        },
+        {
+          "type": "social network",
+          "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+          "direction": "forward",
+          "attribute-ids": {},
+          "source-credit": "Utada",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.facebook.com/Utada",
+            "id": "1b942bec-be70-454d-a493-3ad4e4d23834"
+          },
+          "ended": false,
+          "begin": null
+        },
+        {
+          "target-credit": "",
+          "url": {
+            "id": "5bf65f08-a7df-4b8d-89f4-f71283104960",
+            "resource": "https://www.instagram.com/kuma_power/"
+          },
+          "ended": false,
+          "end": null,
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "",
+          "type": "social network",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "ended": false,
+          "url": {
+            "resource": "https://www.songkick.com/artists/299433",
+            "id": "245643ec-271c-4500-9978-99f0f7685857"
+          },
+          "target-credit": "",
+          "end": null,
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "aac9c4bc-a5b9-30b8-9839-e3ac314c6e58",
+          "type": "songkick",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "type-id": "89e4a949-0976-440d-bda1-5f772c1e5710",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "soundcloud",
+          "source-credit": "Hikaru Utada",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://soundcloud.com/hikaruutada",
+            "id": "abacd96f-2652-422c-98ca-c691b9bbabb0"
+          },
+          "begin": null
+        },
+        {
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "type": "streaming",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "7efc08b1-2d84-435f-bfa7-b498b43fe34f",
+            "resource": "https://music.amazon.co.jp/artists/B003XSRE6O"
+          },
+          "begin": null
+        },
+        {
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "3ddf1315-1d34-45f3-9abd-45386a6292f8",
+            "resource": "https://music.amazon.com/artists/B001O1EEAG"
+          },
+          "begin": null,
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "streaming",
+          "source-credit": "Hikaru Utada",
+          "attribute-values": {},
+          "attributes": []
+        },
+        {
+          "source-credit": "",
+          "type": "streaming",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "attributes": [],
+          "attribute-values": {},
+          "url": {
+            "id": "c4963424-ec5f-4bdd-8adb-836c26326bae",
+            "resource": "https://music.apple.com/jp/artist/18756224"
+          },
+          "target-credit": "",
+          "ended": false,
+          "end": null,
+          "target-type": "url",
+          "begin": null
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "Hikaru Utada",
+          "type": "streaming",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "begin": null,
+          "url": {
+            "resource": "https://music.apple.com/us/artist/18756224",
+            "id": "b3e9750b-4dfc-4dba-8b1b-3d82665ca90b"
+          },
+          "target-credit": "",
+          "ended": false,
+          "end": null,
+          "target-type": "url"
+        },
+        {
+          "url": {
+            "resource": "https://music.bugs.co.kr/artist/12632",
+            "id": "8ee0249b-3c9a-490d-9221-ebad5ef98ab0"
+          },
+          "target-credit": "",
+          "ended": false,
+          "target-type": "url",
+          "end": null,
+          "begin": null,
+          "source-credit": "Hikaru Utada(우타다 히카루/宇多田ヒカル)",
+          "type": "streaming",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "attribute-ids": {},
+          "direction": "forward",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "streaming",
+          "begin": null,
+          "ended": false,
+          "url": {
+            "id": "682fa16e-dafd-4e98-b67b-1eee937ede2d",
+            "resource": "https://music.line.me/artist/mi000000000d593e48"
+          },
+          "target-credit": "",
+          "target-type": "url",
+          "end": null
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "type": "streaming",
+          "begin": null,
+          "ended": false,
+          "url": {
+            "resource": "https://play.qobuz.com/artist/54036",
+            "id": "51c39e89-e5c2-43a4-b6e9-710334905519"
+          },
+          "target-credit": "",
+          "end": null,
+          "target-type": "url"
+        },
+        {
+          "source-credit": "Hikaru Utada",
+          "type": "streaming",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "attributes": [],
+          "attribute-values": {},
+          "url": {
+            "id": "a0ea7a89-a614-456c-bdd0-d9db049a3ddb",
+            "resource": "https://tidal.com/artist/30263"
+          },
+          "target-credit": "",
+          "ended": false,
+          "end": null,
+          "target-type": "url",
+          "begin": null
+        },
+        {
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "streaming",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://vibe.naver.com/artist/2892",
+            "id": "142fb927-f0d5-4949-b526-6a02a60d1d1a"
+          },
+          "begin": null
+        },
+        {
+          "type": "streaming",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "source-credit": "Hikaru Utada",
+          "attribute-values": {},
+          "attributes": [],
+          "end": null,
+          "target-type": "url",
+          "target-credit": "",
+          "url": {
+            "id": "8735e47c-30e8-42de-8a51-cb8dfe54fa21",
+            "resource": "https://www.amazon.com/gp/product/B001O1EEAG"
+          },
+          "ended": false,
+          "begin": null
+        },
+        {
+          "attribute-values": {},
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "type": "streaming",
+          "source-credit": "",
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "url": {
+            "resource": "https://www.kkbox.com/jp/ja/artist/Cno9q5i5Ft4y5vDR3_",
+            "id": "a453ea8b-97a7-4df7-9b0c-1f8d7146da14"
+          },
+          "target-credit": ""
+        },
+        {
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://zvuk.com/artist/427314",
+            "id": "5f93ec7b-120d-48da-a629-c638bd614d61"
+          },
+          "attribute-values": {},
+          "attributes": [],
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "streaming",
+          "source-credit": ""
+        },
+        {
+          "source-credit": "",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "0af15ab3-c615-46d6-b95b-a5fcd2a92ed9",
+          "type": "vgmdb",
+          "attributes": [],
+          "attribute-values": {},
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "fd22e8ba-3cbf-445c-828d-e2af295d9196",
+            "resource": "https://vgmdb.net/artist/1742"
+          },
+          "end": null,
+          "target-type": "url",
+          "begin": null
+        },
+        {
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "5c76ed5e-cd47-4933-bf23-b48129be5a87",
+            "resource": "http://viaf.org/viaf/51421012"
+          },
+          "attribute-values": {},
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "e8571dcc-35d4-4e91-a577-a3382fd84460",
+          "type": "VIAF",
+          "source-credit": ""
+        },
+        {
+          "source-credit": "",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "e8571dcc-35d4-4e91-a577-a3382fd84460",
+          "type": "VIAF",
+          "attributes": [],
+          "attribute-values": {},
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "cd9ac823-c6dc-461e-b063-f3312738920d",
+            "resource": "http://viaf.org/viaf/80151927"
+          },
+          "end": null,
+          "target-type": "url",
+          "begin": null
+        },
+        {
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "url": {
+            "resource": "https://space.bilibili.com/1016555164",
+            "id": "884ea9dd-c525-42ee-ab20-a95ef6af4143"
+          },
+          "target-credit": "",
+          "ended": false,
+          "attribute-values": {},
+          "attributes": [],
+          "type": "video channel",
+          "type-id": "d86c9450-b6d0-4760-a275-e7547495b48b",
+          "attribute-ids": {},
+          "direction": "forward",
+          "source-credit": ""
+        },
+        {
+          "begin": null,
+          "target-credit": "",
+          "url": {
+            "id": "9421da24-9177-4258-b059-0fcbaf285f38",
+            "resource": "https://www.wikidata.org/wiki/Q234598"
+          },
+          "ended": false,
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "type": "wikidata",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "689870a4-a1e4-4912-b17f-7b2664215698"
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "type": "youtube",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "6a540e5b-58c6-4192-b6ba-dbc71ec8fcf0",
+          "begin": "2005-09-23",
+          "url": {
+            "id": "dc88a3c3-971c-48d0-af5f-565abc81e359",
+            "resource": "https://www.youtube.com/channel/UChcgcbX3zMBwd0wTJyy2JlA"
+          },
+          "target-credit": "",
+          "ended": false,
+          "end": null,
+          "target-type": "url"
+        }
+      ],
+      "country": "JP",
+      "area": {
+        "disambiguation": "",
+        "iso-3166-1-codes": [
+          "JP"
+        ],
+        "type": null,
+        "name": "Japan",
+        "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+        "type-id": null,
+        "sort-name": "Japan"
+      },
+      "disambiguation": "Japanese-American singer-songwriter",
+      "begin-area": {
+        "disambiguation": "",
+        "type-id": null,
+        "sort-name": "Manhattan",
+        "id": "261962ea-d8c2-4eaf-a80c-f14376ffadb0",
+        "name": "Manhattan",
+        "type": null
+      },
+      "life-span": {
+        "begin": "1983-01-19",
+        "end": null,
+        "ended": false
+      },
+      "id": "b539e453-c4fe-47e3-8a07-8517eac74429",
+      "gender-id": "b239bbd8-aa84-4f11-8bdb-c4159e730ee5",
+      "genres": [
+        {
+          "name": "ballad",
+          "id": "17b58d38-1110-4f5a-9412-b0314329622b",
+          "disambiguation": "",
+          "count": 1
+        },
+        {
+          "id": "4bb4043a-0ee5-4b84-93fa-6ba4567a6ba0",
+          "name": "contemporary r&b",
+          "disambiguation": "",
+          "count": 2
+        },
+        {
+          "disambiguation": "",
+          "count": 2,
+          "name": "dance-pop",
+          "id": "b739a895-85ed-4ad3-8717-4e9ef5387dd8"
+        },
+        {
+          "count": 3,
+          "disambiguation": "",
+          "name": "j-pop",
+          "id": "eba7715e-ee26-4989-8d49-9db382955419"
+        },
+        {
+          "name": "pop",
+          "id": "911c7bbb-172d-4df8-9478-dbff4296e791",
+          "count": 2,
+          "disambiguation": ""
+        },
+        {
+          "disambiguation": "",
+          "count": 1,
+          "id": "64e0bd76-822f-4549-a6fe-9858561282d1",
+          "name": "pop soul"
+        },
+        {
+          "id": "31be54b2-4d0c-42df-aa44-c496c7b4c3c3",
+          "name": "r&b",
+          "disambiguation": "",
+          "count": 4
+        },
+        {
+          "id": "455f264b-db00-4716-991d-fbd32dc24523",
+          "name": "singer-songwriter",
+          "disambiguation": "",
+          "count": 2
+        }
+      ],
+      "isnis": [
+        "0000000082744820"
+      ],
+      "ipis": [
+        "00174203100",
+        "00174362566",
+        "00383290058",
+        "00465517146"
+      ],
+      "end-area": null
+    }
+  }
+}
