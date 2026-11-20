@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&ids=Q172763&props=sitelinks&sitefilter=enwiki"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "entities": {
+        "Q172763": {
+          "type": "item",
+          "id": "Q172763",
+          "sitelinks": {
+            "enwiki": {
+              "site": "enwiki",
+              "title": "Joy Division",
+              "badges": [
+                "Q17437796"
+              ]
+            }
+          }
+        }
+      },
+      "success": 1
+    }
+  }
+}

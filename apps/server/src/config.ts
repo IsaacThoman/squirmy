@@ -27,9 +27,14 @@ const Env = z.object({
   FFMPEG_PATH: z.string().default('ffmpeg'),
   FFPROBE_PATH: z.string().default('ffprobe'),
   FPCALC_PATH: z.string().default('fpcalc'),
+  /** Set by release builds; development falls back to the root package.json. */
+  SQUIRMY_VERSION: z.string().optional(),
 })
 
 export type Config = z.infer<typeof Env>
+
+/** Origins of the Vite dev server, the only cross-origin callers allowed outside production. */
+export const devOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173']
 
 let cached: Config | undefined
 

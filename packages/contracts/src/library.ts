@@ -68,6 +68,10 @@ export const JobQueueStats = z.object({
 })
 export type JobQueueStats = z.infer<typeof JobQueueStats>
 
+/** An absolute path; the server's home directory when absent. */
+export const DirectoryQuery = z.object({ path: z.string().min(1).optional() })
+export type DirectoryQuery = z.infer<typeof DirectoryQuery>
+
 /** `GET /admin/fs?path=` lists directories on the server so the admin UI can pick a root. */
 export const DirectoryListing = z.object({
   path: z.string(),

@@ -1,0 +1,41 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/url?resource=https%3A%2F%2Fwww.deezer.com%2Fartist%2F399&inc=artist-rels+release-rels+release-group-rels+recording-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": "30190b6d-8f53-42f2-8e89-104cbe6c9020",
+      "resource": "https://www.deezer.com/artist/399",
+      "relations": [
+        {
+          "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+          "source-credit": "",
+          "attribute-values": {},
+          "end": null,
+          "target-type": "artist",
+          "direction": "backward",
+          "attributes": [],
+          "artist": {
+            "sort-name": "Radiohead",
+            "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "type": "Group",
+            "country": "GB",
+            "disambiguation": "",
+            "name": "Radiohead",
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+          },
+          "target-credit": "",
+          "begin": null,
+          "type": "free streaming",
+          "ended": false,
+          "attribute-ids": {}
+        }
+      ]
+    }
+  }
+}

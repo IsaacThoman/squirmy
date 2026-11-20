@@ -1,0 +1,2938 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group?artist=a74b1b7f-71a5-4011-9441-d0b5e4122711&inc=artist-credits&limit=100&offset=100&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-group-count": 587,
+      "release-groups": [
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "first-release-date": "1995-06-10",
+          "id": "01618034-2de5-4ace-a057-fcd0bca4cf08",
+          "title": "1995‐06‐10: Cabaret Metro, Chicago, IL, USA",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "title": "2000‐09‐08: Valbyhallen, Copenhagen, Denmark",
+          "primary-type": "Album",
+          "first-release-date": "2000-09-08",
+          "id": "02c5fa8c-1ea0-431a-a4cd-39af6c49d4ae",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "title": "1992‐11‐11: Huddersfield University, Huddersfield, UK",
+          "primary-type": "Album",
+          "id": "0479139d-c3ed-4bc7-807a-bee5d2e66b62",
+          "first-release-date": "1992",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "title": "1995‐12‐12: Warehouse, Toronto, ON, Canada",
+          "primary-type": "Album",
+          "first-release-date": "1995-12-12",
+          "id": "04f9826d-419a-4484-a282-7c3a571979dd",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": "",
+          "first-release-date": "",
+          "id": "0711af11-e061-3ec9-a2a8-8c85738be984",
+          "primary-type": "Album",
+          "title": "Fond, but Not in Love: The B Sides",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "title": "BBC in Concert 601: Glastonbury Festival 1994",
+          "primary-type": "Album",
+          "id": "0b1fce60-47b8-4664-8f59-3d7520456ae2",
+          "first-release-date": "1994",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": ""
+        },
+        {
+          "id": "0be7bec9-8bc0-4613-9adf-ea707e9b9897",
+          "first-release-date": "2005",
+          "title": "Hovering Above the Tower",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": ""
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group"
+              }
+            }
+          ],
+          "secondary-types": [
+            "Compilation",
+            "Live"
+          ],
+          "first-release-date": "2020",
+          "id": "10333b16-c430-4294-a192-e0893f83e1e8",
+          "title": "Take Me Back: Live Recordings 2000–2018",
+          "primary-type": "Album"
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": "",
+          "id": "1118b879-b8f0-4f25-9db9-3df2a7fe5c99",
+          "first-release-date": "1996-08-19",
+          "primary-type": "Album",
+          "title": "1996‐08‐19: Continental Airlines Arena, East Rutherford, NJ, USA",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "title": "1994‐06‐26: Glastonbury Festival, NME Stage, Worthy Farm, Glastonbury, England, UK",
+          "id": "11a5cc29-6314-4e25-b83a-e90ee7917f1e",
+          "first-release-date": "1994-06-26",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group"
+              }
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "title": "Pop Is Dead",
+          "primary-type": "Album",
+          "first-release-date": "1996",
+          "id": "1afa76fe-26bc-3dbe-9d5c-45a02bd8f75e"
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ],
+          "title": "1995‐04‐19: The Anson Rooms, Bristol, UK",
+          "primary-type": "Album",
+          "id": "1e14dc24-8a10-4ef2-885c-4b8a0d02f551",
+          "first-release-date": "1995-04-19"
+        },
+        {
+          "secondary-type-ids": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "disambiguation": "",
+          "id": "20e1fc39-3849-4fb3-aa00-5c1f8d1dc189",
+          "first-release-date": "",
+          "title": "Menage A Trois: The Real Ultra Rare Tracks, Vol 3",
+          "primary-type": "Other",
+          "secondary-types": []
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "id": "21028e69-d1a2-4bd6-8f0f-6f072d4b97c2",
+          "first-release-date": "1996",
+          "title": "Paragons of Virtue",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "title": "Transmission Impossible",
+          "primary-type": "Album",
+          "first-release-date": "2025-08",
+          "id": "24d688b1-7c73-467f-8e1b-109d6cc8174b",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "secondary-types": [],
+          "first-release-date": "2003",
+          "id": "287ba5e1-bf34-428b-9f6f-e107399d7da2",
+          "title": "Everything in Its Right Place (Hybrid remix)",
+          "primary-type": null,
+          "disambiguation": "",
+          "secondary-type-ids": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": null
+        },
+        {
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "22a628ad-c082-3c4f-b1b6-d41665107b88"
+          ],
+          "disambiguation": "",
+          "primary-type": "Other",
+          "title": "The Most Gigantic Lying Mouth of All Time",
+          "first-release-date": "2004-12-01",
+          "id": "2915136e-7174-4527-a51e-6d5573be2d12",
+          "secondary-types": [
+            "Soundtrack"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type": "Album",
+          "title": "Kill All the Rarities",
+          "first-release-date": "",
+          "id": "2a3892ce-ce25-3577-8c1c-634dc3faaf8b",
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "title": "Hail and Backtrack",
+          "primary-type": "Album",
+          "id": "2c435990-69a2-43e0-b124-c96e8b02c455",
+          "first-release-date": "2003"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "title": "1998‐04‐17: Radio City Music Hall, New York, NY, USA",
+          "primary-type": "Album",
+          "first-release-date": "1998-04-17",
+          "id": "32037716-3ef9-4ec1-8d5d-af454e2738bb",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "title": "Complete B-Sides",
+          "first-release-date": "",
+          "id": "32c97b05-44a7-309b-b498-3fbfa24bdb11",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "first-release-date": "2020-03-20",
+          "id": "345686b4-5976-42df-a6ed-c65711dfee4d",
+          "title": "Kid Amnesiac",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "country": "GB"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "id": "37410f3e-b7a0-40e3-8bcd-ba3aabc339ce",
+          "first-release-date": "",
+          "title": "B‐Sides, Vol. 1",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "Every Last Crumb",
+          "primary-type": "Album",
+          "id": "39baf9d2-f625-4bae-bec8-5505d81c80fd",
+          "first-release-date": "2017",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "2010-08-23",
+          "id": "40e459f4-b86a-4e59-8abc-8c4032947842",
+          "title": "Live in Praha",
+          "primary-type": "Other",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22"
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": "",
+          "first-release-date": "1998-01-24",
+          "id": "457cd28b-de76-41b2-85e1-d4a0bb9f3253",
+          "primary-type": "Album",
+          "title": "1998‐01‐24: Akasaka Blitz, Tokyo, Japan",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "first-release-date": "",
+          "id": "45c89737-53d3-42de-bd0a-ff639719f082",
+          "title": "Unplugged",
+          "primary-type": "Album"
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "first-release-date": "",
+          "id": "46479293-ce6d-3a4d-8fe9-73ebb5ee5881",
+          "primary-type": "Album",
+          "title": "B-Sides",
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "title": "Oxford Angels: The Rarities",
+          "primary-type": "Album",
+          "first-release-date": "2013",
+          "id": "4e0ea78b-d058-461b-ac7c-3de43823a131"
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "country": "GB"
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "title": "OKNOTOK: White Cassette Tape",
+          "primary-type": "Album",
+          "first-release-date": "2017-07-01",
+          "id": "4f33db0c-051e-472d-b010-14882fbea23d"
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "first-release-date": "",
+          "id": "502b7edd-701b-3ba5-b56e-09ce581bdfe1",
+          "primary-type": "Album",
+          "title": "Rarities",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ]
+        },
+        {
+          "first-release-date": "2003",
+          "id": "531e6c23-f4e5-4c8c-b23f-56e77d630fed",
+          "title": "Live 2003 Eurockeennes Belfort",
+          "primary-type": null,
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": null,
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": ""
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "country": "GB"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "title": "Computer K.O.",
+          "id": "53f59e5b-adc9-4c36-a724-cf3aeab69b38",
+          "first-release-date": "1997",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type": "Album",
+          "title": "Unplugged and Unreleased",
+          "id": "54ec58a5-4149-4fa3-b395-052fede66730",
+          "first-release-date": "1999",
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "first-release-date": "1997",
+          "id": "60b9bffe-5959-3de1-ac79-63581b541323",
+          "title": "Leftover Computer",
+          "primary-type": "Album"
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "id": "612fd528-2ebb-43e4-928b-14a6b6090a10",
+          "first-release-date": "",
+          "title": "Mne$i@¢",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "id": "63fb90c6-e005-3c9a-a808-6900908b9b3b",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "title": "Uncut",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "first-release-date": "2018",
+          "id": "65281add-0a95-447f-8f7c-a38bcb158469",
+          "primary-type": "Album",
+          "title": "Greatest Songs",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "first-release-date": "",
+          "id": "65d99b2c-05c1-378a-9218-5e0c19bc106f",
+          "title": "A Total Waste of Time",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": ""
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "2000-07-01",
+          "id": "6be1f03a-3148-494e-b370-99b452cf45b2",
+          "title": "2000‐07‐01: Meltdown Festival, Royal Festival Hall, London, England, UK",
+          "primary-type": "Album"
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "id": "6c70ab0d-2559-31d6-b4c5-15cf513aa076",
+          "first-release-date": "",
+          "title": "Oxford Devils",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "title": "Bittersweet Distractions",
+          "primary-type": "Album",
+          "first-release-date": "2010",
+          "id": "71cf51e2-cc31-43f5-83de-e779ea8561e2",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "title": "1996‐07‐13: Planet Acoustic: T in the Park, Glasgow, UK",
+          "primary-type": "Album",
+          "id": "72438363-80a6-3aa5-a683-a9e843c2f3d5",
+          "first-release-date": "1996-07-13",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "title": "Black Sessions",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "id": "72907a4e-b683-47f4-90d3-67c2b54e8391",
+          "secondary-types": [
+            "Compilation",
+            "Live"
+          ]
+        },
+        {
+          "id": "74ffecfc-5feb-419b-9e04-ae603544e663",
+          "first-release-date": "1997",
+          "primary-type": "Album",
+          "title": "Radiotick Tracks",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": "",
+          "first-release-date": "1998-06-28",
+          "id": "763d7884-3839-4246-9483-313c3db69dfd",
+          "primary-type": "Album",
+          "title": "Rounding The Bends",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type": "Album",
+          "title": "Raretrax 2",
+          "first-release-date": "",
+          "id": "77382869-e555-3c04-8ab5-acbeedcd61c0",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ]
+        },
+        {
+          "id": "7fe26c12-b0a2-47c1-a9fc-3ea11b29225b",
+          "first-release-date": "2004",
+          "title": "Hail to the Thief (B‐Sides)",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": ""
+        },
+        {
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "title": "1997‐12‐19: MTV’s Live at the 10 Spot, Hammerstein Ballroom, New York City, NY, USA",
+          "id": "802b7f93-111d-4264-9ca4-7c1d1c26589e",
+          "first-release-date": "1997-12-19"
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ],
+          "title": "Live From Planet Earth",
+          "primary-type": "Album",
+          "id": "82b5bb0b-c57c-447c-8f7c-195206690f55",
+          "first-release-date": "1996"
+        },
+        {
+          "first-release-date": "1998-04-02",
+          "id": "84890322-0fa3-4fd8-b838-9155206a4d2c",
+          "title": "1998‐04‐02: Bill Graham Civic Auditorium, San Francisco, CA, USA",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": ""
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "id": "84adb69a-ae1a-4c2f-801b-d6c61c659420",
+          "first-release-date": "1995-05-02",
+          "title": "1995‐05‐02: Planet Rock Session, RAI Studios, Rome, Italy",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "id": "85a1b388-7b4c-3145-8812-0de4d231c8c5",
+          "first-release-date": "2001-01-22",
+          "primary-type": "Album",
+          "title": "Coup d’État"
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "title": "Climbing Up the Walls",
+          "first-release-date": "",
+          "id": "85b7b7b5-cf37-3380-8569-f281c5edbe15",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "title": "Oxford’s Angels",
+          "primary-type": "Album",
+          "id": "8a2f8e2a-d51b-3bd1-ba9b-b152f05bcd29",
+          "first-release-date": "",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": ""
+        },
+        {
+          "id": "8d51e3fc-e99c-31cb-b881-32cdb3d3563e",
+          "first-release-date": "2001",
+          "primary-type": "Album",
+          "title": "The Golden Unplugged Album",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "title": "The Best Thing That You Ever Had",
+          "id": "90521697-19b7-3c78-9acf-dc122712fdd1",
+          "first-release-date": "1996-04-13",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "first-release-date": "2025-03-17",
+          "id": "96a87d03-c9cc-4db7-ad93-44311ef0c3a8",
+          "title": "The Bends B-Sides",
+          "primary-type": "Other",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "disambiguation": ""
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "country": "GB"
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ],
+          "title": "Data Complete",
+          "primary-type": "Album",
+          "id": "98088692-b303-4e94-9931-fe95b2352677",
+          "first-release-date": "1996-04-13"
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "title": "1998‐12‐10: Amnesty International Concert, Palais Omisport de Paris Bercy, Paris, France",
+          "first-release-date": "1998",
+          "id": "9c247800-b4d4-3204-8309-f3b32aa1858e",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "22a628ad-c082-3c4f-b1b6-d41665107b88"
+          ],
+          "secondary-types": [
+            "Soundtrack"
+          ],
+          "first-release-date": "2000-09-04",
+          "id": "9c351cd2-980e-4e7a-b0b9-e98ba5d1433c",
+          "primary-type": "Other",
+          "title": "Meeting People Is Easy"
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "title": "Radiotick Tracks 2",
+          "id": "9c5abe48-3918-40e9-84da-c843d147da4a",
+          "first-release-date": "1997",
+          "secondary-types": []
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "2000-10-20",
+          "id": "9ed59aec-effe-4e1b-b77e-dd42be4b1e46",
+          "primary-type": "Album",
+          "title": "2000‐10‐20: Greek Theatre, Los Angeles, CA, USA"
+        },
+        {
+          "secondary-types": [
+            "Compilation",
+            "Demo"
+          ],
+          "title": "OK OUTTAKES",
+          "primary-type": "Album",
+          "first-release-date": "2024-11-15",
+          "id": "9ee00cb6-9fc9-40f4-9ef7-aa321cac9040",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "81598169-0d6c-3bce-b4be-866fa658eda3"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ]
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": "",
+          "id": "a1ce7465-e83e-4ac9-9b61-f2211c8281af",
+          "first-release-date": "1995",
+          "primary-type": "Album",
+          "title": "Nottingham Rock City",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "id": "a304ba97-14fc-49b4-bafd-1ba84cbca22b",
+          "first-release-date": "2017-09-27",
+          "title": "(Ocean) Bloom",
+          "primary-type": "Broadcast",
+          "secondary-types": [
+            "Remix"
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead",
+              "joinphrase": " featuring "
+            },
+            {
+              "joinphrase": " & ",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Orchestra",
+                "type-id": "a0b36c92-3eb1-3839-a4f9-4799823f54a5",
+                "sort-name": "BBC Concert Orchestra",
+                "id": "dfeba5ea-c967-4ad2-9cdd-3cffb4320143",
+                "name": "BBC Concert Orchestra"
+              },
+              "name": "BBC Concert Orchestra"
+            },
+            {
+              "artist": {
+                "disambiguation": "German score composer",
+                "country": "US",
+                "type": "Person",
+                "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+                "name": "Hans Zimmer",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "sort-name": "Zimmer, Hans"
+              },
+              "name": "Hans Zimmer",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "3b2e49e1-2875-37b8-9fa9-1f7cf3f49900",
+          "disambiguation": ""
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": "",
+          "first-release-date": "2007",
+          "id": "a9368cad-fd41-4a9b-8b13-bca07d75a4fa",
+          "primary-type": "Album",
+          "title": "The Kid A Theory",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": null,
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "primary-type": null,
+          "title": "Megamix 1+2+3=4",
+          "id": "ab63c619-a4f4-4b95-9443-77a1324341f8",
+          "first-release-date": "2008"
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type": "Album",
+          "title": "Un-wired & Raw",
+          "id": "ae075b11-a344-4a6a-8f6a-3d2a5393a7ed",
+          "first-release-date": "",
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "id": "af44dc42-1bf4-4cdc-ad98-cdfdc2312b09",
+          "first-release-date": "2009-11",
+          "title": "The Best of Radiohead",
+          "primary-type": "Album"
+        },
+        {
+          "primary-type": "Album",
+          "title": "OK MTV",
+          "first-release-date": "1997",
+          "id": "afe72a58-1de1-4ebf-a671-97a7b5069003",
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "1993-09-02",
+          "id": "bbfcf0d4-fa9c-4783-abd5-44146862c992",
+          "title": "1993‐09‐02: Signal Radio Studios: Cheshire, UK",
+          "primary-type": "Album"
+        },
+        {
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "title": "2000‐09‐24: Victoria Park, London, UK",
+          "id": "bc6f3ac2-de99-46ce-b61f-28412510ae04",
+          "first-release-date": "2000-09-24"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "id": "bcd690a4-bd50-4be7-822b-138dd5c410b6",
+          "first-release-date": "1995-04-25",
+          "title": "1995‐04‐25: Live Europe 1",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "be5459f1-2d85-4f21-8be6-4fcef7dbda05",
+          "first-release-date": "1994-02-21",
+          "title": "1994‐02‐21: Royal Berks Social Club, Reading, England, UK",
+          "primary-type": "Album"
+        },
+        {
+          "first-release-date": "1997",
+          "id": "c2ac2c8d-51c5-3abf-aafa-3f0e93795151",
+          "title": "Lost Treasures 1993–1997",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": ""
+        },
+        {
+          "primary-type": "Album",
+          "title": "Greatest Hits",
+          "first-release-date": "2008",
+          "id": "c4ae4ebb-2d68-4ba7-9c81-18ad7cb9022f",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "id": "cba3bc38-dbc2-408c-a29b-88d97929bc95",
+          "first-release-date": "1996-04-16",
+          "primary-type": "Album",
+          "title": "1996‐04‐16: La Cigale, Paris, France",
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "cdfa212c-3a46-49b6-8041-9adb49d72f13",
+          "first-release-date": "1997-08-26",
+          "title": "1997‐08‐26: Hammerstein Ballroom, New York, NY, USA",
+          "primary-type": "Album"
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "title": "B Sides",
+          "id": "ceee3ae6-d614-350d-92ee-9c0b001a1440",
+          "first-release-date": "",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "country": "GB"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "12af3f5e-ce2a-3941-8b93-d482884031e5"
+          ],
+          "secondary-types": [
+            "Interview"
+          ],
+          "primary-type": "Album",
+          "title": "An Interview with Jonny and Colin Greenwood",
+          "first-release-date": "2000",
+          "id": "cfb30e6e-48a9-4e3f-b7c9-f70d2f7f7262"
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type": "Album",
+          "title": "Gagging Order: Acoustic Renditions",
+          "first-release-date": "",
+          "id": "cfb8d0b5-65ed-3cdc-888d-9100efcf3d65"
+        },
+        {
+          "primary-type": "Album",
+          "title": "Ground Control to Major Thom",
+          "first-release-date": "1997",
+          "id": "d0271409-f1a8-4b47-98d8-f61364f73354",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "first-release-date": "",
+          "id": "d4fe59d3-4d22-3f99-8a08-b07cb548c949",
+          "title": "Bootleg No. 2: Do Not Tell Me..",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "first-release-date": "",
+          "id": "d814a65a-707e-417d-a83e-89493356b206",
+          "title": "B‐Sides, Vol. 2",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "3b2e49e1-2875-37b8-9fa9-1f7cf3f49900",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Broadcast",
+          "title": "Live in São Paulo (April 2018) At Home #WithMe",
+          "id": "dbd234a2-e558-4f0d-ba19-88a2cca7e200",
+          "first-release-date": "2020-06-11"
+        },
+        {
+          "primary-type": "Album",
+          "title": "Breaks and Beats",
+          "first-release-date": "2005",
+          "id": "dc626f33-2cf3-40b1-9612-c1d5bd2edf64",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "id": "dcfaca33-c71d-3f2d-b8ce-0194ff7fce43",
+          "first-release-date": "",
+          "title": "Fucking Rarities",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "2000-07-04",
+          "id": "e1bf4b7e-a895-395d-9ae9-2362b400a0ef",
+          "title": "2000‐07‐04: Großer Sendesaal des SFB, Berlin, Germany",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type": "Album",
+          "title": "Towering Above the Rest",
+          "first-release-date": "2004",
+          "id": "e449d0a3-5661-338c-a51e-a9910f725fa5"
+        },
+        {
+          "secondary-types": [
+            "Compilation"
+          ],
+          "title": "Les Enfants Terrible",
+          "primary-type": "Album",
+          "id": "e5d384d2-7455-388d-933e-8bc1ae3fad53",
+          "first-release-date": "2000",
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "title": "Greatest Hits 98",
+          "primary-type": "Album",
+          "id": "e607d0d4-b520-37f9-b82b-8aec9e786c72",
+          "first-release-date": "",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "title": "Unplugged: The Complete Acoustic Sessions",
+          "primary-type": "Album",
+          "id": "ebaf8e7b-12f5-39db-9caf-f3b82ceda1eb",
+          "first-release-date": "",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type": "Album",
+          "title": "Secrets to Be Told",
+          "first-release-date": "2015-04",
+          "id": "efa95117-971c-4ad4-aa14-0f2d30a206b3"
+        },
+        {
+          "id": "f279ac4f-7ea9-3b25-8ec4-94bd7d2b7316",
+          "first-release-date": "1997-06-24",
+          "primary-type": "Album",
+          "title": "1997‐06‐24: Interactive: Muziekcentrum Vredenburg, Utrecht, Netherlands",
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "disambiguation": ""
+        },
+        {
+          "disambiguation": "",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "first-release-date": "2000",
+          "id": "f4302994-a6fa-4a4a-9605-355a750468e6",
+          "title": "Looking Back At…",
+          "primary-type": "Album"
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type": "Album",
+          "title": "World Ballads Collection",
+          "id": "f720c4d7-a80d-4466-b92d-9d1de99ddba7",
+          "first-release-date": "1999"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "title": "1995‐12‐04: Planet Paradiso: Paradiso, Amsterdam, Netherlands",
+          "primary-type": "Album",
+          "first-release-date": "1995-12-04",
+          "id": "f8c12cd6-f8ac-37c2-b638-803c1bbcfda2",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "title": "On a Friday",
+          "first-release-date": "",
+          "id": "f950742c-0616-42f3-8eab-010fd6927b75",
+          "secondary-types": [
+            "Compilation"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type": "Album",
+          "title": "10 Great Songs: The Best Of",
+          "first-release-date": "2009",
+          "id": "feb600b9-eb3a-4976-8cf3-d09a818bc01a"
+        }
+      ],
+      "release-group-offset": 100
+    }
+  }
+}

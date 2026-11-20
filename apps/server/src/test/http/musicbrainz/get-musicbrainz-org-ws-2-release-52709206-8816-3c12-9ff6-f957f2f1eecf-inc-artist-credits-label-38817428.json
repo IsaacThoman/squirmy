@@ -1,0 +1,748 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/52709206-8816-3c12-9ff6-f957f2f1eecf?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "media": [
+        {
+          "tracks": [
+            {
+              "title": "Airbag",
+              "number": "1",
+              "length": 284400,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Radiohead",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Radiohead",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "type": "Group",
+                    "country": "GB"
+                  },
+                  "name": "Radiohead"
+                }
+              ],
+              "recording": {
+                "isrcs": [
+                  "GBAYE9701274",
+                  "GBBKS1700107"
+                ],
+                "id": "4a7fea2e-545b-4c63-bc9a-9943cc3a29d7",
+                "title": "Airbag",
+                "artist-credit": [
+                  {
+                    "name": "Radiohead",
+                    "artist": {
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "type": "Group",
+                      "country": "GB",
+                      "name": "Radiohead",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "",
+                "first-release-date": "1997-05-21",
+                "video": false,
+                "length": 284400
+              },
+              "position": 1,
+              "id": "e2a9a170-5f14-3167-9873-22cb314b45a0"
+            },
+            {
+              "length": 383493,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Radiohead",
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Radiohead",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+                  },
+                  "name": "Radiohead"
+                }
+              ],
+              "title": "Paranoid Android",
+              "number": "2",
+              "recording": {
+                "video": false,
+                "length": 384000,
+                "disambiguation": "",
+                "first-release-date": "1997-05-21",
+                "title": "Paranoid Android",
+                "artist-credit": [
+                  {
+                    "name": "Radiohead",
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Radiohead",
+                      "disambiguation": "",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "sort-name": "Radiohead"
+                    }
+                  }
+                ],
+                "id": "9f9cf187-d6f9-437f-9d98-d59cdbd52757",
+                "isrcs": [
+                  "GBAYE9701376",
+                  "GBBKS1700108"
+                ]
+              },
+              "position": 2,
+              "id": "3744d724-821e-3b0a-97c8-c156af4ca2cf"
+            },
+            {
+              "length": 267706,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Radiohead",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Radiohead",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "country": "GB",
+                    "type": "Group"
+                  },
+                  "name": "Radiohead"
+                }
+              ],
+              "title": "Subterranean Homesick Alien",
+              "number": "3",
+              "recording": {
+                "title": "Subterranean Homesick Alien",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Radiohead",
+                      "disambiguation": "",
+                      "type": "Group",
+                      "country": "GB",
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+                    },
+                    "name": "Radiohead"
+                  }
+                ],
+                "id": "bd82738d-163c-4b1a-bfaf-7acffe30e68a",
+                "isrcs": [
+                  "GBAYE9701377",
+                  "GBBKS1700109"
+                ],
+                "video": false,
+                "length": 267706,
+                "disambiguation": "",
+                "first-release-date": "1997-05-21"
+              },
+              "position": 3,
+              "id": "16e15ac9-345b-3156-92bd-dc59fcef169e"
+            },
+            {
+              "recording": {
+                "video": false,
+                "length": 264800,
+                "disambiguation": "",
+                "first-release-date": "1997-05-21",
+                "title": "Exit Music (for a Film)",
+                "artist-credit": [
+                  {
+                    "name": "Radiohead",
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Radiohead",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "GBAYE9701372",
+                  "GBBKS1700110"
+                ],
+                "id": "23c3c36b-9449-4484-9040-6ef2125999aa"
+              },
+              "id": "0abf8291-9d30-3e39-bb2f-08b8020dd432",
+              "position": 4,
+              "length": 264800,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "sort-name": "Radiohead",
+                    "type": "Group",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "name": "Radiohead",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "Radiohead"
+                }
+              ],
+              "title": "Exit Music (for a Film)",
+              "number": "4"
+            },
+            {
+              "recording": {
+                "video": false,
+                "length": 299266,
+                "disambiguation": "",
+                "first-release-date": "1997-05-21",
+                "title": "Let Down",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "sort-name": "Radiohead",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "Radiohead",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "Radiohead"
+                  }
+                ],
+                "id": "47b02a82-c3bf-4647-b894-dd1c8f608e7f",
+                "isrcs": [
+                  "GBAYE9701374",
+                  "GBBKS1700111"
+                ]
+              },
+              "id": "cdc141fc-25f1-3961-aed5-30cda2846f37",
+              "position": 5,
+              "number": "5",
+              "title": "Let Down",
+              "length": 299266,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "sort-name": "Radiohead",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Radiohead"
+                  },
+                  "joinphrase": "",
+                  "name": "Radiohead"
+                }
+              ]
+            },
+            {
+              "position": 6,
+              "id": "4ad41fae-6907-3a0d-b815-a8dfc75aa055",
+              "recording": {
+                "isrcs": [
+                  "GBAYE9701368",
+                  "GBAYE9701424",
+                  "GBBKS1700112"
+                ],
+                "id": "9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Group",
+                      "country": "GB",
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Radiohead"
+                    },
+                    "name": "Radiohead"
+                  }
+                ],
+                "title": "Karma Police",
+                "first-release-date": "1997-05-21",
+                "disambiguation": "",
+                "length": 262426,
+                "video": false
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Radiohead",
+                    "disambiguation": "",
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "sort-name": "Radiohead"
+                  },
+                  "joinphrase": "",
+                  "name": "Radiohead"
+                }
+              ],
+              "length": 261626,
+              "title": "Karma Police",
+              "number": "6"
+            },
+            {
+              "number": "7",
+              "title": "Fitter Happier",
+              "length": 117333,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Radiohead",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "type": "Group",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "name": "Radiohead",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "Radiohead"
+                }
+              ],
+              "recording": {
+                "video": false,
+                "length": 117333,
+                "disambiguation": "",
+                "first-release-date": "1997-05-21",
+                "title": "Fitter Happier",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "type": "Group",
+                      "country": "GB",
+                      "name": "Radiohead",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "Radiohead"
+                  }
+                ],
+                "id": "5838f978-0822-4e28-874f-e1511324ec3a",
+                "isrcs": [
+                  "GBAYE9701373",
+                  "GBBKS1700113"
+                ]
+              },
+              "position": 7,
+              "id": "b3432445-6de9-397d-833a-0ed780821676"
+            },
+            {
+              "title": "Electioneering",
+              "number": "8",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Radiohead",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "country": "GB",
+                    "type": "Group",
+                    "disambiguation": "",
+                    "name": "Radiohead",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "Radiohead"
+                }
+              ],
+              "length": 230640,
+              "position": 8,
+              "id": "165fa016-616d-3319-b04a-6c5cc3dfd675",
+              "recording": {
+                "length": 230640,
+                "video": false,
+                "first-release-date": "1997-05-21",
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Radiohead",
+                    "artist": {
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "country": "GB",
+                      "type": "Group",
+                      "disambiguation": "",
+                      "name": "Radiohead",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "Electioneering",
+                "isrcs": [
+                  "GBAYE9701371",
+                  "GBBKS1700114"
+                ],
+                "id": "ba0a796c-bd1f-4d4b-85a8-918f217a204a"
+              }
+            },
+            {
+              "length": 285200,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "sort-name": "Radiohead",
+                    "type": "Group",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "name": "Radiohead",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "Radiohead"
+                }
+              ],
+              "title": "Climbing Up the Walls",
+              "number": "9",
+              "recording": {
+                "video": false,
+                "length": 285200,
+                "disambiguation": "",
+                "first-release-date": "1997-05-21",
+                "title": "Climbing Up the Walls",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "sort-name": "Radiohead",
+                      "type": "Group",
+                      "country": "GB",
+                      "name": "Radiohead",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "name": "Radiohead"
+                  }
+                ],
+                "id": "c7225576-001e-423c-adc1-58f0985dcb27",
+                "isrcs": [
+                  "GBAYE9701370",
+                  "GBBKS1700115"
+                ]
+              },
+              "id": "a4e6b84a-f49f-373f-9406-67b99a9b8dce",
+              "position": 9
+            },
+            {
+              "length": 228533,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Radiohead",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Radiohead"
+                  },
+                  "joinphrase": "",
+                  "name": "Radiohead"
+                }
+              ],
+              "number": "10",
+              "title": "No Surprises",
+              "recording": {
+                "video": false,
+                "length": 228533,
+                "disambiguation": "",
+                "first-release-date": "1997-05-21",
+                "title": "No Surprises",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Radiohead",
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+                    },
+                    "joinphrase": "",
+                    "name": "Radiohead"
+                  }
+                ],
+                "isrcs": [
+                  "GBAYE9700386",
+                  "GBBKS1700116"
+                ],
+                "id": "980a426e-623e-4ea5-98c7-008d037a0508"
+              },
+              "id": "e5471775-3f7a-3c4b-a0d6-75c2e2a45192",
+              "position": 10
+            },
+            {
+              "title": "Lucky",
+              "number": "11",
+              "length": 259626,
+              "artist-credit": [
+                {
+                  "name": "Radiohead",
+                  "artist": {
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Radiohead",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Radiohead",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "video": false,
+                "length": 259626,
+                "disambiguation": "",
+                "first-release-date": "1995-09-09",
+                "title": "Lucky",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Radiohead"
+                    },
+                    "joinphrase": "",
+                    "name": "Radiohead"
+                  }
+                ],
+                "id": "79047824-f821-4b1a-9893-e0cea1c947dd",
+                "isrcs": [
+                  "GBAQT9500141",
+                  "GBAYE9701375",
+                  "GBBKS1700117"
+                ]
+              },
+              "id": "812d349d-e19b-325f-983f-5052b22ad075",
+              "position": 11
+            },
+            {
+              "position": 12,
+              "id": "bedeb0d5-ff40-367a-bbe2-7ec446759bee",
+              "recording": {
+                "video": false,
+                "length": 324533,
+                "disambiguation": "",
+                "first-release-date": "1997-05-21",
+                "title": "The Tourist",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Radiohead",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "sort-name": "Radiohead",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "name": "Radiohead"
+                  }
+                ],
+                "isrcs": [
+                  "GBAYE9701378",
+                  "GBBKS1700118"
+                ],
+                "id": "610c0012-6eb4-42a0-b759-3a2532ce0f15"
+              },
+              "number": "12",
+              "title": "The Tourist",
+              "artist-credit": [
+                {
+                  "name": "Radiohead",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Radiohead",
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Radiohead",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 324533
+            }
+          ],
+          "track-offset": 0,
+          "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+          "id": "7b8296aa-96c5-3817-8ab4-cb28bddf6932",
+          "title": "",
+          "format": "CD",
+          "position": 1,
+          "track-count": 12
+        }
+      ],
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "artist": {
+            "sort-name": "Radiohead",
+            "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "country": "GB",
+            "type": "Group",
+            "name": "Radiohead",
+            "disambiguation": "",
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+          },
+          "name": "Radiohead"
+        }
+      ],
+      "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+      },
+      "barcode": "724385522925",
+      "asin": "B000002UJQ",
+      "release-events": [
+        {
+          "date": "1997-06-16",
+          "area": {
+            "disambiguation": "",
+            "name": "Europe",
+            "type-id": null,
+            "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+            "iso-3166-1-codes": [
+              "XE"
+            ],
+            "sort-name": "Europe",
+            "type": null
+          }
+        }
+      ],
+      "title": "OK Computer",
+      "quality": "normal",
+      "id": "52709206-8816-3c12-9ff6-f957f2f1eecf",
+      "relations": [
+        {
+          "type": "amazon asin",
+          "attribute-ids": {},
+          "ended": false,
+          "attributes": [],
+          "begin": null,
+          "target-credit": "",
+          "url": {
+            "id": "11a90c35-c00a-447e-88c5-67031538772d",
+            "resource": "https://www.amazon.de/gp/product/B000002UJQ"
+          },
+          "end": null,
+          "direction": "forward",
+          "target-type": "url",
+          "type-id": "4f2e710d-166c-480c-a293-2e2c8d658d87",
+          "source-credit": "",
+          "attribute-values": {}
+        },
+        {
+          "type": "discogs",
+          "ended": false,
+          "attribute-ids": {},
+          "attributes": [],
+          "url": {
+            "resource": "https://www.discogs.com/release/1399301",
+            "id": "b1bb95da-99ce-4a23-9776-e46a75b778ec"
+          },
+          "target-credit": "",
+          "begin": null,
+          "end": null,
+          "target-type": "url",
+          "direction": "forward",
+          "type-id": "4a78823c-1c53-4176-a5f3-58026c76f2bc",
+          "attribute-values": {},
+          "source-credit": ""
+        }
+      ],
+      "release-group": {
+        "title": "OK Computer",
+        "artist-credit": [
+          {
+            "name": "Radiohead",
+            "joinphrase": "",
+            "artist": {
+              "sort-name": "Radiohead",
+              "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+              "type": "Group",
+              "country": "GB",
+              "name": "Radiohead",
+              "disambiguation": "",
+              "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+            }
+          }
+        ],
+        "secondary-type-ids": [],
+        "id": "b1392450-e666-3926-a536-22c65f834433",
+        "secondary-types": [],
+        "disambiguation": "",
+        "primary-type": "Album",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "first-release-date": "1997-05-21"
+      },
+      "cover-art-archive": {
+        "front": true,
+        "back": true,
+        "count": 27,
+        "darkened": false,
+        "artwork": true
+      },
+      "disambiguation": "EMI UDEN, made in Italy, printed in Italy",
+      "label-info": [
+        {
+          "label": {
+            "disambiguation": "",
+            "name": "Parlophone",
+            "label-code": 299,
+            "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+            "sort-name": "Parlophone",
+            "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+            "type": "Original Production"
+          },
+          "catalog-number": "8 55229 2"
+        }
+      ],
+      "country": "XE",
+      "status": "Official",
+      "packaging": "Jewel Case",
+      "date": "1997-06-16",
+      "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+    }
+  }
+}
