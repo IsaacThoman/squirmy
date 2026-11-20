@@ -72,7 +72,7 @@ export function SeekBar({ durationMs, onSeek, disabled, className }: { durationM
 }
 
 /** A mute toggle and a volume slider. */
-export function VolumeControl({ volume, onChange, className }: { volume: number; onChange: (volume: number) => void; className?: string }) {
+export function VolumeControl({ volume, onChange, label = 'Volume', fill, className }: { volume: number; onChange: (volume: number) => void; label?: string; fill?: boolean; className?: string }) {
   const [restore, setRestore] = useState(volume || 0.7)
   const Icon = volume === 0 ? VolumeX : volume < 0.34 ? Volume : volume < 0.67 ? Volume1 : Volume2
   return (
@@ -87,7 +87,7 @@ export function VolumeControl({ volume, onChange, className }: { volume: number;
       >
         <Icon />
       </IconButton>
-      <Slider label="Volume" value={Math.round(volume * 100)} max={100} step={5} valueText={`${Math.round(volume * 100)}%`} onValueChange={value => onChange(value / 100)} className="w-24" />
+      <Slider label={label} value={Math.round(volume * 100)} max={100} step={5} valueText={`${Math.round(volume * 100)}%`} onValueChange={value => onChange(value / 100)} className={fill ? 'flex-1' : 'w-24'} />
     </div>
   )
 }

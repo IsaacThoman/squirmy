@@ -358,6 +358,27 @@ describe('SessionClient sync', () => {
     expect(next).not.toBe(snapshot)
     expect(next.queue).toBe(snapshot.queue)
   })
+  it('renames the device with a fresh hello and keeps its commands', async () => {
+    const { server, client, transport, settle } = setup({ canPlay: false })
+    const names: string[] = []
+    const receive = server.receive.bind(server)
+    server.receive = (from, event, payload, reply) => {
+      if (event === 'session:hello') names.push((payload as AckPayload<'session:hello'>).device.name)
+      receive(from, event, payload, reply)
+    }
+    await settle()
+    client.dispatch({ type: 'setRepeat', value: 'one' })
+    client.rename('Kitchen')
+    client.rename('Kitchen')
+    await settle()
+    expect(names).toEqual(['Phone', 'Kitchen'])
+    expect(client.getSnapshot()).toMatchObject({ connection: 'online', session: { repeat: 'one' } })
+    expect(server.session.repeat).toBe('one')
+    transport.disconnect()
+    transport.connect()
+    await settle()
+    expect(names).toEqual(['Phone', 'Kitchen', 'Kitchen'])
+  })
 })
 
 describe('SessionClient engine', () => {

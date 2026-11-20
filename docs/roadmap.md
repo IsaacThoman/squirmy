@@ -21,15 +21,15 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
 - [x] Loudness measurement and normalization values
 - [x] Likes, playlists, history, user settings
-- [ ] Web app: setup, login, library, album and artist pages, player, queue
+- [x] Web app: setup, login, library, album and artist pages, player, queue
 - [x] Mobile app: connect, login, real data, real audio, lock-screen controls
 
 ## 3. Connect
 
 - [x] Server-held session with command log and versions
-- [ ] Device list, transfer, remote control (mobile done; web to do)
-- [ ] Reconnect rule and device-lost handling (mobile done; web to do)
-- [ ] Live invalidations on web and mobile (mobile done)
+- [x] Device list, transfer, remote control
+- [x] Reconnect rule and device-lost handling
+- [x] Live invalidations on web and mobile
 
 ## 4. Identify and reorganize
 
@@ -42,7 +42,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 5. OpenSubsonic
 
-- [x] `/rest` router with XML and JSON ([subsonic.md](./subsonic.md))
+- [x] `/rest` router with XML and JSON ([subsonic.md](./server/subsonic.md))
 - [x] App passwords and API keys
 - [x] Browsing, search, streaming, cover art, stars, playlists, scrobble, play queue, lyrics
 - [x] Client test pass: py-opensonic, py-sonic, subsonic-api (Node) and Airsonic Refix
@@ -54,7 +54,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Resolve stubs on open (enrichment)
 - [ ] Artist and album pages for music you do not own
 - [ ] Wantlist and new-release feed
-- [ ] Gray-out on web and mobile
+- [x] Gray-out on web
+- [ ] Gray-out on mobile
 
 ## 7. Add and take
 
@@ -67,10 +68,10 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Acquisition provider protocol, on-demand playback, policy (server and API; admin screens to do) ([provider-protocol.md](./provider-protocol.md))
 - [x] Reference adapters: cold storage and mock (`adapters/`)
-- [x] Scrobbling to ListenBrainz and Last.fm (server, API and mobile settings; web settings to do)
+- [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
 - [x] Radio and autoplay (server and API)
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
-- [ ] Documentation site
+- [x] Documentation site ([docs/](./index.md), built with VitePress)
 
 ## Deferred
 

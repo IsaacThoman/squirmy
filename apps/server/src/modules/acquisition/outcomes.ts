@@ -7,8 +7,11 @@
  * notification lost while the listening connection reconnects would leave an entry
  * `preparing` until the session reloads, so the API process also reconciles every half
  * minute: for recordings of jobs that finished recently, owned means ready, and not owned
- * with no job still working on it means failed. Marking an entry that is no longer
- * preparing changes nothing.
+ * with no job still working on it means failed. Marking an entry ready again changes
+ * nothing, and failing a track never stops a current entry that is ready: it is playing.
+ *
+ * Ready may come before the job ends: `acquisition.finish` announces recordings as soon as
+ * a delivered file is usable, while the import is still identifying.
  */
 import { sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'

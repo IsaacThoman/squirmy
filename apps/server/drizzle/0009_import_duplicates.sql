@@ -1,0 +1,1 @@
+ALTER TABLE "imports" ADD COLUMN "duplicates_decided_at" timestamp with time zone;

@@ -168,7 +168,7 @@ await step('change password', async () => {
 
 await step('app passwords', async () => {
   await page.getByRole('button', { name: 'Create', exact: true }).click()
-  await page.getByLabel('Name').fill('Car stereo')
+  await page.getByLabel('Name', { exact: true }).fill('Car stereo')
   await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
   const secret = page.getByRole('textbox', { name: 'App password' })
   await secret.waitFor()

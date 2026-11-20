@@ -140,7 +140,7 @@ type Pending = {
  */
 export class SessionClient {
   private readonly transport: SessionTransport
-  private readonly device: ClientDevice
+  private device: ClientDevice
   private readonly player: SessionPlayer | undefined
   private readonly now: () => number
   private readonly driftThresholdMs: number
@@ -274,6 +274,13 @@ export class SessionClient {
     this.descriptors.clear()
     this.preloadTarget = null
     if (this.isActive()) this.preloadNext()
+  }
+
+  /** Renames this device. The server and the user's other devices learn the name from a fresh hello. */
+  rename(name: string): void {
+    if (name === this.device.name) return
+    this.device = { ...this.device, name }
+    if (this.transport.isConnected()) this.connect()
   }
 
   /** Changes the normalization mode (the user's setting) and applies it at once. */

@@ -1,5 +1,5 @@
 import type { AlbumSummary, HomeSection, PlaylistSummary } from '@squirmy/contracts'
-import { Play } from 'lucide-react'
+import { FolderPlus, Play } from 'lucide-react'
 import { Link } from 'react-router'
 import { Page } from '@/components/layout/Page'
 import { AlbumCard, ArtistCard, PlaylistCard } from '@/components/music/Cards'
@@ -7,23 +7,43 @@ import { Cover } from '@/components/music/Cover'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { PageTitle, SectionHeader } from '@/components/music/SectionHeader'
 import { TrackList } from '@/components/music/TrackList'
+import { RailSkeleton } from '@/components/music/Skeletons'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/feedback'
+import { plural } from '@/lib/format'
 import { useArtUrl } from '@/lib/artwork'
 import { useTrackActions } from '@/player/use-track-actions'
 
+export type ScanProgress = { processed: number; total: number }
+
 type HomeViewProps = {
   featured: AlbumSummary | null
-  sections: HomeSection[]
+  /** Undefined while loading. */
+  sections: HomeSection[] | undefined
+  /** No music is in the library yet. */
+  empty: boolean
+  /** Admins are pointed at the library settings; members are told to ask one. */
+  canAddMusic: boolean
+  /** Files probed so far while a scan runs. */
+  scan: ScanProgress | null
   onPlayAlbum: (album: AlbumSummary) => void
   onPlayPlaylist: (playlist: PlaylistSummary) => void
 }
 
-export function HomeView({ featured, sections, onPlayAlbum, onPlayPlaylist }: HomeViewProps) {
+export function HomeView({ featured, sections, empty, canAddMusic, scan, onPlayAlbum, onPlayPlaylist }: HomeViewProps) {
   return (
     <Page className="flex flex-col gap-10">
       <PageTitle>Listen now</PageTitle>
+      {!sections && (
+        <div role="status" aria-label="Loading" className="flex flex-col gap-10">
+          <Skeleton className="h-44 rounded-[26px] md:h-64" />
+          <RailSkeleton />
+          <RailSkeleton />
+        </div>
+      )}
+      {sections && empty && <EmptyLibrary canAddMusic={canAddMusic} scan={scan} />}
       {featured && <Hero album={featured} onPlay={() => onPlayAlbum(featured)} />}
-      {sections.map(section => {
+      {sections?.map(section => {
         switch (section.kind) {
           case 'albums':
             return (
@@ -57,6 +77,37 @@ function TrackSection({ title, tracks }: Pick<Extract<HomeSection, { kind: 'trac
     <section>
       <SectionHeader title={title} />
       <div className="-mx-2"><TrackList label={title} tracks={tracks} variant="compact" header={false} {...actions} /></div>
+    </section>
+  )
+}
+
+/** A server with nothing scanned yet: what is happening, and where music comes from. */
+function EmptyLibrary({ canAddMusic, scan }: { canAddMusic: boolean; scan: ScanProgress | null }) {
+  const scanning = scan && scan.total > 0
+  return (
+    <section aria-label="Your library" className="relative isolate overflow-hidden rounded-[26px] bg-surface px-6 py-12 text-center md:px-10 md:py-16">
+      <div aria-hidden className="absolute inset-0 -z-10 bg-[radial-gradient(120%_90%_at_50%_0%,var(--selection),transparent_70%)]" />
+      <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-accent text-on-accent shadow-cover">
+        <FolderPlus className="size-7" />
+      </div>
+      <h2 className="text-balance text-[clamp(1.6rem,3vw,2.25rem)] font-extrabold tracking-[-0.04em]">
+        {scanning ? 'Your music is on its way' : 'Nothing in your library yet'}
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-[15px] leading-relaxed text-muted">
+        {scanning
+          ? `Scanning: ${plural(scan.processed, 'file')} of ${scan.total.toLocaleString()} read. Albums appear here as soon as they are ready.`
+          : canAddMusic
+            ? 'Point Squirmy at the folder that holds your music. Albums show up here as they are scanned, and play while they are identified.'
+            : 'An admin of this server adds the music folders. Albums show up here as soon as one is scanned.'}
+      </p>
+      {canAddMusic && !scanning && (
+        <Button asChild variant="primary" className="mt-6"><Link to="/admin/library"><FolderPlus />Add a music folder</Link></Button>
+      )}
+      {scanning && (
+        <div className="mx-auto mt-6 h-1.5 max-w-xs overflow-hidden rounded-full bg-stroke">
+          <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${Math.min(100, (scan.processed / scan.total) * 100)}%` }} />
+        </div>
+      )}
     </section>
   )
 }

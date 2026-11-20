@@ -12,5 +12,6 @@ data
 .env
 .env.*
 apps/mobile/app
+apps/mobile/assets
 apps/mobile/src
 apps/web/screenshots

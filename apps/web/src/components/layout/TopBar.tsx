@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { IconButton } from '@/components/ui/icon-button'
 import { DropdownMenu } from '@/components/ui/menu'
 import { SearchField } from '@/components/ui/search-field'
+import { useUrlDraft } from '@/lib/use-url-draft'
 import { cn } from '@/lib/utils'
 import { useScrollContainer } from './scroll-context'
 
@@ -16,6 +17,7 @@ export function TopBar({ user, onLogout }: { user: User; onLogout: () => void })
   const scroller = useScrollContainer()
   const [scrolled, setScrolled] = useState(false)
   const onSearch = location.pathname === '/search'
+  const [query, setQuery] = useUrlDraft(onSearch ? params.get('q') ?? '' : '')
 
   useEffect(() => {
     if (!scroller) return
@@ -39,8 +41,11 @@ export function TopBar({ user, onLogout }: { user: User; onLogout: () => void })
         <IconButton label="Go forward" variant="solid" size="sm" onClick={() => navigate(1)} className="bg-overlay backdrop-blur-md max-md:hidden"><ChevronRight /></IconButton>
       </div>
       <SearchField
-        value={onSearch ? params.get('q') ?? '' : ''}
-        onValueChange={value => navigate(`/search${value ? `?q=${encodeURIComponent(value)}` : ''}`, { replace: onSearch })}
+        value={query}
+        onValueChange={value => {
+          setQuery(value)
+          void navigate(`/search${value ? `?q=${encodeURIComponent(value)}` : ''}`, { replace: onSearch })
+        }}
         placeholder="Songs, albums, artists"
         aria-label="Search"
         className="ml-1 w-full max-w-sm max-md:hidden"

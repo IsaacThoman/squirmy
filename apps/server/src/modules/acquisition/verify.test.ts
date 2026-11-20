@@ -120,4 +120,22 @@ describe('delivery verification', () => {
     await delivered(importId, { artist, title: 'Side B' })
     expect(await verifyDelivery(job([first.id, second.id, missing.id], importId))).toEqual([first.id, second.id])
   })
+
+  it('early, counts only files that are hashed and not a copy of another library file', async () => {
+    const artist = await createArtist({ name: 'Early Act' })
+    const importId = newId()
+    const asked = await requested({ artist, title: 'Soon' })
+    const file = await delivered(importId, { artist, title: 'Soon' })
+    expect(await verifyDelivery(job([asked.id], importId), { early: true })).toEqual([])
+
+    await db.update(mediaFiles).set({ probeStage: 2, audioHash: 'same-audio' }).where(eq(mediaFiles.id, file.fileId))
+    const copy = await createAlbum({ owned: true, tracks: [{ title: 'Elsewhere' }] })
+    await db.update(mediaFiles).set({ audioHash: 'same-audio' }).where(eq(mediaFiles.id, copy.tracks[0]!.fileId!))
+    expect(await verifyDelivery(job([asked.id], importId), { early: true })).toEqual([])
+    expect(await mergedInto(file.id)).toBeNull()
+
+    await db.update(mediaFiles).set({ audioHash: 'other-audio' }).where(eq(mediaFiles.id, copy.tracks[0]!.fileId!))
+    expect(await verifyDelivery(job([asked.id], importId), { early: true })).toEqual([asked.id])
+    expect(await mergedInto(file.id)).toBe(asked.id)
+  })
 })

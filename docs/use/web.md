@@ -1,0 +1,65 @@
+# The web app
+
+The web app is served by your Squirmy server at its own address, such as `https://music.example.com`. Sign in, and it is your library, a player, and (for admins) the server's admin pages. This page is a short tour.
+
+## Getting around
+
+The sidebar has **Home**, **Search**, your **Library** (**Albums**, **Artists**, **Songs**), the **Wantlist**, and your **Playlists** with **Liked Songs** at the top. **New playlist** (the **+** next to Playlists) makes one. Admins also see **Admin**.
+
+The menu under your name, top right, has **Settings**, **Admin** (for admins) and **Log out**.
+
+- **Home** shows a featured album (what you played last, else what was added last) and rows of recently added and recently played albums, most played songs, your playlists, liked albums, your wantlist and new releases by artists in your library. On a server with no music yet it says so; admins get **Add a music folder**, which opens **Admin → Library**.
+- **Library** pages load as you scroll and can be sorted and filtered by genre. Counts read "60+" until the last page arrives.
+- **Album, artist and playlist pages** play from the header. Artist pages can start a radio. The first open of an artist the server knows little about can take a few seconds while it fetches the details.
+- **Playlists** you own can be renamed, made public or private, reordered by dragging or with **Move up** and **Move down**, and deleted.
+
+## Search
+
+Type in **Search** (or the search field at the top). Two searches run at once:
+
+- **Your library** comes first, at full brightness, and tolerates typos and word order.
+- **Everything else** comes below, in gray, from the server's catalog search (Deezer by default, or the [local search index](../server/metadata-and-privacy.md#the-local-search-index)). Gray albums and songs are not on your server; bookmark them to your [wantlist](./wantlist.md).
+
+Browse-by-genre tiles open your library filtered to that genre.
+
+## Playing music
+
+Click a song, or the play button on an album or playlist. The player bar at the bottom has the transport, the seek bar, volume, **Save to Liked Songs**, **Lyrics**, **Queue** and **Devices**. Click the track to open **Now Playing**, full screen, with lyrics (synced lyrics follow the song, and clicking a line jumps to it) or the queue beside the artwork.
+
+- **Song menus** (right-click or the **⋯** button): **Play next**, **Add to queue**, **Add to playlist** (or **New playlist…**), **Start radio**, **Go to album**, and **Add to Wantlist** for music you do not have. You can also drag songs onto a playlist, or onto Liked Songs, in the sidebar.
+- **Queue**: reorder by dragging, or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history. **Autoplay** keeps music going with similar songs from your library when the queue runs out.
+- **Your settings** in **Settings → Playback**: **Volume normalization**, **Streaming quality**, **Cellular quality** (for the iOS app), and **This browser's name**. See [Playback](../server/playback.md).
+
+## Devices
+
+Every open tab is a device in your one playback session. When music plays somewhere else, the player bar says "Playing on …" with **Play here**; the controls drive that device and this tab plays nothing. **Devices** lists where you can play, including **Play in this tab**. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
+
+If the browser refuses to start audio on its own (after a transfer or a reload), a notice says "Your browser is holding back audio"; choose **Enable audio**. "Reconnecting to the server…" means the live connection dropped; it comes back by itself, and behind a proxy it usually means WebSockets are not passed through.
+
+## Settings
+
+**Settings** also holds **Scrobbling** ([ListenBrainz and Last.fm](../server/scrobbling.md)), **App passwords** for [Subsonic apps](../server/subsonic.md), and **Account**: **Edit name**, **Change password** and **Log out**.
+
+## Admin
+
+Admins manage the server here. Each page has its own guide:
+
+| Page | Guide |
+|---|---|
+| **Library** | [Your library](../server/library.md) |
+| **Review queue** | [The review queue and Fix match](../server/library.md#the-review-queue-and-fix-match) |
+| **Organize** | [Organizing files](../server/organizing.md) |
+| **Search index** | [The local search index](../server/metadata-and-privacy.md#the-local-search-index) |
+| **Providers** | A placeholder for now; see [Acquisition providers](../server/acquisition.md) |
+| **Users & invites** | [Users and access](../server/users.md) |
+| **Server settings** | [Configuration](../server/configuration.md#server-settings) |
+| **Jobs** | [Troubleshooting](../server/troubleshooting.md#logs-and-the-jobs-page) |
+
+## Not there yet
+
+- **Uploading from the browser.** There is no upload screen yet; uploads go through the API ([Adding music](../server/adding-music.md#uploading)).
+- **Managing acquisition providers.** **Admin → Providers** shows placeholder entries; providers are managed through the API.
+- **Full pages for music you do not own.** Opening a gray album or artist shows what the catalog knows, which can be thin until its details are fetched.
+- **A history page.** Recent listening is under **History** at the top of the queue panel and in Home's "Recently played".
+
+See [keyboard shortcuts](./keyboard-shortcuts.md).

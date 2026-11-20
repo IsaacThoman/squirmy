@@ -26,6 +26,8 @@ type RootRow = typeof libraryRoots.$inferSelect
 export type ImportWork = {
   /** Per staged archive (by its staged path): where it extracts to, or why it was refused. */
   archives?: Record<string, { target?: string; rejected?: string; extracted?: number; skipped?: number; done?: boolean }>
+  /** The files identification decided were duplicates, by path, so a rerun can finish removing them. */
+  duplicates?: string[]
   /** The organize batch that files the import's identified albums. */
   batchId?: string
   /** The inbox an inbox import came from, so a failed one can be put back. */
@@ -79,8 +81,7 @@ export function toImport(row: ImportRow): Import {
 /** Sends `import.updated` to the import's owner and to admins. Works from any process. */
 export async function announceImport(row: Pick<ImportRow, 'id' | 'userId' | 'status'>) {
   const event = { type: 'import.updated' as const, importId: row.id, status: row.status }
-  if (row.userId) await publish({ user: row.userId }, event)
-  await publish('admins', event)
+  await publish(row.userId ? [{ user: row.userId }, 'admins'] : 'admins', event)
 }
 
 export async function loadImport(importId: string): Promise<ImportRow> {

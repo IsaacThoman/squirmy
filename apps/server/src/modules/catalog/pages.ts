@@ -18,9 +18,39 @@ async function resolveOrThrow(table: 'artists' | 'albums' | 'recordings', id: st
   return resolved
 }
 
+export type AlbumTrack = { recordingId: string; disc: number; position: number | null; discTitle: string | null }
+
 /**
- * The album page: its summary plus the canonical release's track list grouped by disc,
- * every track with its own availability. Fetches missing detail first.
+ * The album's track list, the one every view of an album uses: the canonical release's
+ * tracks in disc and track order, then owned recordings filed under the album that are
+ * not on that release (bonus tracks of another edition, files matching attached with no
+ * track), in path order on the last disc. Those have no position: the release does not
+ * number them, and a number from their tags could repeat one of its own.
+ */
+export async function albumTrackList(albumId: string): Promise<AlbumTrack[]> {
+  return db.execute<AlbumTrack>(sql`
+    with canonical as (
+      select rt.recording_id, rt.disc, rt.position, rt.disc_title
+      from albums a join release_tracks rt on rt.release_id = ${canonicalRelease('a')}
+      where a.id = ${albumId}
+    ),
+    extras as (
+      select f.recording_id, min(f.rel_path collate "C") as first_path from media_files f
+      where f.album_id = ${albumId} and f.recording_id is not null and f.missing_since is null
+        and f.recording_id not in (select recording_id from canonical)
+      group by f.recording_id
+    )
+    select "recordingId", disc, position, "discTitle" from (
+      select recording_id as "recordingId", disc, position, disc_title as "discTitle", 0 as part, null as first_path from canonical
+      union all
+      select recording_id, coalesce((select max(disc) from canonical), 1), null, null, 1, first_path from extras
+    ) list
+    order by part, disc, position, first_path, "recordingId"`)
+}
+
+/**
+ * The album page: its summary plus the album's track list (`albumTrackList`) grouped by
+ * disc, every track with its own availability. Fetches missing detail first.
  */
 export async function albumDetail(userId: string, id: string): Promise<AlbumDetail> {
   await ensureAlbumDetail(await resolveOrThrow('albums', id, 'album'))
@@ -34,11 +64,7 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
         exists (select 1 from wants w where w.user_id = ${userId} and w.entity_type = 'album' and w.entity_id = a.id and w.fulfilled_at is null) as wanted
       from albums a left join releases rl on rl.id = ${canonicalRelease('a')}
       where a.id = ${albumId}`),
-    db.execute<{ recordingId: string; disc: number; position: number; discTitle: string | null }>(sql`
-      select rt.recording_id as "recordingId", rt.disc, rt.position, rt.disc_title as "discTitle"
-      from albums a join release_tracks rt on rt.release_id = ${canonicalRelease('a')}
-      where a.id = ${albumId}
-      order by rt.disc, rt.position`),
+    albumTrackList(albumId),
   ])
   if (!summary || !extra) throw notFound('No such album', 'album_not_found')
 

@@ -10,7 +10,7 @@ import { deliver } from '@squirmy/provider-kit'
 import { and, eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect } from 'socket.io-client'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { acquisitionJobs, acquisitionMisses, imports, mediaFiles, recordings } from '../../database/schema.js'
@@ -141,6 +141,7 @@ describe('acquisition end to end', () => {
   const play = (target: Device, trackIds: string[], albumId: string) => target.client.dispatch({
     type: 'playTracks', tracks: trackIds.map((trackId) => ({ trackId, albumId, durationMs: 0 })), seed: 1,
   })
+  const summaryOf = async (id: string) => body(await app.inject({ url: `/api/v1/tracks/${id}`, headers: fan.headers }), TrackSummary)
   const jobsFor = (recordingId: string) => db.select().from(acquisitionJobs).where(sql`${acquisitionJobs.recordingIds} @> array[${recordingId}]::uuid[]`).orderBy(acquisitionJobs.id)
   const acquire = (user: User, recordingId: string) => app.inject({ method: 'POST', url: `/api/v1/tracks/${recordingId}/acquire`, headers: user.headers })
   const settle = async (recordingId: string) => {
@@ -169,6 +170,7 @@ describe('acquisition end to end', () => {
     await eventually(() => expect(phone.engine.getStatus().state).toBe('playing'), 5000)
     expect(Date.now() - started).toBeLessThan(60_000)
 
+    await settle(wanted)
     const [job] = await jobsFor(wanted)
     expect(job).toMatchObject({
       status: 'completed', error: null, providerId, requestedBy: fan.id, recordingId: wanted, albumId: album.albumId, recordingIds: [wanted],
@@ -189,6 +191,93 @@ describe('acquisition end to end', () => {
     const statuses = phone.events.flatMap((event) => event.type === 'acquisition.updated' && event.jobId === job!.id ? [event.status] : [])
     expect(statuses).toEqual(['resolving', 'queued', 'downloading', 'importing', 'completed'])
     expect(phone.engine.calls.filter(([method]) => method === 'load')).toHaveLength(1)
+  })
+
+  /**
+   * Turns MusicBrainz on and answers its requests (with nothing found) only once the
+   * returned function is called, so identification of a delivery waits until then.
+   */
+  async function holdIdentification(): Promise<() => Promise<void>> {
+    let open!: () => void
+    const gate = new Promise<void>((resolve) => {
+      open = resolve
+    })
+    const realFetch = globalThis.fetch
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const target = input instanceof Request ? input.url : String(input)
+      if (!new URL(target).hostname.endsWith('musicbrainz.org')) return realFetch(input, init)
+      await gate
+      return Response.json({})
+    })
+    await updateServerSettings({ musicBrainzEnabled: true })
+    return async () => {
+      open()
+      try {
+        await drainJobs()
+      } finally {
+        spy.mockRestore()
+        await updateServerSettings({ musicBrainzEnabled: false })
+      }
+    }
+  }
+
+  it('plays an on-demand track as soon as its file is usable, while identification is still running', async () => {
+    const album = await createAlbum({ title: 'Slow To Identify', tracks: [{ title: 'Early Bird', durationMs: 4000 }] })
+    const wanted = album.tracks[0]!.recordingId
+    const release = await holdIdentification()
+    let elapsed: number
+    try {
+      // A user of their own: the fan's session still names the first test's device as active.
+      const phone = await device(await signIn({ canAcquire: true }))
+      const started = performance.now()
+      play(phone, [wanted], album.albumId)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }), 20_000)
+      elapsed = performance.now() - started
+      await eventually(() => expect(phone.engine.getStatus().state).toBe('playing'), 5000)
+
+      const [job] = await jobsFor(wanted)
+      expect(job!.status).toBe('importing')
+      const [identifying] = await db.select().from(imports).where(eq(imports.id, job!.importId!))
+      expect(identifying).toMatchObject({ status: 'processing', step: 'identifying' })
+      expect((await summaryOf(wanted)).availability).toBe('server')
+    } finally {
+      await release()
+    }
+    await settle(wanted)
+    expect((await jobsFor(wanted))[0]).toMatchObject({ status: 'completed', error: null })
+    expect(elapsed).toBeLessThan(10_000)
+  })
+
+  it('keeps playing a track identification later finds to be another recording, and fails its future plays', async () => {
+    const album = await createAlbum({ title: 'Mistaken Identity', tracks: [{ title: 'Lookalike', durationMs: 4000, mbid: crypto.randomUUID() }] })
+    const wanted = album.tracks[0]!.recordingId
+    const [other] = await db.insert(recordings).values({
+      id: newId(), mbid: crypto.randomUUID(), title: 'Lookalike (Live)', artistCredit: album.artist.name, titleKey: 'lookalike live', matchKey: 'x|lookalike live',
+    }).returning()
+    const release = await holdIdentification()
+    let phone: Device
+    try {
+      phone = await device(await signIn({ canAcquire: true }))
+      play(phone, [wanted, wanted], album.albumId)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }), 20_000)
+      await eventually(() => expect(phone.engine.getStatus().state).toBe('playing'), 5000)
+      // What matching does when it decides the file is another recording.
+      const [job] = await jobsFor(wanted)
+      const linked = await db.update(mediaFiles).set({ recordingId: other!.id, matchStatus: 'matched' })
+        .where(sql`starts_with(${mediaFiles.relPath}, ${`_Incoming/${job!.importId}/`})`).returning()
+      expect(linked).toHaveLength(1)
+    } finally {
+      await release()
+    }
+    await settle(wanted)
+    const [job] = await jobsFor(wanted)
+    expect(job).toMatchObject({ status: 'failed', error: 'Identification found the delivery is a different recording after it had started playing' })
+    expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, wanted))).toHaveLength(1)
+    await eventually(() => expect(phone.client.getSnapshot().queue.queue[0]).toMatchObject({ trackId: wanted, state: 'failed' }), 5000)
+    expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' })
+    expect(phone.engine.getStatus().state).toBe('playing')
   })
 
   it('collapses requests for the same track into one job', async () => {

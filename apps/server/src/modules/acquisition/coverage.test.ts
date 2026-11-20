@@ -121,7 +121,9 @@ describe('on-demand coverage', () => {
     await events.stop()
 
     expect(mock.resolved).toHaveLength(250)
-    expect(mock.resolved[0]).toMatchObject({ kind: 'recording', recording: { title: 'Track 1', artist: album.artist.name, album: { title: 'Big Box', position: 1, disc: 1 } } })
+    // The batches resolve concurrently, so the first track can arrive in any position.
+    const first = mock.resolved.find((item) => item.kind === 'recording' && item.recording.title === 'Track 1')
+    expect(first).toMatchObject({ kind: 'recording', recording: { title: 'Track 1', artist: album.artist.name, album: { title: 'Big Box', position: 1, disc: 1 } } })
     const odd = ids.filter((_, index) => index % 2 === 0)
     expect(await onDemandRecordings(ids)).toEqual(new Set(odd))
     expect(await db.$count(acquisitionOffers, eq(acquisitionOffers.providerId, created.id))).toBe(125)

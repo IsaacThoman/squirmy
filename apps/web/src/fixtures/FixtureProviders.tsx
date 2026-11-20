@@ -1,19 +1,27 @@
 import type { QueueEntry, TrackSummary } from '@squirmy/contracts'
 import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { LibraryContext, type LibraryActions } from '@/player/library-context'
-import { PlayerContext, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem } from '@/player/player-context'
+import { PlayerContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem } from '@/player/player-context'
 import { ArtUrlContext } from '@/lib/artwork'
-import { fixtureArtUrl, lyricsFor, track } from './catalog'
+import { toast } from '@/lib/toast'
+import { fixtureArtUrl, lyricsFor, playlistSummaries, track } from './catalog'
 import { devices, thisDeviceId } from './server'
 
 /**
- * Stands in for the session client and the API until they exist: holds a playback session in
- * memory, advances a fake clock, and remembers likes and wants for this page load. No audio.
+ * Stands in for the session client and the API in tests and on the /dev pages: holds a
+ * playback session in memory, advances a fake clock, and remembers wants for this page
+ * load. No audio, and no network.
  */
 export function FixtureProviders({ children, initial }: { children: ReactNode; initial?: Partial<PlayerState> }) {
   const [{ session: state, position }, dispatch] = useReducer(clock, initial, init)
   const library = useFixtureLibrary()
   const advancing = state.playing && state.current?.entry.state === 'ready'
+  const [positionClock] = useState(() => {
+    let current = 0
+    const shown = new PositionClock(() => current)
+    return { shown, set: (next: number) => { current = next; shown.sync() } }
+  })
+  useEffect(() => positionClock.set(position), [positionClock, position])
 
   useEffect(() => {
     if (!advancing) return
@@ -36,17 +44,23 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
       next: () => restart({ type: 'next' }),
       previous: () => dispatch({ type: 'previous' }),
       seek: positionMs => dispatch({ type: 'seek', positionMs }),
-      setVolume: volume => dispatch({ type: 'patch', patch: () => ({ volume }) }),
+      setVolume: volume => dispatch({ type: 'patch', patch: state => ({ volume, volumes: { ...state.volumes, [state.activeDeviceId ?? state.thisDeviceId]: volume } }) }),
       setShuffle: shuffle => dispatch({ type: 'patch', patch: () => ({ shuffle }) }),
       cycleRepeat: () => dispatch({ type: 'patch', patch: state => ({ repeat: state.repeat === 'off' ? 'all' : state.repeat === 'all' ? 'one' : 'off' }) }),
       setAutoplay: autoplay => dispatch({ type: 'patch', patch: () => ({ autoplay }) }),
-      playTracks: (tracks, startIndex = 0, context) => restart({ type: 'play', tracks, startIndex, context: context ?? null }),
+      playTracks: (tracks, startIndex = 0, context, options) => {
+        if (options?.shuffle) dispatch({ type: 'patch', patch: () => ({ shuffle: true }) })
+        restart({ type: 'play', tracks, startIndex, context: context ?? null })
+      },
       enqueue: (tracks, placement) => dispatch({ type: 'enqueue', tracks, placement }),
       playEntry: entryId => restart({ type: 'playEntry', entryId }),
       removeEntry: entryId => dispatch({ type: 'patch', patch: state => ({ queue: state.queue.filter(item => item.entry.id !== entryId) }) }),
       moveEntry: (entryId, toIndex) => dispatch({ type: 'move', entryId, toIndex }),
+      startRadio: () => toast({ title: 'Radio needs the server' }),
+      clearQueue: () => dispatch({ type: 'patch', patch: () => ({ queue: [] }) }),
       clearHistory: () => dispatch({ type: 'patch', patch: () => ({ history: [] }) }),
       transfer: deviceId => dispatch({ type: 'patch', patch: state => ({ activeDeviceId: deviceId, devices: state.devices.map(device => ({ ...device, isActive: device.id === deviceId })) }) }),
+      renameDevice: () => {},
     }
   }, [])
 
@@ -56,7 +70,7 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
     <ArtUrlContext value={fixtureArtUrl}>
       <LibraryContext value={library}>
         <PlayerContext value={player}>
-          <PositionContext value={position}>{children}</PositionContext>
+          <PositionContext value={positionClock.shown}>{children}</PositionContext>
         </PlayerContext>
       </LibraryContext>
     </ArtUrlContext>
@@ -64,14 +78,15 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
 }
 
 function useFixtureLibrary(): LibraryActions {
-  const [liked, setLiked] = useState(() => new Map<string, boolean>())
   const [wanted, setWanted] = useState(() => new Map<string, boolean>())
   return useMemo(() => ({
-    isLiked: (id, fromServer) => liked.get(id) ?? fromServer,
-    isWanted: (id, fromServer) => wanted.get(id) ?? fromServer,
-    setLiked: (_type, id, value) => setLiked(map => new Map(map).set(id, value)),
-    setWanted: (_type, id, value) => setWanted(map => new Map(map).set(id, value)),
-  }), [liked, wanted])
+    isWanted: (id, fromServer = false) => wanted.get(id) ?? fromServer,
+    setLiked: () => {},
+    setWanted: (target, value) => setWanted(map => new Map(map).set(target.type === 'album' ? target.album.id : target.track.id, value)),
+    playlists: playlistSummaries,
+    addToPlaylist: playlist => toast({ title: `Added to ${playlist.name}` }),
+    newPlaylist: () => toast({ title: 'New playlists need the server' }),
+  }), [wanted])
 }
 
 type Clock = { session: PlayerState; position: number }
@@ -195,6 +210,7 @@ function init(initial?: Partial<PlayerState>): Clock {
       current,
       playing: true,
       volume: 0.72,
+      volumes: { [thisDeviceId]: 0.72, phone: 0.5 },
       shuffle: false,
       repeat: 'off',
       autoplay: true,

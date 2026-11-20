@@ -28,6 +28,9 @@ jobs:
             command: npm run typecheck
           - name: Build
             command: npm run build
+          # VitePress fails on links to missing pages; docs:check catches missing #anchors.
+          - name: Docs
+            command: npm run docs:build && npm run docs:check
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

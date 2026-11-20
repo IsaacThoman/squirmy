@@ -1,10 +1,10 @@
 import { Lyrics } from '@squirmy/contracts'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, assets, externalIds, lyrics, recordings, releases } from '../../database/schema.js'
+import { albumArtists, albums, artists, assets, externalIds, lyrics, recordings, releases } from '../../database/schema.js'
 import { startJobs } from '../../jobs/index.js'
 import { newId, newPublicId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
@@ -189,5 +189,44 @@ describe('owned music enrichment', () => {
     expect(http.requests).toEqual([])
     expect(await db.select().from(lyrics).where(eq(lyrics.recordingId, another.tracks[0]!.recordingId))).toEqual([])
     await updateServerSettings({ musicBrainzEnabled: true, deezerEnabled: true, coverArtArchiveEnabled: true, wikidataEnabled: true, lrclibEnabled: true })
+  })
+
+  it('revisits enriched music, a sweep at a time, when a source is switched on', async () => {
+    const admin = await signIn({ role: 'admin' })
+    const patch = (payload: Record<string, unknown>) => app.inject({ method: 'PATCH', url: '/api/v1/admin/settings', headers: admin.headers, payload })
+    const artist = await createArtist({ name: 'Enriched Act', mbid: '11111111-2222-4333-8444-000000000004' })
+    const enriched = await createAlbum({ title: 'Enriched Before', artist, mbid: '11111111-2222-4333-8444-000000000003', owned: true })
+    const unowned = await createAlbum({ title: 'Browsed Only' })
+    await db.update(albums).set({ enrichedAt: new Date() }).where(inArray(albums.id, [enriched.albumId, unowned.albumId]))
+    await db.update(artists).set({ detailLevel: 2, fetchedAt: new Date() }).where(inArray(artists.id, [enriched.artist.id, unowned.artist.id]))
+    const state = async () => ({
+      album: (await db.select({ enrichedAt: albums.enrichedAt }).from(albums).where(eq(albums.id, enriched.albumId)))[0]!.enrichedAt,
+      artist: (await db.select({ level: artists.detailLevel }).from(artists).where(eq(artists.id, enriched.artist.id)))[0]!.level,
+      untouched: [
+        (await db.select({ enrichedAt: albums.enrichedAt }).from(albums).where(eq(albums.id, unowned.albumId)))[0]!.enrichedAt,
+        (await db.select({ level: artists.detailLevel }).from(artists).where(eq(artists.id, unowned.artist.id)))[0]!.level,
+      ],
+    })
+
+    // Changing something else, or switching a source off, leaves enrichment alone.
+    expect((await patch({ serverName: 'Elsewhere', lrclibEnabled: false })).statusCode).toBe(200)
+    expect(await state()).toMatchObject({ album: expect.any(Date), artist: 2 })
+
+    // A fanart.tv key improves artist images only.
+    expect((await patch({ fanartKey: 'operator-key' })).statusCode).toBe(200)
+    expect(await state()).toMatchObject({ album: expect.any(Date), artist: 1, untouched: [expect.any(Date), 2] })
+
+    // Wikidata coming back on improves album descriptions too.
+    await patch({ wikidataEnabled: false })
+    expect((await patch({ wikidataEnabled: true, lrclibEnabled: true })).statusCode).toBe(200)
+    expect(await state()).toMatchObject({ album: null, artist: 1, untouched: [expect.any(Date), 2] })
+
+    await db.execute(sql`delete from pgboss.job where name like 'enrichment.%'`)
+    await sweep()
+    expect(await queued('enrichment.album')).toContain(enriched.albumId)
+    expect(await queued('enrichment.artist')).toContain(enriched.artist.id)
+    // LRCLIB was off: nothing was looked up, so the sweep finds the tracks without lyrics.
+    expect(await queued('enrichment.lyrics')).toEqual(expect.arrayContaining(enriched.tracks.map((track) => track.recordingId)))
+    await patch({ fanartKey: null })
   })
 })
