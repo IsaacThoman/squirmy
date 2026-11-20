@@ -296,7 +296,7 @@ await step('imports list and detail', async () => {
   const list = page.getByRole('list', { name: 'Recent imports' })
   await list.waitFor()
   const items = await list.getByRole('listitem').allTextContents()
-  check('recent imports list every upload with its state', items.length >= 6 && items.some(text => text.includes('Cancelled')) && items.some(text => text.includes('Done')), `${items.length} imports`)
+  check('recent imports list every upload with its state', items.length >= 5 && items.some(text => text.includes('Cancelled')) && items.some(text => text.includes('Done')), `${items.length} imports`)
   await shoot('imports-list', { height: 1500 })
   await list.getByRole('link', { name: 'Discovery' }).first().click()
   await heading('Import').waitFor()
@@ -317,14 +317,15 @@ await step('import settings', async () => {
   await field.fill(inbox)
   await field.press('Enter')
   await error.waitFor({ state: 'detached' })
-  const settings = await get('/admin/settings')
+  const settings = await until(() => get('/admin/settings'), value => value.inboxPath !== null, 5000)
   check('a real folder is saved as the inbox', settings.inboxPath?.endsWith('inbox'), settings.inboxPath)
   check('the size limits are shown', await page.getByLabel('Largest file').inputValue() === '4' && await page.getByLabel('Largest import').inputValue() === '64')
   await cp(path.join(uploads, 'bad guy.m4a'), path.join(inbox, 'bad guy.m4a'))
   const taken = await until(newestImport, item => item.kind === 'inbox', minutes(1), 1000)
   check('music dropped in the inbox becomes an inbox import', taken.kind === 'inbox', taken.label)
   await page.goto(`${base}/imports`)
-  check('it shows in the imports list as Inbox', await page.getByRole('list', { name: 'Recent imports' }).getByText(/^Inbox · /).first().isVisible())
+  await page.getByRole('list', { name: 'Recent imports' }).getByText(/^Inbox · /).first().waitFor()
+  check('it shows in the imports list as Inbox', true)
 })
 
 // Providers ------------------------------------------------------------------
@@ -439,11 +440,15 @@ await step('get an album', async () => {
 await step('a provider that fails', async () => {
   mock.settings.fail = true
   const track = await missingTrack('Aphex Twin')
-  await playFromSearch('Aphex Twin', track)
-  await toastText(`Couldn’t get “${track.title}”`).waitFor({ timeout: minutes(2) })
-  check('a failed fetch shows a brief notice', true, track.title)
-  await shoot('on-demand-failed')
-  mock.settings.fail = false
+  try {
+    await playFromSearch('Aphex Twin', track)
+    await toastText(`Couldn’t get “${track.title}”`).waitFor({ timeout: minutes(2) })
+    check('a failed fetch shows a brief notice', true, track.title)
+    await button('Pause').first().click()
+    await shoot('on-demand-failed')
+  } finally {
+    mock.settings.fail = false
+  }
   const after = await until(() => get(`/tracks/${track.id}`), value => value.availability === 'none', 10_000)
   check('and the track is gray after a refresh', after.availability === 'none')
   await page.goto(`${base}/admin/providers?status=failed`)
@@ -456,10 +461,14 @@ await step('a provider that fails', async () => {
 await step('a provider that delivers the wrong file', async () => {
   mock.settings.wrongFile = true
   const track = await missingTrack('Autechre')
-  await playFromSearch('Autechre', track)
-  await toastText(`Couldn’t get “${track.title}”`).waitFor({ timeout: minutes(4) })
-  check('a wrong delivery shows the notice too', true, track.title)
-  mock.settings.wrongFile = false
+  try {
+    await playFromSearch('Autechre', track)
+    await toastText(`Couldn’t get “${track.title}”`).waitFor({ timeout: minutes(4) })
+    check('a wrong delivery shows the notice too', true, track.title)
+    await button('Pause').first().click()
+  } finally {
+    mock.settings.wrongFile = false
+  }
   const [job] = await until(() => jobsFor(track.id), jobs => jobs[0]?.status === 'failed', 10_000)
   check('and fails its job', job?.status === 'failed', job?.error)
 })

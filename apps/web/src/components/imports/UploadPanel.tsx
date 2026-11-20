@@ -160,12 +160,12 @@ function UploadQueue({ options, upload, onStart, onPause, onCancel, onClear, onD
 const rowHeight = 44
 
 /** Every chosen file, rendered only near the visible part of its box so thousands stay quick. */
-function FileList({ files }: { files: readonly UploadFileState[] }) {
+function FileList({ files, className = 'mt-4' }: { files: readonly UploadFileState[]; className?: string }) {
   const box = useRef<HTMLDivElement>(null)
   // oxlint-disable-next-line react/incompatible-library -- the virtualizer re-renders on scroll by design
   const virtualizer = useVirtualizer({ count: files.length, getScrollElement: () => box.current, estimateSize: () => rowHeight, overscan: 10, initialRect: { width: 800, height: 400 } })
   return (
-    <div ref={box} className="-mx-2 mt-4 max-h-[26rem] overflow-y-auto [scrollbar-width:thin]">
+    <div ref={box} className={cn('-mx-2 max-h-[26rem] overflow-y-auto [scrollbar-width:thin]', className)}>
       <ul aria-label="Files to upload" className="relative" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map(item => {
           const file = files[item.index]
@@ -209,7 +209,7 @@ export function NotTaken({ files }: { files: readonly UploadFileState[] }) {
   return (
     <section aria-labelledby="not-taken" className="flex flex-col gap-3">
       <h3 id="not-taken" className="px-1 text-lg font-bold tracking-tight">Not uploaded</h3>
-      <div className="rounded-2xl bg-sheet px-3 py-1 ring-1 ring-stroke"><FileList files={rejected} /></div>
+      <div className="rounded-2xl bg-sheet px-4 py-1 ring-1 ring-stroke"><FileList files={rejected} className="my-0" /></div>
     </section>
   )
 }
