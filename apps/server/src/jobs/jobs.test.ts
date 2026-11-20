@@ -98,6 +98,13 @@ describe('jobs', () => {
     expect(row?.cron).toBe('0 4 * * *')
   })
 
+  it('works through a backlog without waiting between jobs', async () => {
+    const values = Array.from({ length: 12 }, (_, index) => `backlog-${index}`)
+    await enqueueMany('test.record', values.map((value) => ({ data: { value } })))
+    // No drainJobs here: it wakes workers itself, which would hide a worker idling between jobs.
+    await expect.poll(() => seen.filter((job) => job.data.value.startsWith('backlog-')).length, { timeout: 5000 }).toBe(12)
+  })
+
   it('skips keys already queued when enqueueing many', async () => {
     await enqueueMany('test.slow', [{ data: { value: 'a' }, singletonKey: 'same' }, { data: { value: 'b' }, singletonKey: 'same' }, { data: { value: 'c' }, singletonKey: 'other' }])
     const [row] = await db.execute<{ count: number }>(sql`select count(*)::int as count from pgboss.job where name = 'test.slow' and state in ('created', 'active')`)

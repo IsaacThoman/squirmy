@@ -122,10 +122,21 @@ export async function startJobs({ work }: { work: boolean }) {
   if (!work) return
 
   for (const [name, { options, handler }] of definitions) {
-    const id = await instance.work<object>(name, { localConcurrency: options.concurrency ?? 1 }, async ([job]) => {
-      if (job) await handler(job.data, { id: job.id, attempt: job.retryCount + 1 })
-    })
-    workerIds.push(id)
+    // One pg-boss worker per slot, so each can be woken by id. With LISTEN/NOTIFY on, a
+    // worker otherwise waits out the 30 second notify backstop after every job, and a
+    // backlog drains at one job per slot per 30 seconds.
+    for (let slot = 0; slot < (options.concurrency ?? 1); slot += 1) {
+      let id = ''
+      id = await instance.work<object>(name, { localConcurrency: 1 }, async ([job]) => {
+        if (!job) return
+        try {
+          await handler(job.data, { id: job.id, attempt: job.retryCount + 1 })
+        } finally {
+          instance.notifyWorker(id)
+        }
+      })
+      workerIds.push(id)
+    }
   }
   for (const [name, cron] of schedules) {
     await ensureQueue(name)
