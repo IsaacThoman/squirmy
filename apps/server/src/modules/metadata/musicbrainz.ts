@@ -345,6 +345,21 @@ export async function searchArtists(name: string, options: { limit?: number } = 
   return (data?.artists ?? []).map(artistSummary)
 }
 
+/**
+ * Release groups and recordings for free text, best first, as the plain search on
+ * musicbrainz.org does it: the text is matched against titles only.
+ */
+export async function searchReleaseGroupsByText(text: string, options: { limit?: number } = {}): Promise<MbReleaseGroupSummary[]> {
+  const data = await get<{ 'release-groups': RawReleaseGroup[] }>('release-group', { query: escapeQuery(text), limit: String(options.limit ?? 10) }, searchTtl)
+  return (data?.['release-groups'] ?? []).map(releaseGroupSummary)
+}
+
+/** See `searchReleaseGroupsByText`. Each recording lists the releases it appears on. */
+export async function searchRecordingsByText(text: string, options: { limit?: number } = {}): Promise<MbRecording[]> {
+  const data = await get<{ recordings: RawRecording[] }>('recording', { query: escapeQuery(text), limit: String(options.limit ?? 10) }, searchTtl)
+  return (data?.recordings ?? []).map(recording)
+}
+
 /** Release groups by title, optionally narrowed to an artist, best first. */
 export async function searchReleaseGroups(query: { title: string; artist?: string }, options: { limit?: number } = {}): Promise<MbReleaseGroupSummary[]> {
   const terms = [`releasegroup:${phrase(query.title)}`]

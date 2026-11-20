@@ -1,0 +1,135 @@
+{
+  "note": "Trimmed: release groups without their release lists and tags.",
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group?query=karma+police&limit=3&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T18:07:15.558Z",
+      "count": 2811,
+      "offset": 0,
+      "release-groups": [
+        {
+          "id": "ee1c97fa-c24a-4294-a065-eb8eabb00076",
+          "type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "score": 100,
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit-id": "2c60767f-02fc-3f1c-a064-30ae6e653825",
+          "count": 1,
+          "title": "Karma Police",
+          "primary-type": "Single",
+          "artist-credit": [
+            {
+              "name": "Gianni and Sarah",
+              "artist": {
+                "id": "e2a5eaeb-7de7-4ffe-a519-e18e427a5060",
+                "name": "Walk off the Earth",
+                "sort-name": "Walk off the Earth",
+                "aliases": [
+                  {
+                    "sort-name": "WOTE",
+                    "type-id": "1937e404-b981-3cb7-8151-4c86ebfc8d8e",
+                    "name": "WOTE",
+                    "locale": null,
+                    "type": "Search hint",
+                    "primary": null,
+                    "begin-date": null,
+                    "end-date": null
+                  },
+                  {
+                    "sort-name": "Gianni and Sarah",
+                    "name": "Gianni and Sarah",
+                    "locale": null,
+                    "type": null,
+                    "primary": null,
+                    "begin-date": null,
+                    "end-date": null
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "b7d7d773-6f35-45c5-9eed-eb5cecde932c",
+          "type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "score": 100,
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit-id": "f1d06b59-1d8d-39c7-8a09-219b8eb55162",
+          "count": 1,
+          "title": "Karma Police",
+          "first-release-date": "2023-05-19",
+          "primary-type": "Single",
+          "artist-credit": [
+            {
+              "name": "Brass Against",
+              "artist": {
+                "id": "80792351-8417-4e77-ab2c-8708b07cb45a",
+                "name": "Brass Against",
+                "sort-name": "Brass Against"
+              }
+            }
+          ]
+        },
+        {
+          "id": "245d6680-6e7e-48e4-820d-43dc33684f83",
+          "type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "score": 100,
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit-id": "fc32e472-6fcb-4495-9a74-4f2923c27184",
+          "count": 1,
+          "title": "Karma Police",
+          "first-release-date": "2013-04-23",
+          "primary-type": "Single",
+          "artist-credit": [
+            {
+              "name": "Shefita",
+              "artist": {
+                "id": "a78ca205-fecb-4615-9b2c-b1cef352cad3",
+                "name": "Shefita",
+                "sort-name": "Shefita",
+                "aliases": [
+                  {
+                    "sort-name": "שפי, רותם",
+                    "type-id": "d4dcd0c0-b341-3612-a332-c0ce797b25cf",
+                    "name": "רותם שפי",
+                    "locale": "he",
+                    "type": "Legal name",
+                    "primary": true,
+                    "begin-date": null,
+                    "end-date": null
+                  },
+                  {
+                    "sort-name": "שפיטה",
+                    "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+                    "name": "שפיטה",
+                    "locale": "he",
+                    "type": "Artist name",
+                    "primary": null,
+                    "begin-date": null,
+                    "end-date": null
+                  },
+                  {
+                    "sort-name": "Shefy, Rotem",
+                    "type-id": "d4dcd0c0-b341-3612-a332-c0ce797b25cf",
+                    "name": "Rotem Shefy",
+                    "locale": "en",
+                    "type": "Legal name",
+                    "primary": true,
+                    "begin-date": null,
+                    "end-date": null
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

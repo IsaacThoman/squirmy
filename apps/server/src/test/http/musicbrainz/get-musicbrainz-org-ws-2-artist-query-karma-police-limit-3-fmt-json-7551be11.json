@@ -1,0 +1,109 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/artist?query=karma+police&limit=3&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T18:06:13.381Z",
+      "count": 935,
+      "offset": 0,
+      "artists": [
+        {
+          "id": "a75d9c8c-949f-46d2-8c30-2599f510e08d",
+          "type": "Group",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "score": 100,
+          "name": "Karma Police",
+          "sort-name": "Karma Police",
+          "area": {
+            "id": "7514d443-6f68-4d09-ab6b-30f92798bb4a",
+            "type": "Subdivision",
+            "type-id": "fd3d44c5-80a1-3842-9745-2c4972d35afa",
+            "name": "Comunidad Valenciana",
+            "sort-name": "Comunidad Valenciana",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "begin-area": {
+            "id": "8cfddbcc-b38a-4da2-a990-6317cd92892a",
+            "type": "Subdivision",
+            "type-id": "fd3d44c5-80a1-3842-9745-2c4972d35afa",
+            "name": "Barcelona",
+            "sort-name": "Barcelona",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "disambiguation": "Spanish indie rock from Catalunya",
+          "life-span": {
+            "begin": "1997",
+            "ended": null
+          }
+        },
+        {
+          "id": "d42331d6-f200-4c8e-a529-068eaeb11415",
+          "type": "Group",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "score": 98,
+          "name": "Karma Police",
+          "sort-name": "Karma Police",
+          "area": {
+            "id": "7514d443-6f68-4d09-ab6b-30f92798bb4a",
+            "type": "Subdivision",
+            "type-id": "fd3d44c5-80a1-3842-9745-2c4972d35afa",
+            "name": "Comunidad Valenciana",
+            "sort-name": "Comunidad Valenciana",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "begin-area": {
+            "id": "a1f5f6a6-f726-4502-b546-4a508083cbbb",
+            "type": "Municipality",
+            "type-id": "17246454-5ac4-36a1-b81a-4753eb2dab20",
+            "name": "Benidorm",
+            "sort-name": "Benidorm",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "disambiguation": "Spanish post rock from Valencian Community, 2015–18",
+          "life-span": {
+            "begin": "2015",
+            "end": "2018-04-23",
+            "ended": true
+          }
+        },
+        {
+          "id": "eebde591-a27d-46ce-8ee6-2ceb5d31a034",
+          "type": "Person",
+          "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+          "score": 98,
+          "name": "Karma Police",
+          "sort-name": "Karma Police",
+          "country": "GB",
+          "area": {
+            "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+            "type": "Country",
+            "type-id": "06dd0ae4-8c74-30bb-b43d-95dcedf961de",
+            "name": "United Kingdom",
+            "sort-name": "United Kingdom",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "disambiguation": "British ambient / alternative electronica",
+          "life-span": {
+            "ended": null
+          }
+        }
+      ]
+    }
+  }
+}
