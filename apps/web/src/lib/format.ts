@@ -46,3 +46,14 @@ export function formatRelative(iso: string, now = Date.now()): string {
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric' })
 }
+
+const GIB = 1024 ** 3
+const MIB = 1024 ** 2
+const scaled = (unit: number) => ({
+  format: (bytes: unknown) => String(Math.round((Number(bytes) / unit) * 10) / 10),
+  parse: (text: string) => (text.trim() ? Math.round(Number(text) * unit) : Number.NaN),
+})
+
+/** Byte sizes edited in GB or MB, to one decimal: the `format` and `parse` of a settings field. */
+export const inGigabytes = scaled(GIB)
+export const inMegabytes = scaled(MIB)
