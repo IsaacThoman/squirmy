@@ -171,7 +171,7 @@ function Capability({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs text-muted">{label}</dt>
-      <dd className="truncate font-semibold">{value}</dd>
+      <dd className="font-semibold">{value}</dd>
     </div>
   )
 }

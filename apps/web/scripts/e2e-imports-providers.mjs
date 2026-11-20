@@ -137,20 +137,21 @@ async function advancing(on = page) {
 
 const widths = [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }]
 
-/** Captures what is on screen now in both schemes at every width, then puts the page back. */
-async function shoot(name, { height } = {}) {
+/** Captures what is on screen now in both schemes at every width, then puts the page back. Toasts go first unless they are the point. */
+async function shoot(name, { height, toasts = false, on = page } = {}) {
   if (!shots) return
-  await page.mouse.move(0, 0)
+  if (!toasts) for (const close of await on.getByRole('button', { name: 'Dismiss' }).all()) await close.click().catch(() => {})
+  await on.mouse.move(0, 0)
   for (const scheme of ['light', 'dark']) {
-    await page.emulateMedia({ colorScheme: scheme })
+    await on.emulateMedia({ colorScheme: scheme })
     for (const size of widths) {
-      await page.setViewportSize({ width: size.width, height: height && size.width > 400 ? height : size.height })
+      await on.setViewportSize({ width: size.width, height: height && size.width > 400 ? height : size.height })
       await sleep(350)
-      await page.screenshot({ path: path.join(shots, `${name}-${size.width}-${scheme}.png`) })
+      await on.screenshot({ path: path.join(shots, `${name}-${size.width}-${scheme}.png`) })
     }
   }
-  await page.emulateMedia({ colorScheme: 'light' })
-  await page.setViewportSize(widths[0])
+  await on.emulateMedia({ colorScheme: 'light' })
+  await on.setViewportSize(widths[0])
 }
 
 const newestImport = async () => (await get('/imports?limit=1')).items[0]
@@ -281,7 +282,7 @@ await step('cancel an upload', async () => {
   await button('Upload').click()
   await page.getByRole('progressbar', { name: 'Upload progress' }).waitFor()
   const created = await until(newestImport, item => item.status === 'receiving', 5000)
-  await shoot('upload-sending', { height: 1200 })
+  await shoot('upload-sending', { height: 1200, toasts: true })
   await button('Cancel').click()
   await toastText('Upload cancelled').waitFor()
   const cancelled = await until(() => get(`/imports/${created.id}`), item => item.status === 'failed', 5000)
@@ -411,6 +412,10 @@ await step('play missing music on demand', async () => {
   check('and in the player bar', await page.locator('div.fixed.bottom-0').getByText('Preparing…').first().isVisible())
   for (let press = 0; press < 3; press++) await page.locator('body').press('ArrowDown')
   await shoot('on-demand-preparing')
+  await button('Queue').click()
+  await page.getByRole('complementary', { name: 'Queue' }).getByText('Preparing…').first().waitFor()
+  await shoot('on-demand-queue')
+  await button('Queue').click()
   await until(() => jobsFor(track.id), jobs => jobs[0]?.status === 'completed', minutes(4), 1000)
   check('then it plays', await advancing(), track.title)
   const owned = await get(`/tracks/${track.id}`)
@@ -445,7 +450,7 @@ await step('a provider that fails', async () => {
     await toastText(`Couldn’t get “${track.title}”`).waitFor({ timeout: minutes(2) })
     check('a failed fetch shows a brief notice', true, track.title)
     await button('Pause').first().click()
-    await shoot('on-demand-failed')
+    await shoot('on-demand-failed', { toasts: true })
   } finally {
     mock.settings.fail = false
   }
@@ -485,6 +490,7 @@ await step('a member without the permission', async () => {
   const title = await row.getAttribute('title')
   check('on-demand tracks show as unavailable, saying why', title === 'Not on the server yet. Ask an admin to let you fetch missing music.', title)
   check('with nothing to play', await row.getByRole('button', { name: `Play ${track.title}` }).count() === 0)
+  await shoot('on-demand-not-allowed', { on: memberPage })
   const refused = await api('POST', `/tracks/${track.id}/acquire`, undefined, memberContext)
   check('and the server refuses a request', refused.status === 403 && refused.body.error.code === 'acquire_not_allowed', refused.body?.error?.code)
   check('Add music is not offered', await memberPage.getByRole('link', { name: 'Add music' }).count() === 0)
