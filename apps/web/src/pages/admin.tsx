@@ -11,7 +11,7 @@ import { errorMessage } from '@/api/errors'
 import { useFolderListing } from '@/api/folders'
 import { importsKey } from '@/api/queries'
 import { useApi } from '@/api/services'
-import { setupStatusKey, useCurrentUser } from '@/auth/session'
+import { setupStatusKey, useCurrentUser, useSetupStatus } from '@/auth/session'
 import { AdminLayout as AdminFrame } from '@/components/admin/AdminLayout'
 import { FindAlbumDialog } from '@/components/admin/FindAlbumDialog'
 import { FixMatch } from '@/components/admin/FixMatch'
@@ -60,7 +60,7 @@ function useRoots() {
 const managedOnly = (roots: LibraryRoot[] | undefined) => roots?.filter(root => root.mode === 'managed' && root.enabled)
 
 export function AdminLayout() {
-  return <AdminFrame counts={{ '/admin/reviews': useOpenReviewCount() }} />
+  return <AdminFrame counts={{ '/admin/reviews': useOpenReviewCount() }} version={useSetupStatus().data?.version} />
 }
 
 /** "Fix match" from anywhere in admin: the album search, then the dialog for the album picked. */

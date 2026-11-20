@@ -68,7 +68,7 @@ function CredentialFields({ value, onChange, errors, newPassword }: { value: Cre
   )
 }
 
-export function LoginView({ serverName, inviteRequired, onSubmit }: { serverName: string; inviteRequired: boolean; onSubmit: (credentials: Credentials) => Promise<unknown> }) {
+export function LoginView({ serverName, version, inviteRequired, onSubmit }: { serverName: string; version: string; inviteRequired: boolean; onSubmit: (credentials: Credentials) => Promise<unknown> }) {
   const [value, setValue] = useState<Credentials>({ username: '', password: '' })
   const form = useFormSubmit(LoginRequest, onSubmit)
   const submit = (event: FormEvent) => {
@@ -78,7 +78,12 @@ export function LoginView({ serverName, inviteRequired, onSubmit }: { serverName
   return (
     <AuthFrame
       title={`Sign in to ${serverName}`}
-      footer={<>{inviteRequired ? 'Have an invite?' : 'New here?'} <Link to="/register" className="font-semibold text-accent hover:underline">Create an account</Link></>}
+      footer={(
+        <div className="flex flex-col items-center gap-3">
+          <p>{inviteRequired ? 'Have an invite?' : 'New here?'} <Link to="/register" className="font-semibold text-accent hover:underline">Create an account</Link></p>
+          <p className="text-xs text-quiet">Squirmy {version}</p>
+        </div>
+      )}
     >
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <CredentialFields value={value} onChange={setValue} errors={form.errors} />

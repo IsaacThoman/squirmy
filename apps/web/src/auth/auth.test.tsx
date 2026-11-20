@@ -30,6 +30,7 @@ describe('route guards', () => {
     renderWithApp(app, '/admin/users', services)
     expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
     expect(where()).toBe('/login?next=%2Fadmin%2Fusers')
+    expect(screen.getByText('Squirmy 0.0.0')).toBeInTheDocument()
 
     api.auth.login.mockRejectedValueOnce(new ApiError(401, 'invalid_credentials', 'Wrong username or password'))
     await userEvent.type(screen.getByLabelText('Username'), 'alex')
@@ -43,6 +44,7 @@ describe('route guards', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(await screen.findByRole('heading', { name: 'Users & invites' })).toBeInTheDocument()
     expect(where()).toBe('/admin/users')
+    expect(screen.getAllByText('Squirmy 0.0.0').length).toBeGreaterThan(0)
     expect((api.auth.login.mock.lastCall as unknown[] | undefined)?.[0]).toEqual(expect.objectContaining({ username: 'alex', device: expect.objectContaining({ kind: 'web' }) }))
   })
 

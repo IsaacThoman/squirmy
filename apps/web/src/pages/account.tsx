@@ -137,6 +137,7 @@ export function LoginPage() {
   return (
     <LoginView
       serverName={status!.serverName}
+      version={status!.version}
       inviteRequired={status!.registrationRequiresInvite}
       onSubmit={credentials => login.mutateAsync({ ...credentials, device: webDevice() })}
     />

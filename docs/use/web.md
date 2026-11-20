@@ -63,6 +63,8 @@ Admins manage the server here. Each page has its own guide:
 | **Server settings** | [Configuration](../server/configuration.md#server-settings) |
 | **Jobs** | [Troubleshooting](../server/troubleshooting.md#logs-and-the-jobs-page) |
 
+The server's version is under the admin sections (at the bottom of the page on a phone) and on the sign-in page.
+
 ## Not there yet
 
 - **Full pages for music you do not own.** Opening a gray album or artist shows what the catalog knows, which can be thin until its details are fetched.
