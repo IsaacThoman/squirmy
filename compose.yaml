@@ -1,0 +1,51 @@
+# Squirmy with its database. Set MUSIC_DIR (in .env or the shell) and run `docker compose up -d --build`.
+# Then open http://localhost:4747 and create the admin account. Guide: docs/server/quick-start.md
+name: squirmy
+
+services:
+  app:
+    image: ghcr.io/isaacthoman/squirmy:latest
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://squirmy:${POSTGRES_PASSWORD:-squirmy}@postgres:5432/squirmy
+      # Added as a read-only library folder at start unless it already is one. Make it managed,
+      # or add more folders, in Admin → Library.
+      SQUIRMY_LIBRARY_PATHS: /music
+      # To have Squirmy organize the folder and file uploads into it from the start, add it as
+      # a managed folder instead (the volume must be writable): remove the line above and use
+      # SQUIRMY_MANAGED_LIBRARY_PATHS: /music
+      # Set to true when a reverse proxy sits in front and sends X-Forwarded-* headers.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    volumes:
+      # Your music. Append ":ro" to guarantee the server can never change it; leave it
+      # writable if you want Squirmy to organize files or accept uploads.
+      - ${MUSIC_DIR:-./music}:/music
+      # Artwork, transcodes, uploads in progress and the generated secret.key. Transcodes and
+      # resized art are rebuilt, and most of assets/ too; secret.key is not: back it up, with
+      # assets/ (docs/server/backup.md).
+      - squirmy_data:/data
+    ports:
+      - "${SQUIRMY_PORT:-4747}:4747"
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: squirmy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-squirmy}
+      POSTGRES_DB: squirmy
+    volumes:
+      - squirmy_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U squirmy -d squirmy"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  squirmy_data:
+  squirmy_db:

@@ -1,0 +1,173 @@
+# Configuration
+
+Squirmy has two kinds of settings:
+
+- **Environment variables**, read once when the process starts. They say where things are: the database, the data folder, the address the server is reached at. Change them in `compose.yaml` or `.env` and restart.
+- **Server settings**, stored in the database and changed while the server runs, in **Admin → Server settings**. They control metadata sources, API keys, matching and limits. A few have no screen yet and are changed through the API.
+
+## The ones that matter
+
+| Variable | Why you care |
+|---|---|
+| `PUBLIC_URL` | The address people use, such as `https://music.example.com`. Set it whenever Squirmy sits behind a reverse proxy or is reached by a name the server cannot see. It is used for Last.fm's sign-in callback, artwork links handed to Subsonic apps, and the delivery address given to acquisition providers. |
+| `TRUST_PROXY` | Set to `true` when a reverse proxy sends `X-Forwarded-*` headers, and only then. See [Reverse proxies and HTTPS](./reverse-proxy.md#what-trust-proxy-does). |
+| `SQUIRMY_DATA_DIR` | The data folder: artwork, transcodes, uploads in progress, and the generated server secret. In the image it is `/data`, the `squirmy_data` volume. Part of it cannot be rebuilt; see [Backup](./backup.md#what-is-in-the-data-folder). |
+| `SQUIRMY_ROLE` | `all` (default) runs the API and the background worker in one process. `api` and `worker` split them; see [Splitting the API and the worker](#splitting-the-api-and-the-worker). |
+
+## Environment variables
+
+Every variable the server reads, from `apps/server/src/config.ts`. "Image" is the value the Docker image sets; Compose adds the ones marked "compose".
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | none, required | PostgreSQL connection string. Compose sets `postgres://squirmy:<POSTGRES_PASSWORD>@postgres:5432/squirmy`. PostgreSQL 15 or newer with the `pg_trgm` extension available; the migrations create the extension. |
+| `PORT` | `4747` | Port the HTTP server listens on inside the container. Change the host side with `SQUIRMY_PORT` in `.env` instead. |
+| `HOST` | `0.0.0.0` | Address to listen on. |
+| `PUBLIC_URL` | unset | The public origin, for example `https://music.example.com`, without a trailing path. Must be a valid URL when set; do not set it to an empty string. |
+| `TRUST_PROXY` | `false` (compose: `${TRUST_PROXY:-false}`) | `true` or `1` trusts `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`. |
+| `SQUIRMY_DATA_DIR` | `./data` (image: `/data`) | The data folder. |
+| `SQUIRMY_SECRET` | unset | The root secret for signing stream URLs and encrypting stored credentials, at least 16 characters. When unset, a random one is generated on first start and kept in `<data>/secret.key`. Do not set or change it on a server that already has data: everything encrypted under the old secret (app passwords, API keys, provider secrets, scrobbling connections) becomes unreadable. |
+| `SQUIRMY_ROLE` | `all` | `all`, `api` or `worker`. |
+| `SQUIRMY_LIBRARY_PATHS` | unset (compose: `/music`) | Comma-separated absolute paths. On every start, each one that is not already a library folder is added as a **read-only** folder, watched, and scanned. A path that does not exist or overlaps another folder is skipped with a warning in the log. Removing a path from this variable does not remove the folder from the library. |
+| `SQUIRMY_MANAGED_LIBRARY_PATHS` | unset | The same, but each folder is added as a **managed** folder, which Squirmy may organize and file uploads into ([Organizing files](./organizing.md)). The folder must be writable by the server. A path in both variables is added as managed. Either variable only adds folders: a folder that is already in the library keeps the mode it has; change it in **Admin → Library**. |
+| `SQUIRMY_INBOX_PATH` | unset | A folder watched for music to import, used while the `inboxPath` server setting is unset. See [Adding music](./adding-music.md#the-inbox-folder). |
+| `SQUIRMY_WEB_DIST` | unset (image: `/app/apps/web/dist`) | The built web app to serve. Unset, the server serves only the API; the Vite dev server proxies to it during development. |
+| `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
+| `FFMPEG_PATH` | `ffmpeg` | The `ffmpeg` binary. |
+| `FFPROBE_PATH` | `ffprobe` | The `ffprobe` binary. |
+| `FPCALC_PATH` | `fpcalc` | The `fpcalc` binary (Chromaprint), used for AcoustID fingerprints. |
+| `NODE_ENV` | `development` (image: `production`) | Outside production, the API also accepts cross-origin requests from the Vite dev server on port 5173. |
+| `SQUIRMY_VERSION` | unset (image: the build argument) | The version reported by `/api/v1/setup/status` (shown on the sign-in page and in Admin), to Subsonic apps and in the User-Agent sent to metadata services. Release images set it to the release number. Unset or empty, the server reports `dev+<commit>` when it runs from a git checkout (the short commit, read once at start) and `dev` otherwise, as in an image built without the argument. |
+
+`compose.yaml` itself reads these from `.env` or the shell:
+
+| Variable | Default | Used for |
+|---|---|---|
+| `MUSIC_DIR` | `./music` | The host folder mounted at `/music`. |
+| `POSTGRES_PASSWORD` | `squirmy` | The database password. It takes effect only when the database volume is first created. |
+| `SQUIRMY_PORT` | `4747` | The host port. |
+| `TRUST_PROXY` | `false` | Passed through to the app. |
+
+To set a variable that `compose.yaml` does not pass through, such as `PUBLIC_URL` or `LOG_LEVEL`, add it under `environment:` of the `app` service:
+
+```yaml
+services:
+  app:
+    environment:
+      PUBLIC_URL: https://music.example.com
+      LOG_LEVEL: debug
+```
+
+## Server settings
+
+Stored in the `server_settings` table, from `ServerSettings` in `packages/contracts/src/settings.ts`. Changes apply right away, with no restart. In the web app, each change saves as you make it; text fields save when you leave them or press Enter.
+
+### Admin → Server settings
+
+| Section | Setting (as on screen) | Key | Default | What it does |
+|---|---|---|---|---|
+| General | Server name | `serverName` | `Squirmy` | Shown on the sign-in page and to Subsonic apps. |
+| Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
+| Metadata sources | MusicBrainz | `musicBrainzEnabled` | on | Identifies albums and fills in discographies. Off means nothing new is identified. |
+| | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service. Only `musicbrainz.org` is rate limited, so a mirror lifts the limit. |
+| | Cover Art Archive | `coverArtArchiveEnabled` | on | Album covers. |
+| | Deezer | `deezerEnabled` | on | Catalog search, artist images, top songs and cover fallback. |
+| | Wikidata and Wikipedia | `wikidataEnabled` | on | Artist images and biographies. |
+| | LRCLIB | `lrclibEnabled` | on | Synced lyrics. |
+| API keys | ListenBrainz | `listenBrainzToken` | not set | A ListenBrainz user token for top songs, similar artists and popularity. Users' own scrobbling does not need it. |
+| | AcoustID | `acoustIdKey` | not set | Identifies files that have no album and artist tags by their audio fingerprint. |
+| | fanart.tv | `fanartKey` | not set | Better artist images. |
+| | Last.fm | `lastFmKey`, `lastFmSecret` | not set | Lets users connect Last.fm for scrobbling. |
+| Matching | Accept matches automatically above | `matchAutoAcceptScore` | 90% | Matches at or above this score are applied; lower ones (down to 50%) wait in the review queue. |
+| Library | Keep missing files for | `missingFileGraceDays` | 14 days | How long a vanished file stays in the library before it is removed. 0 to 365. |
+| Imports | Import into | `importRootId` | not chosen | The managed library folder uploads and inbox imports are filed into. Not chosen means the only enabled managed folder, when there is exactly one. |
+| | Inbox folder | `inboxPath` | not set | The [inbox](./adding-music.md#the-inbox-folder). Empty falls back to `SQUIRMY_INBOX_PATH`. It may not be inside a library folder or the data folder; the screen says why a folder is refused. |
+| | Largest file | `importMaxFileBytes` | 4 GB | Largest single file an import accepts, zip archives included. |
+| | Largest import | `importMaxBytes` | 64 GB | Largest import, counting what its archives extract to. |
+| Transcoding | Transcode cache | `transcodeCacheMaxBytes` | 10 GB | Converted streams kept on disk; the least recently used go first. |
+
+Turning a metadata source off stops new requests to it; what it already provided stays. API keys are stored encrypted and are never shown again: the screen says **Set** or **Not set**, with **Change** or **Add key**, and **Remove key** in the dialog.
+
+### Through the API
+
+Every setting can also be set with `PATCH /api/v1/admin/settings` by an admin. Sign in to get a token first:
+
+```sh
+TOKEN=$(curl -s -X POST https://music.example.com/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"your password"}' | jq -r .token)
+```
+
+Then send only the keys you change:
+
+```sh
+curl -X PATCH https://music.example.com/api/v1/admin/settings \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"inboxPath": "/inbox", "importMaxFileBytes": 8589934592}'
+```
+
+Sizes are in bytes, and `importRootId` takes a folder id from `GET /api/v1/admin/library/roots`.
+
+`GET /api/v1/admin/settings` returns every setting; secrets come back only as `listenBrainzTokenSet`, `acoustIdKeySet`, `fanartKeySet` and `lastFmKeySet`. A secret set to `null` or `""` is removed.
+
+Acquisition has its own policy settings; see [Acquisition providers](./acquisition.md#policy).
+
+### Per-user settings
+
+Each user has their own, in **Settings** in the web app and in the iOS app's account sheet: volume normalization (default Automatic), streaming quality on Wi-Fi (default Original) and on cellular (default High), and scrobbling switches. See [Playback](./playback.md).
+
+## Splitting the API and the worker
+
+By default one process serves HTTP and runs the background jobs (scans, identification, enrichment, loudness, transcodes ahead of time, imports). On a busy server you can run them separately:
+
+- Run **exactly one** `api` process. Playback sessions are held in that process's memory, so two API processes would disagree about what is playing.
+- Run one or more `worker` processes. A worker opens no HTTP port. File watching and the inbox run in workers.
+- Every process needs the **same** `DATABASE_URL`, the **same data folder** (artwork written by the worker is served by the API; uploads land in the API's staging folder and are processed by a worker), the **same music paths**, and the **same secret** (a shared data folder gives them the same `secret.key`, or set `SQUIRMY_SECRET` on all of them).
+
+A Compose sketch, added to the existing `compose.yaml`:
+
+```yaml
+services:
+  app:
+    environment:
+      SQUIRMY_ROLE: api
+
+  worker:
+    image: ghcr.io/isaacthoman/squirmy:latest
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://squirmy:${POSTGRES_PASSWORD:-squirmy}@postgres:5432/squirmy
+      SQUIRMY_ROLE: worker
+    volumes:
+      - ${MUSIC_DIR:-./music}:/music
+      - squirmy_data:/data
+    # The image's health check calls /health, which a worker does not serve.
+    healthcheck:
+      disable: true
+```
+
+Leave `SQUIRMY_LIBRARY_PATHS` and `SQUIRMY_MANAGED_LIBRARY_PATHS` on the `app` service: any process adds the configured folders on start, so one is enough.
+
+## Scheduled work
+
+These run on their own; nothing needs configuring. Times are UTC.
+
+| Job | When |
+|---|---|
+| Full scan of every enabled folder | daily at 04:00 |
+| Check for lost artwork files and rebuild them | daily at 04:40 |
+| Remove files missing longer than the grace period | daily at 05:30 |
+| Remove search results nobody kept (catalog stubs older than 30 days) | daily at 05:45 |
+| New releases from artists in your library | Mondays at 06:00 |
+| Retry identification of albums still waiting | every 10 minutes |
+| Measure loudness of files that have none | every 10 minutes |
+| Fill in covers, images and lyrics still missing | every 30 minutes |
+| Trim the transcode cache to its size | hourly |
+| Clean up stale imports | every 15 minutes |
+| Send scrobbles; check acquisition jobs | every minute |
+
+The **Jobs** page in **Admin** shows every queue with its queued, active and failed counts.

@@ -1,0 +1,87 @@
+import { lazy, Suspense, type ReactNode } from 'react'
+import { Navigate, Route, Routes } from 'react-router'
+import { AdminOnly, Bootstrap, RequireSetup, SignedInOnly, SignedOutOnly } from '@/auth/guards'
+import { Page } from '@/components/layout/Page'
+import { Spinner } from '@/components/ui/feedback'
+import { LoginPage, RegisterPage, SettingsPage, SetupPage } from '@/pages/account'
+import {
+  AlbumPage, ArtistPage, HomePage, LibraryAlbumsPage, LibraryArtistsPage, LibraryPlaylistsPage, LibrarySongsPage, LikedPage, NotFoundPage,
+  PlaylistPage, SearchPage, ShellPage, WantlistPage,
+} from '@/pages/music'
+
+// Admin, import and developer pages are separate downloads; most visits never open them.
+const admin = (name: keyof typeof import('@/pages/admin')) => lazy(() => import('@/pages/admin').then(module => ({ default: module[name] })))
+const AdminLayout = admin('AdminLayout')
+const AdminLibraryPage = admin('AdminLibraryPage')
+const AdminReviewsPage = admin('AdminReviewsPage')
+const AdminOrganizePage = admin('AdminOrganizePage')
+const AdminSearchIndexPage = admin('AdminSearchIndexPage')
+const AdminUsersPage = admin('AdminUsersPage')
+const AdminProvidersPage = admin('AdminProvidersPage')
+const AdminSettingsPage = admin('AdminSettingsPage')
+const AdminJobsPage = admin('AdminJobsPage')
+const imports = (name: keyof typeof import('@/pages/imports')) => lazy(() => import('@/pages/imports').then(module => ({ default: module[name] })))
+const ImportsPage = imports('ImportsPage')
+const ImportPage = imports('ImportPage')
+// The developer pages run on fixtures, which production builds leave out.
+const dev = import.meta.env.DEV && {
+  KitchenSinkPage: lazy(() => import('@/pages/KitchenSink').then(module => ({ default: module.KitchenSinkPage }))),
+  EnginePage: lazy(() => import('@/pages/dev-engine').then(module => ({ default: module.EnginePage }))),
+}
+
+function Loading({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<Page className="flex justify-center pt-32"><Spinner /></Page>}>{children}</Suspense>
+}
+
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<Bootstrap />}>
+        <Route path="/setup" element={<SetupPage step="account" />} />
+        <Route path="/setup/library" element={<SetupPage step="library" />} />
+        <Route path="/setup/done" element={<SetupPage step="done" />} />
+        <Route element={<RequireSetup />}>
+          <Route element={<SignedOutOnly />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+          </Route>
+          <Route element={<SignedInOnly />}>
+            <Route element={<ShellPage />}>
+              <Route index element={<HomePage />} />
+              <Route path="search" element={<SearchPage />} />
+              <Route path="library" element={<Navigate to="/library/albums" replace />} />
+              <Route path="library/albums" element={<LibraryAlbumsPage />} />
+              <Route path="library/artists" element={<LibraryArtistsPage />} />
+              <Route path="library/songs" element={<LibrarySongsPage />} />
+              <Route path="library/playlists" element={<LibraryPlaylistsPage />} />
+              <Route path="liked" element={<LikedPage />} />
+              <Route path="wantlist" element={<WantlistPage />} />
+              <Route path="album/:id" element={<AlbumPage />} />
+              <Route path="artist/:id" element={<ArtistPage />} />
+              <Route path="playlist/:id" element={<PlaylistPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="imports" element={<Loading><ImportsPage /></Loading>} />
+              <Route path="imports/:id" element={<Loading><ImportPage /></Loading>} />
+              <Route path="admin" element={<AdminOnly />}>
+                <Route element={<Loading><AdminLayout /></Loading>}>
+                  <Route index element={<Navigate to="/admin/library" replace />} />
+                  <Route path="library" element={<Loading><AdminLibraryPage /></Loading>} />
+                  <Route path="reviews" element={<Loading><AdminReviewsPage /></Loading>} />
+                  <Route path="organize" element={<Loading><AdminOrganizePage /></Loading>} />
+                  <Route path="search-index" element={<Loading><AdminSearchIndexPage /></Loading>} />
+                  <Route path="users" element={<Loading><AdminUsersPage /></Loading>} />
+                  <Route path="providers" element={<Loading><AdminProvidersPage /></Loading>} />
+                  <Route path="settings" element={<Loading><AdminSettingsPage /></Loading>} />
+                  <Route path="jobs" element={<Loading><AdminJobsPage /></Loading>} />
+                </Route>
+              </Route>
+              {dev && <Route path="dev/kitchen-sink" element={<Loading><dev.KitchenSinkPage /></Loading>} />}
+              {dev && <Route path="dev/engine" element={<Loading><dev.EnginePage /></Loading>} />}
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Route>
+        </Route>
+      </Route>
+    </Routes>
+  )
+}

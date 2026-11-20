@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/156692872"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 156692872,
+      "name": "Relaxing Rain Sounds Hub",
+      "link": "https://www.deezer.com/artist/156692872",
+      "share": "https://www.deezer.com/artist/156692872?utm_source=deezer&utm_content=artist-156692872&utm_term=0_1795197512&utm_medium=web",
+      "picture": "https://api.deezer.com/artist/156692872/image",
+      "picture_small": "https://cdn-images.dzcdn.net/images/artist/691dde39062c5ba671b59019a4292e14/56x56-000000-80-0-0.jpg",
+      "picture_medium": "https://cdn-images.dzcdn.net/images/artist/691dde39062c5ba671b59019a4292e14/250x250-000000-80-0-0.jpg",
+      "picture_big": "https://cdn-images.dzcdn.net/images/artist/691dde39062c5ba671b59019a4292e14/500x500-000000-80-0-0.jpg",
+      "picture_xl": "https://cdn-images.dzcdn.net/images/artist/691dde39062c5ba671b59019a4292e14/1000x1000-000000-80-0-0.jpg",
+      "nb_album": 1,
+      "nb_fan": 8,
+      "radio": true,
+      "tracklist": "https://api.deezer.com/artist/156692872/top?limit=50",
+      "type": "artist"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.listenbrainz.org/1/submit-listens",
+    "body": "{\"listen_type\":\"playing_now\",\"payload\":[{\"track_metadata\":{\"artist_name\":\"Mark Ronson feat. Bruno Mars\",\"track_name\":\"Uptown Funk\",\"release_name\":\"Uptown Special\",\"additional_info\":{\"submission_client\":\"Squirmy\",\"media_player\":\"Squirmy\",\"recording_mbid\":\"33b6b148-9dce-4894-902d-d218ecc30666\",\"artist_mbids\":[\"c3c82bdc-d9e7-4836-9746-c24ead47ca19\",\"afb680f2-b6eb-4cd7-a70b-a63b25c763d5\"],\"duration_ms\":269000}}}]}"
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "code": 401,
+      "error": "Invalid authorization token."
+    }
+  }
+}

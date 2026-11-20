@@ -1,0 +1,124 @@
+import path from 'node:path'
+import cookie from '@fastify/cookie'
+import cors from '@fastify/cors'
+import helmet from '@fastify/helmet'
+import multipart from '@fastify/multipart'
+import rateLimit from '@fastify/rate-limit'
+import fastifyStatic from '@fastify/static'
+import { API_PREFIX } from '@squirmy/contracts'
+import { sql } from 'drizzle-orm'
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify'
+import { ZodError } from 'zod'
+import { devOrigins, getConfig } from './config.js'
+import { db } from './database/client.js'
+import { SESSION_COOKIE } from './lib/auth.js'
+import { AppError, forbidden } from './lib/errors.js'
+import { modules } from './modules/index.js'
+import { authenticateToken } from './modules/auth/service.js'
+
+/** Paths the web app's SPA fallback must never answer. */
+const reservedPrefixes = ['/api', '/rest', '/socket.io', '/health', '/ready']
+const isReserved = (url: string) => reservedPrefixes.some((prefix) => url === prefix || url.startsWith(`${prefix}/`) || url.startsWith(`${prefix}?`))
+const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+function bearerToken(request: FastifyRequest) {
+  const header = request.headers.authorization
+  return header?.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() || undefined : undefined
+}
+
+/** Builds the HTTP application. It does not listen; index.ts and tests do that. */
+export async function buildApp(): Promise<FastifyInstance> {
+  const config = getConfig()
+  const app = Fastify({
+    logger: config.LOG_LEVEL === 'silent' ? false : { level: config.LOG_LEVEL },
+    trustProxy: config.TRUST_PROXY,
+    // Uploads stream to disk; this only bounds JSON bodies.
+    bodyLimit: 4 * 1024 * 1024,
+  })
+
+  app.setErrorHandler((error, request, reply) => {
+    if (error instanceof AppError) {
+      return reply.code(error.status).send({ error: { code: error.code, message: error.message, details: error.details } })
+    }
+    if (error instanceof ZodError) {
+      return reply.code(400).send({ error: { code: 'invalid_request', message: 'The request is not valid', details: error.issues } })
+    }
+    const status = typeof (error as { statusCode?: unknown }).statusCode === 'number' ? (error as { statusCode: number }).statusCode : 500
+    if (status >= 500) request.log.error({ err: error }, 'Unhandled error')
+    const message = status >= 500 ? 'Something went wrong' : (error as Error).message
+    return reply.code(status).send({ error: { code: status >= 500 ? 'internal_error' : 'request_error', message } })
+  })
+
+  // No CSP: the SPA and artwork are served from here. Artwork and streams are also loaded
+  // by Subsonic web clients on other origins, which the default same-origin CORP blocks.
+  await app.register(helmet, { contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } })
+  await app.register(cookie)
+  await app.register(cors, {
+    origin: config.NODE_ENV === 'production' ? false : devOrigins,
+    credentials: true,
+  })
+  // Opt-in per route (login, setup, register). Counters are per process.
+  await app.register(rateLimit, { global: false })
+  await app.register(multipart, { limits: { fileSize: 16 * 1024 ** 3 } })
+
+  app.decorateRequest('user', null)
+  app.decorateRequest('authSessionId', null)
+  app.decorateRequest('viaCookie', false)
+
+  // Native routes only: /rest authenticates each request with Subsonic credentials, and
+  // static files need no session.
+  app.addHook('onRequest', async (request) => {
+    if (!request.url.startsWith(`${API_PREFIX}/`)) return
+    const bearer = bearerToken(request)
+    const token = bearer ?? request.cookies[SESSION_COOKIE]
+    const session = token ? await authenticateToken(token) : null
+    if (!session) return
+    request.user = session.user
+    request.authSessionId = session.sessionId
+    request.viaCookie = !bearer
+    // A cookie is sent by the browser on its own; the custom header proves the app sent it.
+    if (request.viaCookie && !safeMethods.has(request.method) && request.headers['x-squirmy-request'] !== '1') {
+      throw forbidden('Missing the X-Squirmy-Request header', 'csrf')
+    }
+  })
+
+  app.get('/health', async () => ({ status: 'ok', service: 'squirmy' }))
+
+  app.get('/ready', async (_request, reply) => {
+    try {
+      await db.execute(sql`select 1`)
+      return { status: 'ready' }
+    } catch (error) {
+      app.log.warn({ err: error }, 'Database is not reachable')
+      return reply.code(503).send({ status: 'unavailable' })
+    }
+  })
+
+  for (const module of modules) {
+    if (module.routes) await app.register(async (scope) => module.routes!(scope), { prefix: API_PREFIX })
+    if (module.rootRoutes) await app.register(async (scope) => module.rootRoutes!(scope))
+  }
+
+  const webDist = config.SQUIRMY_WEB_DIST ? path.resolve(config.SQUIRMY_WEB_DIST) : undefined
+  if (webDist) {
+    await app.register(fastifyStatic, {
+      root: webDist,
+      // Routes are registered for the files present at boot, so unknown paths reach the
+      // not-found handler below instead of a wildcard.
+      wildcard: false,
+      setHeaders: (response, file) => {
+        const hashed = file.startsWith(path.join(webDist, 'assets') + path.sep)
+        response.header('cache-control', hashed ? 'public, max-age=31536000, immutable' : 'no-cache')
+      },
+    })
+  }
+
+  app.setNotFoundHandler((request, reply) => {
+    if (webDist && (request.method === 'GET' || request.method === 'HEAD') && !isReserved(request.url)) {
+      return reply.sendFile('index.html')
+    }
+    return reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } })
+  })
+
+  return app
+}

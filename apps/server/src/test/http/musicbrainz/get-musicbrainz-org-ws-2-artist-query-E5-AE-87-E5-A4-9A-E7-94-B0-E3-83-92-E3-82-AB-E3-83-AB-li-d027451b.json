@@ -1,0 +1,473 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/artist?query=%E5%AE%87%E5%A4%9A%E7%94%B0%E3%83%92%E3%82%AB%E3%83%AB&limit=5&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T16:03:00.185Z",
+      "count": 9152,
+      "offset": 0,
+      "artists": [
+        {
+          "id": "b539e453-c4fe-47e3-8a07-8517eac74429",
+          "type": "Person",
+          "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+          "score": 100,
+          "gender-id": "b239bbd8-aa84-4f11-8bdb-c4159e730ee5",
+          "name": "宇多田ヒカル",
+          "sort-name": "Utada, Hikaru",
+          "gender": "non-binary",
+          "country": "JP",
+          "area": {
+            "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+            "type": "Country",
+            "type-id": "06dd0ae4-8c74-30bb-b43d-95dcedf961de",
+            "name": "Japan",
+            "sort-name": "Japan",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "begin-area": {
+            "id": "261962ea-d8c2-4eaf-a80c-f14376ffadb0",
+            "type": "District",
+            "type-id": "84039871-5e47-38ca-a66a-45e512c8290f",
+            "name": "Manhattan",
+            "sort-name": "Manhattan",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "disambiguation": "Japanese-American singer-songwriter",
+          "ipis": [
+            "00174203100",
+            "00174362566",
+            "00383290058",
+            "00465517146"
+          ],
+          "isnis": [
+            "0000000082744820"
+          ],
+          "life-span": {
+            "begin": "1983-01-19",
+            "ended": null
+          },
+          "aliases": [
+            {
+              "sort-name": "うただ ヒカル",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "宇多田ヒカル",
+              "locale": "ja",
+              "type": "Artist name",
+              "primary": true,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Utada",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "Utada",
+              "locale": "en",
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Hikki",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "Hikki",
+              "locale": "en",
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Cubic U",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "Cubic U",
+              "locale": "en",
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Cubic U (Utada Hikaru)",
+              "type-id": "1937e404-b981-3cb7-8151-4c86ebfc8d8e",
+              "name": "Cubic U (Utada Hikaru)",
+              "locale": null,
+              "type": "Search hint",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "히카루, 우타다",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "우타다히카루",
+              "locale": "ko",
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "うただひかる",
+              "type-id": "d4dcd0c0-b341-3612-a332-c0ce797b25cf",
+              "name": "宇多田光",
+              "locale": "ja",
+              "type": "Legal name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Utada, Hikaru",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "Hikaru Utada",
+              "locale": "lt",
+              "type": "Artist name",
+              "primary": true,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "宇多田光",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "宇多田光",
+              "locale": "zh_Hans",
+              "type": "Artist name",
+              "primary": true,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Utada, Hikaru",
+              "type-id": "d4dcd0c0-b341-3612-a332-c0ce797b25cf",
+              "name": "Hikaru Utada",
+              "locale": "en",
+              "type": "Legal name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "宇多田光",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "宇多田光",
+              "locale": "zh_Hant_TW",
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Utada, Hikaru",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "Hikaru Utada",
+              "locale": "en",
+              "type": "Artist name",
+              "primary": true,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "ヒッキー",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "ヒッキー",
+              "locale": "ja",
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            }
+          ],
+          "tags": [
+            {
+              "count": 2,
+              "name": "pop"
+            },
+            {
+              "count": 2,
+              "name": "singer-songwriter"
+            },
+            {
+              "count": 3,
+              "name": "j-pop"
+            },
+            {
+              "count": 1,
+              "name": "ballad"
+            },
+            {
+              "count": 2,
+              "name": "dance-pop"
+            },
+            {
+              "count": 1,
+              "name": "japan"
+            },
+            {
+              "count": 1,
+              "name": "queer"
+            },
+            {
+              "count": 1,
+              "name": "pop soul"
+            },
+            {
+              "count": 0,
+              "name": "qi-western releases"
+            },
+            {
+              "count": 4,
+              "name": "r&b"
+            },
+            {
+              "count": 2,
+              "name": "contemporary r&b"
+            },
+            {
+              "count": 0,
+              "name": "likedis auto"
+            }
+          ]
+        },
+        {
+          "id": "7c30116f-bd7c-4c60-808d-a50a2c4c54c3",
+          "type": "Person",
+          "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+          "score": 41,
+          "gender-id": "93452b5a-a947-30c8-934f-6a4056b151c2",
+          "name": "Rita",
+          "sort-name": "Rita",
+          "gender": "female",
+          "country": "JP",
+          "area": {
+            "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+            "type": "Country",
+            "type-id": "06dd0ae4-8c74-30bb-b43d-95dcedf961de",
+            "name": "Japan",
+            "sort-name": "Japan",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "begin-area": {
+            "id": "884d4a48-c134-4311-830e-38e7ee4100a5",
+            "type": "Subdivision",
+            "type-id": "fd3d44c5-80a1-3842-9745-2c4972d35afa",
+            "name": "Osaka",
+            "sort-name": "Osaka",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "disambiguation": "Japanese singer, lyricist & actor",
+          "life-span": {
+            "ended": null
+          },
+          "aliases": [
+            {
+              "sort-name": "Rita",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "理多",
+              "locale": "ja",
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Sonoda, Mahiru",
+              "name": "園田まひる",
+              "locale": null,
+              "type": null,
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Nakayama, Hikaru",
+              "name": "中山ヒカル",
+              "locale": null,
+              "type": null,
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            }
+          ]
+        },
+        {
+          "id": "424a76b4-18d0-4a2e-9076-e645dab2af31",
+          "score": 40,
+          "name": "田宇",
+          "sort-name": "田宇",
+          "life-span": {
+            "ended": null
+          }
+        },
+        {
+          "id": "c2085bdc-8174-48a2-9c52-9be415d86e71",
+          "type": "Person",
+          "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+          "score": 38,
+          "gender-id": "93452b5a-a947-30c8-934f-6a4056b151c2",
+          "name": "西田ひかる",
+          "sort-name": "Nishida, Hikaru",
+          "gender": "female",
+          "country": "JP",
+          "area": {
+            "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+            "type": "Country",
+            "type-id": "06dd0ae4-8c74-30bb-b43d-95dcedf961de",
+            "name": "Japan",
+            "sort-name": "Japan",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "begin-area": {
+            "id": "b19e46f0-6733-41fe-80f8-cc8cacca2cce",
+            "type": "City",
+            "type-id": "6fd8f29a-3d0a-32fc-980d-ea697b69da78",
+            "name": "Fujisawa",
+            "sort-name": "Fujisawa",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "ipis": [
+            "00170522792"
+          ],
+          "isnis": [
+            "0000000377997489"
+          ],
+          "life-span": {
+            "begin": "1972-08-16",
+            "ended": null
+          },
+          "aliases": [
+            {
+              "sort-name": "Hikaru, Nishida",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "Nishida Hikaru",
+              "locale": "fr",
+              "type": "Artist name",
+              "primary": true,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "Nishida Hikaru",
+              "name": "Nishida Hikaru",
+              "locale": null,
+              "type": null,
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            }
+          ],
+          "tags": [
+            {
+              "count": 1,
+              "name": "j-pop"
+            },
+            {
+              "count": 1,
+              "name": "idol kayō"
+            }
+          ]
+        },
+        {
+          "id": "b24ff9e5-e836-48be-9ffb-dfb8286131dc",
+          "type": "Person",
+          "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+          "score": 37,
+          "gender-id": "36d3d30a-839d-3eda-8cb3-29be4384e4a9",
+          "name": "宇多丸",
+          "sort-name": "utamaru",
+          "gender": "male",
+          "country": "JP",
+          "area": {
+            "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+            "type": "Country",
+            "type-id": "06dd0ae4-8c74-30bb-b43d-95dcedf961de",
+            "name": "Japan",
+            "sort-name": "Japan",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "begin-area": {
+            "id": "d1f6a333-7f09-4772-8fa6-4b6e0ea28f97",
+            "type": "City",
+            "type-id": "6fd8f29a-3d0a-32fc-980d-ea697b69da78",
+            "name": "Bunkyō",
+            "sort-name": "Bunkyō",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "disambiguation": "Utamaru of RHYMESTER",
+          "ipis": [
+            "00438753037"
+          ],
+          "life-span": {
+            "begin": "1969-05-22",
+            "ended": null
+          },
+          "aliases": [
+            {
+              "sort-name": "MC SHIRO",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "MC SHIRO",
+              "locale": null,
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "utamaru moushiwake junior",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "宇多丸申し訳Jr.",
+              "locale": null,
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "utamaru",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "歌丸",
+              "locale": null,
+              "type": "Artist name",
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "うたまる",
+              "type-id": "894afba6-2816-3c24-8072-eadb66bd04bc",
+              "name": "宇多丸",
+              "locale": "ja",
+              "type": "Artist name",
+              "primary": true,
+              "begin-date": null,
+              "end-date": null
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

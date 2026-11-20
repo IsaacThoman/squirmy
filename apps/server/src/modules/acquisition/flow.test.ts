@@ -1,0 +1,466 @@
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import type { AddressInfo } from 'node:net'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { createMockProvider, type MockProvider } from '@squirmy/adapter-mock'
+import { FakeEngine, SessionClient } from '@squirmy/client-core'
+import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
+import { AcquireResponse, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent } from '@squirmy/contracts'
+import { deliver } from '@squirmy/provider-kit'
+import { and, eq, sql } from 'drizzle-orm'
+import type { FastifyInstance } from 'fastify'
+import { io as connect } from 'socket.io-client'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildApp } from '../../app.js'
+import { db } from '../../database/client.js'
+import { acquisitionJobs, acquisitionMisses, imports, mediaFiles, recordings } from '../../database/schema.js'
+import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
+import { newId } from '../../lib/ids.js'
+import { updateServerSettings } from '../../lib/settings.js'
+import { startRealtime } from '../../realtime/index.js'
+import { body, errorCode, signIn } from '../../test/api.js'
+import { makeTone } from '../../test/audio.js'
+import { useTestDatabase } from '../../test/database.js'
+import { createAlbum } from '../../test/factories.js'
+import { trackAvailability } from '../catalog/availability.js'
+import { resolveOne } from '../catalog/redirects.js'
+import { importsModule } from '../imports/index.js'
+import { libraryModule } from '../library/index.js'
+import { insertRoot } from '../library/roots.js'
+import { matchingModule } from '../matching/index.js'
+import { sessionsModule } from '../sessions/index.js'
+import { acquisitionModule } from './index.js'
+import { configureAcquisition, sweepJobs } from './jobs.js'
+import { applyOutcome, recentOutcome } from './outcomes.js'
+import { updateAcquisitionPolicy } from './policy.js'
+import { createProvider, updateProvider } from './providers.js'
+
+/**
+ * The whole on-demand path against the mock provider on a local port: availability, a
+ * session entry going from `preparing` to `ready` (or `failed`), the job's life cycle, the
+ * delivery endpoints and the import pipeline. MusicBrainz and the other metadata sources
+ * are off, so delivered files are identified from their tags only.
+ */
+
+async function eventually(check: () => void | Promise<void>, timeoutMs = 60_000): Promise<void> {
+  const deadline = performance.now() + timeoutMs
+  for (;;) {
+    try {
+      await check()
+      return
+    } catch (error) {
+      if (performance.now() > deadline) throw error
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
+type User = Awaited<ReturnType<typeof signIn>>
+type Device = { client: SessionClient; engine: FakeEngine; socket: SquirmySocket; events: ServerEvent[] }
+
+describe('acquisition end to end', () => {
+  useTestDatabase()
+  const secret = 'flow-provider-secret'
+  let app: FastifyInstance
+  let url = ''
+  let mock: MockProvider
+  let providerId = ''
+  let rootDir = ''
+  let fixtures = ''
+  let fan: User
+  const devices: Device[] = []
+
+  beforeAll(async () => {
+    await updateServerSettings({ musicBrainzEnabled: false, deezerEnabled: false, coverArtArchiveEnabled: false, wikidataEnabled: false, lrclibEnabled: false })
+    app = await buildApp()
+    await sessionsModule.realtime!(await startRealtime(app))
+    await app.listen({ host: '127.0.0.1', port: 0 })
+    url = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`
+    for (const module of [libraryModule, matchingModule, importsModule, acquisitionModule]) await module.jobs!(jobs)
+    await startJobs({ work: true })
+    // The API half: outcomes reach the sessions. The sweep is run by hand.
+    await acquisitionModule.start!({ role: 'api' })
+    configureAcquisition({ pollMs: 100 })
+
+    rootDir = await realpath(await mkdtemp(path.join(tmpdir(), 'squirmy-acquired-')))
+    fixtures = await mkdtemp(path.join(tmpdir(), 'squirmy-acquisition-fixtures-'))
+    const root = await insertRoot({ name: 'Acquired', path: rootDir, mode: 'managed', watch: false })
+    await updateServerSettings({ importRootId: root.id })
+    await updateAcquisitionPolicy({ deliveryBaseUrl: url })
+
+    mock = createMockProvider({ secret, onError: () => {} })
+    const created = await createProvider({ name: 'Mock', baseUrl: await mock.listen(), secret, enabled: true, priority: 0 })
+    providerId = created.id
+    fan = await signIn({ canAcquire: true })
+  }, 60_000)
+
+  beforeEach(() => {
+    Object.assign(mock.settings, { delayMs: 0, fail: false, wrongFile: false, priced: false })
+  })
+  afterEach(async () => {
+    for (const device of devices.splice(0)) {
+      device.client.dispose()
+      device.socket.disconnect()
+    }
+    await sessionsModule.stop!()
+  })
+  afterAll(async () => {
+    await acquisitionModule.stop!()
+    await stopJobs()
+    await mock.close()
+    await app.close()
+    await rm(rootDir, { recursive: true, force: true })
+    await rm(fixtures, { recursive: true, force: true })
+  })
+
+  async function device(user: User): Promise<Device> {
+    const token = user.headers.authorization.slice('Bearer '.length)
+    const socket: SquirmySocket = connect(url, { path: '/socket.io', transports: ['websocket'], reconnection: false, auth: { token } })
+    const events: ServerEvent[] = []
+    socket.on('event', (event) => events.push(event))
+    const engine = new FakeEngine()
+    const client = new SessionClient({
+      transport: createSocketTransport(socket),
+      device: { id: `device-${newId()}`, name: 'Test device', kind: 'web' },
+      player: {
+        engine,
+        // The real descriptor, so the requested id must play after any merge.
+        resolvePlayback: async (entry: QueueEntry) => body(await app.inject({ url: `/api/v1/tracks/${entry.trackId}/playback`, headers: user.headers }), PlaybackDescriptor),
+        baseUrl: url,
+        normalization: 'off',
+      },
+      reportIntervalMs: 3_600_000,
+    })
+    client.start()
+    const created = { client, engine, socket, events }
+    devices.push(created)
+    await eventually(() => expect(client.getSnapshot().connection).toBe('online'), 5000)
+    return created
+  }
+
+  const play = (target: Device, trackIds: string[], albumId: string) => target.client.dispatch({
+    type: 'playTracks', tracks: trackIds.map((trackId) => ({ trackId, albumId, durationMs: 0 })), seed: 1,
+  })
+  const summaryOf = async (id: string) => body(await app.inject({ url: `/api/v1/tracks/${id}`, headers: fan.headers }), TrackSummary)
+  const jobsFor = (recordingId: string) => db.select().from(acquisitionJobs).where(sql`${acquisitionJobs.recordingIds} @> array[${recordingId}]::uuid[]`).orderBy(acquisitionJobs.id)
+  const acquire = (user: User, recordingId: string) => app.inject({ method: 'POST', url: `/api/v1/tracks/${recordingId}/acquire`, headers: user.headers })
+  const settle = async (recordingId: string) => {
+    await eventually(async () => expect((await jobsFor(recordingId)).every((job) => job.completedAt !== null)).toBe(true))
+    await drainJobs()
+  }
+
+  it('turns a gray track on demand, fetches it when played and plays it once it is imported', async () => {
+    const album = await createAlbum({ title: 'Never Owned', tracks: [{ title: 'Quiet Song', durationMs: 4000 }, { title: 'Another One', durationMs: 3000 }] })
+    const wanted = album.tracks[0]!.recordingId
+    const summary = async () => body(await app.inject({ url: `/api/v1/tracks/${wanted}`, headers: fan.headers }), TrackSummary)
+    await updateProvider(providerId, { enabled: false })
+    expect((await summary()).availability).toBe('none')
+
+    await updateProvider(providerId, { enabled: true })
+    expect((await summary()).availability).toBe('on_demand')
+
+    const phone = await device(fan)
+    mock.settings.delayMs = 300
+    const started = Date.now()
+    play(phone, [wanted], album.albumId)
+    await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
+    expect(phone.client.getSnapshot().session.stalled).toBe(true)
+
+    await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }))
+    await eventually(() => expect(phone.engine.getStatus().state).toBe('playing'), 5000)
+    expect(Date.now() - started).toBeLessThan(60_000)
+
+    await settle(wanted)
+    const [job] = await jobsFor(wanted)
+    expect(job).toMatchObject({
+      status: 'completed', error: null, providerId, requestedBy: fan.id, recordingId: wanted, albumId: album.albumId, recordingIds: [wanted],
+      idempotencyKey: `recording:${wanted}:${job!.id}`,
+    })
+    expect(job!.providerJobId).toBe(job!.id)
+    expect(job!.uploadTokenHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(job!.offer).toMatchObject({ format: 'flac', lossless: true })
+
+    const files = await db.select().from(mediaFiles).where(eq(mediaFiles.importId, job!.importId!))
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({ source: `provider:${providerId}`, durationMs: 4000 })
+    expect(await resolveOne('recordings', files[0]!.recordingId!)).toBe(wanted)
+    const [delivered] = await db.select().from(imports).where(eq(imports.id, job!.importId!))
+    expect(delivered).toMatchObject({ kind: 'acquisition', status: 'completed', acquisitionJobId: job!.id, userId: fan.id })
+
+    expect((await summary()).availability).toBe('server')
+    const statuses = phone.events.flatMap((event) => event.type === 'acquisition.updated' && event.jobId === job!.id ? [event.status] : [])
+    expect(statuses).toEqual(['resolving', 'queued', 'downloading', 'importing', 'completed'])
+    expect(phone.engine.calls.filter(([method]) => method === 'load')).toHaveLength(1)
+  })
+
+  /**
+   * Turns MusicBrainz on and answers its requests (with nothing found) only once the
+   * returned function is called, so identification of a delivery waits until then.
+   */
+  async function holdIdentification(): Promise<() => Promise<void>> {
+    let open!: () => void
+    const gate = new Promise<void>((resolve) => {
+      open = resolve
+    })
+    const realFetch = globalThis.fetch
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const target = input instanceof Request ? input.url : String(input)
+      if (!new URL(target).hostname.endsWith('musicbrainz.org')) return realFetch(input, init)
+      await gate
+      return Response.json({})
+    })
+    await updateServerSettings({ musicBrainzEnabled: true })
+    return async () => {
+      open()
+      try {
+        await drainJobs()
+      } finally {
+        spy.mockRestore()
+        await updateServerSettings({ musicBrainzEnabled: false })
+      }
+    }
+  }
+
+  it('plays an on-demand track as soon as its file is usable, while identification is still running', async () => {
+    const album = await createAlbum({ title: 'Slow To Identify', tracks: [{ title: 'Early Bird', durationMs: 4000 }] })
+    const wanted = album.tracks[0]!.recordingId
+    const release = await holdIdentification()
+    let elapsed: number
+    try {
+      // A user of their own: the fan's session still names the first test's device as active.
+      const phone = await device(await signIn({ canAcquire: true }))
+      const started = performance.now()
+      play(phone, [wanted], album.albumId)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }), 20_000)
+      elapsed = performance.now() - started
+      await eventually(() => expect(phone.engine.getStatus().state).toBe('playing'), 5000)
+
+      const [job] = await jobsFor(wanted)
+      expect(job!.status).toBe('importing')
+      const [identifying] = await db.select().from(imports).where(eq(imports.id, job!.importId!))
+      expect(identifying).toMatchObject({ status: 'processing', step: 'identifying' })
+      expect((await summaryOf(wanted)).availability).toBe('server')
+    } finally {
+      await release()
+    }
+    await settle(wanted)
+    expect((await jobsFor(wanted))[0]).toMatchObject({ status: 'completed', error: null })
+    expect(elapsed).toBeLessThan(10_000)
+  })
+
+  it('keeps playing a track identification later finds to be another recording, and fails its future plays', async () => {
+    const album = await createAlbum({ title: 'Mistaken Identity', tracks: [{ title: 'Lookalike', durationMs: 4000, mbid: crypto.randomUUID() }] })
+    const wanted = album.tracks[0]!.recordingId
+    const [other] = await db.insert(recordings).values({
+      id: newId(), mbid: crypto.randomUUID(), title: 'Lookalike (Live)', artistCredit: album.artist.name, titleKey: 'lookalike live', matchKey: 'x|lookalike live',
+    }).returning()
+    const release = await holdIdentification()
+    let phone: Device
+    try {
+      phone = await device(await signIn({ canAcquire: true }))
+      play(phone, [wanted, wanted], album.albumId)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }), 20_000)
+      await eventually(() => expect(phone.engine.getStatus().state).toBe('playing'), 5000)
+      // What matching does when it decides the file is another recording.
+      const [job] = await jobsFor(wanted)
+      const linked = await db.update(mediaFiles).set({ recordingId: other!.id, matchStatus: 'matched' })
+        .where(sql`starts_with(${mediaFiles.relPath}, ${`_Incoming/${job!.importId}/`})`).returning()
+      expect(linked).toHaveLength(1)
+    } finally {
+      await release()
+    }
+    await settle(wanted)
+    const [job] = await jobsFor(wanted)
+    expect(job).toMatchObject({ status: 'failed', error: 'Identification found the delivery is a different recording after it had started playing' })
+    expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, wanted))).toHaveLength(1)
+    await eventually(() => expect(phone.client.getSnapshot().queue.queue[0]).toMatchObject({ trackId: wanted, state: 'failed' }), 5000)
+    expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' })
+    expect(phone.engine.getStatus().state).toBe('playing')
+  })
+
+  it('collapses requests for the same track into one job', async () => {
+    const album = await createAlbum({ tracks: [{ title: 'Popular', durationMs: 3000 }] })
+    const wanted = album.tracks[0]!.recordingId
+    const other = await signIn({ canAcquire: true })
+    mock.settings.delayMs = 500
+    const responses = await Promise.all([acquire(fan, wanted), acquire(other, wanted), acquire(fan, wanted)])
+    const ids = responses.map((response) => body(response, AcquireResponse, 202).items[0]!.id)
+    expect(new Set(ids).size).toBe(1)
+    expect(await jobsFor(wanted)).toHaveLength(1)
+    await settle(wanted)
+    expect((await jobsFor(wanted))[0]!.status).toBe('completed')
+    expect(errorCode(await acquire(fan, wanted), 409)).toBe('already_available')
+  })
+
+  it('never takes a priced offer', async () => {
+    const album = await createAlbum({ tracks: [{ title: 'For Sale', durationMs: 3000 }] })
+    const wanted = album.tracks[0]!.recordingId
+    mock.settings.priced = true
+    body(await acquire(fan, wanted), AcquireResponse, 202)
+    await settle(wanted)
+    const [job] = await jobsFor(wanted)
+    expect(job).toMatchObject({ status: 'failed', error: 'No provider has a free offer for it', importId: null })
+    expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, wanted))).toHaveLength(1)
+    expect((await trackAvailability([wanted])).get(wanted)).toBe('none')
+  })
+
+  it('refuses users who may not fetch, and their session skips the track', async () => {
+    const album = await createAlbum({ tracks: [{ title: 'Forbidden', durationMs: 3000 }, { title: 'Owned', durationMs: 3000 }], owned: [1] })
+    const [forbidden, owned] = album.tracks.map((track) => track.recordingId) as [string, string]
+    const member = await signIn()
+    expect(errorCode(await acquire(member, forbidden), 403)).toBe('acquire_not_allowed')
+
+    const phone = await device(member)
+    play(phone, [forbidden, owned], album.albumId)
+    await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: owned, state: 'ready' }), 10_000)
+    expect(phone.client.getSnapshot().queue.history).toEqual([])
+    expect(await jobsFor(forbidden)).toEqual([])
+  })
+
+  it('fails a delivery that is not what was asked for, records a miss and skips the entry', async () => {
+    const album = await createAlbum({ tracks: [{ title: 'The Right One', durationMs: 4000 }, { title: 'Owned Next', durationMs: 3000 }], owned: [1] })
+    const [wanted, owned] = album.tracks.map((track) => track.recordingId) as [string, string]
+    mock.settings.wrongFile = true
+    const phone = await device(fan)
+    play(phone, [wanted, owned], album.albumId)
+    await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
+    await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: owned }))
+
+    const [job] = await jobsFor(wanted)
+    expect(job).toMatchObject({ status: 'failed', error: 'The delivery was left for review and does not contain what was asked for' })
+    const files = await db.select().from(mediaFiles).where(eq(mediaFiles.importId, job!.importId!))
+    expect(files).toHaveLength(1)
+    expect(files[0]!.source).toBe(`provider:${providerId}`)
+    expect(files[0]!.relPath).toMatch(/^_Incoming\//)
+    expect(await resolveOne('recordings', files[0]!.recordingId!)).not.toBe(wanted)
+    const [requested] = await db.select().from(recordings).where(eq(recordings.id, wanted))
+    expect(requested!.mergedIntoId).toBeNull()
+    expect(await db.select().from(acquisitionMisses).where(and(eq(acquisitionMisses.providerId, providerId), eq(acquisitionMisses.entityId, wanted)))).toHaveLength(1)
+    expect((await trackAvailability([wanted])).get(wanted)).toBe('none')
+  })
+
+  it('times out a provider that never delivers, and refuses its late delivery', async () => {
+    await updateAcquisitionPolicy({ timeoutSeconds: 30 })
+    const album = await createAlbum({ tracks: [{ title: 'Slowpoke', durationMs: 3000 }] })
+    const wanted = album.tracks[0]!.recordingId
+    mock.settings.delayMs = 120_000
+    const phone = await device(fan)
+    play(phone, [wanted], album.albumId)
+    await eventually(async () => expect((await jobsFor(wanted))[0]?.status).toBe('queued'), 10_000)
+
+    await sweepJobs(Date.now() + 31_000)
+    const [job] = await jobsFor(wanted)
+    expect(job).toMatchObject({ status: 'failed', error: 'Nothing was delivered within 30 seconds' })
+    // The entry failed and the session moved past it.
+    await eventually(() => expect(phone.client.getSnapshot().session.current?.trackId).not.toBe(wanted), 5000)
+
+    const late = await makeTone(fixtures, { path: 'late.flac', durationSec: 1, frequency: 700, tags: { title: 'Slowpoke' } })
+    await expect(deliver(mock.jobs.get(job!.id)!, [{ path: late, name: 'late.flac' }])).rejects.toThrow(/409.*job_not_active/)
+    await updateAcquisitionPolicy({ timeoutSeconds: 900 })
+  })
+
+  it('accepts a delivery token only for its own job, and fails the job on an oversized file', async () => {
+    const album = await createAlbum({ tracks: [{ title: 'First Token', durationMs: 3000 }, { title: 'Second Token', durationMs: 3000 }] })
+    const [first, second] = album.tracks.map((track) => track.recordingId) as [string, string]
+    mock.settings.delayMs = 120_000
+    body(await acquire(fan, first), AcquireResponse, 202)
+    body(await acquire(fan, second), AcquireResponse, 202)
+    await eventually(async () => expect([(await jobsFor(first))[0]?.status, (await jobsFor(second))[0]?.status]).toEqual(['queued', 'queued']), 10_000)
+    const [firstJob] = await jobsFor(first)
+    const [secondJob] = await jobsFor(second)
+    const firstDelivery = mock.jobs.get(firstJob!.id)!.delivery
+    const secondDelivery = mock.jobs.get(secondJob!.id)!.delivery
+    expect(firstDelivery.uploadUrl).toBe(`${url}/api/v1/acquisition/deliveries/${firstJob!.id}/files`)
+
+    const complete = (target: string, token?: string) => app.inject({
+      method: 'POST', url: `/api/v1/acquisition/deliveries/${target}/complete`, payload: { status: 'completed' },
+      headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
+    })
+    expect(errorCode(await complete(secondJob!.id, firstDelivery.token), 401)).toBe('invalid_delivery_token')
+    expect(errorCode(await complete(secondJob!.id), 401)).toBe('invalid_delivery_token')
+    expect(errorCode(await complete(newId(), secondDelivery.token), 401)).toBe('invalid_delivery_token')
+    // A session token is not a delivery token either.
+    expect(errorCode(await complete(secondJob!.id, fan.headers.authorization.slice(7)), 401)).toBe('invalid_delivery_token')
+
+    await updateAcquisitionPolicy({ maxFileBytes: 1000 })
+    const big = await makeTone(fixtures, { path: 'big.flac', durationSec: 2, frequency: 800, tags: { title: 'First Token' } })
+    await expect(deliver({ delivery: firstDelivery }, [{ path: big, name: 'big.flac' }])).rejects.toThrow(/413.*file_too_large/)
+    const [failed] = await jobsFor(first)
+    expect(failed).toMatchObject({ status: 'failed' })
+    expect(failed!.error).toMatch(/over the limit: Files may be at most 1000 bytes/)
+    const [received] = await db.select().from(imports).where(eq(imports.id, failed!.importId!))
+    expect(received).toMatchObject({ status: 'failed', receivedFiles: 0 })
+    await updateAcquisitionPolicy({ maxFileBytes: 500 * 1024 ** 2 })
+
+    // The other job is untouched and still takes its own delivery.
+    const small = await makeTone(fixtures, { path: 'second.flac', durationSec: 3, frequency: 610, tags: { title: 'Second Token', artist: album.artist.name, album: album.title } })
+    await deliver({ delivery: secondDelivery }, [{ path: small, name: 'second.flac' }])
+    await settle(second)
+    expect((await jobsFor(second))[0]).toMatchObject({ status: 'completed' })
+  })
+
+  it('finishes jobs that were in flight when the server restarted, so no session waits forever', async () => {
+    const album = await createAlbum({ tracks: [{ title: 'Interrupted', durationMs: 3000 }, { title: 'Stuck Resolving', durationMs: 3000 }, { title: 'Gone Quiet', durationMs: 3000 }] })
+    const [interrupted, stuck, quiet] = album.tracks.map((track) => track.recordingId) as [string, string, string]
+
+    // A delivery that was imported just before the restart; its `acquisition.finish` job was lost.
+    const tone = await makeTone(fixtures, { path: 'interrupted.flac', durationSec: 3, frequency: 530, tags: { title: 'Interrupted', artist: album.artist.name, album: album.title } })
+    mock.settings.delayMs = 120_000
+    const response = body(await acquire(fan, interrupted), AcquireResponse, 202)
+    const jobId = response.items[0]!.id
+    await eventually(async () => expect((await jobsFor(interrupted))[0]?.status).toBe('queued'), 10_000)
+    await deliver({ delivery: mock.jobs.get(jobId)!.delivery }, [{ path: tone, name: 'interrupted.flac' }])
+    await drainJobs()
+    expect((await jobsFor(interrupted))[0]).toMatchObject({ status: 'completed', error: null })
+    // Put it back as a restart would have left it: imported, but the job still `importing`.
+    await db.update(acquisitionJobs).set({ status: 'importing', completedAt: null, idempotencyKey: `recording:${interrupted}` }).where(eq(acquisitionJobs.id, jobId))
+
+    // A session that reloaded holds it preparing; its request joins the open job.
+    const phone = await device(fan)
+    play(phone, [interrupted], album.albumId)
+    await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: interrupted }), 5000)
+    expect(await jobsFor(interrupted)).toHaveLength(1)
+
+    // A job whose start was lost, and one whose provider went quiet and then failed.
+    mock.settings.delayMs = 0
+    await db.insert(acquisitionJobs).values({
+      id: newId(), providerId, requestedBy: fan.id, recordingId: stuck, recordingIds: [stuck], status: 'resolving',
+      idempotencyKey: `recording:${stuck}`, updatedAt: new Date(Date.now() - 10 * 60_000),
+    })
+    mock.settings.delayMs = 120_000
+    body(await acquire(fan, quiet), AcquireResponse, 202)
+    await eventually(async () => expect((await jobsFor(quiet))[0]?.status).toBe('queued'), 10_000)
+    const [quietJob] = await jobsFor(quiet)
+    Object.assign(mock.jobs.get(quietJob!.id)!, { status: 'failed', error: 'disk on fire' })
+    mock.settings.delayMs = 0
+
+    await sweepJobs(Date.now() + 2 * 60_000)
+    await drainJobs()
+    await settle(stuck)
+    expect((await jobsFor(interrupted))[0]).toMatchObject({ status: 'completed' })
+    expect((await jobsFor(stuck))[0]).toMatchObject({ status: 'completed' })
+    expect((await jobsFor(quiet))[0]).toMatchObject({ status: 'failed', error: 'The provider failed: disk on fire' })
+    await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: interrupted, state: 'ready' }), 10_000)
+
+    // Lost notifications are made up for by the reconciliation in the API process.
+    const outcome = await recentOutcome()
+    expect(outcome.ready).toEqual(expect.arrayContaining([interrupted, stuck]))
+    expect(outcome.failed).toContain(quiet)
+    await applyOutcome(outcome)
+  })
+
+  it('fetches a whole album in one job', async () => {
+    const album = await createAlbum({ title: 'Complete Works', tracks: [{ title: 'Opening', durationMs: 3000 }, { title: 'Closing', durationMs: 4000 }] })
+    const ids = album.tracks.map((track) => track.recordingId)
+    const response = body(await app.inject({ method: 'POST', url: `/api/v1/albums/${album.albumId}/acquire`, headers: fan.headers }), AcquireResponse, 202)
+    expect(response.items).toHaveLength(1)
+    expect(response.items[0]).toMatchObject({ albumId: album.albumId, trackId: null, title: `Complete Works — ${album.artist.name}` })
+    await settle(ids[0]!)
+    const [job] = await jobsFor(ids[0]!)
+    expect(job).toMatchObject({ status: 'completed', error: null, recordingIds: ids })
+    expect(mock.resolved.at(-1)).toMatchObject({ kind: 'album', album: { title: 'Complete Works', tracks: [{ title: 'Opening' }, { title: 'Closing' }] } })
+    expect([...(await trackAvailability(ids)).values()]).toEqual(['server', 'server'])
+  })
+})

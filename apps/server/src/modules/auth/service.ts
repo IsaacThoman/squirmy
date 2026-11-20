@@ -1,0 +1,230 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
+import type { AppPassword, ClientDevice, User } from '@squirmy/contracts'
+import argon2 from 'argon2'
+import { and, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { db, type Executor } from '../../database/client.js'
+import { appPasswords, authSessions, devices, users } from '../../database/schema.js'
+import type { AuthUser } from '../../lib/auth.js'
+import { conflict } from '../../lib/errors.js'
+import { decrypt, encrypt, hashToken, randomToken } from '../../lib/crypto.js'
+import { newId } from '../../lib/ids.js'
+
+const sessionLifetimeMs = 180 * 24 * 60 * 60 * 1000
+const lastSeenIntervalMs = 60 * 1000
+
+const { passwordHash: _passwordHash, ...userColumns } = getTableColumns(users)
+
+export function usernameKey(username: string) {
+  return username.trim().toLowerCase()
+}
+
+export function toUser(row: AuthUser): User {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.displayName,
+    role: row.role,
+    canUpload: row.canUpload,
+    canAcquire: row.canAcquire,
+    createdAt: row.createdAt.toISOString(),
+    disabled: row.disabledAt !== null,
+  }
+}
+
+export function hashPassword(password: string) {
+  return argon2.hash(password, { type: argon2.argon2id })
+}
+
+let dummyHash: Promise<string> | undefined
+
+/**
+ * Checks a username and password. An unknown username still costs one argon2 verification,
+ * so response time does not reveal which usernames exist.
+ */
+export async function verifyCredentials(username: string, password: string): Promise<(AuthUser & { passwordHash: string }) | null> {
+  const [row] = await db.select().from(users).where(eq(users.usernameKey, usernameKey(username)))
+  dummyHash ??= hashPassword(randomToken())
+  const valid = await argon2.verify(row?.passwordHash ?? await dummyHash, password).catch(() => false)
+  return row && valid ? row : null
+}
+
+export type NewSession = { token: string; sessionId: string }
+
+/** Opens a session. Only the token's hash is stored; the token goes back to the client once. */
+export async function createSession(executor: Executor, input: {
+  userId: string
+  device?: ClientDevice
+  clientKind: string
+  userAgent?: string
+}): Promise<NewSession> {
+  const token = randomToken()
+  const sessionId = newId()
+  await executor.insert(authSessions).values({
+    id: sessionId,
+    userId: input.userId,
+    tokenHash: hashToken(token),
+    deviceId: input.device?.id,
+    clientKind: input.clientKind,
+    userAgent: input.userAgent?.slice(0, 500),
+    expiresAt: new Date(Date.now() + sessionLifetimeMs),
+  })
+  if (input.device) {
+    const { id, name, kind } = input.device
+    await executor.insert(devices).values({ userId: input.userId, id, name, kind })
+      .onConflictDoUpdate({ target: [devices.userId, devices.id], set: { name, kind, lastSeenAt: new Date() } })
+  }
+  return { token, sessionId }
+}
+
+/**
+ * Resolves a session token. Sessions slide: each use pushes the expiry out again, written
+ * at most once a minute.
+ */
+export async function authenticateToken(token: string): Promise<{ user: AuthUser; sessionId: string } | null> {
+  const now = new Date()
+  const [row] = await db
+    .select({ user: userColumns, sessionId: authSessions.id, lastSeenAt: authSessions.lastSeenAt })
+    .from(authSessions)
+    .innerJoin(users, eq(users.id, authSessions.userId))
+    .where(and(eq(authSessions.tokenHash, hashToken(token)), gt(authSessions.expiresAt, now)))
+  if (!row || row.user.disabledAt) return null
+  if (now.getTime() - row.lastSeenAt.getTime() > lastSeenIntervalMs) {
+    await db.update(authSessions)
+      .set({ lastSeenAt: now, expiresAt: new Date(now.getTime() + sessionLifetimeMs) })
+      .where(eq(authSessions.id, row.sessionId))
+  }
+  return { user: row.user, sessionId: row.sessionId }
+}
+
+export async function revokeSession(sessionId: string) {
+  await db.delete(authSessions).where(eq(authSessions.id, sessionId))
+}
+
+/** Ends every session of a user, or every one but `except`. */
+export async function revokeUserSessions(executor: Executor, userId: string, except?: string) {
+  await executor.delete(authSessions)
+    .where(except ? and(eq(authSessions.userId, userId), ne(authSessions.id, except)) : eq(authSessions.userId, userId))
+}
+
+// ---------------------------------------------------------------------------
+// App passwords: generated secrets for Subsonic clients
+// ---------------------------------------------------------------------------
+
+const appPasswordPurpose = 'app-password'
+
+function toAppPassword(row: typeof appPasswords.$inferSelect, secret?: string): AppPassword {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.createdAt.toISOString(),
+    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    ...(secret !== undefined && { secret }),
+  }
+}
+
+export async function listAppPasswords(userId: string): Promise<AppPassword[]> {
+  const rows = await db.select().from(appPasswords).where(eq(appPasswords.userId, userId)).orderBy(desc(appPasswords.createdAt))
+  return rows.map((row) => toAppPassword(row))
+}
+
+/** Creates an app password. The response is the only time the secret is shown. */
+export async function createAppPassword(userId: string, name: string): Promise<AppPassword> {
+  const secret = randomToken(18)
+  const [row] = await db.insert(appPasswords).values({
+    id: newId(),
+    userId,
+    name,
+    secretEncrypted: encrypt(appPasswordPurpose, secret),
+    keyHash: hashToken(secret),
+  }).returning()
+  return toAppPassword(row!, secret)
+}
+
+export async function deleteAppPassword(userId: string, id: string): Promise<boolean> {
+  const deleted = await db.delete(appPasswords)
+    .where(and(eq(appPasswords.id, id), eq(appPasswords.userId, userId)))
+    .returning({ id: appPasswords.id })
+  return deleted.length > 0
+}
+
+/** Subsonic clients authenticate every request, cover art included, so this writes at most once a minute. */
+async function touchAppPassword(id: string) {
+  const now = new Date()
+  await db.update(appPasswords).set({ lastUsedAt: now }).where(and(
+    eq(appPasswords.id, id),
+    or(isNull(appPasswords.lastUsedAt), lt(appPasswords.lastUsedAt, new Date(now.getTime() - lastSeenIntervalMs))),
+  ))
+}
+
+/** OpenSubsonic `apiKey` auth: the key is an app password's secret. */
+export async function findAppPasswordByKey(apiKey: string): Promise<AuthUser | null> {
+  const [row] = await db.select({ user: userColumns, id: appPasswords.id })
+    .from(appPasswords)
+    .innerJoin(users, eq(users.id, appPasswords.userId))
+    .where(eq(appPasswords.keyHash, hashToken(apiKey)))
+  if (!row || row.user.disabledAt) return null
+  await touchAppPassword(row.id)
+  return row.user
+}
+
+const md5 = (value: string) => createHash('md5').update(value).digest('hex')
+
+function sameText(a: string, b: string) {
+  const left = Buffer.from(a)
+  const right = Buffer.from(b)
+  return left.length === right.length && timingSafeEqual(left, right)
+}
+
+/**
+ * Classic Subsonic auth against the user's app passwords: either the password itself
+ * (`p`, already hex-decoded) or the token `t = md5(password + s)`.
+ */
+export async function verifyAppPassword(
+  username: string,
+  credential: { password: string } | { token: string; salt: string },
+): Promise<AuthUser | null> {
+  const rows = await db.select({ user: userColumns, id: appPasswords.id, secretEncrypted: appPasswords.secretEncrypted })
+    .from(appPasswords)
+    .innerJoin(users, eq(users.id, appPasswords.userId))
+    .where(eq(users.usernameKey, usernameKey(username)))
+  for (const row of rows) {
+    if (row.user.disabledAt) return null
+    const secret = decrypt(appPasswordPurpose, row.secretEncrypted)
+    const matches = 'password' in credential
+      ? sameText(secret, credential.password)
+      : sameText(md5(secret + credential.salt), credential.token.toLowerCase())
+    if (matches) {
+      await touchAppPassword(row.id)
+      return row.user
+    }
+  }
+  return null
+}
+
+function isUniqueViolation(error: unknown) {
+  // drizzle wraps the driver's error in `cause`.
+  const candidate = error as { code?: unknown; cause?: { code?: unknown } }
+  return candidate.code === '23505' || candidate.cause?.code === '23505'
+}
+
+/** Creates an account. A taken username is a 409 `username_taken`. */
+export async function insertUser(
+  executor: Executor,
+  input: Omit<typeof users.$inferInsert, 'id' | 'usernameKey' | 'passwordHash'> & { password: string },
+): Promise<typeof users.$inferSelect> {
+  const { password, ...values } = input
+  try {
+    const [row] = await executor.insert(users)
+      .values({ ...values, id: newId(), usernameKey: usernameKey(values.username), passwordHash: await hashPassword(password) })
+      .returning()
+    return row!
+  } catch (error) {
+    if (isUniqueViolation(error)) throw conflict('That username is taken', 'username_taken')
+    throw error
+  }
+}
+
+export async function countUsers(executor: Executor = db): Promise<number> {
+  const [row] = await executor.select({ count: sql<number>`count(*)::int` }).from(users)
+  return row?.count ?? 0
+}

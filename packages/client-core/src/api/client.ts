@@ -1,0 +1,515 @@
+import {
+  type AcquireQuery,
+  AcquireResponse,
+  AcquisitionJobList,
+  type AcquisitionJobListQuery,
+  AcquisitionPolicy,
+  AcquisitionProvider,
+  AcquisitionProviderList,
+  AlbumDetail,
+  AlbumSummary,
+  API_PREFIX,
+  ApiErrorBody,
+  AppPassword,
+  AppPasswordList,
+  ART_SIZES,
+  ArtistDetail,
+  ArtistSummary,
+  type Artwork,
+  AuthResponse,
+  CatalogIndexStatus,
+  type AddPlaylistItemsRequest,
+  type ChangePasswordRequest,
+  type ConnectListenBrainzRequest,
+  type CreateAppPasswordRequest,
+  type CreateAcquisitionProviderRequest,
+  type CreateImportRequest,
+  CreateInviteRequest,
+  CreateLibraryRootRequest,
+  type CreatePlaylistRequest,
+  CreateUserRequest,
+  DeviceInfo,
+  DirectoryListing,
+  type DirectoryQuery,
+  GenreSummary,
+  HistoryItem,
+  HomeResponse,
+  Import,
+  ImportAlbumList,
+  ImportFilesResponse,
+  ImportList,
+  type ImportListQuery,
+  ImportOptions,
+  Invite,
+  InviteList,
+  JobQueueStats,
+  LastFmConnectStart,
+  type LibraryQuery,
+  LibraryRoot,
+  LibraryStats,
+  type LikeEntityType,
+  type LoginRequest,
+  Lyrics,
+  MatchActionResult,
+  MatchCandidateList,
+  type MatchCandidatesQuery,
+  MatchReviewDetail,
+  MatchReviewList,
+  type MatchReviewQuery,
+  type MovePlaylistItemRequest,
+  Ok,
+  OrganizeBatch,
+  OrganizeBatchAccepted,
+  OrganizeBatchList,
+  type OrganizeBatchListQuery,
+  OrganizePreviewRequest,
+  OrganizeTemplateInfo,
+  page,
+  type Page,
+  type PageQuery,
+  PlaybackDescriptor,
+  type PlaybackQuery,
+  PlaylistDetail,
+  PlaylistSummary,
+  type RegisterRequest,
+  RadioResponse,
+  type RematchAlbumRequest,
+  type ResolveReviewRequest,
+  ScanRootResponse,
+  SearchResults,
+  ScrobblingStatus,
+  ServerSettings,
+  SessionSnapshot,
+  SetupStatus,
+  type SetupRequest,
+  StartCatalogIndexImport,
+  type TrackQuery,
+  type UpdateAcquisitionPolicy,
+  type UpdateAcquisitionProviderRequest,
+  TrackSummariesResponse,
+  type TrackSummariesRequest,
+  TrackSummary,
+  type UpdateLibraryRootRequest,
+  type UpdatePlaylistRequest,
+  type UpdateServerSettings,
+  type UpdateUserRequest,
+  type UpdateUserSettings,
+  User,
+  UserList,
+  UserSettings,
+  type WantEntityType,
+  WantItem,
+} from '@squirmy/contracts'
+import { z } from 'zod'
+
+/** An `AbortSignal`; client-core is built without the DOM and Node types that declare it. */
+export type AbortSignalLike = { readonly aborted: boolean }
+
+/** The subset of `fetch` the client uses. The platform's `fetch` satisfies it. */
+export type FetchLike = (url: string, init: {
+  method: string
+  headers: Record<string, string>
+  body?: string
+  credentials: 'include' | 'omit'
+  signal?: AbortSignalLike
+}) => Promise<{ ok: boolean; status: number; statusText: string; text(): Promise<string> }>
+
+export type ApiClientOptions = {
+  /**
+   * The server's root URL, under which `/api/v1` lives, without a trailing slash:
+   * `https://music.example.com`, or `''` for same-origin web.
+   */
+  baseUrl: string
+  /**
+   * Returns the bearer token of native clients. When it returns a token the request
+   * carries `Authorization: Bearer …`; otherwise it is sent with cookies
+   * (`credentials: 'include'`).
+   */
+  getToken?: () => string | null | undefined | Promise<string | null | undefined>
+  /** Defaults to `globalThis.fetch`. */
+  fetch?: FetchLike
+  /** Called on every 401 before the `ApiError` is thrown, e.g. to sign out. */
+  onUnauthorized?: () => void
+  /**
+   * Sent as `X-Squirmy-Client`. The web app must send `web`: only then does the server
+   * set the session cookie on setup, login and register. Defaults to `client-core`.
+   */
+  client?: string
+  /** For uploads. Default to `globalThis.XMLHttpRequest` and `globalThis.FormData`. */
+  xhr?: () => XhrLike
+  formData?: () => FormDataLike
+  /**
+   * Parse responses with the contract schemas, throwing on a mismatch. Defaults to true;
+   * production builds pass false (`import.meta.env.DEV`, `__DEV__`).
+   */
+  validate?: boolean
+}
+
+/**
+ * The parts of `XMLHttpRequest` an upload uses. Browsers and React Native have it; `fetch`
+ * cannot report how much of a request body has been sent.
+ */
+export type XhrLike = {
+  open(method: string, url: string): void
+  setRequestHeader(name: string, value: string): void
+  withCredentials: boolean
+  upload: { onprogress: ((event: { loaded: number; total: number; lengthComputable: boolean }) => void) | null }
+  onload: (() => void) | null
+  onerror: (() => void) | null
+  onabort: (() => void) | null
+  status: number
+  statusText: string
+  responseText: string
+  send(body: unknown): void
+  abort(): void
+}
+
+/** The parts of `FormData` an upload uses. */
+export type FormDataLike = { append(name: string, value: unknown, filename?: string): void }
+
+/** One file of an upload. */
+export type UploadFile = {
+  /** A `File` or `Blob` in browsers, `{ uri, name, type }` in React Native. */
+  data: unknown
+  name: string
+  /** Its path inside the import, such as a dropped folder's `webkitRelativePath`. */
+  relativePath?: string
+}
+
+export type UploadOptions = {
+  /** Bytes of the request sent so far; `total` is null when the platform cannot tell. */
+  onProgress?: (progress: { loaded: number; total: number | null }) => void
+  /** Aborting it cancels the upload, which then fails with `ApiError` code `aborted`. */
+  signal?: AbortSignalLike & { addEventListener(type: 'abort', listener: () => void): void }
+}
+
+/**
+ * Any failed request. `status` is the HTTP status, or 0 when the request never got a
+ * response (`code: 'network_error'`). `code` is the server's stable error code.
+ */
+export class ApiError extends Error {
+  override readonly name = 'ApiError'
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+    readonly details?: unknown,
+  ) {
+    super(message)
+  }
+}
+
+type Query = Record<string, string | number | boolean | null | undefined>
+type RequestOptions<T> = { query?: Query; body?: unknown; schema: z.ZodType<T>; signal?: AbortSignalLike }
+/** Per-call options of the methods that accept them. `signal` aborts the request (it then fails with `network_error`). */
+export type CallOptions = { signal?: AbortSignalLike }
+/** Request bodies accept the schema's input type, so fields with defaults are optional. */
+type Input<T extends z.ZodType> = z.input<T>
+
+const AlbumPage = page(AlbumSummary)
+const ArtistPage = page(ArtistSummary)
+const TrackPage = page(TrackSummary)
+const GenrePage = page(GenreSummary)
+const PlaylistPage = page(PlaylistSummary)
+const HistoryPage = page(HistoryItem)
+const WantPage = page(WantItem)
+const RootList = page(LibraryRoot)
+const DeviceList = page(DeviceInfo)
+const JobList = z.array(JobQueueStats)
+const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
+type SearchParams = { q: string; limit?: number }
+type LikedItems = { track: TrackSummary; album: AlbumSummary; artist: ArtistSummary }
+
+/**
+ * Typed client for the native API, one method per route of the architecture's HTTP
+ * table, grouped by module. Every method returns the contract type of the response and
+ * throws `ApiError` on failure.
+ */
+export function createApiClient(options: ApiClientOptions) {
+  const base = `${trimSlash(options.baseUrl)}${API_PREFIX}`
+  const validate = options.validate ?? true
+
+  async function baseHeaders() {
+    const token = await options.getToken?.()
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'X-Squirmy-Request': '1',
+      'X-Squirmy-Client': options.client ?? 'client-core',
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    return { token, headers }
+  }
+
+  /** The response's contract type, or its `ApiError`. */
+  function finish<T>(response: { ok: boolean; status: number; statusText: string }, text: string, schema: z.ZodType<T>): T {
+    const json = parseJson(text)
+    if (!response.ok) {
+      if (response.status === 401) options.onUnauthorized?.()
+      const parsed = ApiErrorBody.safeParse(json)
+      if (parsed.success) throw new ApiError(response.status, parsed.data.error.code, parsed.data.error.message, parsed.data.error.details)
+      throw new ApiError(response.status, `http_${response.status}`, response.statusText || `HTTP ${response.status}`)
+    }
+    return validate ? schema.parse(json) : json as T
+  }
+
+  async function request<T>(method: string, path: string, { query, body, schema, signal }: RequestOptions<T>): Promise<T> {
+    const doFetch = options.fetch ?? (globalThis as unknown as { fetch: FetchLike }).fetch
+    const { token, headers } = await baseHeaders()
+    if (body !== undefined) headers['Content-Type'] = 'application/json'
+
+    let response: Awaited<ReturnType<FetchLike>>
+    let text: string
+    try {
+      response = await doFetch(`${base}${path}${queryString(query)}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        credentials: token ? 'omit' : 'include',
+        signal,
+      })
+      text = await response.text()
+    } catch (error) {
+      throw new ApiError(0, 'network_error', error instanceof Error ? error.message : 'Network request failed')
+    }
+    return finish(response, text, schema)
+  }
+
+  /**
+   * Posts files as `multipart/form-data` through `XMLHttpRequest`, which reports progress.
+   * Each file part follows its `relativePath` field when it has one.
+   */
+  async function upload<T>(path: string, files: readonly UploadFile[], schema: z.ZodType<T>, { onProgress, signal }: UploadOptions = {}): Promise<T> {
+    const platform = globalThis as unknown as { XMLHttpRequest?: new () => XhrLike; FormData?: new () => FormDataLike }
+    const Xhr = platform.XMLHttpRequest
+    const Form = platform.FormData
+    const makeXhr = options.xhr ?? (Xhr ? () => new Xhr() : undefined)
+    const makeForm = options.formData ?? (Form ? () => new Form() : undefined)
+    if (!makeXhr || !makeForm) throw new ApiError(0, 'upload_unavailable', 'This platform cannot upload files')
+    const form = makeForm()
+    for (const file of files) {
+      if (file.relativePath) form.append('relativePath', file.relativePath)
+      form.append('file', file.data, file.name)
+    }
+    const { token, headers } = await baseHeaders()
+    if (signal?.aborted) throw new ApiError(0, 'aborted', 'The upload was cancelled')
+    const xhr = makeXhr()
+    const response = new Promise<{ ok: boolean; status: number; statusText: string; text: string }>((resolve, reject) => {
+      xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, statusText: xhr.statusText, text: xhr.responseText })
+      xhr.onerror = () => reject(new ApiError(0, 'network_error', 'Network request failed'))
+      xhr.onabort = () => reject(new ApiError(0, 'aborted', 'The upload was cancelled'))
+    })
+    xhr.open('POST', `${base}${path}`)
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value)
+    xhr.withCredentials = !token
+    if (onProgress) xhr.upload.onprogress = (event) => onProgress({ loaded: event.loaded, total: event.lengthComputable ? event.total : null })
+    signal?.addEventListener('abort', () => xhr.abort())
+    xhr.send(form)
+    const answer = await response
+    return finish(answer, answer.text, schema)
+  }
+
+  const get = <T>(path: string, schema: z.ZodType<T>, query?: Query, options: CallOptions = {}) => request('GET', path, { schema, query, ...options })
+  const send = <T>(method: string, path: string, schema: z.ZodType<T>, body?: unknown) => request(method, path, { schema, body })
+  const id = encodeURIComponent
+
+  return {
+    auth: {
+      setupStatus: () => get('/setup/status', SetupStatus),
+      setup: (body: SetupRequest) => send('POST', '/setup', AuthResponse, body),
+      login: (body: LoginRequest) => send('POST', '/auth/login', AuthResponse, body),
+      logout: () => send('POST', '/auth/logout', Ok),
+      register: (body: RegisterRequest) => send('POST', '/auth/register', AuthResponse, body),
+      changePassword: (body: ChangePasswordRequest) => send('POST', '/auth/password', Ok, body),
+      me: () => get('/auth/me', User),
+      appPasswords: () => get('/auth/app-passwords', AppPasswordList),
+      /** The response is the only time `secret` is returned. */
+      createAppPassword: (body: CreateAppPasswordRequest) => send('POST', '/auth/app-passwords', AppPassword, body),
+      deleteAppPassword: (passwordId: string) => send('DELETE', `/auth/app-passwords/${id(passwordId)}`, Ok),
+    },
+    admin: {
+      users: () => get('/admin/users', UserList),
+      createUser: (body: Input<typeof CreateUserRequest>) => send('POST', '/admin/users', User, body),
+      updateUser: (userId: string, body: UpdateUserRequest) => send('PATCH', `/admin/users/${id(userId)}`, User, body),
+      deleteUser: (userId: string) => send('DELETE', `/admin/users/${id(userId)}`, Ok),
+      invites: () => get('/admin/invites', InviteList),
+      createInvite: (body: Input<typeof CreateInviteRequest> = {}) => send('POST', '/admin/invites', Invite, body),
+      deleteInvite: (inviteId: string) => send('DELETE', `/admin/invites/${id(inviteId)}`, Ok),
+      settings: () => get('/admin/settings', ServerSettings),
+      updateSettings: (body: UpdateServerSettings) => send('PATCH', '/admin/settings', ServerSettings, body),
+      jobs: () => get('/admin/jobs', JobList),
+      directories: (query: DirectoryQuery = {}) => get('/admin/fs', DirectoryListing, query),
+    },
+    library: {
+      roots: () => get('/admin/library/roots', RootList),
+      createRoot: (body: Input<typeof CreateLibraryRootRequest>) => send('POST', '/admin/library/roots', LibraryRoot, body),
+      updateRoot: (rootId: string, body: UpdateLibraryRootRequest) => send('PATCH', `/admin/library/roots/${id(rootId)}`, LibraryRoot, body),
+      deleteRoot: (rootId: string) => send('DELETE', `/admin/library/roots/${id(rootId)}`, Ok),
+      scanRoot: (rootId: string) => send('POST', `/admin/library/roots/${id(rootId)}/scan`, ScanRootResponse),
+      stats: () => get('/admin/library/stats', LibraryStats),
+    },
+    matching: {
+      reviews: (query: Partial<MatchReviewQuery> = {}) => get('/admin/reviews', MatchReviewList, query),
+      review: (reviewId: string) => get(`/admin/reviews/${id(reviewId)}`, MatchReviewDetail),
+      resolveReview: (reviewId: string, body: ResolveReviewRequest) => send('POST', `/admin/reviews/${id(reviewId)}/resolve`, MatchActionResult, body),
+      /** Searches MusicBrainz, so it can take several seconds at the public rate limit. */
+      candidates: (albumId: string, query: MatchCandidatesQuery = {}) => get(`/admin/albums/${id(albumId)}/candidates`, MatchCandidateList, query),
+      /** With a release, applies it and locks the files; without one, queues automatic matching again. */
+      rematch: (albumId: string, body: RematchAlbumRequest = {}) => send('POST', `/admin/albums/${id(albumId)}/rematch`, MatchActionResult, body),
+      unmatch: (albumId: string) => send('POST', `/admin/albums/${id(albumId)}/unmatch`, MatchActionResult),
+    },
+    organize: {
+      /** The default path template and the tokens a template may use. */
+      template: () => get('/admin/organize/template', OrganizeTemplateInfo),
+      preview: (body: Input<typeof OrganizePreviewRequest>) => send('POST', '/admin/organize/preview', OrganizeBatch, body),
+      batches: (query: Partial<OrganizeBatchListQuery> = {}) => get('/admin/organize/batches', OrganizeBatchList, query),
+      batch: (batchId: string) => get(`/admin/organize/batches/${id(batchId)}`, OrganizeBatch),
+      /** Starts a job; follow it with `batch`. */
+      apply: (batchId: string) => send('POST', `/admin/organize/batches/${id(batchId)}/apply`, OrganizeBatchAccepted),
+      /** Moves files back. Tags the batch wrote stay written. */
+      revert: (batchId: string) => send('POST', `/admin/organize/batches/${id(batchId)}/revert`, OrganizeBatchAccepted),
+    },
+    catalogIndex: {
+      status: () => get('/admin/catalog-index', CatalogIndexStatus),
+      startImport: (body: Input<typeof StartCatalogIndexImport> = {}) => send('POST', '/admin/catalog-index/import', Ok, body),
+      /** Stops the running import; the index in use stays. */
+      cancelImport: () => send('DELETE', '/admin/catalog-index/import', Ok),
+      /** Cancels a running import and empties the index. */
+      remove: () => send('DELETE', '/admin/catalog-index', Ok),
+    },
+    catalog: {
+      albums: (query: Partial<LibraryQuery> = {}) => get('/library/albums', AlbumPage, query),
+      artists: (query: Partial<LibraryQuery> = {}) => get('/library/artists', ArtistPage, query),
+      tracks: (query: Partial<LibraryQuery> = {}) => get('/library/tracks', TrackPage, query),
+      genres: (query: Partial<PageQuery> = {}) => get('/library/genres', GenrePage, query),
+      home: () => get('/home', HomeResponse),
+      artist: (artistId: string) => get(`/artists/${id(artistId)}`, ArtistDetail),
+      album: (albumId: string) => get(`/albums/${id(albumId)}`, AlbumDetail),
+      track: (trackId: string, query: TrackQuery = {}) => get(`/tracks/${id(trackId)}`, TrackSummary, query),
+      lyrics: (trackId: string) => get(`/tracks/${id(trackId)}/lyrics`, Lyrics),
+      trackSummaries: (body: TrackSummariesRequest) => send('POST', '/tracks/summaries', TrackSummariesResponse, body),
+    },
+    streaming: {
+      playback: (trackId: string, query: Partial<PlaybackQuery> = {}) =>
+        get(`/tracks/${id(trackId)}/playback`, PlaybackDescriptor, query),
+    },
+    userdata: {
+      settings: () => get('/me/settings', UserSettings),
+      updateSettings: (body: UpdateUserSettings) => send('PATCH', '/me/settings', UserSettings, body),
+      like: (type: LikeEntityType, entityId: string) => send('PUT', `/me/likes/${type}/${id(entityId)}`, Ok),
+      unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, Ok),
+      likes: <T extends LikeEntityType>(type: T, query: Partial<PageQuery> = {}) =>
+        get(`/me/likes/${type}`, likedPages[type] as unknown as z.ZodType<Page<LikedItems[T]>>, query),
+      playlists: (query: Partial<PageQuery> = {}) => get('/playlists', PlaylistPage, query),
+      createPlaylist: (body: CreatePlaylistRequest) => send('POST', '/playlists', PlaylistSummary, body),
+      playlist: (playlistId: string) => get(`/playlists/${id(playlistId)}`, PlaylistDetail),
+      updatePlaylist: (playlistId: string, body: UpdatePlaylistRequest) => send('PATCH', `/playlists/${id(playlistId)}`, PlaylistSummary, body),
+      deletePlaylist: (playlistId: string) => send('DELETE', `/playlists/${id(playlistId)}`, Ok),
+      addPlaylistItems: (playlistId: string, body: AddPlaylistItemsRequest) =>
+        send('POST', `/playlists/${id(playlistId)}/items`, PlaylistDetail, body),
+      movePlaylistItem: (playlistId: string, body: MovePlaylistItemRequest) =>
+        send('POST', `/playlists/${id(playlistId)}/items/move`, PlaylistDetail, body),
+      removePlaylistItem: (playlistId: string, itemId: string) =>
+        send('DELETE', `/playlists/${id(playlistId)}/items/${id(itemId)}`, PlaylistDetail),
+      history: (query: Partial<PageQuery> = {}) => get('/me/history', HistoryPage, query),
+      wants: (query: Partial<PageQuery> = {}) => get('/me/wants', WantPage, query),
+      want: (type: WantEntityType, entityId: string) => send('PUT', `/me/wants/${type}/${id(entityId)}`, Ok),
+      unwant: (type: WantEntityType, entityId: string) => send('DELETE', `/me/wants/${type}/${id(entityId)}`, Ok),
+    },
+    sessions: {
+      session: () => get('/me/session', SessionSnapshot),
+      devices: () => get('/me/devices', DeviceList),
+    },
+    search: {
+      library: (query: SearchParams, options?: CallOptions) => get('/search/library', SearchResults, query, options),
+      catalog: (query: SearchParams, options?: CallOptions) => get('/search/catalog', SearchResults, query, options),
+    },
+    scrobble: {
+      status: () => get('/me/scrobbling', ScrobblingStatus),
+      connectListenBrainz: (body: ConnectListenBrainzRequest) => send('PUT', '/me/scrobbling/listenbrainz', ScrobblingStatus, body),
+      disconnectListenBrainz: () => send('DELETE', '/me/scrobbling/listenbrainz', ScrobblingStatus),
+      /** Open the returned `url` in a browser; the server finishes the connection and redirects to `/settings`. */
+      startLastFm: () => send('POST', '/me/scrobbling/lastfm/start', LastFmConnectStart),
+      disconnectLastFm: () => send('DELETE', '/me/scrobbling/lastfm', ScrobblingStatus),
+    },
+    radio: {
+      track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
+      artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
+    },
+    imports: {
+      /** Your own imports, or every import for an admin, newest first. */
+      list: (query: Partial<ImportListQuery> = {}) => get('/imports', ImportList, query),
+      /** Whether uploads can be filed (and why not), and their size limits. */
+      options: () => get('/imports/options', ImportOptions),
+      create: (body: CreateImportRequest = {}) => send('POST', '/imports', Import, body),
+      get: (importId: string) => get(`/imports/${id(importId)}`, Import),
+      /** The albums an import's files belong to, and whether each was filed. */
+      albums: (importId: string) => get(`/imports/${id(importId)}/albums`, ImportAlbumList),
+      /**
+       * Uploads files into an import that is receiving; several calls may add to one. A file
+       * over the limits fails the request with 413, and the files before it are kept.
+       */
+      addFiles: (importId: string, files: readonly UploadFile[], options?: UploadOptions) =>
+        upload(`/imports/${id(importId)}/files`, files, ImportFilesResponse, options),
+      /** Starts processing; follow it with `get` or `import.updated` events. */
+      commit: (importId: string) => send('POST', `/imports/${id(importId)}/commit`, Import),
+      /** Cancels an import that is still receiving. */
+      cancel: (importId: string) => send('DELETE', `/imports/${id(importId)}`, Import),
+    },
+    acquisition: {
+      providers: () => get('/admin/acquisition/providers', AcquisitionProviderList),
+      /** Calls the provider's `capabilities` straight away. The secret is never returned. */
+      createProvider: (body: Input<typeof CreateAcquisitionProviderRequest>) => send('POST', '/admin/acquisition/providers', AcquisitionProvider, body),
+      updateProvider: (providerId: string, body: UpdateAcquisitionProviderRequest) =>
+        send('PATCH', `/admin/acquisition/providers/${id(providerId)}`, AcquisitionProvider, body),
+      deleteProvider: (providerId: string) => send('DELETE', `/admin/acquisition/providers/${id(providerId)}`, Ok),
+      /** Calls `capabilities` again and records the answer or the error. */
+      testProvider: (providerId: string) => send('POST', `/admin/acquisition/providers/${id(providerId)}/test`, AcquisitionProvider),
+      policy: () => get('/admin/acquisition/policy', AcquisitionPolicy),
+      updatePolicy: (body: UpdateAcquisitionPolicy) => send('PATCH', '/admin/acquisition/policy', AcquisitionPolicy, body),
+      jobs: (query: Partial<AcquisitionJobListQuery> = {}) => get('/admin/acquisition/jobs', AcquisitionJobList, query),
+      /** Fetches a track the server lacks. Playing one does this by itself. */
+      acquireTrack: (trackId: string, query: AcquireQuery = {}) => request('POST', `/tracks/${id(trackId)}/acquire`, { schema: AcquireResponse, query }),
+      acquireAlbum: (albumId: string) => send('POST', `/albums/${id(albumId)}/acquire`, AcquireResponse),
+    },
+  }
+}
+
+/** What `createApiClient` returns. */
+export type ApiClient = ReturnType<typeof createApiClient>
+
+/**
+ * URL of an artwork rendition, or null without artwork. `size` is the display size in
+ * pixels (multiply by the pixel ratio first); the smallest served size at least that
+ * large is chosen, or the largest. The route needs no auth.
+ */
+export function artworkUrl(baseUrl: string, artwork: Artwork | null | undefined, size: number): string | null {
+  if (!artwork) return null
+  const served = ART_SIZES.find(candidate => candidate >= size) ?? ART_SIZES[ART_SIZES.length - 1]
+  return `${trimSlash(baseUrl)}${API_PREFIX}/art/${encodeURIComponent(artwork.id)}/${served}`
+}
+
+/** Playable URL of a descriptor: its signed `url` resolved against the server root. */
+export function streamUrl(baseUrl: string, descriptor: Pick<PlaybackDescriptor, 'url'>): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(descriptor.url)) return descriptor.url
+  return `${trimSlash(baseUrl)}${descriptor.url.startsWith('/') ? '' : '/'}${descriptor.url}`
+}
+
+function trimSlash(url: string): string {
+  return url.endsWith('/') ? url.slice(0, -1) : url
+}
+
+function queryString(query: Query | undefined): string {
+  const parts = Object.entries(query ?? {})
+    .filter((entry): entry is [string, string | number | boolean] => entry[1] !== undefined && entry[1] !== null)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+  return parts.length ? `?${parts.join('&')}` : ''
+}
+
+function parseJson(text: string): unknown {
+  if (!text) return undefined
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}

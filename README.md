@@ -1,19 +1,94 @@
 # Squirmy
 
-Squirmy is an iOS-first Expo music prototype. Browse the fictional catalog, open an album, and tap the mini-player to open Now Playing. Playback, favorites, queue state, and the selected output persist locally.
+Squirmy is a self-hosted music server with a web app and an iOS app. Point it at your music and it:
 
-## Run locally
+- **identifies and organizes your files**: tags are read, albums are matched against MusicBrainz, covers and lyrics are filled in, and managed folders can be renamed into a clean layout, with a preview and undo;
+- **searches all music**: your library comes first, everything else shows gray and can go on your wantlist;
+- **keeps one playback session across your devices**: start an album in the browser, continue on your phone, or use one as a remote for the other;
+- **works with Subsonic apps** through an OpenSubsonic API.
 
-Use Node.js 22.13 or newer and install the dependencies.
+Squirmy is young. [docs/roadmap.md](docs/roadmap.md) tracks what works today.
+
+## Screenshots
+
+<!-- The maintainer adds screenshots of the web app and the iOS app here. -->
+
+## Quick start
+
+You need Docker with Compose, and Git. No image has been published yet, so Compose builds it from this repository.
+
+```sh
+git clone https://github.com/IsaacThoman/squirmy.git
+cd squirmy
+MUSIC_DIR=/path/to/your/music docker compose up -d --build
+```
+
+Open http://localhost:4747 and create the admin account. At the folder step choose **Skip for now**: your music folder is mounted at `/music` and already added (read-only) and scanning. The image contains the API, the worker, the web app, ffmpeg and fpcalc; `compose.yaml` adds PostgreSQL. Append `:ro` to the music volume in `compose.yaml` if the server must never change your files.
+
+## Documentation
+
+The documentation lives in [`docs/`](docs/) and builds into a site with `npm run docs:dev`.
+
+- **Running a server:** [quick start](docs/server/quick-start.md), [configuration](docs/server/configuration.md), [reverse proxies and HTTPS](docs/server/reverse-proxy.md), [backup and moving](docs/server/backup.md), [troubleshooting](docs/server/troubleshooting.md)
+- **Your music:** [library](docs/server/library.md), [organizing files](docs/server/organizing.md), [adding music](docs/server/adding-music.md), [metadata and privacy](docs/server/metadata-and-privacy.md), [playback](docs/server/playback.md)
+- **People and apps:** [users and access](docs/server/users.md), [Subsonic clients](docs/server/subsonic.md), [scrobbling](docs/server/scrobbling.md), [acquisition providers](docs/server/acquisition.md)
+- **Using it:** [web app](docs/use/web.md), [iOS app](docs/use/ios.md), [keyboard shortcuts](docs/use/keyboard-shortcuts.md), [wantlist](docs/use/wantlist.md)
+- **Development:** [docs/plan.md](docs/plan.md) (what the product does), [docs/architecture.md](docs/architecture.md) (how the code is organized), [docs/provider-protocol.md](docs/provider-protocol.md)
+
+## Development
+
+```
+apps/server            API, worker and realtime server
+apps/web               web app
+apps/mobile            Expo app
+packages/contracts     schemas shared by server and clients
+packages/client-core   logic shared by the clients
+adapters/              reference acquisition providers
+docs/                  this documentation
+```
+
+Use Node.js 22.13 or newer and install from the repository root:
 
 ```sh
 npm ci
+npm run build:packages
+```
+
+### Server
+
+The server needs PostgreSQL 15 or newer with the `pg_trgm` extension, and `ffmpeg`, `ffprobe` and `fpcalc` on the PATH.
+
+```sh
+DATABASE_URL=postgres://localhost:5432/squirmy npm run dev:api
+```
+
+Migrations run on start. The server listens on port 4747. For music to try it with, generate a demo library of very quiet tones with real album names:
+
+```sh
+npm run demo:library -w @squirmy/server -- /tmp/squirmy-demo
+DATABASE_URL=postgres://localhost:5432/squirmy SQUIRMY_LIBRARY_PATHS=/tmp/squirmy-demo npm run dev:api
+```
+
+### Web app
+
+```sh
+npm run dev:web
+```
+
+Vite serves the app on port 5173 and proxies `/api`, `/rest` and `/socket.io` to the server on 4747 (`SQUIRMY_API_URL` points it elsewhere).
+
+### Mobile app
+
+The iOS app is in `apps/mobile`. Start Expo from there:
+
+```sh
+cd apps/mobile
 npx expo start --go
 ```
 
-With an SDK 58-compatible Expo Go installed, press `i` in the Expo terminal to preview on an iOS simulator. To build the standalone app in Xcode, run `npm run ios`. The system Liquid Glass tab bar and mini-player accessory require iOS 26 or later.
+With an SDK 58-compatible Expo Go installed, press `i` in the Expo terminal to preview on an iOS simulator. To build the standalone app in Xcode, run `npm run ios` in `apps/mobile`. The system Liquid Glass tab bar and mini-player accessory require iOS 26 or later. [docs/use/ios.md](docs/use/ios.md) covers installing it on a phone and using it.
 
-## Development build on an iPhone
+#### Development build on an iPhone
 
 Set `SQUIRMY_APP_VARIANT=development` when generating and building the native project in a separate checkout. This installs Squirmy Dev alongside Squirmy. Start Metro from the checkout you are editing, with your Mac and iPhone on the same network.
 
@@ -23,19 +98,36 @@ SQUIRMY_APP_VARIANT=development npx expo start --dev-client --lan --scheme squir
 
 Open the project in Squirmy Dev using the terminal QR code or the Metro URL. JavaScript changes use Fast Refresh. Rebuild Squirmy Dev when native dependencies change.
 
-## Try the prototype
+#### Engine bench
 
-- Tap the mini-player, or pull it up, to expand it. Tap the grabber or drag down across the artwork or song details to collapse it back into the mini-player. Either way the player follows your finger, and you can let go partway.
-- Swipe left on Now Playing for the next track or right for the previous-track action. The Lyrics and Queue buttons sit below the volume slider. Tap either button again to return to the artwork.
-- In Queue, pull the list down to reveal tracks played earlier. Scroll past Up Next for Autoplay. Drag a reorder handle, or swipe left on a track for Play Next and Remove.
-- Open any album and tap the heart next to a song’s overflow button. Find it again in Library under Liked Songs.
-- Open Playback Device from the mini-player or Now Playing to move the simulated output. Use Preview Remote Controls in the device sheet to control the same session from a simulated MacBook.
-
-The playback clock, music catalog, lyrics, autoplay, and device switching are demo data and behavior. The prototype does not stream audio, connect to physical playback devices, or synchronize separate app installations.
-
-## Verify
+Development builds have a test bench for the native audio engine at `/dev/engine`, opened from the account sheet. It plays quiet test tones from a small local server:
 
 ```sh
-npm run typecheck
-npx expo export --platform ios
+node apps/mobile/scripts/engine-tones.mjs   # needs ffmpeg; serves on port 4800
 ```
+
+The bench points at port 4800 on the machine running Metro. It loads, pauses, seeks, preloads and fails on purpose, shows every engine event in order, and puts the tone on the lock screen so the remote controls can be tried with the app in the background.
+
+### Documentation site
+
+```sh
+npm run docs:dev       # live preview
+npm run docs:build     # what CI runs; dead links fail it
+npm run docs:preview   # serve the built site
+```
+
+### Verify
+
+```sh
+npm run build:packages && npm run typecheck && npm run lint && npm test
+npm run docs:build
+(cd apps/mobile && npx expo export --platform ios)
+```
+
+Server tests create their own databases; point `SQUIRMY_TEST_DATABASE_URL` at a Postgres server they may use (default `postgres://localhost:54329/postgres`). They also need `ffmpeg` and `fpcalc`. To build the Docker image yourself, run `docker compose build`.
+
+Contributors: read [AGENTS.md](AGENTS.md) for the rules (Conventional Commits, branch names, pull requests against `dev`).
+
+## License
+
+GPL-3.0-or-later. See [LICENSE](LICENSE).

@@ -1,0 +1,64 @@
+import type { HomeResponse, HomeSection } from '@squirmy/contracts'
+import { sql } from 'drizzle-orm'
+import { db } from '../../database/client.js'
+import { newReleaseAlbumIds } from '../enrichment/releases.js'
+import { listLikes } from '../userdata/likes.js'
+import { listPlaylists } from '../userdata/playlists.js'
+import { refreshWants, wantedAlbumIds } from '../userdata/wants.js'
+import { listLibraryAlbums } from './library.js'
+import { albumSummaries, trackSummaries } from './summaries.js'
+
+const RAIL = 20
+// Recently played looks at this many latest plays, which bounds the work for heavy listeners.
+const RECENT_PLAYS = 500
+
+/**
+ * The Home screen. Section ids are stable; a section without content is left out.
+ *
+ * - `recently-added`: library albums with the newest files.
+ * - `recently-played`: albums of the user's latest plays.
+ * - `most-played`: the user's most played tracks over the last 90 days.
+ * - `playlists`: the user's own playlists, recently updated first.
+ * - `liked-albums`: albums the user liked, newest first.
+ * - `wantlist`: albums on the user's wantlist, newest first.
+ * - `new-releases`: recent albums by library artists that the library lacks, newest first.
+ */
+export async function home(userId: string): Promise<HomeResponse> {
+  await refreshWants(userId)
+  const [recentlyAdded, recentlyPlayed, mostPlayed, playlists, liked, wanted, newReleases] = await Promise.all([
+    listLibraryAlbums({ sort: 'recent', limit: RAIL }),
+    db.execute<{ id: string }>(sql`
+      select recent.album_id as id from (
+        select album_id, started_at from plays where user_id = ${userId} order by started_at desc limit ${RECENT_PLAYS}
+      ) recent
+      where recent.album_id is not null
+      group by recent.album_id order by max(recent.started_at) desc limit ${RAIL}`).then((rows) => albumSummaries(rows.map((row) => row.id))),
+    db.execute<{ id: string; albumId: string | null }>(sql`
+      select recording_id as id, (array_agg(album_id order by started_at desc))[1] as "albumId"
+      from plays where user_id = ${userId} and started_at > now() - interval '90 days'
+      group by recording_id order by count(*) desc, max(started_at) desc limit ${RAIL}`).then((rows) => trackSummaries(userId, rows)),
+    listPlaylists(userId, { limit: RAIL }, { ownOnly: true }),
+    listLikes(userId, 'album', { limit: RAIL }),
+    wantedAlbumIds(userId, RAIL).then(albumSummaries),
+    newReleaseAlbumIds(RAIL).then(albumSummaries),
+  ])
+  const sections: HomeSection[] = [
+    { kind: 'albums', id: 'recently-added', title: 'Recently added', albums: recentlyAdded.items },
+    { kind: 'albums', id: 'recently-played', title: 'Recently played', albums: recentlyPlayed },
+    { kind: 'tracks', id: 'most-played', title: 'Most played', tracks: mostPlayed },
+    { kind: 'playlists', id: 'playlists', title: 'Your playlists', playlists: playlists.items },
+    { kind: 'albums', id: 'liked-albums', title: 'Liked albums', albums: liked.items },
+    { kind: 'albums', id: 'wantlist', title: 'Wantlist', albums: wanted },
+    { kind: 'albums', id: 'new-releases', title: 'New releases', albums: newReleases },
+  ]
+  return { sections: sections.filter((section) => sectionItems(section).length > 0) }
+}
+
+function sectionItems(section: HomeSection): unknown[] {
+  switch (section.kind) {
+    case 'albums': return section.albums
+    case 'artists': return section.artists
+    case 'tracks': return section.tracks
+    case 'playlists': return section.playlists
+  }
+}

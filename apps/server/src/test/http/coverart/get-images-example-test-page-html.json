@@ -1,0 +1,14 @@
+{
+  "note": "Hand-written: exercises fetchImage without downloading real artwork.",
+  "request": {
+    "method": "GET",
+    "url": "https://images.example.test/page.html"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "text": "<html><body>Not an image</body></html>"
+  }
+}

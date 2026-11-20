@@ -2,9 +2,18 @@ node_modules/
 .expo/
 dist/
 web-build/
-ios/
-android/
+# Generated native projects. Local Expo modules keep their native sources in modules/*/ios.
+/apps/mobile/ios/
+/apps/mobile/android/
 .DS_Store
 *.log
 .env*.local
 expo-env.d.ts
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+coverage/
+/data/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

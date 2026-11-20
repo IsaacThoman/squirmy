@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Squirmy",
+    "slug": "squirmy",
+    "scheme": ["squirmy", "tone"],
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#ffffff",
+          "dark": { "backgroundColor": "#111014" }
+        }
+      ],
+      "expo-sqlite",
+      ["expo-audio", { "microphonePermission": false, "recordAudioAndroid": false }],
+      ["expo-secure-store", { "faceIDPermission": false }]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.isaacthoman.music",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true },
+        "NSLocalNetworkUsageDescription": "Squirmy connects to your music server on your local network."
+      }
+    },
+    "android": {
+      "package": "com.isaacthoman.music"
+    }
+  }
+}

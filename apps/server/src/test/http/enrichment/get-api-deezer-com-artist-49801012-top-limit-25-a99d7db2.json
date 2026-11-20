@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/49801012/top?limit=25"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [],
+      "total": 0
+    }
+  }
+}

@@ -1,0 +1,300 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group?artist=5bfe1046-9e57-4e4f-bc58-196b5a1a2e52&inc=artist-credits&release-group-status=website-default&limit=100&offset=0&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-group-count": 3,
+      "release-group-offset": 0,
+      "release-groups": [
+        {
+          "secondary-type-ids": [
+            "499a387e-6195-333e-91c0-9592bfec535e"
+          ],
+          "first-release-date": "2024-03-13",
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "artist-credit": [
+            {
+              "joinphrase": ", ",
+              "artist": {
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "DE",
+                "type": "Person",
+                "name": "Bernhard Hennen",
+                "id": "90d1df77-1c55-4539-8112-8beb8fcfa1d7",
+                "sort-name": "Hennen, Bernhard",
+                "disambiguation": "German writer of fantasy"
+              },
+              "name": "Bernhard Hennen"
+            },
+            {
+              "artist": {
+                "country": "DE",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "name": "Sam Feuerbach",
+                "type": "Person",
+                "sort-name": "Feuerbach, Sam",
+                "id": "62e39a43-7b71-4ca3-88bd-b798bb7bf95e",
+                "disambiguation": "German writer"
+              },
+              "joinphrase": ", ",
+              "name": "Sam Feuerbach"
+            },
+            {
+              "name": "Mira Valentin",
+              "artist": {
+                "country": null,
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "type": "Person",
+                "name": "Mira Valentin",
+                "sort-name": "Valentin, Mira",
+                "id": "5bfe1046-9e57-4e4f-bc58-196b5a1a2e52",
+                "disambiguation": ""
+              },
+              "joinphrase": ", "
+            },
+            {
+              "name": "Greg Walters",
+              "artist": {
+                "name": "Greg Walters",
+                "type": "Person",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "f06b59d2-4319-4145-bbc0-88c9b67cb5a9",
+                "sort-name": "Walters, Greg"
+              },
+              "joinphrase": " & "
+            },
+            {
+              "name": "Torsten Weitze",
+              "artist": {
+                "type": "Person",
+                "name": "Torsten Weitze",
+                "country": null,
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "disambiguation": "",
+                "sort-name": "Weitze, Torsten",
+                "id": "6a54f83c-1999-4b1f-9a0d-04cc27fd5af2"
+              },
+              "joinphrase": " gelesen von "
+            },
+            {
+              "name": "Robert Frank",
+              "artist": {
+                "disambiguation": "German voice actor",
+                "id": "f2e0ad6a-10a7-4b9e-b9ce-f35494ff93db",
+                "sort-name": "Frank, Robert",
+                "name": "Robert Frank",
+                "type": "Person",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "DE"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Audiobook"
+          ],
+          "title": "Der Grauzorn: Minen der Macht 3",
+          "disambiguation": "",
+          "id": "085ed61a-5dde-482f-9ac6-473ef87a273f",
+          "primary-type": "Other"
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": ", ",
+              "artist": {
+                "disambiguation": "German writer of fantasy",
+                "id": "90d1df77-1c55-4539-8112-8beb8fcfa1d7",
+                "sort-name": "Hennen, Bernhard",
+                "name": "Bernhard Hennen",
+                "type": "Person",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "DE"
+              },
+              "name": "Bernhard Hennen"
+            },
+            {
+              "name": "Mira Valentin",
+              "joinphrase": ", ",
+              "artist": {
+                "id": "5bfe1046-9e57-4e4f-bc58-196b5a1a2e52",
+                "sort-name": "Valentin, Mira",
+                "disambiguation": "",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": null,
+                "type": "Person",
+                "name": "Mira Valentin"
+              }
+            },
+            {
+              "joinphrase": ", ",
+              "artist": {
+                "disambiguation": "German writer",
+                "id": "62e39a43-7b71-4ca3-88bd-b798bb7bf95e",
+                "sort-name": "Feuerbach, Sam",
+                "name": "Sam Feuerbach",
+                "type": "Person",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "DE"
+              },
+              "name": "Sam Feuerbach"
+            },
+            {
+              "name": "Greg Walters",
+              "joinphrase": " & ",
+              "artist": {
+                "type": "Person",
+                "name": "Greg Walters",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "f06b59d2-4319-4145-bbc0-88c9b67cb5a9",
+                "sort-name": "Walters, Greg"
+              }
+            },
+            {
+              "name": "Torsten Weitze",
+              "joinphrase": " gelesen von ",
+              "artist": {
+                "type": "Person",
+                "name": "Torsten Weitze",
+                "country": null,
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "disambiguation": "",
+                "sort-name": "Weitze, Torsten",
+                "id": "6a54f83c-1999-4b1f-9a0d-04cc27fd5af2"
+              }
+            },
+            {
+              "artist": {
+                "type": "Person",
+                "name": "Robert Frank",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "DE",
+                "disambiguation": "German voice actor",
+                "id": "f2e0ad6a-10a7-4b9e-b9ce-f35494ff93db",
+                "sort-name": "Frank, Robert"
+              },
+              "joinphrase": "",
+              "name": "Robert Frank"
+            }
+          ],
+          "secondary-types": [
+            "Audiobook"
+          ],
+          "secondary-type-ids": [
+            "499a387e-6195-333e-91c0-9592bfec535e"
+          ],
+          "first-release-date": "2023-10-25",
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "id": "4a096d13-718d-402f-af86-ffb249aeb2c8",
+          "primary-type": "Other",
+          "title": "Der Formbrecher: Minen der Macht 2",
+          "disambiguation": ""
+        },
+        {
+          "id": "bc3b19cd-1e79-4c18-82ab-7a98e8f5a02f",
+          "primary-type": "Other",
+          "title": "Der Unheiler: Minen der Macht 1",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Bernhard Hennen",
+              "joinphrase": ", ",
+              "artist": {
+                "id": "90d1df77-1c55-4539-8112-8beb8fcfa1d7",
+                "sort-name": "Hennen, Bernhard",
+                "disambiguation": "German writer of fantasy",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "DE",
+                "type": "Person",
+                "name": "Bernhard Hennen"
+              }
+            },
+            {
+              "name": "Mira Valentin",
+              "artist": {
+                "sort-name": "Valentin, Mira",
+                "id": "5bfe1046-9e57-4e4f-bc58-196b5a1a2e52",
+                "disambiguation": "",
+                "country": null,
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "type": "Person",
+                "name": "Mira Valentin"
+              },
+              "joinphrase": ", "
+            },
+            {
+              "name": "Sam Feuerbach",
+              "joinphrase": ", ",
+              "artist": {
+                "sort-name": "Feuerbach, Sam",
+                "id": "62e39a43-7b71-4ca3-88bd-b798bb7bf95e",
+                "disambiguation": "German writer",
+                "country": "DE",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "type": "Person",
+                "name": "Sam Feuerbach"
+              }
+            },
+            {
+              "artist": {
+                "disambiguation": "",
+                "id": "f06b59d2-4319-4145-bbc0-88c9b67cb5a9",
+                "sort-name": "Walters, Greg",
+                "type": "Person",
+                "name": "Greg Walters",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "GB"
+              },
+              "joinphrase": " & ",
+              "name": "Greg Walters"
+            },
+            {
+              "name": "Torsten Weitze",
+              "joinphrase": " gelesen von ",
+              "artist": {
+                "id": "6a54f83c-1999-4b1f-9a0d-04cc27fd5af2",
+                "sort-name": "Weitze, Torsten",
+                "disambiguation": "",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": null,
+                "name": "Torsten Weitze",
+                "type": "Person"
+              }
+            },
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "German voice actor",
+                "sort-name": "Frank, Robert",
+                "id": "f2e0ad6a-10a7-4b9e-b9ce-f35494ff93db",
+                "name": "Robert Frank",
+                "type": "Person",
+                "country": "DE",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+              },
+              "name": "Robert Frank"
+            }
+          ],
+          "secondary-types": [
+            "Audiobook"
+          ],
+          "secondary-type-ids": [
+            "499a387e-6195-333e-91c0-9592bfec535e"
+          ],
+          "first-release-date": "2023-04-26",
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22"
+        }
+      ]
+    }
+  }
+}

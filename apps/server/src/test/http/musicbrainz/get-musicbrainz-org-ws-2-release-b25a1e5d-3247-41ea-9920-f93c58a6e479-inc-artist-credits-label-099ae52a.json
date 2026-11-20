@@ -1,0 +1,1754 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/b25a1e5d-3247-41ea-9920-f93c58a6e479?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "cover-art-archive": {
+        "artwork": true,
+        "front": true,
+        "count": 2,
+        "back": true,
+        "darkened": false
+      },
+      "release-group": {
+        "first-release-date": "1969-09-26",
+        "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d",
+        "title": "Abbey Road",
+        "secondary-types": [],
+        "secondary-type-ids": [],
+        "disambiguation": "",
+        "primary-type": "Album",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "artist-credit": [
+          {
+            "name": "The Beatles",
+            "joinphrase": "",
+            "artist": {
+              "name": "The Beatles",
+              "country": "GB",
+              "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+              "type": "Group",
+              "sort-name": "Beatles, The",
+              "disambiguation": "UK rock band, “The Fab Four”",
+              "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+            }
+          }
+        ]
+      },
+      "label-info": [
+        {
+          "catalog-number": "UICY-79051/2",
+          "label": {
+            "disambiguation": "",
+            "sort-name": "Apple Records",
+            "label-code": 1074,
+            "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+            "name": "Apple Records",
+            "type": "Original Production",
+            "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910"
+          }
+        }
+      ],
+      "barcode": "4988031353004",
+      "quality": "normal",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "country": "JP",
+      "artist-credit": [
+        {
+          "name": "The Beatles",
+          "joinphrase": "",
+          "artist": {
+            "disambiguation": "UK rock band, “The Fab Four”",
+            "sort-name": "Beatles, The",
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "type": "Group",
+            "country": "GB",
+            "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+            "name": "The Beatles"
+          }
+        }
+      ],
+      "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+      },
+      "date": "2019-09-27",
+      "disambiguation": "2CD anniversary edition",
+      "asin": "B07W93DCNH",
+      "packaging": null,
+      "media": [
+        {
+          "format": "SHM-CD",
+          "tracks": [
+            {
+              "number": "1",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+                  }
+                }
+              ],
+              "title": "Come Together",
+              "length": 260200,
+              "id": "7c0fcafa-aa08-423d-8afc-8320eff4f705",
+              "position": 1,
+              "recording": {
+                "id": "23c9d649-d761-470e-88d5-05615eafea86",
+                "first-release-date": "2019-08-08",
+                "length": 260200,
+                "title": "Come Together",
+                "video": false,
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903329",
+                  "GBUM71903685"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ]
+              }
+            },
+            {
+              "number": "2",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group",
+                    "name": "The Beatles"
+                  },
+                  "name": "The Beatles",
+                  "joinphrase": ""
+                }
+              ],
+              "title": "Something",
+              "id": "2bd11b30-5472-4463-a8e0-acd20ea662f3",
+              "position": 2,
+              "recording": {
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903330"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "first-release-date": "2019-08-08",
+                "id": "13927568-01f4-4c2f-8348-2ea5d3088689",
+                "length": 182226,
+                "title": "Something",
+                "video": false
+              },
+              "length": 182226
+            },
+            {
+              "position": 3,
+              "recording": {
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903331"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "first-release-date": "2019-08-08",
+                "id": "87f3a51a-4545-43b3-97aa-b3317ce40687",
+                "length": 207973,
+                "title": "Maxwell’s Silver Hammer",
+                "video": false
+              },
+              "id": "436f4675-72ad-45d0-aaed-471df2ab9d48",
+              "length": 207973,
+              "title": "Maxwell's Silver Hammer",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles"
+                  }
+                }
+              ],
+              "number": "3"
+            },
+            {
+              "length": 207146,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "name": "The Beatles"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "GBUM71903332"
+                ],
+                "disambiguation": "2019 stereo mix",
+                "title": "Oh! Darling",
+                "video": false,
+                "id": "b897a4f1-0312-4ca3-bca3-2209629e2aac",
+                "first-release-date": "2019-08-08",
+                "length": 207146
+              },
+              "position": 4,
+              "id": "c707e6c1-da2b-47d3-aab7-1fd2aab992ad",
+              "title": "Oh! Darling",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles"
+                  },
+                  "joinphrase": "",
+                  "name": "The Beatles"
+                }
+              ],
+              "number": "4"
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "The Beatles",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "type": "Group"
+                  },
+                  "name": "The Beatles",
+                  "joinphrase": ""
+                }
+              ],
+              "number": "5",
+              "title": "Octopus's Garden",
+              "length": 170800,
+              "position": 5,
+              "recording": {
+                "id": "b00dbaea-565c-4e8c-b864-e765e6e8f22a",
+                "first-release-date": "2019-08-08",
+                "length": 170800,
+                "title": "Octopus’s Garden",
+                "video": false,
+                "isrcs": [
+                  "GBUM71903333"
+                ],
+                "disambiguation": "2019 stereo mix",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB"
+                    },
+                    "name": "The Beatles",
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "id": "5a38726a-99e7-4853-8391-9f8ef90db995"
+            },
+            {
+              "number": "6",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "name": "The Beatles",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The"
+                  }
+                }
+              ],
+              "id": "dd852818-c079-4ea8-8e14-478a79d77b14",
+              "recording": {
+                "isrcs": [
+                  "GBUM71903334"
+                ],
+                "disambiguation": "2019 stereo mix",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group",
+                      "name": "The Beatles"
+                    }
+                  }
+                ],
+                "length": 467360,
+                "first-release-date": "2019-08-08",
+                "id": "c6b8d004-957d-4637-a01b-ee84eed2470a",
+                "video": false,
+                "title": "I Want You (She’s So Heavy)"
+              },
+              "position": 6,
+              "length": 467360,
+              "title": "I Want You (She's So Heavy)"
+            },
+            {
+              "title": "Here Comes The Sun",
+              "length": 185706,
+              "id": "f31fc3f3-a263-42c2-8e5b-89578d560ba8",
+              "recording": {
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903335"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "The Beatles"
+                    }
+                  }
+                ],
+                "id": "2685a315-282a-4dc3-98c5-31b71f3dedfc",
+                "first-release-date": "2019-08-08",
+                "length": 185706,
+                "title": "Here Comes the Sun",
+                "video": false
+              },
+              "position": 7,
+              "number": "7",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "The Beatles",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”"
+                  },
+                  "joinphrase": "",
+                  "name": "The Beatles"
+                }
+              ]
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles"
+                  }
+                }
+              ],
+              "number": "8",
+              "title": "Because",
+              "length": 165613,
+              "position": 8,
+              "recording": {
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903336"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "name": "The Beatles"
+                    },
+                    "name": "The Beatles",
+                    "joinphrase": ""
+                  }
+                ],
+                "length": 165613,
+                "first-release-date": "2019-08-08",
+                "id": "6508d801-c799-4eb9-b96c-89fd1e96b554",
+                "video": false,
+                "title": "Because"
+              },
+              "id": "cfa9cfcb-2870-49ed-966e-440ca7ad7646"
+            },
+            {
+              "number": "9",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB"
+                  }
+                }
+              ],
+              "length": 242666,
+              "id": "4a7f8c09-8c51-49b0-8740-2a3bec8351c1",
+              "position": 9,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group",
+                      "name": "The Beatles"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903337"
+                ],
+                "title": "You Never Give Me Your Money",
+                "video": false,
+                "first-release-date": "2019-08-08",
+                "id": "15832e20-4273-47f9-8fe8-1d99de5867fa",
+                "length": 242666
+              },
+              "title": "You Never Give Me Your Money"
+            },
+            {
+              "length": 146333,
+              "id": "e153ef33-a133-4390-8964-cc7447d6c0be",
+              "recording": {
+                "video": false,
+                "title": "Sun King",
+                "length": 146333,
+                "first-release-date": "2019-08-08",
+                "id": "7d75fbe8-a848-4b89-82af-69326afc4202",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The"
+                    }
+                  }
+                ],
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903338"
+                ]
+              },
+              "position": 10,
+              "title": "Sun King",
+              "number": "10",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The"
+                  }
+                }
+              ]
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group",
+                    "name": "The Beatles",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”"
+                  }
+                }
+              ],
+              "number": "11",
+              "recording": {
+                "length": 66466,
+                "id": "f5f541a1-fff3-49f8-b8cd-148d35d89c59",
+                "first-release-date": "2019-08-08",
+                "video": false,
+                "title": "Mean Mr Mustard",
+                "isrcs": [
+                  "GBUM71903339"
+                ],
+                "disambiguation": "2019 stereo mix",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”"
+                    }
+                  }
+                ]
+              },
+              "position": 11,
+              "id": "4387b53e-5ae1-4df7-95fd-127520fe1812",
+              "length": 66466,
+              "title": "Mean Mr Mustard"
+            },
+            {
+              "id": "ed0b75b0-662d-4e23-8f8a-65feef4c4331",
+              "recording": {
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903340"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "The Beatles",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group"
+                    }
+                  }
+                ],
+                "length": 72800,
+                "id": "1a910833-4319-4282-903b-cbaad5a9dd55",
+                "first-release-date": "2019-08-08",
+                "video": false,
+                "title": "Polythene Pam"
+              },
+              "position": 12,
+              "length": 72800,
+              "title": "Polythene Pam",
+              "number": "12",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "name": "The Beatles"
+                  }
+                }
+              ]
+            },
+            {
+              "number": "13",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB"
+                  }
+                }
+              ],
+              "length": 118813,
+              "id": "28f18771-ae65-4d80-97dd-07aa50673d5b",
+              "position": 13,
+              "recording": {
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903341"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group",
+                      "name": "The Beatles",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    }
+                  }
+                ],
+                "id": "9992422a-1bc3-4271-93ef-3e5939ab26b2",
+                "first-release-date": "2019-08-08",
+                "length": 118813,
+                "title": "She Came In Through the Bathroom Window",
+                "video": false
+              },
+              "title": "She Came In Through The Bathroom Window"
+            },
+            {
+              "recording": {
+                "length": 91440,
+                "id": "9cf269e6-4b82-46ec-ad44-86197c156fb0",
+                "first-release-date": "2019-08-08",
+                "video": false,
+                "title": "Golden Slumbers",
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903342"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "The Beatles",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ]
+              },
+              "position": 14,
+              "id": "8eacf665-2d83-4cff-a449-c25aba98d9cb",
+              "length": 91440,
+              "title": "Golden Slumbers",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "The Beatles",
+                  "joinphrase": ""
+                }
+              ],
+              "number": "14"
+            },
+            {
+              "number": "15",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "The Beatles",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group"
+                  },
+                  "name": "The Beatles",
+                  "joinphrase": ""
+                }
+              ],
+              "title": "Carry That Weight",
+              "id": "b6ca6475-3bc8-4a6a-a532-19ad7c0e4b00",
+              "position": 15,
+              "recording": {
+                "length": 96440,
+                "first-release-date": "2019-08-08",
+                "id": "093ac3c7-686f-4393-8842-6122ae7a33cd",
+                "video": false,
+                "title": "Carry That Weight",
+                "isrcs": [
+                  "GBUM71903343"
+                ],
+                "disambiguation": "2019 stereo mix",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group",
+                      "name": "The Beatles",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "name": "The Beatles",
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "length": 96440
+            },
+            {
+              "number": "16",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "title": "The End",
+              "id": "a2a16f2c-053d-4e71-af1d-71c0fe96e7b0",
+              "recording": {
+                "id": "8e927a1b-2e0d-4e54-b3d5-d03c13b2123a",
+                "first-release-date": "2019-08-08",
+                "length": 141906,
+                "title": "The End",
+                "video": false,
+                "disambiguation": "2019 stereo mix",
+                "isrcs": [
+                  "GBUM71903344"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB"
+                    },
+                    "name": "The Beatles",
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "position": 16,
+              "length": 141906
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "type": "Group",
+                    "name": "The Beatles"
+                  },
+                  "name": "The Beatles",
+                  "joinphrase": ""
+                }
+              ],
+              "number": "17",
+              "title": "Her Majesty",
+              "length": 25120,
+              "recording": {
+                "isrcs": [
+                  "GBUM71903345"
+                ],
+                "disambiguation": "2019 stereo mix",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "The Beatles",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group"
+                    }
+                  }
+                ],
+                "length": 25120,
+                "id": "b01fd42f-2c49-482c-bad4-bb4ee2110c33",
+                "first-release-date": "2019-08-08",
+                "video": false,
+                "title": "Her Majesty"
+              },
+              "position": 17,
+              "id": "c77f02af-b0ad-4059-bba3-b7b0c59d4178"
+            }
+          ],
+          "id": "ec3130ce-57df-3c79-960c-9e4d9a71a837",
+          "position": 1,
+          "format-id": "4856b1c6-674d-3f68-a1dd-8ae517e8b566",
+          "track-offset": 0,
+          "track-count": 17,
+          "title": "2019 Mix"
+        },
+        {
+          "track-offset": 0,
+          "title": "Sessions",
+          "track-count": 16,
+          "format": "SHM-CD",
+          "tracks": [
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group",
+                    "name": "The Beatles"
+                  }
+                }
+              ],
+              "number": "1",
+              "title": "Come Together (Take 5)",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903358"
+                ],
+                "video": false,
+                "title": "Come Together (take 5)",
+                "length": 210146,
+                "first-release-date": "2019-09-20",
+                "id": "6e110048-5c88-4366-b5bc-9593c294f66e"
+              },
+              "position": 1,
+              "id": "8c587f36-9148-4e7f-8aed-b239b6f96e03",
+              "length": 210080
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles"
+                  }
+                }
+              ],
+              "number": "2",
+              "length": 217226,
+              "position": 2,
+              "recording": {
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903348"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "id": "2847c343-0568-444f-9347-88126de0d041",
+                "first-release-date": "2019-08-08",
+                "length": 217226,
+                "title": "Something (studio demo)",
+                "video": false
+              },
+              "id": "36590ea6-19ad-4d1e-842d-b51541740a52",
+              "title": "Something (Studio Demo)"
+            },
+            {
+              "length": 283986,
+              "recording": {
+                "video": false,
+                "title": "Maxwell’s Silver Hammer (take 12)",
+                "length": 284440,
+                "id": "5da5f2a5-dfc9-41d1-8bd0-cc9c6a9afaef",
+                "first-release-date": "2019-09-27",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903357"
+                ]
+              },
+              "position": 3,
+              "id": "db609d0d-1904-4f69-bfdf-346e287bd2a9",
+              "title": "Maxwell's Silver Hammer (Take 12)",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles"
+                  },
+                  "joinphrase": "",
+                  "name": "The Beatles"
+                }
+              ],
+              "number": "3"
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "The Beatles",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group",
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "The Beatles",
+                  "joinphrase": ""
+                }
+              ],
+              "number": "4",
+              "position": 4,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "name": "The Beatles"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "GBUM71903351"
+                ],
+                "disambiguation": "",
+                "title": "Oh! Darling (take 4)",
+                "video": false,
+                "first-release-date": "2019-09-06",
+                "id": "bb77ada8-1fee-4423-9cad-c8485d5415a6",
+                "length": 210720
+              },
+              "id": "22211a8e-38bb-40a4-8f7a-ef5e7bad4587",
+              "length": 210720,
+              "title": "Oh! Darling (Take 4)"
+            },
+            {
+              "number": "5",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "title": "Octopus's Garden (Take 9)",
+              "id": "f5409919-5051-428d-837a-fd5b5cc490ca",
+              "position": 5,
+              "recording": {
+                "video": false,
+                "title": "Octopus’s Garden (take 9)",
+                "length": 103000,
+                "first-release-date": "2019-09-27",
+                "id": "8efe94a2-587a-42b3-a095-fe7be2463a04",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "The Beatles",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”"
+                    },
+                    "name": "The Beatles",
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "GBUM71903352"
+                ],
+                "disambiguation": ""
+              },
+              "length": 103000
+            },
+            {
+              "number": "6",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles"
+                  }
+                }
+              ],
+              "title": "I Want You (She's So Heavy) (Trident Recording Session & Reduction Mix)",
+              "length": 418626,
+              "id": "be35d2bf-144b-48c6-ab65-10dd6563149a",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "The Beatles",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "type": "Group"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903346"
+                ],
+                "video": false,
+                "title": "I Want You (She’s So Heavy) (Trident recording session & reduction mix)",
+                "length": 419600,
+                "first-release-date": "2019-09-27",
+                "id": "8e09c8a2-439b-4f6d-897b-29556287d3de"
+              },
+              "position": 6
+            },
+            {
+              "length": 220973,
+              "id": "e8e15de1-fe22-4182-aa4e-f2e95fd48cd6",
+              "position": 7,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "name": "The Beatles",
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "GBUM71903356"
+                ],
+                "disambiguation": "",
+                "video": false,
+                "title": "Here Comes the Sun (take 9)",
+                "length": 221000,
+                "id": "18e0882f-e127-47f7-a634-da1d13b1a1fd",
+                "first-release-date": "2019-09-27"
+              },
+              "title": "Here Comes The Sun (Take 9)",
+              "number": "7",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB"
+                  }
+                }
+              ]
+            },
+            {
+              "number": "8",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "title": "Because (Take 1 - Instrumental)",
+              "id": "6cf8b927-2713-4739-8653-0ceed8a344df",
+              "recording": {
+                "video": false,
+                "title": "Because (take 1 / instrumental)",
+                "length": 187520,
+                "id": "f63a9610-bfd9-4c4d-a96b-1bd707279b96",
+                "first-release-date": "2019-09-27",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "name": "The Beatles"
+                    },
+                    "name": "The Beatles",
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903362"
+                ]
+              },
+              "position": 8,
+              "length": 187520
+            },
+            {
+              "id": "6cca07a5-dc26-4b90-bde5-3ced8fc777d9",
+              "position": 9,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group",
+                      "name": "The Beatles"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903353"
+                ],
+                "title": "You Never Give Me Your Money (take 36)",
+                "video": false,
+                "id": "6ac26473-a1ed-4037-ab9f-d2c07ca5aeec",
+                "first-release-date": "2019-09-27",
+                "length": 317693
+              },
+              "length": 317880,
+              "title": "You Never Give Me Your Money (Take 36)",
+              "number": "9",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The"
+                  }
+                }
+              ]
+            },
+            {
+              "number": "10",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "The Beatles",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group",
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "The Beatles"
+                }
+              ],
+              "length": 194026,
+              "id": "4e88f689-281a-4561-b2a5-666d4469a389",
+              "recording": {
+                "title": "Sun King (take 20)",
+                "video": false,
+                "id": "2fb516b0-c708-47c5-ad56-deb3b5e68ed8",
+                "first-release-date": "2019-09-27",
+                "length": 194026,
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903360"
+                ]
+              },
+              "position": 10,
+              "title": "Sun King (Take 20)"
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "The Beatles",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group"
+                  },
+                  "name": "The Beatles",
+                  "joinphrase": ""
+                }
+              ],
+              "number": "11",
+              "title": "Mean Mr Mustard (Take 20)",
+              "position": 11,
+              "recording": {
+                "first-release-date": "2019-09-27",
+                "id": "f4992aa0-77c1-42e7-afa8-1db8fb81694b",
+                "length": 94293,
+                "title": "Mean Mr Mustard (take 20)",
+                "video": false,
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903388"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "name": "The Beatles"
+                    }
+                  }
+                ]
+              },
+              "id": "d0b6de87-3438-4af2-8df6-c02b93b2b89d",
+              "length": 94293
+            },
+            {
+              "number": "12",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles"
+                  }
+                }
+              ],
+              "title": "Polythene Pam (Take 27)",
+              "id": "06204ca4-83c4-4416-b7b6-92da909ec0d2",
+              "position": 12,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "isrcs": [
+                  "GBUM71903361"
+                ],
+                "disambiguation": "",
+                "title": "Polythene Pam (take 27)",
+                "video": false,
+                "id": "732d5246-f2d9-4336-88c4-61042fa728c5",
+                "first-release-date": "2019-09-27",
+                "length": 99160
+              },
+              "length": 99160
+            },
+            {
+              "title": "She Came In Through The Bathroom Window (Take 27)",
+              "length": 126080,
+              "id": "36f6ec84-42e1-4b04-ac04-a9db8ae2ca30",
+              "position": 13,
+              "recording": {
+                "id": "abb41dca-612a-40c8-8b58-f9c68142aa4e",
+                "first-release-date": "2019-09-27",
+                "length": 126080,
+                "title": "She Came In Through the Bathroom Window (take 27)",
+                "video": false,
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903390"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "name": "The Beatles",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    }
+                  }
+                ]
+              },
+              "number": "13",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ]
+            },
+            {
+              "number": "14",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The"
+                  }
+                }
+              ],
+              "title": "Golden Slumbers / Carry That Weight (Takes 1-3)",
+              "id": "e0633850-7436-410a-8e37-25eaf0d73ae6",
+              "recording": {
+                "first-release-date": "2019-09-27",
+                "id": "795c2a7a-5524-4a4d-a9a3-9b0691742340",
+                "length": 200506,
+                "title": "Golden Slumbers / Carry That Weight (takes 1–3 / Medley)",
+                "video": false,
+                "isrcs": [
+                  "GBUM71903355"
+                ],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "The Beatles"
+                    }
+                  }
+                ]
+              },
+              "position": 14,
+              "length": 200506
+            },
+            {
+              "title": "The End (Take 3)",
+              "recording": {
+                "disambiguation": "",
+                "isrcs": [
+                  "GBUM71903359"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+                    }
+                  }
+                ],
+                "first-release-date": "2019-09-27",
+                "id": "3383afc5-5c68-4dd6-b14c-c4371201d0c8",
+                "length": 131080,
+                "title": "The End (take 3)",
+                "video": false
+              },
+              "position": 15,
+              "id": "dd4b66dd-9b1c-41eb-97f6-5442207865fe",
+              "length": 131080,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "The Beatles",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "sort-name": "Beatles, The",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "name": "The Beatles"
+                  }
+                }
+              ],
+              "number": "15"
+            },
+            {
+              "recording": {
+                "isrcs": [
+                  "GBUM71903354"
+                ],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "The Beatles",
+                    "artist": {
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "sort-name": "Beatles, The"
+                    }
+                  }
+                ],
+                "first-release-date": "2019-09-27",
+                "id": "2a403dc9-a466-45a3-9478-39cde1289b37",
+                "length": 93947,
+                "title": "Her Majesty (takes 1–3)",
+                "video": false
+              },
+              "position": 16,
+              "id": "9375c08c-6c80-4051-8082-1fa5a2ed01cd",
+              "length": 96120,
+              "title": "Her Majesty (Takes 1-3)",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "The Beatles",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Beatles, The",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "The Beatles",
+                  "joinphrase": ""
+                }
+              ],
+              "number": "16"
+            }
+          ],
+          "format-id": "4856b1c6-674d-3f68-a1dd-8ae517e8b566",
+          "position": 2,
+          "id": "2609e598-5da5-3bf8-80c9-8b1ed20bb0fc"
+        }
+      ],
+      "packaging-id": null,
+      "status": "Official",
+      "title": "Abbey Road",
+      "release-events": [
+        {
+          "date": "2019-09-27",
+          "area": {
+            "name": "Japan",
+            "type": null,
+            "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+            "iso-3166-1-codes": [
+              "JP"
+            ],
+            "type-id": null,
+            "disambiguation": "",
+            "sort-name": "Japan"
+          }
+        }
+      ],
+      "relations": [
+        {
+          "attribute-values": {},
+          "source-credit": "",
+          "target-type": "url",
+          "url": {
+            "resource": "https://www.amazon.co.jp/gp/product/B07W93DCNH",
+            "id": "a8a30a27-1537-4231-8b33-9eaef3109ee6"
+          },
+          "begin": null,
+          "type": "amazon asin",
+          "end": null,
+          "attribute-ids": {},
+          "type-id": "4f2e710d-166c-480c-a293-2e2c8d658d87",
+          "direction": "forward",
+          "attributes": [],
+          "ended": false,
+          "target-credit": ""
+        },
+        {
+          "type": "discography entry",
+          "begin": null,
+          "attributes": [],
+          "direction": "forward",
+          "target-credit": "",
+          "ended": false,
+          "attribute-ids": {},
+          "end": null,
+          "type-id": "823656dd-0309-4247-b282-b92d287d59c5",
+          "attribute-values": {},
+          "url": {
+            "resource": "https://www.universal-music.co.jp/the-beatles/products/uicy-79051/",
+            "id": "c56964c0-a5b9-4e9a-aab0-492f7efa3ffb"
+          },
+          "target-type": "url",
+          "source-credit": ""
+        }
+      ],
+      "id": "b25a1e5d-3247-41ea-9920-f93c58a6e479"
+    }
+  }
+}

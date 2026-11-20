@@ -1,0 +1,248 @@
+import { ApiError, createInitialSession, queueChanged, reduceSession, splitSession, type ApiClient } from '@squirmy/client-core'
+import type { SquirmySocket } from '@squirmy/client-core/socket'
+import {
+  DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
+  type AcquisitionPolicy, type CommandEnvelope, type DeviceInfo, type Import, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
+  type ScrobblingStatus, type SessionHello, type SetupStatus, type TrackSummariesRequest, type User, type WantItem,
+} from '@squirmy/contracts'
+import { vi } from 'vitest'
+import type { Services } from '@/api/services'
+import {
+  albumDetail, allTracks, artistDetail, genres, home, libraryAlbums, libraryArtists, libraryTracks, likedTracks, lyricsFor, playlistDetail, playlistSummaries,
+  searchFixtures, wantlist,
+} from '@/fixtures/catalog'
+import { appPasswords, currentUser, invites, jobs, serverSettings, userSettings, users } from '@/fixtures/server'
+
+type Listener = (...args: never[]) => void
+
+type Ack = (error: Error | null, reply?: unknown) => void
+
+/**
+ * Enough of a socket.io socket for the realtime provider and the session client: events can
+ * be fired at it with `serverEmit`, and it answers the session protocol with the real
+ * reducer, as the server would for one device.
+ */
+export class FakeSocket {
+  connected = false
+  active = false
+  session = createInitialSession()
+  version = 1
+  private devices: DeviceInfo[] = []
+  private deviceId: string | undefined
+  private readonly listeners = new Map<string, Set<Listener>>()
+
+  timeout() {
+    return { emit: (event: string, payload: unknown, ack: Ack) => queueMicrotask(() => this.answer(event, payload, ack)) }
+  }
+
+  /** Engine reports; nothing to answer. */
+  emit() {
+    return this
+  }
+
+  private answer(event: string, payload: unknown, ack: Ack) {
+    if (event === 'session:hello') {
+      const { device, canPlay } = payload as SessionHello
+      this.deviceId = device.id
+      this.devices = [{ ...device, canPlay, isActive: false }]
+      const { state, queue } = splitSession(this.session)
+      return ack(null, { serverTime: Date.now(), snapshot: { version: this.version, queueVersion: this.version, state, queue }, devices: this.devices })
+    }
+    if (event === 'time:sync') return ack(null, { clientTime: payload, serverTime: Date.now() })
+    const { command, commandId } = payload as CommandEnvelope
+    const previous = this.session
+    this.session = reduceSession(previous, { command, now: Date.now(), commandId, deviceId: this.deviceId })
+    if (this.session !== previous) this.version += 1
+    ack(null, { ok: true, version: this.version })
+    if (this.session === previous) return
+    const { state, queue } = splitSession(this.session)
+    if (queueChanged(previous, this.session)) this.serverEmit('session:queue', { version: this.version, queueVersion: this.version, queue })
+    this.serverEmit('session:state', { version: this.version, state })
+  }
+
+  on(event: string, listener: Listener) {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set())
+    this.listeners.get(event)!.add(listener)
+    return this
+  }
+
+  off(event: string, listener: Listener) {
+    this.listeners.get(event)?.delete(listener)
+    return this
+  }
+
+  connect() {
+    this.active = true
+    this.connected = true
+    this.serverEmit('connect')
+    return this
+  }
+
+  disconnect() {
+    this.active = false
+    if (this.connected) {
+      this.connected = false
+      this.serverEmit('disconnect', 'io client disconnect')
+    }
+    return this
+  }
+
+  /** Delivers an event as if the server (or socket.io itself) sent it. */
+  serverEmit(event: string, ...args: unknown[]) {
+    for (const listener of [...(this.listeners.get(event) ?? [])]) (listener as (...values: unknown[]) => void)(...args)
+  }
+}
+
+const list = <T>(items: T[]) => ({ items, nextCursor: null })
+const ok = { ok: true as const }
+const notFound = () => new ApiError(404, 'not_found', 'Not found')
+const found = <T>(value: T | null | undefined): T => {
+  if (value == null) throw notFound()
+  return value
+}
+const wants: WantItem[] = [
+  ...wantlist.albums.map(album => ({ type: 'album' as const, album, wantedAt: '2026-11-18T10:00:00.000Z', fulfilledAt: null })),
+  ...wantlist.tracks.map(track => ({ type: 'track' as const, track, wantedAt: '2026-11-18T10:00:00.000Z', fulfilledAt: null })),
+]
+const scrobbling: ScrobblingStatus = {
+  services: [
+    { target: 'listenbrainz', available: true, connected: true, account: 'alex', enabled: true, needsAttention: false, lastError: null, connectedAt: '2026-11-02T09:12:00.000Z', pending: 2, failed: 0 },
+    { target: 'lastfm', available: false, connected: false, account: null, enabled: false, needsAttention: false, lastError: null, connectedAt: null, pending: 0, failed: 0 },
+  ],
+}
+
+export const templateInfo: OrganizeTemplateInfo = {
+  defaultTemplate: DEFAULT_ORGANIZE_TEMPLATE,
+  tokens: ORGANIZE_TEMPLATE_TOKENS.map(token => ({ token, description: token === 'album' ? 'The album title' : `The ${token}` })),
+}
+
+export const root: LibraryRoot = {
+  id: '00000000-0000-4000-8900-000000000001', name: 'Music', path: '/srv/music', mode: 'read_only', enabled: true, watch: true, template: null, scanning: false,
+  fileCount: 120, lastScanStartedAt: '2026-11-20T10:00:00.000Z', lastScanFinishedAt: '2026-11-20T10:02:00.000Z',
+  lastScanStats: { filesSeen: 120, filesAdded: 120, filesChanged: 0, filesMissing: 0, errors: 0 },
+}
+
+export const upload: Import = {
+  id: '00000000-0000-4000-8a00-000000000001', kind: 'upload', status: 'completed', step: null, label: 'Blue Hour', userId: currentUser.id, acquisitionJobId: null,
+  targetRootId: root.id, timedOut: false, reviewFolder: null, error: null,
+  counts: {
+    filesReceived: 5, bytesReceived: 2e7, filesRejected: 0, filesExtracted: 0, archivesRejected: 0, audioFiles: 5, duplicatesSkipped: 0, unreadable: 0,
+    albumsIdentified: 1, albumsFiled: 1, filesFiled: 5, filesLeftForReview: 0,
+  },
+  createdAt: '2026-11-20T10:00:00.000Z', updatedAt: '2026-11-20T10:02:00.000Z', completedAt: '2026-11-20T10:02:00.000Z',
+}
+
+const policy: AcquisitionPolicy = { preferLossless: true, maxFileBytes: 5e8, storageQuotaBytes: 0, timeoutSeconds: 900, targetRootId: null, deliveryBaseUrl: null }
+
+const stats: LibraryStats = { artists: 9, albums: 12, tracks: 118, files: 120, bytes: 4e8, durationMs: 3e7, matched: 100, unmatched: 8, inReview: 12, pending: 0, missing: 0 }
+
+export type FakeOptions = { status?: Partial<SetupStatus>; user?: User | null }
+
+/** An API answering from the fixtures, signed in as the fixture admin unless told otherwise. Every method is a mock. */
+export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
+  const socket = new FakeSocket()
+  const api = {
+    auth: {
+      setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, ...status })),
+      me: vi.fn(async () => {
+        if (user) return user
+        throw new ApiError(401, 'unauthorized', 'Sign in to continue')
+      }),
+      login: vi.fn(async () => ({ user: currentUser, token: 'token' })),
+      register: vi.fn(async () => ({ user: currentUser, token: 'token' })),
+      setup: vi.fn(async () => ({ user: currentUser, token: 'token' })),
+      logout: vi.fn(async () => ({ ok: true as const })),
+      changePassword: vi.fn(async () => ({ ok: true as const })),
+      appPasswords: vi.fn(async () => list(appPasswords)),
+      createAppPassword: vi.fn(async ({ name }: { name: string }) => ({ ...appPasswords[0], name, secret: 'sq-secret' })),
+      deleteAppPassword: vi.fn(async () => ({ ok: true as const })),
+    },
+    admin: {
+      users: vi.fn(async () => list(users)),
+      createUser: vi.fn(async () => users[1]),
+      updateUser: vi.fn(async (id: string, patch: Partial<User>) => ({ ...users.find(candidate => candidate.id === id)!, ...patch })),
+      deleteUser: vi.fn(async () => ({ ok: true as const })),
+      invites: vi.fn(async () => list(invites)),
+      createInvite: vi.fn(async () => invites[0]),
+      deleteInvite: vi.fn(async () => ({ ok: true as const })),
+      settings: vi.fn(async () => serverSettings),
+      updateSettings: vi.fn(async (patch: object) => ({ ...serverSettings, ...patch })),
+      jobs: vi.fn(async () => jobs),
+      directories: vi.fn(async ({ path }: { path?: string } = {}) => ({
+        path: path ?? '/home/alex', parent: '/home', directories: [{ name: 'Music', path: `${path ?? '/home/alex'}/Music` }],
+      })),
+    },
+    library: {
+      roots: vi.fn(async () => list([root])),
+      createRoot: vi.fn(async (request: { name: string; path: string }) => ({ ...root, ...request })),
+      updateRoot: vi.fn(async (_id: string, patch: object) => ({ ...root, ...patch })),
+      deleteRoot: vi.fn(async () => ({ ok: true as const })),
+      scanRoot: vi.fn(async () => ({ queued: true })),
+      stats: vi.fn(async () => stats),
+    },
+    matching: {
+      reviews: vi.fn(async () => list([])),
+    },
+    organize: {
+      template: vi.fn(async () => templateInfo),
+      batches: vi.fn(async () => list([])),
+    },
+    catalogIndex: {
+      status: vi.fn(async () => ({
+        ready: false, dumpDate: null, importedAt: null, counts: { artists: 0, albums: 0, recordings: 0 }, sizeBytes: 0, active: null, latest: null,
+      })),
+    },
+    catalog: {
+      home: vi.fn(async () => home),
+      albums: vi.fn(async () => list(libraryAlbums)),
+      artists: vi.fn(async () => list(libraryArtists)),
+      tracks: vi.fn(async () => list(libraryTracks)),
+      genres: vi.fn(async () => list(genres.map(genre => ({ name: genre.name, albumCount: 1 })))),
+      album: vi.fn(async (id: string) => found(albumDetail(id))),
+      artist: vi.fn(async (id: string) => found(artistDetail(id))),
+      track: vi.fn(async (id: string) => found(allTracks.find(track => track.id === id))),
+      lyrics: vi.fn(async (id: string) => found(lyricsFor(id))),
+      trackSummaries: vi.fn(async ({ tracks }: TrackSummariesRequest) => ({ tracks: tracks.flatMap(({ id }) => allTracks.filter(track => track.id === id).slice(0, 1)) })),
+    },
+    streaming: {
+      playback: vi.fn(async () => {
+        throw notFound()
+      }),
+    },
+    userdata: {
+      settings: vi.fn(async () => userSettings),
+      updateSettings: vi.fn(async (patch: object) => ({ ...userSettings, ...patch })),
+      likes: vi.fn(async () => list(likedTracks)),
+      like: vi.fn(async () => ok),
+      unlike: vi.fn(async () => ok),
+      playlists: vi.fn(async () => list(playlistSummaries.map(playlist => ({ ...playlist, ownerId: currentUser.id })))),
+      playlist: vi.fn(async (id: string) => ({ ...found(playlistDetail(id)), ownerId: currentUser.id })),
+      createPlaylist: vi.fn(async ({ name }: { name: string }): Promise<PlaylistSummary> => ({ ...playlistSummaries[0], id: '00000000-0000-4000-8400-0000000000ff', name, trackCount: 0 })),
+      wants: vi.fn(async () => list(wants)),
+      want: vi.fn(async () => ok),
+      unwant: vi.fn(async () => ok),
+    },
+    search: {
+      library: vi.fn(async ({ q }: { q: string }) => searchFixtures(q).library),
+      catalog: vi.fn(async ({ q }: { q: string }) => searchFixtures(q).catalog),
+    },
+    scrobble: {
+      status: vi.fn(async () => scrobbling),
+    },
+    imports: {
+      options: vi.fn(async () => ({ unavailable: null, maxFileBytes: 4 * 1024 ** 3, maxBytes: 64 * 1024 ** 3 })),
+      list: vi.fn(async () => list([upload])),
+      get: vi.fn(async (id: string) => (id === upload.id ? upload : found(null))),
+      albums: vi.fn(async () => list([{ album: libraryAlbums[0], files: 5, filed: true }])),
+      cancel: vi.fn(async () => ({ ...upload, status: 'failed', error: 'Cancelled' })),
+    },
+    acquisition: {
+      providers: vi.fn(async () => list([])),
+      policy: vi.fn(async () => policy),
+      jobs: vi.fn(async () => list([])),
+      acquireAlbum: vi.fn(async () => list([])),
+    },
+  }
+  const services: Services = { api: api as unknown as ApiClient, createSocket: () => socket as unknown as SquirmySocket }
+  return { services, api, socket }
+}

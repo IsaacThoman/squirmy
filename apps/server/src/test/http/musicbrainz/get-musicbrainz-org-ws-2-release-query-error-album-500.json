@@ -1,0 +1,14 @@
+{
+  "note": "Hand-written: MusicBrainz failing with a server error, for the retry path.",
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=release%3A%22Error+Album%22+AND+artist%3A%22Error+Artist%22+tracks%3A1&limit=10&fmt=json"
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "text": "Internal Server Error"
+  }
+}

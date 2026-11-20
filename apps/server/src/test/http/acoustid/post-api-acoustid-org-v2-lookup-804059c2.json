@@ -1,0 +1,21 @@
+{
+  "note": "Recorded with a made-up key: the real \"invalid API key\" error.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.acoustid.org/v2/lookup",
+    "body": "client=revoked-acoustid-key&meta=recordings&duration=236&fingerprint=AQADtEmUaFKSRMmSRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGi"
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "content-type": "application/json; charset=UTF-8"
+    },
+    "json": {
+      "error": {
+        "code": 4,
+        "message": "invalid API key"
+      },
+      "status": "error"
+    }
+  }
+}

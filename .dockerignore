@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+**/.expo
+**/ios
+**/android
+**/coverage
+.git
+.github
+docs
+data
+*.log
+.env
+.env.*
+apps/mobile/app
+apps/mobile/assets
+apps/mobile/src
+apps/web/screenshots

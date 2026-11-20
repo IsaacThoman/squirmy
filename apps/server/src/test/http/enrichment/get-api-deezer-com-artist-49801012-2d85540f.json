@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/49801012"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 49801012,
+      "name": "Mira Valentin",
+      "link": "https://www.deezer.com/artist/49801012",
+      "share": "https://www.deezer.com/artist/49801012?utm_source=deezer&utm_content=artist-49801012&utm_term=0_1795197509&utm_medium=web",
+      "picture": "https://api.deezer.com/artist/49801012/image",
+      "picture_small": "https://cdn-images.dzcdn.net/images/artist/0ef5409c6de154cddd871612faba52b6/56x56-000000-80-0-0.jpg",
+      "picture_medium": "https://cdn-images.dzcdn.net/images/artist/0ef5409c6de154cddd871612faba52b6/250x250-000000-80-0-0.jpg",
+      "picture_big": "https://cdn-images.dzcdn.net/images/artist/0ef5409c6de154cddd871612faba52b6/500x500-000000-80-0-0.jpg",
+      "picture_xl": "https://cdn-images.dzcdn.net/images/artist/0ef5409c6de154cddd871612faba52b6/1000x1000-000000-80-0-0.jpg",
+      "nb_album": 1,
+      "nb_fan": 105,
+      "radio": true,
+      "tracklist": "https://api.deezer.com/artist/49801012/top?limit=50",
+      "type": "artist"
+    }
+  }
+}

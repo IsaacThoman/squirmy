@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/url?resource=https%3A%2F%2Fwww.deezer.com%2Fartist%2F156692872&inc=artist-rels+release-rels+release-group-rels+recording-rels&fmt=json"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "help": "For usage, please see: https://musicbrainz.org/development/mmd",
+      "error": "Not Found"
+    }
+  }
+}

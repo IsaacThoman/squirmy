@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://coverartarchive.org/release/11111111-2222-4333-8444-555555555555"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "text": "<!doctype html>\n<html lang=en>\n<title>404 Not Found</title>\n<h1>Not Found</h1>\n<p>No cover art found for release 11111111-2222-4333-8444-555555555555</p>\n"
+  }
+}
