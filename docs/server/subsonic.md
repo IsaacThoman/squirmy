@@ -1,12 +1,14 @@
 # Subsonic clients
 
-Squirmy speaks the [OpenSubsonic](https://opensubsonic.netlify.app/) API, so apps written for Subsonic, Navidrome and similar servers can play your library: Symfonium, Amperfy, play:Sub, Substreamer, DSub, Feishin, Supersonic, Airsonic Refix and many more. The API lives under `/rest` on the same address as the web app.
+Squirmy speaks the [OpenSubsonic](https://opensubsonic.netlify.app/) API, so apps written for Subsonic, Navidrome and similar servers can play your library. This is also the way to use Squirmy on Android today. The API lives under `/rest` on the same address as the web app.
+
+The API was tested against py-opensonic, py-sonic, subsonic-api (Node) and the Airsonic Refix web client. Other apps (Symfonium, Amperfy, play:Sub, Substreamer, DSub, Feishin, Supersonic and so on) speak the same API but have not been tried; reports are welcome.
 
 Subsonic apps see **your library only**: albums with at least one file on the server, the tracks you have files for, and their artists. Music Squirmy knows about but you do not own never appears, and a playlist shows only the tracks the server can play.
 
 ## Connect an app
 
-1. In Squirmy, open **Settings → App passwords** and choose **Create**. Name it after the app ("Symfonium on my phone").
+1. In Squirmy, open **Settings → App passwords** and choose **Create**. Name it after the app ("Symfonium on my phone") and choose **Create**.
 2. Copy the password. It is shown once.
 3. In the app, add a Subsonic (or OpenSubsonic, or Navidrome) server:
    - **Server address**: the address you open Squirmy at, such as `https://music.example.com`. Do not add `/rest`.
@@ -14,9 +16,19 @@ Subsonic apps see **your library only**: albums with at least one file on the se
    - **Password**: the app password. Your account password does not work here, on purpose.
 4. Apps that support **API keys** can use the app password as the key, with no username.
 
-Give each app its own app password. Settings shows when each was last used; revoke one to sign that app out without touching the others or your account.
+Give each app its own app password. Settings shows when each was last used; revoke one to sign that app out without touching the others or your account. An admin resetting your account password leaves app passwords working.
 
 Use HTTPS when the server is reachable from the internet. Older Subsonic apps send the password, or a hash of it, in the URL of every request.
+
+### Check the connection yourself
+
+If an app cannot connect, try the same credentials with `curl`:
+
+```sh
+curl "https://music.example.com/rest/ping?u=YOUR_USERNAME&p=YOUR_APP_PASSWORD&v=1.16.1&c=test&f=json"
+```
+
+A working server and password answer `"status":"ok"`. A wrong password answers `"status":"failed"` with an error code; repeated failures from one address are rate limited for a minute.
 
 ## What works
 
