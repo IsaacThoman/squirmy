@@ -1,0 +1,5 @@
+{
+  "note": "Hand-written: Deezer failing with a server error, so catalog search falls through to MusicBrainz.",
+  "request": { "method": "GET", "url": "https://api.deezer.com/search/artist?q=karma+police&limit=3" },
+  "response": { "status": 500, "headers": { "content-type": "text/html" }, "text": "Internal Server Error" }
+}

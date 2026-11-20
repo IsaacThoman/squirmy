@@ -40,7 +40,9 @@ async function column(tx: Executor, query: SQL): Promise<string[]> {
 
 /**
  * Deletes local-only catalog rows (no MusicBrainz id, not a merge redirect) that no file
- * links and no user data (likes, ratings, wants, playlist items, plays) points at:
+ * links and no user data (likes, ratings, wants, playlist items, plays) points at. Stubs
+ * from catalog searches (albums and artists at `detail_level` 0, recordings with an
+ * external id) are left to the search module's own cleanup:
  *
  * - release tracks of file-built releases that still have files, when no file is on them;
  * - albums, with their releases and tracks;
@@ -69,7 +71,7 @@ export async function removeOrphans(tx: Executor, scope?: OrphanCandidates) {
 
   const albums = await column(tx, sql`
     select a.id from albums a
-    where a.mbid is null and a.merged_into_id is null and ${within(sql`a.id`, albumIds)}
+    where a.mbid is null and a.merged_into_id is null and a.detail_level > 0 and ${within(sql`a.id`, albumIds)}
       and not exists (select 1 from media_files f where f.album_id = a.id)
       and ${noUserData('album', sql`a.id`)}`)
   if (albums.length > 0) {
@@ -100,6 +102,7 @@ export async function removeOrphans(tx: Executor, scope?: OrphanCandidates) {
       and ${sweep ? sql`true` : within(sql`rec.id`, ids([...recordingIds!, ...freedRecordings]))}
       and not exists (select 1 from media_files f where f.recording_id = rec.id)
       and not exists (select 1 from release_tracks rt where rt.recording_id = rec.id)
+      and not exists (select 1 from external_ids e where e.entity_type = 'recording' and e.entity_id = rec.id)
       and ${noUserData('recording', sql`rec.id`)}`)
   if (recordings.length > 0) {
     freedArtists.push(...await column(tx, sql`
@@ -110,7 +113,7 @@ export async function removeOrphans(tx: Executor, scope?: OrphanCandidates) {
 
   await tx.execute(sql`
     delete from artists ar
-    where ar.mbid is null and ar.merged_into_id is null
+    where ar.mbid is null and ar.merged_into_id is null and ar.detail_level > 0
       and ${sweep ? sql`true` : within(sql`ar.id`, ids([...artistIds!, ...freedArtists]))}
       and not exists (select 1 from album_artists aa where aa.artist_id = ar.id)
       and not exists (select 1 from recording_artists ra where ra.artist_id = ar.id)
