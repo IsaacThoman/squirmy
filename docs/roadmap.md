@@ -9,7 +9,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Database schema for every milestone, initial migration, test harness
 - [x] CI: lint, typecheck, build, tests against Postgres
 - [x] semantic-release on `main`
-- [ ] Shared session reducer and session client in `client-core`
+- [x] Shared session reducer and session client in `client-core`
 - [ ] Docker image and `compose.yaml`
 
 ## 2. Your files, playing
