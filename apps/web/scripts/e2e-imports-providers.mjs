@@ -415,7 +415,7 @@ await step('play missing music on demand', async () => {
   await button('Queue').click()
   await page.getByRole('complementary', { name: 'Queue' }).getByText('Preparing…').first().waitFor()
   await shoot('on-demand-queue')
-  await button('Queue').click()
+  await button('Hide queue').click()
   await until(() => jobsFor(track.id), jobs => jobs[0]?.status === 'completed', minutes(4), 1000)
   check('then it plays', await advancing(), track.title)
   const owned = await get(`/tracks/${track.id}`)
