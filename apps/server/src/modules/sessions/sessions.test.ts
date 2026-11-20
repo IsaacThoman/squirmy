@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net'
 import type {
   ClientToServerEvents, CommandAck, QueueSeed, ServerToClientEvents, SessionCommand, SessionHelloAck, SessionQueue, SessionState,
 } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect, type Socket } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -437,6 +437,27 @@ describe('sessions', () => {
       { recordingId: third!.recordingId, msPlayed: third!.durationMs, completed: true },
     ]))
     await eventually(() => a.events('invalidate'), (value) => expect(value).toContainEqual({ keys: [['history'], ['home']] }))
+  })
+
+  it('waits for the write of a play that closed just before shutdown', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0017')
+    await a.send(playAlbum(), 'late')
+    await a.state(1)
+    clock.advance(60_000)
+    let stopped = false
+    let stopping: Promise<void> | undefined
+    // Holding the table lock keeps the play's insert waiting while the sessions stop.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`lock table plays in exclusive mode`)
+      await a.send({ type: 'next' })
+      stopping = Promise.resolve(sessionsModule.stop!()).then(() => { stopped = true })
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      expect(stopped).toBe(false)
+    })
+    await stopping
+    expect(await db.select({ recordingId: plays.recordingId, msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id)))
+      .toEqual([{ recordingId: album.tracks[0]!.recordingId, msPlayed: 60_000 }])
   })
 
   it('tells play-start listeners once per play that starts on the active device', async () => {

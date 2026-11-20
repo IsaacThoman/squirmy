@@ -29,6 +29,8 @@ const PREPARE_AHEAD = 2
 
 const settings = { deviceGraceMs: 20_000, now: () => Date.now() }
 const graceTimers = new Map<string, ReturnType<typeof setTimeout>>()
+/** Writes of closed plays still in flight, which shutdown waits for. */
+const savingPlays = new Set<Promise<void>>()
 let io: RealtimeServer | null = null
 
 /**
@@ -88,7 +90,10 @@ function commit(record: SessionRecord, next: Session): Change | null {
   const { open, closed } = followPlay(record.play, previous, next, settings.now())
   if (open && open !== record.play) notifyPlayStart(record.userId, open)
   record.play = open
-  if (closed) savePlay(record.userId, closed).catch(report)
+  if (closed) {
+    const saving = savePlay(record.userId, closed).catch(report).finally(() => savingPlays.delete(saving))
+    savingPlays.add(saving)
+  }
   schedulePersist(record, report)
   return { queue, devices: previous.activeDeviceId !== next.activeDeviceId }
 }
@@ -381,7 +386,7 @@ async function setRecordingState(recordingId: string, state: 'ready' | 'failed')
   })))
 }
 
-/** Closes open plays, writes every session and forgets them, and cancels device timers. */
+/** Closes open plays, writes every session and play and forgets them, and cancels device timers. */
 export async function stopSessions(): Promise<void> {
   for (const timer of graceTimers.values()) clearTimeout(timer)
   graceTimers.clear()
@@ -392,4 +397,5 @@ export async function stopSessions(): Promise<void> {
     countUntil(play, record.session, settings.now())
     await savePlay(record.userId, play).catch(report)
   })
+  await Promise.all(savingPlays)
 }
