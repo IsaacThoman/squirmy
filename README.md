@@ -46,7 +46,19 @@ Open the project in Squirmy Dev using the terminal QR code or the Metro URL. Jav
 - Open any album and tap the heart next to a song’s overflow button. Find it again in Library under Liked Songs.
 - Open Playback Device from the mini-player or Now Playing to move the simulated output. The mini-player and Now Playing continue to display and control the same playback session when the output changes.
 
+On first launch the app asks for your server's address and signs in to it; an account button on Home shows the server and signs out or switches servers. Behind the sign-in, the screens still show the prototype.
+
 The playback clock, music catalog, lyrics, autoplay, and device switching are demo data and behavior. The prototype does not stream audio, connect to physical playback devices, or synchronize separate app installations.
+
+### Engine bench
+
+Development builds have a test bench for the native audio engine at `/dev/engine`, opened from the account sheet. It plays quiet test tones from a small local server:
+
+```sh
+node apps/mobile/scripts/engine-tones.mjs   # needs ffmpeg; serves on port 4800
+```
+
+The bench points at port 4800 on the machine running Metro. It loads, pauses, seeks, preloads and fails on purpose, shows every engine event in order, and puts the tone on the lock screen so the remote controls can be tried with the app in the background.
 
 ## Server
 
