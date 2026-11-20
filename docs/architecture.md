@@ -169,7 +169,7 @@ await schedule('library.scan-all', '0 4 * * *')
 
 ### HTTP API
 
-All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`.
+All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`; short lists (users, invites, app passwords, roots, devices) return every item with `nextCursor: null`. `GET /admin/jobs` returns a bare array. `createApiClient` in client-core has one method per route below, and its response schemas are the reference for each route's shape.
 
 | Route | Module | Notes |
 |---|---|---|
@@ -216,8 +216,9 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 
 ### Sessions
 
-The server holds one session per user in memory, persisted to `playback_sessions` on change (debounced one second). Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed.
+The server holds one session per user in memory, persisted to `playback_sessions` on change (debounced one second). Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed (`queueChanged`), emitted just before the `session:state` of the same version.
 
+- **Commands.** The server passes the envelope's `commandId` to the reducer (new entry ids derive from it), remembers recent command ids and acks a duplicate without applying it again, and acks a command before broadcasting its result. Server-issued commands use a fresh id.
 - **Active device.** The first device that sends a command that starts playback while no device is active becomes active. `transfer` changes it. Only the active device may send `trackEnded` and engine reports.
 - **Disconnects.** If the active device's last socket closes, the server waits 20 seconds, then applies `deviceLost` (pause at the last known position, clear the active device).
 - **Plays.** A play row opens when an entry starts on the active device and closes when it ends or changes. It counts as completed after half the track or four minutes.
@@ -251,11 +252,12 @@ All clients live in `modules/metadata/` and go through `lib/http.ts`:
 
 `client-core` holds everything both clients share and has no React, DOM or React Native imports:
 
-- `reduceSession(state, { command, now })`: the pure session reducer, also run by the server.
-- `SessionClient`: owns the socket, the clock offset, optimistic commands and reconciliation; exposes a store (`getSnapshot`, `subscribe`) for `useSyncExternalStore`.
-- `PlayerEngine`: the interface each platform implements (`load`, `preload`, `play`, `pause`, `seek`, `setVolume`, status events). `SessionClient` drives it when this device is active.
+- `reduceSession(state, { command, now, commandId, deviceId })`: the pure session reducer, also run by the server.
+- `SessionClient`: owns the socket (through `createSocketTransport` from `@squirmy/client-core/socket`), the clock offset, optimistic commands and reconciliation; exposes a store (`getSnapshot`, `subscribe`) for `useSyncExternalStore`.
+- `PlayerEngine`: the interface each platform implements (`load`, `preload`, `play`, `pause`, `seek`, `setGain`, `stop`, status events), with a `FakeEngine` for tests. `SessionClient` drives it when this device is active.
 - `createApiClient({ baseUrl, getToken })`: typed fetch wrapper for every route, returning contract types.
-- Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork URL helpers.
+- `TrackStore`: batched, cached `TrackSummary` hydration for queue entries.
+- Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork and stream URL helpers.
 
 **Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. Colors and type follow the mobile theme in `apps/mobile/src/theme.ts`. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
 
