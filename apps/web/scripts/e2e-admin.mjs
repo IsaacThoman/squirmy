@@ -226,7 +226,9 @@ async function openFixMatch(title) {
 
 await step('fix match', async () => {
   let dialog = await openFixMatch('Abbey Road')
-  check('fix match shows the current identification', await dialog.getByText(/Identified on MusicBrainz/).isVisible())
+  // The album's own detail may be fetched from MusicBrainz on demand, after the candidates.
+  await dialog.getByText(/Identified on MusicBrainz/).waitFor({ timeout: minutes(1) })
+  check('fix match shows the current identification', true)
   await button('Use the tags', dialog).click()
   await toast('Playing from its tags').waitFor()
   let album = await albumNamed('Abbey Road')
