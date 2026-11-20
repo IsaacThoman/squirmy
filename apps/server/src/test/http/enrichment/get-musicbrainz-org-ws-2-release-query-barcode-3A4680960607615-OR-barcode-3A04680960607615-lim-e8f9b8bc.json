@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=barcode%3A4680960607615+OR+barcode%3A04680960607615&limit=25&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T17:53:30.807Z",
+      "count": 0,
+      "offset": 0,
+      "releases": []
+    }
+  }
+}
