@@ -26,7 +26,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 3. Connect
 
-- [ ] Server-held session with command log and versions
+- [x] Server-held session with command log and versions
 - [ ] Device list, transfer, remote control
 - [ ] Reconnect rule and device-lost handling
 - [ ] Live invalidations on web and mobile
