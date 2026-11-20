@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&ids=Q44190&props=sitelinks&sitefilter=enwiki"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "entities": {
+        "Q44190": {
+          "type": "item",
+          "id": "Q44190",
+          "sitelinks": {
+            "enwiki": {
+              "site": "enwiki",
+              "title": "Radiohead",
+              "badges": [
+                "Q17437796"
+              ]
+            }
+          }
+        }
+      },
+      "success": 1
+    }
+  }
+}
