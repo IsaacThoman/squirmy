@@ -64,6 +64,13 @@
       "when": 1795201266332,
       "tag": "0008_acquisition",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795207049668,
+      "tag": "0009_drop_scan_interval",
+      "breakpoints": true
     }
   ]
 }

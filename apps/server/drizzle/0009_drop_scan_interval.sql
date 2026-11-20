@@ -1,0 +1,1 @@
+ALTER TABLE "library_roots" DROP COLUMN "scan_interval_minutes";
