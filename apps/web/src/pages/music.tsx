@@ -32,6 +32,7 @@ import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
 import { SearchView } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
 import { plural } from '@/lib/format'
+import { useUrlDraft } from '@/lib/use-url-draft'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
 import { usePlayer, type PlayOptions } from '@/player/player-context'
@@ -254,9 +255,9 @@ export function WantlistPage() {
   )
 }
 
-/** `value`, once it has stopped changing for `delayMs`. */
-function useDebounced<T>(value: T, delayMs: number): T {
-  const [settled, setSettled] = useState(value)
+/** `value`, once it has stopped changing for `delayMs`; `initial` until then. */
+function useDebounced<T>(value: T, delayMs: number, initial: T): T {
+  const [settled, setSettled] = useState(initial)
   useEffect(() => {
     const timer = setTimeout(() => setSettled(value), delayMs)
     return () => clearTimeout(timer)
@@ -277,7 +278,9 @@ export function SearchPage() {
   const { playAlbum } = usePlayCollections()
   const genres = useGenres().data?.items.map(genre => genre.name) ?? []
   const query = params.get('q') ?? ''
-  const term = useDebounced(query.trim(), 250)
+  const [typed, setTyped] = useUrlDraft(query)
+  // Typing into the top bar opens this page with the first letter; that alone is not a search.
+  const term = useDebounced(query.trim(), 250, '')
   const search = (kind: 'library' | 'catalog') => ({
     queryKey: [...queryKeys.search(), kind, term],
     queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20 }, { signal })),
@@ -291,8 +294,11 @@ export function SearchPage() {
   const active = term.length > 0
   return (
     <SearchView
-      query={query}
-      onQueryChange={q => setParams(q ? { q } : {}, { replace: true })}
+      query={typed}
+      onQueryChange={q => {
+        setTyped(q)
+        setParams(q ? { q } : {}, { replace: true })
+      }}
       library={active ? library.data ?? null : null}
       catalog={active && !catalog.isFetching ? catalog.data ?? null : null}
       libraryLoading={active && library.isPending}

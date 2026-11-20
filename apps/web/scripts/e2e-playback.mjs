@@ -203,6 +203,24 @@ await step('likes', async () => {
   check('the sidebar counts it', await page.getByRole('navigation', { name: 'Main' }).getByText('1 song', { exact: true }).isVisible())
 })
 
+await step('search', async () => {
+  const asked = []
+  const listen = request => {
+    const url = new URL(request.url())
+    if (url.pathname.startsWith('/api/v1/search/')) asked.push(`${url.pathname.split('/').pop()}:${url.searchParams.get('q')}`)
+  }
+  page.on('request', listen)
+  await page.getByRole('searchbox', { name: 'Search' }).first().pressSequentially('blue hour', { delay: 40 })
+  const results = page.getByRole('region', { name: 'In your library' })
+  await results.getByRole('link', { name: 'Blue Hour', exact: true }).first().waitFor()
+  await sleep(500)
+  page.off('request', listen)
+  check('library results come from the server', true)
+  check('typing sends only the settled query, to both searches', asked.length === 2 && asked.includes('library:blue hour') && asked.includes('catalog:blue hour'), asked.join(', '))
+  const order = await page.getByRole('region').evaluateAll(regions => regions.map(region => region.getAttribute('aria-label')))
+  check('your library comes first', order[0] === 'In your library', order.join(' / '))
+})
+
 await step('playlists', async () => {
   await page.getByRole('button', { name: 'New playlist' }).first().click()
   await page.getByLabel('Name', { exact: true }).fill('E2E Mix')
