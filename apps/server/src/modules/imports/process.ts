@@ -6,8 +6,9 @@
  *                folder alone until this step is done
  *   identifying  a scan of the folder hands the files to the library pipeline (probe,
  *                ingest, analyze, match); this step watches the rows until every file is
- *                read, hashed and matched, removing duplicates as their hashes arrive, or
- *                until the time limit leaves the rest for review
+ *                read and hashed, then decides once which are duplicates and removes them,
+ *                and waits until the rest is matched, or until the time limit leaves it for
+ *                review
  *   filing       an organize batch moves the identified albums to their place in the root
  *
  * Each step is idempotent and records its outcome before the import moves to the next, so
@@ -19,8 +20,8 @@ import { lstat, mkdir, realpath, rename, rm, rmdir } from 'node:fs/promises'
 import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { INCOMING_FOLDER, queryKeys, type ImportStep } from '@squirmy/contracts'
-import { and, eq, sql } from 'drizzle-orm'
-import { db, getSql } from '../../database/client.js'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
+import { db, getSql, type Transaction } from '../../database/client.js'
 import { imports, libraryRoots, mediaFiles } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { AppError } from '../../lib/errors.js'
@@ -263,17 +264,23 @@ const ofImport = (row: ImportRow) => and(eq(mediaFiles.importId, row.id), sql`${
 
 /**
  * Waits for the library pipeline to finish with the import's files, judging only by
- * database state: every file has its tags read and its audio hashed (or failed), is linked
- * to the catalog, and is matched one way or another. Along the way it marks new rows with
- * the import, removes duplicates, and queues a scan of the folder whenever rows are
- * missing and no scan of the root is queued. The time limit counts from the step's start,
- * so a resumed run does not start the clock again.
+ * database state. Each pass marks new rows with the import and, until it is decided,
+ * decides which files are duplicates (see {@link decideDuplicates}); then it waits until
+ * every remaining file is ingested and matched one way or another, queueing a scan of the
+ * folder whenever rows are missing and no scan of the root is queued. The time limit
+ * counts from the step's start, so a resumed run does not start the clock again; when it
+ * runs out, duplicates are decided from the hashes known by then and the rest is left
+ * for review.
  */
 async function identify(row: ImportRow, root: Root, stats: Stats, work: ImportWork, options: typeof defaults) {
   const deadline = (row.stepStartedAt ?? new Date()).getTime() + options.identifyTimeoutMs
   const folder = incomingFolder(row.id)
+  let decided = row.duplicatesDecidedAt !== null
+  // A run that died after deciding may not have removed every file yet.
+  if (decided) await removeDuplicateFiles(row, root, work.duplicates ?? [])
   for (;;) {
-    await db.transaction(async (tx) => {
+    const timeUp = Date.now() >= deadline
+    const paths = await db.transaction(async (tx) => {
       // Ingest and matching update these rows too, under the catalog lock.
       await lockCatalog(tx)
       await tx.update(mediaFiles).set({ source: row.source, importId: row.id, updatedAt: new Date() }).where(and(
@@ -281,11 +288,11 @@ async function identify(row: ImportRow, root: Root, stats: Stats, work: ImportWo
         sql`starts_with(${mediaFiles.relPath}, ${`${folder}/`})`,
         sql`${mediaFiles.importId} is distinct from ${row.id}`,
       ))
+      return decided ? null : decideDuplicates(tx, row, root, stats, work, timeUp)
     })
-    const removed = await removeDuplicates(row, root)
-    if (removed > 0) {
-      stats.duplicatesSkipped = (stats.duplicatesSkipped ?? 0) + removed
-      await db.update(imports).set({ stats, updatedAt: new Date() }).where(eq(imports.id, row.id))
+    if (paths) {
+      decided = true
+      await removeDuplicateFiles(row, root, paths)
     }
 
     const { musicBrainzEnabled } = await getServerSettings()
@@ -297,12 +304,12 @@ async function identify(row: ImportRow, root: Root, stats: Stats, work: ImportWo
       )))::int`,
     }).from(mediaFiles).where(ofImport(row))
     const expected = (stats.audioFiles ?? 0) - (stats.duplicatesSkipped ?? 0)
-    if (state!.rows >= expected && state!.pending === 0) return
+    if (decided && state!.rows >= expected && state!.pending === 0) return
     if (state!.rows < expected && !await scanQueued(root.id)) {
       // Owned by the library module; one scan per root at a time, so this may need a retry.
       await enqueue('library.scan', { rootId: root.id, paths: [folder] }, { singletonKey: root.id })
     }
-    if (Date.now() >= deadline) {
+    if (timeUp) {
       work.timedOut = true
       return
     }
@@ -317,39 +324,78 @@ async function scanQueued(rootId: string): Promise<boolean> {
 }
 
 /**
- * Deletes the import's files whose audio the library already has: another present file
- * with the same hash that is not part of an import still in progress, or an earlier copy
- * within this import. Two imports of one album at once keep the older file. Returns how
- * many were removed; their groups are queued for ingest again.
+ * Decides, once and for all of the import's files, which are duplicates, and deletes their
+ * rows. It waits until every file has a row and a hash (or an error), unless `force`; the
+ * caller holds the catalog lock, so no hash arrives while it decides.
+ *
+ * A file is a duplicate when another present file has its audio hash and is kept: the
+ * library's own file (not part of an import still processing), the file of an older import
+ * still processing, or a copy within this import with an earlier path. So the library's
+ * file always wins, then the older import, then the first path, whatever order the hashes
+ * arrived in.
+ *
+ * The decision, its paths, the count and the rows' deletion commit together. Returns the
+ * paths whose files are to be deleted, or null when it is too early to decide.
  */
-async function removeDuplicates(row: ImportRow, root: Root): Promise<number> {
-  // Rows first, under the catalog lock: analysis takes a row whose file has vanished for a
-  // moved file, so a file may only go once no row points at it. A crash before the files
-  // are deleted leaves files a later scan brings back, to be found again.
-  const deleted = await db.transaction(async (tx) => {
-    await lockCatalog(tx)
-    const gone = await tx.delete(mediaFiles).where(and(
-      ofImport(row),
-      eq(mediaFiles.rootId, root.id),
-      sql`${mediaFiles.audioHash} is not null`,
-      sql`exists (
-        select 1 from media_files other
-        where other.audio_hash = ${mediaFiles.audioHash} and other.id <> ${mediaFiles.id} and other.missing_since is null
-          and (other.id < ${mediaFiles.id} or other.import_id is null
-            or not exists (select 1 from imports i where i.id = other.import_id and i.status = 'processing'))
-      )`,
-    )).returning({ relPath: mediaFiles.relPath, groupKey: mediaFiles.groupKey, albumId: mediaFiles.albumId, releaseId: mediaFiles.releaseId, recordingId: mediaFiles.recordingId })
-    if (gone.length > 0) {
-      await removeOrphans(tx, { albumIds: gone.map((file) => file.albumId), releaseIds: gone.map((file) => file.releaseId), recordingIds: gone.map((file) => file.recordingId) })
-    }
-    return gone
-  })
-  for (const file of deleted) await rm(path.join(root.realPath, file.relPath), { force: true })
-  // Owned by the library module: the groups lost files.
-  for (const groupKey of new Set(deleted.map((file) => file.groupKey))) {
+async function decideDuplicates(tx: Transaction, row: ImportRow, root: Root, stats: Stats, work: ImportWork, force: boolean): Promise<string[] | null> {
+  const [state] = await tx.select({
+    rows: sql<number>`count(*)::int`,
+    unhashed: sql<number>`(count(*) filter (where ${mediaFiles.probeError} is null and ${mediaFiles.probeStage} < 2))::int`,
+  }).from(mediaFiles).where(ofImport(row))
+  if (!force && (state!.rows < (stats.audioFiles ?? 0) || state!.unhashed > 0)) return null
+
+  const paths = await deleteRows(tx, and(
+    ofImport(row),
+    eq(mediaFiles.rootId, root.id),
+    sql`${mediaFiles.audioHash} is not null`,
+    sql`exists (
+      select 1 from media_files other
+      where other.audio_hash = ${mediaFiles.audioHash} and other.id <> ${mediaFiles.id} and other.missing_since is null
+        and case when other.import_id = ${row.id} then other.rel_path collate "C" < ${mediaFiles.relPath} collate "C"
+          else other.import_id is null or other.import_id < ${row.id}
+            or not exists (select 1 from imports i where i.id = other.import_id and i.status = 'processing') end
+    )`,
+  ))
+  stats.duplicatesSkipped = paths.length
+  work.duplicates = paths
+  await tx.update(imports).set({ stats, work, duplicatesDecidedAt: new Date(), updatedAt: new Date() }).where(eq(imports.id, row.id))
+  return paths
+}
+
+/** Deletes file rows and the catalog rows only they used. Returns the deleted rows' paths. */
+async function deleteRows(tx: Transaction, where: SQL | undefined): Promise<string[]> {
+  const gone = await tx.delete(mediaFiles).where(where)
+    .returning({ relPath: mediaFiles.relPath, albumId: mediaFiles.albumId, releaseId: mediaFiles.releaseId, recordingId: mediaFiles.recordingId })
+  if (gone.length > 0) {
+    await removeOrphans(tx, { albumIds: gone.map((file) => file.albumId), releaseIds: gone.map((file) => file.releaseId), recordingIds: gone.map((file) => file.recordingId) })
+  }
+  return gone.map((file) => file.relPath)
+}
+
+/**
+ * Deletes the decided duplicates' files and queues ingest for the import's groups. Run again after a crash, it finishes the job: rows a scan brought back
+ * for files not yet deleted go first, since analysis takes a row whose file has vanished for
+ * a moved file.
+ */
+async function removeDuplicateFiles(row: ImportRow, root: Root, paths: string[]) {
+  if (paths.length > 0) {
+    await db.transaction(async (tx) => {
+      await lockCatalog(tx)
+      // By path: a row a scan brought back is not marked with the import yet.
+      await deleteRows(tx, and(
+        eq(mediaFiles.rootId, root.id),
+        // One parameter, however many paths.
+        sql`${mediaFiles.relPath} in (select jsonb_array_elements_text(${JSON.stringify(paths)}::jsonb))`,
+      ))
+    })
+  }
+  for (const relPath of paths) await rm(path.join(root.realPath, relPath), { force: true })
+  // Owned by the library module: groups that lost files need ingesting again. Which ones did
+  // is not known after a crash, and ingesting a group twice changes nothing.
+  const groups = await db.selectDistinct({ groupKey: mediaFiles.groupKey }).from(mediaFiles).where(and(ofImport(row), eq(mediaFiles.rootId, root.id)))
+  for (const { groupKey } of groups) {
     if (groupKey) await enqueue('library.ingest', { rootId: root.id, groupKey }, { singletonKey: groupKey })
   }
-  return deleted.length
 }
 
 // ---------------------------------------------------------------------------
