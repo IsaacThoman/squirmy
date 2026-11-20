@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
-import { access, mkdir } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
+import { access, mkdir, rename } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -37,13 +38,19 @@ const codecs: Record<ToneFormat, string[]> = {
 
 const ffmpeg = () => process.env.FFMPEG_PATH ?? 'ffmpeg'
 
-/** A small solid-color JPEG, made once per color and reused. */
+/**
+ * A small solid-color JPEG, made once per color and reused. Test files run in parallel
+ * processes that share the temp folder, so the image is written under a name of its own
+ * and renamed into place: another process never reads one that is half written.
+ */
 async function coverImage(color: string): Promise<string> {
   const file = path.join(tmpdir(), `squirmy-cover-${color.replace(/[^a-z0-9]/gi, '')}.jpg`)
   try {
     await access(file)
   } catch {
-    await run(ffmpeg(), ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${color}:s=96x96`, '-frames:v', '1', file])
+    const partial = `${file}.${process.pid}-${randomBytes(4).toString('hex')}.jpg`
+    await run(ffmpeg(), ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${color}:s=96x96`, '-frames:v', '1', partial])
+    await rename(partial, file)
   }
   return file
 }
