@@ -5,7 +5,7 @@
  */
 import path from 'node:path'
 import { queryKeys, type MatchCandidate, type MatchGroupSummary, type ServerSettings } from '@squirmy/contracts'
-import { and, count, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { and, count, eq, gte, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import { libraryRoots, matchReviews, mediaFiles, type MatchSource } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
@@ -289,16 +289,36 @@ async function publishProgress(rootId: string) {
   await publish('admins', { type: 'scan.progress', rootId, phase: 'matching', processed: total - pending, total })
 }
 
+/** Rounds of `matchGroup` for files that keep arriving while it runs; the sweep catches anything later. */
+const MATCH_ROUNDS = 3
+
 /**
  * Runs automatic matching for one album group. Does nothing unless an unlocked file of the
  * group is `pending`, so running it again is a no-op; leaves files `pending` while
  * MusicBrainz is switched off. Provider failures throw so the job retries.
+ *
+ * A file of the group ingested while a match runs queues a job with this one's singleton
+ * key, which pg-boss drops while this job is active. So the group is matched again when such
+ * a file arrived, rather than leaving it pending until the next sweep.
  */
 export async function matchGroup(rootId: string, groupKey: string): Promise<void> {
+  for (let round = 0; round < MATCH_ROUNDS; round++) {
+    const matched = await matchRound(rootId, groupKey)
+    if (!matched) return
+    const [late] = await db.select({ id: mediaFiles.id }).from(mediaFiles).where(and(
+      eq(mediaFiles.rootId, rootId), eq(mediaFiles.groupKey, groupKey), eq(mediaFiles.matchStatus, 'pending'), eq(mediaFiles.matchLocked, false),
+      isNull(mediaFiles.missingSince), gte(mediaFiles.probeStage, 1), notInArray(mediaFiles.id, matched),
+    )).limit(1)
+    if (!late) return
+  }
+}
+
+/** One matching pass over the group as it is now. Returns the ids of the files it looked at, or null when it did nothing. */
+async function matchRound(rootId: string, groupKey: string): Promise<string[] | null> {
   const settings = await getServerSettings()
-  if (!settings.musicBrainzEnabled) return
+  if (!settings.musicBrainzEnabled) return null
   const files = await groupFiles(db, rootId, groupKey, true)
-  if (!files.some((file) => file.matchStatus === 'pending')) return
+  if (!files.some((file) => file.matchStatus === 'pending')) return null
 
   const evidence = groupEvidence(files)
   // Loose tracks share a group only because they share a folder; each is matched alone.
@@ -341,6 +361,7 @@ export async function matchGroup(rootId: string, groupKey: string): Promise<void
   })
   await announce(applied.flatMap((result) => result.albumIds), applied.flatMap((result) => result.artistIds))
   await publishProgress(rootId)
+  return files.map((file) => file.id)
 }
 
 /**

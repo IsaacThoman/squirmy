@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import type { MatchCandidate } from '@squirmy/contracts'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { db } from '../../database/client.js'
 import {
   albums, artists, likes, matchReviews, mediaFiles, playlistItems, playlists, recordingArtists, recordings, releases, releaseTracks,
@@ -285,6 +285,27 @@ describe('matching.match-album', () => {
     expect(link).toMatchObject({ status: 'matched', title: 'Karma Police', recordingMbid: karmaPolice })
     expect((await filesOf(untagged))[0]).toMatchObject({ matchSource: 'acoustid', acoustid: '5f8a2c1e-9b7d-4e3a-8c6f-2d1b0a9e8f7c' })
     await updateServerSettings({ acoustIdKey: null })
+  })
+
+  it('also matches a file of the group that was ingested while the match ran', async () => {
+    // Its own job has the running job's singleton key, so pg-boss drops it; the running match must pick it up.
+    const tracks = demoAlbums.abbeyRoad.tracks
+    const early = await ingestAlbum(rootId, { ...demoAlbums.abbeyRoad, tracks: tracks.slice(0, -1) })
+    const realFetch = globalThis.fetch
+    let late: Promise<unknown> | null = null
+    vi.stubGlobal('fetch', (...request: Parameters<typeof fetch>) => {
+      late ??= ingestAlbum(rootId, { ...demoAlbums.abbeyRoad, tracks: tracks.slice(-1) }, { tags: () => ({ track: tracks.length }) })
+      return late.then(() => realFetch(...request))
+    })
+    try {
+      await matchGroup(rootId, early.groupKey)
+    } finally {
+      vi.stubGlobal('fetch', realFetch)
+    }
+    const files = await filesOf(early)
+    expect(late).not.toBeNull()
+    expect(files).toHaveLength(tracks.length)
+    expect(files.filter((file) => file.matchStatus === 'pending').map((file) => file.relPath)).toEqual([])
   })
 
   it('leaves files pending while MusicBrainz is off, and lets provider failures retry', async () => {

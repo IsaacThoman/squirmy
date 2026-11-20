@@ -1,0 +1,910 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/53f352b2-983c-4af2-b19d-577dec0f9f4a?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "relations": [
+        {
+          "type-id": "4a78823c-1c53-4176-a5f3-58026c76f2bc",
+          "source-credit": "",
+          "attribute-values": {},
+          "end": null,
+          "direction": "forward",
+          "target-type": "url",
+          "attributes": [],
+          "begin": null,
+          "url": {
+            "id": "f13f7733-75eb-4007-9894-998a10552def",
+            "resource": "https://www.discogs.com/release/4578529"
+          },
+          "target-credit": "",
+          "type": "discogs",
+          "attribute-ids": {},
+          "ended": false
+        }
+      ],
+      "id": "53f352b2-983c-4af2-b19d-577dec0f9f4a",
+      "quality": "normal",
+      "title": "Abbey Road",
+      "barcode": "",
+      "release-events": [
+        {
+          "date": "1973",
+          "area": {
+            "name": "Japan",
+            "disambiguation": "",
+            "type-id": null,
+            "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+            "sort-name": "Japan",
+            "iso-3166-1-codes": [
+              "JP"
+            ],
+            "type": null
+          }
+        }
+      ],
+      "asin": null,
+      "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+      },
+      "media": [
+        {
+          "track-offset": 0,
+          "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+          "tracks": [
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "sort-name": "Beatles, The"
+                  },
+                  "name": "The Beatles"
+                }
+              ],
+              "length": 261000,
+              "number": "A1",
+              "title": "Come Together",
+              "position": 1,
+              "id": "abfbae16-00d2-4772-a4dc-a4b0dfb4a918",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Beatles, The",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles"
+                    }
+                  }
+                ],
+                "title": "Come Together",
+                "id": "485bbe7f-d0f7-4ffe-8adb-0f1093dd2dbf",
+                "isrcs": [
+                  "GBAYE0000944",
+                  "GBAYE0601690"
+                ],
+                "length": 259360,
+                "video": false,
+                "first-release-date": "1969-09-26",
+                "disambiguation": "original studio mix"
+              }
+            },
+            {
+              "title": "Something",
+              "number": "A2",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Beatles, The",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "type": "Group"
+                  }
+                }
+              ],
+              "length": 183000,
+              "position": 2,
+              "id": "eedbbbd4-7307-4943-9100-15a28fbab2ee",
+              "recording": {
+                "length": 183000,
+                "video": false,
+                "first-release-date": "1969-09-26",
+                "disambiguation": "original studio mix",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "country": "GB",
+                      "sort-name": "Beatles, The",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "title": "Something",
+                "isrcs": [
+                  "GBAYE0000943",
+                  "GBAYE0601691"
+                ],
+                "id": "b849acd4-0638-49ea-8e40-7391613d4890"
+              }
+            },
+            {
+              "recording": {
+                "video": false,
+                "length": 207000,
+                "disambiguation": "original studio mix",
+                "first-release-date": "1969-09-26",
+                "title": "Maxwell’s Silver Hammer",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "The Beatles",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "name": "The Beatles"
+                  }
+                ],
+                "id": "a92380e6-f10d-4407-aceb-5825b17fed5a",
+                "isrcs": [
+                  "GBAYE0601692"
+                ]
+              },
+              "position": 3,
+              "id": "34c3e51c-3e7c-4fcf-8504-03d3f9e70c47",
+              "length": 207000,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Beatles, The",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+                  },
+                  "joinphrase": "",
+                  "name": "The Beatles"
+                }
+              ],
+              "title": "Maxwell’s Silver Hammer",
+              "number": "A3"
+            },
+            {
+              "length": 207000,
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "name": "The Beatles",
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Beatles, The",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "A4",
+              "title": "Oh! Darling",
+              "recording": {
+                "video": false,
+                "length": 207000,
+                "disambiguation": "original studio mix",
+                "first-release-date": "1969-09-26",
+                "title": "Oh! Darling",
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "The Beatles",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The",
+                      "country": "GB",
+                      "type": "Group"
+                    }
+                  }
+                ],
+                "id": "de896c41-463d-4eaa-8fe4-d826e2afa0f8",
+                "isrcs": [
+                  "GBAYE0601693"
+                ]
+              },
+              "position": 4,
+              "id": "f1b9b584-bc91-4685-a088-dd51987936b3"
+            },
+            {
+              "recording": {
+                "title": "Octopus’s Garden",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "country": "GB",
+                      "sort-name": "Beatles, The",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "isrcs": [
+                  "GBAYE0601694"
+                ],
+                "id": "15127932-c879-466e-b0f8-a1c5022d16e7",
+                "video": false,
+                "length": 171000,
+                "disambiguation": "original studio mix",
+                "first-release-date": "1969-09-26"
+              },
+              "position": 5,
+              "id": "f6cf09df-c6c1-42b8-b4d2-7d50eb8b85f6",
+              "length": 171000,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "sort-name": "Beatles, The",
+                    "country": "GB",
+                    "type": "Group",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "The Beatles"
+                }
+              ],
+              "number": "A5",
+              "title": "Octopus’s Garden"
+            },
+            {
+              "length": 467000,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Beatles, The",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”"
+                  },
+                  "joinphrase": "",
+                  "name": "The Beatles"
+                }
+              ],
+              "title": "I Want You (She’s So Heavy)",
+              "number": "A6",
+              "recording": {
+                "first-release-date": "1969-09-26",
+                "disambiguation": "original stereo mix",
+                "length": 467000,
+                "video": false,
+                "id": "a9a83384-3da3-4c84-af6d-33fcdb1c3e27",
+                "isrcs": [
+                  "GBAYE0601695"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Beatles, The",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "type": "Group",
+                      "country": "GB",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    }
+                  }
+                ],
+                "title": "I Want You (She’s So Heavy)"
+              },
+              "position": 6,
+              "id": "7dd6c08a-502d-4cfd-a743-0fd3707dd494"
+            },
+            {
+              "position": 7,
+              "id": "ddcb2602-9f04-45bc-95b7-82c9f6ade2f6",
+              "recording": {
+                "isrcs": [
+                  "GBAYE0601696"
+                ],
+                "id": "440f60e8-0b25-4ec4-abb1-c6beec624ab0",
+                "title": "Here Comes the Sun",
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Beatles, The",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "The Beatles",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    }
+                  }
+                ],
+                "disambiguation": "original studio mix",
+                "first-release-date": "1969-09-26",
+                "video": false,
+                "length": 186000
+              },
+              "title": "Here Comes the Sun",
+              "number": "B1",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "artist": {
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "sort-name": "Beatles, The",
+                    "type": "Group",
+                    "country": "GB",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 185000
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "name": "The Beatles",
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "sort-name": "Beatles, The"
+                  },
+                  "name": "The Beatles"
+                }
+              ],
+              "length": 166000,
+              "number": "B2",
+              "title": "Because",
+              "id": "4f995333-a7ee-4382-b797-68c56bc5ca3b",
+              "position": 8,
+              "recording": {
+                "id": "1e1d1f33-346c-4f9a-ad05-03aa715c2f37",
+                "isrcs": [
+                  "GBAYE0601697"
+                ],
+                "title": "Because",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The",
+                      "type": "Group",
+                      "country": "GB",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "disambiguation": "original studio mix",
+                "first-release-date": "1969-09-26",
+                "video": false,
+                "length": 166000
+              }
+            },
+            {
+              "title": "You Never Give Me Your Money",
+              "number": "B3",
+              "length": 242000,
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "name": "The Beatles",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "sort-name": "Beatles, The",
+                    "type": "Group",
+                    "country": "GB"
+                  }
+                }
+              ],
+              "recording": {
+                "first-release-date": "1969-09-26",
+                "disambiguation": "original studio mix",
+                "length": 242000,
+                "video": false,
+                "id": "474546e9-0b30-4881-9269-c6c1c8bbf07b",
+                "isrcs": [
+                  "GBAYE0601698"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles"
+                    }
+                  }
+                ],
+                "title": "You Never Give Me Your Money"
+              },
+              "id": "8d17b896-748f-4c52-afdc-d28f224d469c",
+              "position": 9
+            },
+            {
+              "title": "Sun King",
+              "number": "B4",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Beatles, The",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "type": "Group",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "name": "The Beatles",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "The Beatles"
+                }
+              ],
+              "length": 147000,
+              "position": 10,
+              "id": "bcd06919-bc25-4fc8-9bc6-0bf6046c6c0b",
+              "recording": {
+                "video": false,
+                "length": 146000,
+                "disambiguation": "original studio mix",
+                "first-release-date": "1969-09-26",
+                "title": "Sun King",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The"
+                    },
+                    "name": "The Beatles"
+                  }
+                ],
+                "isrcs": [
+                  "GBAYE0601699"
+                ],
+                "id": "d057c75d-04eb-438f-be0b-74f629f2953c"
+              }
+            },
+            {
+              "recording": {
+                "id": "99c004fb-ba87-41be-afd4-e0157b40516a",
+                "isrcs": [
+                  "GBAYE0601700"
+                ],
+                "title": "Mean Mr. Mustard",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "disambiguation": "original studio mix",
+                "first-release-date": "1969-09-26",
+                "video": false,
+                "length": 66000
+              },
+              "id": "161bc40b-82c0-4c53-a936-912b33ebe215",
+              "position": 11,
+              "title": "Mean Mr. Mustard",
+              "number": "B5",
+              "length": 66000,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Beatles, The",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+                  },
+                  "name": "The Beatles"
+                }
+              ]
+            },
+            {
+              "id": "ed842ac3-0b6e-4cba-83ab-c875259047aa",
+              "position": 12,
+              "recording": {
+                "isrcs": [
+                  "GBAYE0601701"
+                ],
+                "id": "65ca55c8-d857-4a3b-9246-835b1e54fe4d",
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "artist": {
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The",
+                      "type": "Group",
+                      "country": "GB",
+                      "name": "The Beatles",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "Polythene Pam",
+                "first-release-date": "1969-09-26",
+                "disambiguation": "original studio mix",
+                "length": 73000,
+                "video": false
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Beatles, The",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group",
+                    "country": "GB",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "The Beatles"
+                }
+              ],
+              "length": 73000,
+              "title": "Polythene Pam",
+              "number": "B6"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "artist": {
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Beatles, The",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "country": "GB",
+                    "type": "Group"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 117000,
+              "number": "B7",
+              "title": "She Came In Through the Bathroom Window",
+              "position": 13,
+              "id": "e54c97cd-4d39-4009-991d-dd86989cef98",
+              "recording": {
+                "first-release-date": "1969-09-26",
+                "disambiguation": "original studio mix",
+                "length": 118000,
+                "video": false,
+                "isrcs": [
+                  "GBAYE0601702"
+                ],
+                "id": "c19db4d3-6640-4732-a0b2-e358ed80c5c4",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "The Beatles",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Beatles, The",
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "name": "The Beatles"
+                  }
+                ],
+                "title": "She Came In Through the Bathroom Window"
+              }
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "name": "The Beatles"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 92000,
+              "number": "B8",
+              "title": "Golden Slumbers",
+              "position": 14,
+              "id": "e24defbc-6bc7-4bbd-9c81-33ab00ae2874",
+              "recording": {
+                "length": 92000,
+                "video": false,
+                "first-release-date": "1969-09-26",
+                "disambiguation": "original studio mix",
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The",
+                      "country": "GB",
+                      "type": "Group",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    }
+                  }
+                ],
+                "title": "Golden Slumbers",
+                "isrcs": [
+                  "GBAYE0601703"
+                ],
+                "id": "3d7f2000-123d-4cac-862b-e04ead24c5f2"
+              }
+            },
+            {
+              "position": 15,
+              "id": "0444459c-a576-4677-8454-ab53576ccbde",
+              "recording": {
+                "video": false,
+                "length": 96866,
+                "disambiguation": "original studio mix",
+                "first-release-date": "1969-09-26",
+                "title": "Carry That Weight",
+                "artist-credit": [
+                  {
+                    "name": "The Beatles",
+                    "artist": {
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The",
+                      "country": "GB",
+                      "type": "Group",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "GBAYE0601704"
+                ],
+                "id": "daaee15a-8a4c-4275-a7c1-5b6211f0ec69"
+              },
+              "number": "B9",
+              "title": "Carry That Weight",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Beatles, The",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "type": "Group",
+                    "country": "GB",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "The Beatles"
+                }
+              ],
+              "length": 97000
+            },
+            {
+              "title": "The End",
+              "number": "B10",
+              "artist-credit": [
+                {
+                  "name": "The Beatles",
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                    "sort-name": "Beatles, The",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "The Beatles",
+                    "disambiguation": "UK rock band, “The Fab Four”"
+                  }
+                }
+              ],
+              "length": 140000,
+              "position": 16,
+              "id": "dcdf1d41-7943-48bd-84a9-e59c719aabba",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+                      "sort-name": "Beatles, The",
+                      "country": "GB",
+                      "type": "Group",
+                      "disambiguation": "UK rock band, “The Fab Four”",
+                      "name": "The Beatles",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "The Beatles"
+                  }
+                ],
+                "title": "The End",
+                "id": "5ad78393-77c2-451e-beb1-074df7e06e57",
+                "isrcs": [
+                  "GBAYE0601705"
+                ],
+                "length": 140000,
+                "video": false,
+                "first-release-date": "1969-09-26",
+                "disambiguation": "original studio mix"
+              }
+            }
+          ],
+          "id": "56291fe3-1d7c-361d-a4c2-50d69a635c25",
+          "title": "",
+          "format": "12\" Vinyl",
+          "position": 1,
+          "track-count": 16
+        }
+      ],
+      "artist-credit": [
+        {
+          "artist": {
+            "type": "Group",
+            "country": "GB",
+            "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d",
+            "sort-name": "Beatles, The",
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "disambiguation": "UK rock band, “The Fab Four”",
+            "name": "The Beatles"
+          },
+          "joinphrase": "",
+          "name": "The Beatles"
+        }
+      ],
+      "disambiguation": "",
+      "cover-art-archive": {
+        "front": true,
+        "back": true,
+        "count": 7,
+        "darkened": false,
+        "artwork": true
+      },
+      "release-group": {
+        "secondary-types": [],
+        "disambiguation": "",
+        "first-release-date": "1969-09-26",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "primary-type": "Album",
+        "title": "Abbey Road",
+        "artist-credit": [
+          {
+            "artist": {
+              "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+              "disambiguation": "UK rock band, “The Fab Four”",
+              "name": "The Beatles",
+              "country": "GB",
+              "type": "Group",
+              "sort-name": "Beatles, The",
+              "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+            },
+            "joinphrase": "",
+            "name": "The Beatles"
+          }
+        ],
+        "secondary-type-ids": [],
+        "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d"
+      },
+      "packaging": "Cardboard/Paper Sleeve",
+      "status": "Official",
+      "country": "JP",
+      "label-info": [
+        {
+          "label": {
+            "name": "Apple Records",
+            "disambiguation": "",
+            "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+            "label-code": 1074,
+            "id": "cf7fc5cf-e011-4ef4-b511-cd0188537910",
+            "sort-name": "Apple Records",
+            "type": "Original Production"
+          },
+          "catalog-number": "AP-8815"
+        }
+      ],
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+      "date": "1973"
+    }
+  }
+}
