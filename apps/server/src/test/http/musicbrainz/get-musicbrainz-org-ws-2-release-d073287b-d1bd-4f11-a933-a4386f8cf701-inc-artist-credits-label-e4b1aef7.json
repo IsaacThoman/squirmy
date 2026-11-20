@@ -1,0 +1,848 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/d073287b-d1bd-4f11-a933-a4386f8cf701?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "cover-art-archive": {
+        "count": 10,
+        "back": true,
+        "darkened": false,
+        "artwork": true,
+        "front": true
+      },
+      "release-group": {
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "artist-credit": [
+          {
+            "joinphrase": "",
+            "name": "Daft Punk",
+            "artist": {
+              "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+              "sort-name": "Daft Punk",
+              "disambiguation": "French electronic duo",
+              "name": "Daft Punk",
+              "country": "FR",
+              "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+              "type": "Group"
+            }
+          }
+        ],
+        "secondary-type-ids": [],
+        "disambiguation": "",
+        "primary-type": "Album",
+        "title": "Discovery",
+        "secondary-types": [],
+        "id": "48117b90-a16e-34ca-a514-19c702df1158",
+        "first-release-date": "2001-02-26"
+      },
+      "label-info": [
+        {
+          "label": {
+            "label-code": 3098,
+            "sort-name": "Virgin",
+            "disambiguation": "worldwide imprint of Virgin Records Ltd. and all its subsidiaries",
+            "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+            "name": "Virgin",
+            "id": "49b58bdb-3d74-40c6-956a-4c4b46115c9c",
+            "type": "Imprint"
+          },
+          "catalog-number": "8496062"
+        }
+      ],
+      "quality": "normal",
+      "barcode": "724384960629",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "country": "FR",
+      "artist-credit": [
+        {
+          "artist": {
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "sort-name": "Daft Punk",
+            "disambiguation": "French electronic duo",
+            "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+            "country": "FR",
+            "type": "Group",
+            "name": "Daft Punk"
+          },
+          "name": "Daft Punk",
+          "joinphrase": ""
+        }
+      ],
+      "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+      },
+      "date": "2001-02-26",
+      "asin": "B000059MEK",
+      "disambiguation": "",
+      "media": [
+        {
+          "track-offset": 0,
+          "title": "",
+          "track-count": 14,
+          "tracks": [
+            {
+              "title": "One More Time",
+              "length": 320840,
+              "position": 1,
+              "recording": {
+                "video": false,
+                "title": "One More Time",
+                "length": 320746,
+                "first-release-date": "2000",
+                "id": "60fa767a-d85d-4991-82bc-4294e0b11ae7",
+                "artist-credit": [
+                  {
+                    "name": "Daft Punk",
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type": "Group",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "name": "Daft Punk"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBAHT1305744",
+                  "GBDUW0000053"
+                ]
+              },
+              "id": "25fbe7fe-655e-3624-9be1-0452364d0975",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Daft Punk",
+                  "artist": {
+                    "name": "Daft Punk",
+                    "type": "Group",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "country": "FR",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk"
+                  }
+                }
+              ],
+              "number": "1"
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group",
+                    "name": "Daft Punk"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ],
+              "number": "2",
+              "recording": {
+                "length": 207626,
+                "id": "7c0e11a3-1c7a-4e6d-a14d-6e86d86dbaad",
+                "first-release-date": "2001-02-26",
+                "video": false,
+                "title": "Aerodynamic",
+                "isrcs": [
+                  "GATIW0000057",
+                  "GBDUW0000057"
+                ],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "name": "Daft Punk",
+                      "type": "Group",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk"
+                    }
+                  }
+                ]
+              },
+              "position": 2,
+              "id": "c2d5edfc-1874-361f-922b-2fe30ebc6f88",
+              "length": 207533,
+              "title": "Aerodynamic"
+            },
+            {
+              "title": "Digital Love",
+              "id": "a3b22606-acf0-35b6-85e0-d552abc2712a",
+              "recording": {
+                "length": 298333,
+                "id": "15f16efc-8762-4151-95ab-c12d06268640",
+                "first-release-date": "2001-02-26",
+                "video": false,
+                "title": "Digital Love",
+                "disambiguation": "starts with a carry over",
+                "isrcs": [
+                  "GBDUW0000058"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type": "Group",
+                      "name": "Daft Punk"
+                    }
+                  }
+                ]
+              },
+              "position": 3,
+              "length": 298333,
+              "number": "3",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "name": "Daft Punk",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ]
+            },
+            {
+              "position": 4,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "Daft Punk",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type": "Group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo"
+                    },
+                    "name": "Daft Punk",
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "GBDUW0000059",
+                  "GBDUW0600059"
+                ],
+                "disambiguation": "",
+                "video": false,
+                "title": "Harder, Better, Faster, Stronger",
+                "length": 224293,
+                "id": "f1a6a40f-78f5-4918-968d-f64363bae94c",
+                "first-release-date": "2001-02-26"
+              },
+              "id": "6123d75a-12df-36a2-8f03-2c5093011a6f",
+              "length": 224293,
+              "title": "Harder, Better, Faster, Stronger",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "country": "FR",
+                    "type": "Group",
+                    "name": "Daft Punk"
+                  },
+                  "name": "Daft Punk",
+                  "joinphrase": ""
+                }
+              ],
+              "number": "4"
+            },
+            {
+              "number": "5",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Daft Punk",
+                  "artist": {
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Daft Punk",
+                    "type": "Group",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56"
+                  }
+                }
+              ],
+              "title": "Crescendolls",
+              "length": 211640,
+              "id": "237bb6fd-9159-3bed-a159-050ac220534d",
+              "recording": {
+                "isrcs": [
+                  "GBDUW0000060"
+                ],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Daft Punk",
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Daft Punk",
+                      "type": "Group",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk"
+                    }
+                  }
+                ],
+                "id": "d63ad586-1124-4df1-9a2b-c014d7b7cb02",
+                "first-release-date": "2001-02-26",
+                "length": 211640,
+                "title": "Crescendolls",
+                "video": false
+              },
+              "position": 5
+            },
+            {
+              "number": "6",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group",
+                    "name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ],
+              "id": "f55c4959-d387-3487-8ec2-fae142d6937b",
+              "position": 6,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Daft Punk",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type": "Group"
+                    },
+                    "name": "Daft Punk",
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBDUW0000061"
+                ],
+                "video": false,
+                "title": "Nightvision",
+                "length": 104466,
+                "first-release-date": "2001-02-26",
+                "id": "712edd8d-b413-4e4e-aca4-9b91fce2e65c"
+              },
+              "length": 104466,
+              "title": "Nightvision"
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Daft Punk",
+                  "artist": {
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group",
+                    "name": "Daft Punk",
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "number": "7",
+              "length": 237800,
+              "position": 7,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type": "Group",
+                      "name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo"
+                    },
+                    "name": "Daft Punk",
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBDUW0000062"
+                ],
+                "video": false,
+                "title": "Superheroes",
+                "length": 237800,
+                "first-release-date": "2001-02-26",
+                "id": "8a98614f-0533-44ef-890a-639cab407a2d"
+              },
+              "id": "63900fa4-2726-3a31-b968-8154c952a550",
+              "title": "Superheroes"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Daft Punk",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Daft Punk",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo"
+                  }
+                }
+              ],
+              "number": "8",
+              "title": "High Life",
+              "recording": {
+                "disambiguation": "",
+                "isrcs": [
+                  "GBDUW0000063"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "name": "Daft Punk",
+                      "type": "Group",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk"
+                    }
+                  }
+                ],
+                "first-release-date": "2001-02-26",
+                "id": "07b720fc-0d6f-4342-a6df-876d1749de0b",
+                "length": 201800,
+                "title": "High Life",
+                "video": false
+              },
+              "position": 8,
+              "id": "7e1dbba1-badd-3619-8a41-a3d1d596f23f",
+              "length": 201800
+            },
+            {
+              "title": "Something About Us",
+              "position": 9,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "name": "Daft Punk",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "type": "Group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "GBDUW0000064",
+                  "GBDUW0600064"
+                ],
+                "disambiguation": "album version",
+                "video": false,
+                "title": "Something About Us",
+                "length": 231066,
+                "first-release-date": "2001-02-26",
+                "id": "defbfcb2-7a5c-4456-be28-b7e5ccf92cc2"
+              },
+              "id": "1081a5a0-ff98-33cd-902a-58a7c040f125",
+              "length": 231066,
+              "artist-credit": [
+                {
+                  "name": "Daft Punk",
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "name": "Daft Punk",
+                    "type": "Group",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56"
+                  }
+                }
+              ],
+              "number": "9"
+            },
+            {
+              "number": "10",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "type": "Group",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "name": "Daft Punk"
+                  },
+                  "name": "Daft Punk",
+                  "joinphrase": ""
+                }
+              ],
+              "length": 227866,
+              "id": "fd426020-16d0-36b7-81a9-3a09f6ce74e8",
+              "recording": {
+                "length": 227866,
+                "first-release-date": "2001-02-26",
+                "id": "e1fe1d12-dac2-4325-ae1b-25e0ef06b998",
+                "video": false,
+                "title": "Voyager",
+                "isrcs": [
+                  "GBDUW0000065"
+                ],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Daft Punk",
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "name": "Daft Punk"
+                    }
+                  }
+                ]
+              },
+              "position": 10,
+              "title": "Voyager"
+            },
+            {
+              "number": "11",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Daft Punk",
+                  "artist": {
+                    "type": "Group",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk"
+                  }
+                }
+              ],
+              "title": "Veridis Quo",
+              "id": "7a4439c2-41f1-3f2c-b52b-08530ad93d90",
+              "recording": {
+                "video": false,
+                "title": "Veridis Quo",
+                "length": 344933,
+                "first-release-date": "2001-02-26",
+                "id": "2a220770-1150-4190-b0e0-57d89a0a7469",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Daft Punk",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "type": "Group"
+                    },
+                    "joinphrase": "",
+                    "name": "Daft Punk"
+                  }
+                ],
+                "isrcs": [
+                  "GBDUW0000066"
+                ],
+                "disambiguation": ""
+              },
+              "position": 11,
+              "length": 344893
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Daft Punk",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "name": "Daft Punk",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group"
+                  }
+                }
+              ],
+              "number": "12",
+              "length": 206866,
+              "position": 12,
+              "recording": {
+                "title": "Short Circuit",
+                "video": false,
+                "id": "3f60ae01-43cc-4db9-86ec-97b79f83764f",
+                "first-release-date": "2001-02-26",
+                "length": 206866,
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "name": "Daft Punk",
+                      "type": "Group",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "GBDUW0000067"
+                ]
+              },
+              "id": "12b6ebf6-7a07-330b-ac66-47dcb924a8c1",
+              "title": "Short Circuit"
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "country": "FR",
+                    "name": "Daft Punk"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ],
+              "number": "13",
+              "title": "Face to Face",
+              "length": 240173,
+              "position": 13,
+              "recording": {
+                "disambiguation": "",
+                "isrcs": [
+                  "GBDUW0000068"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type": "Group",
+                      "name": "Daft Punk"
+                    }
+                  }
+                ],
+                "length": 240173,
+                "id": "59038571-03ea-4ca4-965c-a57eae2aa138",
+                "first-release-date": "2001-02-26",
+                "video": false,
+                "title": "Face to Face"
+              },
+              "id": "5055e8f6-097f-3736-9938-d44725822575"
+            },
+            {
+              "length": 600293,
+              "position": 14,
+              "recording": {
+                "isrcs": [
+                  "GBDUW0000069"
+                ],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Daft Punk",
+                      "type": "Group",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR"
+                    }
+                  }
+                ],
+                "length": 600293,
+                "id": "1a915a2d-e2f4-4300-a230-96fc9c8a7b60",
+                "first-release-date": "2001-02-26",
+                "video": false,
+                "title": "Too Long"
+              },
+              "id": "98c7a964-e778-3e15-b878-604a4a405eba",
+              "title": "Too Long",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "type": "Group",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "country": "FR",
+                    "name": "Daft Punk"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ],
+              "number": "14"
+            }
+          ],
+          "format": "CD",
+          "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+          "position": 1,
+          "id": "ada31254-2a88-3a59-ad24-147cb4381468"
+        }
+      ],
+      "packaging": "Jewel Case",
+      "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+      "status": "Official",
+      "title": "Discovery",
+      "release-events": [
+        {
+          "date": "2001-02-26",
+          "area": {
+            "type": null,
+            "id": "08310658-51eb-3801-80de-5a0739207115",
+            "name": "France",
+            "disambiguation": "",
+            "sort-name": "France",
+            "iso-3166-1-codes": [
+              "FR"
+            ],
+            "type-id": null
+          }
+        },
+        {
+          "date": "2001-03-12",
+          "area": {
+            "name": "Europe",
+            "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+            "type": null,
+            "sort-name": "Europe",
+            "disambiguation": "",
+            "type-id": null,
+            "iso-3166-1-codes": [
+              "XE"
+            ]
+          }
+        }
+      ],
+      "id": "d073287b-d1bd-4f11-a933-a4386f8cf701",
+      "relations": [
+        {
+          "type": "amazon asin",
+          "begin": null,
+          "target-credit": "",
+          "ended": false,
+          "attributes": [],
+          "direction": "forward",
+          "type-id": "4f2e710d-166c-480c-a293-2e2c8d658d87",
+          "attribute-ids": {},
+          "end": null,
+          "attribute-values": {},
+          "url": {
+            "resource": "https://www.amazon.fr/gp/product/B000059MEK",
+            "id": "e9a26826-fb98-4bbb-91b8-02fc68efaa61"
+          },
+          "target-type": "url",
+          "source-credit": ""
+        },
+        {
+          "attribute-ids": {},
+          "end": null,
+          "type-id": "4a78823c-1c53-4176-a5f3-58026c76f2bc",
+          "attributes": [],
+          "direction": "forward",
+          "ended": false,
+          "target-credit": "",
+          "begin": null,
+          "type": "discogs",
+          "source-credit": "",
+          "url": {
+            "id": "29d28ee8-795e-48ac-bd53-cfdd0141966f",
+            "resource": "https://www.discogs.com/release/169648"
+          },
+          "target-type": "url",
+          "attribute-values": {}
+        }
+      ]
+    }
+  }
+}

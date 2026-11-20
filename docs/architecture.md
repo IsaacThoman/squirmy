@@ -195,11 +195,12 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
-| `GET /admin/reviews`, `POST /admin/reviews/:id/resolve`, `POST /admin/albums/:id/rematch`, `GET /admin/albums/:id/candidates` | matching | |
+| `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files |
 | `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `POST /imports`, `POST /imports/:id/files`, `POST /imports/:id/commit`, `GET /imports/:id` | imports | multipart upload |
 | `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request; play does it implicitly |
+| `GET/DELETE /admin/catalog-index`, `POST /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
 | `/rest/*` | subsonic | OpenSubsonic, XML and JSON |
 
 ### Availability
@@ -248,7 +249,7 @@ Jobs, in order. Each is idempotent and keyed by file or album group.
 2. `library.probe` reads tags and technical details with `music-metadata` (ffprobe fills gaps and takes over when it cannot parse), normalizes them into `FileTags`, reads ReplayGain (and Opus R128) into the `tag_*` columns, stores the embedded picture, sets `probe_stage 1` and the group key, then queues ingest for the group. A file nothing can read gets `probe_error` and is left alone until it changes.
 3. `library.ingest` `{ rootId, groupKey }` creates or reuses local-only catalog rows (artists, album, release, recordings, release tracks) from the group's tags and links the files, in one transaction. Rows the files already use are reused unless another group uses them; rows with a MusicBrainz id in the tags are found by it or created with it, and are never renamed from tags afterwards. A group with a matched or locked file is only relinked. Rows that end up unused (no files, no user data, no MusicBrainz id) are removed. Then album and artist art from the folder and files, lyrics (embedded or a `.lrc` sidecar), and `matching.match-album`. After this step the music is browsable and playable.
 4. `library.analyze` (low priority) computes the audio hash and sets `probe_stage 2`. A new file whose hash matches a row whose file is gone is that row moved: the old row takes the new path and keeps its id, links and match state. Then `loudness.measure`.
-5. `matching.match-album` (milestone 4) upgrades local-only rows to MusicBrainz rows or opens a review.
+5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start.
 6. `enrichment.*` (milestone 4) fills in covers, images, bios and lyrics.
 
 `library.purge-missing` runs daily and deletes files missing longer than `missingFileGraceDays`. The grouping and album artist rules are written out at the top of `modules/library/grouping.ts`. In short, the album grouping key is root id, parent directory (ignoring `CD1`/`Disc 2` subfolders), and `matchKey` of album artist and album.

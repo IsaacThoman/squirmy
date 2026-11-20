@@ -19,8 +19,15 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1795194037097,
-      "tag": "0002_library_scan",
+      "when": 1795193981538,
+      "tag": "0002_catalog_index_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795194767597,
+      "tag": "0003_library_scan",
       "breakpoints": true
     }
   ]

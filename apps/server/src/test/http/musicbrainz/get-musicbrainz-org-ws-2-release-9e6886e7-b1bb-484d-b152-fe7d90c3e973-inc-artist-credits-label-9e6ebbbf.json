@@ -1,0 +1,1503 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/9e6886e7-b1bb-484d-b152-fe7d90c3e973?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "text-representation": {
+        "language": "eng",
+        "script": "Latn"
+      },
+      "media": [
+        {
+          "title": "",
+          "id": "011fd6d4-bd9c-3277-84c9-ac2a75b2d535",
+          "tracks": [
+            {
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 199560,
+                "isrcs": [
+                  "GBDJQ7900004",
+                  "GBDJQ9200026",
+                  "GBDJQ9400020",
+                  "GBN9Y1100095"
+                ],
+                "id": "1be4459a-4bda-4530-bf8e-421fdddbdbfc",
+                "title": "In the Flesh?",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type": "Group",
+                      "country": "GB",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ]
+              },
+              "position": 1,
+              "id": "1e8d30e3-1091-487d-80ab-ea36bf76bdbd",
+              "title": "In the Flesh?",
+              "number": "A1",
+              "length": 199560,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ]
+            },
+            {
+              "position": 2,
+              "id": "b8a9d3bf-651f-4f8a-8e22-09709a45c06d",
+              "recording": {
+                "id": "eff36e5e-5abb-4f7e-a0aa-64c154c5b28d",
+                "isrcs": [
+                  "GBDJQ7900006",
+                  "GBDJQ9200027",
+                  "GBDJQ9400002",
+                  "GBN9Y1100096",
+                  "USSM17900267"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type": "Group",
+                      "country": "GB"
+                    }
+                  }
+                ],
+                "title": "The Thin Ice",
+                "first-release-date": "1979-11-30",
+                "disambiguation": "",
+                "length": 149866,
+                "video": false
+              },
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 149906,
+              "title": "The Thin Ice",
+              "number": "A2"
+            },
+            {
+              "position": 3,
+              "id": "259aa46e-cd84-48f3-a403-e2084547a68b",
+              "recording": {
+                "title": "Another Brick in the Wall, Part 1",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "id": "82d8444b-3478-480c-8652-bf8aa6cb3dc5",
+                "isrcs": [
+                  "GBDJQ7900007",
+                  "GBDJQ9200028",
+                  "GBDJQ9400081",
+                  "GBN9Y1100097",
+                  "USSM17900247"
+                ],
+                "video": false,
+                "length": 190800,
+                "disambiguation": "3:11 album edit",
+                "first-release-date": "1979-11-30"
+              },
+              "number": "A3",
+              "title": "Another Brick in the Wall, Part 1",
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "country": "GB",
+                    "type": "Group",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 190800
+            },
+            {
+              "recording": {
+                "title": "The Happiest Days of Our Lives",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": ""
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "id": "84978bae-46e2-4d9d-b390-5bd8a1c31983",
+                "isrcs": [
+                  "GBDJQ7900009",
+                  "GBDJQ9200029",
+                  "GBDJQ9400004",
+                  "GBN9Y1100098",
+                  "USSM17900265"
+                ],
+                "video": false,
+                "length": 111000,
+                "disambiguation": "1:50 album edit",
+                "first-release-date": "1979-11-30"
+              },
+              "id": "2fd6f99b-205b-4b23-8b70-91375651e8be",
+              "position": 4,
+              "length": 111093,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": ""
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "title": "The Happiest Days of Our Lives",
+              "number": "A4"
+            },
+            {
+              "length": 240733,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "country": "GB",
+                    "type": "Group"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "number": "A5",
+              "title": "Another Brick in the Wall, Part 2",
+              "recording": {
+                "disambiguation": "album version",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 239933,
+                "id": "597eae0b-ccb6-4076-b997-0ce940586076",
+                "isrcs": [
+                  "GBDJQ0100002",
+                  "GBDJQ7900001",
+                  "GBDJQ9200030",
+                  "GBDJQ9400005",
+                  "GBN9Y1100099",
+                  "USSM17900248"
+                ],
+                "title": "Another Brick in the Wall, Part 2",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ]
+              },
+              "position": 5,
+              "id": "a9519565-fe91-4369-b1e2-b9ac561ba18e"
+            },
+            {
+              "id": "fb8d4b80-f43d-4bb3-9212-36e3e4606c6d",
+              "position": 6,
+              "recording": {
+                "video": false,
+                "length": 333866,
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "title": "Mother",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "id": "2423ca5e-99d3-4b49-be53-542e6ee38a82",
+                "isrcs": [
+                  "GBDJQ7900010",
+                  "GBDJQ9200031",
+                  "GBDJQ9400006",
+                  "GBN9Y1100100",
+                  "USSM17900259"
+                ]
+              },
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "country": "GB",
+                    "type": "Group",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "length": 333706,
+              "title": "Mother",
+              "number": "A6"
+            },
+            {
+              "length": 169933,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "number": "A7",
+              "title": "Goodbye Blue Sky",
+              "recording": {
+                "title": "Goodbye Blue Sky",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "isrcs": [
+                  "GBDJQ7900011",
+                  "GBDJQ9200032",
+                  "GBDJQ9400007",
+                  "GBN9Y1100101",
+                  "USSM17900254"
+                ],
+                "id": "bb0d3c16-b684-4a5a-a107-e12bbd4f3041",
+                "video": false,
+                "length": 168000,
+                "disambiguation": "",
+                "first-release-date": "1979-11-30"
+              },
+              "id": "03e15a93-093c-4f0b-aad3-489c82adee47",
+              "position": 7
+            },
+            {
+              "recording": {
+                "title": "Empty Spaces",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Group",
+                      "country": "GB",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "id": "b56432a2-6231-4c6f-af00-2656804a95d1",
+                "isrcs": [
+                  "GBDJQ7900012",
+                  "GBDJQ9200033",
+                  "GBDJQ9400008",
+                  "GBN9Y1100102",
+                  "USSM17900253"
+                ],
+                "video": false,
+                "length": 127720,
+                "disambiguation": "",
+                "first-release-date": "1979-11-30"
+              },
+              "position": 8,
+              "id": "967aa815-2186-4a39-842c-5471bfa15cdf",
+              "length": 127160,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type": "Group",
+                    "country": "GB",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "number": "A8",
+              "title": "Empty Spaces"
+            },
+            {
+              "recording": {
+                "first-release-date": "1979-11-30",
+                "disambiguation": "",
+                "length": 211093,
+                "video": false,
+                "isrcs": [
+                  "GBDJQ7900013",
+                  "GBDJQ9200034",
+                  "GBDJQ9400083",
+                  "GBN9Y1100103",
+                  "USSM17900271"
+                ],
+                "id": "919dd9f4-cd78-4359-8e89-195abd9b79cf",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group"
+                    }
+                  }
+                ],
+                "title": "Young Lust"
+              },
+              "position": 9,
+              "id": "985957e7-a0a6-4aba-b751-4e9dbbfdc947",
+              "length": 213066,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd"
+                  }
+                }
+              ],
+              "title": "Young Lust",
+              "number": "A9"
+            },
+            {
+              "recording": {
+                "video": false,
+                "length": 216533,
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "title": "One of My Turns",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "country": "GB",
+                      "type": "Group",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "isrcs": [
+                  "GBDJQ7900014",
+                  "GBDJQ9200035",
+                  "GBDJQ9400010",
+                  "GBN9Y1100104",
+                  "USSM17900261"
+                ],
+                "id": "7003ec02-7bc2-4054-b477-f739efd6df45"
+              },
+              "id": "9929fd4d-708f-4fe5-b8c0-ea263eaf11ac",
+              "position": 10,
+              "title": "One of My Turns",
+              "number": "A10",
+              "length": 214706,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type": "Group",
+                    "country": "GB"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ]
+            },
+            {
+              "recording": {
+                "id": "c0a217dc-4c2c-45f9-afd4-9b5f366386ef",
+                "isrcs": [
+                  "GBDJQ7900015",
+                  "GBDJQ9200036",
+                  "GBDJQ9400011",
+                  "GBN9Y1100105",
+                  "USSM17900252"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "title": "Don’t Leave Me Now",
+                "first-release-date": "1979-11-30",
+                "disambiguation": "",
+                "length": 256760,
+                "video": false
+              },
+              "id": "4cf89afd-6e70-4869-87ff-94c8357acce2",
+              "position": 11,
+              "number": "A11",
+              "title": "Don’t Leave Me Now",
+              "length": 256760,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                  },
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "id": "788451b6-a0b8-4f43-aca4-b2f11dd82d17",
+              "position": 12,
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 74960,
+                "id": "ae5096a0-4b53-455a-ac9c-0348108208c3",
+                "isrcs": [
+                  "GBDJQ7900008",
+                  "GBDJQ9200037",
+                  "GBDJQ9400012",
+                  "GBN9Y1100106",
+                  "USSM17900249"
+                ],
+                "title": "Another Brick in the Wall, Part 3",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Pink Floyd"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ]
+              },
+              "number": "A12",
+              "title": "Another Brick in the Wall, Part 3",
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 77533
+            },
+            {
+              "recording": {
+                "video": false,
+                "length": 74640,
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "title": "Goodbye Cruel World",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "id": "bc3448ee-53bb-412a-99d6-ea6cc862928a",
+                "isrcs": [
+                  "GBDJQ7900016",
+                  "GBDJQ9200038",
+                  "GBDJQ9400025",
+                  "GBN9Y1100107",
+                  "USSM17900255"
+                ]
+              },
+              "id": "4e015e49-ce00-4ab3-b7b2-0a1cb2edf8a0",
+              "position": 13,
+              "length": 74640,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "title": "Goodbye Cruel World",
+              "number": "A13"
+            },
+            {
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 280946,
+                "id": "daebd800-fe8a-48bf-bfb4-d8655a895dff",
+                "isrcs": [
+                  "GBDJQ7900017",
+                  "GBDJQ9200039",
+                  "GBDJQ9400013",
+                  "GBN9Y1100108",
+                  "USSM17900256"
+                ],
+                "title": "Hey You",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type": "Group",
+                      "country": "GB",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ]
+              },
+              "id": "bbb025fc-25d7-410a-8b38-98bc368980e6",
+              "position": 14,
+              "length": 284000,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "country": "GB",
+                    "type": "Group",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "title": "Hey You",
+              "number": "B1"
+            },
+            {
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 161787,
+                "isrcs": [
+                  "GBDJQ7900018",
+                  "GBDJQ9200040",
+                  "GBDJQ9400014",
+                  "GBN9Y1100109",
+                  "USSM17900258"
+                ],
+                "id": "5893b2c3-243c-4b79-bfbf-c6624770a97b",
+                "title": "Is There Anybody Out There?",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "country": "GB",
+                      "type": "Group",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "position": 15,
+              "id": "a5dd3eb3-65fd-4e79-9905-9ae9f0afff37",
+              "title": "Is There Anybody Out There?",
+              "number": "B2",
+              "length": 163000,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd"
+                  },
+                  "name": "Pink Floyd"
+                }
+              ]
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "country": "GB",
+                    "type": "Group"
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "length": 207000,
+              "number": "B3",
+              "title": "Nobody Home",
+              "position": 16,
+              "id": "c650ee4c-e776-49ee-9896-a66303427e01",
+              "recording": {
+                "length": 204866,
+                "video": false,
+                "first-release-date": "1979-11-30",
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type": "Group",
+                      "country": "GB",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "title": "Nobody Home",
+                "id": "cfc2fb95-2fc0-4129-acf3-5a5dfb9bceef",
+                "isrcs": [
+                  "GBDJQ7900019",
+                  "GBDJQ9200041",
+                  "GBDJQ9400015",
+                  "GBN9Y1100110",
+                  "USSM17900260"
+                ]
+              }
+            },
+            {
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "Vera",
+                "isrcs": [
+                  "GBDJQ7900020",
+                  "GBDJQ9200042",
+                  "GBDJQ9400084",
+                  "GBN9Y1100111",
+                  "USSM17900269"
+                ],
+                "id": "eb2fbdca-089e-493b-ae03-bb24cdf2b176",
+                "length": 93356,
+                "video": false,
+                "first-release-date": "1979-11-30",
+                "disambiguation": ""
+              },
+              "position": 17,
+              "id": "fea00a0d-5d96-43ee-9a55-a704e6a31726",
+              "number": "B4",
+              "title": "Vera",
+              "length": 96000,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": ""
+                  }
+                }
+              ]
+            },
+            {
+              "number": "B5",
+              "title": "Bring the Boys Back Home",
+              "length": 89000,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type": "Group",
+                    "country": "GB",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "disambiguation": "1:27 album version, including \"Is There Anybody Out There\" and door knocking",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 87186,
+                "id": "e7840a7d-38e4-4d69-b666-0ee4c92fe832",
+                "isrcs": [
+                  "GBDJQ7900021",
+                  "GBDJQ9200043",
+                  "GBDJQ9400017",
+                  "GBN9Y1100112",
+                  "USSM17900250"
+                ],
+                "title": "Bring the Boys Back Home",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": ""
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ]
+              },
+              "id": "038d40df-fa6c-4f33-9de4-3d617e4f6610",
+              "position": 18
+            },
+            {
+              "length": 386000,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "country": "GB",
+                    "type": "Group",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "B6",
+              "title": "Comfortably Numb",
+              "recording": {
+                "isrcs": [
+                  "GBDJQ7900022",
+                  "GBDJQ9200044",
+                  "GBDJQ9400018",
+                  "GBN9Y1100113",
+                  "USSM17900251"
+                ],
+                "id": "9ffabbe4-e078-4906-80a7-3a02b537e251",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "title": "Comfortably Numb",
+                "first-release-date": "1979-11-30",
+                "disambiguation": "6:24 album version",
+                "length": 382320,
+                "video": false
+              },
+              "id": "1ff069ad-c2dc-4d26-b29c-a3318e0f62ba",
+              "position": 19
+            },
+            {
+              "title": "The Show Must Go On",
+              "number": "B7",
+              "length": 98000,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "recording": {
+                "id": "e90a6932-b238-4cc0-8331-6637469b7a34",
+                "isrcs": [
+                  "GBDJQ7900023",
+                  "GBDJQ9200045",
+                  "GBDJQ9400019",
+                  "GBN9Y1100114",
+                  "USSM17900299"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type": "Group",
+                      "country": "GB"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "title": "The Show Must Go On",
+                "first-release-date": "1979-11-30",
+                "disambiguation": "",
+                "length": 96813,
+                "video": false
+              },
+              "id": "b46b096d-76ad-45fc-92e6-74a9db8c9de8",
+              "position": 20
+            },
+            {
+              "number": "B8",
+              "title": "In the Flesh",
+              "length": 260000,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 256706,
+                "isrcs": [
+                  "GBDJQ7900005",
+                  "GBDJQ9200046",
+                  "GBDJQ9400001",
+                  "GBN9Y1100115"
+                ],
+                "id": "89881237-8c35-43b7-af8f-950fb6183fee",
+                "title": "In the Flesh",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "position": 21,
+              "id": "b9bd13e1-a815-4045-af61-9d77507d457b"
+            },
+            {
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 263573,
+                "id": "d36e0b66-a91c-44ee-98c1-881ac8157439",
+                "isrcs": [
+                  "GBDJQ7900024",
+                  "GBDJQ9200047",
+                  "GBDJQ9400021",
+                  "GBN9Y1100116",
+                  "USSM17900263"
+                ],
+                "title": "Run Like Hell",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "position": 22,
+              "id": "c5434fe1-f9c4-4df9-b273-33c8ffcd2765",
+              "number": "B9",
+              "title": "Run Like Hell",
+              "length": 267000,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": ""
+                  },
+                  "name": "Pink Floyd"
+                }
+              ]
+            },
+            {
+              "position": 23,
+              "id": "50ce4084-418b-4d8f-8790-65c24fe83b55",
+              "recording": {
+                "first-release-date": "1979-11-30",
+                "disambiguation": "",
+                "length": 238240,
+                "video": false,
+                "isrcs": [
+                  "GBDJQ7900025",
+                  "GBDJQ9200048",
+                  "GBDJQ9400085",
+                  "GBN9Y1100117",
+                  "USSM17900270"
+                ],
+                "id": "da31bbd5-d020-41d8-8ed5-908c18c13c55",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Pink Floyd"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "title": "Waiting for the Worms"
+              },
+              "number": "B10",
+              "title": "Waiting for the Worms",
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "country": "GB",
+                    "type": "Group",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "length": 240000
+            },
+            {
+              "recording": {
+                "title": "Stop",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd"
+                    }
+                  }
+                ],
+                "id": "92e2cb40-de60-47e4-80bc-60595fb5a488",
+                "isrcs": [
+                  "GBDJQ7900026",
+                  "GBDJQ9200049",
+                  "GBDJQ9400023",
+                  "GBN9Y1100118",
+                  "USSM17900264"
+                ],
+                "video": false,
+                "length": 30800,
+                "disambiguation": "",
+                "first-release-date": "1979-11-30"
+              },
+              "position": 24,
+              "id": "f19c9e21-5865-4093-84d7-179b9b4d7a00",
+              "length": 32000,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "number": "B11",
+              "title": "Stop"
+            },
+            {
+              "id": "c18dd341-2a76-47a2-afff-8175828f9c76",
+              "position": 25,
+              "recording": {
+                "length": 319266,
+                "video": false,
+                "first-release-date": "1979-11-30",
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "The Trial",
+                "isrcs": [
+                  "GBDJQ7900027",
+                  "GBDJQ9200050",
+                  "GBDJQ9400024",
+                  "GBN9Y1100119",
+                  "USSM17900268"
+                ],
+                "id": "a362cf52-5d85-4f34-8a69-e830ef87b5cb"
+              },
+              "title": "The Trial",
+              "number": "B12",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "length": 322000
+            },
+            {
+              "id": "b667d2b9-dcee-4b6c-b2d9-da4870c73d4e",
+              "position": 26,
+              "recording": {
+                "id": "a0545de0-0c68-4301-8cd4-1b77e4b0dc3e",
+                "isrcs": [
+                  "GBDJQ7900028",
+                  "GBDJQ9200051",
+                  "GBDJQ9400026",
+                  "GBN9Y1100120",
+                  "USSM17900262"
+                ],
+                "title": "Outside the Wall",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Pink Floyd"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 104000
+              },
+              "number": "B13",
+              "title": "Outside the Wall",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB"
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "length": 104000
+            }
+          ],
+          "track-offset": 0,
+          "format-id": "f5e6e254-8f39-331c-936b-9c69d686dc47",
+          "track-count": 26,
+          "position": 1,
+          "format": "Cassette"
+        }
+      ],
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "artist": {
+            "country": "GB",
+            "type": "Group",
+            "sort-name": "Pink Floyd",
+            "id": "83d91898-7763-47d7-b03b-b92132375c47",
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "name": "Pink Floyd",
+            "disambiguation": ""
+          },
+          "name": "Pink Floyd"
+        }
+      ],
+      "quality": "normal",
+      "title": "The Wall",
+      "asin": null,
+      "release-events": [
+        {
+          "area": {
+            "type-id": null,
+            "name": "Sweden",
+            "disambiguation": "",
+            "type": null,
+            "id": "23d10872-f5ae-3f0c-bf55-332788a16ecb",
+            "sort-name": "Sweden",
+            "iso-3166-1-codes": [
+              "SE"
+            ]
+          },
+          "date": "1979"
+        }
+      ],
+      "barcode": "",
+      "id": "9e6886e7-b1bb-484d-b152-fe7d90c3e973",
+      "relations": [
+        {
+          "attributes": [],
+          "url": {
+            "resource": "https://www.discogs.com/release/702944",
+            "id": "909e2b99-0b68-440b-bce3-4c469fd9365c"
+          },
+          "target-credit": "",
+          "begin": null,
+          "type": "discogs",
+          "ended": false,
+          "attribute-ids": {},
+          "type-id": "4a78823c-1c53-4176-a5f3-58026c76f2bc",
+          "attribute-values": {},
+          "source-credit": "",
+          "end": null,
+          "target-type": "url",
+          "direction": "forward"
+        }
+      ],
+      "cover-art-archive": {
+        "count": 3,
+        "back": false,
+        "front": true,
+        "artwork": true,
+        "darkened": false
+      },
+      "disambiguation": "",
+      "release-group": {
+        "secondary-types": [],
+        "primary-type": "Album",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "first-release-date": "1979-11-30",
+        "disambiguation": "",
+        "artist-credit": [
+          {
+            "joinphrase": "",
+            "artist": {
+              "name": "Pink Floyd",
+              "disambiguation": "",
+              "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+              "id": "83d91898-7763-47d7-b03b-b92132375c47",
+              "sort-name": "Pink Floyd",
+              "country": "GB",
+              "type": "Group"
+            },
+            "name": "Pink Floyd"
+          }
+        ],
+        "title": "The Wall",
+        "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+        "secondary-type-ids": []
+      },
+      "country": "SE",
+      "label-info": [
+        {
+          "label": {
+            "type": "Original Production",
+            "sort-name": "EMI",
+            "id": "c029628b-6633-439e-bcee-ed02e8a338f7",
+            "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+            "label-code": 542,
+            "disambiguation": "EMI Records, or EMI Music only if there is no other imprint",
+            "name": "EMI"
+          },
+          "catalog-number": "7C 456-63412"
+        },
+        {
+          "catalog-number": "7C 456-63412",
+          "label": {
+            "id": "993af7f6-bb99-456b-83e7-5e728ea80a0e",
+            "sort-name": "Harvest",
+            "type": "Original Production",
+            "name": "Harvest",
+            "disambiguation": "UK based sub‐label of EMI, re‐activated in 2013 under Capitol Music Group in Hollywood, CA",
+            "label-code": 1305,
+            "type-id": "7aaa37fe-2def-3476-b359-80245850062d"
+          }
+        }
+      ],
+      "status": "Official",
+      "packaging": "Cassette Case",
+      "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906",
+      "date": "1979",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+    }
+  }
+}

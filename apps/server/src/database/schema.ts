@@ -730,21 +730,59 @@ export const rateLimits = pgTable('rate_limits', {
   nextAt: at('next_at').notNull().defaultNow(),
 })
 
+export type CatalogIndexKind = 'artist' | 'album' | 'recording'
+export type CatalogIndexImportState = 'running' | 'active' | 'failed' | 'cancelled' | 'replaced' | 'dropped'
+export type CatalogIndexImportPhase = 'download' | 'build' | 'swap'
+
 /**
  * Optional local search index loaded from MusicBrainz canonical dumps. Empty unless
- * the operator runs the importer.
+ * the operator runs the importer, which builds a replacement table and swaps it in
+ * (modules/catalog-index/import.ts), so the DDL there must match this definition.
+ * Rows are written once, in descending `score` order within each kind, and never
+ * updated; search relies on that physical order. There is no primary key: nothing
+ * looks rows up by id, and at tens of millions of rows the index would cost gigabytes.
+ * See docs/local-search-index.md for the design and its measurements.
  */
 export const catalogIndex = pgTable('catalog_index', {
-  id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
-  /** artist | album | recording */
-  kind: text('kind').notNull(),
+  kind: text('kind').$type<CatalogIndexKind>().notNull(),
+  /** Artist, release group or recording MBID. */
   mbid: uuid('mbid').notNull(),
   name: text('name').notNull(),
   artistName: text('artist_name'),
   albumName: text('album_name'),
   nameKey: text('name_key').notNull(),
-  score: real('score').notNull().default(0),
+  /** Popularity prior from 0 to 1. */
+  score: real('score').notNull(),
+  /** Among the most popular rows of its kind; only these carry the fuzzy trigram index. */
+  head: boolean('head').notNull(),
 }, (t) => [
-  index('catalog_index_key_trgm').using('gin', t.nameKey.op('gin_trgm_ops')),
-  uniqueIndex('catalog_index_kind_mbid').on(t.kind, t.mbid),
+  index('catalog_index_artist_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'artist' and head`),
+  index('catalog_index_album_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'album' and head`),
+  index('catalog_index_recording_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'recording' and head`),
+  index('catalog_index_prefix').on(t.kind, sql`(${t.nameKey} collate "C")`),
 ])
+
+/**
+ * One row per import of the local search index. The row in state `active` describes
+ * the index currently in `catalog_index`; at most one row is `running`.
+ */
+export const catalogIndexImports = pgTable('catalog_index_imports', {
+  id: id(),
+  state: text('state').$type<CatalogIndexImportState>().notNull(),
+  phase: text('phase').$type<CatalogIndexImportPhase>(),
+  source: text('source'),
+  /** When MetaBrainz produced the dump, from its TIMESTAMP file. */
+  dumpDate: at('dump_date'),
+  /** Size knob: keep at most this many recordings per artist credit; null keeps all. */
+  recordingsPerArtist: integer('recordings_per_artist'),
+  bytesRead: bigint('bytes_read', { mode: 'number' }).notNull().default(0),
+  totalBytes: bigint('total_bytes', { mode: 'number' }),
+  rowsRead: bigint('rows_read', { mode: 'number' }).notNull().default(0),
+  artists: integer('artists'),
+  albums: integer('albums'),
+  recordings: integer('recordings'),
+  error: text('error'),
+  cancelRequested: boolean('cancel_requested').notNull().default(false),
+  startedAt: at('started_at').notNull().defaultNow(),
+  finishedAt: at('finished_at'),
+}, (t) => [index('catalog_index_imports_state').on(t.state)])
