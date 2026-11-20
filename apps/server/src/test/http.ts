@@ -54,9 +54,9 @@ export function useHttpFixtures(...providers: string[]) {
 
   afterAll(() => setRateLimitsEnabled(true))
 
-  beforeEach(() => {
-    requests.length = 0
-    unmatched.length = 0
+  // Installed for the whole file, not per test: a `beforeAll` that reaches a provider
+  // runs before any `beforeEach`, and must not find the real fetch.
+  const install = () => {
     vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : input.toString()
       const method = (init?.method ?? 'GET').toUpperCase()
@@ -76,12 +76,22 @@ export function useHttpFixtures(...providers: string[]) {
       fixtures.set(fixtureKey(method, url, body), recorded)
       return toResponse(recorded)
     })
+  }
+
+  beforeAll(install)
+
+  beforeEach(() => {
+    requests.length = 0
+    unmatched.length = 0
+    // Again, in case the previous test stubbed fetch itself.
+    install()
   })
 
   afterEach(() => {
-    vi.unstubAllGlobals()
     expect(unmatched, 'requests without a recorded fixture').toEqual([])
   })
+
+  afterAll(() => vi.unstubAllGlobals())
 
   return { requests }
 }
