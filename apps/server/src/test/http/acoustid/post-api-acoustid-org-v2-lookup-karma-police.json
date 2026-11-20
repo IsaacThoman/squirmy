@@ -1,0 +1,36 @@
+{
+  "note": "Hand-written: a made-up fingerprint that AcoustID resolves to the studio recording of Karma Police.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.acoustid.org/v2/lookup",
+    "body": "client=test-acoustid-key&meta=recordings&duration=261&fingerprint=AQADtKarmaPoliceTestPrint"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "status": "ok",
+      "results": [
+        {
+          "id": "5f8a2c1e-9b7d-4e3a-8c6f-2d1b0a9e8f7c",
+          "score": 0.95,
+          "recordings": [
+            {
+              "id": "9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3",
+              "title": "Karma Police",
+              "duration": 262,
+              "artists": [
+                {
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "name": "Radiohead"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
