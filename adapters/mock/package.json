@@ -1,0 +1,32 @@
+{
+  "name": "@squirmy/adapter-mock",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "A mock acquisition provider that delivers quiet tagged tones, for tests and demos.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@squirmy/contracts": "0.0.0",
+    "@squirmy/provider-kit": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "music-metadata": "^11.15.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

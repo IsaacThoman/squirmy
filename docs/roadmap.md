@@ -65,8 +65,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 8. Providers and extras
 
-- [ ] Acquisition provider protocol, on-demand playback, policy
-- [ ] Reference adapters: cold storage and mock
+- [x] Acquisition provider protocol, on-demand playback, policy (server and API; admin screens to do) ([provider-protocol.md](./provider-protocol.md))
+- [x] Reference adapters: cold storage and mock (`adapters/`)
 - [x] Scrobbling to ListenBrainz and Last.fm (server, API and mobile settings; web settings to do)
 - [x] Radio and autoplay (server and API)
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
@@ -75,4 +75,3 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 ## Deferred
 
 - Purchasing through acquisition providers (priced offers, caps, budgets)
-- Bandcamp collection adapter
