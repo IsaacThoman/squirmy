@@ -44,12 +44,17 @@ apps/server/src/
   app.ts                buildApp(): Fastify instance, plugins, auth hook, module routes
   config.ts             zod-parsed environment
   database/             client.ts (lazy db), schema.ts, migrate.ts
-  lib/                  errors, ids, text, crypto, ffmpeg, http, paths
-  jobs/                 pg-boss wrapper: defineJob, enqueue, schedule
+  lib/                  auth, errors, ids, text, crypto, settings, version, ffmpeg, http, paths
+  jobs/                 pg-boss wrapper: jobs.define, enqueue, schedule
   realtime/             socket.io server, rooms, publish/invalidate
   modules/<name>/       one folder per module; see the table below
   test/                 database harness, audio fixtures, factories, http fixtures
 ```
+
+- **Boot.** `index.ts` migrates, starts jobs, then in API roles builds the app and attaches realtime, calls each module's `jobs`, `realtime` and `start` hooks for its role, and listens last. SIGTERM undoes those steps in reverse. A worker-only process opens no HTTP port.
+- **HTTP.** Helmet without CSP, cookies, multipart (streamed, up to 16 GiB per file), and CORS only for the Vite dev origins outside production. Each module's `routes` is registered in its own encapsulated scope under `/api/v1`.
+- **Web app.** When `SQUIRMY_WEB_DIST` is set the built app is served, with `index.html` as the fallback for unknown GET paths outside `/api`, `/rest`, `/socket.io`, `/health` and `/ready`. Hashed files under `assets/` are cached as immutable.
+- `GET /health` answers without touching anything; `GET /ready` checks the database.
 
 ### Modules
 
@@ -123,9 +128,12 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 
 - A session token is 32 random bytes, base64url. Only its SHA-256 is stored (`auth_sessions.token_hash`). Sessions last 180 days, sliding.
 - Browsers get it in the `squirmy_session` cookie (httpOnly, SameSite=Lax, Secure when the request is HTTPS). Native clients send `Authorization: Bearer <token>`. The socket takes the same token from the cookie or from `auth.token`.
-- An `onRequest` hook resolves the token and sets `request.user` (or null). Route code calls `requireUser(request)` or `requireAdmin(request)`.
-- **CSRF.** A cookie-authenticated request that is not GET/HEAD must carry the header `X-Squirmy-Request: 1`. Bearer requests are exempt.
-- Passwords are argon2id. Login is rate limited per IP and per username.
+- Setup, login and register return `{ user, token }` to every client. A request with the header `X-Squirmy-Client: web` also gets the cookie; `GET /auth/me` renews it. Passing a `device` upserts the `devices` row.
+- An `onRequest` hook resolves the token for `/api` routes and sets `request.user` (or null) and `request.authSessionId`. `/rest` authenticates each request with Subsonic credentials instead. Route code calls `requireUser(request)` or `requireAdmin(request)` from `lib/auth.ts`.
+- **CSRF.** A cookie-authenticated request that is not GET/HEAD/OPTIONS must carry the header `X-Squirmy-Request: 1`. Bearer requests are exempt.
+- Passwords are argon2id. Login is rate limited per IP and per username, setup and register per IP, password changes per user. Counters live in the API process's memory.
+- Logging out, changing a password (other sessions), and an admin disabling a user or resetting their password end the affected sessions and close their sockets.
+- App passwords for Subsonic clients are random secrets stored AES-GCM encrypted (Subsonic token auth needs the clear text) plus a SHA-256 `key_hash` for `apiKey` lookups. `modules/auth/service.ts` exports `verifyAppPassword` and `findAppPasswordByKey`.
 - `lib/crypto.ts` derives purpose-specific keys from the root secret with HKDF and exposes `hashToken`, `sign`/`verify` (HMAC-SHA256) and `encrypt`/`decrypt` (AES-256-GCM, base64url output).
 
 ### Jobs
@@ -140,15 +148,23 @@ await schedule('library.scan-all', '0 4 * * *')
 
 - Queue names are `<module>.<verb>`.
 - Handlers are idempotent: running one twice leaves the same result.
-- `enqueue` accepts a transaction so a row and its job commit together.
+- `enqueue` accepts a transaction (`{ tx }`) so a row and its job commit together. It goes through pg-boss's Drizzle adapter, so the job insert runs on the caller's transaction; there is no outbox.
+- `singletonKey` makes a duplicate a no-op while a job with that key is queued, retrying or active. Queues use pg-boss's `exclusive` policy and keyless jobs get a unique key, so only keyed jobs are deduplicated.
+- Failures retry with exponential backoff (default 3 retries). `timeoutSeconds` fails a job that runs too long.
+- Every process starts pg-boss: `index.ts` calls `startJobs({ work })` with `work` true for worker roles. Modules' `jobs` hooks run only in worker roles; a process that enqueues a job it has no definition for creates the queue on first use.
+- `getQueueStats()` counts jobs live; `GET /admin/jobs` returns it.
+- Tests call `startJobs({ work: true })` and then `drainJobs()`, which resolves once no job of a defined queue is ready or active, running retries without waiting out the backoff.
 - Heavy work (loudness, transcodes, fingerprints) uses a low priority so tag reading always goes first.
 
 ### Realtime
 
 `realtime/` owns the socket.io server. The session protocol is specified in `packages/contracts/src/session.ts`.
 
-- Each socket joins the room `user:<id>`. Admin sockets also join `admins`.
-- `publish(target, event)` and `invalidate(target, keys)` are callable from any process. They `NOTIFY squirmy_events` with a JSON payload; the API process `LISTEN`s and forwards to rooms. `target` is a user id, `'admins'` or `'all'`.
+- `startRealtime(app)` attaches to the Fastify server before it listens; closing the app closes the socket server.
+- The handshake takes the session token from `auth.token` or the `squirmy_session` cookie and is refused without a valid one.
+- Each socket joins the room `user:<id>`. Admin sockets also join `admins`. Handlers passed to `onConnection` run after that; register socket listeners before the first `await`.
+- `publish(target, event)` and `invalidate(target, keys)` are callable from any process. They `NOTIFY squirmy_events` with a JSON payload; the API process `LISTEN`s on a dedicated connection and forwards to rooms. `target` is `{ user: id }`, `'admins'` or `'all'`. Keys that do not fit in one notification (8000 bytes) are split across several. `disconnectSockets(userId, { only | except })` closes sockets of revoked sessions the same way.
+- `time:sync` is answered here; the `session:*` events belong to the `sessions` module.
 - Every mutation that changes what another open screen shows calls `invalidate` with keys from `queryKeys`.
 
 ### HTTP API
@@ -159,10 +175,10 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 |---|---|---|
 | `GET /setup/status`, `POST /setup` | auth | create the first admin |
 | `POST /auth/login`, `/auth/logout`, `/auth/register`, `/auth/password`; `GET /auth/me` | auth | |
-| `GET/POST/DELETE /auth/app-passwords` | auth | |
+| `GET/POST /auth/app-passwords`, `DELETE /auth/app-passwords/:id` | auth | the secret is returned once, on create |
 | `GET/PATCH /me/settings` | userdata | `UserSettings` |
-| `GET/POST/PATCH/DELETE /admin/users`, `/admin/invites` | admin | |
-| `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | |
+| `GET/POST /admin/users`, `PATCH/DELETE /admin/users/:id`; `GET/POST /admin/invites`, `DELETE /admin/invites/:id` | admin | the last active admin cannot be demoted, disabled or deleted |
+| `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists directories only, symlinks resolved; home directory by default |
 | `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | |
 | `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` |
 | `GET /home` | catalog | `HomeResponse` |
