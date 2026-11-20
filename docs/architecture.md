@@ -179,7 +179,7 @@ await schedule('library.scan-all', '0 4 * * *')
 
 ### HTTP API
 
-All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`; short lists (users, invites, app passwords, roots, devices) return every item with `nextCursor: null`. `GET /admin/jobs` returns a bare array. `createApiClient` in client-core has one method per route below, and its response schemas are the reference for each route's shape.
+All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`; short lists (users, invites, app passwords, roots, devices) return every item with `nextCursor: null`. `GET /admin/jobs` returns a bare array. `createApiClient` in client-core has one method per route below, and its response schemas are the reference for each route's shape. `apiRoutes` next to it names each method's route; `client-routes.test.ts` fails when the server registers a native route that no method calls and that is not on its short list of routes clients never call (stream and art URLs, the Last.fm callback, provider deliveries). Uploads go through `XMLHttpRequest`, which reports progress.
 
 | Route | Module | Notes |
 |---|---|---|

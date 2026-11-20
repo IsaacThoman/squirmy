@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import {
-  AcquisitionJobListQuery, CreateAcquisitionProviderRequest, Id, ProviderDeliveryComplete, UpdateAcquisitionPolicy, UpdateAcquisitionProviderRequest,
+  AcquireQuery, AcquisitionJobListQuery, CreateAcquisitionProviderRequest, Id, ProviderDeliveryComplete, UpdateAcquisitionPolicy, UpdateAcquisitionProviderRequest,
   type AcquireResponse, type AcquisitionJob, type AcquisitionJobList, type AcquisitionJobStatus, type AcquisitionPolicy, type AcquisitionProvider,
   type AcquisitionProviderList, type ImportFileResult, type Ok, type ProviderUploadResponse,
 } from '@squirmy/contracts'
@@ -22,7 +22,6 @@ import { createProvider, deleteProvider, listProviders, testProvider, updateProv
 
 const IdParams = z.object({ id: Id })
 const JobParams = z.object({ jobId: Id })
-const AcquireQuery = z.object({ albumId: Id.optional() })
 /** Delivery requests per job and address per minute. */
 const deliveryRateLimit = 120
 /** File and field parts per upload request. */
