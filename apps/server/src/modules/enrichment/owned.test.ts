@@ -87,6 +87,18 @@ describe('owned music enrichment', () => {
     expect((await queued('enrichment.lyrics')).sort()).toEqual(owned.tracks.map((track) => track.recordingId).sort())
   })
 
+  it('finds the Deezer album through ISRCs when the edition barcode is not on Deezer', async () => {
+    await db.delete(externalIds).where(eq(externalIds.provider, 'deezer'))
+    await db.update(releases).set({ barcode: '999999999999' }).where(eq(releases.id, owned.releaseId))
+    await db.update(recordings).set({ isrcs: ['GBAYE9701274'] }).where(eq(recordings.id, owned.tracks[0]!.recordingId))
+    await db.update(albums).set({ enrichedAt: null }).where(eq(albums.id, owned.albumId))
+    await enrichAlbum(owned.albumId)
+    expect(http.requests).toEqual(expect.arrayContaining(['GET https://api.deezer.com/album/upc:999999999999', 'GET https://api.deezer.com/track/isrc:GBAYE9701274']))
+    expect(await deezerIds('album', owned.albumId)).toEqual(['14879699'])
+    for (const track of owned.tracks) expect(await deezerIds('recording', track.recordingId)).toHaveLength(1)
+    expect((await albumRow(owned.albumId)).enrichedAt).not.toBeNull()
+  })
+
   it('replaces small art with the Cover Art Archive front, stored', async () => {
     const small = await imageAsset(300)
     await db.update(albums).set({ artworkAssetId: small.id, enrichedAt: null }).where(eq(albums.id, owned.albumId))

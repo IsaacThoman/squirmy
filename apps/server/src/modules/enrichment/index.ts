@@ -22,11 +22,12 @@ export type EnrichLyricsJob = { recordingId: string }
 export const enrichmentModule: ServerModule = {
   name: 'enrichment',
   async jobs(registry) {
-    // Mostly waiting on MusicBrainz's one request a second, which every job shares.
-    registry.define<EnrichAlbumJob>('enrichment.album', { concurrency: 2, timeoutSeconds: 15 * 60 }, async ({ albumId }) => {
+    // One at a time: these mostly wait on MusicBrainz's one request a second, and every
+    // request queued here is one a page opened meanwhile waits behind.
+    registry.define<EnrichAlbumJob>('enrichment.album', { timeoutSeconds: 15 * 60 }, async ({ albumId }) => {
       await enrichAlbum(albumId)
     })
-    registry.define<EnrichArtistJob>('enrichment.artist', { concurrency: 2, timeoutSeconds: 15 * 60 }, async ({ artistId }) => {
+    registry.define<EnrichArtistJob>('enrichment.artist', { timeoutSeconds: 15 * 60 }, async ({ artistId }) => {
       await artistDetailRun(artistId)
     })
     registry.define<EnrichLyricsJob>('enrichment.lyrics', { concurrency: 2 }, async ({ recordingId }) => {

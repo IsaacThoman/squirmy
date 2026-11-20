@@ -39,13 +39,11 @@ export async function enrichAlbum(id: string): Promise<void> {
   const found: { deezer: DeezerAlbum | null } = { deezer: null }
   const steps = [
     await attempt('Deezer ids', async () => {
-      const dz = found.deezer = await deezerAlbumFor(albumId, album.barcode)
-      if (!dz) return
-      await linkDeezerAlbum(albumId, dz)
-      if (album.primaryArtistId && album.artistName && matchKey(dz.artist.name) === matchKey(album.artistName)) {
+      found.deezer = await linkDeezer(albumId, album.barcode)
+      const dz = found.deezer
+      if (dz && album.primaryArtistId && album.artistName && matchKey(dz.artist.name) === matchKey(album.artistName)) {
         await linkExternalId('deezer', 'artist', String(dz.artist.id), album.primaryArtistId)
       }
-      await linkTracksByIsrc(albumId)
     }),
     await attempt('cover', () => ownedCover(albumId, { releaseMbid: album.releaseMbid, groupMbid: album.mbid, deezerCover: found.deezer?.coverUrl ?? null })),
     await attempt('description', () => addDescription(albumId, album, found.deezer)),
@@ -55,41 +53,63 @@ export async function enrichAlbum(id: string): Promise<void> {
   await changed([queryKeys.album(albumId), queryKeys.home(), queryKeys.library()])
 }
 
-/** The album's Deezer page: by the id it carries, else by its barcode (UPC). */
-async function deezerAlbumFor(albumId: string, barcode: string | null): Promise<DeezerAlbum | null> {
+/**
+ * Links the album and its owned recordings to Deezer: the album by the id it carries or
+ * its barcode (UPC), its recordings by that page's track list, and the recordings left
+ * by ISRC. When neither id nor barcode finds the album, the page most of the ISRC
+ * matches belong to is taken, if at least half of them agree. Returns the Deezer album.
+ */
+async function linkDeezer(albumId: string, barcode: string | null): Promise<DeezerAlbum | null> {
   const known = await externalIdOf('deezer', 'album', albumId)
-  if (known) return deezer.getAlbum(Number(known))
-  if (!barcode) return null
   // Deezer keys UPC-A codes; an EAN-13 of the same product only adds a leading zero.
-  return (await deezer.getAlbumByUpc(barcode)) ?? (barcode.length === 13 && barcode.startsWith('0') ? deezer.getAlbumByUpc(barcode.slice(1)) : null)
+  const upcs = barcode ? [barcode, ...(barcode.length === 13 && barcode.startsWith('0') ? [barcode.slice(1)] : [])] : []
+  let dz = known ? await deezer.getAlbum(Number(known)) : null
+  for (const upc of upcs) dz ??= await deezer.getAlbumByUpc(upc)
+  if (dz) await linkDeezerAlbum(albumId, dz)
+
+  const votes = await linkTracksByIsrc(albumId)
+  const [best] = [...votes].sort((a, b) => b[1] - a[1])
+  const total = [...votes.values()].reduce((sum, count) => sum + count, 0)
+  if (!dz && best && best[1] * 2 >= total) {
+    dz = await deezer.getAlbum(best[0])
+    if (dz) await linkDeezerAlbum(albumId, dz)
+  }
+  return dz
 }
 
-/** Deezer ids by ISRC for owned recordings on the album that still have none. */
-async function linkTracksByIsrc(albumId: string) {
+/**
+ * Deezer ids by ISRC for owned recordings on the album that still have none. Returns how
+ * many of the matched tracks sit on each Deezer album.
+ */
+async function linkTracksByIsrc(albumId: string): Promise<Map<number, number>> {
   const missing = await db.execute<{ id: string; isrc: string }>(sql`
     select distinct on (r.id) r.id, r.isrcs[1] as isrc
     from media_files f join recordings r on r.id = f.recording_id
     where f.album_id = ${albumId} and f.missing_since is null and cardinality(r.isrcs) > 0
       and not exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'recording' and e.entity_id = r.id)
     order by r.id limit ${isrcLookups}`)
+  const votes = new Map<number, number>()
   for (const row of missing) {
     const track = await deezer.getTrackByIsrc(row.isrc)
-    if (track) await linkExternalId('deezer', 'recording', String(track.id), row.id)
+    if (!track) continue
+    await linkExternalId('deezer', 'recording', String(track.id), row.id)
+    if (track.album) votes.set(track.album.id, (votes.get(track.album.id) ?? 0) + 1)
   }
+  return votes
 }
 
 /**
  * Keeps a stored cover that is at least 500 px on its short side (folder or embedded art,
- * usually). Otherwise downloads the first of the Cover Art Archive's release front, its
- * release-group front and Deezer's cover, stores it, and uses it when it is bigger than
- * what the album has.
+ * usually). Otherwise downloads, in order, the Cover Art Archive's release front, its
+ * release-group front and Deezer's cover until one is 500 px, stores them, and uses the
+ * largest when it beats what the album has.
  */
 async function ownedCover(albumId: string, sources: { releaseMbid: string | null; groupMbid: string | null; deezerCover: string | null }) {
   const [current] = await db.select({ status: assets.status, width: assets.width, height: assets.height }).from(albums)
     .innerJoin(assets, eq(assets.id, albums.artworkAssetId)).where(eq(albums.id, albumId))
   const side = (asset: { width: number | null; height: number | null } | undefined) => Math.min(asset?.width ?? 0, asset?.height ?? 0)
-  const currentSide = current?.status === 'ready' ? side(current) : 0
-  if (currentSide >= goodCoverPx) return
+  let best = { id: null as string | null, side: current?.status === 'ready' ? side(current) : 0 }
+  if (best.side >= goodCoverPx) return
 
   const candidates = [
     () => (sources.releaseMbid ? coverart.getReleaseCover(sources.releaseMbid) : null),
@@ -97,14 +117,13 @@ async function ownedCover(albumId: string, sources: { releaseMbid: string | null
     () => sources.deezerCover,
   ]
   for (const candidate of candidates) {
+    if (best.side >= goodCoverPx) break
     const url = await candidate()
     const image = url ? await coverart.fetchImage(url) : null
-    if (!url || !image) continue
-    const asset = await storeImage(image.bytes, { kind: 'cover', source: url }).catch(() => null)
-    if (!asset) continue
-    if (side(asset) > currentSide) await assignAlbumArtwork(albumId, asset.id, { onlyIfEmpty: false })
-    return
+    const asset = url && image ? await storeImage(image.bytes, { kind: 'cover', source: url }).catch(() => null) : null
+    if (asset && side(asset) > best.side) best = { id: asset.id, side: side(asset) }
   }
+  if (best.id) await assignAlbumArtwork(albumId, best.id, { onlyIfEmpty: false })
 }
 
 /** The English Wikipedia summary linked from the release group, and Deezer's genres when MusicBrainz has none. */
