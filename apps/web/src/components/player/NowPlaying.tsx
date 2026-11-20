@@ -74,7 +74,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
 
           <DialogPrimitive.Title className="sr-only">Now Playing</DialogPrimitive.Title>
 
-          <div className={cn('relative grid min-h-0 flex-1 gap-10 px-6 py-4 md:px-12', pane !== 'art' && 'lg:grid-cols-2')}>
+          <div className={cn('relative grid min-h-0 flex-1 grid-cols-1 gap-10 px-6 py-4 md:px-12', pane !== 'art' && 'lg:grid-cols-2')}>
             <div className={cn('min-h-0 flex-col items-center justify-center gap-6', pane === 'art' ? 'flex' : 'hidden lg:flex')}>
               <div className="aspect-square h-auto max-h-full w-full max-w-[min(32rem,52vh)]">
                 <Cover artwork={artwork} size={1200} className="size-full rounded-[18px] shadow-[0_30px_80px_-20px_rgb(0_0_0/0.55)]" />

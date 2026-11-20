@@ -400,13 +400,19 @@ export function searchFixtures(query: string) {
     tracks: libraryTracks.filter(item => matches(item.title, item.artistCredit, item.album?.title ?? '')),
     provider: null,
   }
+  // The server's `top`, simplified: an artist, album or song named exactly as asked.
+  const exact = (name: string) => normalize(name) === normalize(query.trim())
+  const topArtist = library.artists.find(artist => exact(artist.name))
+  const topAlbum = library.albums.find(item => exact(item.title))
+  const topTrack = library.tracks.find(item => exact(item.title))
+  const top = topArtist ? { type: 'artist' as const, id: topArtist.id } : topAlbum ? { type: 'album' as const, id: topAlbum.id } : topTrack ? { type: 'track' as const, id: topTrack.id } : null
   const catalog = {
     artists: artists.filter(artist => !artist.inLibrary && matches(artist.name)),
     albums: albums.filter(item => item.availability === 'none' || item.availability === 'on_demand').map(summary).filter(item => matches(item.title, item.artistCredit)),
     tracks: allTracks.filter(item => item.availability !== 'server' && matches(item.title, item.artistCredit)),
     provider: 'deezer',
   }
-  return { library, catalog }
+  return { library: { ...library, top }, catalog }
 }
 
 function normalize(value: string) {

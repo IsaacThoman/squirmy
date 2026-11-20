@@ -1,14 +1,16 @@
-import { CreateLibraryRootRequest, LoginRequest, RegisterRequest, SetupRequest, type DirectoryListing } from '@squirmy/contracts'
-import { ArrowRight, Check, FolderOpen, PartyPopper, RotateCw, ServerCrash } from 'lucide-react'
+import { CreateLibraryRootRequest, LoginRequest, RegisterRequest, SetupRequest, UpdateLibraryRootRequest, type DirectoryListing, type LibraryRoot } from '@squirmy/contracts'
+import { ArrowRight, Check, FolderOpen, FolderPlus, PartyPopper, RotateCw, ServerCrash } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useFormSubmit, type FormErrors } from '@/api/errors'
 import { rootPathErrors } from '@/api/folders'
-import { ManagedSwitch } from '@/components/admin/ManagedSwitch'
+import { ManagedConfirmation, ManagedSwitch } from '@/components/admin/ManagedSwitch'
 import { Logo } from '@/components/layout/Sidebar'
 import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/feedback'
+import { Dialog } from '@/components/ui/dialog'
+import { Badge, Skeleton, Spinner } from '@/components/ui/feedback'
 import { Field, FormError, Input } from '@/components/ui/input'
+import { formatRelative, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { FolderPicker } from './FolderPicker'
 
@@ -66,7 +68,7 @@ function CredentialFields({ value, onChange, errors, newPassword }: { value: Cre
   )
 }
 
-export function LoginView({ serverName, inviteRequired, onSubmit }: { serverName: string; inviteRequired: boolean; onSubmit: (credentials: Credentials) => Promise<unknown> }) {
+export function LoginView({ serverName, version, inviteRequired, onSubmit }: { serverName: string; version: string; inviteRequired: boolean; onSubmit: (credentials: Credentials) => Promise<unknown> }) {
   const [value, setValue] = useState<Credentials>({ username: '', password: '' })
   const form = useFormSubmit(LoginRequest, onSubmit)
   const submit = (event: FormEvent) => {
@@ -76,7 +78,12 @@ export function LoginView({ serverName, inviteRequired, onSubmit }: { serverName
   return (
     <AuthFrame
       title={`Sign in to ${serverName}`}
-      footer={<>{inviteRequired ? 'Have an invite?' : 'New here?'} <Link to="/register" className="font-semibold text-accent hover:underline">Create an account</Link></>}
+      footer={(
+        <div className="flex flex-col items-center gap-3">
+          <p>{inviteRequired ? 'Have an invite?' : 'New here?'} <Link to="/register" className="font-semibold text-accent hover:underline">Create an account</Link></p>
+          <p className="text-xs text-quiet">Squirmy {version}</p>
+        </div>
+      )}
     >
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <CredentialFields value={value} onChange={setValue} errors={form.errors} />
@@ -159,57 +166,136 @@ export function SetupAccountView({ onCreateAdmin }: { onCreateAdmin: (credential
 }
 
 type SetupLibraryProps = {
+  /** Folders the server already has, such as the one its configuration adds at startup. Undefined while loading. */
+  roots: LibraryRoot[] | undefined
+  /** The folder the admin tried to add although the server already had it. */
+  alreadyAdded: string | null
   path: string | undefined
   listing: DirectoryListing | undefined
   listingError: string | undefined
   onBrowse: (path: string) => void
   onAddFolder: (folder: CreateLibraryRootRequest) => Promise<unknown>
-  onSkip: () => void
+  onMakeManaged: (rootId: string, patch: UpdateLibraryRootRequest) => Promise<unknown>
+  onContinue: () => void
 }
 
-/** Step two: pick a folder on the server by browsing it. */
-export function SetupLibraryView({ path, listing, listingError, onBrowse, onAddFolder, onSkip }: SetupLibraryProps) {
-  const [name, setName] = useState('Music')
-  const [managed, setManaged] = useState(false)
-  const form = useFormSubmit(CreateLibraryRootRequest, onAddFolder, rootPathErrors)
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    void form.submit({ name, path: listing?.path ?? '', mode: managed ? 'managed' : 'read_only', watch: true })
-  }
+/** Step two: the folders the server already scans, and another one picked by browsing the server. */
+export function SetupLibraryView({ roots, alreadyAdded, path, listing, listingError, onBrowse, onAddFolder, onMakeManaged, onContinue }: SetupLibraryProps) {
+  const [adding, setAdding] = useState(false)
+  const [managing, setManaging] = useState<LibraryRoot | null>(null)
+  const hasRoots = !!roots?.length
   return (
-    <SetupFrame step={1} title="Where is your music?" description="Pick a folder on this server. Squirmy scans it now and keeps watching it.">
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
-        <Field label="Name" htmlFor="folder-name" error={form.errors.name}>
-          <Input id="folder-name" value={name} onChange={event => setName(event.target.value)} aria-invalid={!!form.errors.name} aria-describedby="folder-name-message" />
-        </Field>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[13px] font-semibold text-muted">Folder</span>
-          <FolderPicker path={path} listing={listing} error={listingError ?? form.errors.path} onBrowse={onBrowse} />
+    <SetupFrame
+      step={1}
+      title="Where is your music?"
+      description={hasRoots
+        ? 'Squirmy already scans these folders and watches them for changes. Add another, or carry on.'
+        : 'Pick a folder on this server. Squirmy scans it now and keeps watching it.'}
+    >
+      {!roots && <div className="flex flex-col gap-2">{[0, 1].map(index => <Skeleton key={index} className="h-[76px] rounded-xl" />)}</div>}
+      {hasRoots && (
+        <div className="flex flex-col gap-4">
+          <ul aria-label="Music folders" className="flex flex-col gap-2">
+            {roots.map(root => <SetupFolder key={root.id} root={root} alreadyAdded={root.id === alreadyAdded} onMakeManaged={() => setManaging(root)} />)}
+          </ul>
+          {adding
+            ? <AddFolderForm path={path} listing={listing} listingError={listingError} onBrowse={onBrowse} onAddFolder={onAddFolder} onCancel={() => setAdding(false)} onAdded={() => setAdding(false)} />
+            : (
+              <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row">
+                <Button variant="ghost" size="lg" onClick={() => setAdding(true)}><FolderPlus />Add another</Button>
+                <Button variant="primary" size="lg" className="sm:flex-1" onClick={onContinue}>Continue<ArrowRight /></Button>
+              </div>
+            )}
         </div>
-        <ManagedSwitch checked={managed} onChange={setManaged} />
-        <FormError message={form.errors.form} />
-        <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row">
-          <Button variant="ghost" size="lg" onClick={onSkip}>Skip for now</Button>
-          <Button type="submit" variant="primary" size="lg" className="sm:flex-1" pending={form.pending} disabled={!listing}><FolderOpen />Add and scan</Button>
-        </div>
-      </form>
+      )}
+      {roots?.length === 0 && <AddFolderForm path={path} listing={listing} listingError={listingError} onBrowse={onBrowse} onAddFolder={onAddFolder} onCancel={onContinue} />}
+      <Dialog open={!!managing} onOpenChange={open => { if (!open) setManaging(null) }}>
+        {managing && <MakeManaged root={managing} onMakeManaged={onMakeManaged} onDone={() => setManaging(null)} />}
+      </Dialog>
     </SetupFrame>
   )
 }
 
-/** Step three. `folderPath` is the folder being scanned, if one was added. */
-export function SetupDoneView({ folderPath, onFinish }: { folderPath?: string; onFinish: () => void }) {
+function SetupFolder({ root, alreadyAdded, onMakeManaged }: { root: LibraryRoot; alreadyAdded: boolean; onMakeManaged: () => void }) {
+  return (
+    <li aria-label={root.name} className={cn('flex items-start gap-3 rounded-xl bg-surface px-3.5 py-3 ring-1 ring-transparent', alreadyAdded && 'ring-accent')}>
+      <FolderOpen aria-hidden className="mt-0.5 size-5 shrink-0 text-accent" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="min-w-0 truncate text-sm font-semibold" title={root.name}>{root.name}</span>
+          <Badge tone={root.mode === 'managed' ? 'accent' : 'neutral'}>{root.mode === 'managed' ? 'Managed' : 'Read-only'}</Badge>
+          {alreadyAdded && <Badge tone="outline">Already added</Badge>}
+        </div>
+        <p dir="rtl" className="truncate text-left font-mono text-xs text-muted" title={root.path}><bdi>{root.path}</bdi></p>
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-quiet">
+          {root.scanning && <Spinner label="Scanning" className="size-3.5" />}
+          {root.scanning ? `Scanning · ${plural(root.fileCount, 'file')} so far` : root.lastScanFinishedAt ? `${plural(root.fileCount, 'file')} · scanned ${formatRelative(root.lastScanFinishedAt)}` : 'Not scanned yet'}
+        </p>
+        {root.mode === 'read_only' && <Button variant="link" size="sm" className="mt-1 h-auto px-0" onClick={onMakeManaged}>Let Squirmy organize it…</Button>}
+      </div>
+    </li>
+  )
+}
+
+function MakeManaged({ root, onMakeManaged, onDone }: { root: LibraryRoot; onMakeManaged: SetupLibraryProps['onMakeManaged']; onDone: () => void }) {
+  const form = useFormSubmit(UpdateLibraryRootRequest, patch => onMakeManaged(root.id, patch))
+  const confirm = async () => {
+    if (await form.submit({ mode: 'managed' })) onDone()
+  }
+  return <ManagedConfirmation name={root.name} errors={form.errors} pending={form.pending} onConfirm={() => void confirm()} />
+}
+
+type AddFolderProps = Pick<SetupLibraryProps, 'path' | 'listing' | 'listingError' | 'onBrowse' | 'onAddFolder'> & {
+  /** "Skip for now" when the server has no folder yet, else back to the list. */
+  onCancel: () => void
+  onAdded?: () => void
+}
+
+function AddFolderForm({ path, listing, listingError, onBrowse, onAddFolder, onCancel, onAdded }: AddFolderProps) {
+  const [name, setName] = useState('Music')
+  const [managed, setManaged] = useState(false)
+  const form = useFormSubmit(CreateLibraryRootRequest, onAddFolder, rootPathErrors)
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (await form.submit({ name, path: listing?.path ?? '', mode: managed ? 'managed' : 'read_only', watch: true })) onAdded?.()
+  }
+  return (
+    <form className="flex flex-col gap-4" onSubmit={event => void submit(event)} noValidate>
+      <Field label="Name" htmlFor="folder-name" error={form.errors.name}>
+        <Input id="folder-name" value={name} onChange={event => setName(event.target.value)} aria-invalid={!!form.errors.name} aria-describedby="folder-name-message" />
+      </Field>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[13px] font-semibold text-muted">Folder</span>
+        <FolderPicker path={path} listing={listing} error={listingError ?? form.errors.path} onBrowse={next => { form.reset(); onBrowse(next) }} />
+      </div>
+      <ManagedSwitch checked={managed} onChange={setManaged} />
+      <FormError message={form.errors.form} />
+      <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row">
+        <Button variant="ghost" size="lg" onClick={onCancel}>{onAdded ? 'Cancel' : 'Skip for now'}</Button>
+        <Button type="submit" variant="primary" size="lg" className="sm:flex-1" pending={form.pending} disabled={!listing}><FolderOpen />Add and scan</Button>
+      </div>
+    </form>
+  )
+}
+
+/** Step three. `folderPaths` are the library's folders, if it has any. */
+export function SetupDoneView({ folderPaths, onFinish }: { folderPaths: string[]; onFinish: () => void }) {
   return (
     <SetupFrame
       step={2}
       title="You’re all set"
-      description={folderPath
-        ? 'Your library is being scanned. Music shows up as soon as its tags are read, and identification carries on in the background.'
+      description={folderPaths.length
+        ? 'Music shows up as soon as its tags are read, and identification carries on in the background. Add more folders whenever you like, from Admin → Library.'
         : 'Add your music folders whenever you are ready, from Admin → Library.'}
     >
       <div className="flex flex-col items-center gap-5 text-center">
         <div className="flex size-16 items-center justify-center rounded-full bg-selection text-accent"><PartyPopper className="size-7" /></div>
-        {folderPath && <p className="text-sm text-muted">Scanning <span className="break-all font-mono text-foreground">{folderPath}</span></p>}
+        {folderPaths.length > 0 && (
+          <div className="text-sm text-muted">
+            <p>{folderPaths.length === 1 ? 'Your music folder' : 'Your music folders'}</p>
+            <ul>{folderPaths.map(path => <li key={path} className="break-all font-mono text-foreground">{path}</li>)}</ul>
+          </div>
+        )}
         <Button variant="primary" size="lg" className="w-full" onClick={onFinish}>Start listening</Button>
       </div>
     </SetupFrame>

@@ -37,8 +37,8 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
               </button>
               <div className="min-w-0">
                 {item.track.album
-                  ? <Link to={`/album/${item.track.album.id}`} className="block truncate text-sm font-semibold hover:underline">{item.track.title}</Link>
-                  : <p className="truncate text-sm font-semibold">{item.track.title}</p>}
+                  ? <Link to={`/album/${item.track.album.id}`} title={item.track.title} className="block truncate text-sm font-semibold hover:underline">{item.track.title}</Link>
+                  : <p title={item.track.title} className="truncate text-sm font-semibold">{item.track.title}</p>}
                 <p className="truncate text-xs text-muted">
                   {item.entry.state === 'preparing'
                     ? <span className="text-accent">Preparing…</span>

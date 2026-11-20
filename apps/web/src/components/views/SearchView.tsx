@@ -1,13 +1,17 @@
-import type { AlbumSummary, SearchResults } from '@squirmy/contracts'
-import { Search } from 'lucide-react'
+import type { AlbumSummary, ArtistSummary, SearchResults, TrackSummary } from '@squirmy/contracts'
+import { Play, Search } from 'lucide-react'
+import { Link } from 'react-router'
 import { Page } from '@/components/layout/Page'
-import { AlbumCard, ArtistCard, GenreTile } from '@/components/music/Cards'
+import { AlbumCard, ArtistCard, GenreTile, Monogram } from '@/components/music/Cards'
+import { Cover } from '@/components/music/Cover'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { PageTitle, SectionHeader } from '@/components/music/SectionHeader'
 import { TrackList } from '@/components/music/TrackList'
 import { EmptyState, Skeleton } from '@/components/ui/feedback'
 import { SearchField } from '@/components/ui/search-field'
-import { genreColor } from '@/lib/catalog'
+import { albumTypeLabel, genreColor, isUnowned } from '@/lib/catalog'
+import { cn } from '@/lib/utils'
+import { usePlayer } from '@/player/player-context'
 import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
 
 type SearchViewProps = {
@@ -30,6 +34,8 @@ const isEmpty = (results: SearchResults | null) => !results || results.artists.l
 
 export function SearchView({ query, onQueryChange, library, catalog, libraryLoading, catalogLoading, unavailable, genres, onBrowseGenre, onPlayAlbum }: SearchViewProps) {
   const active = query.trim().length > 0
+  // The library's best match leads; without one, the catalog's.
+  const top = topResult(library) ?? (libraryLoading ? null : topResult(catalog))
   return (
     <Page className="flex flex-col gap-8">
       <div className="flex flex-col gap-4">
@@ -51,6 +57,7 @@ export function SearchView({ query, onQueryChange, library, catalog, libraryLoad
       )}
       {active && !unavailable && (
         <>
+          {top && <TopResult top={top} onPlayAlbum={onPlayAlbum} />}
           {libraryLoading && <ResultsSkeleton label="Searching your library" />}
           {!isEmpty(library) && library && <Results title="In your library" results={library} onPlayAlbum={onPlayAlbum} />}
           {catalogLoading && <ResultsSkeleton label="Searching the catalog" />}
@@ -79,22 +86,87 @@ function Results({ title, note, results, onPlayAlbum }: { title: string; note?: 
         <h2 className="text-[26px] font-extrabold tracking-[-0.04em]">{title}</h2>
         {note && <p className="text-[13px] font-medium text-quiet">{note}</p>}
       </div>
-      {results.tracks.length > 0 && (
-        <div>
-          <SectionHeader title="Songs" />
-          <div className="-mx-2"><TrackList label={`${title}: songs`} tracks={results.tracks.slice(0, 6)} variant="compact" header={false} {...actions} /></div>
-        </div>
+      {results.artists.length > 0 && (
+        <Rail title="Artists">
+          {results.artists.map(artist => <RailItem key={artist.id}><ArtistCard artist={artist} /></RailItem>)}
+        </Rail>
       )}
       {results.albums.length > 0 && (
         <Rail title="Albums">
           {results.albums.map(album => <RailItem key={album.id}><AlbumCard album={album} onPlay={() => onPlayAlbum(album)} {...wants(album)} /></RailItem>)}
         </Rail>
       )}
-      {results.artists.length > 0 && (
-        <Rail title="Artists">
-          {results.artists.map(artist => <RailItem key={artist.id}><ArtistCard artist={artist} /></RailItem>)}
-        </Rail>
+      {results.tracks.length > 0 && (
+        <div>
+          <SectionHeader title="Songs" />
+          <div className="-mx-2"><TrackList label={`${title}: songs`} tracks={results.tracks.slice(0, 6)} variant="compact" header={false} {...actions} /></div>
+        </div>
       )}
+    </section>
+  )
+}
+
+/** The item a result list's `top` hint names, looked up in its lists. */
+type Top = { type: 'artist'; artist: ArtistSummary } | { type: 'album'; album: AlbumSummary } | { type: 'track'; track: TrackSummary }
+
+function topResult(results: SearchResults | null): Top | null {
+  const top = results?.top
+  if (!results || !top) return null
+  const byId = <T extends { id: string }>(items: T[]) => items.find(item => item.id === top.id)
+  if (top.type === 'artist') {
+    const artist = byId(results.artists)
+    return artist ? { type: 'artist', artist } : null
+  }
+  if (top.type === 'album') {
+    const album = byId(results.albums)
+    return album ? { type: 'album', album } : null
+  }
+  const track = byId(results.tracks)
+  return track ? { type: 'track', track } : null
+}
+
+/** The best match, large: opens its page, and plays it when it is on the server. */
+function TopResult({ top, onPlayAlbum }: { top: Top; onPlayAlbum: (album: AlbumSummary) => void }) {
+  const { controls } = usePlayer()
+  const item = top.type === 'artist'
+    ? { title: top.artist.name, kind: 'Artist', by: null, to: `/artist/${top.artist.id}`, owned: top.artist.inLibrary, play: null }
+    : top.type === 'album'
+      ? {
+        title: top.album.title, kind: albumTypeLabel(top.album.type), by: top.album.artistCredit, to: `/album/${top.album.id}`, owned: !isUnowned(top.album),
+        play: isUnowned(top.album) ? null : () => onPlayAlbum(top.album),
+      }
+      : {
+        title: top.track.title, kind: 'Song', by: top.track.artistCredit, to: top.track.album ? `/album/${top.track.album.id}` : null, owned: top.track.availability === 'server',
+        play: top.track.availability === 'server' ? () => controls.playTracks([top.track], 0, { type: 'search', id: null, title: 'Top result' }) : null,
+      }
+  const art = top.type === 'artist'
+    ? top.artist.image ? <Cover artwork={top.artist.image} round dimmed={!item.owned} size={300} /> : <Monogram name={top.artist.name} />
+    : <Cover artwork={top.type === 'album' ? top.album.artwork : top.track.album?.artwork ?? null} dimmed={!item.owned} size={300} className="shadow-cover" />
+  return (
+    <section aria-labelledby="search-top">
+      <SectionHeader id="search-top" title="Top result" />
+      <div className="group/top relative flex max-w-xl items-center gap-5 rounded-2xl bg-sheet p-4 ring-1 ring-stroke transition-colors hover:bg-overlay focus-within:bg-overlay sm:p-5">
+        <div className="w-20 shrink-0 sm:w-28">{art}</div>
+        <div className="min-w-0 flex-1">
+          {item.to
+            ? <Link to={item.to} title={item.title} className={cn('block truncate text-2xl font-extrabold tracking-[-0.03em] after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none sm:text-[28px]', !item.owned && 'text-muted')}>{item.title}</Link>
+            : <p title={item.title} className="truncate text-2xl font-extrabold tracking-[-0.03em] sm:text-[28px]">{item.title}</p>}
+          <p className="mt-1 flex min-w-0 items-center gap-2 text-sm text-muted">
+            <span className="shrink-0 rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-foreground">{item.kind}</span>
+            {item.by && <span className="truncate" title={item.by}>{item.by}</span>}
+          </p>
+        </div>
+        {item.play && (
+          <button
+            type="button"
+            aria-label={`Play ${item.title}`}
+            onClick={item.play}
+            className="relative z-10 flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent shadow-cover transition duration-150 hover:scale-105"
+          >
+            <Play className="size-5 translate-x-px" fill="currentColor" />
+          </button>
+        )}
+      </div>
     </section>
   )
 }

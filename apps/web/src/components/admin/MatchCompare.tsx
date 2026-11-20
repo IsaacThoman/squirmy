@@ -39,7 +39,7 @@ export function CandidatePicker({ candidates, selected, onSelect, name }: { cand
         <label key={candidate.releaseMbid} className={cn('flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-overlay', selected === candidate.releaseMbid && 'bg-selection hover:bg-selection')}>
           <input type="radio" name={name} checked={selected === candidate.releaseMbid} onChange={() => onSelect(candidate.releaseMbid)} className="size-4 shrink-0 accent-(--accent)" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold">
+            <span className="block truncate text-sm font-semibold" title={candidate.title}>
               {candidate.title}{candidate.disambiguation && <span className="font-normal text-muted"> ({candidate.disambiguation})</span>}
             </span>
             <span className="block truncate text-xs text-muted">{[candidate.artistCredit, releaseLine(candidate), plural(candidate.trackCount, 'track')].filter(Boolean).join(' · ')}</span>

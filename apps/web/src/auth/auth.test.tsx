@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { users } from '@/fixtures/server'
 import { DOWN_AFTER_MS } from '@/realtime/RealtimeProvider'
-import { fakeServices } from '@/test/fake-services'
+import { fakeServices, root } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 
 function Where() {
@@ -30,6 +30,7 @@ describe('route guards', () => {
     renderWithApp(app, '/admin/users', services)
     expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
     expect(where()).toBe('/login?next=%2Fadmin%2Fusers')
+    expect(screen.getByText('Squirmy 0.0.0')).toBeInTheDocument()
 
     api.auth.login.mockRejectedValueOnce(new ApiError(401, 'invalid_credentials', 'Wrong username or password'))
     await userEvent.type(screen.getByLabelText('Username'), 'alex')
@@ -43,6 +44,7 @@ describe('route guards', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(await screen.findByRole('heading', { name: 'Users & invites' })).toBeInTheDocument()
     expect(where()).toBe('/admin/users')
+    expect(screen.getAllByText('Squirmy 0.0.0').length).toBeGreaterThan(0)
     expect((api.auth.login.mock.lastCall as unknown[] | undefined)?.[0]).toEqual(expect.objectContaining({ username: 'alex', device: expect.objectContaining({ kind: 'web' }) }))
   })
 
@@ -80,6 +82,7 @@ describe('route guards', () => {
 describe('setup wizard', () => {
   it('creates the admin, browses for a folder and adds it', async () => {
     const { services, api } = fakeServices({ user: null, status: { needsSetup: true } })
+    api.library.roots.mockResolvedValue({ items: [], nextCursor: null })
     api.library.createRoot.mockRejectedValueOnce(new ApiError(409, 'nested_root', 'That folder overlaps the library root /home/alex'))
     renderWithApp(app, '/setup', services)
     await userEvent.type(await screen.findByLabelText('Username'), 'alex')
@@ -99,6 +102,32 @@ describe('setup wizard', () => {
     expect(api.library.createRoot.mock.calls[1]![0]).toEqual({ name: 'Music', path: '/home/alex/Music', mode: 'read_only', watch: true })
     await userEvent.click(screen.getByRole('button', { name: 'Start listening' }))
     expect(where()).toBe('/')
+  })
+
+  it('starts from the folders the server already has', async () => {
+    const { services, api } = fakeServices({ status: { needsSetup: false } })
+    api.library.createRoot.mockRejectedValueOnce(new ApiError(409, 'duplicate_root', 'That folder is already a library root', { rootId: root.id }))
+    renderWithApp(app, '/setup/library', services)
+    const folder = await screen.findByRole('listitem', { name: 'Music' })
+    expect(within(folder).getByText('/srv/music')).toBeInTheDocument()
+    expect(within(folder).getByText('Read-only')).toBeInTheDocument()
+    expect(within(folder).getByText(/^120 files · scanned/)).toBeInTheDocument()
+
+    // Adding it again is not a failure: it is already there.
+    await userEvent.click(screen.getByRole('button', { name: 'Add another' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Music' }))
+    await waitFor(() => expect(screen.getByLabelText('Folder path')).toHaveValue('/home/alex/Music'))
+    await userEvent.click(screen.getByRole('button', { name: 'Add and scan' }))
+    expect(await within(folder).findByText('Already added')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add and scan' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    await userEvent.click(within(folder).getByRole('button', { name: 'Let Squirmy organize it…' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Make managed' }))
+    expect(api.library.updateRoot).toHaveBeenCalledWith(root.id, { mode: 'managed' })
+    await userEvent.click(screen.getByRole('button', { name: /Continue/ }))
+    expect(await screen.findByRole('heading', { name: 'You’re all set' })).toBeInTheDocument()
+    expect(screen.getByText('/srv/music')).toBeInTheDocument()
   })
 })
 

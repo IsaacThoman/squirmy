@@ -37,7 +37,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `FFPROBE_PATH` | `ffprobe` | The `ffprobe` binary. |
 | `FPCALC_PATH` | `fpcalc` | The `fpcalc` binary (Chromaprint), used for AcoustID fingerprints. |
 | `NODE_ENV` | `development` (image: `production`) | Outside production, the API also accepts cross-origin requests from the Vite dev server on port 5173. |
-| `SQUIRMY_VERSION` | unset (image: the build argument) | The version reported by `/api/v1/setup/status`, to Subsonic apps and in the User-Agent sent to metadata services. Release images set it to the release number. Unset or empty, the server reports `dev+<commit>` when it runs from a git checkout (the short commit, read once at start) and `dev` otherwise, as in an image built without the argument. |
+| `SQUIRMY_VERSION` | unset (image: the build argument) | The version reported by `/api/v1/setup/status` (shown on the sign-in page and in Admin), to Subsonic apps and in the User-Agent sent to metadata services. Release images set it to the release number. Unset or empty, the server reports `dev+<commit>` when it runs from a git checkout (the short commit, read once at start) and `dev` otherwise, as in an image built without the argument. |
 
 `compose.yaml` itself reads these from `.env` or the shell:
 

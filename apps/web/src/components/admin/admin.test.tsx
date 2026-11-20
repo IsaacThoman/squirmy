@@ -1,9 +1,10 @@
 import type { CatalogIndexStatus, MatchCandidate, MatchFile, OrganizeBatch, OrganizeBatchSummary } from '@squirmy/contracts'
-import { ORGANIZE_TAGS_NOT_REVERTED } from '@squirmy/contracts'
+import { DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TAGS_NOT_REVERTED } from '@squirmy/contracts'
+import { ApiError } from '@squirmy/client-core'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { root } from '@/test/fake-services'
+import { root, templateInfo } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 import { LibraryAdmin } from './LibraryAdmin'
 import { CandidateComparison } from './MatchCompare'
@@ -15,7 +16,7 @@ const ok = () => vi.fn(async () => ({ ok: true }))
 
 function renderLibrary(overrides: Partial<Parameters<typeof LibraryAdmin>[0]> = {}) {
   const props = {
-    roots: [root], stats: undefined, openReviews: 0, progress: {},
+    roots: [root], stats: undefined, openReviews: 0, progress: {}, templateInfo,
     folders: { path: '/srv', listing: { path: '/srv', parent: '/', directories: [] }, error: undefined, onBrowse: vi.fn() },
     onScan: ok(), onAdd: ok(), onUpdate: ok(), onRemove: ok(), onFixMatch: vi.fn(),
     ...overrides,
@@ -45,6 +46,41 @@ describe('library admin', () => {
     expect(props.onUpdate).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: 'Make managed' }))
     expect(props.onUpdate).toHaveBeenCalledWith(root.id, { name: 'Music', mode: 'managed', watch: true, enabled: true })
+  })
+
+  it('edits a managed folder\'s naming template, with an example from the server\'s tokens', async () => {
+    const managed = { ...root, mode: 'managed' as const }
+    const onUpdate = vi.fn().mockRejectedValueOnce(new ApiError(400, 'invalid_request', 'The file name must end with .{ext}', [{ code: 'custom', path: ['template'], message: 'The file name must end with .{ext}' }]))
+    renderLibrary({ roots: [managed], onUpdate })
+    await userEvent.click(screen.getByRole('button', { name: 'More options for Music' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit…' }))
+    const field = screen.getByLabelText('Naming template')
+    expect(field).toHaveValue(DEFAULT_ORGANIZE_TEMPLATE)
+    expect(screen.getByText('Default')).toBeInTheDocument()
+    expect(screen.getByText('Mira Vale/Blue Hour (2019)/2-03 Paper Boats.flac')).toBeInTheDocument()
+    expect(screen.getByText('{albumartist}')).toBeInTheDocument()
+    expect(screen.getByText('The album title')).toBeInTheDocument()
+
+    await userEvent.clear(field)
+    await userEvent.type(field, '{{artist}/{{title}')
+    expect(screen.getByText('Mira Vale feat. Lune Park/Paper Boats')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('The file name must end with .{ext}')).toBeInTheDocument()
+    expect(onUpdate).toHaveBeenLastCalledWith(root.id, { name: 'Music', mode: 'managed', watch: true, enabled: true, template: '{artist}/{title}' })
+    await userEvent.type(field, '.{{ext}')
+    expect(screen.queryByText('The file name must end with .{ext}')).toBeNull()
+    expect(screen.getByText('Mira Vale feat. Lune Park/Paper Boats.flac')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
+    expect(field).toHaveValue(DEFAULT_ORGANIZE_TEMPLATE)
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onUpdate).toHaveBeenLastCalledWith(root.id, { name: 'Music', mode: 'managed', watch: true, enabled: true })
+  })
+
+  it('opens a folder\'s editor from a link', () => {
+    renderLibrary({ roots: [{ ...root, mode: 'managed' }], editRootId: root.id })
+    expect(screen.getByRole('dialog', { name: 'Edit Music' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Naming template')).toBeInTheDocument()
   })
 
   it('shows live scan progress', () => {
@@ -96,7 +132,7 @@ describe('organize admin', () => {
   }
   const props = () => ({
     roots: [{ ...root, mode: 'managed' as const, name: 'Inbox' }], rootId: root.id, onRootChange: vi.fn(),
-    preview, running: null, history: [summary], onPreview: ok(), onApply: ok(), onRevert: ok(), onFixMatch: vi.fn(),
+    preview, defaultTemplate: DEFAULT_ORGANIZE_TEMPLATE, running: null, history: [summary], onPreview: ok(), onApply: ok(), onRevert: ok(), onFixMatch: vi.fn(),
   })
 
   it('applies everything or only the albums still ticked', async () => {
@@ -107,6 +143,12 @@ describe('organize admin', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Apply Blue Hour' }))
     await userEvent.click(screen.getByRole('button', { name: 'Apply 1 album' }))
     expect(handlers.onApply).toHaveBeenCalledWith([id(20)])
+  })
+
+  it('says which template a preview used and where to change it', () => {
+    renderWithApp(<OrganizeAdmin {...props()} />)
+    expect(screen.getByText('This folder’s template')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Change it in Library' })).toHaveAttribute('href', `/admin/library?edit=${root.id}`)
   })
 
   it('says that undo leaves written tags', async () => {

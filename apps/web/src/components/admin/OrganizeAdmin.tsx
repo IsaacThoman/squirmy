@@ -20,6 +20,8 @@ type OrganizeAdminProps = {
   onRootChange: (rootId: string) => void
   /** The folder's latest preview while it is still unapplied. */
   preview: OrganizeBatch | undefined
+  /** The server's default naming template, to say whether a preview used it. */
+  defaultTemplate: string | undefined
   /** A batch of the folder being applied or undone, with its live counts. */
   running: OrganizeBatchSummary | null
   /** Applied, failed and undone batches of every folder, newest first. */
@@ -31,7 +33,7 @@ type OrganizeAdminProps = {
   onFixMatch: (albumId: string) => void
 }
 
-export function OrganizeAdmin({ roots, rootId, onRootChange, preview, running, history, onPreview, onApply, onRevert, onFixMatch }: OrganizeAdminProps) {
+export function OrganizeAdmin({ roots, rootId, onRootChange, preview, defaultTemplate, running, history, onPreview, onApply, onRevert, onFixMatch }: OrganizeAdminProps) {
   const [options, setOptions] = useState<OrganizeOptions>({ includeUnmatched: false, writeTags: false })
   const [previewing, setPreviewing] = useState(false)
   const [undoing, setUndoing] = useState<OrganizeBatchSummary | null>(null)
@@ -86,7 +88,7 @@ export function OrganizeAdmin({ roots, rootId, onRootChange, preview, running, h
       </div>
 
       {running && <RunningBatch batch={running} />}
-      {root && !running && preview && <Preview key={preview.id} batch={preview} onApply={onApply} onFixMatch={onFixMatch} />}
+      {root && !running && preview && <Preview key={preview.id} batch={preview} defaultTemplate={defaultTemplate} onApply={onApply} onFixMatch={onFixMatch} />}
 
       {history && history.length > 0 && (
         <section className="flex flex-col gap-3">
@@ -166,7 +168,7 @@ function RunningBatch({ batch }: { batch: OrganizeBatchSummary }) {
   )
 }
 
-function Preview({ batch, onApply, onFixMatch }: { batch: OrganizeBatch; onApply: OrganizeAdminProps['onApply']; onFixMatch: (albumId: string) => void }) {
+function Preview({ batch, defaultTemplate, onApply, onFixMatch }: { batch: OrganizeBatch; defaultTemplate: string | undefined; onApply: OrganizeAdminProps['onApply']; onFixMatch: (albumId: string) => void }) {
   const selectable = batch.albums.filter(album => album.albumId && album.moves.some(move => move.status === 'planned'))
   const [selected, setSelected] = useState<Set<string>>(() => new Set(selectable.map(album => album.albumId!)))
   const [applying, setApplying] = useState(false)
@@ -207,7 +209,9 @@ function Preview({ batch, onApply, onFixMatch }: { batch: OrganizeBatch; onApply
         )}
       </div>
       <p className="flex flex-wrap items-center gap-2 px-1 text-xs text-quiet">
-        Template <code className="rounded-md bg-surface px-2 py-0.5 font-mono text-[12px] text-muted">{batch.template}</code>
+        <span>{defaultTemplate === undefined ? 'Template' : batch.template === defaultTemplate ? 'Default template' : 'This folder’s template'}</span>
+        <code className="break-all rounded-md bg-surface px-2 py-0.5 font-mono text-[12px] text-muted">{batch.template}</code>
+        <Link to={`/admin/library?edit=${batch.rootId}`} className="font-semibold text-accent hover:underline">Change it in Library</Link>
       </p>
       {counts.planned === 0 && (
         <EmptyState
@@ -248,7 +252,7 @@ function AlbumMoves({ album, checked, onCheckedChange, onFixMatch, defaultOpen }
           />
         )}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-semibold">{album.title}</span>
+          <span className="block truncate text-[15px] font-semibold" title={album.title}>{album.title}</span>
           <span className="block truncate text-xs text-muted">
             {[album.artistCredit, planned.length ? plural(planned.length - sidecars, 'file') : 'nothing to move', sidecars && plural(sidecars, 'sidecar')].filter(Boolean).join(' · ')}
           </span>

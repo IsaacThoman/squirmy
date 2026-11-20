@@ -57,7 +57,7 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
                 </span>
                 <span className="min-w-0">
                   <span className={cn('block truncate', user.disabled && 'text-quiet line-through')}>{name(user)}{user.id === currentUserId && <span className="font-normal text-muted"> (you)</span>}</span>
-                  <span className="block truncate text-[13px] font-normal text-muted">@{user.username} · joined {formatDate(user.createdAt)}</span>
+                  <span className="block truncate text-[13px] font-normal text-muted" title={`@${user.username}`}>@{user.username} · joined {formatDate(user.createdAt)}</span>
                 </span>
               </span>
             )}

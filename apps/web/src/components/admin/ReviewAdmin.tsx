@@ -68,7 +68,7 @@ export function ReviewAdmin({ status, onStatusChange, reviews, rootNames, select
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-overlay aria-[current]:bg-selection"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">{taggedAs(review.summary)}</span>
+                      <span className="block truncate text-sm font-semibold" title={taggedAs(review.summary)}>{taggedAs(review.summary)}</span>
                       <span className="block truncate font-mono text-xs text-muted">{rootNames[review.rootId] ?? 'Folder'}/{review.summary.folder}</span>
                       <span className="mt-1 flex items-center gap-2 text-xs text-quiet">
                         {plural(review.summary.trackCount, 'file')} · {review.candidateCount ? plural(review.candidateCount, 'candidate') : 'no candidates'}

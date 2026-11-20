@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
 import type { QueueItem } from '@/player/player-context'
+import { OnDemandContext, type OnDemand } from '@/player/on-demand-context'
 import { renderWithApp } from '@/test/render'
 import { SortableQueue } from './Queue'
 
@@ -49,5 +50,15 @@ describe('SortableQueue', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Play Passing Glass' }))
     expect(onRemove).toHaveBeenCalledWith('e1')
     expect(onPlay).toHaveBeenCalledWith('e2')
+  })
+
+  it('says Preparing only for entries being fetched', () => {
+    const waiting = items.map(item => ({ ...item, track: { ...item.track, availability: 'on_demand' as const }, entry: { ...item.entry, state: 'preparing' as const } }))
+    const onDemand: OnDemand = { canRequest: true, isPreparing: track => track.id === waiting[0].track.id, getAlbum: async () => {}, albumFetch: () => null }
+    renderWithApp(<OnDemandContext value={onDemand}><SortableQueue items={waiting} onMove={vi.fn()} onRemove={vi.fn()} onPlay={vi.fn()} /></OnDemandContext>)
+    expect(screen.getAllByText('Preparing…')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Play Soft Signal' })).toHaveTextContent('Preparing…')
+    expect(screen.getAllByLabelText('Plays on demand')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Play Amber' })).not.toHaveTextContent('Preparing…')
   })
 })

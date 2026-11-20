@@ -1,4 +1,7 @@
+import type { FormErrors } from '@/api/errors'
+import { DialogContent } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
+import { DialogForm } from './AdminLayout'
 
 /** What managed means, said the same way wherever a folder becomes managed. */
 export const MANAGED_EXPLAINED = 'Squirmy may rename, move and tag the files in this folder once their music is identified. Nothing changes until you preview it in Organize and apply it, and every batch can be undone.'
@@ -24,5 +27,18 @@ export function ManagedSwitch({ checked, onChange }: { checked: boolean; onChang
       checked={checked}
       onChange={onChange}
     />
+  )
+}
+
+/** The confirmation before a folder becomes managed, inside a `Dialog`: it lets the server change files, so it is said plainly first. */
+export function ManagedConfirmation({ name, errors, pending, onConfirm }: { name: string; errors: FormErrors; pending: boolean; onConfirm: () => void }) {
+  return (
+    <DialogContent title={`Let Squirmy manage ${name}?`} description={MANAGED_EXPLAINED}>
+      <DialogForm onSubmit={onConfirm} errors={errors} pending={pending} submitLabel="Make managed">
+        <p className="rounded-xl bg-surface px-3.5 py-3 text-[13px] leading-relaxed text-muted">
+          Files stay where they are until you apply a batch. Tags are only written when you ask for it, and undoing a batch moves the files back but leaves written tags as they are.
+        </p>
+      </DialogForm>
+    </DialogContent>
   )
 }

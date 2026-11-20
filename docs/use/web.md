@@ -17,8 +17,11 @@ The menu under your name, top right, has **Settings**, **Add music** (for people
 
 Type in **Search** (or the search field at the top). Two searches run at once:
 
-- **Your library** comes first, at full brightness, and tolerates typos and word order.
+- **Top result** leads when an artist, album or song is named the way you typed it (or starts with it): click it to open it, or play it with its play button when it is on your server. Your library's best match comes before the catalog's.
+- **Your library** comes next, at full brightness, and tolerates typos and word order.
 - **Everything else** comes below, in gray, from the server's catalog search (Deezer by default, or the [local search index](../server/metadata-and-privacy.md#the-local-search-index)). Gray albums and songs are not on your server; bookmark them to your [wantlist](./wantlist.md).
+
+Each group lists artists, then albums, then songs.
 
 Browse-by-genre tiles open your library filtered to that genre.
 
@@ -32,7 +35,7 @@ Click a song, or the play button on an album or playlist. The player bar at the 
 
 ## Music the server does not have
 
-With an [acquisition provider](../server/acquisition.md) connected, gray songs it can supply show a cloud icon, "Plays on demand". Play one and it shows **Preparing…** until the file arrives, then plays; an album page offers **Get this album**. If a fetch fails, a notice says so and the song is skipped. Without permission to fetch music, those songs stay gray, and their row says to ask an admin.
+With an [acquisition provider](../server/acquisition.md) connected, gray songs it can supply show a cloud icon, "Plays on demand". Play one and it shows **Preparing…** until the file arrives, then plays. The server fetches the playing song and the next two ahead of time; in the queue, those say **Preparing…** and songs further down keep the cloud icon until their turn comes; an album page offers **Get this album**. If a fetch fails, a notice says so and the song is skipped. Without permission to fetch music, those songs stay gray, and their row says to ask an admin.
 
 ## Adding music
 
@@ -62,6 +65,8 @@ Admins manage the server here. Each page has its own guide:
 | **Users & invites** | [Users and access](../server/users.md) |
 | **Server settings** | [Configuration](../server/configuration.md#server-settings) |
 | **Jobs** | [Troubleshooting](../server/troubleshooting.md#logs-and-the-jobs-page) |
+
+The server's version is under the admin sections (at the bottom of the page on a phone) and on the sign-in page.
 
 ## Not there yet
 

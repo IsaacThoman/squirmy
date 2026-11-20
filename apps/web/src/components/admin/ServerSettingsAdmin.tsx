@@ -66,16 +66,16 @@ export function ServerSettingsAdmin({ settings, managedRoots, onSave, status }: 
           <DraftField id="mb-url" field="musicBrainzBaseUrl" value={settings.musicBrainzBaseUrl} schema={UpdateServerSettings} onSave={onSave} className="w-64 font-mono text-[13px]" />
         </SettingRow>
         {toggle('coverArtArchiveEnabled', 'Cover Art Archive', 'Album covers.')}
-        {toggle('deezerEnabled', 'Deezer', 'Search, artist images and top songs.')}
-        {toggle('wikidataEnabled', 'Wikidata and Wikipedia', 'Artist images and bios.')}
-        {toggle('lrclibEnabled', 'LRCLIB', 'Synced lyrics.')}
+        {toggle('deezerEnabled', 'Deezer', 'Search for music you do not have, artist images, top songs, missing covers and radio.')}
+        {toggle('wikidataEnabled', 'Wikidata and Wikipedia', 'Artist images and bios, and album descriptions.')}
+        {toggle('lrclibEnabled', 'LRCLIB', 'Lyrics, synced where available.')}
       </SettingsSection>
 
       <SettingsSection title="API keys" description="Stored encrypted. Once saved, a key is never shown again.">
-        {secret('listenBrainz', settings.listenBrainzTokenSet, 'ListenBrainz', 'Top songs, similar artists and scrobbling.')}
+        {secret('listenBrainz', settings.listenBrainzTokenSet, 'ListenBrainz', 'Top songs and popularity on artist pages, and similar artists for radio. Not used for scrobbling: each user connects their own ListenBrainz account in their settings.')}
         {secret('acoustId', settings.acoustIdKeySet, 'AcoustID', 'Identifies untagged files by fingerprint.')}
         {secret('fanart', settings.fanartKeySet, 'fanart.tv', 'Better artist images.')}
-        {secret('lastFm', settings.lastFmKeySet, 'Last.fm', 'Scrobbling for users who connect an account.')}
+        {secret('lastFm', settings.lastFmKeySet, 'Last.fm', 'Lets users connect their Last.fm account for scrobbling.')}
       </SettingsSection>
 
       <SettingsSection title="Matching">
@@ -159,7 +159,7 @@ function MatchThreshold({ value, onSave }: { value: number; onSave: Save }) {
 }
 
 const secrets: Record<Secret, { title: string; description: string; fields: { key: 'listenBrainzToken' | 'acoustIdKey' | 'fanartKey' | 'lastFmKey' | 'lastFmSecret'; label: string }[] }> = {
-  listenBrainz: { title: 'ListenBrainz token', description: 'From your ListenBrainz profile settings.', fields: [{ key: 'listenBrainzToken', label: 'User token' }] },
+  listenBrainz: { title: 'ListenBrainz token', description: 'A user token from your ListenBrainz profile settings. The server uses it only to look up popularity and similar artists; it scrobbles nothing.', fields: [{ key: 'listenBrainzToken', label: 'User token' }] },
   acoustId: { title: 'AcoustID key', description: 'An application key from acoustid.org.', fields: [{ key: 'acoustIdKey', label: 'API key' }] },
   fanart: { title: 'fanart.tv key', description: 'A personal or project key from fanart.tv.', fields: [{ key: 'fanartKey', label: 'API key' }] },
   lastFm: { title: 'Last.fm API account', description: 'The key and shared secret of a Last.fm API account.', fields: [{ key: 'lastFmKey', label: 'API key' }, { key: 'lastFmSecret', label: 'Shared secret' }] },
