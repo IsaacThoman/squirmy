@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { mkdir, mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { eq } from 'drizzle-orm'
+import { onTestFinished } from 'vitest'
 import { db } from '../../database/client.js'
 import { fileMoves, libraryRoots, mediaFiles, type FileTags, type MatchStatus } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
@@ -11,8 +12,10 @@ import { createAlbum, createLibraryRoot, type AlbumFactoryInput } from '../../te
 
 /** Test helpers: real files in a temp root, with library rows pointing at them. */
 
+/** Call inside a test: the folder is removed when the test finishes. */
 export async function makeRoot(mode: 'managed' | 'read_only' = 'managed', template?: string) {
   const dir = await mkdtemp(path.join(tmpdir(), 'squirmy-organize-'))
+  onTestFinished(() => rm(dir, { recursive: true, force: true }))
   const root = await createLibraryRoot({ path: dir, mode, name: path.basename(dir) })
   if (template) await db.update(libraryRoots).set({ template }).where(eq(libraryRoots.id, root.id))
   return { ...root, path: dir }
