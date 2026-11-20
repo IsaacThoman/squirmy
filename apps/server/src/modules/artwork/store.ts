@@ -7,8 +7,9 @@ import { rgbaToThumbHash } from 'thumbhash'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { albums, assets } from '../../database/schema.js'
-import { AppError } from '../../lib/errors.js'
+import { AppError, notFound } from '../../lib/errors.js'
 import { newPublicId } from '../../lib/ids.js'
+import { fetchImage } from '../metadata/coverart.js'
 
 export type Asset = typeof assets.$inferSelect
 
@@ -36,19 +37,21 @@ export async function writeAtomic(file: string, data: Uint8Array) {
 
 const invalidImage = (message: string) => new AppError(422, 'invalid_image', message)
 
-/**
- * Stores an image and returns its `assets` row. The same bytes always give the same row:
- * images are de-duplicated by SHA-256 before anything is decoded.
- *
- * Throws `invalid_image` for anything that is not a JPEG, PNG, WebP, GIF, AVIF or TIFF
- * between 16 and 12000 pixels a side and at most 32 MiB.
- */
-export async function storeImage(bytes: Uint8Array, { kind, source }: { kind: AssetKind; source: string }): Promise<Asset> {
+type Inspected = {
+  sha256: string
+  mime: string
+  width: number
+  height: number
+  bytes: number
+  color: string
+  thumbhash: string
+  storagePath: string
+}
+
+/** Validates and measures an image and writes the original under the data directory. */
+async function inspectAndWrite(bytes: Uint8Array): Promise<Inspected> {
   if (bytes.byteLength === 0 || bytes.byteLength > maxBytes) throw invalidImage('The image is empty or too large')
   const sha256 = createHash('sha256').update(bytes).digest('hex')
-  const [existing] = await db.select().from(assets).where(eq(assets.sha256, sha256))
-  if (existing) return existing
-
   let metadata: Metadata
   let analysis: { color: string; thumbhash: string }
   try {
@@ -61,13 +64,9 @@ export async function storeImage(bytes: Uint8Array, { kind, source }: { kind: As
     if (error instanceof AppError) throw error
     throw invalidImage(`The image cannot be decoded: ${(error as Error).message}`)
   }
-
   const storagePath = path.posix.join('assets', sha256.slice(0, 2), sha256.slice(2, 4), `${sha256}.${extensions[metadata.format]}`)
   await writeAtomic(dataPath(storagePath), bytes)
-  const [inserted] = await db.insert(assets).values({
-    id: newPublicId(),
-    kind,
-    source,
+  return {
     sha256,
     mime: mimes[metadata.format]!,
     width: metadata.autoOrient.width,
@@ -76,11 +75,97 @@ export async function storeImage(bytes: Uint8Array, { kind, source }: { kind: As
     color: analysis.color,
     thumbhash: analysis.thumbhash,
     storagePath,
-  }).onConflictDoNothing({ target: assets.sha256 }).returning()
+  }
+}
+
+const localBySha = (sha256: string) => and(eq(assets.sha256, sha256), isNull(assets.remoteUrl))
+
+/**
+ * Stores an image and returns its `assets` row. The same bytes always give the same row:
+ * images are de-duplicated by SHA-256 before anything is decoded.
+ *
+ * Throws `invalid_image` for anything that is not a JPEG, PNG, WebP, GIF, AVIF or TIFF
+ * between 16 and 12000 pixels a side and at most 32 MiB.
+ */
+export async function storeImage(bytes: Uint8Array, { kind, source }: { kind: AssetKind; source: string }): Promise<Asset> {
+  if (bytes.byteLength === 0 || bytes.byteLength > maxBytes) throw invalidImage('The image is empty or too large')
+  const sha256 = createHash('sha256').update(bytes).digest('hex')
+  const [existing] = await db.select().from(assets).where(localBySha(sha256))
+  if (existing) return existing
+
+  const inspected = await inspectAndWrite(bytes)
+  const [inserted] = await db.insert(assets).values({ id: newPublicId(), kind, source, ...inspected })
+    .onConflictDoNothing({ target: assets.sha256, where: isNull(assets.remoteUrl) })
+    .returning()
   if (inserted) return inserted
   // Another job stored the same image a moment ago.
-  const [winner] = await db.select().from(assets).where(eq(assets.sha256, sha256))
+  const [winner] = await db.select().from(assets).where(localBySha(sha256))
   return winner!
+}
+
+/**
+ * Registers an image that lives on another server and returns its `assets` row without
+ * fetching anything. The image is downloaded the first time it is requested (see
+ * `ensureStored`), so listing a thousand search results costs no downloads. The same URL
+ * always gives the same row.
+ */
+export async function remoteImage(url: string, { kind }: { kind: AssetKind }): Promise<Asset> {
+  if (!/^https:\/\//i.test(url)) throw invalidImage('Remote images must be served over HTTPS')
+  const [inserted] = await db.insert(assets)
+    .values({ id: newPublicId(), kind, source: url, remoteUrl: url, status: 'remote' })
+    .onConflictDoNothing({ target: assets.remoteUrl })
+    .returning()
+  if (inserted) return inserted
+  const [existing] = await db.select().from(assets).where(eq(assets.remoteUrl, url))
+  return existing!
+}
+
+/** An asset whose bytes are on disk. */
+export type StoredAsset = Asset & { storagePath: string }
+
+/** How long a failed download is left alone before the next request tries again. */
+const retryFailedAfterMs = 60 * 60 * 1000
+
+/** Downloads in progress, so concurrent requests for one remote image share a single fetch. */
+const fetching = new Map<string, Promise<StoredAsset>>()
+
+/**
+ * Returns the asset with its bytes on disk, downloading a remote image first if needed.
+ * Throws `not_found` when the asset does not exist or its image cannot be fetched.
+ */
+export async function ensureStored(assetId: string): Promise<StoredAsset> {
+  const [asset] = await db.select().from(assets).where(eq(assets.id, assetId))
+  if (!asset) throw notFound('No such artwork')
+  if (asset.status === 'ready' && asset.storagePath) return asset as StoredAsset
+  if (!asset.remoteUrl) throw notFound('The artwork has no image')
+  if (asset.status === 'failed' && asset.checkedAt && Date.now() - asset.checkedAt.getTime() < retryFailedAfterMs) {
+    throw notFound('The artwork could not be fetched')
+  }
+  let pending = fetching.get(assetId)
+  if (!pending) {
+    pending = download(asset.id, asset.remoteUrl).finally(() => fetching.delete(assetId))
+    fetching.set(assetId, pending)
+  }
+  return pending
+}
+
+async function download(assetId: string, url: string): Promise<StoredAsset> {
+  let inspected: Inspected | undefined
+  try {
+    const image = await fetchImage(url, { maxBytes })
+    if (image) inspected = await inspectAndWrite(image.bytes)
+  } catch {
+    // A provider outage and an unusable image end the same way for the caller.
+  }
+  if (!inspected) {
+    await db.update(assets).set({ status: 'failed', checkedAt: new Date() }).where(eq(assets.id, assetId))
+    throw notFound('The artwork could not be fetched')
+  }
+  const [updated] = await db.update(assets)
+    .set({ ...inspected, status: 'ready', checkedAt: new Date() })
+    .where(eq(assets.id, assetId))
+    .returning()
+  return updated as StoredAsset
 }
 
 /** Decodes a small copy once for both the placeholder and the color. */

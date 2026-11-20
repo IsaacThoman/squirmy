@@ -124,6 +124,10 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 <data>/staging/<importId>/            files being imported
 ```
 
+### Artwork
+
+Images are rows in `assets`. `storeImage(bytes)` stores an image now and de-duplicates by content. `remoteImage(url)` only records where an image lives; it is downloaded the first time `GET /art/:id/:size` asks for it, so search results for music you do not own can show covers without downloading every one. A failed download answers 404, is not cached, and is retried after an hour.
+
 ### Authentication
 
 - A session token is 32 random bytes, base64url. Only its SHA-256 is stored (`auth_sessions.token_hash`). Sessions last 180 days, sliding.
