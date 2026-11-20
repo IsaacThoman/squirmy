@@ -39,6 +39,9 @@ export type LikeEntityType = 'recording' | 'album' | 'artist'
 export type LibraryRootMode = 'read_only' | 'managed'
 export type MatchStatus = 'pending' | 'matched' | 'review' | 'unmatched'
 export type MatchSource = 'tags' | 'tags-mbid' | 'search' | 'acoustid' | 'manual'
+export type ImportKind = 'upload' | 'inbox' | 'acquisition'
+export type ImportStatus = 'receiving' | 'processing' | 'completed' | 'failed'
+export type ImportStep = 'extracting' | 'moving' | 'identifying' | 'filing'
 
 /** Normalized tags read from a file. Everything is optional; files are often badly tagged. */
 export type FileTags = {
@@ -481,6 +484,7 @@ export const mediaFiles = pgTable('media_files', {
   index('media_files_present_recent').on(t.addedAt, t.id).where(sql`${t.missingSince} is null`),
   index('media_files_present_album').on(t.albumId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
   index('media_files_present_recording').on(t.recordingId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
+  index('media_files_import').on(t.importId),
 ])
 
 /** Album loudness, measured across the owned files of one release. */
@@ -560,19 +564,34 @@ export const transcodes = pgTable('transcodes', {
 export const imports = pgTable('imports', {
   id: id(),
   /** upload | inbox | acquisition */
-  kind: text('kind').notNull(),
+  kind: text('kind').$type<ImportKind>().notNull(),
+  /** What imported files get in `media_files.source`: upload | inbox | provider:<provider id> */
+  source: text('source').notNull(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
   acquisitionJobId: uuid('acquisition_job_id'),
   targetRootId: uuid('target_root_id').references(() => libraryRoots.id, { onDelete: 'set null' }),
   /** receiving | processing | completed | failed */
-  status: text('status').notNull().default('receiving'),
+  status: text('status').$type<ImportStatus>().notNull().default('receiving'),
+  /** extracting | moving | identifying | filing while processing, else null. */
+  step: text('step').$type<ImportStep>(),
+  stepStartedAt: at('step_started_at'),
+  /** The inbox item's name, or what the uploader called it. */
+  label: text('label'),
   /** Directory under the data directory holding the files until they are filed. */
   stagingPath: text('staging_path').notNull(),
+  receivedFiles: integer('received_files').notNull().default(0),
+  receivedBytes: bigint('received_bytes', { mode: 'number' }).notNull().default(0),
   stats: jsonb('stats').$type<Record<string, number>>(),
+  /** Bookkeeping that lets processing resume after a crash (archive targets, the organize batch). */
+  work: jsonb('work').$type<Record<string, unknown>>(),
   error: text('error'),
   createdAt: createdAt(),
+  updatedAt: updatedAt(),
   completedAt: at('completed_at'),
-})
+}, (t) => [
+  index('imports_status').on(t.status, t.updatedAt),
+  index('imports_user').on(t.userId, t.id),
+])
 
 // ---------------------------------------------------------------------------
 // Per-user data. All of it points at catalog rows, never at files.
