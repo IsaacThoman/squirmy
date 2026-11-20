@@ -1,0 +1,1995 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/recording/33b6b148-9dce-4894-902d-d218ecc30666?inc=artist-credits+isrcs+releases+release-groups&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "length": 235760,
+      "video": false,
+      "disambiguation": "radio edit",
+      "id": "33b6b148-9dce-4894-902d-d218ecc30666",
+      "releases": [
+        {
+          "status": "Official",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Other",
+                "name": "Various Artists",
+                "country": null,
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86"
+              },
+              "name": "Various Artists",
+              "joinphrase": ""
+            }
+          ],
+          "title": "Promo Only: Mainstream Radio, December 2014",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "release-group": {
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Various Artists",
+                "artist": {
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "disambiguation": "add compilations to this artist",
+                  "country": null,
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type": "Other"
+                }
+              }
+            ],
+            "title": "Promo Only: Mainstream Radio, December 2014",
+            "first-release-date": "2014-12",
+            "id": "b3fdb0eb-5f7e-4283-ad40-aef175ae81dc",
+            "disambiguation": "",
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ]
+          },
+          "barcode": "",
+          "packaging": "None",
+          "date": "2014-12",
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "United States",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States"
+              },
+              "date": "2014-12"
+            }
+          ],
+          "id": "c9716878-d231-4cb5-a7aa-ce95f756c89f",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "country": "US",
+          "disambiguation": ""
+        },
+        {
+          "packaging": null,
+          "release-events": [
+            {
+              "date": "2014",
+              "area": null
+            }
+          ],
+          "date": "2014",
+          "id": "7700ab1d-eba1-4e77-99b0-cf025d5171f6",
+          "status": "Promotion",
+          "artist-credit": [
+            {
+              "joinphrase": " feat. ",
+              "name": "Mark Ronson",
+              "artist": {
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "disambiguation": "British DJ and producer",
+                "id": "c3c82bdc-d9e7-4836-9746-c24ead47ca19",
+                "sort-name": "Ronson, Mark",
+                "country": "GB",
+                "name": "Mark Ronson",
+                "type": "Person"
+              }
+            },
+            {
+              "joinphrase": "",
+              "name": "Bruno Mars",
+              "artist": {
+                "type": "Person",
+                "disambiguation": "US singer",
+                "country": "US",
+                "sort-name": "Mars, Bruno",
+                "id": "afb680f2-b6eb-4cd7-a70b-a63b25c763d5",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "name": "Bruno Mars"
+              }
+            }
+          ],
+          "title": "Uptown Funk!",
+          "packaging-id": null,
+          "release-group": {
+            "releases": [],
+            "secondary-types": [],
+            "secondary-type-ids": [],
+            "disambiguation": "",
+            "id": "bce20d09-d903-4370-8047-0f589a5258c2",
+            "primary-type": "Single",
+            "artist-credit": [
+              {
+                "joinphrase": " feat. ",
+                "name": "Mark Ronson",
+                "artist": {
+                  "country": "GB",
+                  "sort-name": "Ronson, Mark",
+                  "id": "c3c82bdc-d9e7-4836-9746-c24ead47ca19",
+                  "disambiguation": "British DJ and producer",
+                  "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                  "name": "Mark Ronson",
+                  "type": "Person"
+                }
+              },
+              {
+                "artist": {
+                  "name": "Bruno Mars",
+                  "country": "US",
+                  "sort-name": "Mars, Bruno",
+                  "disambiguation": "US singer",
+                  "id": "afb680f2-b6eb-4cd7-a70b-a63b25c763d5",
+                  "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                  "type": "Person"
+                },
+                "name": "Bruno Mars",
+                "joinphrase": ""
+              }
+            ],
+            "title": "Uptown Funk!",
+            "first-release-date": "2014-11-10",
+            "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9"
+          },
+          "barcode": null,
+          "text-representation": {
+            "script": null,
+            "language": "eng"
+          },
+          "quality": "normal",
+          "disambiguation": "",
+          "country": null,
+          "status-id": "518ffc83-5cde-34df-8627-81bff5093d92"
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Various Artists",
+              "artist": {
+                "type": "Other",
+                "name": "Various Artists",
+                "disambiguation": "add compilations to this artist",
+                "country": null,
+                "sort-name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86"
+              }
+            }
+          ],
+          "title": "Now That’s What I Call Music! 90",
+          "status": "Official",
+          "release-group": {
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "first-release-date": "2015-03-30",
+            "title": "Now That’s What I Call Music! 90",
+            "artist-credit": [
+              {
+                "artist": {
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "disambiguation": "add compilations to this artist",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86"
+                },
+                "name": "Various Artists",
+                "joinphrase": ""
+              }
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "primary-type": "Album",
+            "id": "83fe76c6-64b9-4722-96c0-a39c88512da6",
+            "disambiguation": "UK",
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": []
+          },
+          "barcode": "888750632425",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "packaging": "Jewel Case",
+          "id": "d5a9c3d5-8630-4f7f-ae8b-69e68d232873",
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type-id": null,
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "name": "United Kingdom"
+              },
+              "date": "2015-03-30"
+            }
+          ],
+          "date": "2015-03-30",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "country": "GB",
+          "disambiguation": ""
+        },
+        {
+          "text-representation": {
+            "language": "mul",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "FR",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging": "Jewel Case",
+          "id": "b31a4306-838f-4c5b-aa27-d56bea6d8d3c",
+          "release-events": [
+            {
+              "date": "2015-04-27",
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "FR"
+                ],
+                "disambiguation": "",
+                "id": "08310658-51eb-3801-80de-5a0739207115",
+                "sort-name": "France",
+                "type-id": null,
+                "name": "France"
+              }
+            }
+          ],
+          "date": "2015-04-27",
+          "title": "Planète Rap 2015",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "disambiguation": "add compilations to this artist",
+                "country": null,
+                "sort-name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "type": "Other"
+              },
+              "name": "Various Artists",
+              "joinphrase": ""
+            }
+          ],
+          "status": "Official",
+          "release-group": {
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": [],
+            "primary-type": "Album",
+            "id": "c2876e5a-3ba0-4ba1-af85-ada7a8831e7e",
+            "disambiguation": "",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "first-release-date": "2015-04-27",
+            "artist-credit": [
+              {
+                "artist": {
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "sort-name": "Various Artists",
+                  "disambiguation": "add compilations to this artist",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "country": null,
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86"
+                },
+                "joinphrase": "",
+                "name": "Various Artists"
+              }
+            ],
+            "title": "Planète Rap 2015",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "barcode": "888750873620",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a"
+        },
+        {
+          "disambiguation": "",
+          "quality": "normal",
+          "country": "GB",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "release-events": [
+            {
+              "area": {
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null,
+                "name": "United Kingdom",
+                "type-id": null,
+                "disambiguation": "",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom"
+              },
+              "date": "2015-05-11"
+            }
+          ],
+          "date": "2015-05-11",
+          "id": "be2163b2-4919-4777-b453-282e100b5bbc",
+          "packaging": null,
+          "packaging-id": null,
+          "release-group": {
+            "disambiguation": "",
+            "id": "5a89d02a-16d7-487c-8a18-24a33f30f300",
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Various Artists",
+                "artist": {
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "country": null,
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "disambiguation": "add compilations to this artist"
+                }
+              }
+            ],
+            "title": "Just Great Songs 2015",
+            "first-release-date": "2015-05-11"
+          },
+          "barcode": "888750732521",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Various Artists",
+              "artist": {
+                "type": "Other",
+                "name": "Various Artists",
+                "country": null,
+                "sort-name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "disambiguation": "add compilations to this artist",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86"
+              }
+            }
+          ],
+          "status": "Official",
+          "title": "Just Great Songs 2015"
+        },
+        {
+          "text-representation": {
+            "language": "mul",
+            "script": "Qaaa"
+          },
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "RU",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging": "None",
+          "id": "e86527a4-e403-4609-8bc4-e244d917de17",
+          "date": "2015-06-16",
+          "release-events": [
+            {
+              "area": {
+                "name": "Russia",
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "Russia",
+                "id": "1f1fc3a4-9500-39b8-9f10-f0a465557eef",
+                "iso-3166-1-codes": [
+                  "RU"
+                ],
+                "type": null
+              },
+              "date": "2015-06-16"
+            }
+          ],
+          "title": "Summer Music 2015",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Other",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "disambiguation": "add compilations to this artist",
+                "sort-name": "Various Artists",
+                "country": null,
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "name": "Various Artists"
+              },
+              "joinphrase": "",
+              "name": "Various Artists"
+            }
+          ],
+          "status": "Official",
+          "barcode": null,
+          "release-group": {
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": [],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "primary-type": "Album",
+            "disambiguation": "",
+            "id": "62e3f32f-c79e-4332-8eef-d5568af3e744",
+            "first-release-date": "2015-06-16",
+            "artist-credit": [
+              {
+                "artist": {
+                  "disambiguation": "add compilations to this artist",
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "name": "Various Artists",
+                  "type": "Other"
+                },
+                "name": "Various Artists",
+                "joinphrase": ""
+              }
+            ],
+            "title": "Summer Music 2015",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b"
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Various Artists",
+              "artist": {
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "sort-name": "Various Artists",
+                "country": null,
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists",
+                "type": "Other"
+              }
+            }
+          ],
+          "status": "Official",
+          "title": "Now That’s What I Call a Summer Party",
+          "release-group": {
+            "title": "Now That’s What I Call a Summer Party",
+            "artist-credit": [
+              {
+                "artist": {
+                  "disambiguation": "add compilations to this artist",
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "name": "Various Artists",
+                  "type": "Other"
+                },
+                "joinphrase": "",
+                "name": "Various Artists"
+              }
+            ],
+            "first-release-date": "2015-06-22",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "disambiguation": "UK",
+            "id": "b36d5eac-b62c-4d92-8d0f-1f46e351e220",
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ]
+          },
+          "barcode": "888751189126",
+          "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246",
+          "packaging": "Digipak",
+          "id": "591e4799-7fa8-49df-a848-48d6f21c162b",
+          "date": "2015-06-22",
+          "release-events": [
+            {
+              "date": "2015-06-22",
+              "area": null
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "country": null,
+          "quality": "normal",
+          "disambiguation": ""
+        },
+        {
+          "id": "c15f42a8-6bf2-428b-bee7-955194ce73c9",
+          "date": "2015-09-11",
+          "release-events": [
+            {
+              "date": "2015-09-11",
+              "area": {
+                "type-id": null,
+                "disambiguation": "",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "sort-name": "Europe",
+                "name": "Europe",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "packaging": "Digipak",
+          "release-group": {
+            "first-release-date": "2015-09-11",
+            "artist-credit": [
+              {
+                "artist": {
+                  "name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "disambiguation": "add compilations to this artist",
+                  "country": null,
+                  "sort-name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "type": "Other"
+                },
+                "joinphrase": "",
+                "name": "Various Artists"
+              }
+            ],
+            "title": "Keep Calm and Unwind",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": [],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "primary-type": "Album",
+            "id": "0fccf3de-d72f-4e45-a721-981465e09030",
+            "disambiguation": ""
+          },
+          "barcode": "888751388420",
+          "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "add compilations to this artist",
+                "sort-name": "Various Artists",
+                "country": null,
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "name": "Various Artists",
+                "type": "Other"
+              },
+              "name": "Various Artists",
+              "joinphrase": ""
+            }
+          ],
+          "status": "Official",
+          "title": "Keep Calm and Unwind",
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "XE",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "country": "GB",
+          "quality": "normal",
+          "disambiguation": "",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging": "Digipak",
+          "id": "ee64a6d9-3b6b-4d87-a8d3-460f8857ed16",
+          "date": "2015-09-25",
+          "release-events": [
+            {
+              "date": "2015-09-25",
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type-id": null,
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "name": "United Kingdom"
+              }
+            }
+          ],
+          "title": "Now That’s What I Call Pop",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Other",
+                "name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "disambiguation": "add compilations to this artist",
+                "country": null,
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists"
+              },
+              "name": "Various Artists",
+              "joinphrase": ""
+            }
+          ],
+          "status": "Official",
+          "barcode": "888751464421",
+          "release-group": {
+            "title": "Now That’s What I Call Pop",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Various Artists",
+                "artist": {
+                  "type": "Other",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "disambiguation": "add compilations to this artist",
+                  "country": null,
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "name": "Various Artists"
+                }
+              }
+            ],
+            "first-release-date": "2015-09-25",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "disambiguation": "UK",
+            "id": "66e17432-b177-44b5-9146-ccde0c204d60",
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ]
+          },
+          "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246"
+        },
+        {
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "barcode": "886445488944",
+          "release-group": {
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "id": "b6cfb8e9-e665-45a1-85f2-ea1c75568556",
+            "disambiguation": "",
+            "primary-type": "Album",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Various Artists",
+                "artist": {
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "disambiguation": "add compilations to this artist",
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377"
+                }
+              }
+            ],
+            "title": "Million Sellers: The Biggest Selling Singles of All Time",
+            "first-release-date": "2015-11-27",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "status": "Official",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Various Artists",
+              "artist": {
+                "type": "Other",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "disambiguation": "add compilations to this artist",
+                "sort-name": "Various Artists",
+                "country": null,
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists"
+              }
+            }
+          ],
+          "title": "Million Sellers",
+          "date": "2015-11-27",
+          "release-events": [
+            {
+              "area": null,
+              "date": "2015-11-27"
+            }
+          ],
+          "id": "aa319128-aa26-412f-b264-777d5de6180c",
+          "packaging": "None",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "",
+          "quality": "normal",
+          "country": null,
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          }
+        },
+        {
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "GB",
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "joinphrase": "",
+              "artist": {
+                "type": "Other",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "disambiguation": "add compilations to this artist",
+                "country": null,
+                "sort-name": "Various Artists",
+                "name": "Various Artists"
+              }
+            }
+          ],
+          "title": "Million Sellers: The Biggest Selling Singles of All Time",
+          "status": "Official",
+          "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246",
+          "barcode": "888751617124",
+          "release-group": {
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Million Sellers: The Biggest Selling Singles of All Time",
+            "artist-credit": [
+              {
+                "artist": {
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "country": null,
+                  "disambiguation": "add compilations to this artist",
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377"
+                },
+                "name": "Various Artists",
+                "joinphrase": ""
+              }
+            ],
+            "first-release-date": "2015-11-27",
+            "disambiguation": "",
+            "id": "b6cfb8e9-e665-45a1-85f2-ea1c75568556",
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ]
+          },
+          "packaging": "Digipak",
+          "release-events": [
+            {
+              "date": "2015-11-27",
+              "area": {
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "type-id": null,
+                "name": "United Kingdom",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ]
+              }
+            }
+          ],
+          "date": "2015-11-27",
+          "id": "1f81014b-0da5-4f24-b0cc-fab8fa55a646"
+        },
+        {
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "GB",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "disambiguation": "add compilations to this artist",
+                "country": null,
+                "sort-name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "type": "Other"
+              },
+              "joinphrase": "",
+              "name": "Various Artists"
+            }
+          ],
+          "title": "NOW That’s What I Call Party Anthems",
+          "status": "Official",
+          "release-group": {
+            "artist-credit": [
+              {
+                "artist": {
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "disambiguation": "add compilations to this artist",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "name": "Various Artists",
+                  "type": "Other"
+                },
+                "joinphrase": "",
+                "name": "Various Artists"
+              }
+            ],
+            "title": "NOW That’s What I Call Party Anthems",
+            "first-release-date": "2015-11-27",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "id": "eb2d98d5-385b-4af6-ae3b-d844b2d59fa8",
+            "disambiguation": "UK",
+            "primary-type": "Album"
+          },
+          "barcode": "888751536524",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "packaging": "Jewel Case",
+          "id": "5d239964-6407-492b-85d7-36a1dfc8170e",
+          "date": "2015-11-27",
+          "release-events": [
+            {
+              "area": {
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "type-id": null,
+                "name": "United Kingdom",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ]
+              },
+              "date": "2015-11-27"
+            }
+          ]
+        },
+        {
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "ES",
+          "status": "Official",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Various Artists",
+              "artist": {
+                "name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "country": null,
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "type": "Other"
+              }
+            }
+          ],
+          "title": "Flaix FM: Summer 2015",
+          "barcode": "888751208124",
+          "release-group": {
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": [],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "primary-type": "Album",
+            "disambiguation": "",
+            "id": "34f08453-ae56-46b3-9bb7-98749b9c54e9",
+            "first-release-date": "2015",
+            "artist-credit": [
+              {
+                "artist": {
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "disambiguation": "add compilations to this artist",
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377"
+                },
+                "name": "Various Artists",
+                "joinphrase": ""
+              }
+            ],
+            "title": "Flaix FM: Summer 2015",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "packaging-id": null,
+          "packaging": null,
+          "id": "f1eaa624-8378-4c49-9a7d-e6f7e44a760b",
+          "release-events": [
+            {
+              "area": {
+                "iso-3166-1-codes": [
+                  "ES"
+                ],
+                "type": null,
+                "name": "Spain",
+                "sort-name": "Spain",
+                "disambiguation": "",
+                "id": "471c46a7-afc5-31c4-923c-d0444f5053a4",
+                "type-id": null
+              },
+              "date": "2015"
+            }
+          ],
+          "date": "2015"
+        },
+        {
+          "packaging": "Digipak",
+          "id": "250f3a54-0c1a-484b-89e5-92bc90e87945",
+          "date": "2015",
+          "release-events": [
+            {
+              "area": {
+                "iso-3166-1-codes": [
+                  "IT"
+                ],
+                "type": null,
+                "name": "Italy",
+                "disambiguation": "",
+                "sort-name": "Italy",
+                "id": "c6500277-9a3d-349b-bf30-41afdbf42add",
+                "type-id": null
+              },
+              "date": "2015"
+            }
+          ],
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "joinphrase": "",
+              "artist": {
+                "name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "country": null,
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "type": "Other"
+              }
+            }
+          ],
+          "status": "Official",
+          "title": "Hit’s Summer!",
+          "release-group": {
+            "primary-type": "Album",
+            "disambiguation": "2015",
+            "id": "dcb36575-59f7-4ece-bf55-a9c5220692a9",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": [],
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "first-release-date": "2015",
+            "title": "Hit’s Summer!",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Various Artists",
+                "artist": {
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "country": null,
+                  "sort-name": "Various Artists",
+                  "disambiguation": "add compilations to this artist",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type": "Other"
+                }
+              }
+            ]
+          },
+          "barcode": "5054196659226",
+          "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246",
+          "text-representation": {
+            "language": "mul",
+            "script": "Latn"
+          },
+          "country": "IT",
+          "quality": "normal",
+          "disambiguation": "",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "country": "NZ",
+          "quality": "normal",
+          "disambiguation": "",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "date": "2015",
+          "release-events": [
+            {
+              "date": "2015",
+              "area": {
+                "name": "New Zealand",
+                "type-id": null,
+                "disambiguation": "",
+                "id": "8524c7d9-f472-3890-a458-f28d5081d9c4",
+                "sort-name": "New Zealand",
+                "iso-3166-1-codes": [
+                  "NZ"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "id": "9e3c55e9-2541-4d83-b8aa-f01445d64c6e",
+          "packaging": "Jewel Case",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "barcode": "0600753660584",
+          "release-group": {
+            "title": "Now That’s What I Call Music 49",
+            "artist-credit": [
+              {
+                "artist": {
+                  "name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "disambiguation": "add compilations to this artist",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "type": "Other"
+                },
+                "name": "Various Artists",
+                "joinphrase": ""
+              }
+            ],
+            "first-release-date": "2015",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "disambiguation": "New Zealand",
+            "id": "9912498d-7a9d-4ce7-a1e8-a2e197513d05",
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ]
+          },
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Other",
+                "name": "Various Artists",
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists",
+                "country": null,
+                "type-id": "ac897045-5043-3294-969b-187360e45d86"
+              },
+              "joinphrase": "",
+              "name": "Various Artists"
+            }
+          ],
+          "status": "Official",
+          "title": "Now That’s What I Call Music 49"
+        },
+        {
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "GB",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "release-events": [
+            {
+              "date": "2016-01-08",
+              "area": {
+                "name": "United Kingdom",
+                "type-id": null,
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "date": "2016-01-08",
+          "id": "13c4fd36-116c-4785-b4dc-ac2a1f94398e",
+          "packaging": "None",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "barcode": "",
+          "release-group": {
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "first-release-date": "2016-01-08",
+            "title": "The Nation’s Favourite Running Songs",
+            "artist-credit": [
+              {
+                "name": "Various Artists",
+                "joinphrase": "",
+                "artist": {
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "disambiguation": "add compilations to this artist",
+                  "country": null,
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "name": "Various Artists",
+                  "type": "Other"
+                }
+              }
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "primary-type": "Album",
+            "id": "397132d7-922f-4f3e-bc31-96cfe7958823",
+            "disambiguation": "",
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": []
+          },
+          "status": "Official",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Other",
+                "name": "Various Artists",
+                "disambiguation": "add compilations to this artist",
+                "sort-name": "Various Artists",
+                "country": null,
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86"
+              },
+              "name": "Various Artists",
+              "joinphrase": ""
+            }
+          ],
+          "title": "The Nation's Favourite Running Songs"
+        },
+        {
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "",
+          "quality": "normal",
+          "country": "GB",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "barcode": "888751805828",
+          "release-group": {
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "disambiguation": "",
+            "id": "397132d7-922f-4f3e-bc31-96cfe7958823",
+            "primary-type": "Album",
+            "title": "The Nation’s Favourite Running Songs",
+            "artist-credit": [
+              {
+                "name": "Various Artists",
+                "joinphrase": "",
+                "artist": {
+                  "type": "Other",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "disambiguation": "add compilations to this artist",
+                  "name": "Various Artists"
+                }
+              }
+            ],
+            "first-release-date": "2016-01-08",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "status": "Official",
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "joinphrase": "",
+              "artist": {
+                "type": "Other",
+                "name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists",
+                "country": null,
+                "disambiguation": "add compilations to this artist"
+              }
+            }
+          ],
+          "title": "The Nation’s Favourite Running Songs",
+          "id": "276b3335-3de5-47a3-89f6-8c4482a5e3e8",
+          "date": "2016-01-08",
+          "release-events": [
+            {
+              "date": "2016-01-08",
+              "area": {
+                "name": "United Kingdom",
+                "type-id": null,
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "packaging": "Jewel Case"
+        },
+        {
+          "date": "2016-02-12",
+          "release-events": [
+            {
+              "date": "2016-02-12",
+              "area": {
+                "name": "United Kingdom",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "id": "68a38e84-ba51-4587-88b5-3c3f0c52c5d7",
+          "packaging": "Other",
+          "packaging-id": "815b7785-8284-3926-8f04-e48bc6c4d102",
+          "release-group": {
+            "title": "BRIT Awards 2016",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Various Artists",
+                "artist": {
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "disambiguation": "add compilations to this artist",
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377"
+                }
+              }
+            ],
+            "first-release-date": "2016-02-12",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "id": "62babc93-6b84-4edf-8be4-29139dc61c87",
+            "disambiguation": "",
+            "primary-type": "Album"
+          },
+          "barcode": "0825646482177",
+          "title": "BRIT Awards 2016",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Various Artists",
+              "artist": {
+                "type": "Other",
+                "name": "Various Artists",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist",
+                "country": null,
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86"
+              }
+            }
+          ],
+          "status": "Official",
+          "country": "GB",
+          "quality": "normal",
+          "disambiguation": "",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "id": "1d9f56c3-b893-4a80-a5ec-2aa188f2c959",
+          "release-events": [
+            {
+              "area": {
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null,
+                "name": "United Kingdom",
+                "disambiguation": "",
+                "sort-name": "United Kingdom",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "type-id": null
+              },
+              "date": "2016-04-22"
+            }
+          ],
+          "date": "2016-04-22",
+          "packaging": null,
+          "release-group": {
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": [],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "primary-type": "Album",
+            "disambiguation": "UK",
+            "id": "4d4e5e9a-38d9-4f59-ab1d-22dc2752dc8a",
+            "first-release-date": "2016-04-22",
+            "artist-credit": [
+              {
+                "artist": {
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "country": null,
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "disambiguation": "add compilations to this artist",
+                  "name": "Various Artists",
+                  "type": "Other"
+                },
+                "name": "Various Artists",
+                "joinphrase": ""
+              }
+            ],
+            "title": "NOW That’s What I Call Fitness",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "barcode": "888751971325",
+          "packaging-id": null,
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Various Artists",
+              "artist": {
+                "country": null,
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "name": "Various Artists",
+                "type": "Other"
+              }
+            }
+          ],
+          "title": "NOW That’s What I Call Fitness",
+          "status": "Official",
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "GB",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "quality": "normal",
+          "country": "GB",
+          "disambiguation": "",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "id": "d0973fca-cfea-44fc-a026-59edafe57ef0",
+          "release-events": [
+            {
+              "area": {
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "type-id": null,
+                "name": "United Kingdom",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ]
+              },
+              "date": "2016-07-01"
+            }
+          ],
+          "date": "2016-07-01",
+          "packaging": "None",
+          "release-group": {
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "id": "9e795ef8-3b7a-4269-b2d5-0310a9798c8d",
+            "disambiguation": "UK",
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "title": "NOW That’s What I Call Summer Hits",
+            "artist-credit": [
+              {
+                "artist": {
+                  "type": "Other",
+                  "country": null,
+                  "disambiguation": "add compilations to this artist",
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "name": "Various Artists"
+                },
+                "name": "Various Artists",
+                "joinphrase": ""
+              }
+            ],
+            "first-release-date": "2016-07-01",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "barcode": "886445866575",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "status": "Official",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Various Artists",
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists",
+                "country": null,
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "type": "Other"
+              },
+              "name": "Various Artists",
+              "joinphrase": ""
+            }
+          ],
+          "title": "NOW That’s What I Call Summer Hits"
+        },
+        {
+          "release-group": {
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": [],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "primary-type": "Album",
+            "disambiguation": "USA",
+            "id": "90b79ca0-8b48-4695-a184-db3fa96e623f",
+            "first-release-date": "2016-08-05",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Various Artists",
+                "artist": {
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "sort-name": "Various Artists",
+                  "disambiguation": "add compilations to this artist",
+                  "country": null,
+                  "type": "Other"
+                }
+              }
+            ],
+            "title": "Now That’s What I Call Party Anthems 3",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "barcode": "886445969580",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "title": "Now That’s What I Call Party Anthems 3",
+          "artist-credit": [
+            {
+              "artist": {
+                "country": null,
+                "sort-name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "disambiguation": "add compilations to this artist",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "name": "Various Artists",
+                "type": "Other"
+              },
+              "name": "Various Artists",
+              "joinphrase": ""
+            }
+          ],
+          "status": "Official",
+          "id": "d42bd682-9bbd-495f-ad47-c303727e6afb",
+          "date": "2016-08-05",
+          "release-events": [
+            {
+              "date": "2016-08-05",
+              "area": {
+                "type-id": null,
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "sort-name": "United States",
+                "name": "United States",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              }
+            }
+          ],
+          "packaging": "None",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "quality": "normal",
+          "country": "US",
+          "disambiguation": "",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          }
+        },
+        {
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "disambiguation": "",
+          "quality": "normal",
+          "country": "US",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging": "Jewel Case",
+          "date": "2016-08-05",
+          "release-events": [
+            {
+              "date": "2016-08-05",
+              "area": {
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type": null,
+                "name": "United States",
+                "type-id": null,
+                "sort-name": "United States",
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98"
+              }
+            }
+          ],
+          "id": "c13efa0e-e083-42fd-82f2-2829ba63bfec",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "country": null,
+                "disambiguation": "add compilations to this artist",
+                "sort-name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "type": "Other"
+              },
+              "joinphrase": "",
+              "name": "Various Artists"
+            }
+          ],
+          "title": "Now That’s What I Call Party Anthems 3",
+          "status": "Official",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "barcode": "889853525522",
+          "release-group": {
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "id": "90b79ca0-8b48-4695-a184-db3fa96e623f",
+            "disambiguation": "USA",
+            "primary-type": "Album",
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Now That’s What I Call Party Anthems 3",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Various Artists",
+                "artist": {
+                  "name": "Various Artists",
+                  "country": null,
+                  "sort-name": "Various Artists",
+                  "disambiguation": "add compilations to this artist",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "type": "Other"
+                }
+              }
+            ],
+            "first-release-date": "2016-08-05"
+          }
+        },
+        {
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "country": "GB",
+          "quality": "normal",
+          "disambiguation": "",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "release-group": {
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "first-release-date": "2016-08-18",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Various Artists",
+                "artist": {
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "sort-name": "Various Artists",
+                  "disambiguation": "add compilations to this artist",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "country": null,
+                  "type": "Other"
+                }
+              }
+            ],
+            "title": "NOW That’s What I Call Dance Hits",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "primary-type": "Album",
+            "id": "274c19fd-bed9-4efe-8c7a-2d28e1cf72f2",
+            "disambiguation": "UK",
+            "secondary-types": [
+              "Compilation"
+            ],
+            "releases": []
+          },
+          "barcode": "889853579624",
+          "title": "NOW That’s What I Call Dance Hits",
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "joinphrase": "",
+              "artist": {
+                "type": "Other",
+                "name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists",
+                "country": null
+              }
+            }
+          ],
+          "status": "Official",
+          "date": "2016-08-18",
+          "release-events": [
+            {
+              "area": {
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null,
+                "name": "United Kingdom",
+                "type-id": null,
+                "disambiguation": "",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom"
+              },
+              "date": "2016-08-18"
+            }
+          ],
+          "id": "514048fe-a285-4ec1-9ce4-2049e18a326d",
+          "packaging": "Jewel Case"
+        },
+        {
+          "packaging-id": null,
+          "barcode": "889853687220",
+          "release-group": {
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "disambiguation": "UK",
+            "id": "9d51a559-2e44-4694-9c3b-6d88838d9e13",
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "title": "NOW That’s What I Call Drivetime",
+            "artist-credit": [
+              {
+                "name": "Various Artists",
+                "joinphrase": "",
+                "artist": {
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "sort-name": "Various Artists",
+                  "disambiguation": "add compilations to this artist",
+                  "country": null,
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86"
+                }
+              }
+            ],
+            "first-release-date": "2016-09-16",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "title": "NOW That’s What I Call Drivetime",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Various Artists",
+              "artist": {
+                "type": "Other",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "disambiguation": "add compilations to this artist",
+                "country": null,
+                "sort-name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists"
+              }
+            }
+          ],
+          "status": "Official",
+          "date": "2016-09-16",
+          "release-events": [
+            {
+              "date": "2016-09-16",
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "disambiguation": "",
+                "sort-name": "United Kingdom",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "type-id": null,
+                "name": "United Kingdom"
+              }
+            }
+          ],
+          "id": "2718184e-41b9-48bd-98c5-78b39db13c15",
+          "packaging": null,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "GB",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          }
+        },
+        {
+          "id": "ee78d84e-f047-4c45-8199-90ec2d3c3668",
+          "date": "2016-11-04",
+          "release-events": [
+            {
+              "date": "2016-11-04",
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "United States",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States"
+              }
+            }
+          ],
+          "packaging": null,
+          "barcode": null,
+          "release-group": {
+            "releases": [],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "disambiguation": "USA",
+            "id": "55b7596b-357d-4243-ab10-2ef00e7369a6",
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "title": "Now That’s What I Call Music! 60",
+            "artist-credit": [
+              {
+                "artist": {
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "sort-name": "Various Artists",
+                  "country": null,
+                  "disambiguation": "add compilations to this artist",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377"
+                },
+                "name": "Various Artists",
+                "joinphrase": ""
+              }
+            ],
+            "first-release-date": "2016-11-04",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "packaging-id": null,
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "country": null,
+                "sort-name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "disambiguation": "add compilations to this artist",
+                "name": "Various Artists",
+                "type": "Other"
+              }
+            }
+          ],
+          "status": "Official",
+          "title": "Now That’s What I Call Music! 60",
+          "country": "US",
+          "quality": "normal",
+          "disambiguation": "US deluxe edition",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        }
+      ],
+      "isrcs": [
+        "GBARL1401540"
+      ],
+      "first-release-date": "2014-12",
+      "title": "Uptown Funk",
+      "artist-credit": [
+        {
+          "name": "Mark Ronson",
+          "joinphrase": " feat. ",
+          "artist": {
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+            "id": "c3c82bdc-d9e7-4836-9746-c24ead47ca19",
+            "disambiguation": "British DJ and producer",
+            "country": "GB",
+            "sort-name": "Ronson, Mark",
+            "name": "Mark Ronson",
+            "type": "Person"
+          }
+        },
+        {
+          "artist": {
+            "type": "Person",
+            "name": "Bruno Mars",
+            "sort-name": "Mars, Bruno",
+            "disambiguation": "US singer",
+            "id": "afb680f2-b6eb-4cd7-a70b-a63b25c763d5",
+            "country": "US",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+          },
+          "name": "Bruno Mars",
+          "joinphrase": ""
+        }
+      ]
+    }
+  }
+}

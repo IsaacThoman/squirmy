@@ -1,0 +1,14 @@
+{
+  "note": "Hand-written: exercises fetchImage without downloading real artwork.",
+  "request": {
+    "method": "GET",
+    "url": "https://images.example.test/missing.png"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "text": "<h1>Not Found</h1>"
+  }
+}

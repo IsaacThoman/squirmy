@@ -1,0 +1,163 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/search/album?q=radiohead+ok+computer&limit=5"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 14879699,
+          "title": "OK Computer",
+          "link": "https://www.deezer.com/album/14879699",
+          "cover": "https://api.deezer.com/album/14879699/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+          "genre_id": 85,
+          "nb_tracks": 12,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/14879699/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 399,
+            "name": "Radiohead",
+            "link": "https://www.deezer.com/artist/399",
+            "picture": "https://api.deezer.com/artist/399/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 43197211,
+          "title": "OK Computer OKNOTOK 1997 2017",
+          "link": "https://www.deezer.com/album/43197211",
+          "cover": "https://api.deezer.com/album/43197211/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/4dfeb095cb3c0acaf538b21a90d89710/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/4dfeb095cb3c0acaf538b21a90d89710/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/4dfeb095cb3c0acaf538b21a90d89710/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4dfeb095cb3c0acaf538b21a90d89710/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "4dfeb095cb3c0acaf538b21a90d89710",
+          "genre_id": 85,
+          "nb_tracks": 23,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/43197211/tracks",
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 399,
+            "name": "Radiohead",
+            "link": "https://www.deezer.com/artist/399",
+            "picture": "https://api.deezer.com/artist/399/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 350287377,
+          "title": "MF Computer (Radiohead's OK Computer Reimagined)",
+          "link": "https://www.deezer.com/album/350287377",
+          "cover": "https://api.deezer.com/album/350287377/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/de55769edf9dbdb6fbba26078334e988/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/de55769edf9dbdb6fbba26078334e988/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/de55769edf9dbdb6fbba26078334e988/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/de55769edf9dbdb6fbba26078334e988/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "de55769edf9dbdb6fbba26078334e988",
+          "genre_id": 85,
+          "nb_tracks": 12,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/350287377/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 498395,
+            "name": "Mother Falcon",
+            "link": "https://www.deezer.com/artist/498395",
+            "picture": "https://api.deezer.com/artist/498395/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/868f03fb911564c67aaad084c2978a01/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/868f03fb911564c67aaad084c2978a01/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/868f03fb911564c67aaad084c2978a01/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/868f03fb911564c67aaad084c2978a01/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/498395/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 1103308,
+          "title": "Strung Out On OK Computer: VSQ Performs Radiohead",
+          "link": "https://www.deezer.com/album/1103308",
+          "cover": "https://api.deezer.com/album/1103308/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/514825e3c9deb6da5bd52a881dfb8ee7/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/514825e3c9deb6da5bd52a881dfb8ee7/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/514825e3c9deb6da5bd52a881dfb8ee7/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/514825e3c9deb6da5bd52a881dfb8ee7/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "514825e3c9deb6da5bd52a881dfb8ee7",
+          "genre_id": 152,
+          "nb_tracks": 12,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/1103308/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 275309,
+            "name": "Vitamin String Quartet",
+            "link": "https://www.deezer.com/artist/275309",
+            "picture": "https://api.deezer.com/artist/275309/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/ff715b52786244d0cbecbc6e305f5e89/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/ff715b52786244d0cbecbc6e305f5e89/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/ff715b52786244d0cbecbc6e305f5e89/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/ff715b52786244d0cbecbc6e305f5e89/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/275309/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 41813221,
+          "title": "MCP Performs Radiohead: OK Computer (Instrumental Version)",
+          "link": "https://www.deezer.com/album/41813221",
+          "cover": "https://api.deezer.com/album/41813221/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/21775679bb3ac0524125b28394850eac/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/21775679bb3ac0524125b28394850eac/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/21775679bb3ac0524125b28394850eac/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/21775679bb3ac0524125b28394850eac/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "21775679bb3ac0524125b28394850eac",
+          "genre_id": 85,
+          "nb_tracks": 11,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/41813221/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 5913967,
+            "name": "Molotov Cocktail Piano",
+            "link": "https://www.deezer.com/artist/5913967",
+            "picture": "https://api.deezer.com/artist/5913967/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/4049b289fe21adf6ffe3d324bc20d7b1/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/4049b289fe21adf6ffe3d324bc20d7b1/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/4049b289fe21adf6ffe3d324bc20d7b1/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/4049b289fe21adf6ffe3d324bc20d7b1/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/5913967/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        }
+      ],
+      "total": 6,
+      "next": "https://api.deezer.com/search/album?q=radiohead%20ok%20computer&limit=5&index=5"
+    }
+  }
+}
