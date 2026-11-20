@@ -42,7 +42,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 5. OpenSubsonic
 
-- [x] `/rest` router with XML and JSON ([subsonic.md](./subsonic.md))
+- [x] `/rest` router with XML and JSON ([subsonic.md](./server/subsonic.md))
 - [x] App passwords and API keys
 - [x] Browsing, search, streaming, cover art, stars, playlists, scrobble, play queue, lyrics
 - [x] Client test pass: py-opensonic, py-sonic, subsonic-api (Node) and Airsonic Refix
@@ -71,7 +71,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
 - [x] Radio and autoplay (server and API)
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
-- [ ] Documentation site
+- [x] Documentation site ([docs/](./index.md), built with VitePress)
 
 ## Deferred
 

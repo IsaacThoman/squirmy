@@ -28,6 +28,8 @@ type RootRow = typeof libraryRoots.$inferSelect
 export type ImportWork = {
   /** Per staged archive (by its staged path): where it extracts to, or why it was refused. */
   archives?: Record<string, { target?: string; rejected?: string; extracted?: number; skipped?: number; done?: boolean }>
+  /** The files identification decided were duplicates, by path, so a rerun can finish removing them. */
+  duplicates?: string[]
   /** The organize batch that files the import's identified albums. */
   batchId?: string
   /** The inbox an inbox import came from, so a failed one can be put back. */

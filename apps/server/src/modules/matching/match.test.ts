@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
-import type { MatchCandidate } from '@squirmy/contracts'
+import { INCOMING_FOLDER, type MatchCandidate } from '@squirmy/contracts'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { db } from '../../database/client.js'
 import {
-  albums, artists, likes, matchReviews, mediaFiles, playlistItems, playlists, recordingArtists, recordings, releases, releaseTracks,
+  albums, artists, imports, likes, matchReviews, mediaFiles, playlistItems, playlists, recordingArtists, recordings, releases, releaseTracks,
 } from '../../database/schema.js'
 import { drainJobs, enqueue, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { ProviderError } from '../../lib/http.js'
@@ -320,6 +320,22 @@ describe('matching.match-album', () => {
     await expect(matchGroup(rootId, failing.groupKey)).rejects.toBeInstanceOf(ProviderError)
     expect((await filesOf(failing))[0]!.matchStatus).toBe('pending')
     await db.update(mediaFiles).set({ missingSince: new Date() }).where(eq(mediaFiles.groupKey, failing.groupKey))
+  })
+
+  it('leaves an import\'s files alone until the import has decided its duplicates', async () => {
+    const importId = newId()
+    await db.insert(imports).values({ id: importId, kind: 'upload', source: 'upload', status: 'processing', step: 'identifying', targetRootId: rootId, stagingPath: '/nowhere' })
+    const ingested = await ingestAlbum(rootId, demoAlbums.okComputer, { folder: `${INCOMING_FOLDER}/${importId}/OK Computer` })
+    http.requests.length = 0
+    await matchGroup(rootId, ingested.groupKey)
+    expect(http.requests).toEqual([])
+    expect((await filesOf(ingested)).every((file) => file.matchStatus === 'pending')).toBe(true)
+    await sweep()
+    expect((await queuedJobs('matching.match-album')).map((job) => job.singleton_key)).not.toContain(`${rootId}:${ingested.groupKey}`)
+
+    await db.update(imports).set({ duplicatesDecidedAt: new Date() }).where(eq(imports.id, importId))
+    await matchGroup(rootId, ingested.groupKey)
+    expect((await filesOf(ingested)).every((file) => file.matchStatus === 'matched')).toBe(true)
   })
 
   it('sweeps pending groups into jobs, which match them', async () => {

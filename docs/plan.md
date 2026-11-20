@@ -67,7 +67,7 @@ Providers  acquisition_providers, acquisition_jobs
 | Deezer | Fast typeahead, artist images, cover fallback, top tracks | On |
 | Wikidata and Wikipedia | Artist images and bios, via MusicBrainz links | On |
 | LRCLIB | Synced lyrics | On |
-| ListenBrainz | Top tracks, similar artists, scrobbling | On once a token is set |
+| ListenBrainz | Top tracks, similar artists; scrobbling with each user's own token | Server lookups on once a token is set; scrobbling once a user connects |
 | AcoustID | Fingerprint lookup | On once an API key is set |
 | fanart.tv | Better artist images | Off; needs an operator key |
 | Local search index | Typeahead from MusicBrainz canonical dumps | Optional |
@@ -188,8 +188,8 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 ## Packaging
 
 - Two containers: `postgres`, and one `app` image with API, worker, built web, ffmpeg and `fpcalc`, for amd64 and arm64. An env var splits API and worker for bigger installs.
-- Two volumes: the music, and a rebuildable data folder for artwork, transcodes and staging.
-- Backup is a database dump plus the music.
+- Two volumes: the music, and a data folder for artwork, transcodes, staging and the generated secret. Transcodes and resized artwork rebuild themselves; original artwork and the secret do not.
+- Backup is a database dump, the music, and the data folder's `secret.key` and `assets/` ([backup guide](./server/backup.md)).
 
 ## Milestones
 

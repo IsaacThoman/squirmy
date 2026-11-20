@@ -15,5 +15,5 @@ expo-env.d.ts
 *.tsbuildinfo
 coverage/
 /data/
-.vitepress/cache/
-.vitepress/dist/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
