@@ -36,8 +36,9 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Metadata clients with cache and rate limits
 - [ ] Album matching tiers, review queue, fix match, merges
 - [ ] Enrichment: covers, artist images, bios, lyrics, external ids
-- [ ] Managed roots: preview, apply, journal, undo
-- [ ] Tag writing with verification
+- [x] Managed roots: preview, apply, journal, undo (server and API)
+- [ ] Organize screens in the admin UI
+- [x] Tag writing with verification
 
 ## 5. OpenSubsonic
 
