@@ -50,8 +50,9 @@ const inside = (parent: string, child: string) => {
 export async function insertRoot(input: { name: string; path: string; mode: LibraryRootMode; watch: boolean; template?: string | null }): Promise<RootRow> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('squirmy:library-roots'))`)
-    for (const existing of await tx.select({ path: libraryRoots.path }).from(libraryRoots)) {
-      if (existing.path === input.path) throw conflict('That folder is already a library root', 'duplicate_root')
+    for (const existing of await tx.select({ id: libraryRoots.id, path: libraryRoots.path }).from(libraryRoots)) {
+      // The id lets a client that added the folder before treat it as already added.
+      if (existing.path === input.path) throw new AppError(409, 'duplicate_root', 'That folder is already a library root', { rootId: existing.id })
       if (inside(existing.path, input.path) || inside(input.path, existing.path)) {
         throw conflict(`That folder overlaps the library root ${existing.path}`, 'nested_root')
       }
@@ -91,21 +92,27 @@ export async function requestScan(rootId: string): Promise<boolean> {
 }
 
 /**
- * Adds each folder in SQUIRMY_LIBRARY_PATHS as a read-only root, unless a root already has
- * that path, and scans the new ones. Folders that do not exist or overlap a root are
- * reported and skipped.
+ * Adds each folder in SQUIRMY_MANAGED_LIBRARY_PATHS as a managed root and each in
+ * SQUIRMY_LIBRARY_PATHS as a read-only one, unless a root already has that path, and
+ * scans the new ones. A folder in both lists is managed. An existing root keeps its mode.
+ * Folders that do not exist or overlap a root are reported and skipped.
  */
 export async function addConfiguredRoots() {
-  const configured = (getConfig().SQUIRMY_LIBRARY_PATHS ?? '').split(',').map((value) => value.trim()).filter(Boolean)
-  for (const requested of configured) {
+  const config = getConfig()
+  const list = (value: string | undefined) => (value ?? '').split(',').map((item) => item.trim()).filter(Boolean)
+  const configured = [
+    ...list(config.SQUIRMY_MANAGED_LIBRARY_PATHS).map((requested) => ({ requested, mode: 'managed' as const, variable: 'SQUIRMY_MANAGED_LIBRARY_PATHS' })),
+    ...list(config.SQUIRMY_LIBRARY_PATHS).map((requested) => ({ requested, mode: 'read_only' as const, variable: 'SQUIRMY_LIBRARY_PATHS' })),
+  ]
+  for (const { requested, mode, variable } of configured) {
     try {
       const resolved = await resolveRootPath(requested)
       const [existing] = await db.select({ id: libraryRoots.id }).from(libraryRoots).where(eq(libraryRoots.path, resolved))
       if (existing) continue
-      const root = await insertRoot({ name: path.basename(resolved) || resolved, path: resolved, mode: 'read_only', watch: true })
+      const root = await insertRoot({ name: path.basename(resolved) || resolved, path: resolved, mode, watch: true })
       await requestScan(root.id)
     } catch (error) {
-      warn(`Not adding ${requested} from SQUIRMY_LIBRARY_PATHS: ${(error as Error).message}`)
+      warn(`Not adding ${requested} from ${variable}: ${(error as Error).message}`)
     }
   }
 }

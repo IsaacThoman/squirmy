@@ -29,6 +29,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `SQUIRMY_SECRET` | unset | The root secret for signing stream URLs and encrypting stored credentials, at least 16 characters. When unset, a random one is generated on first start and kept in `<data>/secret.key`. Do not set or change it on a server that already has data: everything encrypted under the old secret (app passwords, API keys, provider secrets, scrobbling connections) becomes unreadable. |
 | `SQUIRMY_ROLE` | `all` | `all`, `api` or `worker`. |
 | `SQUIRMY_LIBRARY_PATHS` | unset (compose: `/music`) | Comma-separated absolute paths. On every start, each one that is not already a library folder is added as a **read-only** folder, watched, and scanned. A path that does not exist or overlaps another folder is skipped with a warning in the log. Removing a path from this variable does not remove the folder from the library. |
+| `SQUIRMY_MANAGED_LIBRARY_PATHS` | unset | The same, but each folder is added as a **managed** folder, which Squirmy may organize and file uploads into ([Organizing files](./organizing.md)). The folder must be writable by the server. A path in both variables is added as managed. Either variable only adds folders: a folder that is already in the library keeps the mode it has; change it in **Admin → Library**. |
 | `SQUIRMY_INBOX_PATH` | unset | A folder watched for music to import, used while the `inboxPath` server setting is unset. See [Adding music](./adding-music.md#the-inbox-folder). |
 | `SQUIRMY_WEB_DIST` | unset (image: `/app/apps/web/dist`) | The built web app to serve. Unset, the server serves only the API; the Vite dev server proxies to it during development. |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
@@ -150,7 +151,7 @@ services:
       disable: true
 ```
 
-Leave `SQUIRMY_LIBRARY_PATHS` on the `app` service: any process adds the configured folders on start, so one is enough.
+Leave `SQUIRMY_LIBRARY_PATHS` and `SQUIRMY_MANAGED_LIBRARY_PATHS` on the `app` service: any process adds the configured folders on start, so one is enough.
 
 ## Scheduled work
 

@@ -105,8 +105,11 @@ describe('library roots API', () => {
   })
 
   it('refuses duplicate and nested roots', async () => {
-    expect((await create({ name: 'Again', path: music })).json().error.code).toBe('duplicate_root')
-    expect((await create({ name: 'Again', path: `${music}/` })).json().error.code).toBe('duplicate_root')
+    const [existing] = (await call({ url: '/api/v1/admin/library/roots', headers: admin })).json().items
+    const duplicate = await create({ name: 'Again', path: music })
+    expect(duplicate.statusCode).toBe(409)
+    expect(duplicate.json().error).toMatchObject({ code: 'duplicate_root', details: { rootId: existing.id } })
+    expect((await create({ name: 'Again', path: `${music}/` })).json().error).toMatchObject({ code: 'duplicate_root', details: { rootId: existing.id } })
     expect((await create({ name: 'Inside', path: path.join(music, 'Mira Vale') })).json().error.code).toBe('nested_root')
     expect((await create({ name: 'Around', path: base })).json().error.code).toBe('nested_root')
     expect((await create({ name: 'Other', path: path.join(base, 'other') })).statusCode).toBe(201)
@@ -132,19 +135,27 @@ describe('library roots API', () => {
     expect((await call({ url: '/api/v1/admin/library/stats', headers: admin })).json()).toMatchObject({ files: 0, albums: 0, artists: 0 })
   })
 
-  it('adds SQUIRMY_LIBRARY_PATHS roots once', async () => {
-    process.env.SQUIRMY_LIBRARY_PATHS = `${music}, ${path.join(base, 'other')}, ${path.join(base, 'nope')}`
+  it('adds SQUIRMY_LIBRARY_PATHS and SQUIRMY_MANAGED_LIBRARY_PATHS roots once', async () => {
+    const managed = path.join(base, 'managed')
+    await mkdir(managed)
+    process.env.SQUIRMY_LIBRARY_PATHS = `${music}, ${path.join(base, 'other')}, ${path.join(base, 'nope')}, ${managed}`
+    process.env.SQUIRMY_MANAGED_LIBRARY_PATHS = ` ${managed} `
     resetConfig()
     try {
       await addConfiguredRoots()
       await addConfiguredRoots()
     } finally {
       delete process.env.SQUIRMY_LIBRARY_PATHS
+      delete process.env.SQUIRMY_MANAGED_LIBRARY_PATHS
       resetConfig()
     }
     const roots = await db.select().from(libraryRoots)
-    expect(roots.map((root) => root.path).sort()).toEqual([music, path.join(base, 'other')].sort())
+    expect(roots.map((root) => root.path).sort()).toEqual([music, path.join(base, 'other'), managed].sort())
     expect(roots.find((root) => root.path === music)).toMatchObject({ name: 'music', mode: 'read_only' })
+    expect(roots.find((root) => root.path === managed)).toMatchObject({ name: 'managed', mode: 'managed' })
+    // The setup wizard adding a configured folder learns which root it already is.
+    const again = await create({ name: 'Managed', path: managed, mode: 'managed' })
+    expect(again.json().error).toMatchObject({ code: 'duplicate_root', details: { rootId: roots.find((root) => root.path === managed)!.id } })
     await drainJobs()
   })
 

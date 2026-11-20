@@ -20,6 +20,8 @@ const Env = z.object({
   SQUIRMY_WEB_DIST: z.string().optional(),
   /** Comma separated paths added as read-only library roots on first boot. */
   SQUIRMY_LIBRARY_PATHS: z.string().optional(),
+  /** Comma separated paths added as managed library roots (organized by the server) on first boot. */
+  SQUIRMY_MANAGED_LIBRARY_PATHS: z.string().optional(),
   /** Folder watched for music to import, used while the `inboxPath` server setting is unset. */
   SQUIRMY_INBOX_PATH: z.string().optional(),
   /** Public origin, e.g. https://music.example.com. Used for absolute links only. */

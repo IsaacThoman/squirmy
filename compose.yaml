@@ -15,6 +15,9 @@ services:
       # Added as a read-only library folder at start unless it already is one. Make it managed,
       # or add more folders, in Admin → Library.
       SQUIRMY_LIBRARY_PATHS: /music
+      # To have Squirmy organize the folder and file uploads into it from the start, add it as
+      # a managed folder instead (the volume must be writable): remove the line above and use
+      # SQUIRMY_MANAGED_LIBRARY_PATHS: /music
       # Set to true when a reverse proxy sits in front and sends X-Forwarded-* headers.
       TRUST_PROXY: ${TRUST_PROXY:-false}
     volumes:

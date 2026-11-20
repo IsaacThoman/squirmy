@@ -15,7 +15,7 @@ Each folder is one of two kinds:
 | Squirmy writes tags into files | never | only when you ask for it in an organize batch |
 | Uploads and acquired music can be filed into it | no | yes |
 
-Folders added from `SQUIRMY_LIBRARY_PATHS` (in Docker, `/music`) start read-only. [Organizing files](./organizing.md) explains managed folders.
+Folders added from `SQUIRMY_LIBRARY_PATHS` (in Docker, `/music`) start read-only; folders added from `SQUIRMY_MANAGED_LIBRARY_PATHS` start managed ([configuration](./configuration.md#environment-variables)). [Organizing files](./organizing.md) explains managed folders.
 
 ### Add a folder
 

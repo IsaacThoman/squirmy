@@ -53,6 +53,14 @@ export const CreateLibraryRootRequest = z.object({
 })
 export type CreateLibraryRootRequest = z.infer<typeof CreateLibraryRootRequest>
 
+/**
+ * `details` of the 409 `duplicate_root` error from `POST /admin/library/roots`: the root
+ * that already has that folder, so a client such as the setup wizard can treat the folder
+ * as already added.
+ */
+export const DuplicateLibraryRootDetails = z.object({ rootId: Id })
+export type DuplicateLibraryRootDetails = z.infer<typeof DuplicateLibraryRootDetails>
+
 export const UpdateLibraryRootRequest = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   mode: LibraryRootMode.optional(),

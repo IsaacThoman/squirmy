@@ -44,7 +44,7 @@ Confirm in **Admin → Library**: the folder's card shows its file count, "not s
 
 - **The folder is not inside the container.** The folder picker browses the container's file system, not the host's. Check with `docker compose exec app ls /music`. Add the folder as a volume in `compose.yaml` and choose its path inside the container.
 - **The server cannot read it.** Adding fails with "The server cannot read that folder", or the scan finds 0 files. The container runs as uid 1000; give that user read access (and write access for a managed folder): `ls -ln` on the host shows the owner.
-- **A configured folder was skipped.** The log says `Not adding … from SQUIRMY_LIBRARY_PATHS: …` with the reason (the path does not exist, or it overlaps another folder).
+- **A configured folder was skipped.** The log says `Not adding … from SQUIRMY_LIBRARY_PATHS: …` (or `SQUIRMY_MANAGED_LIBRARY_PATHS`) with the reason (the path does not exist, or it overlaps another folder).
 - **New files in an existing folder do not show up.** The folder may not be watched: network mounts and Docker Desktop bind mounts often deliver no change events. Choose **Scan now**, or wait for the nightly scan. See [When watching does not work](./library.md#when-watching-does-not-work).
 - **Unreadable files** are files no tag reader could parse; they are left alone until they change.
 
