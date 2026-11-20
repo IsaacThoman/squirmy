@@ -67,7 +67,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Reference adapters: cold storage and mock
 - [ ] Scrobbling to ListenBrainz and Last.fm
 - [ ] Radio and autoplay
-- [ ] Local search index
+- [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)); the search module still has to offer it as a provider
 - [ ] Documentation site
 
 ## Deferred
