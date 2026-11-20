@@ -171,7 +171,7 @@ function ImportForm({ refresh, onStart }: { refresh: boolean; onStart: SearchInd
         </p>
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
-        <fieldset className="flex flex-col gap-2">
+        <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className="mb-2 px-1 text-[13px] font-semibold text-muted">Dump</legend>
           <Choice name="dump" checked={latest} onChange={() => setLatest(true)} label="The newest dump from MetaBrainz">
             <span className="text-xs text-muted">Downloaded from data.metabrainz.org. CC0, no attribution needed.</span>
@@ -184,7 +184,7 @@ function ImportForm({ refresh, onStart }: { refresh: boolean; onStart: SearchInd
             )}
           </Choice>
         </fieldset>
-        <fieldset className="flex flex-col gap-2">
+        <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className="mb-2 px-1 text-[13px] font-semibold text-muted">Size</legend>
           <Choice name="size" checked={!limited} onChange={() => setLimited(false)} label="Every recording">
             <span className="text-xs text-muted">The whole catalog, about 30 million songs.</span>

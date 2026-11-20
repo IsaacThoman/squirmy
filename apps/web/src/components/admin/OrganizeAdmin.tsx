@@ -67,7 +67,7 @@ export function OrganizeAdmin({ roots, rootId, onRootChange, preview, running, h
               </div>
               <Button variant="primary" pending={previewing} disabled={!!running} onClick={() => void requestPreview()}>{!previewing && <Eye />}Preview</Button>
             </div>
-            <div className="grid gap-2 md:grid-cols-2">
+            <div className="grid gap-2 xl:grid-cols-2">
               <SwitchRow
                 label="Include unidentified music"
                 description="Also file albums that are not identified, named from their own tags. Off: only identified or approved albums move."
@@ -269,9 +269,9 @@ function MoveRow({ move }: { move: OrganizeMove }) {
   const skipped = move.status === 'skipped' || move.status === 'failed'
   return (
     <li className={cn('flex flex-col gap-1 px-4 py-2.5 font-mono text-[12.5px]', skipped && 'bg-overlay')}>
-      <div className="grid gap-1 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center md:gap-3">
+      <div className="grid gap-1 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:items-center xl:gap-3">
         <span className="truncate text-muted" title={move.from}>{move.from}</span>
-        <ArrowRight aria-label="moves to" className={cn('size-4 max-md:hidden', skipped ? 'text-quiet' : 'text-accent')} />
+        <ArrowRight aria-label="moves to" className={cn('size-4 max-xl:hidden', skipped ? 'text-quiet' : 'text-accent')} />
         <span className={cn('truncate', skipped && 'text-quiet line-through')} title={move.to}>{move.from === move.to ? 'Tags only, stays in place' : move.to}</span>
       </div>
       {move.reason && <p className={cn('font-sans text-xs', move.status === 'failed' ? 'font-medium text-danger' : 'text-quiet')}>{move.status === 'failed' ? 'Failed: ' : move.status === 'skipped' ? 'Skipped: ' : ''}{move.reason}</p>}

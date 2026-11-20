@@ -33,7 +33,7 @@ function releaseLine(candidate: MatchCandidate): string {
 /** The candidates as a choice; the chosen one is compared below it. */
 export function CandidatePicker({ candidates, selected, onSelect, name }: { candidates: MatchCandidate[]; selected: string | null; onSelect: (releaseMbid: string) => void; name: string }) {
   return (
-    <fieldset className="flex flex-col gap-1 rounded-2xl bg-sheet p-1.5 ring-1 ring-stroke">
+    <fieldset className="flex min-w-0 flex-col gap-1 rounded-2xl bg-sheet p-1.5 ring-1 ring-stroke">
       <legend className="sr-only">Candidate releases</legend>
       {candidates.map(candidate => (
         <label key={candidate.releaseMbid} className={cn('flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-overlay', selected === candidate.releaseMbid && 'bg-selection hover:bg-selection')}>

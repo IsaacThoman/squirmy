@@ -31,7 +31,7 @@ const shots = [
   { name: 'admin-add-folder', path: '/admin/library', click: 'Add folder' },
   { name: 'admin-reviews', path: '/admin/reviews', review: true, height: 1400 },
   { name: 'admin-fix-match', path: '/admin/library', click: 'Fix a match', find: 'Abbey Road', wait: 1000 },
-  { name: 'admin-organize', path: '/admin/organize', height: 1300 },
+  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', wait: 1500, height: 1300 },
   { name: 'admin-search-index', path: '/admin/search-index' },
   { name: 'kitchen-sink', path: '/dev/kitchen-sink', height: 6200 },
   { name: 'audio-blocked', path: '/dev/engine?autoplay=a', strict: true, wait: 1500 },
@@ -41,7 +41,7 @@ const shots = [
   { name: 'admin-settings', path: '/admin/settings', width: 1024 },
   { name: 'admin-library', path: '/admin/library', width: 1024 },
   { name: 'admin-reviews', path: '/admin/reviews', review: true, width: 1024, height: 1300 },
-  { name: 'admin-organize', path: '/admin/organize', width: 1024 },
+  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', wait: 1500, width: 1024 },
   { name: 'home', path: '/', width: 390, height: 844 },
   { name: 'album', path: album, width: 390, height: 844 },
   { name: 'now-playing', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming' },
@@ -50,7 +50,7 @@ const shots = [
   { name: 'admin-settings', path: '/admin/settings', width: 390, height: 844 },
   { name: 'admin-library', path: '/admin/library', width: 390, height: 844 },
   { name: 'admin-reviews', path: '/admin/reviews', review: true, width: 390, height: 844 },
-  { name: 'admin-organize', path: '/admin/organize', width: 390, height: 844 },
+  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', wait: 1500, width: 390, height: 844 },
   { name: 'admin-search-index', path: '/admin/search-index', width: 390, height: 844 },
 ]
 
