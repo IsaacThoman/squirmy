@@ -1,0 +1,1283 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/0f598088-e9e6-4733-aee5-d3c3316a1f3b?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "status-id": "1156806e-d06a-38bd-83f0-cf2284a808b9",
+      "packaging-id": null,
+      "status": "Bootleg",
+      "packaging": null,
+      "label-info": [],
+      "disambiguation": "",
+      "cover-art-archive": {
+        "front": false,
+        "back": false,
+        "count": 0,
+        "darkened": false,
+        "artwork": false
+      },
+      "release-group": {
+        "title": "The Wall: The Film Soundtrack",
+        "artist-credit": [
+          {
+            "artist": {
+              "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+              "name": "Pink Floyd",
+              "disambiguation": "",
+              "country": "GB",
+              "type": "Group",
+              "sort-name": "Pink Floyd",
+              "id": "83d91898-7763-47d7-b03b-b92132375c47"
+            },
+            "joinphrase": "",
+            "name": "Pink Floyd"
+          }
+        ],
+        "secondary-type-ids": [
+          "22a628ad-c082-3c4f-b1b6-d41665107b88"
+        ],
+        "id": "fa4a6db3-9859-323f-a58f-ec9af50758d8",
+        "secondary-types": [
+          "Soundtrack"
+        ],
+        "disambiguation": "",
+        "primary-type": "Album",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "first-release-date": "1982"
+      },
+      "id": "0f598088-e9e6-4733-aee5-d3c3316a1f3b",
+      "relations": [],
+      "text-representation": {
+        "language": "eng",
+        "script": "Latn"
+      },
+      "media": [
+        {
+          "position": 1,
+          "format": null,
+          "track-count": 26,
+          "format-id": null,
+          "track-offset": 0,
+          "tracks": [
+            {
+              "recording": {
+                "disambiguation": "",
+                "id": "8effb2f8-c256-454c-a04a-e3b6d6213ce2",
+                "isrcs": [],
+                "title": "The Little Boy That Santa Claus Forgot",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "7d32fa5a-7ccb-483b-87ea-5370b4be4d64",
+                      "sort-name": "Lynn, Vera",
+                      "country": "GB",
+                      "type": "Person",
+                      "name": "Vera Lynn",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "name": "Vera Lynn"
+                  }
+                ],
+                "length": 78293
+              },
+              "id": "353d49b9-19f6-3cf7-8965-356ced3384b7",
+              "position": 1,
+              "number": "1",
+              "title": "The Little Boy That Santa Claus Forgot",
+              "length": 78293,
+              "artist-credit": [
+                {
+                  "name": "Vera Lynn",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Vera Lynn",
+                    "disambiguation": "",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "7d32fa5a-7ccb-483b-87ea-5370b4be4d64",
+                    "sort-name": "Lynn, Vera",
+                    "type": "Person",
+                    "country": "GB"
+                  }
+                }
+              ]
+            },
+            {
+              "title": "In the Flesh?",
+              "number": "2",
+              "length": 184066,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "recording": {
+                "disambiguation": "",
+                "isrcs": [],
+                "id": "438fee3d-f579-44cd-8a51-1caacad6acba",
+                "video": false,
+                "title": "In the Flesh?",
+                "length": 184066,
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ]
+              },
+              "position": 2,
+              "id": "39f4af72-094e-3271-aaa3-4ebedbb539de"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 163000,
+              "number": "3",
+              "title": "The Thin Ice",
+              "id": "6926fab8-24d3-3577-b655-4e2475d9d0ed",
+              "position": 3,
+              "recording": {
+                "length": 163000,
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "video": false,
+                "title": "The Thin Ice",
+                "isrcs": [],
+                "id": "dd38cd90-8b3e-4e8b-9287-67b87597427d",
+                "disambiguation": ""
+              }
+            },
+            {
+              "id": "5e7dd25c-3432-3e9d-87bf-c3bcc81cd171",
+              "position": 4,
+              "recording": {
+                "isrcs": [],
+                "id": "968fda73-c92f-4d04-b5c7-40deccd207ec",
+                "disambiguation": "",
+                "length": 170573,
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type": "Group",
+                      "country": "GB",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "video": false,
+                "title": "Another Brick in the Wall, Part 1"
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd"
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "length": 170573,
+              "title": "Another Brick in the Wall, Part 1",
+              "number": "4"
+            },
+            {
+              "length": 123626,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type": "Group",
+                    "country": "GB"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "number": "5",
+              "title": "When the Tigers Broke Free",
+              "recording": {
+                "title": "When the Tigers Broke Free, Part 2",
+                "video": false,
+                "length": 123626,
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type": "Group",
+                      "country": "GB",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [],
+                "id": "57832fa9-2117-497c-b4bc-8454c9373daa"
+              },
+              "position": 5,
+              "id": "0115f379-96dc-3595-94c1-b0251b9bcbd5"
+            },
+            {
+              "title": "Goodbye Blue Sky",
+              "number": "6",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": ""
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "length": 118666,
+              "id": "760a4f06-471c-3270-bc6e-53c76ca24d60",
+              "position": 6,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type": "Group",
+                      "country": "GB"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "length": 118666,
+                "video": false,
+                "title": "Goodbye Blue Sky",
+                "id": "c28b6ac8-cdc8-454b-afff-54863f0d0276",
+                "isrcs": [],
+                "disambiguation": ""
+              }
+            },
+            {
+              "number": "7",
+              "title": "The Happiest Days of Our Lives",
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "country": "GB",
+                    "type": "Group",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "length": 119773,
+              "id": "c033db4e-3ed4-335f-9c30-181d9133d5ad",
+              "position": 7,
+              "recording": {
+                "isrcs": [],
+                "id": "46ed1f3e-f235-4bd5-9ddf-3990c65b6438",
+                "disambiguation": "",
+                "length": 119773,
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type": "Group",
+                      "country": "GB",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "video": false,
+                "title": "The Happiest Days of Our Lives"
+              }
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "country": "GB",
+                    "type": "Group"
+                  }
+                }
+              ],
+              "length": 198800,
+              "title": "Another Brick in the Wall, Part 2",
+              "number": "8",
+              "position": 8,
+              "id": "208d1662-314e-388d-844a-9b018cc13fe4",
+              "recording": {
+                "video": false,
+                "title": "Another Brick in the Wall, Part 2",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "length": 198800,
+                "disambiguation": "",
+                "id": "3fa9684f-44f2-401d-bd8a-81e049891500",
+                "isrcs": []
+              }
+            },
+            {
+              "recording": {
+                "disambiguation": "",
+                "isrcs": [],
+                "id": "15c1ca60-e9ea-4610-beb8-7dcf91ad43f9",
+                "video": false,
+                "title": "Mother",
+                "length": 410466,
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "position": 9,
+              "id": "a2f05d40-b1fe-3da0-991c-2b938ba8f5bf",
+              "title": "Mother",
+              "number": "9",
+              "length": 410466,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB"
+                  },
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "number": "10",
+              "title": "Empty Spaces",
+              "length": 252933,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type": "Group",
+                    "country": "GB",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "disambiguation": "",
+                "id": "3d26eb6f-23ca-4a4b-bb18-ecf35e2d6676",
+                "isrcs": [],
+                "title": "Empty Spaces",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type": "Group",
+                      "country": "GB",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "length": 252933
+              },
+              "id": "75f13c66-a6ff-34cf-993c-97acbe2141b9",
+              "position": 10
+            },
+            {
+              "recording": {
+                "title": "Young Lust",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Pink Floyd"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "length": 181893,
+                "disambiguation": "",
+                "id": "51a8ecd0-4e53-4097-a11b-e97fb6e9200a",
+                "isrcs": []
+              },
+              "position": 11,
+              "id": "74080672-f676-34e8-87ee-9303cf0148b5",
+              "number": "11",
+              "title": "Young Lust",
+              "length": 181893,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                  },
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "title": "One of My Turns",
+              "number": "12",
+              "length": 213906,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "country": "GB",
+                    "type": "Group",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "recording": {
+                "first-release-date": "1979-11-30",
+                "disambiguation": "",
+                "length": 216533,
+                "video": false,
+                "isrcs": [
+                  "GBDJQ7900014",
+                  "GBDJQ9200035",
+                  "GBDJQ9400010",
+                  "GBN9Y1100104",
+                  "USSM17900261"
+                ],
+                "id": "7003ec02-7bc2-4054-b477-f739efd6df45",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "One of My Turns"
+              },
+              "position": 12,
+              "id": "a245fc23-54bd-390d-9f0a-7f3d4b1c98c1"
+            },
+            {
+              "length": 184333,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type": "Group",
+                    "country": "GB",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "title": "Don't Leave Me Now",
+              "number": "13",
+              "recording": {
+                "title": "Don’t Leave Me Now",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd"
+                    }
+                  }
+                ],
+                "length": 184333,
+                "disambiguation": "",
+                "id": "47f4c8b9-bf7f-4abc-b2c2-6a55349672f8",
+                "isrcs": []
+              },
+              "id": "7551c618-dc7c-3fda-87d6-60ae2ddda82d",
+              "position": 13
+            },
+            {
+              "title": "Another Brick in the Wall, Part 3",
+              "number": "14",
+              "length": 72933,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "length": 72933,
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "video": false,
+                "title": "Another Brick in the Wall, Part 3",
+                "isrcs": [],
+                "id": "2e946a1f-319a-4ba0-97e8-77491c64e21d",
+                "disambiguation": ""
+              },
+              "id": "d552c6e2-64c9-3ef5-9c84-1b03e0185d89",
+              "position": 14
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 55960,
+              "number": "15",
+              "title": "Goodbye Cruel World",
+              "id": "96f2ee56-eaeb-3432-90d4-4b6bf21486f9",
+              "position": 15,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type": "Group",
+                      "country": "GB"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "title": "Goodbye Cruel World",
+                "isrcs": [],
+                "id": "64018fea-b0ef-4ce7-9a90-fbcdd68c3629",
+                "length": 55960,
+                "video": false,
+                "first-release-date": "1982",
+                "disambiguation": ""
+              }
+            },
+            {
+              "title": "Is There Anybody Out There?",
+              "number": "16",
+              "length": 147133,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd"
+                  }
+                }
+              ],
+              "recording": {
+                "disambiguation": "",
+                "id": "648bc876-eb11-4eba-ab67-af97a39e59d3",
+                "isrcs": [],
+                "title": "Is There Anybody Out There?",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "length": 147133
+              },
+              "id": "24de8393-4f4f-3907-a19c-067702bbc1d8",
+              "position": 16
+            },
+            {
+              "recording": {
+                "length": 190266,
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "video": false,
+                "title": "Nobody Home",
+                "isrcs": [],
+                "id": "90e0b2b4-3860-4b8b-a383-05b32f635cf4",
+                "disambiguation": ""
+              },
+              "id": "b01b928b-a8ca-3713-b4b8-68c65280ffe5",
+              "position": 17,
+              "length": 190266,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd"
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "title": "Nobody Home",
+              "number": "17"
+            },
+            {
+              "recording": {
+                "id": "8da63c41-da84-49b4-9801-8746ed2e6f51",
+                "isrcs": [],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type": "Group",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "title": "Vera",
+                "first-release-date": "2007",
+                "disambiguation": "",
+                "length": 75840,
+                "video": false
+              },
+              "position": 18,
+              "id": "b518533d-e89e-314a-85ea-250d7ba26d0d",
+              "length": 75840,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd"
+                  }
+                }
+              ],
+              "number": "18",
+              "title": "Vera"
+            },
+            {
+              "length": 81400,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "country": "GB",
+                    "type": "Group",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd"
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "number": "19",
+              "title": "Bring the Boys Back Home",
+              "recording": {
+                "isrcs": [],
+                "id": "6187b4f3-a8fb-4375-af41-1d66cfea663b",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "country": "GB",
+                      "type": "Group"
+                    }
+                  }
+                ],
+                "title": "Bring the Boys Back Home",
+                "first-release-date": "2013",
+                "disambiguation": "",
+                "length": 81400,
+                "video": false
+              },
+              "position": 19,
+              "id": "8382e007-97a4-32bd-8ec7-f72f44d9995c"
+            },
+            {
+              "recording": {
+                "id": "c55dc379-3a7e-4c80-9e58-9ef2a616a612",
+                "isrcs": [],
+                "title": "Comfortably Numb",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "first-release-date": "1982",
+                "video": false,
+                "length": 370693
+              },
+              "id": "4187098f-9887-3d72-ab48-61e7c6fe5293",
+              "position": 20,
+              "length": 370493,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd",
+                    "country": "GB",
+                    "type": "Group",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "title": "Comfortably Numb",
+              "number": "20"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "artist": {
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 229666,
+              "title": "In the Flesh",
+              "number": "21",
+              "position": 21,
+              "id": "ec036f1a-1911-3ccd-98e3-29dc8307029b",
+              "recording": {
+                "id": "99159494-c3c8-4b4d-a821-ac85b7509cb2",
+                "isrcs": [],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "sort-name": "Pink Floyd",
+                      "type": "Group",
+                      "country": "GB"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "title": "In the Flesh",
+                "first-release-date": "1982",
+                "disambiguation": "",
+                "length": 229066,
+                "video": false
+              }
+            },
+            {
+              "number": "22",
+              "title": "Run Like Hell",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type": "Group",
+                    "country": "GB",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "length": 143974,
+              "position": 22,
+              "id": "5be43b86-4896-3a7b-adbb-02a6d953843c",
+              "recording": {
+                "disambiguation": "",
+                "id": "8200032a-5bf5-4e2c-a7e1-13f6cc8af608",
+                "isrcs": [],
+                "video": false,
+                "title": "Run Like Hell",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "length": 143973
+              }
+            },
+            {
+              "length": 146000,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type": "Group",
+                    "country": "GB",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "sort-name": "Pink Floyd"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "title": "Waiting for the Worms",
+              "number": "23",
+              "recording": {
+                "isrcs": [],
+                "id": "7226aaec-ef6c-4b0d-a88b-16305c9d5713",
+                "disambiguation": "",
+                "length": 146000,
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "Pink Floyd",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group"
+                    },
+                    "joinphrase": "",
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "title": "Waiting for the Worms",
+                "video": false
+              },
+              "id": "d21cba80-fed2-3809-88cd-45060b735e3c",
+              "position": 23
+            },
+            {
+              "number": "24",
+              "title": "Stop",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "country": "GB",
+                    "type": "Group"
+                  },
+                  "joinphrase": "",
+                  "name": "Pink Floyd"
+                }
+              ],
+              "length": null,
+              "id": "a59ad975-7181-3d12-b113-83f91d4e5109",
+              "position": 24,
+              "recording": {
+                "id": "3539b0e6-c89e-4024-8fc7-717e8037e9a7",
+                "isrcs": [],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "type": "Group",
+                      "country": "GB",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Pink Floyd",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "length": null,
+                "video": false,
+                "title": "Stop"
+              }
+            },
+            {
+              "recording": {
+                "isrcs": [
+                  "GBDJQ7900027",
+                  "GBDJQ9200050",
+                  "GBDJQ9400024",
+                  "GBN9Y1100119",
+                  "USSM17900268"
+                ],
+                "id": "a362cf52-5d85-4f34-8a69-e830ef87b5cb",
+                "title": "The Trial",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                      "country": "GB",
+                      "type": "Group",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "name": "Pink Floyd"
+                  }
+                ],
+                "disambiguation": "",
+                "first-release-date": "1979-11-30",
+                "video": false,
+                "length": 319266
+              },
+              "position": 25,
+              "id": "ff04ba0a-3dfb-3487-87e7-bf4c00b41c17",
+              "length": 323000,
+              "artist-credit": [
+                {
+                  "name": "Pink Floyd",
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "country": "GB",
+                    "type": "Group",
+                    "disambiguation": "",
+                    "name": "Pink Floyd",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "number": "25",
+              "title": "The Trial"
+            },
+            {
+              "position": 26,
+              "id": "a3f9f61c-2328-3a0f-b3db-bca542fd7de7",
+              "recording": {
+                "disambiguation": "",
+                "id": "327b6202-b023-4fde-af5e-006e0bf0e386",
+                "isrcs": [],
+                "title": "Outside the Wall",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "name": "Pink Floyd",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Pink Floyd",
+                      "country": "GB",
+                      "type": "Group",
+                      "sort-name": "Pink Floyd",
+                      "id": "83d91898-7763-47d7-b03b-b92132375c47"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "length": 302000
+              },
+              "number": "26",
+              "title": "Outside the Wall",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Pink Floyd",
+                    "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                    "country": "GB",
+                    "type": "Group",
+                    "name": "Pink Floyd",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "Pink Floyd"
+                }
+              ],
+              "length": 302000
+            }
+          ],
+          "id": "431ddede-9404-3e99-b8d9-76e19de44554",
+          "title": ""
+        }
+      ],
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "artist": {
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "disambiguation": "",
+            "name": "Pink Floyd",
+            "type": "Group",
+            "country": "GB",
+            "sort-name": "Pink Floyd",
+            "id": "83d91898-7763-47d7-b03b-b92132375c47"
+          },
+          "name": "Pink Floyd"
+        }
+      ],
+      "title": "The Wall",
+      "quality": "low",
+      "barcode": null,
+      "asin": null
+    }
+  }
+}

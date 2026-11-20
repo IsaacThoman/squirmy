@@ -1,0 +1,716 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=release%3A%22The+Wall%22+AND+artist%3A%22Pink+Floyd%22+tracks%3A26&limit=10&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T16:35:32.959Z",
+      "count": 155,
+      "offset": 0,
+      "releases": [
+        {
+          "id": "0f598088-e9e6-4733-aee5-d3c3316a1f3b",
+          "score": 100,
+          "status-id": "1156806e-d06a-38bd-83f0-cf2284a808b9",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 1,
+          "title": "The Wall",
+          "status": "Bootleg",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "fa4a6db3-9859-323f-a58f-ec9af50758d8",
+            "type-id": "22a628ad-c082-3c4f-b1b6-d41665107b88",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall: The Film Soundtrack",
+            "primary-type": "Album",
+            "secondary-types": [
+              "Soundtrack"
+            ],
+            "secondary-type-ids": [
+              "22a628ad-c082-3c4f-b1b6-d41665107b88"
+            ]
+          },
+          "track-count": 26,
+          "media": [
+            {
+              "id": "431ddede-9404-3e99-b8d9-76e19de44554",
+              "disc-count": 0,
+              "track-count": 26
+            }
+          ]
+        },
+        {
+          "id": "9e6886e7-b1bb-484d-b152-fe7d90c3e973",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 1,
+          "title": "The Wall",
+          "status": "Official",
+          "packaging": "Cassette Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall",
+            "primary-type": "Album"
+          },
+          "date": "1979",
+          "country": "SE",
+          "release-events": [
+            {
+              "date": "1979",
+              "area": {
+                "id": "23d10872-f5ae-3f0c-bf55-332788a16ecb",
+                "name": "Sweden",
+                "sort-name": "Sweden",
+                "iso-3166-1-codes": [
+                  "SE"
+                ]
+              }
+            }
+          ],
+          "barcode": "",
+          "label-info": [
+            {
+              "catalog-number": "7C 456-63412",
+              "label": {
+                "id": "c029628b-6633-439e-bcee-ed02e8a338f7",
+                "name": "EMI"
+              }
+            },
+            {
+              "catalog-number": "7C 456-63412",
+              "label": {
+                "id": "993af7f6-bb99-456b-83e7-5e728ea80a0e",
+                "name": "Harvest"
+              }
+            }
+          ],
+          "track-count": 26,
+          "media": [
+            {
+              "id": "011fd6d4-bd9c-3277-84c9-ac2a75b2d535",
+              "format": "Cassette",
+              "disc-count": 0,
+              "track-count": 26
+            }
+          ]
+        },
+        {
+          "id": "269b702a-3ded-4fc7-90f4-00e499800bc9",
+          "score": 100,
+          "status-id": "6a3772de-4605-4132-993d-aa315cd19b4b",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 1,
+          "title": "The Wall",
+          "status": "Withdrawn",
+          "disambiguation": "remastered",
+          "packaging": "None",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall",
+            "primary-type": "Album"
+          },
+          "date": "2013",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "2013",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "barcode": "5099968032159",
+          "label-info": [
+            {
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            }
+          ],
+          "track-count": 26,
+          "media": [
+            {
+              "id": "b071b150-5cc1-3a8c-b6a1-cbec55910ba7",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 26
+            }
+          ]
+        },
+        {
+          "id": "fe60fc9c-0f14-4680-aa86-35c697a370e2",
+          "score": 100,
+          "status-id": "6a3772de-4605-4132-993d-aa315cd19b4b",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 1,
+          "title": "The Wall",
+          "status": "Withdrawn",
+          "disambiguation": "remastered",
+          "packaging": "None",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall",
+            "primary-type": "Album"
+          },
+          "barcode": "5099968032159",
+          "label-info": [
+            {
+              "catalog-number": "[none]",
+              "label": {
+                "id": "96772f8e-b725-4f74-a053-921a573fa0e8",
+                "name": "Pink Floyd Records"
+              }
+            }
+          ],
+          "track-count": 26,
+          "media": [
+            {
+              "id": "c05b976d-81df-3323-ba40-a229cdc8c9d6",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 26
+            }
+          ]
+        },
+        {
+          "id": "5da676af-eee4-46a7-a18a-5fde07fc8acf",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "d60b6157-79fe-3913-ab8b-23b32de8690d",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 1,
+          "title": "The Wall",
+          "status": "Official",
+          "packaging": "Book",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall",
+            "primary-type": "Album"
+          },
+          "date": "1979",
+          "country": "NZ",
+          "release-events": [
+            {
+              "date": "1979",
+              "area": {
+                "id": "8524c7d9-f472-3890-a458-f28d5081d9c4",
+                "name": "New Zealand",
+                "sort-name": "New Zealand",
+                "iso-3166-1-codes": [
+                  "NZ"
+                ]
+              }
+            }
+          ],
+          "barcode": "",
+          "label-info": [
+            {
+              "catalog-number": "2PC216",
+              "label": {
+                "id": "b8d33bec-92cc-40d9-bd92-4eb089b401a9",
+                "name": "CBS"
+              }
+            }
+          ],
+          "track-count": 26,
+          "media": [
+            {
+              "id": "a21fc9eb-a5a8-316d-93eb-71161ced8cc5",
+              "format": "Cassette",
+              "disc-count": 0,
+              "track-count": 26
+            }
+          ],
+          "tags": [
+            {
+              "count": 1,
+              "name": "classic rock"
+            }
+          ]
+        },
+        {
+          "id": "14db3839-4007-3b46-9e7c-619f37ac19a4",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 2,
+          "title": "The Wall",
+          "status": "Official",
+          "disambiguation": "“written by Roger Waters”",
+          "packaging": "Gatefold Cover",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall",
+            "primary-type": "Album"
+          },
+          "date": "1979-11-30",
+          "country": "DE",
+          "release-events": [
+            {
+              "date": "1979-11-30",
+              "area": {
+                "id": "85752fda-13c4-31a3-bee5-0e5cb1f51dad",
+                "name": "Germany",
+                "sort-name": "Germany",
+                "iso-3166-1-codes": [
+                  "DE"
+                ]
+              }
+            }
+          ],
+          "barcode": "",
+          "label-info": [
+            {
+              "catalog-number": "1C 198-63 410/11",
+              "label": {
+                "id": "993af7f6-bb99-456b-83e7-5e728ea80a0e",
+                "name": "Harvest"
+              }
+            },
+            {
+              "catalog-number": "1C 198-63 410/11",
+              "label": {
+                "id": "04eb3226-fd4c-4dfb-ae02-c888f0a0e977",
+                "name": "EMI Electrola"
+              }
+            }
+          ],
+          "track-count": 26,
+          "media": [
+            {
+              "id": "d6324807-106d-3aba-a72f-e4b06c1abcef",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 13
+            },
+            {
+              "id": "951ad29a-c074-37d9-a5d7-fe26d543f883",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 13
+            }
+          ]
+        },
+        {
+          "id": "688373f3-9907-4596-bd70-2731ad1de22d",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 2,
+          "title": "The Wall",
+          "status": "Official",
+          "packaging": "None",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall",
+            "primary-type": "Album"
+          },
+          "date": "2021-10-19",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "2021-10-19",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "barcode": "886445613841",
+          "label-info": [
+            {
+              "catalog-number": "G0100034461958",
+              "label": {
+                "id": "96772f8e-b725-4f74-a053-921a573fa0e8",
+                "name": "Pink Floyd Records"
+              }
+            }
+          ],
+          "track-count": 26,
+          "media": [
+            {
+              "id": "16087fbf-d971-3841-a4cb-e49d31f83bb6",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 13
+            },
+            {
+              "id": "454144bc-2f8f-3278-bfb2-7bf22c7798f8",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 13
+            }
+          ]
+        },
+        {
+          "id": "9d188442-bc79-4349-9516-92788978a4ca",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 2,
+          "title": "The Wall",
+          "status": "Official",
+          "disambiguation": "MFSL edition",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall",
+            "primary-type": "Album"
+          },
+          "date": "1991-03",
+          "country": "US",
+          "release-events": [
+            {
+              "date": "1991-03",
+              "area": {
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "sort-name": "United States",
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              }
+            }
+          ],
+          "barcode": "015775253728",
+          "asin": "B00000DWPK",
+          "label-info": [
+            {
+              "catalog-number": "UDCD 2-537",
+              "label": {
+                "id": "edd54e2f-2eef-46b1-a9b5-bedfe5ed33be",
+                "name": "Mobile Fidelity Sound Lab"
+              }
+            }
+          ],
+          "track-count": 26,
+          "media": [
+            {
+              "id": "03515fdb-f1c6-3ea6-8a58-41447ba9a0f2",
+              "format": "CD",
+              "disc-count": 2,
+              "track-count": 13
+            },
+            {
+              "id": "9208324f-45ba-3392-9349-093f3445d134",
+              "format": "CD",
+              "disc-count": 2,
+              "track-count": 13
+            }
+          ],
+          "tags": [
+            {
+              "count": 1,
+              "name": "26053061"
+            },
+            {
+              "count": 1,
+              "name": "26053063"
+            }
+          ]
+        },
+        {
+          "id": "ac2e7f37-b95c-3cc6-bf99-8f2a991d01d1",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "57429523-ffe6-3336-9381-32565c142c18",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 2,
+          "title": "The Wall",
+          "status": "Official",
+          "packaging": "Fatbox",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall",
+            "primary-type": "Album"
+          },
+          "date": "1985",
+          "country": "DE",
+          "release-events": [
+            {
+              "date": "1985",
+              "area": {
+                "id": "85752fda-13c4-31a3-bee5-0e5cb1f51dad",
+                "name": "Germany",
+                "sort-name": "Germany",
+                "iso-3166-1-codes": [
+                  "DE"
+                ]
+              }
+            }
+          ],
+          "barcode": "077774603683",
+          "asin": "B00004UPWW",
+          "label-info": [
+            {
+              "catalog-number": "CDP 7 46036 8",
+              "label": {
+                "id": "993af7f6-bb99-456b-83e7-5e728ea80a0e",
+                "name": "Harvest"
+              }
+            }
+          ],
+          "track-count": 26,
+          "media": [
+            {
+              "id": "147458a9-8547-3251-b049-26a5453a1d21",
+              "format": "CD",
+              "disc-count": 0,
+              "track-count": 13
+            },
+            {
+              "id": "6fdb42f6-0006-343b-8947-5de226aab5cd",
+              "format": "CD",
+              "disc-count": 0,
+              "track-count": 13
+            }
+          ],
+          "tags": [
+            {
+              "count": 1,
+              "name": "progressive rock"
+            },
+            {
+              "count": 1,
+              "name": "art rock"
+            }
+          ]
+        },
+        {
+          "id": "d2ef6b62-9d76-40eb-92c0-f5d677c40ea1",
+          "score": 92,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "artist-credit-id": "0b81ed37-abef-3a61-95a1-96078197007b",
+          "count": 2,
+          "title": "The Wall",
+          "status": "Official",
+          "disambiguation": "half-speed mastered",
+          "packaging": "Cardboard/Paper Sleeve",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Pink Floyd",
+              "artist": {
+                "id": "83d91898-7763-47d7-b03b-b92132375c47",
+                "name": "Pink Floyd",
+                "sort-name": "Pink Floyd"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "f2026101-945b-3d05-9ef4-aa718fc3feef",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "The Wall",
+            "primary-type": "Album"
+          },
+          "date": "1982",
+          "country": "US",
+          "release-events": [
+            {
+              "date": "1982",
+              "area": {
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "sort-name": "United States",
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              }
+            }
+          ],
+          "barcode": "",
+          "label-info": [
+            {
+              "catalog-number": "H2C 46183",
+              "label": {
+                "id": "011d1192-6f65-45bd-85c4-0400dd45693e",
+                "name": "Columbia"
+              }
+            }
+          ],
+          "track-count": 26,
+          "media": [
+            {
+              "id": "ba7a835c-c17c-30fb-93eb-f327f8a65cc0",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 13
+            },
+            {
+              "id": "0ff821f1-9f23-39d8-9d83-6caf417e567c",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 13
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
