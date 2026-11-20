@@ -8,7 +8,7 @@ import { removeAccountItems } from '../data/accountStorage';
 import { cacheBuster, cacheMaxAgeMs, removeCache, restoreCache, saveCache } from '../data/cache';
 import { useNotice } from '../Notice';
 import { reduceAuth, type AuthEvent, type AuthState } from './auth';
-import { clientName, fetchWithTimeout, type Server } from './server';
+import { clientName, fetchWithTimeout, serverFrom, type Server } from './server';
 import { clientDevice, keychain, loadAccount, saveAccount } from './storage';
 
 export type Api = ReturnType<typeof createApiClient>;
@@ -120,6 +120,16 @@ export function AccountProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (me.data) dispatch({ type: 'userLoaded', user: me.data });
   }, [me.data]);
+
+  // The server may have been updated or renamed since it was saved; what it says now is shown.
+  const status = useQuery({
+    queryKey: ['setup-status', server?.url],
+    queryFn: () => api!.auth.setupStatus(),
+    enabled: Boolean(api),
+  });
+  useEffect(() => {
+    if (status.data && server) dispatch({ type: 'serverLoaded', server: serverFrom(server.url, status.data) });
+  }, [server, status.data]);
 
   const value = useMemo<AccountContextValue>(() => {
     const leave = (event: AuthEvent) => {
