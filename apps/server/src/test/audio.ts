@@ -13,7 +13,11 @@ export type ToneSpec = {
   path: string
   durationSec?: number
   frequency?: number
-  /** Level of the tone. Keep it very quiet: tests play these out loud. */
+  /**
+   * Gain applied to the tone, which starts at -18 dBFS. Keep it very quiet: tests play
+   * these out loud. The default of -50 dB is below the loudness meter's -70 LUFS gate, so
+   * such a file measures as silence; use about -30 dB when a test needs a real reading.
+   */
   volumeDb?: number
   /** Written as-is with `-metadata`. Use the container's own tag names (e.g. MUSICBRAINZ_ALBUMID). */
   tags?: Record<string, string | number>
@@ -71,6 +75,8 @@ export type AlbumSpec = {
   year?: number
   genre?: string
   format?: ToneFormat
+  /** Level for every track of the album; see ToneSpec.volumeDb. */
+  volumeDb?: number
   /** Folder under the library root. Defaults to "Artist/Album". */
   folder?: string
   tracks: { title: string; durationSec?: number; artist?: string; disc?: number; tags?: Record<string, string | number> }[]
@@ -93,6 +99,7 @@ export async function makeAlbum(root: string, spec: AlbumSpec): Promise<string[]
     paths.push(await makeTone(root, {
       path: path.join(folder, `${disc > 1 ? `${disc}-` : ''}${number} ${track.title.replace(/[/\\:]/g, '_')}.${format}`),
       durationSec: track.durationSec,
+      volumeDb: spec.volumeDb,
       frequency: 220 + position * 40,
       cover: spec.cover,
       tags: {
