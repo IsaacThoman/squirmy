@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TrackSummary as Track } from '@squirmy/contracts';
 import TransportSlider from './player/TransportSlider';
@@ -14,6 +14,9 @@ export type SheetRowProps = {
 export type SheetInfoProps = { icon: string; title: string; subtitle: string };
 export type TrackSummaryProps = { track: Track | undefined; subtitle?: string };
 export type SheetSliderProps = { label: string; value: number; onChange: (value: number) => void };
+export type SheetFieldProps = { label: string; value: string; onChange: (value: string) => void; onSubmit: () => void; autoFocus?: boolean };
+export type SheetActionProps = { title: string; disabled?: boolean; onPress: () => void };
+export type SheetScrollProps = { height: number; children: ReactNode };
 
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
   const styles = useStyles();
@@ -35,6 +38,12 @@ export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
 export function SheetRows({ children }: { children: ReactNode }) {
   const styles = useStyles();
   return <View style={styles.rows}>{children}</View>;
+}
+
+/** Rows that scroll inside a sheet of this height, for lists that would not fit. */
+export function SheetScroll({ height, children }: SheetScrollProps) {
+  const styles = useStyles();
+  return <ScrollView style={{ maxHeight: height }} contentContainerStyle={styles.rows} keyboardShouldPersistTaps="handled">{children}</ScrollView>;
 }
 
 export function SheetRow({ title, subtitle, icon, color, selected, onPress }: SheetRowProps) {
@@ -98,6 +107,22 @@ export function SheetSlider({ label, value, onChange }: SheetSliderProps) {
   );
 }
 
+export function SheetField({ label, value, onChange, onSubmit, autoFocus }: SheetFieldProps) {
+  const colors = useColors();
+  const styles = useStyles();
+  return <TextInput value={value} onChangeText={onChange} placeholder={label} accessibilityLabel={label} placeholderTextColor={colors.muted}
+    autoFocus={autoFocus} returnKeyType="done" onSubmitEditing={onSubmit} style={styles.field} />;
+}
+
+/** The sheet's one prominent button. */
+export function SheetAction({ title, disabled, onPress }: SheetActionProps) {
+  const styles = useStyles();
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+    style={({ pressed }) => [styles.action, disabled && styles.disabled, pressed && styles.pressed]}>
+    <Text style={styles.actionTitle}>{title}</Text>
+  </Pressable>;
+}
+
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   sheet: { paddingTop: 27, paddingHorizontal: 22, gap: 15 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36 },
@@ -115,4 +140,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   rowSubtitle: { color: colors.muted, fontSize: 13, fontWeight: '500' },
   slider: { gap: 4, paddingHorizontal: 4 },
   sliderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  field: { minHeight: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: colors.surface, color: colors.text, fontSize: 16 },
+  action: { minHeight: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  actionTitle: { color: colors.onAccent, fontSize: 15, fontWeight: '700' },
+  disabled: { opacity: 0.45 },
 }));

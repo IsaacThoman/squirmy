@@ -80,6 +80,13 @@ describe('availability', () => {
     expect(playableSeeds([track('a', 'none'), track('b', 'none')]).seeds).toEqual([]);
   });
 
+  it('queues only what the rule allows, such as downloads while offline', () => {
+    const downloaded = new Set(['b', 'd']);
+    const result = playableSeeds([track('a'), track('b'), track('c'), track('d')], 0, item => downloaded.has(item.id));
+    expect(result.seeds.map(seed => seed.trackId)).toEqual(['b', 'd']);
+    expect(playableSeeds([track('a'), track('b'), track('c'), track('d')], 2, item => downloaded.has(item.id)).startIndex).toBe(1);
+  });
+
   it('reports entries that failed after preparing, once', () => {
     const before = { current: entry('a', 'preparing'), queue: [entry('b', 'preparing'), entry('c', 'ready')], history: [], autoplayQueue: [] };
     const after = { current: entry('c', 'ready'), queue: [entry('b', 'preparing')], history: [entry('a', 'failed')], autoplayQueue: [] };

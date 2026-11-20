@@ -7,8 +7,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
-import { useSignedInApi, type Api } from '../account/AccountProvider';
+import { useAccountKey, useSignedInApi, type Api } from '../account/AccountProvider';
 import { useNotice } from '../Notice';
+import { accountItem } from './accountStorage';
+import { LikeQueue, type QueuedLike } from './likeQueue';
 import { useRealtime } from './realtime';
 
 type LikeKey = `${LikeEntityType}:${string}`;
@@ -27,16 +29,21 @@ const noSummaries = () => Promise.reject(new Error('Signed out'));
 
 /**
  * What the user keeps: likes, the wantlist and the track summaries every screen shares.
- * Likes apply at once and roll back if the server refuses them.
+ * Likes apply at once. Made offline, they wait in a queue (kept across launches) and are
+ * sent when the server is back; one the server refuses rolls back.
  */
 export function LibraryProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
+  const account = useAccountKey();
   const queryClient = useQueryClient();
   const notify = useNotice();
-  const { onInvalidate } = useRealtime();
+  const { onInvalidate, offline } = useRealtime();
   const tracks = useMemo(() => new TrackStore(api ? body => api.catalog.trackSummaries(body) : noSummaries), [api]);
+  const queue = useMemo(() => api && account ? new LikeQueue(likeStorage(account), async ({ type, id, liked }) => {
+    await (liked ? api.userdata.like(type, id) : api.userdata.unlike(type, id));
+  }) : null, [account, api]);
   const [likes, setLikes] = useState<ReadonlyMap<LikeKey, boolean>>(new Map());
-  useEffect(() => setLikes(new Map()), [api]);
+  useEffect(() => setLikes(new Map(queue?.pending.map(like => [`${like.type}:${like.id}`, like.liked] as const))), [queue]);
 
   const remember = useCallback((key: LikeKey, liked: boolean | undefined) => setLikes(current => {
     const next = new Map(current);
@@ -61,21 +68,27 @@ export function LibraryProvider({ children }: PropsWithChildren) {
     }
   }), [api, onInvalidate, remember, tracks]);
 
+  const flush = useCallback(() => {
+    void queue?.flush().then(({ applied, refused }) => {
+      if (applied.length) void queryClient.invalidateQueries({ queryKey: queryKeys.likes() });
+      for (const like of refused) {
+        remember(`${like.type}:${like.id}`, undefined);
+        notify(like.liked ? 'Couldn’t add that to your likes.' : 'Couldn’t remove that from your likes.');
+      }
+    });
+  }, [notify, queryClient, queue, remember]);
+  useEffect(() => {
+    if (!offline) flush();
+  }, [flush, offline]);
+
   const value = useMemo<LibraryValue>(() => ({
     tracks,
     likes,
     setLiked: (type, id, liked) => {
-      if (!api) return;
-      const key: LikeKey = `${type}:${id}`;
-      const before = likes.get(key);
-      remember(key, liked);
-      (liked ? api.userdata.like(type, id) : api.userdata.unlike(type, id)).then(
-        () => void queryClient.invalidateQueries({ queryKey: queryKeys.likes() }),
-        () => {
-          remember(key, before);
-          notify(liked ? 'Couldn’t add that to your likes.' : 'Couldn’t remove that from your likes.');
-        },
-      );
+      if (!queue) return;
+      remember(`${type}:${id}`, liked);
+      queue.add({ type, id, liked });
+      flush();
     },
     want: (type, id, title) => {
       if (!api) return;
@@ -86,9 +99,14 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         }
       }, () => notify('Couldn’t add that to your wantlist.'));
     },
-  }), [api, likes, notify, queryClient, remember, tracks]);
+  }), [api, flush, likes, notify, queryClient, queue, remember, tracks]);
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
+}
+
+function likeStorage(account: string) {
+  const item = accountItem<QueuedLike[]>('likes', account);
+  return { load: () => item.read() ?? [], save: (likes: readonly QueuedLike[]) => item.write([...likes]) };
 }
 
 function useLibrary(): LibraryValue {
