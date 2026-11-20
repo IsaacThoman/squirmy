@@ -25,7 +25,7 @@ import {
 import { useRealtime } from './data/realtime';
 import { SongList } from './library/SongList';
 import { ZoomLink, ZoomSource } from './library/ZoomLink';
-import { usePlaybackState } from './playback';
+import { usePlaybackState, useTrackPreparing } from './playback';
 import { createThemedStyles, unavailableOpacity, useColors } from './theme';
 import { Cover } from './ui';
 
@@ -236,16 +236,18 @@ function TopResultView({ top, groups, link, onTrackMenu }: SearchSections & Pick
   const playAlbum = useAlbumPlayer();
   const { actions } = usePlaybackState();
   const { canPlay } = useAvailability();
+  const preparing = useTrackPreparing(top?.type === 'track' ? top.track.id : undefined);
   if (!top) return null;
   if (top.type === 'track') {
     const { track } = top;
     const tracks = groups[top.group].tracks;
     const playable = canPlay(track);
+    const subtitle = preparing ? 'Preparing…' : `Song · ${track.artistCredit}`;
     const play = () => {
       tapFeedback();
       actions.playTracks(tracks, { start: tracks.indexOf(track), context: { type: 'search', id: null, title: null } });
     };
-    return <TopResult title={track.title} subtitle={`Song · ${track.artistCredit}`} size={topCoverSize} dim={!playable}
+    return <TopResult title={track.title} subtitle={subtitle} size={topCoverSize} dim={!playable}
       cover={<Cover artwork={track.album?.artwork} size={topCoverSize} radius={10} />}
       onPress={playable ? play : () => onTrackMenu(track)} onPlay={playable ? play : undefined} />;
   }

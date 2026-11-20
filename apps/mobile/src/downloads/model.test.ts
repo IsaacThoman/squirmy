@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { canPlay, extensionFor, formatBytes, retryDelay, sizeMatches, waitReason } from './model';
+import {
+  canPlay, canRequestMusic, extensionFor, formatBytes, retryDelay, sizeMatches, trackMark, unavailableReason, waitReason,
+} from './model';
 
 describe('download rules', () => {
   it('waits longer after each failure, up to 15 minutes', () => {
@@ -35,11 +37,31 @@ describe('download rules', () => {
 
   it('plays only downloads offline, and downloads or server files online', () => {
     const downloaded = (id: string) => id === 'here';
-    expect(canPlay({ id: 'here', availability: 'none' }, { offline: true, downloaded })).toBe(true);
-    expect(canPlay({ id: 'there', availability: 'server' }, { offline: true, downloaded })).toBe(false);
-    expect(canPlay({ id: 'there', availability: 'server' }, { offline: false, downloaded })).toBe(true);
-    expect(canPlay({ id: 'there', availability: 'on_demand' }, { offline: false, downloaded })).toBe(true);
-    expect(canPlay({ id: 'there', availability: 'none' }, { offline: false, downloaded })).toBe(false);
+    const online = { offline: false, downloaded, canRequest: true };
+    expect(canPlay({ id: 'here', availability: 'none' }, { ...online, offline: true })).toBe(true);
+    expect(canPlay({ id: 'there', availability: 'server' }, { ...online, offline: true })).toBe(false);
+    expect(canPlay({ id: 'there', availability: 'server' }, online)).toBe(true);
+    expect(canPlay({ id: 'there', availability: 'on_demand' }, online)).toBe(true);
+    expect(canPlay({ id: 'there', availability: 'none' }, online)).toBe(false);
+  });
+
+  it('plays on-demand tracks only for those who may have them fetched', () => {
+    const downloaded = () => false;
+    expect(canPlay({ id: 'there', availability: 'on_demand' }, { offline: false, downloaded, canRequest: false })).toBe(false);
+    expect(canPlay({ id: 'there', availability: 'server' }, { offline: false, downloaded, canRequest: false })).toBe(true);
+    expect(canRequestMusic({ role: 'admin', canAcquire: false })).toBe(true);
+    expect(canRequestMusic({ role: 'member', canAcquire: true })).toBe(true);
+    expect(canRequestMusic({ role: 'member', canAcquire: false })).toBe(false);
+    expect(unavailableReason({ availability: 'on_demand' }, false)).toMatch(/ask an admin/);
+    expect(unavailableReason({ availability: 'none' }, false)).toBe('not in your library');
+    expect(unavailableReason({ availability: 'server' }, true)).toBe('not downloaded');
+  });
+
+  it('marks downloads, and on-demand tracks that can be fetched', () => {
+    expect(trackMark(undefined, { availability: 'on_demand' }, true)).toBe('icloud.and.arrow.down');
+    expect(trackMark(undefined, { availability: 'on_demand' }, false)).toBeNull();
+    expect(trackMark(undefined, { availability: 'server' }, true)).toBeNull();
+    expect(trackMark({ state: 'done', bytes: 1, gone: false }, { availability: 'server' }, true)).toBe('arrow.down.circle.fill');
   });
 
   it('formats sizes', () => {
