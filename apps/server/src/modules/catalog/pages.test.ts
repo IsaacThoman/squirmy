@@ -1,10 +1,10 @@
-import { AlbumDetail, ArtistDetail, HomeResponse, Lyrics, TrackSummariesResponse, TrackSummary } from '@squirmy/contracts'
+import { AlbumDetail, ArtistDetail, HomeResponse, Lyrics, TrackPage, TrackSummariesResponse, TrackSummary } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, artists, likes, lyrics, playlistItems, playlists, recordings, releaseTracks, wants } from '../../database/schema.js'
+import { albumArtists, albums, artists, likes, lyrics, mediaFiles, playlistItems, playlists, recordings, releaseTracks, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createPlay } from '../../test/catalog.js'
@@ -56,6 +56,24 @@ describe('catalog pages', () => {
       [2, 'Bonus', [['Three', 1, 'server']]],
     ])
     expect(detail.discs[0]!.tracks.every((track) => track.album?.id === album.albumId)).toBe(true)
+  })
+
+  it('lists owned tracks the release does not have after its own, unnumbered and in the album', async () => {
+    const album = await createAlbum({ title: 'Standard Edition', owned: true, tracks: [{ title: 'Opener' }, { title: 'Closer' }] })
+    // Bonus tracks the matcher attached to the album with no release track.
+    const bonus = await createAlbum({ owned: true, tracks: [{ title: 'Bonus B' }, { title: 'Bonus A' }] })
+    for (const [index, track] of bonus.tracks.entries()) {
+      await db.update(mediaFiles).set({ albumId: album.albumId, releaseId: album.releaseId, releaseTrackId: null, relPath: `Standard/0${3 + index} ${track.title}.flac` })
+        .where(eq(mediaFiles.id, track.fileId!))
+    }
+    const detail = body(await get(`/albums/${album.albumId}`), AlbumDetail)
+    expect(detail.discs.map((disc) => [disc.disc, disc.tracks.map((track) => [track.title, track.position, track.availability, track.album?.id])])).toEqual([
+      [1, [['Opener', 1, 'server', album.albumId], ['Closer', 2, 'server', album.albumId], ['Bonus B', null, 'server', album.albumId], ['Bonus A', null, 'server', album.albumId]]],
+    ])
+    expect(detail).toMatchObject({ availability: 'full', trackCount: 2 })
+
+    const library = body(await get('/library/tracks?limit=50'), TrackPage)
+    expect(library.items.map((track) => track.id)).toEqual(expect.arrayContaining(bonus.tracks.map((track) => track.recordingId)))
   })
 
   it('answers 404 with stable codes and 400 for malformed ids', async () => {

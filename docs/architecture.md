@@ -227,6 +227,7 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 - Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
 - Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
 - A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
+- An album's track list is `albumTrackList` (`catalog/pages.ts`), for the album page and Subsonic's `getAlbum`: the canonical release's tracks, then owned recordings filed under the album that the release does not list (bonus tracks, files matched with no track) in path order on the last disc, with no position. Subsonic numbers those after the disc's last track. Availability still counts only the canonical tracks.
 
 ### Search
 

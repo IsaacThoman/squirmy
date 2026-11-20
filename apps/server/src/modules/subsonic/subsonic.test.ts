@@ -665,6 +665,18 @@ describe('subsonic', () => {
     expect((await mira.client.call('getMusicFolders')).musicFolders.musicFolder.map((folder: { name: string }) => folder.name)).toEqual(['Music', 'Other'])
   })
 
+  it('lists songs the release does not number after its own, numbered after them', async () => {
+    const edition = await createAlbum({ title: 'Plain Edition', artist: await createArtist({ name: 'Yarrow' }), owned: true, rootId, tracks: [{ title: 'First' }, { title: 'Second' }] })
+    const bonus = await createAlbum({ owned: true, rootId, tracks: [{ title: 'Extra' }] })
+    // Tagged as track 1: a number of the release's own.
+    await db.update(mediaFiles).set({ albumId: edition.albumId, releaseId: edition.releaseId, releaseTrackId: null, tags: { title: 'Extra', track: 1 } })
+      .where(eq(mediaFiles.id, bonus.tracks[0]!.fileId!))
+    const { album } = await mira.client.call('getAlbum', { id: `al-${edition.albumId}` })
+    expect(album.song.map((entry: { title: string; track: number; discNumber: number }) => [entry.title, entry.discNumber, entry.track])).toEqual([
+      ['First', 1, 1], ['Second', 1, 2], ['Extra', 1, 3],
+    ])
+  })
+
   const partialGain = (body: Record<string, any>) => body.song.replayGain
   const names = (body: Record<string, any>) => (body.albumList2.album ?? []).map((album: { name: string }) => album.name)
 })
