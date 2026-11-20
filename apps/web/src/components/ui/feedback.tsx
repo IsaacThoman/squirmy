@@ -44,3 +44,12 @@ export function EmptyState({ icon, title, description, action, className }: { ic
     </div>
   )
 }
+
+/** `value` from 0 to 1, or null while the total is not known yet. */
+export function ProgressBar({ value, label }: { value: number | null; label: string }) {
+  return (
+    <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value === null ? undefined : Math.round(value * 100)} className="h-1.5 overflow-hidden rounded-full bg-stroke">
+      <div className={cn('h-full rounded-full bg-accent transition-[width] duration-200', value === null && 'animate-pulse opacity-50')} style={{ width: `${(value ?? 1) * 100}%` }} />
+    </div>
+  )
+}

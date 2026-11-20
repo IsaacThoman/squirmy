@@ -1,11 +1,12 @@
 import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
-import { Bookmark, Disc3, House, ListMusic, MicVocal, Plus, Search, Shield } from 'lucide-react'
+import { Bookmark, Disc3, House, ListMusic, MicVocal, Plus, Search, Shield, Upload } from 'lucide-react'
 import { useState, type DragEvent, type ReactNode } from 'react'
 import { NavLink } from 'react-router'
 import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
 import { IconButton } from '@/components/ui/icon-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip } from '@/components/ui/tooltip'
+import { canUploadMusic } from '@/lib/catalog'
 import { draggedTracks } from '@/lib/drag'
 import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -61,6 +62,7 @@ export function Sidebar({ user, playlists, likedCount }: SidebarProps) {
         <SidebarLink to="/library/artists" icon={<MicVocal />}>Artists</SidebarLink>
         <SidebarLink to="/library/songs" icon={<ListMusic />}>Songs</SidebarLink>
         <SidebarLink to="/wantlist" icon={<Bookmark />}>Wantlist</SidebarLink>
+        {canUploadMusic(user) && <SidebarLink to="/imports" icon={<Upload />}>Add music</SidebarLink>}
       </div>
 
       <div className="mt-6 flex items-center justify-between pl-6 pr-3 max-lg:mt-4 max-lg:justify-center max-lg:border-t max-lg:border-stroke max-lg:px-0 max-lg:pt-4">

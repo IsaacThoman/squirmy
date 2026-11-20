@@ -5,11 +5,11 @@ import type { z } from 'zod'
 import { useFormSubmit } from '@/api/errors'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
-import { Badge, Skeleton, Spinner } from '@/components/ui/feedback'
+import { Badge, ProgressBar, Skeleton, Spinner } from '@/components/ui/feedback'
 import { Field, FormError, Input } from '@/components/ui/input'
 import { formatBytes, formatDate, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { AdminHeader, ProgressBar, Stat } from './AdminLayout'
+import { AdminHeader, Stat } from './AdminLayout'
 
 type SearchIndexAdminProps = {
   /** Undefined while loading. */

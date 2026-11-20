@@ -7,7 +7,6 @@ import { PageTitle } from '@/components/music/SectionHeader'
 import { Button } from '@/components/ui/button'
 import { DialogClose, DialogFooter } from '@/components/ui/dialog'
 import { FormError } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
 
 const groups = [
   {
@@ -74,15 +73,6 @@ export function Stat({ label, value, detail }: { label: string; value: string; d
       <p className="text-xs font-semibold text-muted">{label}</p>
       <p className="mt-1 text-2xl font-bold tabular tracking-tight">{value}</p>
       {detail && <div className="mt-0.5 text-xs text-quiet">{detail}</div>}
-    </div>
-  )
-}
-
-/** `value` from 0 to 1, or null while the total is not known yet. */
-export function ProgressBar({ value, label }: { value: number | null; label: string }) {
-  return (
-    <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value === null ? undefined : Math.round(value * 100)} className="h-1.5 overflow-hidden rounded-full bg-stroke">
-      <div className={cn('h-full rounded-full bg-accent transition-[width] duration-200', value === null && 'animate-pulse opacity-50')} style={{ width: `${(value ?? 1) * 100}%` }} />
     </div>
   )
 }

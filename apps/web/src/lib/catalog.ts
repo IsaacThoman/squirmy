@@ -1,4 +1,4 @@
-import type { AlbumSummary } from '@squirmy/contracts'
+import type { AlbumSummary, TrackSummary, User } from '@squirmy/contracts'
 
 const albumTypes: Record<AlbumSummary['type'], string> = {
   album: 'Album', ep: 'EP', single: 'Single', compilation: 'Compilation', live: 'Live', soundtrack: 'Soundtrack', other: 'Release',
@@ -11,6 +11,21 @@ export function albumTypeLabel(type: AlbumSummary['type']) {
 /** True when nothing on the album can be played from the server right now. */
 export function isUnowned(album: Pick<AlbumSummary, 'availability'>) {
   return album.availability === 'none' || album.availability === 'on_demand'
+}
+
+/** Admins, and members with "can acquire", may have the server fetch music on demand. */
+export function canRequestMusic(user: Pick<User, 'role' | 'canAcquire'>) {
+  return user.role === 'admin' || user.canAcquire
+}
+
+/** Admins, and members with "can upload", may add music through the server. */
+export function canUploadMusic(user: Pick<User, 'role' | 'canUpload'>) {
+  return user.role === 'admin' || user.canUpload
+}
+
+/** On the server, or on demand for someone who may request it. */
+export function isPlayable(track: Pick<TrackSummary, 'availability'>, canRequest: boolean) {
+  return track.availability === 'server' || (track.availability === 'on_demand' && canRequest)
 }
 
 /** Tile colors for genres, picked by name so a genre keeps its color. */
