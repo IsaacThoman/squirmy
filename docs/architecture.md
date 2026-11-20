@@ -88,7 +88,7 @@ export type ServerModule = {
 | `loudness` | EBU R128 measurement, album loudness, normalization values | 2 |
 | `userdata` | likes, ratings, playlists, history, wants, user settings | 2 |
 | `sessions` | playback sessions over socket.io, devices, play recording | 2–3 |
-| `metadata` | clients for MusicBrainz, Cover Art Archive, Deezer, Wikidata, LRCLIB, ListenBrainz, AcoustID, fanart.tv | 4 |
+| `metadata` | clients for MusicBrainz, Cover Art Archive, Deezer, Wikidata, LRCLIB, ListenBrainz, AcoustID, fanart.tv, Last.fm | 4 |
 | `matching` | album matcher, scoring, review queue, fix match, merges | 4 |
 | `enrichment` | covers, artist images, bios, lyrics, external ids, new-release feed | 4 |
 | `organize` | managed roots: planner, mover, journal, undo, tag writer | 4 |
@@ -169,7 +169,7 @@ await schedule('library.scan-all', '0 4 * * *')
 
 ### HTTP API
 
-All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`.
+All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`; short lists (users, invites, app passwords, roots, devices) return every item with `nextCursor: null`. `GET /admin/jobs` returns a bare array. `createApiClient` in client-core has one method per route below, and its response schemas are the reference for each route's shape.
 
 | Route | Module | Notes |
 |---|---|---|
@@ -223,8 +223,9 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 
 ### Sessions
 
-The server holds one session per user in memory, persisted to `playback_sessions` on change (debounced one second). Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed.
+The server holds one session per user in memory, persisted to `playback_sessions` on change (debounced one second). Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed (`queueChanged`), emitted just before the `session:state` of the same version.
 
+- **Commands.** The server passes the envelope's `commandId` to the reducer (new entry ids derive from it), remembers recent command ids and acks a duplicate without applying it again, and acks a command before broadcasting its result. Server-issued commands use a fresh id.
 - **Active device.** The first device that sends a command that starts playback while no device is active becomes active. `transfer` changes it. Only the active device may send `trackEnded` and engine reports.
 - **Disconnects.** If the active device's last socket closes, the server waits 20 seconds, then applies `deviceLost` (pause at the last known position, clear the active device).
 - **Plays.** A play row opens when an entry starts on the active device and closes when it ends or changes. It counts as completed after half the track or four minutes.
@@ -248,23 +249,39 @@ Album grouping key: root id, parent directory (ignoring `CD1`/`Disc 2` subfolder
 
 All clients live in `modules/metadata/` and go through `lib/http.ts`:
 
-- `cachedFetch(provider, url, { ttl })` stores responses in `http_cache` and serves them until they expire.
-- `rateLimit(key, intervalMs)` reserves the next slot in the `rate_limits` table, so the limit holds across processes. MusicBrainz uses 1100 ms.
+- `cachedFetch(provider, url, { ttlSeconds, … })` stores responses in `http_cache` and serves them until they expire. 404s are cached for at most six hours, 5xx never; 429/503 are retried honoring `Retry-After`. `cache: 'reload' | 'no-store'` bypasses the cache for one call.
+- `rateLimit(key, intervalMs)` reserves the next slot in the `rate_limits` table, so the limit holds across processes. MusicBrainz uses 1100 ms (only against musicbrainz.org; a mirror is not limited).
 - User-Agent: `Squirmy/<version> ( https://github.com/IsaacThoman/squirmy )`.
-- Every provider checks its toggle in `ServerSettings` and returns "unavailable" rather than throwing when it is off.
-- Tests never touch the network. They load recorded responses from `src/test/http/<provider>/` through a `fetch` stub.
+- Every provider checks its toggle or key in `ServerSettings` and returns null or an empty list rather than throwing when it is off. "Not found" is null too; a provider failure (network, timeout, 5xx, bad key) throws `ProviderError`.
+- Other modules import the clients from `modules/metadata/index.ts`, e.g. `musicbrainz.getRelease(mbid)`.
+- Tests never touch the network. `useHttpFixtures(provider)` from `src/test/http.ts` serves recorded responses from `src/test/http/<provider>/` and fails on any unrecorded request. `SQUIRMY_RECORD_HTTP=1` records missing fixtures from the real service.
 
 ## Clients
 
 `client-core` holds everything both clients share and has no React, DOM or React Native imports:
 
-- `reduceSession(state, { command, now })`: the pure session reducer, also run by the server.
-- `SessionClient`: owns the socket, the clock offset, optimistic commands and reconciliation; exposes a store (`getSnapshot`, `subscribe`) for `useSyncExternalStore`.
-- `PlayerEngine`: the interface each platform implements (`load`, `preload`, `play`, `pause`, `seek`, `setVolume`, status events). `SessionClient` drives it when this device is active.
+- `reduceSession(state, { command, now, commandId, deviceId })`: the pure session reducer, also run by the server.
+- `SessionClient`: owns the socket (through `createSocketTransport` from `@squirmy/client-core/socket`), the clock offset, optimistic commands and reconciliation; exposes a store (`getSnapshot`, `subscribe`) for `useSyncExternalStore`.
+- `PlayerEngine`: the interface each platform implements (`load`, `preload`, `play`, `pause`, `seek`, `setGain`, `stop`, status events), with a `FakeEngine` for tests. `SessionClient` drives it when this device is active.
 - `createApiClient({ baseUrl, getToken })`: typed fetch wrapper for every route, returning contract types.
-- Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork URL helpers.
+- `TrackStore`: batched, cached `TrackSummary` hydration for queue entries.
+- Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork and stream URL helpers.
 
 **Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. Colors and type follow the mobile theme in `apps/mobile/src/theme.ts`. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
+
+```
+apps/web/src/
+  components/ui/       primitives (button, slider, menu, dialog, …)
+  components/music/    covers, cards, rails, track lists
+  components/player/   player bar, mini-player, queue, devices, Now Playing
+  components/layout/   app shell, sidebar, top bar, tab bar
+  components/views/    one presentational view per page; data arrives as props
+  pages/               route containers: fetch data, pass it to a view
+  player/              PlayerContext (session state and commands) and LibraryContext (likes, wants)
+  fixtures/            fictional catalog and an in-memory session, until the API is wired
+```
+
+Catalog data reaches views through props typed with the contracts; session state and user actions come from `PlayerContext` and `LibraryContext`, whose providers are the only code that talks to `SessionClient` and the API. `/dev/kitchen-sink` shows every component state.
 
 **Mobile** (`apps/mobile`): the existing Expo app. `expo-audio` implements `PlayerEngine`. The token lives in SecureStore. Screens read through TanStack Query with a persisted cache.
 

@@ -58,13 +58,6 @@ export type HistoryItem = z.infer<typeof HistoryItem>
 export const HistoryPage = page(HistoryItem)
 export type HistoryPage = z.infer<typeof HistoryPage>
 
-export const WantEntityType = z.enum(['track', 'album'])
-export type WantEntityType = z.infer<typeof WantEntityType>
-
-/** `GET /api/v1/me/wants`: wants not yet fulfilled by an import, newest first. */
-export const WantsResponse = z.object({ albums: z.array(AlbumSummary), tracks: z.array(TrackSummary) })
-export type WantsResponse = z.infer<typeof WantsResponse>
-
 /** One rail on the Home screen. */
 export const HomeSection = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('albums'), id: z.string(), title: z.string(), albums: z.array(AlbumSummary) }),
@@ -76,3 +69,15 @@ export type HomeSection = z.infer<typeof HomeSection>
 export const HomeResponse = z.object({ sections: z.array(HomeSection) })
 export type HomeResponse = z.infer<typeof HomeResponse>
 
+/** `PUT/DELETE /me/wants/:type/:id`. */
+export const WantEntityType = z.enum(['album', 'track'])
+export type WantEntityType = z.infer<typeof WantEntityType>
+
+/** An item of `GET /me/wants`, newest first. `fulfilledAt` is set once an import completed it. */
+export const WantItem = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('album'), wantedAt: IsoDateTime, fulfilledAt: IsoDateTime.nullable(), album: AlbumSummary }),
+  z.object({ type: z.literal('track'), wantedAt: IsoDateTime, fulfilledAt: IsoDateTime.nullable(), track: TrackSummary }),
+])
+export type WantItem = z.infer<typeof WantItem>
+export const WantPage = page(WantItem)
+export type WantPage = z.infer<typeof WantPage>
