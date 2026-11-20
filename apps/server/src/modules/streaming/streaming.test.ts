@@ -1,5 +1,5 @@
 import { fstatSync, readdirSync } from 'node:fs'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, stat } from 'node:fs/promises'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -9,8 +9,9 @@ import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { mediaFiles, releaseLoudness, users } from '../../database/schema.js'
+import { fileMoves, mediaFiles, organizeBatches, releaseLoudness, users } from '../../database/schema.js'
 import { startJobs, stopJobs } from '../../jobs/index.js'
+import { newId } from '../../lib/ids.js'
 import { makeTone } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
@@ -193,6 +194,27 @@ describe('streaming originals', () => {
     expect(gone.json().error.code).toBe('file_missing')
     const [row] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId))
     expect(row!.missingSince).toBeInstanceOf(Date)
+  })
+
+  it('keeps serving a file that organize is moving, at either end of the move', async () => {
+    const from = 'Mira/Blue Hour/01 Night.flac'
+    const to = 'Mira Vale/Blue Hour (2024)/01 Night Swimming.flac'
+    const [batch] = await db.insert(organizeBatches).values({ id: newId(), rootId, status: 'applying' }).returning()
+    await db.insert(fileMoves).values({ id: newId(), batchId: batch!.id, fileId: flac.fileId, fromRelPath: from, toRelPath: to })
+    // Organize renames on disk first and updates the row after.
+    await mkdir(path.dirname(path.join(root, to)), { recursive: true })
+    await rename(path.join(root, from), path.join(root, to))
+    try {
+      const { url } = signStreamUrl(flac.fileId, 'original', memberId)
+      const response = await call({ url, headers: { range: 'bytes=0-99' } })
+      expect(response.statusCode).toBe(206)
+      expect(response.rawPayload).toEqual(flac.bytes.subarray(0, 100))
+      const [row] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, flac.fileId))
+      expect(row).toMatchObject({ relPath: from, missingSince: null })
+    } finally {
+      await rename(path.join(root, to), path.join(root, from))
+      await db.delete(organizeBatches).where(eq(organizeBatches.id, batch!.id))
+    }
   })
 
   it('closes the file when a client goes away', async () => {

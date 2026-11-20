@@ -8,9 +8,9 @@ import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { transcodes } from '../../database/schema.js'
 import { randomToken } from '../../lib/crypto.js'
-import { AppError, notFound } from '../../lib/errors.js'
+import { AppError } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
-import { libraryPath, markMissing, serveFile, type StreamRequest, type StreamResponse } from './files.js'
+import { libraryPath, serveFile, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
 import { outputSampleRate, profiles, type MediaFile, type TranscodeProfile } from './profiles.js'
 
 type TranscodeRow = typeof transcodes.$inferSelect
@@ -293,15 +293,15 @@ async function serveCached(fileId: string, profile: TranscodeProfile, request: S
   return response
 }
 
-/** Fails with 404 (and marks the file missing) when the source is gone from disk. */
-async function requireSource(file: MediaFile) {
-  try {
-    await stat(await libraryPath(file))
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    await markMissing(file.id)
-    throw notFound('The file is missing from disk', 'file_missing')
-  }
+/**
+ * The file with the path its source is at now (it may be in the middle of a move). Fails
+ * with 404, and marks the file missing, when the source is gone from disk.
+ */
+function requireSource(file: MediaFile): Promise<MediaFile> {
+  return withLibraryFile(file, async (absolutePath, at) => (await stat(absolutePath).then(() => true, (error: NodeJS.ErrnoException) => {
+    if (error.code !== 'ENOENT') throw error
+    return false
+  })) ? at : null)
 }
 
 /**
@@ -312,10 +312,10 @@ async function requireSource(file: MediaFile) {
 export async function openTranscode(file: MediaFile, profile: TranscodeProfile, request: StreamRequest, headers: Record<string, string> = {}): Promise<StreamResponse> {
   const cached = await serveCached(file.id, profile, request, headers)
   if (cached) return cached
-  await requireSource(file)
+  const source = await requireSource(file)
   const live = { 'content-type': profiles[profile].mime, 'accept-ranges': 'none', 'cache-control': 'private', ...headers }
   if (request.head) return { status: 200, headers: live, body: null }
-  const job = startTranscode(file, profile)
+  const job = startTranscode(source, profile)
   // Wait for the first bytes so an encoder that fails at once becomes an error response.
   while (job.written === 0 && !job.finished) await job.changed()
   if (job.error && job.written === 0) throw transcodeFailed(job.error)
@@ -332,8 +332,7 @@ export async function prepareTranscode(file: MediaFile, profile: TranscodeProfil
     await touch(row)
     return
   }
-  await requireSource(file)
-  const job = startTranscode(file, profile)
+  const job = startTranscode(await requireSource(file), profile)
   await job.done
   if (job.error) throw job.error
 }

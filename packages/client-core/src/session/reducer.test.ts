@@ -473,6 +473,14 @@ describe('reduceSession', () => {
       expect(currentTrack(run(session, { type: 'previous' }, 1000))).toBe(2)
     })
 
+    it('failed leaves a ready current entry playing and fails its other entries', () => {
+      let session = run(preparing(), { type: 'setEntryState', trackId: track(1), state: 'ready' }, 5000)
+      session = run(session, { type: 'setEntryState', trackId: track(1), state: 'failed' }, 6000)
+      expect(session).toMatchObject({ playing: true, current: { trackId: track(1), state: 'ready' } })
+      expect(positionAt(session, 7000)).toBe(2000)
+      expect(session.queue[1]).toMatchObject({ trackId: track(1), state: 'failed' })
+    })
+
     it('unknown track is a no-op', () => {
       const session = playing()
       expect(run(session, { type: 'setEntryState', trackId: track(77), state: 'ready' })).toBe(session)

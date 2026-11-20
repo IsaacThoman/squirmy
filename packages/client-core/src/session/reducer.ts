@@ -323,7 +323,9 @@ function previous(s: Session, now: number): Session {
 
 function setEntryState(s: Session, trackId: string, state: QueueEntry['state'], context: Context): Session {
   const update = (entry: QueueEntry) => entry.trackId === trackId && entry.state !== state ? { ...entry, state } : entry
-  const current = s.current && update(s.current)
+  // A current entry that is ready has its file and may be playing it: a late failure is
+  // for its future plays, never a reason to cut it off.
+  const current = s.current && (state === 'failed' && s.current.state === 'ready' ? s.current : update(s.current))
   const next: Session = {
     ...s,
     current,

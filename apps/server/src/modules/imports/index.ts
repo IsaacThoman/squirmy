@@ -62,7 +62,9 @@ export const importsModule: ServerModule = {
   async jobs(jobs) {
     // Identification waits on the library pipeline and filing may copy across file
     // systems, so a run can take hours; a second run of one import waits on its lock.
-    jobs.define<ImportProcessJob>('imports.process', { concurrency: 2, retryLimit, timeoutSeconds: 6 * 60 * 60 }, async ({ importId }, { attempt }) => {
+    // Runs mostly wait, and an on-demand track plays only once its import runs: playing an
+    // album fetches the current track and the next two at once, so they must not queue.
+    jobs.define<ImportProcessJob>('imports.process', { concurrency: 4, retryLimit, timeoutSeconds: 6 * 60 * 60 }, async ({ importId }, { attempt }) => {
       try {
         await processImport(importId)
       } catch (error) {
