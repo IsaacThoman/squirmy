@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { queryKeys } from '@squirmy/contracts'
-import { and, asc, eq, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import {
   albumArtists, albums, artists, libraryRoots, mediaFiles, recordingArtists, recordings, releases, releaseTracks,
@@ -27,9 +27,10 @@ type Links = { recordingId: string | null; releaseTrackId: string | null; releas
  * Builds or refreshes the catalog rows of one album group from its files' tags and links
  * every file to them, in one transaction. Running it twice changes nothing.
  *
- * - Rows the group's files already link to are reused, as long as no file outside the
- *   group links to them too; otherwise new rows are made. Rows with a MusicBrainz id in
- *   the tags are found by that id, or created with it.
+ * - Rows the group's files already link to are reused, unless they belong to another
+ *   group: one with more files on them, or as many and an older file. Otherwise new rows
+ *   are made. Rows with a MusicBrainz id in the tags are found by that id, or created
+ *   with it.
  * - Local rows (no MusicBrainz id) are rewritten from the tags. Rows with an id are never
  *   renamed: MusicBrainz describes them, and the matching module keeps them current.
  * - A group with an identified file (matched, or locked by "Fix match") is only relinked:
@@ -120,12 +121,26 @@ class GroupWriter {
     this.filesById = new Map(files.map((file) => [file.id, file]))
   }
 
-  /** Ids among `ids` that a file outside this group links to through `column`. */
+  /**
+   * Ids among `ids` that belong to another group. A row linked from several groups belongs
+   * to the one with the most files on it, ties going to the group with the oldest file
+   * (ids are time-ordered). The rule depends only on the links, never on which group is
+   * ingested first: when a file leaves a group, the two groups are ingested in either
+   * order, and a non-owner moving its files off a row never changes who owns it.
+   */
   private async sharedOutside(column: LinkColumn, ids: string[]): Promise<Set<string>> {
     if (ids.length === 0) return new Set()
-    const rows = await this.tx.selectDistinct({ id: column }).from(mediaFiles)
-      .where(and(inArray(column, ids), or(ne(mediaFiles.rootId, this.rootId), ne(mediaFiles.groupKey, this.groupKey), isNull(mediaFiles.groupKey))))
-    return new Set(rows.map((row) => row.id!))
+    const ours = sql`coalesce(${mediaFiles.rootId} = ${this.rootId} and ${mediaFiles.groupKey} = ${this.groupKey}, false)`
+    const rows = await this.tx.execute<{ id: string }>(sql`
+      select id from (
+        select ${column} as id, ${ours} as ours,
+          row_number() over (partition by ${column} order by count(*) desc, min(${mediaFiles.id}::text)) as rank
+        from ${mediaFiles}
+        where ${inArray(column, ids)}
+        group by ${column}, ${mediaFiles.rootId}, ${mediaFiles.groupKey}
+      ) owners
+      where rank = 1 and not ours`)
+    return new Set(rows.map((row) => row.id))
   }
 
   /**
