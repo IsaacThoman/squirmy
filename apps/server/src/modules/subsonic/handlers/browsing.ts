@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
 import { matchKey } from '../../../lib/text.js'
 import { resolveOne, type MergeableTable } from '../../catalog/redirects.js'
+import { similarArtists } from '../../radio/index.js'
 import { suggestAutoplay } from '../../radio/suggest.js'
 import { albumAsChild, albums } from '../albums.js'
 import { allLibraryArtists, artistID3, artistRows, artUrl, IGNORED_ARTICLES, indexArtist, indexByLetter } from '../artists.js'
@@ -108,11 +109,20 @@ async function artistOf(value: string): Promise<string> {
   return row.artistId
 }
 
-async function artistInfo({ params, baseUrl }: Context): Promise<Payload> {
+/**
+ * Biography, images and similar artists. Similar artists come from the radio module and
+ * are always library artists: `includeNotPresent` is ignored, as nothing catalog-only is shown.
+ */
+async function artistInfo({ user, params, baseUrl }: Context, id3: boolean): Promise<Payload> {
   const artist = await artistOf(params.required('id'))
-  const [row] = await db.execute<{ bio: string | null; bioUrl: string | null; mbid: string | null; imageId: string | null }>(sql`
-    select bio, bio_url as "bioUrl", mbid, image_asset_id as "imageId" from artists where id = ${artist}`)
+  const count = params.int('count', 20, { min: 0, max: 100 })
+  const [[row], similar] = await Promise.all([
+    db.execute<{ bio: string | null; bioUrl: string | null; mbid: string | null; imageId: string | null }>(sql`
+      select bio, bio_url as "bioUrl", mbid, image_asset_id as "imageId" from artists where id = ${artist}`),
+    count > 0 ? similarArtists(artist, { limit: count * 2 }) : [],
+  ])
   if (!row) throw notFound('Artist')
+  const owned = (await artistRows(user.id, similar.map((one) => one.artistId))).slice(0, count)
   return {
     biography: row.bio ?? undefined,
     musicBrainzId: row.mbid ?? undefined,
@@ -120,8 +130,7 @@ async function artistInfo({ params, baseUrl }: Context): Promise<Payload> {
     smallImageUrl: row.imageId ? artUrl(baseUrl, row.imageId, 300) : undefined,
     mediumImageUrl: row.imageId ? artUrl(baseUrl, row.imageId, 600) : undefined,
     largeImageUrl: row.imageId ? artUrl(baseUrl, row.imageId, 1200) : undefined,
-    // Squirmy has no similar-artist data of its own yet.
-    similarArtist: [],
+    similarArtist: owned.map((one) => id3 ? artistID3(one, baseUrl) : indexArtist(one, baseUrl)),
   }
 }
 
@@ -228,8 +237,8 @@ export const browsingEndpoints: Record<string, Handler> = {
     return { song }
   },
   getGenres,
-  getArtistInfo: async (context) => ({ artistInfo: await artistInfo(context) }),
-  getArtistInfo2: async (context) => ({ artistInfo2: await artistInfo(context) }),
+  getArtistInfo: async (context) => ({ artistInfo: await artistInfo(context, false) }),
+  getArtistInfo2: async (context) => ({ artistInfo2: await artistInfo(context, true) }),
   getAlbumInfo: async (context) => ({ albumInfo: await albumInfo(context) }),
   getAlbumInfo2: async (context) => ({ albumInfo: await albumInfo(context) }),
   getTopSongs,

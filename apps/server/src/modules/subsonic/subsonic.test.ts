@@ -5,7 +5,7 @@
  */
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albums, appPasswords, mediaFiles, plays, recordings, releaseLoudness, users } from '../../database/schema.js'
@@ -17,12 +17,19 @@ import { createAppPassword } from '../auth/service.js'
 import { listHistory } from '../userdata/history.js'
 import { getRatings, likeEntity, listLikes } from '../userdata/likes.js'
 import { addPlaylistItems, createPlaylist, getPlaylist } from '../userdata/playlists.js'
+import { similarArtists } from '../radio/index.js'
 import { getSnapshot } from '../sessions/index.js'
 import { resetAuthFailures } from './auth.js'
 import { folderId } from './ids.js'
 import { extensions } from './handlers/system.js'
 import { methodNames } from './endpoints.js'
 import { subsonicClient, tokenAuth, type SubsonicClient } from './test-client.js'
+
+// Similar artists come from Deezer and ListenBrainz, which tests never reach.
+vi.mock('../radio/index.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../radio/index.js')>(),
+  similarArtists: vi.fn(async () => []),
+}))
 
 describe('subsonic', () => {
   useTestDatabase()
@@ -293,16 +300,32 @@ describe('subsonic', () => {
       })
     })
 
+    it('lists similar artists from the radio module, library artists only', async () => {
+      const nobody = await createArtist({ name: 'Not In Library' })
+      vi.mocked(similarArtists).mockResolvedValueOnce([
+        { artistId: nobody.id, name: nobody.name, score: 0.9 },
+        { artistId: kites.artist.id, name: 'The Kites', score: 0.5 },
+      ])
+      const info = (await mira.client.json('getArtistInfo2', { id: `ar-${blueHour.artist.id}`, includeNotPresent: 'true' })).artistInfo2
+      expect(info.similarArtist).toEqual([expect.objectContaining({ id: `ar-${kites.artist.id}`, name: 'The Kites', albumCount: 1 })])
+      expect(vi.mocked(similarArtists)).toHaveBeenCalledWith(blueHour.artist.id, { limit: 40 })
+    })
+
     it('finds top and similar songs among owned tracks', async () => {
       const byName = (await mira.client.call('getTopSongs', { artist: 'mira vale', count: 2 })).topSongs.song
       expect(byName).toHaveLength(2)
       const byId = (await mira.client.call('getTopSongs', { id: `ar-${kites.artist.id}` })).topSongs.song
       expect(byId.map((entry: { title: string }) => entry.title).sort()).toEqual(['Landing', 'Updraft'])
       expect((await mira.client.call('getTopSongs', { artist: 'Nobody At All' })).topSongs).toEqual({ song: [] })
+      // The radio module suggests; every suggestion is a song the server can play.
+      const owned = new Set([...blueHour.tracks, kites.tracks[0]!, kites.tracks[2]!].map((track) => `tr-${track.recordingId}`))
       const similar = (await mira.client.call('getSimilarSongs2', { id: `ar-${kites.artist.id}` }, { varies: true })).similarSongs2.song
-      expect(similar.map((entry: { title: string }) => entry.title).sort()).toEqual(['Landing', 'Updraft'])
-      const bySong = (await mira.client.call('getSimilarSongs', { id: song(kites, 0) }, { varies: true })).similarSongs.song
-      expect(bySong.map((entry: { title: string }) => entry.title)).toEqual(['Landing'])
+      expect(similar.length).toBeGreaterThan(0)
+      for (const entry of similar) expect(owned.has(entry.id)).toBe(true)
+      const bySong = (await mira.client.call('getSimilarSongs', { id: song(kites, 0), count: 50 }, { varies: true })).similarSongs.song
+      expect(bySong.length).toBeGreaterThan(0)
+      expect(bySong.map((entry: { id: string }) => entry.id)).not.toContain(song(kites, 0))
+      for (const entry of bySong) expect(owned.has(entry.id)).toBe(true)
     })
   })
 

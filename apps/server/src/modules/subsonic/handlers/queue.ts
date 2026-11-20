@@ -4,7 +4,8 @@
  *
  * A session keeps the current entry and what comes after it. The songs a Subsonic
  * client saved before its current one are remembered here, in memory, for as long as
- * the session's queue is unchanged, so a save and a restore give back the same list.
+ * the session's current entry and queue are the ones that save made (autoplay
+ * suggestions do not count), so a save and a restore give back the same list.
  */
 import { positionAt } from '@squirmy/client-core'
 import type { SessionSnapshot } from '@squirmy/contracts'
@@ -16,7 +17,10 @@ import { expectId, trackId } from '../ids.js'
 import { ErrorCode, invalidParameter, missingParameter, SubsonicError, type Context, type Handler, type Payload } from '../protocol.js'
 import { songs } from '../songs.js'
 
-type Saved = { queueVersion: number; before: string[]; client: string; at: string }
+type Saved = { entries: string; before: string[]; client: string; at: string }
+
+/** The session's current entry and queue, by entry id. */
+const entriesOf = (snapshot: SessionSnapshot) => [snapshot.state.current, ...snapshot.queue.queue].map((entry) => entry?.id ?? '').join(',')
 
 const saved = new Map<string, Saved>()
 
@@ -25,7 +29,7 @@ async function save(context: Context, ids: string[], currentIndex: number | unde
   const positionMs = params.int('position', 0, { min: 0 })
   const start = currentIndex ?? 0
   const snapshot = await replaceQueue(user.id, { trackIds: ids.slice(start), currentId: ids[start] ?? null, positionMs })
-  saved.set(user.id, { queueVersion: snapshot.queueVersion, before: ids.slice(0, start), client, at: new Date().toISOString() })
+  saved.set(user.id, { entries: entriesOf(snapshot), before: ids.slice(0, start), client, at: new Date().toISOString() })
   return {}
 }
 
@@ -33,7 +37,7 @@ async function save(context: Context, ids: string[], currentIndex: number | unde
 async function load({ user }: Context): Promise<{ queue: Payload; currentIndex: number | undefined }> {
   const snapshot: SessionSnapshot = await getSnapshot(user.id)
   const remembered = saved.get(user.id)
-  const fresh = remembered?.queueVersion === snapshot.queueVersion ? remembered : undefined
+  const fresh = remembered?.entries === entriesOf(snapshot) ? remembered : undefined
   const { current } = snapshot.state
   // songs() leaves out what the server cannot play, so the current index is counted after it.
   const [before, rest] = await Promise.all([
