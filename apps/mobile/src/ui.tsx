@@ -30,6 +30,9 @@ const material: Record<string, AndroidSymbol> = {
   'heart.slash': 'heart_broken', 'dot.radiowaves.left.and.right': 'radio', 'star': 'star_border', 'star.fill': 'star',
   'square.stack': 'album', 'music.mic': 'mic', 'minus.circle': 'remove_circle_outline', 'gearshape': 'settings',
   'wifi': 'wifi', 'wifi.exclamationmark': 'wifi_off', 'antenna.radiowaves.left.and.right': 'signal_cellular_alt',
+  'arrow.down.circle': 'download', 'arrow.down.circle.fill': 'download_done', 'arrow.down.circle.dotted': 'downloading',
+  'wifi.slash': 'wifi_off', 'exclamationmark.circle': 'error', 'arrow.clockwise': 'refresh', 'xmark.circle': 'cancel',
+  'internaldrive': 'storage',
 };
 
 export function Icon({ name, size = 22, color, style }: {

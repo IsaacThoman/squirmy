@@ -2,8 +2,10 @@ import type { AlbumSummary, ArtistSummary, Artwork, PlaylistSummary } from '@squ
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePreventZoomTransitionDismissal, type Href } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { useRealtime } from '../data/realtime';
+import { useKeptCollections } from '../downloads/DownloadsProvider';
 import { Cover, Icon } from '../ui';
 import { BrowseButton, CollectionTile } from './BrowseControls';
 import type { Page } from './links';
@@ -22,6 +24,7 @@ export function tapFeedback() {
 /** Anything the browse screens show as a tile or row: an album, artist, playlist, or one of the built-in lists. */
 export type Collection = {
   key: string;
+  kind: 'album' | 'artist' | 'playlist' | 'liked' | 'recent';
   title: string;
   subtitle: string;
   href: Href;
@@ -30,7 +33,7 @@ export type Collection = {
   artworks?: readonly Artwork[];
   special?: 'liked' | 'recent' | 'playlist';
   round?: boolean;
-  /** Not in the library: drawn gray. */
+  /** Not in the library, or not downloaded while offline: drawn gray, cover and title alike. */
   dim?: boolean;
 };
 
@@ -41,28 +44,28 @@ export const recentId = 'recent';
 
 export function albumCollection(album: AlbumSummary, link: Link, subtitle = album.artistCredit): Collection {
   return {
-    key: album.id, title: album.title, subtitle, href: link('album', album.id), artwork: album.artwork,
+    key: album.id, kind: 'album', title: album.title, subtitle, href: link('album', album.id), artwork: album.artwork,
     dim: album.availability === 'none',
   };
 }
 
 export function artistCollection(artist: ArtistSummary, link: Link): Collection {
-  return { key: artist.id, title: artist.name, subtitle: 'Artist', href: link('artist', artist.id), artwork: artist.image, round: true, dim: !artist.inLibrary };
+  return { key: artist.id, kind: 'artist', title: artist.name, subtitle: 'Artist', href: link('artist', artist.id), artwork: artist.image, round: true, dim: !artist.inLibrary };
 }
 
 export function playlistCollection(playlist: PlaylistSummary, link: Link): Collection {
   return {
-    key: playlist.id, title: playlist.name, subtitle: `Playlist · ${playlist.ownerName}`, href: link('playlist', playlist.id),
+    key: playlist.id, kind: 'playlist', title: playlist.name, subtitle: `Playlist · ${playlist.ownerName}`, href: link('playlist', playlist.id),
     artworks: playlist.artworks, special: 'playlist',
   };
 }
 
 export function likedCollection(link: Link): Collection {
-  return { key: likedId, title: 'Liked Songs', subtitle: 'Playlist', href: link('playlist', likedId), special: 'liked' };
+  return { key: likedId, kind: 'liked', title: 'Liked Songs', subtitle: 'Playlist', href: link('playlist', likedId), special: 'liked' };
 }
 
 export function recentCollection(link: Link): Collection {
-  return { key: recentId, title: 'Recently Played', subtitle: 'Listening history', href: link('playlist', recentId), special: 'recent' };
+  return { key: recentId, kind: 'recent', title: 'Recently Played', subtitle: 'Listening history', href: link('playlist', recentId), special: 'recent' };
 }
 
 const gradients = {
@@ -93,13 +96,42 @@ export function CollectionCover({ item, size, radius = 13 }: { item: Collection;
   } else {
     cover = <Cover artwork={item.artwork} size={size} radius={item.round ? size / 2 : radius} icon={item.round ? 'music.mic' : 'music.note'} />;
   }
-  return item.dim ? <View style={styles.dim}>{cover}</View> : cover;
+  return cover;
+}
+
+/**
+ * Grays what cannot be opened usefully offline: albums, artists and playlists with
+ * nothing downloaded. Liked Songs and history stay lit; their pages show what was saved.
+ */
+export function useOfflineDim() {
+  const { offline } = useRealtime();
+  const kept = useKeptCollections();
+  return useCallback((item: Collection): Collection => {
+    if (!offline || item.dim) return item;
+    const lit = item.kind === 'album' ? kept.albums.has(item.key)
+      : item.kind === 'artist' ? kept.artists.has(item.key)
+        : item.kind === 'playlist' ? kept.playlists.has(item.key) : true;
+    return lit ? item : { ...item, dim: true };
+  }, [kept, offline]);
+}
+
+/** Says the server cannot be reached, next to (or under) a page's title. */
+export function OfflineBadge({ style }: { style?: StyleProp<ViewStyle> }) {
+  const colors = useColors();
+  const styles = useStyles();
+  const { offline } = useRealtime();
+  if (!offline) return null;
+  return <View style={[styles.offline, style]} accessibilityRole="text" accessibilityLabel="Offline. Only downloaded music plays.">
+    <Icon name="wifi.slash" size={13} color={colors.muted} />
+    <Text style={styles.offlineText}>Offline</Text>
+  </View>;
 }
 
 export function CollectionRail({ items, size = 131 }: { items: readonly Collection[]; size?: number }) {
   const styles = useStyles();
+  const offlineDim = useOfflineDim();
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railContent}>
-    {items.map(item => <CollectionTile key={item.key} title={item.title} subtitle={item.subtitle} size={size}
+    {items.map(offlineDim).map(item => <CollectionTile key={item.key} title={item.title} subtitle={item.subtitle} size={size} dim={item.dim}
       cover={<CollectionCover item={item} size={size} />} href={item.href} />)}
   </ScrollView>;
 }
@@ -161,18 +193,6 @@ export function useBackSwipeOnly() {
   usePreventZoomTransitionDismissal({ unstable_dismissalBoundsRect: mounted ? { maxX: backSwipeEdge } : undefined });
 }
 
-/** Asks for a name; iOS shows a text field in the alert, other platforms keep `initial`. */
-export function promptForName(title: string, initial: string, onName: (name: string) => void) {
-  if (Platform.OS !== 'ios') {
-    if (initial.trim()) onName(initial.trim());
-    return;
-  }
-  Alert.prompt(title, undefined, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Save', isPreferred: true, onPress: (name?: string) => { if (name?.trim()) onName(name.trim()); } },
-  ], 'plain-text', initial);
-}
-
 /** Case- and accent-insensitive match of every word of `query` against `values`. */
 export function matches(query: string, ...values: string[]) {
   const normalized = (value: string) => value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -187,10 +207,11 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   specialCover: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   coverRing: { position: 'absolute', borderColor: '#FFF8FF50', borderWidth: StyleSheet.hairlineWidth },
   mosaic: { flexDirection: 'row', flexWrap: 'wrap', overflow: 'hidden', backgroundColor: colors.surface },
-  dim: { opacity: 0.45 },
   empty: { alignItems: 'center', gap: 7, padding: 28, marginTop: 22 },
   emptyTitle: { color: colors.text, fontSize: 19, fontWeight: '700', textAlign: 'center', marginTop: 6 },
   emptyDescription: { color: colors.muted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
   emptyAction: { marginTop: 4 },
   loading: { paddingVertical: 60, alignItems: 'center' },
+  offline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, height: 28, borderRadius: 14, backgroundColor: colors.surface },
+  offlineText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
 }));

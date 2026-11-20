@@ -4,6 +4,8 @@ import { GestureDetector, useNativeGesture, usePanGesture, type NativeGesture } 
 import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { TrackSummary } from '@squirmy/contracts';
+import { useRealtime } from '../data/realtime';
+import { useTrackDownload } from '../downloads/DownloadsProvider';
 import { useLibraryActions, useLiked, useTrack, useTrackStore } from '../data/library';
 import { type QueueEntry, usePlaybackState } from '../playback';
 import { Cover, Icon } from '../ui';
@@ -371,7 +373,7 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
   );
 }
 
-/** A queue row. A failed entry is gray and will be skipped; a preparing one says so. */
+/** A queue row. A failed entry is gray and will be skipped, as is one that is not downloaded while offline; a preparing one says so. */
 function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: {
   entry: QueueEntry;
   onPress: (track: TrackSummary) => void;
@@ -386,9 +388,11 @@ function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: 
   const favorite = useLiked('track', track?.id, track?.liked);
   const { setLiked } = useLibraryActions();
   const canManage = onPromote !== undefined || onRemove !== undefined;
-  const failed = entry.state === 'failed';
+  const { offline } = useRealtime();
+  const downloaded = useTrackDownload(entry.trackId)?.state === 'done';
+  const failed = entry.state === 'failed' || (offline && !downloaded);
   const title = track?.title ?? '';
-  const detail = failed ? 'Couldn’t be fetched' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
+  const detail = entry.state === 'failed' ? 'Couldn’t be fetched' : failed ? 'Not downloaded' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
 
   return (
     <View style={[styles.trackRow, failed && styles.failed]}>

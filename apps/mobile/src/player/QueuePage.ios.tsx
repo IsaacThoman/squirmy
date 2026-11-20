@@ -6,6 +6,8 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import type { TrackSummary } from '@squirmy/contracts';
+import { useRealtime } from '../data/realtime';
+import { useTrackDownload } from '../downloads/DownloadsProvider';
 import { useLibraryActions, useLiked, useTrack, useTrackStore } from '../data/library';
 import { IconButton, Symbol, TrackCover, TrackMenu, hitShape, plainButton } from '../native/Controls';
 import { usePlaybackState, type QueueEntry } from '../playback';
@@ -190,7 +192,7 @@ function QueueRows({ entries, editing, autoplay = false }: {
   </Host>;
 }
 
-/** A queue row. A failed entry is gray and will be skipped; a preparing one says so. */
+/** A queue row. A failed entry is gray and will be skipped, as is one that is not downloaded while offline; a preparing one says so. */
 function QueueTrack({ entry, onPlay, children }: {
   entry: QueueEntry; onPlay: (track: TrackSummary) => void; children?: React.ReactNode;
 }) {
@@ -198,8 +200,10 @@ function QueueTrack({ entry, onPlay, children }: {
   const track = useTrack(entry.trackId, entry.albumId);
   const favorite = useLiked('track', track?.id, track?.liked);
   const { setLiked } = useLibraryActions();
-  const failed = entry.state === 'failed';
-  const detail = failed ? 'Couldn’t be fetched' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
+  const { offline } = useRealtime();
+  const downloaded = useTrackDownload(entry.trackId)?.state === 'done';
+  const failed = entry.state === 'failed' || (offline && !downloaded);
+  const detail = entry.state === 'failed' ? 'Couldn’t be fetched' : failed ? 'Not downloaded' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
   const title = track?.title ?? '';
   return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
     <Button onPress={() => { if (track && !failed) onPlay(track); }} modifiers={[plainButton, accessibilityLabel(`${title}, ${detail}`)]}>

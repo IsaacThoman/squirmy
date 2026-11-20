@@ -10,20 +10,21 @@ import { shade } from './data/color';
 import {
   useGenreCovers, useGenres, useHome, useLibraryAlbums, useLibraryArtists, useLibraryTracks, usePlaylists, useSearch,
 } from './data/queries';
-import { usePlaylistActions, useTrackStore } from './data/library';
+import { useTrackStore } from './data/library';
 import {
   BrowseButton, CollectionGrid, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField,
   type SearchHandle,
 } from './library/BrowseControls';
 import type { Page } from './library/links';
 import {
-  albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, onScrollNearEnd,
-  playlistCollection, promptForName, QueryState, SectionTitle, tapFeedback, type Collection,
+  albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
+  onScrollNearEnd, playlistCollection, QueryState, SectionTitle, tapFeedback, useOfflineDim, type Collection,
 } from './library/shared';
+import { useRealtime } from './data/realtime';
 import { SongList } from './library/SongList';
 import { ZoomLink, ZoomSource } from './library/ZoomLink';
 import { usePlaybackState } from './playback';
-import { createThemedStyles, useColors } from './theme';
+import { createThemedStyles, unavailableOpacity, useColors } from './theme';
 import { Cover } from './ui';
 
 export type BrowseProps = {
@@ -33,6 +34,7 @@ export type BrowseProps = {
   onTrackMenu: (track: TrackSummary, playlist?: { id: string; itemId: string }) => void;
   onOpenDevices?: () => void;
   onOpenAccount?: () => void;
+  onOpenDownloads?: () => void;
   bottomInset?: number;
 };
 
@@ -100,6 +102,7 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const { width } = useWindowDimensions();
   const { state } = useAccount();
   const home = useHome();
+  const offlineDim = useOfflineDim();
   const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0);
   const albums = (id: string) => sections.find((section): section is Extract<HomeSection, { kind: 'albums' }> => section.kind === 'albums' && section.id === id)?.albums;
   const hero = albums('recently-played')?.[0] ?? albums('recently-added')?.[0];
@@ -116,10 +119,13 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
         {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
         {onOpenAccount && <BrowseButton label="Account" icon="person.crop.circle" glass onPress={onOpenAccount} />}
       </View>
+      <OfflineBadge style={styles.homeOffline} />
       {!home.data && <QueryState query={home} what="your music" />}
       {home.data && !sections.length && <EmptyState icon="music.note.house" title="No music yet"
         description={`Add music to a library folder on ${serverName}. It shows up here as soon as it has been scanned.`} />}
-      {hero && <ZoomLink href={link('album', hero.id)}><HeroCard album={hero} size={heroSize} /></ZoomLink>}
+      {hero && <View style={offlineDim(albumCollection(hero, link)).dim && styles.unavailable}>
+        <ZoomLink href={link('album', hero.id)}><HeroCard album={hero} size={heroSize} /></ZoomLink>
+      </View>}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </ScrollView>
   </View>;
@@ -130,12 +136,13 @@ const sortOptions = { 'Recently added': 'recent', Title: 'title', Artist: 'artis
 type LibraryFilter = (typeof filters)[number];
 type SortName = keyof typeof sortOptions;
 
-export function LibraryScreen({ link, onTrackMenu, bottomInset = 155 }: BrowseProps) {
+export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bottomInset = 155 }: BrowseProps) {
   const styles = useStyles();
+  const offlineDim = useOfflineDim();
+  const { offline } = useRealtime();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { actions } = usePlaybackState();
-  const playlistActions = usePlaylistActions();
   const [filter, setFilter] = useState<LibraryFilter>('All');
   const [sortName, setSortName] = useState<SortName>('Recently added');
   const [grid, setGrid] = useState(true);
@@ -161,8 +168,8 @@ export function LibraryScreen({ link, onTrackMenu, bottomInset = 155 }: BrowsePr
     if (showsPlaylists) collections.push(likedCollection(link), ...playlists.items.map(playlist => playlistCollection(playlist, link)));
     if (filter === 'All' || filter === 'Albums') collections.push(...albums.items.map(album => albumCollection(album, link)));
     if (filter === 'Artists') collections.push(...artists.items.map(artist => artistCollection(artist, link)));
-    return collections.filter(item => matches(query, item.title, item.subtitle));
-  }, [albums.items, artists.items, filter, link, playlists.items, query, showsPlaylists]);
+    return collections.filter(item => matches(query, item.title, item.subtitle)).map(offlineDim);
+  }, [albums.items, artists.items, filter, link, offlineDim, playlists.items, query, showsPlaylists]);
   const tracks = useMemo(() => songs.items.filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? '')),
     [query, songs.items]);
   const empty = filter === 'Songs' ? !tracks.length : !items.length;
@@ -170,12 +177,14 @@ export function LibraryScreen({ link, onTrackMenu, bottomInset = 155 }: BrowsePr
 
   const newPlaylist = () => {
     tapFeedback();
-    promptForName('New playlist', '', name => void playlistActions.create(name).catch(() => undefined));
+    onOpen({ pathname: '/name-playlist', params: { mode: 'create' } });
   };
 
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
       <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Library</Text>
+      <OfflineBadge />
+      {onOpenDownloads && <BrowseButton glass icon="arrow.down.circle" label="Downloads" onPress={() => { tapFeedback(); onOpenDownloads(); }} />}
       <BrowseButton glass icon={showFilter ? 'xmark' : 'magnifyingglass'} label={showFilter ? 'Close library search' : 'Search library'} onPress={() => {
         tapFeedback();
         if (showFilter) setQuery('');
@@ -191,7 +200,7 @@ export function LibraryScreen({ link, onTrackMenu, bottomInset = 155 }: BrowsePr
       contentContainerStyle={[styles.libraryBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}>
       <View style={styles.sortRow}>
         {filter === 'Playlists'
-          ? <BrowseButton label="New playlist" title="New playlist" icon="plus" onPress={newPlaylist} />
+          ? !offline && <BrowseButton label="New playlist" title="New playlist" icon="plus" onPress={newPlaylist} />
           : <LibrarySort options={Object.keys(sortOptions) as SortName[]} value={sortName} onChange={setSortName} />}
         {filter !== 'Songs' && <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
           onPress={() => { tapFeedback(); setGrid(!grid); }} />}
@@ -210,8 +219,8 @@ export function LibraryScreen({ link, onTrackMenu, bottomInset = 155 }: BrowsePr
         </View>
       ) : grid ? <CollectionGrid columns={columns} items={items.map(item => ({
         id: item.key, title: item.title, subtitle: item.subtitle, size,
-        cover: <CollectionCover item={item} size={size} />, href: item.href,
-      }))} /> : items.map(item => <CollectionRow key={item.key} title={item.title} subtitle={item.subtitle} size={50}
+        cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
+      }))} /> : items.map(item => <CollectionRow key={item.key} title={item.title} subtitle={item.subtitle} size={50} dim={item.dim}
         cover={<CollectionCover item={item} size={50} radius={9} />} href={item.href} />)}
       {active.isFetchingNextPage && <ActivityIndicator style={styles.more} />}
     </ScrollView>
@@ -262,6 +271,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const search = useSearch(query);
   const genres = useGenres();
   const genreWidth = Math.floor((width - gutter * 2 - 12) / 2);
+  const { offline } = useRealtime();
 
   useEffect(() => tabs.addListener('tabPress', () => {
     if (navigation.isFocused()) searchInput.current?.focus();
@@ -275,7 +285,8 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
       <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Search</Text>
-      {active && search.pending && <ActivityIndicator color={colors.muted} />}
+      {active && search.pending && !offline && <ActivityIndicator color={colors.muted} />}
+      <OfflineBadge />
     </View>
     <View style={styles.searchHeader}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists" /></View>
     <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
@@ -290,7 +301,9 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
             };
           })} />
         </View>
-      </> : answered
+      </> : offline
+        ? <EmptyState icon="wifi.slash" title="You’re offline" description="Search needs your server. Your downloads are in your Library." />
+        : answered
         ? <SearchResultsView library={search.library.data} catalog={search.catalog.data} link={link} onTrackMenu={onTrackMenu} />
         : search.library.isError && search.catalog.isError
           ? <EmptyState icon="wifi.exclamationmark" title="Search isn’t available" description="Check your connection to the server." />
@@ -303,6 +316,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   homeHeader: { marginBottom: 19 },
+  homeOffline: { marginLeft: gutter, marginTop: -9, marginBottom: 19, alignSelf: 'flex-start' },
+  unavailable: { opacity: unavailableOpacity },
   pageTitle: { color: colors.text, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
   hero: { marginHorizontal: gutter, borderRadius: 26, overflow: 'hidden', justifyContent: 'flex-end' },

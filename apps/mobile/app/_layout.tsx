@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AccountProvider, createQueryClient, useAccount } from '../src/account/AccountProvider';
 import { LibraryProvider } from '../src/data/library';
 import { RealtimeProvider } from '../src/data/realtime';
+import { DownloadsProvider } from '../src/downloads/DownloadsProvider';
 import { NoticeProvider } from '../src/Notice';
 import Player from '../src/Player';
 import { PlayerTransitionProvider } from '../src/player/transition';
@@ -34,12 +35,14 @@ export default function RootLayout() {
             <NoticeProvider>
               <RealtimeProvider>
                 <LibraryProvider>
-                  <PlaybackProvider>
-                    <PlayerTransitionProvider>
-                      <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
-                      <Routes />
-                    </PlayerTransitionProvider>
-                  </PlaybackProvider>
+                  <DownloadsProvider>
+                    <PlaybackProvider>
+                      <PlayerTransitionProvider>
+                        <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
+                        <Routes />
+                      </PlayerTransitionProvider>
+                    </PlaybackProvider>
+                  </DownloadsProvider>
                 </LibraryProvider>
               </RealtimeProvider>
             </NoticeProvider>
@@ -79,6 +82,8 @@ function Routes() {
         <Stack.Screen name="add-to-playlist" options={sheet} />
         <Stack.Screen name="account" options={sheet} />
         <Stack.Screen name="settings" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
+        <Stack.Screen name="downloads" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
+        <Stack.Screen name="name-playlist" options={sheet} />
         <Stack.Protected guard={__DEV__}>
           <Stack.Screen name="dev/engine" options={{ presentation: 'modal' }} />
         </Stack.Protected>

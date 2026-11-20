@@ -4,10 +4,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { useLibraryActions, useLiked } from '../data/library';
+import { useRealtime } from '../data/realtime';
+import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
+import { downloadSymbol, unavailableReason } from '../downloads/model';
 import { usePlaybackState } from '../playback';
-import { isPlayable } from '../player/session';
 import { Cover, Icon } from '../ui';
-import { createThemedStyles, useColors } from '../theme';
+import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
 
 const swipeActionWidth = 78;
 
@@ -66,7 +68,9 @@ function SongRow({ track, number, onPlay, onMenu, onRemove }: {
   const liked = useLiked('track', track.id, track.liked);
   const { setLiked } = useLibraryActions();
   const current = session.current?.trackId === track.id;
-  const playable = isPlayable(track);
+  const playable = useCanPlay(track);
+  const { offline } = useRealtime();
+  const mark = downloadSymbol(useTrackDownload(track.id));
   const playNext = () => {
     tapFeedback();
     actions.enqueue([track], 'next');
@@ -86,7 +90,7 @@ function SongRow({ track, number, onPlay, onMenu, onRemove }: {
   >
     <View style={[styles.songRow, current && styles.songCurrent]}>
       <Pressable accessibilityRole="button"
-        accessibilityLabel={playable ? `Play ${track.title} by ${track.artistCredit}` : `${track.title} by ${track.artistCredit}, not in your library`}
+        accessibilityLabel={playable ? `Play ${track.title} by ${track.artistCredit}` : `${track.title} by ${track.artistCredit}, ${unavailableReason(track, offline)}`}
         style={({ pressed }) => [styles.songInfo, !playable && styles.unavailable, pressed && styles.pressed]}
         onPress={playable ? onPlay : onMenu} onLongPress={onMenu}
         accessibilityActions={playable ? [{ name: 'playNext', label: 'Play next' }] : undefined}
@@ -96,7 +100,10 @@ function SongRow({ track, number, onPlay, onMenu, onRemove }: {
         </View> : <Cover artwork={track.album?.artwork} size={42} radius={8} />}
         <View style={styles.flex}>
           <Text numberOfLines={1} style={[styles.rowTitle, current && styles.currentTitle]}>{track.title}</Text>
-          <Text numberOfLines={1} style={styles.rowSub}>{track.artistCredit}</Text>
+          <View style={styles.subtitle}>
+            {mark && <Icon name={mark} size={11} color={colors.muted} />}
+            <Text numberOfLines={1} style={[styles.rowSub, styles.flex]}>{track.artistCredit}</Text>
+          </View>
         </View>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={liked ? `Unlike ${track.title}` : `Like ${track.title}`} accessibilityState={{ selected: liked }}
@@ -113,9 +120,10 @@ function SongRow({ track, number, onPlay, onMenu, onRemove }: {
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.72 },
-  unavailable: { opacity: 0.42 },
+  unavailable: { opacity: unavailableOpacity },
   rowTitle: { color: colors.text, fontWeight: '600', fontSize: 15, letterSpacing: -0.2 },
-  rowSub: { marginTop: 3, color: colors.muted, fontSize: 12 },
+  rowSub: { color: colors.muted, fontSize: 12 },
+  subtitle: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 3 },
   songRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke, paddingLeft: 5, paddingRight: 2, minHeight: 58 },
   songCurrent: { backgroundColor: colors.selection, borderRadius: 11 },
   songInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: 10 },

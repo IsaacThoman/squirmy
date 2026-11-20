@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../ui';
 import { createThemedStyles, useColors } from '../theme';
 
@@ -7,6 +7,8 @@ export type AlbumNavProps = {
   label: string;
   onPress: () => void;
   selected?: boolean;
+  /** Shows activity in place of the icon, such as a download running. */
+  busy?: boolean;
 };
 
 /** The buttons under a collection's title. The first is the prominent one. */
@@ -15,12 +17,12 @@ export type AlbumPlaybackProps = {
   actions: readonly { label: string; symbol: string; onPress: () => void }[];
 };
 
-export function AlbumNavButton({ icon, label, onPress, selected }: AlbumNavProps) {
+export function AlbumNavButton({ icon, label, onPress, selected, busy }: AlbumNavProps) {
   const colors = useColors();
   const styles = useStyles();
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={selected === undefined ? undefined : { selected }}
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={selected === undefined ? { busy } : { selected, busy }}
     style={({ pressed }) => [styles.nav, pressed && styles.pressed]} onPress={onPress}>
-    <Icon name={icon} size={20} color={selected ? colors.accent : colors.text} />
+    {busy ? <ActivityIndicator color={colors.text} /> : <Icon name={icon} size={20} color={selected ? colors.accent : colors.text} />}
   </Pressable>;
 }
 

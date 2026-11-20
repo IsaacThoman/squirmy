@@ -41,6 +41,9 @@ const palettes = {
   },
 } as const;
 
+/** How far a gray (unavailable) row or tile fades, the same everywhere. */
+export const unavailableOpacity = 0.42;
+
 export function useAppearance() {
   return useColorScheme() === 'dark' ? 'dark' : 'light';
 }
