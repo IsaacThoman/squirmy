@@ -305,4 +305,5 @@ export const queryKeys = {
   adminJobs: () => ['admin', 'jobs'] as const,
   adminReviews: () => ['admin', 'reviews'] as const,
   adminUsers: () => ['admin', 'users'] as const,
+  adminOrganize: () => ['admin', 'organize'] as const,
 } as const
