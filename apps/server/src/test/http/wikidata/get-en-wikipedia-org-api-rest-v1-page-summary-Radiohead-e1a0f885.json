@@ -1,0 +1,61 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://en.wikipedia.org/api/rest_v1/page/summary/Radiohead"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8; profile=\"https://www.mediawiki.org/wiki/Specs/Summary/1.5.0\""
+    },
+    "json": {
+      "type": "standard",
+      "title": "Radiohead",
+      "displaytitle": "<span lang=\"en\" dir=\"ltr\"><span class=\"mw-page-title-main\">Radiohead</span></span>",
+      "namespace": {
+        "id": 0,
+        "text": ""
+      },
+      "wikibase_item": "Q44190",
+      "titles": {
+        "canonical": "Radiohead",
+        "normalized": "Radiohead",
+        "display": "<span lang=\"en\" dir=\"ltr\"><span class=\"mw-page-title-main\">Radiohead</span></span>"
+      },
+      "pageid": 38252,
+      "thumbnail": {
+        "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a1/RadioheadO2211125_composite.jpg/330px-RadioheadO2211125_composite.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+        "width": 330,
+        "height": 120
+      },
+      "originalimage": {
+        "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a1/RadioheadO2211125_composite.jpg/3840px-RadioheadO2211125_composite.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+        "width": 5940,
+        "height": 2160
+      },
+      "lang": "en",
+      "dir": "ltr",
+      "revision": "1384249363",
+      "tid": "54033129-da8b-11f1-a844-7159cf269326",
+      "timestamp": "2026-11-07T09:12:17Z",
+      "description": "English rock band",
+      "description_source": "local",
+      "content_urls": {
+        "desktop": {
+          "page": "https://en.wikipedia.org/wiki/Radiohead",
+          "revisions": "https://en.wikipedia.org/wiki/Radiohead?action=history",
+          "edit": "https://en.wikipedia.org/wiki/Radiohead?action=edit",
+          "talk": "https://en.wikipedia.org/wiki/Talk:Radiohead"
+        },
+        "mobile": {
+          "page": "https://en.wikipedia.org/wiki/Radiohead",
+          "revisions": "https://en.wikipedia.org/wiki/Special:History/Radiohead",
+          "edit": "https://en.wikipedia.org/wiki/Radiohead?action=edit",
+          "talk": "https://en.wikipedia.org/wiki/Talk:Radiohead"
+        }
+      },
+      "extract": "Radiohead are an English rock band formed in Abingdon, Oxfordshire, in 1985. The members are Thom Yorke ; brothers Jonny Greenwood and Colin Greenwood (bass); Ed O'Brien ; and Philip Selway (drums). They have worked with the producer Nigel Godrich and the cover artist Stanley Donwood since 1994. Radiohead's experimental approach is credited with advancing the sound of alternative rock.",
+      "extract_html": "<p><b>Radiohead</b> are an English rock band formed in Abingdon, Oxfordshire, in 1985. The members are Thom Yorke ; brothers Jonny Greenwood and Colin Greenwood (bass); Ed O'Brien ; and Philip Selway (drums). They have worked with the producer Nigel Godrich and the cover artist Stanley Donwood since 1994. Radiohead's experimental approach is credited with advancing the sound of alternative rock.</p>"
+    }
+  }
+}

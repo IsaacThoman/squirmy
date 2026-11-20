@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.listenbrainz.org/1/popularity/recording",
+    "body": "{\"recording_mbids\":[\"33b6b148-9dce-4894-902d-d218ecc30666\",\"11111111-2222-4333-8444-555555555555\"]}"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": [
+      {
+        "recording_mbid": "33b6b148-9dce-4894-902d-d218ecc30666",
+        "total_listen_count": 15,
+        "total_user_count": 6
+      },
+      {
+        "recording_mbid": "11111111-2222-4333-8444-555555555555",
+        "total_listen_count": null,
+        "total_user_count": null
+      }
+    ]
+  }
+}

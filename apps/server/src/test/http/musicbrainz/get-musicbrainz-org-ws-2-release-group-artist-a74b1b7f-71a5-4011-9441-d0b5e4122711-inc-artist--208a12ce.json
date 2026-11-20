@@ -1,0 +1,2861 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group?artist=a74b1b7f-71a5-4011-9441-d0b5e4122711&inc=artist-credits&limit=100&offset=400&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-group-offset": 400,
+      "release-groups": [
+        {
+          "id": "00468d75-4011-49ab-beb4-4455078af079",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2008‐08‐27: Cricket Wireless Amphitheater, Chula Vista, CA, USA",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "title": "2008‐08‐13: Comcast Center, Mansfield, MA, USA",
+          "artist-credit": [
+            {
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "0669c3f8-d3d8-4935-b21c-c47df4e0d966"
+        },
+        {
+          "disambiguation": "",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "0995c2b1-1974-4ebf-8773-576979bb4abe",
+          "title": "2017‐07‐07: TRNSMT Festival, Glasgow, UK",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "0c1b0e92-c5ee-33a2-bec2-a187032ebcdf",
+          "title": "2008‐06‐25: Victoria Park, London, UK",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group"
+              }
+            }
+          ]
+        },
+        {
+          "id": "104ac1a8-2412-33a7-9b9b-179a3c939e20",
+          "secondary-type-ids": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "Talk Show Host",
+          "primary-type": "EP",
+          "first-release-date": "",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "disambiguation": "",
+          "secondary-types": []
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "2012‐07‐15: Nos Alive Festival, Oeiras, Portugal",
+          "id": "12429989-226b-4e89-9941-3770815fb2e9",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "129ec42b-6f60-37d5-9da0-7195fa7fec77",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2008‐08‐03: Verizon Wireless Music Center, Noblesville, IN, USA"
+        },
+        {
+          "secondary-types": [
+            "Demo"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "title": "On a Friday Demos II",
+          "id": "13655d66-6d0c-4510-a59a-e87bb1cf1112",
+          "secondary-type-ids": [
+            "81598169-0d6c-3bce-b4be-866fa658eda3"
+          ]
+        },
+        {
+          "secondary-types": [],
+          "disambiguation": "",
+          "primary-type": "EP",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "2007-11-11",
+          "title": "Thumbs Down (Webcast)",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [],
+          "id": "14ab8205-93d7-39c9-9d8f-0f202e978b1d"
+        },
+        {
+          "first-release-date": "2006-10-02",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "primary-type": "Single",
+          "disambiguation": "",
+          "secondary-types": [],
+          "id": "18b1d50d-ff9f-4a2d-973f-293c7dc351f1",
+          "secondary-type-ids": [],
+          "artist-credit": [
+            {
+              "joinphrase": " / ",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "ba2f4f3b-0293-4bc8-bb94-2f73b5207343",
+                "sort-name": "Underworld",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "UK electronic music group",
+                "name": "Underworld"
+              },
+              "name": "Underworld"
+            },
+            {
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "title": "Dark & Long / Street Spirit"
+        },
+        {
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "192bf584-8e41-37db-940b-bc888ede76d9",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "Les Eurockéennes"
+        },
+        {
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "19928cfa-33de-42fb-9de9-4dae6020428f",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "2012‐04‐14: Coachella Valley Music & Arts Festival, Indio, CA, USA"
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "title": "2008‐04‐01, evening: BBC Radio 2, BBC Radio Theatre, Broadcasting House, London, UK",
+          "id": "1acb9dde-cbe0-3fc2-8011-79a7e7ad65e6",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "1bdf7149-666c-4d0a-9d8c-8506774e7393",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2017‐06‐18: Best Kept Secret, Hilvarenbeek, Netherlands"
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2016‐07‐09: Nos Alive Festival, Oeiras, Portugal",
+          "id": "22578110-7d61-4494-b07e-25fc050c29bf",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": ""
+        },
+        {
+          "title": "2016‐07‐29: Lollapalooza Festival, Chicago, IL, USA",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "229d53e9-37d9-4c10-b3b3-f15a696141f0",
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album"
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "EP",
+          "first-release-date": "1995",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "id": "27f41de5-d887-3873-8ae8-eee94401e671",
+          "title": "Live at the Astoria",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2008‐10‐05: Saitama Super Arena, Tokyo, Japan",
+          "id": "2bb8d5ca-4f9c-4ffe-8770-99e2e5cd1ad8",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "disambiguation": ""
+        },
+        {
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "2e2c8b44-3daa-4130-849e-62e926ce3633",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ],
+          "title": "2008‐06‐27: Glasgow Green, Glasgow, UK"
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "30a0391a-01ab-42b1-a858-f22b1350e53a",
+          "title": "2009‐08‐30: Reading Festival, Reading, UK",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "id": "3334a098-9b59-4a8a-a93c-acd98d56c7f2",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2009-03-24: Club Ciudad, Buenos Aires, Argentina",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2008‐10‐08: International Forum, Tokyo, Japan",
+          "id": "33d7473f-98cb-42b8-ae4f-8d1d52f42639",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "2001",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Remix"
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "id": "34a992da-2583-3bca-82f8-fd5a3a14fe89",
+          "title": "Remix Project",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "35118b37-816b-4e71-951f-dd3b41b42e70",
+          "title": "2008‐06‐10: Palais Omnisports de Paris‐Bercy, Paris, France",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "3637c839-808f-44ad-b395-0d8fb43b66f2",
+          "title": "2012‐06‐08: Bonnaroo Music & Arts Festival, Manchester, TN, USA",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group"
+              }
+            }
+          ]
+        },
+        {
+          "secondary-types": [
+            "Remix"
+          ],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "",
+          "primary-type": "EP",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "Ale to the Thieves",
+          "id": "377aa3b9-1fc0-3f08-a7e9-a2a17f132784",
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2017‐06‐11: Northside Festival, Aarhus, Denmark",
+          "id": "38efc7b7-4672-41a3-8015-191e6bcee9c8",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "disambiguation": ""
+        },
+        {
+          "secondary-types": [],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "",
+          "primary-type": "EP",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "title": "Radiohead TV Covers",
+          "id": "3ab9fbe7-b809-3db8-96cf-4de6e56bb180",
+          "secondary-type-ids": []
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "3e3004b0-6e83-4efc-be35-58a801a4571b",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "2008‐08‐28: Santa Barbara Bowl, Santa Barbara, CA, USA"
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "title": "2016‐08‐20: Summer Sonic Festival, Osaka, Japan",
+          "id": "45f7b43d-990b-4f14-a709-ca8d3a055b49",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2011‐11‐29: Roseland Ballroom, New York, NY, USA",
+          "id": "46f1e9a8-6036-4ebb-a39a-63fcd5d8c8c1",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": ""
+        },
+        {
+          "title": "2012‐10‐16: Le Zénith, Strasbourg, France",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "4ccb4804-62d4-4415-97d9-a325a1eec129",
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album"
+        },
+        {
+          "disambiguation": "",
+          "first-release-date": "",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "primary-type": "EP",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "4dba9b89-c003-4d56-8406-c244603d2eb9",
+          "title": "2000-12-14 PRE-FM: BBC Radio 1, UK",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "title": "A Punchup at a Wedding",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ],
+          "secondary-type-ids": [],
+          "id": "5065f9ad-d1dd-43c9-908f-0dde0a5f0104",
+          "secondary-types": [],
+          "disambiguation": "",
+          "primary-type": "Single",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2003-10-30"
+        },
+        {
+          "id": "518a42f6-2ace-30ff-b0b5-de6b919ba444",
+          "secondary-type-ids": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "8 Outtakes From Amnesiac",
+          "primary-type": "EP",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "2001",
+          "disambiguation": "",
+          "secondary-types": []
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ],
+          "title": "For Your Consideration – The Live EP Work Tapes",
+          "id": "54bfd4d8-2bd3-4241-9eac-b8dc778b8b3f",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "EP",
+          "first-release-date": "2019",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "disambiguation": ""
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "title": "2008‐06‐17: Civica Arena, Milan, Italy",
+          "id": "569a9328-e234-4e36-86b1-bed7203b6194",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": ""
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "Optimistic",
+          "id": "56df5269-0fa3-435b-9150-005f56e99bcc",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": ""
+        },
+        {
+          "id": "59f25ce9-ae14-43c7-a09e-3a911060043a",
+          "secondary-type-ids": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "title": "Radiohead",
+          "primary-type": "EP",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "1992",
+          "disambiguation": "",
+          "secondary-types": []
+        },
+        {
+          "title": "2017‐04‐21: Coachella Valley Music & Arts Festival, Indio, CA, USA",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "5e61bebb-3740-4b29-b498-25f042172fd0",
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "Single",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2000",
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "id": "634571b9-1473-4cde-a03d-e7194b42c7d5",
+          "title": "How to Disappear Completely",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "65e2f202-d992-4fbd-80b4-d79049286e54",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2008‐08‐25: Hollywood Bowl, Hollywood, CA, USA"
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "68b46350-86b6-46df-8a7e-3e8d9f7d5bb2",
+          "title": "2012‐03‐06: Austin City Limits Festival, Austin, TX, USA",
+          "artist-credit": [
+            {
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "secondary-type-ids": [],
+          "id": "764e4ec4-6e42-4a63-b61e-d47a011aeeca",
+          "title": "Dollars and Cents (live)",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "primary-type": "Single",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2001",
+          "secondary-types": []
+        },
+        {
+          "id": "873cb3ff-6467-3b2a-8bce-63b4a6ba8591",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "Idiot Computer",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "Planet Telex",
+          "id": "894e8d3c-1258-391e-9455-1d103f114e45",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "primary-type": "Single",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1995",
+          "disambiguation": ""
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "8a14e005-af02-47dd-9e25-4e86fec6a747",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "title": "2008‐05‐18: Superpages.com Center, Dallas, TX, USA"
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "8d99a7b6-0b7a-42e1-98d5-bf864a5598da",
+          "title": "2012‐11‐13: Sydney Entertainment Centre, Sydney, Australia",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ]
+        },
+        {
+          "id": "913f8b83-ad81-46c5-8965-f9a64ac4c8c0",
+          "secondary-type-ids": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "The National Anthem",
+          "primary-type": "Single",
+          "first-release-date": "2000-10-02",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "disambiguation": "",
+          "secondary-types": []
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "91decb29-1dfd-403d-a374-1314ef09d0dc",
+          "title": "2016‐08‐08: Shrine Auditorium, Los Angeles, CA, USA",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB",
+                "type": "Group"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "9352dd0c-3619-40b8-a472-652b9e4f9979",
+          "title": "2012‐03‐09: Scottrade Center, St. Louis, MO, USA",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              }
+            }
+          ]
+        },
+        {
+          "id": "9373e0ea-e66e-4062-94fc-7dc921898458",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "title": "2017‐04‐18: Greek Theatre, Berkeley, CA, USA",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-type-ids": [],
+          "id": "979a28b1-bfc9-4c24-bbe2-5a01dc8cc482",
+          "title": "Let Down",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "primary-type": "Single",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1997",
+          "secondary-types": []
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "title": "2009‐03‐22: Rain Down, Parque Chácara Do Jockey, São Paulo, Brazil",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "992a29e7-79fa-4a6e-bac5-b42afdd59c9e"
+        },
+        {
+          "title": "Street Spirit",
+          "artist-credit": [
+            {
+              "joinphrase": " vs. ",
+              "artist": {
+                "disambiguation": "",
+                "name": "Wonky",
+                "type-id": null,
+                "sort-name": "Wonky",
+                "id": "fd3bf3f9-0720-4909-8264-14fd9e4624cd",
+                "type": null,
+                "country": null
+              },
+              "name": "Wonky"
+            },
+            {
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [],
+          "id": "99839f28-0577-4802-8e94-b37149f93751",
+          "secondary-types": [],
+          "disambiguation": "",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2000-10-27",
+          "primary-type": "Single"
+        },
+        {
+          "title": "2008‐08‐22: Outside Lands Music & Arts Festival, Golden Gate Park, San Francisco, CA, USA",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "9988ed94-990c-4473-95ef-d68a713d29b5",
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "Amnesiac College",
+          "id": "9a263941-aef2-46b0-b8c8-c4082c81a70d",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "2001",
+          "primary-type": "EP",
+          "disambiguation": ""
+        },
+        {
+          "id": "9ba21b21-862b-4266-be49-54a16695622c",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2008‐08‐09: Blue Comet Stage, All Points West Music & Arts Festival, Liberty State Park, Jersey City, NJ, USA",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "title": "2017‐06‐16: I‐Days Festival, Monza, Italy",
+          "artist-credit": [
+            {
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "9e3ffbf9-7e64-4640-8047-422ecbed6d0c"
+        },
+        {
+          "secondary-types": [
+            "Remix"
+          ],
+          "primary-type": "EP",
+          "first-release-date": "2003-07-18",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "title": "B‐Sides",
+          "id": "a20ef15b-50d7-457a-90ab-12c06038d2ca",
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2008‐08‐06: Parc Jean Drapeau, Montreal, QC, Canada",
+          "id": "aa1b35e9-b698-47cc-bc54-db2a8babc28a",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "disambiguation": ""
+        },
+        {
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Aquasky",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "bd8f19ba-c3e9-410c-9253-e4d997a0c310",
+                "sort-name": "Aquasky",
+                "type": "Group",
+                "country": "GB"
+              },
+              "joinphrase": " vs. ",
+              "name": "Aquasky"
+            },
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "Everything in its Right Place",
+          "id": "aba00828-2c9d-34b5-8f4f-442668920199",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "primary-type": "Single",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2005-09",
+          "disambiguation": ""
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "ac01db5f-0e41-4fa8-bc23-16e4a6472183",
+          "title": "2016‐07‐31: Osheaga Festival, Montreal, QC, Canada",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "af7872a7-3e0e-48b0-8117-7f0ab3330ee8",
+          "title": "2008‐10‐07: International Forum, Tokyo, Japan",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB",
+                "type": "Group",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "af8b523c-a476-43d6-b365-de964157f083",
+          "title": "2016‐08‐06: Outside Lands Music & Arts Festival, San Francisco, CA, USA",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "country": "GB",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2016‐05‐24: Le Zénith, Paris, France",
+          "id": "b16ccb48-92dd-4348-a8f6-0d7c2980a590",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": ""
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "EP",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "",
+          "title": "1994-12-13: Beacon Theatre, New York City, NY, USA",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "b84e504e-1da0-3ca3-b94c-b047afc82488"
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "title": "2008‐08‐20: White River Amphitheater, Auburn, WA, USA",
+          "id": "ba55673e-3231-4aa4-a9c8-25d5c52e3241",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "secondary-types": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2001",
+          "primary-type": "Single",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "I Might Be Wrong",
+          "id": "bba6d655-2162-4324-a4d5-0c347dd531c0",
+          "secondary-type-ids": []
+        },
+        {
+          "title": "2016‐05‐21: Heineken Music Hall, Amsterdam, Netherlands",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "bcd661c4-c932-464f-b403-a23bf286d2e8",
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": ""
+        },
+        {
+          "id": "bd99a57b-5165-4eac-a1e0-a6afc0e646d0",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "2008‐05‐05: Cruzan Amphitheatre, West Palm Beach, FL, USA",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2016‐09‐11: Lollapalooza: Treptower Park, Berlin, Germany",
+          "id": "c21e3661-7339-4903-97ce-7a2830558ec6",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "c527b0d6-cd57-4424-ac0e-17dd9b544bac",
+          "title": "2017‐06‐28: Open’er Festival, Lotnisko Gdynia‐Kosakowo, Gdynia, Poland",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ],
+          "title": "2012‐07‐10: Arènes de Nîmes, Nîmes, France",
+          "id": "c5b9e8da-cd2d-400f-b70b-f446e9e7dc92",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "secondary-types": [],
+          "primary-type": "Single",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1996",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "Bones",
+          "id": "c5f4ea8f-c700-48e3-84f7-f5adb0c66081",
+          "secondary-type-ids": []
+        },
+        {
+          "title": "2008‐05‐03: From the Basement, Hospital Studio, London, UK",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "c6a9b7a4-91a9-4e83-8a38-6e7cd98c4f19",
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": ""
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "c85f38ff-2736-4882-819d-b3e1fef176d1",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              }
+            }
+          ],
+          "title": "2012‐07‐29: Fuji Rock Festival, Naeba Ski Resort, Niigata, Japan"
+        },
+        {
+          "secondary-types": [],
+          "disambiguation": "",
+          "first-release-date": "2006-04",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "primary-type": "EP",
+          "title": "Everything Is in Its Right Place (Afefe Iku re-edit)",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [],
+          "id": "d242ba28-3881-4009-b2cc-2e95d5f5442d"
+        },
+        {
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "d5f7b426-3886-4d3f-9215-f1d3204a4d83",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2008‐05‐09: Verizon Wireless Amphitheater, Charlotte, NC, USA"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "d630f9b4-c611-46e2-ae35-0567bdaf3657",
+          "title": "2017‐06‐30: Rock Werchter Festival, Werchter, Belgium",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [],
+          "disambiguation": "",
+          "first-release-date": "2000",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "primary-type": "Single",
+          "title": "Idioteque",
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [],
+          "id": "d76a7a67-824e-430e-b4d9-45c98e104ee0"
+        },
+        {
+          "disambiguation": "",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "d8242693-f99f-4255-b8ff-07174fe48f0c",
+          "title": "2008‐08‐01: Grant Park, Chicago, IL, USA",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB"
+              }
+            }
+          ],
+          "title": "2012-06-10: First Midwest Bank Amphitheater, Tinley Park IL",
+          "id": "de7f4dda-02f0-4518-9544-9c56399fa582",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "disambiguation": ""
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "title": "2008‐01‐16: Rough Trade East, Brick Lane, London, UK",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "e1d095b6-0336-4ace-b481-b0fd0477d375"
+        },
+        {
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "e383c6d0-1ead-3f4b-80b0-7e70ff72f842",
+          "title": "Painkiller",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "title": "College Karma EP",
+          "id": "e418e013-c2a4-3d77-af37-2e92cd48ba5a",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "primary-type": "EP",
+          "first-release-date": "1998-01",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "disambiguation": ""
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "title": "2012‐03‐03: Toyota Center, Houston, TX, USA",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "e6e2715c-cf04-42f6-b312-fae88b5b67df"
+        },
+        {
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "e968f625-0f9b-4084-8294-c953d8ce1314",
+          "title": "2016‐07‐02: OpenAir St. Gallen, Switzerland",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2012‐04‐11: HP Pavilion (San Jose Arena / “The Shark Tank”), San Jose, CA, USA",
+          "id": "ee51c4a0-4662-45a8-b0ac-c973498527eb",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "disambiguation": ""
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "title": "2018‐04‐14: Soundhearts Festival, Tecnópolis, Buenos Aires, Argentina",
+          "id": "efd79369-d9e7-4c23-8239-7f60e2b9fe0f",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "disambiguation": ""
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "disambiguation": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "title": "2008‐06‐18: Arena Civica Gianni Brera, Milan, Italy",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "f06a509a-0e78-4011-9dae-3de60d00c7fc"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "f2e27e97-a1b5-4625-a090-29e16dca8a19",
+          "title": "2009‐03‐27: Pista Atlética, Santiago, Chile",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2016‐08‐21: Summer Sonic Festival, Chiba, Japan",
+          "id": "f4786605-bdf3-470e-9ac8-01c03688cacc",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ],
+          "id": "f5303281-0713-4aeb-8b37-f5321d409e91",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "2012‐10‐08: O2 Arena, London, UK"
+        },
+        {
+          "secondary-types": [],
+          "primary-type": "Single",
+          "first-release-date": "2000-09-18",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "Optimistic",
+          "id": "f6e11713-36f0-4617-82b9-e88a8d1e5077",
+          "secondary-type-ids": []
+        },
+        {
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "country": "GB",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "title": "College EP",
+          "id": "fac1932e-3ec5-3cbc-9dec-10f0d4fcabec",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "2001-05",
+          "primary-type": "EP",
+          "disambiguation": ""
+        },
+        {
+          "secondary-types": [],
+          "disambiguation": "",
+          "first-release-date": "2000",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "primary-type": "Single",
+          "title": "Idioteque / How to Disappear Completely",
+          "artist-credit": [
+            {
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "country": "GB",
+                "type": "Group",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-type-ids": [],
+          "id": "fae0450e-c000-4829-be80-f4029272c0f6"
+        },
+        {
+          "secondary-type-ids": [
+            "81598169-0d6c-3bce-b4be-866fa658eda3"
+          ],
+          "id": "fae41c74-25d6-4176-8510-dece68ebdf3d",
+          "title": "On a Friday Demos 1",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "primary-type": "Album",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "",
+          "secondary-types": [
+            "Demo"
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "fb037ccb-5bda-4db2-a16b-28f0aaac33aa",
+          "title": "2018‐07‐19: Scotiabank Arena, Toronto, ON, Canada",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Group",
+                "country": "GB",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "primary-type": "Album",
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Remix"
+          ],
+          "disambiguation": "",
+          "primary-type": "EP",
+          "first-release-date": "2006",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "title": "Kid 17",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "name": "Radiohead"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "id": "fdda10b4-d7e4-373c-89ef-2899824b85fe"
+        }
+      ],
+      "release-group-count": 587
+    }
+  }
+}

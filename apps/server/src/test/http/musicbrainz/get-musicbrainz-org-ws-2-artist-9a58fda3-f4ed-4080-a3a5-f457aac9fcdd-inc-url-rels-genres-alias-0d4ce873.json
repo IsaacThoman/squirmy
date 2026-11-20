@@ -1,0 +1,1125 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/artist/9a58fda3-f4ed-4080-a3a5-f457aac9fcdd?inc=url-rels+genres+aliases&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "genres": [
+        {
+          "disambiguation": "",
+          "name": "gothic rock",
+          "id": "d9858aef-25bf-478b-b135-b900aa1f0fd1",
+          "count": 5
+        },
+        {
+          "disambiguation": "",
+          "name": "new wave",
+          "count": 7,
+          "id": "56407f9d-3398-4bf3-bbbd-ea372fa5adeb"
+        },
+        {
+          "id": "f6d8cadd-6a5e-4ec9-9c2b-996b5332a639",
+          "count": 24,
+          "name": "post-punk",
+          "disambiguation": ""
+        },
+        {
+          "count": 1,
+          "id": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+          "name": "rock",
+          "disambiguation": ""
+        }
+      ],
+      "life-span": {
+        "begin": "1978-01",
+        "end": "1980-05",
+        "ended": true
+      },
+      "ipis": [],
+      "begin-area": {
+        "type": null,
+        "disambiguation": "",
+        "sort-name": "Salford",
+        "name": "Salford",
+        "type-id": null,
+        "id": "f61848ab-0ba0-4534-8b71-d9c7c03e854c"
+      },
+      "id": "9a58fda3-f4ed-4080-a3a5-f457aac9fcdd",
+      "disambiguation": "English post-punk band",
+      "relations": [
+        {
+          "attribute-ids": {},
+          "ended": false,
+          "source-credit": "",
+          "url": {
+            "resource": "https://www.allmusic.com/artist/mn0000290812",
+            "id": "5f76f375-d3f9-4eb9-adee-bdc3e3146851"
+          },
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "allmusic",
+          "direction": "forward",
+          "type-id": "6b3e3c85-0002-4f34-aca6-80ace0d7e846"
+        },
+        {
+          "attribute-ids": {},
+          "ended": false,
+          "source-credit": "",
+          "url": {
+            "resource": "https://joydivisionvinyl.bandcamp.com/",
+            "id": "60247ac5-0f6e-4a99-aeaf-4283eacb1a02"
+          },
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "begin": null,
+          "type": "bandcamp",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "c550166e-0548-4a18-b1d4-e2ae423a3e88"
+        },
+        {
+          "type-id": "ea45ed3d-2d5e-456e-8c32-94b6f51426e2",
+          "direction": "forward",
+          "type": "bandsintown",
+          "target-credit": "",
+          "attribute-values": {},
+          "begin": null,
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "id": "84fb5d09-223d-428a-a719-6855845f6cb4",
+            "resource": "https://www.bandsintown.com/a/979"
+          },
+          "ended": false,
+          "attribute-ids": {}
+        },
+        {
+          "type-id": "d028a975-000c-4525-9333-d3c8425e4b54",
+          "direction": "forward",
+          "target-credit": "",
+          "type": "BBC Music page",
+          "attribute-values": {},
+          "begin": null,
+          "attributes": [],
+          "target-type": "url",
+          "source-credit": "",
+          "end": "2020-11-19",
+          "url": {
+            "resource": "https://www.bbc.co.uk/music/artists/9a58fda3-f4ed-4080-a3a5-f457aac9fcdd",
+            "id": "0753d1e4-86f7-4d0c-9519-5348d9b159ef"
+          },
+          "ended": true,
+          "attribute-ids": {}
+        },
+        {
+          "attribute-ids": {},
+          "ended": false,
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "resource": "https://www.punk-lyrics.net/band/joy-division",
+            "id": "10be7312-781e-4638-b373-566d601056e7"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "begin": null,
+          "attribute-values": {},
+          "type": "discography page",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "4fb0eeec-a6eb-4ae3-ad52-b55765b94e8f"
+        },
+        {
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "resource": "http://www.gerpotze.com/joydivision/hatym.htm",
+            "id": "365706b0-5c85-41aa-90ca-79bb8b55bee7"
+          },
+          "ended": true,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "4fb0eeec-a6eb-4ae3-ad52-b55765b94e8f",
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "discography page"
+        },
+        {
+          "type-id": "04a5b104-a4c2-4bac-99a1-7b837c37d9e4",
+          "direction": "forward",
+          "type": "discogs",
+          "target-credit": "",
+          "attribute-values": {},
+          "begin": null,
+          "attributes": [],
+          "target-type": "url",
+          "url": {
+            "resource": "https://www.discogs.com/artist/3898",
+            "id": "70edd45c-4985-4ef5-9819-4148783a8b4c"
+          },
+          "source-credit": "",
+          "end": null,
+          "ended": false,
+          "attribute-ids": {}
+        },
+        {
+          "attribute-ids": {},
+          "target-type": "url",
+          "attributes": [],
+          "ended": false,
+          "url": {
+            "resource": "https://www.joydiv.org/",
+            "id": "021c74bc-ceea-4896-8d54-94d175346023"
+          },
+          "source-credit": "",
+          "end": null,
+          "type": "fanpage",
+          "target-credit": "",
+          "begin": null,
+          "attribute-values": {},
+          "type-id": "f484f897-81cc-406e-96f9-cd799a04ee24",
+          "direction": "forward"
+        },
+        {
+          "type": "free streaming",
+          "target-credit": "",
+          "begin": null,
+          "attribute-values": {},
+          "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+          "direction": "forward",
+          "attribute-ids": {},
+          "attributes": [],
+          "target-type": "url",
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://open.spotify.com/artist/432R46LaYsJZV2Gmc4jUV5",
+            "id": "bae056ac-b822-4cf0-bc35-181f738b716c"
+          },
+          "ended": false
+        },
+        {
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "free streaming",
+          "direction": "forward",
+          "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+          "attribute-ids": {},
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://www.deezer.com/artist/1249",
+            "id": "80827a36-883b-40ab-962d-69af47bf7265"
+          },
+          "target-type": "url",
+          "attributes": []
+        },
+        {
+          "direction": "forward",
+          "type-id": "94c8b0cc-4477-4106-932c-da60e63de61c",
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "IMDb",
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://www.imdb.com/name/nm1920312/",
+            "id": "6fdc65d2-71de-4a5b-af2d-12392b467f19"
+          },
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {}
+        },
+        {
+          "attributes": [],
+          "target-type": "url",
+          "source-credit": "",
+          "url": {
+            "id": "fcc16046-cb23-4102-8e67-8d2b3d4098ce",
+            "resource": "https://www.last.fm/music/Joy+Division"
+          },
+          "end": null,
+          "ended": false,
+          "attribute-ids": {},
+          "type-id": "08db8098-c0df-4b78-82c3-c8697b4bba7f",
+          "direction": "forward",
+          "type": "last.fm",
+          "target-credit": "",
+          "attribute-values": {},
+          "begin": null
+        },
+        {
+          "attribute-ids": {},
+          "ended": false,
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "id": "f2d9fa3e-26c0-456e-9789-614983a53958",
+            "resource": "https://genius.com/artists/Joy-division"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "lyrics",
+          "direction": "forward",
+          "type-id": "e4d73442-3762-45a8-905c-401da65544ed"
+        },
+        {
+          "attribute-ids": {},
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "a6fdd69b-c955-48a7-ae76-02b4efe7a080",
+            "resource": "https://muzikum.eu/en/joy-division/lyrics"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "begin": null,
+          "type": "lyrics",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "e4d73442-3762-45a8-905c-401da65544ed"
+        },
+        {
+          "attribute-ids": {},
+          "target-type": "url",
+          "attributes": [],
+          "ended": false,
+          "source-credit": "",
+          "url": {
+            "resource": "https://www.musixmatch.com/artist/Joy-Division",
+            "id": "db3325a1-106e-47c2-90bb-fcd73660613a"
+          },
+          "end": null,
+          "target-credit": "",
+          "type": "lyrics",
+          "begin": null,
+          "attribute-values": {},
+          "type-id": "e4d73442-3762-45a8-905c-401da65544ed",
+          "direction": "forward"
+        },
+        {
+          "attribute-ids": {},
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://myspace.com/joydivision",
+            "id": "5d8f80aa-ab3a-440e-8064-d8e8f9a672a3"
+          },
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-values": {},
+          "begin": null,
+          "type": "myspace",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "bac47923-ecde-4b59-822e-d08f0cd10156"
+        },
+        {
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "5a725bb8-f966-42d8-8604-3e2d35373766",
+            "resource": "https://www.joydivisionofficial.com/"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "fe33d22f-c3b0-4d68-bd53-a856badf2b15",
+          "begin": null,
+          "attribute-values": {},
+          "type": "official homepage",
+          "target-credit": ""
+        },
+        {
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "http://id.loc.gov/authorities/names/n92021276",
+            "id": "2af5cfc3-42d0-47fe-8de2-1cf6c943df6f"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "other databases"
+        },
+        {
+          "attribute-ids": {},
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "0a2e2fbe-624d-48d5-ab3e-2f1be697c942",
+            "resource": "https://catalogue.bnf.fr/ark:/12148/cb12069816f"
+          },
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-values": {},
+          "begin": null,
+          "type": "other databases",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55"
+        },
+        {
+          "ended": false,
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "id": "4679e044-e5f4-40eb-8b13-b5475e2b8df6",
+            "resource": "https://d-nb.info/gnd/5271850-5"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "attribute-values": {},
+          "begin": null,
+          "type": "other databases",
+          "target-credit": ""
+        },
+        {
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "333ed920-c815-4a58-b4ea-799ec8167856",
+            "resource": "https://id.oclc.org/worldcat/entity/E39QQPVp7PHxJbPhG3PQgYFghR"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "begin": null,
+          "attribute-values": {},
+          "type": "other databases",
+          "target-credit": ""
+        },
+        {
+          "direction": "forward",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "begin": null,
+          "attribute-values": {},
+          "type": "other databases",
+          "target-credit": "",
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "611edef8-a1dd-42ba-b5f0-2fb687ee300e",
+            "resource": "https://imvdb.com/n/joy-division"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {}
+        },
+        {
+          "direction": "forward",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "attribute-values": {},
+          "begin": null,
+          "type": "other databases",
+          "target-credit": "",
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "05291610-ef41-4dc3-930f-230b3867773a",
+            "resource": "https://musicmoz.org/Bands_and_Artists/J/Joy_Division/"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {}
+        },
+        {
+          "attribute-values": {},
+          "begin": null,
+          "type": "other databases",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "attribute-ids": {},
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "2d1334b2-6481-42d2-92b3-d011fa74a5ca",
+            "resource": "https://rateyourmusic.com/artist/joy-division"
+          },
+          "target-type": "url",
+          "attributes": []
+        },
+        {
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "target-credit": "",
+          "type": "other databases",
+          "begin": null,
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "ab10164e-fea8-4dd1-aef6-7810c9479b1e",
+            "resource": "https://www.45cat.com/artist/joy-division"
+          },
+          "ended": false,
+          "attribute-ids": {}
+        },
+        {
+          "target-credit": "",
+          "type": "other databases",
+          "begin": null,
+          "attribute-values": {},
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "attribute-ids": {},
+          "attributes": [],
+          "target-type": "url",
+          "url": {
+            "id": "7adecafc-fbf2-4ba4-9705-a224bca68694",
+            "resource": "https://www.musik-sammler.de/artist/joy-division/"
+          },
+          "source-credit": "",
+          "end": null,
+          "ended": false
+        },
+        {
+          "target-type": "url",
+          "attributes": [],
+          "ended": false,
+          "source-credit": "",
+          "url": {
+            "resource": "https://www.spirit-of-rock.com/en/band/joy_division",
+            "id": "c266ffeb-b8d8-4e58-80ab-c49a967cc94c"
+          },
+          "end": null,
+          "attribute-ids": {},
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward",
+          "target-credit": "",
+          "type": "other databases",
+          "attribute-values": {},
+          "begin": null
+        },
+        {
+          "attribute-ids": {},
+          "attributes": [],
+          "target-type": "url",
+          "url": {
+            "resource": "https://www.whosampled.com/Joy-Division/",
+            "id": "5f8b39cf-d08f-46c9-a3a1-5816c645c8c4"
+          },
+          "source-credit": "",
+          "end": null,
+          "ended": false,
+          "type": "other databases",
+          "target-credit": "",
+          "begin": null,
+          "attribute-values": {},
+          "type-id": "d94fb61c-fa20-4e3c-a19a-71a949fb2c55",
+          "direction": "forward"
+        },
+        {
+          "attribute-ids": {},
+          "target-type": "url",
+          "attributes": [],
+          "ended": false,
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "resource": "https://itunes.apple.com/gb/artist/id722383",
+            "id": "b433a9d1-fc4d-4d25-a95f-e4c744ca4930"
+          },
+          "target-credit": "",
+          "type": "purchase for download",
+          "attribute-values": {},
+          "begin": null,
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward"
+        },
+        {
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward",
+          "type": "purchase for download",
+          "target-credit": "",
+          "attribute-values": {},
+          "begin": null,
+          "target-type": "url",
+          "attributes": [],
+          "ended": false,
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "id": "68cd564b-71b3-4793-8905-6544dc0a22e5",
+            "resource": "https://mora.jp/artist/74383/"
+          },
+          "attribute-ids": {}
+        },
+        {
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "purchase for download",
+          "direction": "forward",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "attribute-ids": {},
+          "ended": false,
+          "url": {
+            "id": "e18a5195-23ab-4bdc-b38b-ae3898dbbddb",
+            "resource": "https://music.apple.com/gb/artist/722383"
+          },
+          "source-credit": "",
+          "end": null,
+          "target-type": "url",
+          "attributes": []
+        },
+        {
+          "direction": "forward",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "attribute-values": {},
+          "begin": null,
+          "type": "purchase for download",
+          "target-credit": "",
+          "ended": false,
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "resource": "https://open.qobuz.com/artist/310345",
+            "id": "dc067ff8-4aa5-4122-8742-11c99f08e31b"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {}
+        },
+        {
+          "target-credit": "",
+          "type": "purchase for download",
+          "begin": null,
+          "attribute-values": {},
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward",
+          "attribute-ids": {},
+          "attributes": [],
+          "target-type": "url",
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://ototoy.jp/_/default/a/255581",
+            "id": "e3582838-d5c6-45cc-9cd1-b89d346842d0"
+          },
+          "ended": false
+        },
+        {
+          "direction": "forward",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "purchase for download",
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://uk.7digital.com/artist/joy-division",
+            "id": "2e9d157f-fc8d-48b9-8b76-92859600cae1"
+          },
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {}
+        },
+        {
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "resource": "https://www.beatport.com/artist/joy-division/15843",
+            "id": "60a78817-d38c-49c6-8705-0c3c6bef5b5f"
+          },
+          "ended": false,
+          "attribute-ids": {},
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward",
+          "target-credit": "",
+          "type": "purchase for download",
+          "attribute-values": {},
+          "begin": null
+        },
+        {
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "id": "ec9e6a46-ab3c-4384-861f-f4cdde2e239f",
+            "resource": "https://www.junodownload.com/artists/Joy+Division/releases/"
+          },
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "purchase for download"
+        },
+        {
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "id": "6fa81d4d-7734-49b0-b25e-a6eeb84b9b02",
+            "resource": "https://www.melon.com/artist/detail.htm?artistId=106589"
+          },
+          "ended": false,
+          "attribute-ids": {},
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "direction": "forward",
+          "type": "purchase for download",
+          "target-credit": "",
+          "attribute-values": {},
+          "begin": null
+        },
+        {
+          "direction": "forward",
+          "type-id": "f8319a2f-f824-4617-81c8-be6560b3b203",
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "purchase for download",
+          "source-credit": "",
+          "url": {
+            "id": "b7771daa-e758-41d1-8ad2-a1b90707ac1a",
+            "resource": "https://www.qobuz.com/us-en/interpreter/joy-division/310345"
+          },
+          "end": null,
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {}
+        },
+        {
+          "ended": false,
+          "url": {
+            "id": "6f9fe58d-6883-4f51-bb16-7fc971926737",
+            "resource": "https://www.cdjapan.co.jp/person/700274011"
+          },
+          "source-credit": "",
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "611b1862-67af-4253-a64f-34adba305d1d",
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "purchase for mail-order"
+        },
+        {
+          "direction": "forward",
+          "type-id": "b6f02157-a9d3-4f24-9057-0675b2dbc581",
+          "attribute-values": {},
+          "begin": null,
+          "type": "purevolume",
+          "target-credit": "",
+          "source-credit": "",
+          "end": "2018-06-30",
+          "url": {
+            "id": "e2bf6c2e-a01d-4a6c-ac2b-697a7501dd3a",
+            "resource": "http://www.purevolume.com/joydivision"
+          },
+          "ended": true,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {}
+        },
+        {
+          "attribute-ids": {},
+          "target-type": "url",
+          "attributes": [],
+          "ended": false,
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "resource": "https://secondhandsongs.com/artist/1890",
+            "id": "39c79f0f-af24-476f-a59c-461f1c49b3b8"
+          },
+          "target-credit": "",
+          "type": "secondhandsongs",
+          "begin": null,
+          "attribute-values": {},
+          "type-id": "79c5b84d-a206-4f4c-9832-78c028c312c3",
+          "direction": "forward"
+        },
+        {
+          "attribute-ids": {},
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://www.setlist.fm/setlists/joy-division-63d6b22b.html",
+            "id": "d49b4813-bee6-4b3a-99ab-95e962765ca0"
+          },
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "setlistfm",
+          "direction": "forward",
+          "type-id": "bf5d0d5e-27a1-4e94-9df7-3cdc67b3b207"
+        },
+        {
+          "direction": "forward",
+          "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "social network",
+          "ended": false,
+          "source-credit": "",
+          "url": {
+            "id": "3aeca931-d011-4815-9081-69180dc4c4ad",
+            "resource": "https://twitter.com/joydivision"
+          },
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {}
+        },
+        {
+          "direction": "forward",
+          "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "social network",
+          "ended": false,
+          "source-credit": "",
+          "url": {
+            "id": "5e0a079e-4246-49ec-aa8e-6dde0a622604",
+            "resource": "https://www.facebook.com/JoyDivisionOfficial"
+          },
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {}
+        },
+        {
+          "attribute-ids": {},
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "43e5cdf3-2ac0-43c5-be18-0bcba16c2390",
+            "resource": "https://www.instagram.com/officialjoydivision/"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "social network",
+          "direction": "forward",
+          "type-id": "99429741-f3f6-484b-84f8-23af51991770"
+        },
+        {
+          "type-id": "aac9c4bc-a5b9-30b8-9839-e3ac314c6e58",
+          "direction": "forward",
+          "type": "songkick",
+          "target-credit": "",
+          "attribute-values": {},
+          "begin": null,
+          "target-type": "url",
+          "attributes": [],
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://www.songkick.com/artists/373805",
+            "id": "94141140-5718-487f-a515-b91a57317e81"
+          },
+          "attribute-ids": {}
+        },
+        {
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://soundcloud.com/joy-division-3",
+            "id": "4a44805d-5b35-47d9-a4fa-a6b4db7be325"
+          },
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "89e4a949-0976-440d-bda1-5f772c1e5710",
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "soundcloud"
+        },
+        {
+          "source-credit": "",
+          "end": "2022-06-08",
+          "url": {
+            "resource": "https://us.napster.com/artist/joy-division",
+            "id": "44c9138d-4651-4694-83a1-d7575b4ba9c1"
+          },
+          "ended": true,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "streaming"
+        },
+        {
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "attribute-values": {},
+          "begin": null,
+          "type": "streaming",
+          "target-credit": "",
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "2e30c9ec-993b-4e15-aa5b-795038f2a3d4",
+            "resource": "https://music.amazon.com/artists/B000QJNIMW"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {}
+        },
+        {
+          "attribute-ids": {},
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://music.apple.com/gb/artist/722383",
+            "id": "e18a5195-23ab-4bdc-b38b-ae3898dbbddb"
+          },
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "begin": null,
+          "attribute-values": {},
+          "type": "streaming",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161"
+        },
+        {
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "streaming",
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "dc067ff8-4aa5-4122-8742-11c99f08e31b",
+            "resource": "https://open.qobuz.com/artist/310345"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {}
+        },
+        {
+          "source-credit": "",
+          "url": {
+            "id": "19b73621-e32b-4d5e-b40f-3fd8c38bd4a8",
+            "resource": "https://tidal.com/artist/11949"
+          },
+          "end": null,
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "streaming"
+        },
+        {
+          "attribute-values": {},
+          "begin": null,
+          "type": "streaming",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "attribute-ids": {},
+          "url": {
+            "resource": "https://www.melon.com/artist/detail.htm?artistId=106589",
+            "id": "6fa81d4d-7734-49b0-b25e-a6eeb84b9b02"
+          },
+          "source-credit": "",
+          "end": null,
+          "ended": false,
+          "attributes": [],
+          "target-type": "url"
+        },
+        {
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "streaming",
+          "direction": "forward",
+          "type-id": "63cc5d1f-f096-4c94-a43f-ecb32ea94161",
+          "attribute-ids": {},
+          "ended": false,
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "id": "b7771daa-e758-41d1-8ad2-a1b90707ac1a",
+            "resource": "https://www.qobuz.com/us-en/interpreter/joy-division/310345"
+          },
+          "target-type": "url",
+          "attributes": []
+        },
+        {
+          "direction": "forward",
+          "type-id": "e8571dcc-35d4-4e91-a577-a3382fd84460",
+          "attribute-values": {},
+          "begin": null,
+          "target-credit": "",
+          "type": "VIAF",
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "http://viaf.org/viaf/140861471",
+            "id": "1346f455-8f07-40d0-8e10-b312eab321a4"
+          },
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {}
+        },
+        {
+          "attribute-ids": {},
+          "ended": false,
+          "source-credit": "",
+          "url": {
+            "resource": "https://www.wikidata.org/wiki/Q172763",
+            "id": "025a7d1e-66b3-44a5-96d0-a953f1695b77"
+          },
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "begin": null,
+          "type": "wikidata",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "689870a4-a1e4-4912-b17f-7b2664215698"
+        },
+        {
+          "begin": null,
+          "attribute-values": {},
+          "target-credit": "",
+          "type": "youtube",
+          "direction": "forward",
+          "type-id": "6a540e5b-58c6-4192-b6ba-dbc71ec8fcf0",
+          "attribute-ids": {},
+          "ended": false,
+          "end": null,
+          "source-credit": "",
+          "url": {
+            "id": "272a2db0-0178-4e31-89a4-f0b52770638d",
+            "resource": "https://www.youtube.com/channel/UCMnHk6_QgQT1KQkbUlxhTYw"
+          },
+          "target-type": "url",
+          "attributes": []
+        },
+        {
+          "direction": "forward",
+          "type-id": "631712a0-7525-42ba-b7a3-605aa7a238c4",
+          "begin": null,
+          "attribute-values": {},
+          "type": "youtube music",
+          "target-credit": "",
+          "url": {
+            "id": "24eab907-2ce1-456f-b095-be6ea8e35575",
+            "resource": "https://music.youtube.com/channel/UCj9bYSgqVuUxqd3x9myLWKA"
+          },
+          "source-credit": "",
+          "end": null,
+          "ended": false,
+          "attributes": [],
+          "target-type": "url",
+          "attribute-ids": {}
+        }
+      ],
+      "gender-id": null,
+      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+      "name": "Joy Division",
+      "country": "GB",
+      "aliases": [],
+      "isnis": [
+        "0000000123242422"
+      ],
+      "type": "Group",
+      "end-area": null,
+      "area": {
+        "sort-name": "United Kingdom",
+        "type": null,
+        "disambiguation": "",
+        "iso-3166-1-codes": [
+          "GB"
+        ],
+        "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+        "name": "United Kingdom",
+        "type-id": null
+      },
+      "gender": null,
+      "sort-name": "Joy Division"
+    }
+  }
+}

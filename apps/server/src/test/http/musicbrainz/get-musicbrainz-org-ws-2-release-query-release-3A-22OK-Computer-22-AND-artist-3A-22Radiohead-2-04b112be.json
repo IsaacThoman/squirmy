@@ -1,0 +1,699 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=release%3A%22OK+Computer%22+AND+artist%3A%22Radiohead%22+tracks%3A12&limit=10&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T16:03:02.347Z",
+      "count": 39,
+      "offset": 0,
+      "releases": [
+        {
+          "id": "d339ba4d-0e44-4d2d-bc7a-b8078c072da9",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "disambiguation": "AG31715-01 manufactured by optimal media GmbH IFPI L576",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "2016-05-01",
+          "country": "XE",
+          "release-events": [
+            {
+              "date": "2016-05-01",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "barcode": "634904078126",
+          "label-info": [
+            {
+              "catalog-number": "XLCD781",
+              "label": {
+                "id": "14221f01-8939-4ea0-b8f1-b5a21beae80a",
+                "name": "XL Recordings"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "b859f90f-0176-43a0-8e6f-32a4f1abebca",
+              "format": "CD",
+              "disc-count": 0,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "6a09041b-0f79-3278-88d9-0552dd28d37f",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "1997-07-01",
+          "country": "US",
+          "release-events": [
+            {
+              "date": "1997-07-01",
+              "area": {
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "sort-name": "United States",
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              }
+            }
+          ],
+          "barcode": "724385522925",
+          "asin": "B000002UJQ",
+          "label-info": [
+            {
+              "catalog-number": "CDP 7243 8 55229 2 5",
+              "label": {
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "f62bbec0-cb4a-3519-b584-923b7fd5ac75",
+              "format": "CD",
+              "disc-count": 16,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "1997-05-21",
+          "country": "JP",
+          "release-events": [
+            {
+              "date": "1997-05-21",
+              "area": {
+                "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+                "name": "Japan",
+                "sort-name": "Japan",
+                "iso-3166-1-codes": [
+                  "JP"
+                ]
+              }
+            }
+          ],
+          "barcode": "4988006729254",
+          "asin": "B00002MMMG",
+          "label-info": [
+            {
+              "catalog-number": "TOCP-50201",
+              "label": {
+                "id": "c029628b-6633-439e-bcee-ed02e8a338f7",
+                "name": "EMI"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "060959f3-0d81-38b3-be26-c32f80ca68e9",
+              "format": "CD",
+              "disc-count": 16,
+              "track-count": 12
+            }
+          ],
+          "tags": [
+            {
+              "count": 1,
+              "name": "rock"
+            }
+          ]
+        },
+        {
+          "id": "1c16cd42-472f-47cc-9848-d081d0737a7c",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "disambiguation": "repress, Sonopress",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "1999",
+          "country": "XE",
+          "release-events": [
+            {
+              "date": "1999",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "barcode": "724385522925",
+          "label-info": [
+            {
+              "catalog-number": "7243 8 55229 2 5",
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            },
+            {
+              "catalog-number": "CDNODATA 02",
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "c29f13c1-6441-3f76-b058-e2c77c6f21c3",
+              "format": "CD",
+              "disc-count": 1,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "fba5f8fe-c6c8-4511-8562-c9febf482674",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "packaging": "Cassette Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "1997-06-16",
+          "country": "GB",
+          "release-events": [
+            {
+              "date": "1997-06-16",
+              "area": {
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "name": "United Kingdom",
+                "sort-name": "United Kingdom",
+                "iso-3166-1-codes": [
+                  "GB"
+                ]
+              }
+            }
+          ],
+          "barcode": "724385522949",
+          "asin": "B000002UJR",
+          "label-info": [
+            {
+              "catalog-number": "TCNODATA 02",
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "2de5342c-a798-35cc-bf75-97f06c7cdbde",
+              "format": "Cassette",
+              "disc-count": 0,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "packaging": "None",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "2016-04-01",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "2016-04-01",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "barcode": "634904078164",
+          "asin": "B01DPSNU78",
+          "label-info": [
+            {
+              "catalog-number": "XLDA781",
+              "label": {
+                "id": "14221f01-8939-4ea0-b8f1-b5a21beae80a",
+                "name": "XL Recordings"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "31b42a96-8ed1-3c60-97c0-4ce258ac6298",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "0c324f3a-dcbb-4f09-b33a-c03c676b4044",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "2016-05-13",
+          "country": "XE",
+          "release-events": [
+            {
+              "date": "2016-05-13",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "barcode": "634904078126",
+          "label-info": [
+            {
+              "catalog-number": "XLCD781",
+              "label": {
+                "id": "14221f01-8939-4ea0-b8f1-b5a21beae80a",
+                "name": "XL Recordings"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "888470c6-d0a8-33ae-94ba-2cfb9448cf7c",
+              "format": "CD",
+              "disc-count": 2,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "4b3d18cc-8937-36f4-8de0-481088be58e6",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "1997-06-17",
+          "country": "CA",
+          "release-events": [
+            {
+              "date": "1997-06-17",
+              "area": {
+                "id": "71bbafaa-e825-3e15-8ca9-017dcad1748b",
+                "name": "Canada",
+                "sort-name": "Canada",
+                "iso-3166-1-codes": [
+                  "CA"
+                ]
+              }
+            }
+          ],
+          "barcode": "724385522925",
+          "asin": "B000002UJQ",
+          "label-info": [
+            {
+              "catalog-number": "7243 8 55229 2 5",
+              "label": {
+                "id": "095b5fc8-724e-4357-9eab-ee89196afc8e",
+                "name": "EMI Music Canada"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "20c649f0-1349-3dc9-993b-07aa88dad03c",
+              "format": "CD",
+              "disc-count": 15,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "3c8cbdc8-555f-3987-8f03-6baf9488d1b0",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "1997",
+          "country": "AR",
+          "release-events": [
+            {
+              "date": "1997",
+              "area": {
+                "id": "0df04709-c7d8-3b55-a6ea-f3e5069a947b",
+                "name": "Argentina",
+                "sort-name": "Argentina",
+                "iso-3166-1-codes": [
+                  "AR"
+                ]
+              }
+            }
+          ],
+          "barcode": "724385522925",
+          "label-info": [
+            {
+              "catalog-number": "7243 8 55229 2 5",
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "e99cbbcd-0007-3c7c-9ff4-9187bd9940fc",
+              "format": "CD",
+              "disc-count": 16,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "52709206-8816-3c12-9ff6-f957f2f1eecf",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "021661c1-84c5-30d7-9bb2-f0766affb734",
+          "count": 1,
+          "title": "OK Computer",
+          "status": "Official",
+          "disambiguation": "EMI UDEN, made in Italy, printed in Italy",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          },
+          "date": "1997-06-16",
+          "country": "XE",
+          "release-events": [
+            {
+              "date": "1997-06-16",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "barcode": "724385522925",
+          "asin": "B000002UJQ",
+          "label-info": [
+            {
+              "catalog-number": "8 55229 2",
+              "label": {
+                "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+                "name": "Parlophone"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "7b8296aa-96c5-3817-8ab4-cb28bddf6932",
+              "format": "CD",
+              "disc-count": 12,
+              "track-count": 12
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
