@@ -28,6 +28,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip } from '@/components/ui/tooltip'
 import { album, albums, artists, lyricsFor, playlistSummaries, summary, track } from '@/fixtures/catalog'
+import { FixtureProviders } from '@/fixtures/FixtureProviders'
 import { toast } from '@/lib/toast'
 import { usePlayer } from '@/player/player-context'
 
@@ -56,8 +57,12 @@ function Row({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap items-center gap-3">{children}</div>
 }
 
-/** Every primitive and component state on one page, for design review. */
+/** Every primitive and component state on one page, for design review, on the fixture catalog and session. */
 export function KitchenSinkPage() {
+  return <FixtureProviders><KitchenSink /></FixtureProviders>
+}
+
+function KitchenSink() {
   const player = usePlayer()
   const [slider, setSlider] = useState(40)
   const [query, setQuery] = useState('Blue hour')
@@ -176,7 +181,7 @@ export function KitchenSinkPage() {
           </Dialog>
           <Popover>
             <PopoverTrigger asChild><Button variant="outline">Devices popover</Button></PopoverTrigger>
-            <PopoverContent align="start"><DeviceList devices={player.state.devices} activeDeviceId={player.state.activeDeviceId} thisDeviceId={player.state.thisDeviceId} onTransfer={player.controls.transfer} /></PopoverContent>
+            <PopoverContent align="start"><DeviceList player={player} /></PopoverContent>
           </Popover>
         </Row>
         <Tabs defaultValue="songs">
@@ -249,7 +254,7 @@ export function KitchenSinkPage() {
         <div className="max-w-sm"><MiniPlayer player={player} onOpenNowPlaying={() => {}} /></div>
         <PlayingElsewhere device={player.state.devices[2]} onPlayHere={() => {}} className="rounded-full" />
         <div className="grid gap-6 lg:grid-cols-3">
-          <div className="rounded-3xl bg-sheet p-2 ring-1 ring-stroke"><DeviceList devices={player.state.devices} activeDeviceId={player.state.activeDeviceId} thisDeviceId={player.state.thisDeviceId} onTransfer={player.controls.transfer} /></div>
+          <div className="rounded-3xl bg-sheet p-2 ring-1 ring-stroke"><DeviceList player={player} /></div>
           <ScrollArea className="h-[28rem] rounded-3xl bg-sheet p-3 ring-1 ring-stroke"><QueueContent player={player} /></ScrollArea>
           <div className="h-[28rem] overflow-hidden rounded-3xl bg-sheet px-4 ring-1 ring-stroke"><LyricsPane lyrics={lyricsFor(track('night-swimming').id)} onSeek={player.controls.seek} /></div>
         </div>

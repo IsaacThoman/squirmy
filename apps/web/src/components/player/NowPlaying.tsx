@@ -5,7 +5,7 @@ import { Cover } from '@/components/music/Cover'
 import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
-import type { Player } from '@/player/player-context'
+import { playingElsewhere, type Player } from '@/player/player-context'
 import { DevicesPopover, PlayingElsewhere } from './Devices'
 import { LyricsPane } from './Lyrics'
 import { QueueContent } from './Queue'
@@ -29,7 +29,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   const artUrl = useArtUrl()
   const item = state.current
   const artwork = item?.track.album?.artwork ?? null
-  const elsewhere = state.activeDeviceId !== state.thisDeviceId ? state.devices.find(device => device.id === state.activeDeviceId) : undefined
+  const elsewhere = playingElsewhere(state)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
 
   return (
@@ -37,7 +37,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
       <DialogPrimitive.Portal>
         <DialogPrimitive.Content
           aria-describedby={undefined}
-          className="fixed inset-0 z-40 flex animate-slide-in flex-col overflow-hidden text-foreground focus:outline-none data-[state=closed]:animate-exit"
+          className="fixed inset-0 z-40 flex animate-slide-in flex-col overflow-clip text-foreground focus:outline-none data-[state=closed]:animate-exit"
           style={{ backgroundColor: artwork?.color ?? 'var(--background)' }}
         >
           <div aria-hidden className="absolute inset-0">
@@ -67,10 +67,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             </div>
             <DevicesPopover
               side="bottom"
-              devices={state.devices}
-              activeDeviceId={state.activeDeviceId}
-              thisDeviceId={state.thisDeviceId}
-              onTransfer={controls.transfer}
+              player={player}
               trigger={<IconButton label="Devices" variant="solid" className={cn('bg-overlay', elsewhere && 'text-accent')}><MonitorSpeaker /></IconButton>}
             />
           </div>
@@ -84,7 +81,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
               </div>
             </div>
             {pane !== 'art' && (
-              <div className="min-h-0 overflow-hidden">
+              <div className="min-h-0 overflow-clip">
                 {pane === 'lyrics'
                   ? <LyricsPane lyrics={state.lyrics} onSeek={controls.seek} />
                   : <div className="h-full overflow-y-auto pr-1 [scrollbar-width:thin]"><QueueContent player={player} /></div>}

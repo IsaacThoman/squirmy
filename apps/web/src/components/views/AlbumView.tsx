@@ -1,5 +1,5 @@
 import type { AlbumDetail } from '@squirmy/contracts'
-import { CloudDownload, Disc3, ListEnd, ListStart, MicVocal, MoreHorizontal } from 'lucide-react'
+import { CloudDownload, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal, Plus } from 'lucide-react'
 import { Fragment } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
@@ -29,14 +29,16 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   const tracks = album.discs.flatMap(disc => disc.tracks)
   const context = { type: 'album' as const, id: album.id, title: album.title }
   const actions = useTrackActions(tracks, context)
-  const liked = library.isLiked(album.id, album.liked)
   const wanted = library.isWanted(album.id, album.wanted)
-  const firstPlayable = tracks.findIndex(track => track.availability !== 'none')
   const playable = tracks.filter(track => track.availability !== 'none')
 
   const want = () => {
-    library.setWanted('album', album.id, !wanted)
+    library.setWanted({ type: 'album', album }, !wanted)
     toast({ title: wanted ? 'Removed from Wantlist' : 'Added to Wantlist', description: album.title })
+  }
+  const enqueue = (placement: 'next' | 'last') => {
+    controls.enqueue(playable, placement)
+    toast({ title: placement === 'next' ? 'Playing next' : 'Added to queue', description: album.title })
   }
 
   return (
@@ -60,21 +62,28 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
         actions={(
           <PlayActions
             title={album.title}
-            onPlay={firstPlayable >= 0 ? () => controls.playTracks(tracks, firstPlayable, context) : undefined}
-            onShuffle={playable.length > 1 ? () => {
-              controls.setShuffle(true)
-              controls.playTracks(tracks, firstPlayable, context)
-            } : undefined}
-            liked={liked}
-            onLike={() => library.setLiked('album', album.id, !liked)}
+            onPlay={playable.length ? () => controls.playTracks(tracks, 0, context) : undefined}
+            onShuffle={playable.length > 1 ? () => controls.playTracks(tracks, 0, context, { shuffle: true }) : undefined}
+            liked={album.liked}
+            onLike={() => library.setLiked('album', album.id, !album.liked)}
             wanted={wanted}
             onWant={album.availability === 'full' ? undefined : want}
           >
             <DropdownMenu
               align="start"
               entries={[
-                { label: 'Play next', icon: <ListStart />, disabled: !playable.length, onSelect: () => controls.enqueue(playable, 'next') },
-                { label: 'Add to queue', icon: <ListEnd />, disabled: !playable.length, onSelect: () => controls.enqueue(playable, 'last') },
+                { label: 'Play next', icon: <ListStart />, disabled: !playable.length, onSelect: () => enqueue('next') },
+                { label: 'Add to queue', icon: <ListEnd />, disabled: !playable.length, onSelect: () => enqueue('last') },
+                {
+                  kind: 'submenu',
+                  label: 'Add to playlist',
+                  icon: <ListPlus />,
+                  items: [
+                    { label: 'New playlist…', icon: <Plus />, onSelect: () => library.newPlaylist(tracks) },
+                    ...(library.playlists.length ? [{ kind: 'separator' as const }] : []),
+                    ...library.playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => library.addToPlaylist(playlist, tracks) })),
+                  ],
+                },
                 { kind: 'separator' },
                 ...album.artists.map(artist => ({ label: `Go to ${artist.name}`, icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
               ]}

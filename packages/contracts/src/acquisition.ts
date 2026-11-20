@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { Id, IsoDateTime } from './common.js'
+import { Id, IsoDateTime, PageQuery, page } from './common.js'
+import { ImportFileResult } from './imports.js'
 
 /**
  * The acquisition provider protocol, version 1. A provider is an HTTP service the
@@ -138,6 +139,14 @@ export const ProviderJobStatus = z.object({
 })
 export type ProviderJobStatus = z.infer<typeof ProviderJobStatus>
 
+/**
+ * Answer to a `delivery.uploadUrl` request: what happened to each file part. A file is
+ * `rejected` by name or type (see `ImportFileRejection`); a file over the operator's size
+ * limit ends the request with 413 and fails the job.
+ */
+export const ProviderUploadResponse = z.object({ files: z.array(ImportFileResult) })
+export type ProviderUploadResponse = z.infer<typeof ProviderUploadResponse>
+
 /** Body the provider posts to `delivery.completeUrl`. */
 export const ProviderDeliveryComplete = z.object({
   status: z.enum(['completed', 'failed']),
@@ -155,6 +164,7 @@ export const AcquisitionProvider = z.object({
   baseUrl: z.string(),
   enabled: z.boolean(),
   coverage: ProviderCoverage,
+  /** Providers are tried in descending priority. */
   priority: z.number().int(),
   capabilities: ProviderCapabilities.nullable(),
   lastOkAt: IsoDateTime.nullable(),
@@ -162,6 +172,14 @@ export const AcquisitionProvider = z.object({
 })
 export type AcquisitionProvider = z.infer<typeof AcquisitionProvider>
 
+/** `GET /admin/acquisition/providers`: every provider, with `nextCursor: null`. */
+export const AcquisitionProviderList = page(AcquisitionProvider)
+export type AcquisitionProviderList = z.infer<typeof AcquisitionProviderList>
+
+/**
+ * `POST /admin/acquisition/providers`. The server calls `GET {baseUrl}/capabilities` right
+ * away; an unreachable provider is still saved, with `lastError` set.
+ */
 export const CreateAcquisitionProviderRequest = z.object({
   name: z.string().trim().min(1).max(80),
   baseUrl: z.string().url(),
@@ -171,9 +189,23 @@ export const CreateAcquisitionProviderRequest = z.object({
   priority: z.number().int().default(0),
 })
 export type CreateAcquisitionProviderRequest = z.infer<typeof CreateAcquisitionProviderRequest>
-export const UpdateAcquisitionProviderRequest = CreateAcquisitionProviderRequest.partial()
+
+/** `PATCH /admin/acquisition/providers/:id`. Keys left out keep their value, so nothing here has a default. */
+export const UpdateAcquisitionProviderRequest = z.object({
+  name: z.string().trim().min(1).max(80),
+  baseUrl: z.string().url(),
+  secret: z.string().min(8),
+  enabled: z.boolean(),
+  priority: z.number().int(),
+}).partial()
 export type UpdateAcquisitionProviderRequest = z.infer<typeof UpdateAcquisitionProviderRequest>
 
+/**
+ * `resolving`: asking providers for offers (or waiting for a free slot at the provider).
+ * `queued`: the provider accepted the job. `downloading`: files are arriving.
+ * `importing`: the delivery is complete and the import pipeline has it. `rejected`: refused
+ * by policy or by the provider before anything was fetched.
+ */
 export const AcquisitionJobStatus = z.enum(['resolving', 'queued', 'downloading', 'importing', 'completed', 'failed', 'rejected'])
 export type AcquisitionJobStatus = z.infer<typeof AcquisitionJobStatus>
 
@@ -181,16 +213,36 @@ export const AcquisitionJob = z.object({
   id: Id,
   providerId: Id,
   providerName: z.string(),
+  /** Username of whoever asked; null once that user is deleted. */
   requestedBy: z.string().nullable(),
   trackId: Id.nullable(),
   albumId: Id.nullable(),
   title: z.string(),
   status: AcquisitionJobStatus,
   error: z.string().nullable(),
+  /** The import that received the delivery, once files arrived. */
+  importId: Id.nullable(),
   createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
   completedAt: IsoDateTime.nullable(),
 })
 export type AcquisitionJob = z.infer<typeof AcquisitionJob>
+
+/** `GET /admin/acquisition/jobs`: newest first. */
+export const AcquisitionJobListQuery = PageQuery.extend({ status: AcquisitionJobStatus.optional() })
+export type AcquisitionJobListQuery = z.infer<typeof AcquisitionJobListQuery>
+export const AcquisitionJobList = page(AcquisitionJob)
+export type AcquisitionJobList = z.infer<typeof AcquisitionJobList>
+
+/**
+ * `POST /tracks/:id/acquire` and `POST /albums/:id/acquire` (202). The jobs now working on
+ * the request: an existing job when one is already in flight, one job for an album the
+ * provider takes whole, or one per missing track otherwise. Error codes: `acquire_not_allowed`
+ * (the user may not trigger fetches), `already_available`, `not_available` (no enabled
+ * provider covers it), `storage_quota_reached`.
+ */
+export const AcquireResponse = z.object({ items: z.array(AcquisitionJob) })
+export type AcquireResponse = z.infer<typeof AcquireResponse>
 
 /** Operator policy for on-demand fetching, stored with the server settings. */
 export const AcquisitionPolicy = z.object({
@@ -200,11 +252,25 @@ export const AcquisitionPolicy = z.object({
   maxFileBytes: z.number().int().min(0).default(500 * 1024 ** 2),
   /** Stop fetching when acquired files exceed this total. 0 means no limit. */
   storageQuotaBytes: z.number().int().min(0).default(0),
-  /** Fail a job that has not completed after this long. */
+  /** Fail a job whose provider has not delivered after this long. */
   timeoutSeconds: z.number().int().min(30).max(86_400).default(900),
-  /** How many upcoming queue entries to fetch ahead of playback. */
-  prefetchAhead: z.number().int().min(0).max(10).default(2),
-  /** Managed library root that receives the files. Null means the first managed root. */
+  /** Managed library root that receives the files. Null means the root imports go to (`importRootId`). */
   targetRootId: Id.nullable().default(null),
+  /**
+   * Origin the delivery URLs handed to providers start with, e.g. `http://squirmy:4747` for
+   * a provider in another container. Null means `PUBLIC_URL`, else `http://localhost:<PORT>`.
+   */
+  deliveryBaseUrl: z.string().url().nullable().default(null),
 })
 export type AcquisitionPolicy = z.infer<typeof AcquisitionPolicy>
+
+/** `PATCH /admin/acquisition/policy`. Keys left out keep their value. */
+export const UpdateAcquisitionPolicy = z.object({
+  preferLossless: z.boolean(),
+  maxFileBytes: z.number().int().min(0),
+  storageQuotaBytes: z.number().int().min(0),
+  timeoutSeconds: z.number().int().min(30).max(86_400),
+  targetRootId: Id.nullable(),
+  deliveryBaseUrl: z.string().url().nullable(),
+}).partial()
+export type UpdateAcquisitionPolicy = z.infer<typeof UpdateAcquisitionPolicy>

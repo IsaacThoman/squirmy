@@ -1,5 +1,5 @@
 {
-  "id": "6615f78c-838d-4f6a-812b-bacbc7915380",
+  "id": "52127673-f820-4408-872b-9b7f6b6dcc74",
   "prevId": "e049a219-6fed-4d01-aae1-56d4a2f1c6a1",
   "version": "7",
   "dialect": "postgresql",
@@ -43,6 +43,13 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "recording_ids": {
+          "name": "recording_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::uuid[]"
         },
         "status": {
           "name": "status",
@@ -245,7 +252,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "acquisition_misses_entity": {
+          "name": "acquisition_misses_entity",
+          "columns": [
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "acquisition_misses_provider_id_acquisition_providers_id_fk": {
           "name": "acquisition_misses_provider_id_acquisition_providers_id_fk",
@@ -268,6 +291,95 @@
             "provider_id",
             "entity_type",
             "entity_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.acquisition_offers": {
+      "name": "acquisition_offers",
+      "schema": "",
+      "columns": {
+        "provider_id": {
+          "name": "provider_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recording_id": {
+          "name": "recording_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "offers": {
+          "name": "offers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resolved_at": {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "acquisition_offers_recording": {
+          "name": "acquisition_offers_recording",
+          "columns": [
+            {
+              "expression": "recording_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "acquisition_offers_provider_id_acquisition_providers_id_fk": {
+          "name": "acquisition_offers_provider_id_acquisition_providers_id_fk",
+          "tableFrom": "acquisition_offers",
+          "tableTo": "acquisition_providers",
+          "columnsFrom": [
+            "provider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "acquisition_offers_recording_id_recordings_id_fk": {
+          "name": "acquisition_offers_recording_id_recordings_id_fk",
+          "tableFrom": "acquisition_offers",
+          "tableTo": "recordings",
+          "columnsFrom": [
+            "recording_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "acquisition_offers_provider_id_recording_id_pk": {
+          "name": "acquisition_offers_provider_id_recording_id_pk",
+          "columns": [
+            "provider_id",
+            "recording_id"
           ]
         }
       },
@@ -1999,12 +2111,6 @@
         },
         "step_started_at": {
           "name": "step_started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "duplicates_decided_at": {
-          "name": "duplicates_decided_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

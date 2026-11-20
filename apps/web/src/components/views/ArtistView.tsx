@@ -1,5 +1,5 @@
 import type { AlbumSummary, AlbumType, ArtistDetail } from '@squirmy/contracts'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Radio } from 'lucide-react'
 import { AlbumCard, ArtistCard, CardGrid, Monogram } from '@/components/music/Cards'
 import { PlayActions } from '@/components/music/CollectionHeader'
 import { Cover } from '@/components/music/Cover'
@@ -7,12 +7,13 @@ import { Rail, RailItem } from '@/components/music/Rail'
 import { SectionHeader } from '@/components/music/SectionHeader'
 import { TrackList } from '@/components/music/TrackList'
 import { Badge } from '@/components/ui/feedback'
+import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
 import { albumTypeLabel } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
-import { useTrackActions } from '@/player/use-track-actions'
+import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
 
 const typeOrder: AlbumType[] = ['album', 'ep', 'single', 'compilation', 'live', 'soundtrack', 'other']
 const groupTitles: Partial<Record<AlbumType, string>> = { album: 'Albums', ep: 'EPs', single: 'Singles', compilation: 'Compilations', soundtrack: 'Soundtracks' }
@@ -23,7 +24,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
   const { controls } = usePlayer()
   const context = { type: 'artist' as const, id: artist.id, title: artist.name }
   const actions = useTrackActions(artist.topTracks, context)
-  const liked = library.isLiked(artist.id, artist.liked)
+  const wants = useAlbumWants()
   const owned = artist.albums.filter(album => album.availability === 'full' || album.availability === 'partial').length
   const playable = artist.topTracks.some(track => track.availability !== 'none')
   const groups = typeOrder
@@ -53,14 +54,15 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
         <div className="flex items-center justify-center gap-2 md:justify-start">
           <PlayActions
             title={artist.name}
-            onPlay={playable ? () => actions.onPlay(artist.topTracks.findIndex(track => track.availability !== 'none')) : undefined}
-            onShuffle={playable ? () => {
-              controls.setShuffle(true)
-              actions.onPlay(0)
-            } : undefined}
-            liked={liked}
-            onLike={() => library.setLiked('artist', artist.id, !liked)}
-          />
+            onPlay={playable ? () => controls.playTracks(artist.topTracks, 0, context) : undefined}
+            onShuffle={playable ? () => controls.playTracks(artist.topTracks, 0, context, { shuffle: true }) : undefined}
+            liked={artist.liked}
+            onLike={() => library.setLiked('artist', artist.id, !artist.liked)}
+          >
+            {artist.inLibrary && (
+              <IconButton label={`Start ${artist.name} radio`} size="lg" onClick={() => controls.startRadio({ type: 'artist', id: artist.id })}><Radio /></IconButton>
+            )}
+          </PlayActions>
         </div>
 
         {artist.topTracks.length > 0 && (
@@ -74,7 +76,15 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
           <section key={group.type}>
             <SectionHeader title={groupTitles[group.type] ?? albumTypeLabel(group.type)} />
             <CardGrid>
-              {group.albums.map(album => <AlbumCard key={album.id} album={album} subtitle="year" onPlay={() => onPlayAlbum(album)} />)}
+              {group.albums.map(album => (
+                <AlbumCard
+                  key={album.id}
+                  album={album}
+                  subtitle="year"
+                  onPlay={() => onPlayAlbum(album)}
+                  {...wants(album)}
+                />
+              ))}
             </CardGrid>
           </section>
         ))}

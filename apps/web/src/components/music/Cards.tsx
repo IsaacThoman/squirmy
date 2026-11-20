@@ -1,5 +1,5 @@
 import type { AlbumSummary, ArtistSummary, PlaylistSummary } from '@squirmy/contracts'
-import { CloudDownload, Play } from 'lucide-react'
+import { BookmarkCheck, BookmarkPlus, CloudDownload, Play } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -14,13 +14,15 @@ type CardProps = {
   subtitle: ReactNode
   art: ReactNode
   onPlay?: () => void
+  /** For music you do not have: a bookmark that adds it to the Wantlist, shown while wanted. */
+  want?: { wanted: boolean; onChange: (wanted: boolean) => void }
   dimmed?: boolean
   badge?: ReactNode
   centered?: boolean
 }
 
 /** Artwork, a title and a subtitle, linking to a page. A play button rises on hover. */
-function Card({ to, title, subtitle, art, onPlay, dimmed, badge, centered }: CardProps) {
+function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered }: CardProps) {
   return (
     <div className={cn('group/card relative flex min-w-0 flex-col rounded-2xl p-2 -m-2 transition-colors duration-150 hover:bg-overlay focus-within:bg-overlay', centered && 'items-center text-center')}>
       <div className="relative w-full">
@@ -36,6 +38,20 @@ function Card({ to, title, subtitle, art, onPlay, dimmed, badge, centered }: Car
             <Play className="size-5 translate-x-px" fill="currentColor" />
           </button>
         )}
+        {want && !onPlay && (
+          <button
+            type="button"
+            aria-label={want.wanted ? `Remove ${title} from Wantlist` : `Add ${title} to Wantlist`}
+            aria-pressed={want.wanted}
+            onClick={() => want.onChange(!want.wanted)}
+            className={cn(
+              'absolute bottom-2 right-2 z-10 flex size-10 items-center justify-center rounded-full bg-sheet text-accent shadow-cover transition duration-150 hover:scale-105',
+              !want.wanted && 'translate-y-2 opacity-0 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/card:translate-y-0 group-hover/card:opacity-100',
+            )}
+          >
+            {want.wanted ? <BookmarkCheck className="size-5" /> : <BookmarkPlus className="size-5" />}
+          </button>
+        )}
       </div>
       <Link to={to} className={cn('mt-2.5 truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none', dimmed && 'text-quiet', 'w-full')}>
         {title}
@@ -48,11 +64,14 @@ function Card({ to, title, subtitle, art, onPlay, dimmed, badge, centered }: Car
 type AlbumCardProps = {
   album: AlbumSummary
   onPlay?: () => void
+  /** Offered on albums you do not have. */
+  wanted?: boolean
+  onWant?: (wanted: boolean) => void
   /** What the line under the title says. Artist pages show the year instead of the artist. */
   subtitle?: 'artist' | 'year'
 }
 
-export function AlbumCard({ album, onPlay, subtitle = 'artist' }: AlbumCardProps) {
+export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'artist' }: AlbumCardProps) {
   const unowned = isUnowned(album)
   const partial = album.availability === 'partial'
   return (
@@ -62,6 +81,7 @@ export function AlbumCard({ album, onPlay, subtitle = 'artist' }: AlbumCardProps
       subtitle={subtitle === 'year' ? [album.year, albumTypeLabel(album.type)].filter(Boolean).join(' · ') : album.artistCredit}
       art={<Cover artwork={album.artwork} dimmed={album.availability === 'none'} className={cn(album.availability === 'on_demand' && 'opacity-80')} />}
       onPlay={unowned ? undefined : onPlay}
+      want={unowned && onWant ? { wanted, onChange: onWant } : undefined}
       dimmed={album.availability === 'none'}
       badge={album.availability === 'on_demand'
         ? <Tooltip label="Plays on demand"><span className="flex size-7 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md"><CloudDownload aria-label="Plays on demand" className="size-4" /></span></Tooltip>
@@ -110,7 +130,7 @@ export function CardGrid({ children, className }: { children: ReactNode; classNa
 }
 
 /** A colored tile for browsing a genre, with a cover tilted into the corner. */
-export function GenreTile({ name, color, art, onClick }: { name: string; color: string; art: ReactNode; onClick: () => void }) {
+export function GenreTile({ name, color, art, onClick }: { name: string; color: string; art?: ReactNode; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -120,7 +140,9 @@ export function GenreTile({ name, color, art, onClick }: { name: string; color: 
       className="group relative h-28 overflow-hidden rounded-2xl p-4 text-left transition duration-150 hover:brightness-110 active:scale-[0.98]"
     >
       <span className="relative z-10 text-[17px] font-bold text-[#F5F2FF]">{name}</span>
-      <div className="absolute -bottom-3 -right-2 w-[5.5rem] rotate-[19deg] shadow-cover transition-transform duration-200 group-hover:rotate-[14deg] group-hover:scale-105">{art}</div>
+      {art
+        ? <div className="absolute -bottom-3 -right-2 w-[5.5rem] rotate-[19deg] shadow-cover transition-transform duration-200 group-hover:rotate-[14deg] group-hover:scale-105">{art}</div>
+        : <span aria-hidden className="absolute -bottom-6 -right-3 text-[5.5rem] font-black leading-none tracking-tighter text-white/12 transition-transform duration-200 group-hover:-rotate-6">{name.slice(0, 2)}</span>}
     </button>
   )
 }
