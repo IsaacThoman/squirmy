@@ -17,7 +17,13 @@ export function Field({ label, hint, error, children, htmlFor }: { label: string
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
-      {(error || hint) && <p className={cn('text-xs', error ? 'text-danger' : 'text-quiet')}>{error ?? hint}</p>}
+      {(error || hint) && <p id={`${htmlFor}-message`} className={cn('text-xs', error ? 'font-medium text-danger' : 'text-quiet')}>{error ?? hint}</p>}
     </div>
   )
+}
+
+/** A failure of the whole form, such as a wrong password or a rate limit. */
+export function FormError({ message }: { message?: string }) {
+  if (!message) return null
+  return <p role="alert" className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm font-medium text-danger">{message}</p>
 }

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { safeNext } from '@/auth/session'
+import { deviceName } from './device'
 import { formatDuration, formatRelative, formatTotalDuration } from './format'
 import { activeLine, parseLrc } from './lyrics'
 import { dropIndex, moveItem } from './reorder'
@@ -35,5 +37,22 @@ describe('reorder', () => {
     expect(dropIndex(1, 60, 56, 3)).toBe(2)
     expect(dropIndex(1, -500, 56, 3)).toBe(0)
     expect(dropIndex(0, 20, 56, 3)).toBe(0)
+  })
+})
+
+describe('device', () => {
+  it('names browsers after the user agent', () => {
+    expect(deviceName('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36')).toBe('Chrome on macOS')
+    expect(deviceName('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0')).toBe('Firefox on Windows')
+    expect(deviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')).toBe('Safari on iOS')
+  })
+})
+
+describe('sign-in redirects', () => {
+  it('only follow paths inside the app', () => {
+    expect(safeNext('/admin/users?tab=1')).toBe('/admin/users?tab=1')
+    expect(safeNext('//evil.example')).toBe('/')
+    expect(safeNext('https://evil.example')).toBe('/')
+    expect(safeNext(null)).toBe('/')
   })
 })

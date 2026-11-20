@@ -22,8 +22,11 @@ export type User = z.infer<typeof User>
 export const UserList = page(User)
 export type UserList = z.infer<typeof UserList>
 
-/** `GET /setup/status`. `needsSetup` is true until the first admin exists. */
-export const SetupStatus = z.object({ needsSetup: z.boolean(), version: z.string(), serverName: z.string() })
+/**
+ * `GET /setup/status`. `needsSetup` is true until the first admin exists.
+ * `registrationRequiresInvite` lets sign-in screens say whether anyone can join.
+ */
+export const SetupStatus = z.object({ needsSetup: z.boolean(), version: z.string(), serverName: z.string(), registrationRequiresInvite: z.boolean() })
 export type SetupStatus = z.infer<typeof SetupStatus>
 
 /** Identifies the calling install. `id` is generated once per install and kept. */

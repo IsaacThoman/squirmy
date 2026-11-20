@@ -5,7 +5,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tracks } from './catalog';
 import { IconButton, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
-import type { SheetFrameProps, SheetRowProps } from './SheetUI';
+import type { SheetFrameProps, SheetInfoProps, SheetRowProps } from './SheetUI';
 import { useColors } from './theme';
 
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
@@ -58,6 +58,18 @@ export function TrackSummary({ id }: { id: string }) {
     <VStack alignment="leading" spacing={3}>
       <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{track.title}</Text>
       <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1)]}>{track.artist}</Text>
+    </VStack>
+    <Spacer minLength={0} />
+  </HStack>;
+}
+
+export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
+  const colors = useColors();
+  return <HStack spacing={12} modifiers={[padding({ vertical: 4 })]}>
+    <HStack modifiers={[frame({ width: 27 })]}><Symbol name={icon} size={22} color={colors.accent} /></HStack>
+    <VStack alignment="leading" spacing={2}>
+      <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{title}</Text>
+      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
     </VStack>
     <Spacer minLength={0} />
   </HStack>;
