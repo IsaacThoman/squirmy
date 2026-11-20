@@ -277,7 +277,16 @@ function EditRootDialog({ root, templateInfo, onOpenChange, onSave }: EditRootPr
               <Input id="edit-root-name" value={value.name} onChange={event => setValue({ ...value, name: event.target.value })} aria-invalid={!!form.errors.name} autoFocus />
             </Field>
             <ManagedSwitch checked={value.managed} onChange={managed => setValue({ ...value, managed })} />
-            {value.managed && <TemplateField value={value.template} onChange={template => setValue({ ...value, template })} info={templateInfo} error={form.errors.template} />}
+            {value.managed && (
+              <TemplateField
+                value={value.template} info={templateInfo} error={form.errors.template}
+                // The server's reason is about the template it refused; the example takes over once it changes.
+                onChange={template => {
+                  setValue({ ...value, template })
+                  if (form.errors.template) form.reset()
+                }}
+              />
+            )}
             <SwitchRow label="Watch for changes" description="Pick up new and changed files as they appear." checked={value.watch} onChange={watch => setValue({ ...value, watch })} />
             <SwitchRow label="Enabled" description="A disabled folder is not scanned or watched. Its music stays in the library." checked={value.enabled} onChange={enabled => setValue({ ...value, enabled })} />
           </DialogForm>

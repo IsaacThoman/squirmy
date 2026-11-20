@@ -67,6 +67,9 @@ describe('library admin', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByText('The file name must end with .{ext}')).toBeInTheDocument()
     expect(onUpdate).toHaveBeenLastCalledWith(root.id, { name: 'Music', mode: 'managed', watch: true, enabled: true, template: '{artist}/{title}' })
+    await userEvent.type(field, '.{{ext}')
+    expect(screen.queryByText('The file name must end with .{ext}')).toBeNull()
+    expect(screen.getByText('Mira Vale feat. Lune Park/Paper Boats.flac')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
     expect(field).toHaveValue(DEFAULT_ORGANIZE_TEMPLATE)

@@ -209,7 +209,7 @@ function Preview({ batch, defaultTemplate, onApply, onFixMatch }: { batch: Organ
         )}
       </div>
       <p className="flex flex-wrap items-center gap-2 px-1 text-xs text-quiet">
-        {defaultTemplate === undefined ? 'Template' : batch.template === defaultTemplate ? 'Default template' : 'This folder’s template'}
+        <span>{defaultTemplate === undefined ? 'Template' : batch.template === defaultTemplate ? 'Default template' : 'This folder’s template'}</span>
         <code className="break-all rounded-md bg-surface px-2 py-0.5 font-mono text-[12px] text-muted">{batch.template}</code>
         <Link to={`/admin/library?edit=${batch.rootId}`} className="font-semibold text-accent hover:underline">Change it in Library</Link>
       </p>
