@@ -181,6 +181,7 @@ export const artists = pgTable('artists', {
   uniqueIndex('artists_mbid').on(t.mbid),
   index('artists_name_key_trgm').using('gin', t.nameKey.op('gin_trgm_ops')),
   index('artists_name_key').on(t.nameKey),
+  index('artists_name_sort').on(sql`regexp_replace(${t.nameKey}, '^(the|a|an) ', '')`, t.id),
 ])
 
 /** An album is a MusicBrainz release group: the abstract album across all its editions. */
@@ -216,6 +217,15 @@ export const albums = pgTable('albums', {
   index('albums_title_key_trgm').using('gin', t.titleKey.op('gin_trgm_ops')),
   index('albums_match_key').on(t.matchKey),
   index('albums_primary_artist').on(t.primaryArtistId),
+  // Library orderings (modules/catalog/library.ts). The expressions are `sortKey` over the
+  // stored match keys and must stay identical to `sortKeys` in modules/catalog/sql.ts.
+  index('albums_title_sort').on(sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`, t.id),
+  index('albums_artist_sort').on(
+    sql`regexp_replace(split_part(${t.matchKey}, '|', 1), '^(the|a|an) ', '')`,
+    sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`,
+    t.id,
+  ),
+  index('albums_year_sort').on(sql`coalesce(${t.year}, 0) desc`, sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`, t.id),
 ])
 
 export const albumArtists = pgTable('album_artists', {
@@ -278,6 +288,16 @@ export const recordings = pgTable('recordings', {
   index('recordings_match_key').on(t.matchKey),
   index('recordings_isrcs').using('gin', t.isrcs),
   index('recordings_primary_artist').on(t.primaryArtistId),
+  index('recordings_title_sort').on(
+    sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`,
+    sql`regexp_replace(split_part(${t.matchKey}, '|', 1), '^(the|a|an) ', '')`,
+    t.id,
+  ),
+  index('recordings_artist_sort').on(
+    sql`regexp_replace(split_part(${t.matchKey}, '|', 1), '^(the|a|an) ', '')`,
+    sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`,
+    t.id,
+  ),
 ])
 
 export const recordingArtists = pgTable('recording_artists', {
@@ -435,6 +455,10 @@ export const mediaFiles = pgTable('media_files', {
   index('media_files_group').on(t.rootId, t.groupKey),
   index('media_files_match_status').on(t.matchStatus),
   index('media_files_added').on(t.addedAt),
+  // Present files only: ownership checks and the "recently added" walks.
+  index('media_files_present_recent').on(t.addedAt, t.id).where(sql`${t.missingSince} is null`),
+  index('media_files_present_album').on(t.albumId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
+  index('media_files_present_recording').on(t.recordingId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
 ])
 
 /** Album loudness, measured across the owned files of one release. */

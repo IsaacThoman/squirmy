@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Id, PageQuery } from './common.js'
+import { Id, page, PageQuery } from './common.js'
 
 /**
  * Whether a track can be played.
@@ -154,3 +154,13 @@ export const TrackSummariesRequest = z.object({
 export type TrackSummariesRequest = z.infer<typeof TrackSummariesRequest>
 export const TrackSummariesResponse = z.object({ tracks: z.array(TrackSummary) })
 export type TrackSummariesResponse = z.infer<typeof TrackSummariesResponse>
+
+/** Responses of the library lists and of `GET /me/likes/:type`. */
+export const TrackPage = page(TrackSummary)
+export type TrackPage = z.infer<typeof TrackPage>
+export const AlbumPage = page(AlbumSummary)
+export type AlbumPage = z.infer<typeof AlbumPage>
+export const ArtistPage = page(ArtistSummary)
+export type ArtistPage = z.infer<typeof ArtistPage>
+export const GenrePage = page(GenreSummary)
+export type GenrePage = z.infer<typeof GenrePage>

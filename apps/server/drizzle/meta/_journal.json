@@ -12,8 +12,15 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1795192347005,
-      "tag": "0001_catalog_index_import",
+      "when": 1795192375973,
+      "tag": "0001_library_sort_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795193981538,
+      "tag": "0002_catalog_index_import",
       "breakpoints": true
     }
   ]

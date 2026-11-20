@@ -182,7 +182,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | |
 | `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` |
 | `GET /home` | catalog | `HomeResponse` |
-| `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand |
+| `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
 | `POST /tracks/summaries` | catalog | hydrate queue entries |
 | `GET /tracks/:id/playback` | streaming | `PlaybackDescriptor` |
 | `GET /stream/:fileId`, `/stream/:fileId/:profile` | streaming | signed URL or session; Range |
@@ -193,7 +193,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
 | `GET /admin/reviews`, `POST /admin/reviews/:id/resolve`, `POST /admin/albums/:id/rematch`, `GET /admin/albums/:id/candidates` | matching | |
-| `POST /admin/organize/preview`, `GET /admin/organize/batches`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | |
+| `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `POST /imports`, `POST /imports/:id/files`, `POST /imports/:id/commit`, `GET /imports/:id` | imports | multipart upload |
 | `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request; play does it implicitly |
@@ -206,6 +206,13 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 
 - Track: `server` if a present (not missing) `media_files` row has its `recording_id`. Otherwise `on_demand` if an enabled acquisition provider covers it (coverage `assume_available`, or a cached positive resolve) and it is not in `acquisition_misses`. Otherwise `none`.
 - Album: counts owned tracks on the canonical release. All owned is `full`, some is `partial`; none owned is `on_demand` when its tracks would be, else `none`.
+
+### Catalog read side
+
+- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, Subsonic, userdata) use these rather than writing their own.
+- Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
+- Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
+- A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
 
 ### Playback and streaming
 
