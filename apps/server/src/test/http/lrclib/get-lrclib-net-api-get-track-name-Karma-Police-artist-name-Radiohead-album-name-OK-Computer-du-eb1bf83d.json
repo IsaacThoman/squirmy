@@ -1,0 +1,25 @@
+{
+  "note": "Trimmed: lyrics cut to their first two lines (and search results to a few entries) to keep song text out of the repository.",
+  "request": {
+    "method": "GET",
+    "url": "https://lrclib.net/api/get?track_name=Karma+Police&artist_name=Radiohead&album_name=OK+Computer&duration=264"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "id": 13976,
+      "name": "Karma Police",
+      "trackName": "Karma Police",
+      "artistName": "Radiohead",
+      "albumName": "OK Computer",
+      "duration": 264,
+      "instrumental": false,
+      "hasWordSync": false,
+      "plainLyrics": "Karma police\nArrest this man",
+      "syncedLyrics": "[00:26.78]Karma police\n[00:31.00]Arrest this man"
+    }
+  }
+}

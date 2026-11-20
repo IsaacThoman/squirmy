@@ -1,0 +1,787 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/1b3d7b3f-e224-41f6-a1a5-0a44ca8402ff?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "date": "2017-05-12",
+      "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "label-info": [
+        {
+          "catalog-number": "UICY-15597",
+          "label": {
+            "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+            "label-code": 10024,
+            "name": "Hollywood Records",
+            "disambiguation": "a label of Disney Music Group",
+            "type": "Imprint",
+            "sort-name": "Hollywood Records",
+            "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d"
+          }
+        }
+      ],
+      "country": "JP",
+      "packaging": "Jewel Case",
+      "status": "Official",
+      "release-group": {
+        "artist-credit": [
+          {
+            "name": "Various Artists",
+            "artist": {
+              "type": "Other",
+              "country": null,
+              "sort-name": "Various Artists",
+              "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+              "type-id": "ac897045-5043-3294-969b-187360e45d86",
+              "name": "Various Artists",
+              "disambiguation": "add compilations to this artist"
+            },
+            "joinphrase": ""
+          }
+        ],
+        "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+        "id": "950092d6-45f6-4269-87da-99a9ff2fcc52",
+        "secondary-type-ids": [
+          "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+          "22a628ad-c082-3c4f-b1b6-d41665107b88"
+        ],
+        "secondary-types": [
+          "Compilation",
+          "Soundtrack"
+        ],
+        "first-release-date": "2014-07-28",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "primary-type": "Album",
+        "disambiguation": "Original Motion Picture Soundtrack"
+      },
+      "cover-art-archive": {
+        "count": 1,
+        "front": true,
+        "back": false,
+        "artwork": true,
+        "darkened": false
+      },
+      "disambiguation": "",
+      "release-events": [
+        {
+          "date": "2017-05-12",
+          "area": {
+            "type": null,
+            "iso-3166-1-codes": [
+              "JP"
+            ],
+            "sort-name": "Japan",
+            "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+            "type-id": null,
+            "disambiguation": "",
+            "name": "Japan"
+          }
+        }
+      ],
+      "barcode": "4988031219577",
+      "asin": "B06XXQQR3P",
+      "quality": "normal",
+      "title": "ガーディアンズ・オブ・ギャラクシー：オーサム・ミックス VOL.1",
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "artist": {
+            "type-id": "ac897045-5043-3294-969b-187360e45d86",
+            "name": "Various Artists",
+            "disambiguation": "add compilations to this artist",
+            "type": "Other",
+            "country": null,
+            "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+            "sort-name": "Various Artists"
+          },
+          "name": "Various Artists"
+        }
+      ],
+      "media": [
+        {
+          "format": "CD",
+          "position": 1,
+          "track-count": 12,
+          "id": "9f3d728b-db18-31a2-bc45-9be36faa00aa",
+          "track-offset": 0,
+          "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+          "tracks": [
+            {
+              "recording": {
+                "length": 173000,
+                "video": false,
+                "first-release-date": "1973",
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Blue Swede",
+                    "artist": {
+                      "id": "f98a61b4-394d-4e1f-a5f3-f747b9494e5a",
+                      "sort-name": "Blue Swede",
+                      "country": "SE",
+                      "type": "Group",
+                      "disambiguation": "",
+                      "name": "Blue Swede",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "Hooked on a Feeling",
+                "id": "30324901-70b8-4fef-bd5d-a01176644424",
+                "isrcs": [
+                  "SEAMA7343050",
+                  "SEPQA1900089"
+                ]
+              },
+              "position": 1,
+              "id": "68058d85-599a-4729-889d-7080e20138bc",
+              "length": 174000,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "Blue Swede",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "id": "f98a61b4-394d-4e1f-a5f3-f747b9494e5a",
+                    "sort-name": "Blue Swede",
+                    "type": "Group",
+                    "country": "SE"
+                  },
+                  "joinphrase": "",
+                  "name": "ブルー・スウェード"
+                }
+              ],
+              "title": "ウガ・チャカ (フックト・オン・ア・フィーリング)",
+              "number": "1"
+            },
+            {
+              "recording": {
+                "first-release-date": "1972",
+                "disambiguation": "",
+                "length": 201960,
+                "video": false,
+                "id": "ae50a22d-df78-4bdb-8d97-e98441bb90fd",
+                "isrcs": [
+                  "USBMG0701027",
+                  "USCA20700663",
+                  "USCA29901186"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Raspberries",
+                    "artist": {
+                      "name": "Raspberries",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Raspberries",
+                      "id": "01b405ae-8ca2-4dbe-8a30-0587b597f598",
+                      "type": "Group",
+                      "country": "US"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "Go All the Way"
+              },
+              "position": 2,
+              "id": "bf50e4ea-cc0f-4b68-a55e-c584df4ee8c5",
+              "length": 203000,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "Raspberries",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Raspberries",
+                    "id": "01b405ae-8ca2-4dbe-8a30-0587b597f598",
+                    "country": "US",
+                    "type": "Group"
+                  },
+                  "joinphrase": "",
+                  "name": "ラズベリーズ"
+                }
+              ],
+              "number": "2",
+              "title": "ゴー・オール・ザ・ウェイ"
+            },
+            {
+              "title": "スピリット・イン・ザ・スカイ",
+              "number": "3",
+              "length": 244000,
+              "artist-credit": [
+                {
+                  "name": "ノーマン・グリーンバウム",
+                  "artist": {
+                    "type": "Person",
+                    "country": "US",
+                    "sort-name": "Greenbaum, Norman",
+                    "id": "8f6ade41-0e4d-477c-9ef7-42591fed1133",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Norman Greenbaum"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "length": 240000,
+                "video": false,
+                "first-release-date": "1969-01-01",
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "Norman Greenbaum",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "8f6ade41-0e4d-477c-9ef7-42591fed1133",
+                      "sort-name": "Greenbaum, Norman",
+                      "country": "US",
+                      "type": "Person"
+                    },
+                    "joinphrase": "",
+                    "name": "Norman Greenbaum"
+                  }
+                ],
+                "title": "Spirit in the Sky",
+                "isrcs": [
+                  "DED467000015",
+                  "NLG620400918",
+                  "NLG620466825",
+                  "NLG620501792",
+                  "USAT21602767",
+                  "USC4R2335155",
+                  "USRC11300535",
+                  "USRE19600416",
+                  "USWD10524718"
+                ],
+                "id": "b2823384-7ee0-4cb3-942a-f93b52cb5389"
+              },
+              "id": "8784858e-767c-4f12-8e9a-9511d560b4a1",
+              "position": 3
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "デヴィッド・ボウイ",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "David Bowie",
+                    "disambiguation": "English singer‐songwriter",
+                    "country": "GB",
+                    "type": "Person",
+                    "sort-name": "Bowie, David",
+                    "id": "5441c29d-3602-4898-b1a1-b77fa23b8e50"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 283000,
+              "number": "4",
+              "title": "月世界の白昼夢",
+              "id": "74ace173-db13-46cc-a3c6-48510cd36986",
+              "position": 4,
+              "recording": {
+                "video": false,
+                "length": 279840,
+                "disambiguation": "",
+                "first-release-date": "1972-06-06",
+                "title": "Moonage Daydream",
+                "artist-credit": [
+                  {
+                    "name": "David Bowie",
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Person",
+                      "country": "GB",
+                      "sort-name": "Bowie, David",
+                      "id": "5441c29d-3602-4898-b1a1-b77fa23b8e50",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "David Bowie",
+                      "disambiguation": "English singer‐songwriter"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "USJT10200021",
+                  "USJT10300103",
+                  "USJT11200003",
+                  "USJT19900054"
+                ],
+                "id": "c0f27bed-7986-4c88-a9c6-1d16ebc9817b"
+              }
+            },
+            {
+              "title": "愛に狂って",
+              "number": "5",
+              "length": 277000,
+              "artist-credit": [
+                {
+                  "name": "エルヴィン・ビショップ",
+                  "artist": {
+                    "country": "US",
+                    "type": "Person",
+                    "sort-name": "Bishop, Elvin",
+                    "id": "b1768592-294e-4e15-a892-eb8837dec3e4",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Elvin Bishop"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "video": false,
+                "length": 275720,
+                "disambiguation": "",
+                "first-release-date": "1975-12",
+                "title": "Fooled Around and Fell in Love",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Bishop, Elvin",
+                      "id": "b1768592-294e-4e15-a892-eb8837dec3e4",
+                      "country": "US",
+                      "type": "Person",
+                      "name": "Elvin Bishop",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "name": "Elvin Bishop"
+                  }
+                ],
+                "isrcs": [
+                  "USPR37600038"
+                ],
+                "id": "12ecdcf0-7a7a-4586-82c2-fd4aa71f0ea7"
+              },
+              "id": "c8219482-f46f-4cd5-9968-b5f3640dc3ec",
+              "position": 5
+            },
+            {
+              "position": 6,
+              "id": "9b2bc325-5b3f-4fc4-baf6-db06c56fc52f",
+              "recording": {
+                "disambiguation": "album version",
+                "first-release-date": "1975-03-11",
+                "video": false,
+                "length": 362626,
+                "isrcs": [
+                  "GBF087500001",
+                  "GBF087900140"
+                ],
+                "id": "db63cb9b-a80c-4a81-9f0e-9a24fd4aec7c",
+                "title": "I’m Not in Love",
+                "artist-credit": [
+                  {
+                    "name": "10cc",
+                    "artist": {
+                      "id": "f37c537b-3557-4031-bfd6-ab63ced32854",
+                      "sort-name": "10cc",
+                      "country": "GB",
+                      "type": "Group",
+                      "disambiguation": "",
+                      "name": "10cc",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "10cc",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "id": "f37c537b-3557-4031-bfd6-ab63ced32854",
+                    "sort-name": "10cc",
+                    "type": "Group",
+                    "country": "GB"
+                  },
+                  "joinphrase": "",
+                  "name": "10cc"
+                }
+              ],
+              "length": 365000,
+              "number": "6",
+              "title": "アイム・ノット・イン・ラヴ"
+            },
+            {
+              "length": 180000,
+              "artist-credit": [
+                {
+                  "name": "ジャクソン5",
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "formerly “The Jackson 5”",
+                    "name": "The Jacksons",
+                    "type": "Group",
+                    "country": "US",
+                    "sort-name": "Jacksons, The",
+                    "id": "e5257dc5-1edd-4fca-b7e6-1158e00522c8"
+                  }
+                }
+              ],
+              "number": "7",
+              "title": "帰ってほしいの",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "The Jackson 5",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "e5257dc5-1edd-4fca-b7e6-1158e00522c8",
+                      "sort-name": "Jacksons, The",
+                      "country": "US",
+                      "type": "Group",
+                      "disambiguation": "formerly “The Jackson 5”",
+                      "name": "The Jacksons",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    }
+                  }
+                ],
+                "title": "I Want You Back",
+                "isrcs": [
+                  "USMO10400510",
+                  "USMO16900464",
+                  "USMO19400306"
+                ],
+                "id": "6a16fd65-347c-4875-8725-1618064de6bd",
+                "length": 178853,
+                "video": false,
+                "first-release-date": "1969-10-07",
+                "disambiguation": ""
+              },
+              "id": "be26a626-d8fe-4210-89c8-0502c5251421",
+              "position": 7
+            },
+            {
+              "length": 208000,
+              "artist-credit": [
+                {
+                  "name": "レッドボーン",
+                  "artist": {
+                    "sort-name": "Redbone",
+                    "id": "b3fa0e6f-93db-4aa5-b76e-393e24de35ba",
+                    "type": "Group",
+                    "country": "US",
+                    "disambiguation": "1970s rock band",
+                    "name": "Redbone",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "title": "カム・アンド・ゲット・ユア・ラヴ",
+              "number": "8",
+              "recording": {
+                "first-release-date": "1973",
+                "disambiguation": "single edit",
+                "length": 212000,
+                "video": false,
+                "isrcs": [
+                  "USBT21600126",
+                  "USSM17300653"
+                ],
+                "id": "19743e71-e55d-4413-9450-0be53223675a",
+                "artist-credit": [
+                  {
+                    "name": "Redbone",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "b3fa0e6f-93db-4aa5-b76e-393e24de35ba",
+                      "sort-name": "Redbone",
+                      "country": "US",
+                      "type": "Group",
+                      "name": "Redbone",
+                      "disambiguation": "1970s rock band",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    }
+                  }
+                ],
+                "title": "Come and Get Your Love"
+              },
+              "id": "510c93e3-0a38-498a-8b9a-3646a7aa9a66",
+              "position": 8
+            },
+            {
+              "position": 9,
+              "id": "876b14e6-79cf-445f-8c7c-c983b9f43fd6",
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "1976",
+                "video": false,
+                "length": 138706,
+                "isrcs": [
+                  "USGI19900140",
+                  "USIR20200576"
+                ],
+                "id": "d8cb3068-578e-4323-82d1-8b6248a9b8b5",
+                "title": "Cherry Bomb",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "The Runaways",
+                      "disambiguation": "US 1970s all girl rock group",
+                      "type": "Group",
+                      "country": "US",
+                      "sort-name": "Runaways, The",
+                      "id": "ded0d67a-eb71-4fe9-83c0-1d18b8ed497e"
+                    },
+                    "name": "The Runaways"
+                  }
+                ]
+              },
+              "number": "9",
+              "title": "チェリー・ボム",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Runaways, The",
+                    "id": "ded0d67a-eb71-4fe9-83c0-1d18b8ed497e",
+                    "country": "US",
+                    "type": "Group",
+                    "disambiguation": "US 1970s all girl rock group",
+                    "name": "The Runaways",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "ザ・ランナウェイズ"
+                }
+              ],
+              "length": 140000
+            },
+            {
+              "id": "0d4a1df2-64b8-4e14-936f-53f140799114",
+              "position": 10,
+              "recording": {
+                "id": "71709e8c-fb6b-48c6-972a-851ecff0a60d",
+                "isrcs": [
+                  "USMC10000619",
+                  "USMC17948997"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Rupert Holmes",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "3e7ef7ed-18c1-436d-b946-7e7e63ace408",
+                      "sort-name": "Holmes, Rupert",
+                      "type": "Person",
+                      "country": "US"
+                    },
+                    "joinphrase": "",
+                    "name": "Rupert Holmes"
+                  }
+                ],
+                "title": "Escape (The Piña Colada Song)",
+                "first-release-date": "1979",
+                "disambiguation": "",
+                "length": 277000,
+                "video": false
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Rupert Holmes",
+                    "type": "Person",
+                    "country": "US",
+                    "sort-name": "Holmes, Rupert",
+                    "id": "3e7ef7ed-18c1-436d-b946-7e7e63ace408"
+                  },
+                  "joinphrase": "",
+                  "name": "ルパートホルムズ"
+                }
+              ],
+              "length": 279000,
+              "title": "エスケイプ",
+              "number": "10"
+            },
+            {
+              "recording": {
+                "length": 195600,
+                "video": false,
+                "first-release-date": "1970",
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "The Five Stairsteps",
+                    "artist": {
+                      "country": "US",
+                      "type": "Group",
+                      "id": "42700164-abe3-4b45-b627-f4c8deca5e82",
+                      "sort-name": "Five Stairsteps",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Five Stairsteps"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "O‐o‐h Child",
+                "isrcs": [
+                  "USBR10100127"
+                ],
+                "id": "4af967a1-0a7f-42ac-93c8-e5e80f70a6c1"
+              },
+              "id": "cd378157-e7dc-4071-8b04-ba75c4c98bbb",
+              "position": 11,
+              "title": "ウー・チャイルド",
+              "number": "11",
+              "length": 196000,
+              "artist-credit": [
+                {
+                  "name": "ファイヴ・ステアステップス",
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "US",
+                    "type": "Group",
+                    "id": "42700164-abe3-4b45-b627-f4c8deca5e82",
+                    "sort-name": "Five Stairsteps",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Five Stairsteps"
+                  }
+                }
+              ]
+            },
+            {
+              "recording": {
+                "video": false,
+                "length": 148573,
+                "disambiguation": "stereo version",
+                "first-release-date": "1967-08-29",
+                "title": "Ain’t No Mountain High Enough",
+                "artist-credit": [
+                  {
+                    "name": "Marvin Gaye",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Marvin Gaye",
+                      "disambiguation": "",
+                      "country": "US",
+                      "type": "Person",
+                      "sort-name": "Gaye, Marvin",
+                      "id": "afdb7919-059d-43c1-b668-ba1d265e7e42"
+                    },
+                    "joinphrase": " & "
+                  },
+                  {
+                    "name": "Tammi Terrell",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "",
+                      "name": "Tammi Terrell",
+                      "country": "US",
+                      "type": "Person",
+                      "id": "ce4582b6-aee7-4da1-b841-3c619d4fb5a5",
+                      "sort-name": "Terrell, Tammi"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "id": "b04b5028-da5b-4f05-bfe3-4f8f80396d98",
+                "isrcs": [
+                  "USMO16700486",
+                  "USMO16700534"
+                ]
+              },
+              "id": "a2d9b4fc-456d-4f69-be62-6666c8277e54",
+              "position": 12,
+              "length": 149013,
+              "artist-credit": [
+                {
+                  "joinphrase": "&",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Marvin Gaye",
+                    "type": "Person",
+                    "country": "US",
+                    "sort-name": "Gaye, Marvin",
+                    "id": "afdb7919-059d-43c1-b668-ba1d265e7e42"
+                  },
+                  "name": "マーヴィン・ゲイ"
+                },
+                {
+                  "name": "タミー・テレル",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Tammi Terrell",
+                    "disambiguation": "",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "ce4582b6-aee7-4da1-b841-3c619d4fb5a5",
+                    "sort-name": "Terrell, Tammi",
+                    "country": "US",
+                    "type": "Person"
+                  }
+                }
+              ],
+              "number": "12",
+              "title": "エイント・ノー・マウンテン・ハイ・イナフ"
+            }
+          ],
+          "title": ""
+        }
+      ],
+      "text-representation": {
+        "script": null,
+        "language": "eng"
+      },
+      "relations": [
+        {
+          "target-type": "url",
+          "direction": "forward",
+          "end": null,
+          "source-credit": "",
+          "attribute-values": {},
+          "type-id": "4f2e710d-166c-480c-a293-2e2c8d658d87",
+          "ended": false,
+          "attribute-ids": {},
+          "type": "amazon asin",
+          "url": {
+            "id": "044ac086-c842-4361-9fef-f4027d24fd43",
+            "resource": "https://www.amazon.co.jp/gp/product/B06XXQQR3P"
+          },
+          "target-credit": "",
+          "begin": null,
+          "attributes": []
+        },
+        {
+          "type-id": "823656dd-0309-4247-b282-b92d287d59c5",
+          "source-credit": "",
+          "attribute-values": {},
+          "end": null,
+          "direction": "forward",
+          "target-type": "url",
+          "attributes": [],
+          "begin": null,
+          "url": {
+            "id": "d3a9d62b-4a0a-4211-bcae-29a4b3dea4e4",
+            "resource": "https://www.universal-music.co.jp/guardians-of-the-galaxy/products/uicy-15597/"
+          },
+          "target-credit": "",
+          "type": "discography entry",
+          "attribute-ids": {},
+          "ended": false
+        }
+      ],
+      "id": "1b3d7b3f-e224-41f6-a1a5-0a44ca8402ff"
+    }
+  }
+}

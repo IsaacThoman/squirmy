@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://lrclib.net/api/get?track_name=Karma+Police&artist_name=Radiohead&album_name=Squirmy+Test+Album&duration=400"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "message": "Failed to find specified track",
+      "name": "TrackNotFound",
+      "statusCode": 404
+    }
+  }
+}

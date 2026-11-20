@@ -1,0 +1,56 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/isrc/GBARL1401540?inc=artist-credits+isrcs&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "isrc": "GBARL1401540",
+      "recordings": [
+        {
+          "length": 235760,
+          "disambiguation": "radio edit",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Person",
+                "id": "c3c82bdc-d9e7-4836-9746-c24ead47ca19",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "name": "Mark Ronson",
+                "country": "GB",
+                "disambiguation": "British DJ and producer",
+                "sort-name": "Ronson, Mark"
+              },
+              "name": "Mark Ronson",
+              "joinphrase": " feat. "
+            },
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "afb680f2-b6eb-4cd7-a70b-a63b25c763d5",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "type": "Person",
+                "disambiguation": "US singer",
+                "country": "US",
+                "name": "Bruno Mars",
+                "sort-name": "Mars, Bruno"
+              },
+              "name": "Bruno Mars"
+            }
+          ],
+          "first-release-date": "2014-12",
+          "isrcs": [
+            "GBARL1401540"
+          ],
+          "title": "Uptown Funk",
+          "video": false,
+          "id": "33b6b148-9dce-4894-902d-d218ecc30666"
+        }
+      ]
+    }
+  }
+}

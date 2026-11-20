@@ -1,0 +1,2691 @@
+{
+  "note": "Trimmed: the first 30 of the ranked list.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.listenbrainz.org/1/popularity/top-recordings-for-artist/a74b1b7f-71a5-4011-9441-d0b5e4122711"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": [
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 43287476628,
+        "caa_release_mbid": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+        "length": 262426,
+        "recording_mbid": "9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3",
+        "recording_name": "Karma Police",
+        "release_color": {
+          "blue": 231,
+          "green": 226,
+          "red": 216
+        },
+        "release_mbid": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+        "release_name": "OK Computer",
+        "tags": [
+          {
+            "count": 2,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative & punk"
+          },
+          {
+            "count": 1,
+            "tag": "lush"
+          },
+          {
+            "count": 1,
+            "tag": "dark"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "911c7bbb-172d-4df8-9478-dbff4296e791",
+            "tag": "pop"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 13,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "a493b79c-4072-4371-a14c-446b1027982a",
+            "tag": "post-britpop"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "34cd43be-4711-4e77-a25c-c6d6a4bf3cb4",
+            "tag": "piano rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "tag": "poetic"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "26af3760-750a-4b5e-a699-78c87697585a",
+            "tag": "arena rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "cold"
+          }
+        ],
+        "total_listen_count": 3890683,
+        "total_user_count": 283512
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 43287476628,
+        "caa_release_mbid": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+        "length": 384000,
+        "recording_mbid": "9f9cf187-d6f9-437f-9d98-d59cdbd52757",
+        "recording_name": "Paranoid Android",
+        "release_color": {
+          "blue": 231,
+          "green": 226,
+          "red": 216
+        },
+        "release_mbid": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+        "release_name": "OK Computer",
+        "tags": [
+          {
+            "count": 3,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 1,
+            "tag": "manic"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative & punk"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "a493b79c-4072-4371-a14c-446b1027982a",
+            "tag": "post-britpop"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "ae9b8279-3959-48d8-8a88-741a7f6d4a48",
+            "tag": "progressive rock"
+          },
+          {
+            "count": 12,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "tag": "funereal"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "11c85378-c3d2-4f21-a189-56fac6e3de24",
+            "tag": "space rock revival"
+          },
+          {
+            "count": 1,
+            "tag": "meter:4/4"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 1,
+            "tag": "poprock"
+          }
+        ],
+        "total_listen_count": 3092016,
+        "total_user_count": 260301
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 43287476628,
+        "caa_release_mbid": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+        "length": 228533,
+        "recording_mbid": "980a426e-623e-4ea5-98c7-008d037a0508",
+        "recording_name": "No Surprises",
+        "release_color": {
+          "blue": 231,
+          "green": 226,
+          "red": 216
+        },
+        "release_mbid": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+        "release_name": "OK Computer",
+        "tags": [
+          {
+            "count": 2,
+            "genre_mbid": "a493b79c-4072-4371-a14c-446b1027982a",
+            "tag": "post-britpop"
+          },
+          {
+            "count": 1,
+            "tag": "sad"
+          },
+          {
+            "count": 1,
+            "tag": "poprock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 1,
+            "tag": "alt rock"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 9,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "lullabies"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "tag": "indie electronic"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative & punk"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "930ef127-3653-4677-9b95-ecc90c7c1a14",
+            "tag": "art pop"
+          },
+          {
+            "count": 1,
+            "tag": "britannique"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "6242615b-5620-465b-b6fb-2e593e90cbad",
+            "tag": "dream pop"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          }
+        ],
+        "total_listen_count": 3001215,
+        "total_user_count": 248803
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 14926982777,
+        "caa_release_mbid": "1a33443c-3fff-450f-8298-efbc65659d32",
+        "length": 228746,
+        "recording_mbid": "72c6b4d3-71a8-4c70-bf50-da11c0149089",
+        "recording_name": "All I Need",
+        "release_color": {
+          "blue": 53,
+          "green": 77,
+          "red": 111
+        },
+        "release_mbid": "ea92a194-2d60-35c7-9d56-0e1dba20cd45",
+        "release_name": "In Rainbows",
+        "tags": [
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          }
+        ],
+        "total_listen_count": 2843571,
+        "total_user_count": 199387
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 32282694066,
+        "caa_release_mbid": "8125fd6f-addc-45a8-ba34-4b023aeae962",
+        "length": 236666,
+        "recording_mbid": "70595637-9310-45f2-a266-58f8de4874a7",
+        "recording_name": "Creep",
+        "release_color": {
+          "blue": 101,
+          "green": 196,
+          "red": 218
+        },
+        "release_mbid": "07aab296-9a40-42a9-8d1f-6b06aa032e8a",
+        "release_name": "Pablo Honey",
+        "tags": [
+          {
+            "count": 1,
+            "genre_mbid": "bc08993e-b188-43e8-b358-b84f2db6bfe6",
+            "tag": "glam"
+          },
+          {
+            "count": 2,
+            "tag": "alternative & punk"
+          },
+          {
+            "count": 1,
+            "tag": "sad"
+          },
+          {
+            "count": 1,
+            "tag": "fun"
+          },
+          {
+            "count": 1,
+            "tag": "melancholy"
+          },
+          {
+            "count": 2,
+            "tag": "general alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f5ce6b81-b277-4a23-ba23-2e1e2a7e51ac",
+            "tag": "mod"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "50e3ff0e-1abb-4577-9bf3-95d5c539ce2d",
+            "tag": "europop"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "146ef761-5ad9-48b4-b0b3-483104f7da48",
+            "tag": "psychedelic rock"
+          },
+          {
+            "count": 1,
+            "tag": "sexy"
+          },
+          {
+            "count": 4,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "tag": "indie"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "445dc48f-5233-4b4f-987f-867ff9ade836",
+            "tag": "folk rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "tag": "mellow"
+          },
+          {
+            "count": 12,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "911c7bbb-172d-4df8-9478-dbff4296e791",
+            "tag": "pop"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 5,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          }
+        ],
+        "total_listen_count": 2829991,
+        "total_user_count": 226709
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 14926982777,
+        "caa_release_mbid": "1a33443c-3fff-450f-8298-efbc65659d32",
+        "length": 238000,
+        "recording_mbid": "faea2aa0-80a9-41be-9b1e-3b994f4f76ac",
+        "recording_name": "15 Step",
+        "release_color": {
+          "blue": 53,
+          "green": 77,
+          "red": 111
+        },
+        "release_mbid": "ea92a194-2d60-35c7-9d56-0e1dba20cd45",
+        "release_name": "In Rainbows",
+        "tags": [
+          {
+            "count": 3,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          }
+        ],
+        "total_listen_count": 2801152,
+        "total_user_count": 202778
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 14926982777,
+        "caa_release_mbid": "1a33443c-3fff-450f-8298-efbc65659d32",
+        "length": 248893,
+        "recording_mbid": "31600df4-e6dd-48ca-9f6b-8804027d8d6e",
+        "recording_name": "Jigsaw Falling Into Place",
+        "release_color": {
+          "blue": 53,
+          "green": 77,
+          "red": 111
+        },
+        "release_mbid": "ea92a194-2d60-35c7-9d56-0e1dba20cd45",
+        "release_name": "In Rainbows",
+        "tags": [
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 5,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "b8495241-e3c7-445b-82db-cea5ebe9ea7a",
+            "tag": "post-punk revival"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          }
+        ],
+        "total_listen_count": 2706887,
+        "total_user_count": 192469
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 14926982777,
+        "caa_release_mbid": "1a33443c-3fff-450f-8298-efbc65659d32",
+        "length": 255386,
+        "recording_mbid": "f3bea96c-5ebf-4d37-990d-14f1bc281459",
+        "recording_name": "Nude",
+        "release_color": {
+          "blue": 53,
+          "green": 77,
+          "red": 111
+        },
+        "release_mbid": "ea92a194-2d60-35c7-9d56-0e1dba20cd45",
+        "release_name": "In Rainbows",
+        "tags": [
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "6242615b-5620-465b-b6fb-2e593e90cbad",
+            "tag": "dream pop"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          }
+        ],
+        "total_listen_count": 2611162,
+        "total_user_count": 191816
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 14926982777,
+        "caa_release_mbid": "1a33443c-3fff-450f-8298-efbc65659d32",
+        "length": 318186,
+        "recording_mbid": "f74b48a6-5a60-4b5a-864d-3ecb7e983c31",
+        "recording_name": "Weird Fishes/Arpeggi",
+        "release_color": {
+          "blue": 53,
+          "green": 77,
+          "red": 111
+        },
+        "release_mbid": "ea92a194-2d60-35c7-9d56-0e1dba20cd45",
+        "release_name": "In Rainbows",
+        "tags": [
+          {
+            "count": 2,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          }
+        ],
+        "total_listen_count": 2442952,
+        "total_user_count": 185823
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 14926982777,
+        "caa_release_mbid": "1a33443c-3fff-450f-8298-efbc65659d32",
+        "length": 242293,
+        "recording_mbid": "94a1d84a-66ce-4fc9-88a5-c46263c54d9a",
+        "recording_name": "Bodysnatchers",
+        "release_color": {
+          "blue": 53,
+          "green": 77,
+          "red": 111
+        },
+        "release_mbid": "ea92a194-2d60-35c7-9d56-0e1dba20cd45",
+        "release_name": "In Rainbows",
+        "tags": [
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 3,
+            "tag": "alt rock"
+          },
+          {
+            "count": 5,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          }
+        ],
+        "total_listen_count": 2430056,
+        "total_user_count": 195170
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 32251121765,
+        "caa_release_mbid": "8af759be-1495-4cc4-85a7-47edc21fa348",
+        "length": 290733,
+        "recording_mbid": "1e73e7a6-7378-46e5-97a7-2c299c656a29",
+        "recording_name": "Fake Plastic Trees",
+        "release_color": {
+          "blue": 110,
+          "green": 126,
+          "red": 150
+        },
+        "release_mbid": "b3b28d75-e474-43b8-a9ec-4c6856fc10b2",
+        "release_name": "The Bends",
+        "tags": [
+          {
+            "count": 2,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "a493b79c-4072-4371-a14c-446b1027982a",
+            "tag": "post-britpop"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "6242615b-5620-465b-b6fb-2e593e90cbad",
+            "tag": "dream pop"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "00055e8b-b951-46e2-af1e-58b5624e7952",
+            "tag": "acoustic rock"
+          },
+          {
+            "count": 7,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 2,
+            "tag": "sad"
+          },
+          {
+            "count": 1,
+            "tag": "atmospheric"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 8,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          }
+        ],
+        "total_listen_count": 2383690,
+        "total_user_count": 211501
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 29475045164,
+        "caa_release_mbid": "0e8a1994-f0a7-481d-9be2-6c2f80e14de5",
+        "length": 251426,
+        "recording_mbid": "60bd9d53-01ff-4562-8058-eb44b3940317",
+        "recording_name": "Everything in Its Right Place",
+        "release_color": {
+          "blue": 135,
+          "green": 147,
+          "red": 153
+        },
+        "release_mbid": "e1bdf797-8b89-4d4c-8986-bcb0974d9726",
+        "release_name": "Kid A",
+        "tags": [
+          {
+            "count": 1,
+            "genre_mbid": "cc38aba3-48ed-439a-83b9-f81a34a66598",
+            "tag": "downtempo"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "930ef127-3653-4677-9b95-ecc90c7c1a14",
+            "tag": "art pop"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "indie electronic"
+          },
+          {
+            "count": 2,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 2,
+            "tag": "soundtrack"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "tag": "britannique"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "608b0471-7531-4854-a348-e698c69cb699",
+            "tag": "ambient"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          }
+        ],
+        "total_listen_count": 2340461,
+        "total_user_count": 204399
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 14926982777,
+        "caa_release_mbid": "1a33443c-3fff-450f-8298-efbc65659d32",
+        "length": 328293,
+        "recording_mbid": "29a9d792-151b-4dd4-99ae-25bc853d8895",
+        "recording_name": "House of Cards",
+        "release_color": {
+          "blue": 53,
+          "green": 77,
+          "red": 111
+        },
+        "release_mbid": "ea92a194-2d60-35c7-9d56-0e1dba20cd45",
+        "release_name": "In Rainbows",
+        "tags": [
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "indie"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "911c7bbb-172d-4df8-9478-dbff4296e791",
+            "tag": "pop"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          }
+        ],
+        "total_listen_count": 2317611,
+        "total_user_count": 188454
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 29475045164,
+        "caa_release_mbid": "0e8a1994-f0a7-481d-9be2-6c2f80e14de5",
+        "length": 309093,
+        "recording_mbid": "1c0377bb-c00b-4bbe-b4b2-615f13324adc",
+        "recording_name": "Idioteque",
+        "release_color": {
+          "blue": 135,
+          "green": 147,
+          "red": 153
+        },
+        "release_mbid": "e1bdf797-8b89-4d4c-8986-bcb0974d9726",
+        "release_name": "Kid A",
+        "tags": [
+          {
+            "count": 1,
+            "genre_mbid": "0bfffa19-4e4a-4bf7-bf53-6ec44f0a2f8e",
+            "tag": "post-rock"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 2,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "indie electronic"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "53a3cea3-17af-4421-a07a-5824b540aeb5",
+            "tag": "electronica"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "32bea60c-e201-4241-8ed4-228636d34a97",
+            "tag": "leftfield"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "tag": "elektro"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "997baf8b-203b-4567-a475-1c1fe348d206",
+            "tag": "glitch pop"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8eb583f1-4fd7-460c-8246-dcdccc0e3ef9",
+            "tag": "idm"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 6,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          }
+        ],
+        "total_listen_count": 2280922,
+        "total_user_count": 191990
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 32251121765,
+        "caa_release_mbid": "8af759be-1495-4cc4-85a7-47edc21fa348",
+        "length": 257533,
+        "recording_mbid": "83cf16bc-01db-4766-9e3e-f3c796639cf2",
+        "recording_name": "High and Dry",
+        "release_color": {
+          "blue": 110,
+          "green": 126,
+          "red": 150
+        },
+        "release_mbid": "b3b28d75-e474-43b8-a9ec-4c6856fc10b2",
+        "release_name": "The Bends",
+        "tags": [
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "a493b79c-4072-4371-a14c-446b1027982a",
+            "tag": "post-britpop"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "930ef127-3653-4677-9b95-ecc90c7c1a14",
+            "tag": "art pop"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "c4a69842-f891-4569-9506-1882aa5db433",
+            "tag": "electronic rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f0843e91-c025-4dd7-8aef-6fe3d35470d9",
+            "tag": "chamber pop"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "d2327987-362f-4d70-8bfd-a8b47c3b0a54",
+            "tag": "neo-progressive rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "93244085-20e5-4f16-9067-1d19143b3810",
+            "tag": "classic rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 6,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 7,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 1,
+            "tag": "acoustic"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          }
+        ],
+        "total_listen_count": 2170587,
+        "total_user_count": 210904
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 19579924721,
+        "caa_release_mbid": "aa1e6810-906c-4d4d-b40b-01f277f6fbd2",
+        "length": 241000,
+        "recording_mbid": "ec049703-9a04-4c45-bc08-8094a918c156",
+        "recording_name": "Reckoner (live)",
+        "release_color": {
+          "blue": 246,
+          "green": 245,
+          "red": 245
+        },
+        "release_mbid": "aa1e6810-906c-4d4d-b40b-01f277f6fbd2",
+        "release_name": "Towering Above the Rest Complete",
+        "tags": [],
+        "total_listen_count": 2131618,
+        "total_user_count": 146975
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 14926982777,
+        "caa_release_mbid": "1a33443c-3fff-450f-8298-efbc65659d32",
+        "length": 281800,
+        "recording_mbid": "8648fe94-bbdc-44a1-9de8-c4ced7913dc2",
+        "recording_name": "Videotape",
+        "release_color": {
+          "blue": 53,
+          "green": 77,
+          "red": 111
+        },
+        "release_mbid": "ea92a194-2d60-35c7-9d56-0e1dba20cd45",
+        "release_name": "In Rainbows",
+        "tags": [
+          {
+            "count": 1,
+            "genre_mbid": "911c7bbb-172d-4df8-9478-dbff4296e791",
+            "tag": "pop"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "tag": "indie"
+          }
+        ],
+        "total_listen_count": 2119220,
+        "total_user_count": 176959
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 14926982777,
+        "caa_release_mbid": "1a33443c-3fff-450f-8298-efbc65659d32",
+        "length": 129680,
+        "recording_mbid": "ffac3cb1-a5e9-4f31-952d-45323f3640d5",
+        "recording_name": "Faust Arp",
+        "release_color": {
+          "blue": 53,
+          "green": 77,
+          "red": 111
+        },
+        "release_mbid": "ea92a194-2d60-35c7-9d56-0e1dba20cd45",
+        "release_name": "In Rainbows",
+        "tags": [
+          {
+            "count": 3,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "36917620-240a-4fed-abcb-7be611ac3834",
+            "tag": "indie folk"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f0843e91-c025-4dd7-8aef-6fe3d35470d9",
+            "tag": "chamber pop"
+          },
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f0c26658-95b8-46b8-b167-fdc9a659465b",
+            "tag": "chamber folk"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          }
+        ],
+        "total_listen_count": 2045622,
+        "total_user_count": 179509
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 43287476628,
+        "caa_release_mbid": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+        "length": 264800,
+        "recording_mbid": "23c3c36b-9449-4484-9040-6ef2125999aa",
+        "recording_name": "Exit Music (for a Film)",
+        "release_color": {
+          "blue": 231,
+          "green": 226,
+          "red": 216
+        },
+        "release_mbid": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+        "release_name": "OK Computer",
+        "tags": [
+          {
+            "count": 1,
+            "tag": "poprock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "indie electronic"
+          },
+          {
+            "count": 1,
+            "tag": "brit rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 9,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "tag": "alternative & punk"
+          },
+          {
+            "count": 1,
+            "tag": "britannique"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 1,
+            "tag": "rock; alternative; alternative rock; indie rock; experimental"
+          },
+          {
+            "count": 2,
+            "tag": "alternative and punk"
+          }
+        ],
+        "total_listen_count": 2024895,
+        "total_user_count": 205179
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 43287476628,
+        "caa_release_mbid": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+        "length": 299266,
+        "recording_mbid": "47b02a82-c3bf-4647-b894-dd1c8f608e7f",
+        "recording_name": "Let Down",
+        "release_color": {
+          "blue": 231,
+          "green": 226,
+          "red": 216
+        },
+        "release_mbid": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+        "release_name": "OK Computer",
+        "tags": [
+          {
+            "count": 1,
+            "tag": "alternative & punk"
+          },
+          {
+            "count": 1,
+            "tag": "billboard hot 100"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "a493b79c-4072-4371-a14c-446b1027982a",
+            "tag": "post-britpop"
+          },
+          {
+            "count": 1,
+            "tag": "billboard hot 100 2025"
+          },
+          {
+            "count": 1,
+            "tag": "billboard hot 100 2026"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 6,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "tag": "poprock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 1,
+            "tag": "indie electronic"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          }
+        ],
+        "total_listen_count": 2022152,
+        "total_user_count": 208193
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 43287476628,
+        "caa_release_mbid": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+        "length": 284400,
+        "recording_mbid": "4a7fea2e-545b-4c63-bc9a-9943cc3a29d7",
+        "recording_name": "Airbag",
+        "release_color": {
+          "blue": 231,
+          "green": 226,
+          "red": 216
+        },
+        "release_mbid": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+        "release_name": "OK Computer",
+        "tags": [
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative & punk"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "poprock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 7,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          }
+        ],
+        "total_listen_count": 1918560,
+        "total_user_count": 212464
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 43287476628,
+        "caa_release_mbid": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+        "length": 277000,
+        "recording_mbid": "69bab114-162f-4f1b-9f9a-658db592eefa",
+        "recording_name": "Lucky",
+        "release_color": {
+          "blue": 231,
+          "green": 226,
+          "red": 216
+        },
+        "release_mbid": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+        "release_name": "OK Computer",
+        "tags": [],
+        "total_listen_count": 1792070,
+        "total_user_count": 194302
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 32251121765,
+        "caa_release_mbid": "8af759be-1495-4cc4-85a7-47edc21fa348",
+        "length": 252933,
+        "recording_mbid": "99385b86-235b-4780-a8de-62993cae0388",
+        "recording_name": "Street Spirit (Fade Out)",
+        "release_color": {
+          "blue": 110,
+          "green": 126,
+          "red": 150
+        },
+        "release_mbid": "b3b28d75-e474-43b8-a9ec-4c6856fc10b2",
+        "release_name": "The Bends",
+        "tags": [
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "bc08993e-b188-43e8-b358-b84f2db6bfe6",
+            "tag": "glam"
+          },
+          {
+            "count": 1,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "c4a69842-f891-4569-9506-1882aa5db433",
+            "tag": "electronic rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f6d8cadd-6a5e-4ec9-9c2b-996b5332a639",
+            "tag": "post-punk"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "tag": "british indie rock pop"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "797e2e85-5ffd-495c-a757-8b4079052f0e",
+            "tag": "pop rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "d2327987-362f-4d70-8bfd-a8b47c3b0a54",
+            "tag": "neo-progressive rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f0843e91-c025-4dd7-8aef-6fe3d35470d9",
+            "tag": "chamber pop"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "930ef127-3653-4677-9b95-ecc90c7c1a14",
+            "tag": "art pop"
+          },
+          {
+            "count": 6,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "93244085-20e5-4f16-9067-1d19143b3810",
+            "tag": "classic rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 7,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          }
+        ],
+        "total_listen_count": 1749557,
+        "total_user_count": 177835
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 29475045164,
+        "caa_release_mbid": "0e8a1994-f0a7-481d-9be2-6c2f80e14de5",
+        "length": 356333,
+        "recording_mbid": "740d324e-4356-4116-812d-17ea76a190ce",
+        "recording_name": "How to Disappear Completely",
+        "release_color": {
+          "blue": 135,
+          "green": 147,
+          "red": 153
+        },
+        "release_mbid": "e1bdf797-8b89-4d4c-8986-bcb0974d9726",
+        "release_name": "Kid A",
+        "tags": [
+          {
+            "count": 2,
+            "tag": "alt rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "tag": "britannique"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "53a3cea3-17af-4421-a07a-5824b540aeb5",
+            "tag": "electronica"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 5,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "0bfffa19-4e4a-4bf7-bf53-6ec44f0a2f8e",
+            "tag": "post-rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "indie electronic"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          }
+        ],
+        "total_listen_count": 1692796,
+        "total_user_count": 171393
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 43287476628,
+        "caa_release_mbid": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+        "length": 267706,
+        "recording_mbid": "bd82738d-163c-4b1a-bfaf-7acffe30e68a",
+        "recording_name": "Subterranean Homesick Alien",
+        "release_color": {
+          "blue": 231,
+          "green": 226,
+          "red": 216
+        },
+        "release_mbid": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+        "release_name": "OK Computer",
+        "tags": [
+          {
+            "count": 4,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "11c85378-c3d2-4f21-a189-56fac6e3de24",
+            "tag": "space rock revival"
+          },
+          {
+            "count": 1,
+            "tag": "alternative & punk"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "indie electronic"
+          },
+          {
+            "count": 1,
+            "tag": "poprock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "797e2e85-5ffd-495c-a757-8b4079052f0e",
+            "tag": "pop rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "32bea60c-e201-4241-8ed4-228636d34a97",
+            "tag": "leftfield"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 3,
+            "tag": "acoustic"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "britannique"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 7,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          }
+        ],
+        "total_listen_count": 1632474,
+        "total_user_count": 193759
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 29475045164,
+        "caa_release_mbid": "0e8a1994-f0a7-481d-9be2-6c2f80e14de5",
+        "length": 351693,
+        "recording_mbid": "c7492f6e-adf3-4ff5-85dc-33d527dc81d8",
+        "recording_name": "The National Anthem",
+        "release_color": {
+          "blue": 135,
+          "green": 147,
+          "red": 153
+        },
+        "release_mbid": "e1bdf797-8b89-4d4c-8986-bcb0974d9726",
+        "release_name": "Kid A",
+        "tags": [
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 2,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 1,
+            "tag": "indie electronic"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "53a3cea3-17af-4421-a07a-5824b540aeb5",
+            "tag": "electronica"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "0bfffa19-4e4a-4bf7-bf53-6ec44f0a2f8e",
+            "tag": "post-rock"
+          },
+          {
+            "count": 5,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 2,
+            "tag": "alt rock"
+          }
+        ],
+        "total_listen_count": 1580039,
+        "total_user_count": 169714
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 2515589570,
+        "caa_release_mbid": "15dc9592-88d2-42d6-b7f3-40e07ec68ff0",
+        "length": 300400,
+        "recording_mbid": "46c13c78-8a42-42f9-8b55-c98f7de025a6",
+        "recording_name": "Lotus Flower",
+        "release_color": {
+          "blue": 47,
+          "green": 75,
+          "red": 100
+        },
+        "release_mbid": "dafc3dce-2ac7-4085-9f1a-d56603418818",
+        "release_name": "The King of Limbs",
+        "tags": [
+          {
+            "count": 1,
+            "genre_mbid": "45eb1d9c-588c-4dc8-9394-a14b7c8f02bc",
+            "tag": "trip hop"
+          },
+          {
+            "count": 4,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "cc38aba3-48ed-439a-83b9-f81a34a66598",
+            "tag": "downtempo"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "930ef127-3653-4677-9b95-ecc90c7c1a14",
+            "tag": "art pop"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+            "tag": "indie rock"
+          }
+        ],
+        "total_listen_count": 1524224,
+        "total_user_count": 146952
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 32251121765,
+        "caa_release_mbid": "8af759be-1495-4cc4-85a7-47edc21fa348",
+        "length": 234093,
+        "recording_mbid": "e234705a-d068-43d5-a122-cef8f056588e",
+        "recording_name": "Just",
+        "release_color": {
+          "blue": 110,
+          "green": 126,
+          "red": 150
+        },
+        "release_mbid": "b3b28d75-e474-43b8-a9ec-4c6856fc10b2",
+        "release_name": "The Bends",
+        "tags": [
+          {
+            "count": 1,
+            "genre_mbid": "c4a69842-f891-4569-9506-1882aa5db433",
+            "tag": "electronic rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "f0843e91-c025-4dd7-8aef-6fe3d35470d9",
+            "tag": "chamber pop"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 7,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "930ef127-3653-4677-9b95-ecc90c7c1a14",
+            "tag": "art pop"
+          },
+          {
+            "count": 1,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 7,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "d2327987-362f-4d70-8bfd-a8b47c3b0a54",
+            "tag": "neo-progressive rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          }
+        ],
+        "total_listen_count": 1523695,
+        "total_user_count": 172100
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 2336491200,
+        "caa_release_mbid": "910c1006-887c-3044-b13c-34f906f15ea7",
+        "length": 289000,
+        "recording_mbid": "666879c8-2083-4f64-bd7a-9a15bac75962",
+        "recording_name": "Pyramid Song",
+        "release_color": {},
+        "release_mbid": "431761e6-ebda-4f98-9566-3edda2ae595e",
+        "release_name": "Amnesiac",
+        "tags": [
+          {
+            "count": 1,
+            "genre_mbid": "53a3cea3-17af-4421-a07a-5824b540aeb5",
+            "tag": "electronica"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "0bfffa19-4e4a-4bf7-bf53-6ec44f0a2f8e",
+            "tag": "post-rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 6,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "tag": "aaa"
+          }
+        ],
+        "total_listen_count": 1523611,
+        "total_user_count": 164425
+      },
+      {
+        "artist_mbids": [
+          "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+        ],
+        "artist_name": "Radiohead",
+        "artists": [
+          {
+            "artist_credit_name": "Radiohead",
+            "artist_mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "join_phrase": ""
+          }
+        ],
+        "caa_id": 43287476628,
+        "caa_release_mbid": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+        "length": 285200,
+        "recording_mbid": "c7225576-001e-423c-adc1-58f0985dcb27",
+        "recording_name": "Climbing Up the Walls",
+        "release_color": {
+          "blue": 231,
+          "green": 226,
+          "red": 216
+        },
+        "release_mbid": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+        "release_name": "OK Computer",
+        "tags": [
+          {
+            "count": 1,
+            "tag": "pop/rock"
+          },
+          {
+            "count": 3,
+            "genre_mbid": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+            "tag": "rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "65c97e89-b42b-45c2-a70e-0eca1b8f0ff7",
+            "tag": "experimental rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+            "tag": "electronic"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "ae9b8279-3959-48d8-8a88-741a7f6d4a48",
+            "tag": "progressive rock"
+          },
+          {
+            "count": 8,
+            "genre_mbid": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+            "tag": "alternative rock"
+          },
+          {
+            "count": 1,
+            "tag": "indie electronic"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "b7ef058e-6d83-4ca4-8123-9724bff4648b",
+            "tag": "art rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative"
+          },
+          {
+            "count": 1,
+            "tag": "britannique"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "68c81274-5770-4e7b-a4bf-ab0d7d425d99",
+            "tag": "experimental"
+          },
+          {
+            "count": 1,
+            "tag": "alternative/indie rock"
+          },
+          {
+            "count": 1,
+            "genre_mbid": "8cc9b280-230b-4a3a-b1e2-8acab0744dd3",
+            "tag": "punk"
+          },
+          {
+            "count": 2,
+            "genre_mbid": "f1c9b874-7ef2-4e79-9419-c0bcb5f33a30",
+            "tag": "britpop"
+          },
+          {
+            "count": 2,
+            "tag": "alternative pop/rock"
+          },
+          {
+            "count": 1,
+            "tag": "rock; alternative; alternative rock; experimental; art rock"
+          },
+          {
+            "count": 1,
+            "tag": "alternative & punk"
+          },
+          {
+            "count": 2,
+            "tag": "alternative and punk"
+          },
+          {
+            "count": 1,
+            "tag": "poprock"
+          }
+        ],
+        "total_listen_count": 1480980,
+        "total_user_count": 175542
+      }
+    ]
+  }
+}

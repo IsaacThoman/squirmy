@@ -1,0 +1,52 @@
+import { Search, X } from 'lucide-react'
+import { useRef, type ComponentProps } from 'react'
+import { cn } from '@/lib/utils'
+
+type SearchFieldProps = Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'size'> & {
+  value: string
+  onValueChange: (value: string) => void
+  size?: 'md' | 'lg'
+}
+
+export function SearchField({ value, onValueChange, size = 'md', className, placeholder = 'Search', ...props }: SearchFieldProps) {
+  const input = useRef<HTMLInputElement>(null)
+  return (
+    <div className={cn('group relative flex items-center', className)}>
+      <Search aria-hidden className={cn('pointer-events-none absolute left-3.5 text-quiet transition-colors group-focus-within:text-foreground', size === 'lg' ? 'size-5' : 'size-[18px]')} />
+      <input
+        ref={input}
+        type="search"
+        value={value}
+        onChange={event => onValueChange(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === 'Escape' && value) {
+            event.preventDefault()
+            onValueChange('')
+          }
+        }}
+        placeholder={placeholder}
+        aria-label={props['aria-label'] ?? placeholder}
+        autoComplete="off"
+        spellCheck={false}
+        className={cn(
+          'w-full min-w-0 rounded-full border border-transparent bg-surface text-foreground transition duration-150 placeholder:text-quiet hover:border-stroke focus-visible:border-accent focus-visible:bg-background focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-selection [&::-webkit-search-cancel-button]:hidden',
+          size === 'lg' ? 'h-13 pl-11 pr-12 text-[17px]' : 'h-10 pl-10 pr-10 text-sm',
+        )}
+        {...props}
+      />
+      {value && (
+        <button
+          type="button"
+          aria-label="Clear search"
+          onClick={() => {
+            onValueChange('')
+            input.current?.focus()
+          }}
+          className="absolute right-2 flex size-7 items-center justify-center rounded-full text-muted transition hover:bg-overlay hover:text-foreground"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+    </div>
+  )
+}
