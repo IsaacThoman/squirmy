@@ -1,9 +1,12 @@
 import { ShieldOff } from 'lucide-react'
+import { Suspense } from 'react'
 import { Navigate, Outlet, useLocation, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { SplashView, UnreachableView } from '@/components/auth/AuthViews'
 import { Page } from '@/components/layout/Page'
 import { EmptyState } from '@/components/ui/feedback'
+import { LibraryProvider } from '@/player/LibraryProvider'
+import { PlayerProvider } from '@/player/PlayerProvider'
 import { RealtimeProvider } from '@/realtime/RealtimeProvider'
 import { CurrentUserContext, safeNext, useCurrentUser, useMe, useSetupStatus } from './session'
 
@@ -32,7 +35,7 @@ export function SignedOutOnly() {
   return user ? <Navigate to={safeNext(params.get('next'))} replace /> : <Outlet />
 }
 
-/** The app itself. Signed-out visitors sign in first and then come back here. */
+/** The app itself, with the user's socket, session and library. Signed-out visitors sign in first and then come back here. */
 export function SignedInOnly() {
   const { data: user } = useMe()
   const location = useLocation()
@@ -42,7 +45,13 @@ export function SignedInOnly() {
   }
   return (
     <CurrentUserContext value={user}>
-      <RealtimeProvider><Outlet /></RealtimeProvider>
+      <RealtimeProvider>
+        <Suspense fallback={<SplashView />}>
+          <PlayerProvider>
+            <LibraryProvider><Outlet /></LibraryProvider>
+          </PlayerProvider>
+        </Suspense>
+      </RealtimeProvider>
     </CurrentUserContext>
   )
 }

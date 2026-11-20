@@ -7,9 +7,14 @@ import { ServicesContext, type Services } from '@/api/services'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toast'
 import { FixtureProviders } from '@/fixtures/FixtureProviders'
+import { EngineProvider } from '@/player/engine/EngineProvider'
 import { fakeServices } from './fake-services'
 
-/** Renders inside the router, the query client, tooltips and the fixture session, like the app. */
+/**
+ * Renders inside the router, the query client, tooltips and the page's engine, like the app.
+ * Routes bring the real session and library providers (on the fake services); components
+ * rendered on their own get the fixture session around them.
+ */
 export function renderWithApp(ui: ReactElement, route = '/', services: Services = fakeServices().services) {
   const queryClient = createQueryClient()
   const result = render(
@@ -17,7 +22,9 @@ export function renderWithApp(ui: ReactElement, route = '/', services: Services 
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[route]}>
           <TooltipProvider>
-            <FixtureProviders>{ui}<Toaster /></FixtureProviders>
+            <EngineProvider>
+              <FixtureProviders>{ui}<Toaster /></FixtureProviders>
+            </EngineProvider>
           </TooltipProvider>
         </MemoryRouter>
       </QueryClientProvider>

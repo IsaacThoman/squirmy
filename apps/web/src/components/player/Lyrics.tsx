@@ -8,8 +8,7 @@ import { usePosition } from '@/player/player-context'
 /** Synced lyrics follow the clock and seek on click; plain lyrics just scroll. */
 export function LyricsPane({ lyrics, onSeek }: { lyrics: Lyrics | null; onSeek: (ms: number) => void }) {
   const lines = useMemo(() => (lyrics?.synced ? parseLrc(lyrics.synced) : []), [lyrics])
-  const position = usePosition()
-  const active = activeLine(lines, position)
+  const active = usePosition(position => activeLine(lines, position))
   const container = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

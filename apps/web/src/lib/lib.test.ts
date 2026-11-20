@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { safeNext } from '@/auth/session'
-import { deviceName } from './device'
+import { keyIsTaken } from '@/player/shortcuts'
+import { codecsFor } from './codecs'
+import { deviceName, tabDeviceName } from './device'
 import { formatDuration, formatRelative, formatTotalDuration } from './format'
 import { activeLine, parseLrc } from './lyrics'
 import { dropIndex, moveItem } from './reorder'
@@ -45,6 +47,39 @@ describe('device', () => {
     expect(deviceName('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36')).toBe('Chrome on macOS')
     expect(deviceName('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0')).toBe('Firefox on Windows')
     expect(deviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')).toBe('Safari on iOS')
+  })
+})
+
+describe('tab devices', () => {
+  it('numbers the second tab of a browser and on', () => {
+    expect(tabDeviceName('Chrome on macOS', 1)).toBe('Chrome on macOS')
+    expect(tabDeviceName('Chrome on macOS', 2)).toBe('Chrome on macOS (2)')
+  })
+})
+
+describe('codecs', () => {
+  it('lists what the browser says it can play, and Opus only in Ogg', () => {
+    const plays = (types: string[]) => ({ canPlayType: (type: string) => (types.includes(type) ? 'maybe' : '') as CanPlayTypeResult })
+    expect(codecsFor(plays(['audio/flac', 'audio/mpeg', 'audio/mp4; codecs="mp4a.40.2"', 'audio/webm; codecs="opus"']))).toEqual(['flac', 'mp3', 'aac'])
+    expect(codecsFor(plays(['audio/ogg; codecs="opus"', 'audio/ogg; codecs="vorbis"']))).toEqual(['opus', 'vorbis'])
+  })
+})
+
+describe('keyboard shortcuts', () => {
+  const press = (key: string, target: Element, modifiers: Partial<KeyboardEvent> = {}) =>
+    keyIsTaken({ key, target, altKey: false, ctrlKey: false, metaKey: false, defaultPrevented: false, ...modifiers })
+
+  it('leave keys to the element that uses them', () => {
+    document.body.innerHTML = '<input id="text"><button id="button">Go</button><div role="slider" id="slider"></div><div id="page"><span id="plain">Text</span></div>'
+    const element = (id: string) => document.getElementById(id)!
+    expect(press(' ', element('plain'))).toBe(false)
+    expect(press('ArrowLeft', element('plain'))).toBe(false)
+    expect(press(' ', element('text'))).toBe(true)
+    expect(press('ArrowLeft', element('text'))).toBe(true)
+    expect(press(' ', element('button'))).toBe(true)
+    expect(press('ArrowUp', element('button'))).toBe(false)
+    expect(press('ArrowRight', element('slider'))).toBe(true)
+    expect(press(' ', element('plain'), { metaKey: true })).toBe(true)
   })
 })
 

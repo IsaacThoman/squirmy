@@ -35,7 +35,13 @@ export function QueueContent({ player }: { player: Player }) {
       </div>
 
       <section aria-labelledby="queue-next">
-        <QueueHeading id="queue-next" detail={state.queue.length ? `${state.queue.length} ${state.queue.length === 1 ? 'track' : 'tracks'}` : undefined}>Up next</QueueHeading>
+        <QueueHeading
+          id="queue-next"
+          detail={state.queue.length ? `${state.queue.length} ${state.queue.length === 1 ? 'track' : 'tracks'}` : undefined}
+          action={state.queue.length > 0 && <ClearButton label="Clear queue" onClick={controls.clearQueue} />}
+        >
+          Up next
+        </QueueHeading>
         {state.queue.length
           ? <SortableQueue items={state.queue} onMove={controls.moveEntry} onRemove={controls.removeEntry} onPlay={controls.playEntry} />
           : <p className="px-2 text-sm text-muted">Songs you add to the queue appear here.</p>}
@@ -43,7 +49,7 @@ export function QueueContent({ player }: { player: Player }) {
 
       {state.history.length > 0 && (
         <section aria-labelledby="queue-history">
-          <QueueHeading id="queue-history" action={<button type="button" onClick={controls.clearHistory} className="rounded-full px-2.5 py-1 text-xs font-semibold text-accent hover:bg-selection">Clear</button>}>
+          <QueueHeading id="queue-history" action={<ClearButton label="Clear history" onClick={controls.clearHistory} />}>
             History
           </QueueHeading>
           <ul>{[...state.history].reverse().map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} faded /></li>)}</ul>
@@ -67,12 +73,16 @@ export function QueueContent({ player }: { player: Player }) {
 
 function QueueHeading({ id, children, detail, action }: { id: string; children: ReactNode; detail?: string; action?: ReactNode }) {
   return (
-    <div className="mb-1.5 flex min-h-8 items-center justify-between gap-2 px-2">
-      <h3 id={id} className="text-[15px] font-bold">{children}</h3>
+    <div className="mb-1.5 flex min-h-8 items-center gap-2 px-2">
+      <h3 id={id} className="mr-auto text-[15px] font-bold">{children}</h3>
       {detail && <span className="text-xs font-semibold text-quiet">{detail}</span>}
       {action}
     </div>
   )
+}
+
+function ClearButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return <button type="button" aria-label={label} onClick={onClick} className="-mr-1 rounded-full px-2.5 py-1 text-xs font-semibold text-accent hover:bg-selection">Clear</button>
 }
 
 type QueueRowProps = {
