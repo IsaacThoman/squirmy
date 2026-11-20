@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { useScrollContainer } from './scroll-context'
 
 /** History buttons, search and the account menu. Clear until the page scrolls under it. */
-export function TopBar({ user }: { user: User }) {
+export function TopBar({ user, onLogout }: { user: User; onLogout: () => void }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
@@ -46,13 +46,13 @@ export function TopBar({ user }: { user: User }) {
         className="ml-1 w-full max-w-sm max-md:hidden"
       />
       <div className="ml-auto">
-        <UserMenu user={user} />
+        <UserMenu user={user} onLogout={onLogout} />
       </div>
     </header>
   )
 }
 
-function UserMenu({ user }: { user: User }) {
+function UserMenu({ user, onLogout }: { user: User; onLogout: () => void }) {
   const navigate = useNavigate()
   const name = user.displayName ?? user.username
   return (
@@ -62,7 +62,7 @@ function UserMenu({ user }: { user: User }) {
         { label: 'Settings', icon: <Settings />, onSelect: () => navigate('/settings') },
         ...(user.role === 'admin' ? [{ label: 'Admin', icon: <Shield />, onSelect: () => navigate('/admin') }] : []),
         { kind: 'separator' },
-        { label: 'Log out', icon: <LogOut />, onSelect: () => navigate('/login') },
+        { label: 'Log out', icon: <LogOut />, onSelect: onLogout },
       ]}
       trigger={(
         <button type="button" aria-label={`Account, ${name}`} className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-on-accent ring-4 ring-transparent transition hover:ring-selection data-[state=open]:ring-selection">

@@ -67,7 +67,12 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.get('/setup/status', async (): Promise<SetupStatus> => {
     const settings = await getServerSettings()
-    return { needsSetup: (await countUsers()) === 0, version: getVersion(), serverName: settings.serverName }
+    return {
+      needsSetup: (await countUsers()) === 0,
+      version: getVersion(),
+      serverName: settings.serverName,
+      registrationRequiresInvite: settings.registrationRequiresInvite,
+    }
   })
 
   app.post('/setup', { preHandler: setupPerIp }, async (request, reply): Promise<AuthResponse> => {
