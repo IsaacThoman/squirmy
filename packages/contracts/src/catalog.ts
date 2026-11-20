@@ -11,7 +11,10 @@ import { Id, page, PageQuery } from './common.js'
 export const TrackAvailability = z.enum(['none', 'on_demand', 'server'])
 export type TrackAvailability = z.infer<typeof TrackAvailability>
 
-/** `full` and `partial` count owned tracks against the album's canonical track list. */
+/**
+ * `full` and `partial` count owned tracks against the album's track list: its canonical
+ * release, plus owned tracks filed under the album that the release does not list.
+ */
 export const AlbumAvailability = z.enum(['none', 'on_demand', 'partial', 'full'])
 export type AlbumAvailability = z.infer<typeof AlbumAvailability>
 

@@ -4,8 +4,11 @@
  * - A recording is owned when a present media file (`missing_since` is null) links to it.
  * - An unowned recording is `on_demand` when the acquisition seam says a provider can
  *   supply it, else `none`.
- * - An album counts owned recordings on its canonical release: all is `full`, some is
- *   `partial`. With none owned it is `on_demand` when every track is, else `none`.
+ * - An album counts owned recordings on its track list (`albumTrackList` in pages.ts): its
+ *   canonical release, plus owned recordings filed under the album that the release does
+ *   not list. All is `full`, some is `partial`. With none owned it is `on_demand` when
+ *   every track is, else `none`. An album with a present, linked file is therefore never
+ *   `none`, which is what keeps a library album from showing gray.
  */
 import type { AlbumAvailability, TrackAvailability } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
@@ -41,7 +44,7 @@ export async function trackAvailability(recordingIds: readonly string[]): Promis
 
 export type AlbumAvailabilityInfo = {
   availability: AlbumAvailability
-  /** Tracks on the canonical release. */
+  /** Tracks on the album's track list: the canonical release, then owned extras. */
   trackCount: number
   /** Of those, the ones whose recording is owned. */
   ownedTrackCount: number
@@ -53,16 +56,24 @@ export async function albumAvailability(albumIds: readonly string[]): Promise<Ma
   if (ids.length === 0) return new Map()
   const rows = await db.execute<{ id: string; trackCount: number; ownedTrackCount: number; unowned: string[] }>(sql`
     select a.id,
-      count(t.id)::int as "trackCount",
-      count(t.id) filter (where t.owned)::int as "ownedTrackCount",
+      (count(t.id) + extras.count)::int as "trackCount",
+      (count(t.id) filter (where t.owned) + extras.count)::int as "ownedTrackCount",
       coalesce(array_agg(t.recording_id) filter (where not t.owned), '{}') as unowned
     from albums a
     left join lateral (
       select rt.id, rt.recording_id, ${recordingOwned('rt.recording_id')} as owned
       from release_tracks rt where rt.release_id = ${canonicalRelease('a')}
     ) t on true
+    cross join lateral (
+      select count(distinct f.recording_id) as count from media_files f
+      where f.album_id = a.id and f.recording_id is not null and f.missing_since is null
+        and not exists (
+          select 1 from release_tracks listed
+          where listed.release_id = ${canonicalRelease('a')} and listed.recording_id = f.recording_id
+        )
+    ) extras
     where a.id = any(${uuidArray(ids)})
-    group by a.id`)
+    group by a.id, extras.count`)
 
   const candidates = rows.filter((row) => row.ownedTrackCount === 0 && row.trackCount > 0).flatMap((row) => row.unowned)
   const onDemand = candidates.length > 0 ? await onDemandRecordings([...new Set(candidates)]) : new Set<string>()
