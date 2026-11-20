@@ -3,7 +3,8 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { GestureDetector, useNativeGesture, usePanGesture, type NativeGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { albums, tracks } from '../catalog';
+import type { TrackSummary } from '@squirmy/contracts';
+import { useLibraryActions, useLiked, useTrack, useTrackStore } from '../data/library';
 import { type QueueEntry, usePlaybackState } from '../playback';
 import { Cover, Icon } from '../ui';
 import { PlayerButton } from './Controls';
@@ -17,16 +18,17 @@ const motion = { duration: 140 };
 const actionWidth = 102;
 
 export type QueueProps = {
-  onTrackMenu: (trackId: string) => void;
+  onTrackMenu: (trackId: string, albumId: string | null) => void;
 };
 
 export default function QueuePage({ onTrackMenu }: QueueProps) {
   const colors = useColors();
   const styles = useStyles();
-  const { state, actions } = usePlaybackState();
+  const { session, queue, actions } = usePlaybackState();
+  const { history } = queue;
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const scrollGesture = useNativeGesture();
-  const historyHeight = state.history.length ? historyLead + state.history.length * rowHeight + historyTrail : 0;
+  const historyHeight = history.length ? historyLead + history.length * rowHeight + historyTrail : 0;
   const historyOffset = useRef(historyHeight);
   const initialOffset = useRef({ x: 0, y: historyHeight });
   const firstLayout = useRef(true);
@@ -68,7 +70,7 @@ export default function QueuePage({ onTrackMenu }: QueueProps) {
     <View style={styles.screen}>
       <View style={styles.queueHeader}>
         <Text accessibilityRole="header" style={styles.queueTitle}>Play queue</Text>
-        {state.history.length > 0 && (
+        {history.length > 0 && (
           <Pressable style={styles.historyJump} accessibilityRole="button" onPress={historyVisible ? jumpToCurrent : showHistory}>
             <Icon name={historyVisible ? 'waveform' : 'clock.arrow.circlepath'} color={colors.accent} size={14} />
             <Text style={styles.historyJumpText}>{historyVisible ? 'Now playing' : 'History'}</Text>
@@ -96,7 +98,7 @@ export default function QueuePage({ onTrackMenu }: QueueProps) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.queueContent, { minHeight: historyHeight + viewport }]}
         >
-          {state.history.length > 0 && (
+          {history.length > 0 && (
             <View style={styles.historySection}>
               <View style={[styles.sectionHeader, styles.historyHeader]}>
                 <Text style={styles.sectionTitle}>Listening history</Text>
@@ -104,46 +106,46 @@ export default function QueuePage({ onTrackMenu }: QueueProps) {
                   <Text style={styles.clearText}>Clear</Text>
                 </Pressable>
               </View>
-              {state.history.map((entry) => (
+              {history.map((entry) => (
                 <TrackRow
                   key={entry.id}
-                  trackId={entry.trackId}
-                  onPress={() => actions.playTrack(entry.trackId)}
+                  entry={entry}
+                  onPress={actions.playNow}
                   onTrackMenu={onTrackMenu}
                 />
               ))}
             </View>
           )}
           <View style={styles.modeActions}>
-            <QueueMode icon="shuffle" label="Shuffle" active={state.shuffle} onPress={actions.toggleShuffle} />
+            <QueueMode icon="shuffle" label="Shuffle" active={session.shuffle} onPress={actions.toggleShuffle} />
             <QueueMode
-              icon={state.repeat === 'one' ? 'repeat.1' : 'repeat'}
-              label={state.repeat === 'one' ? 'Repeat one' : 'Repeat'}
-              announcement={`Repeat ${state.repeat}`}
-              active={state.repeat !== 'off'}
+              icon={session.repeat === 'one' ? 'repeat.1' : 'repeat'}
+              label={session.repeat === 'one' ? 'Repeat one' : 'Repeat'}
+              announcement={`Repeat ${session.repeat}`}
+              active={session.repeat !== 'off'}
               onPress={actions.cycleRepeat}
             />
-            <QueueMode icon="infinity" label="Autoplay" active={state.autoplay} onPress={actions.toggleAutoplay} />
+            <QueueMode icon="infinity" label="Autoplay" active={session.autoplay} onPress={actions.toggleAutoplay} />
           </View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Up next</Text>
-            <Text style={styles.sectionDetail}>{state.queue.length} {state.queue.length === 1 ? 'track' : 'tracks'}</Text>
+            <Text style={styles.sectionDetail}>{queue.queue.length} {queue.queue.length === 1 ? 'track' : 'tracks'}</Text>
           </View>
-          {state.queue.length ? (
-            <SortableRows entries={state.queue} scrollGesture={scrollGesture} onTrackMenu={onTrackMenu} />
+          {queue.queue.length ? (
+            <SortableRows entries={queue.queue} scrollGesture={scrollGesture} onTrackMenu={onTrackMenu} />
           ) : (
             <Text style={styles.sectionNote}>Songs you add to the queue will appear here.</Text>
           )}
           <View style={[styles.sectionHeader, styles.autoplayHeader]}>
             <View style={styles.autoplayTitle}>
-              <Icon name="infinity" size={17} color={state.autoplay ? colors.accent : colors.quiet} />
+              <Icon name="infinity" size={17} color={session.autoplay ? colors.accent : colors.quiet} />
               <Text style={styles.sectionTitle}>Autoplay</Text>
             </View>
           </View>
-          <Text style={styles.sectionNote}>{state.autoplay ? 'Similar tracks continue when your queue ends.' : 'Turn on Autoplay to keep listening.'}</Text>
-          {state.autoplay && (
+          <Text style={styles.sectionNote}>{session.autoplay ? 'Similar tracks continue when your queue ends.' : 'Turn on Autoplay to keep listening.'}</Text>
+          {session.autoplay && (
             <SortableRows
-              entries={state.autoplayQueue}
+              entries={queue.autoplayQueue}
               scrollGesture={scrollGesture}
 
               onTrackMenu={onTrackMenu}
@@ -186,6 +188,7 @@ function SortableRows({ entries, scrollGesture, onTrackMenu, autoplay = false }:
 }) {
   const styles = useStyles();
   const { actions } = usePlaybackState();
+  const tracks = useTrackStore();
   const from = useSharedValue(-1);
   const destination = useSharedValue(-1);
   const offset = useSharedValue(0);
@@ -225,14 +228,7 @@ function SortableRows({ entries, scrollGesture, onTrackMenu, autoplay = false }:
           onCommit={commit}
           onPlay={() => actions.playQueueEntry(entry.id)}
           onRemove={() => actions.removeFromQueue(entry.id)}
-          onPromote={() => {
-            if (autoplay) {
-              actions.addToQueue(entry.trackId, 'next');
-              actions.removeFromQueue(entry.id);
-            } else {
-              actions.moveInQueue(entry.id, 0);
-            }
-          }}
+          onPromote={() => actions.promote(entry, tracks.get(entry.trackId, entry.albumId), autoplay)}
           openSwipe={openSwipe}
           scrollGesture={scrollGesture}
 
@@ -261,7 +257,7 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
   const styles = useStyles();
   const swipeOffset = useSharedValue(0);
   const startSwipeOffset = useSharedValue(0);
-  const trackTitle = tracks[entry.trackId].title;
+  const trackTitle = useTrack(entry.trackId, entry.albumId)?.title ?? '';
   const closeSwipe = () => openSwipe.set(null);
   useAnimatedReaction(
     () => openSwipe.value,
@@ -344,7 +340,7 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
         <GestureDetector gesture={swipe} touchAction="pan-y">
           <Animated.View style={swipeMotion}>
             <TrackRow
-              trackId={entry.trackId}
+              entry={entry}
               onPress={() => { if (openSwipe.get() === entry.id) closeSwipe(); else onPlay(); }}
               onTrackMenu={onTrackMenu}
               onPromote={onPromote}
@@ -375,51 +371,55 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
   );
 }
 
-function TrackRow({ trackId, onPress, handle, onTrackMenu, onPromote, onRemove }: {
-  trackId: string;
-  onPress: () => void;
+/** A queue row. A failed entry is gray and will be skipped; a preparing one says so. */
+function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: {
+  entry: QueueEntry;
+  onPress: (track: TrackSummary) => void;
   handle?: React.ReactNode;
-  onTrackMenu: (trackId: string) => void;
+  onTrackMenu: QueueProps['onTrackMenu'];
   onPromote?: () => void;
   onRemove?: () => void;
 }) {
   const colors = useColors();
   const styles = useStyles();
-  const { state, actions } = usePlaybackState();
-  const track = tracks[trackId];
-  const album = albums[track.albumId];
-  const favorite = state.favorites.includes(trackId);
+  const track = useTrack(entry.trackId, entry.albumId);
+  const favorite = useLiked('track', track?.id, track?.liked);
+  const { setLiked } = useLibraryActions();
   const canManage = onPromote !== undefined || onRemove !== undefined;
+  const failed = entry.state === 'failed';
+  const title = track?.title ?? '';
+  const detail = failed ? 'Couldn’t be fetched' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
 
   return (
-    <View style={styles.trackRow}>
+    <View style={[styles.trackRow, failed && styles.failed]}>
       <Pressable
         style={({ pressed }) => [styles.trackLink, pressed && styles.pressed]}
         accessibilityRole="button"
-        accessibilityLabel={`${track.title}, ${track.artist}`}
+        accessibilityLabel={`${title}, ${detail}`}
         accessibilityActions={canManage ? [{ name: 'playNext', label: 'Play next' }, { name: 'remove', label: 'Remove from queue' }] : undefined}
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === 'playNext') onPromote?.();
           if (event.nativeEvent.actionName === 'remove') onRemove?.();
         }}
-        onPress={onPress}
+        onPress={() => { if (track && !failed) onPress(track); }}
       >
-        <Cover source={album.artwork} size={42} radius={8} />
+        <Cover artwork={track?.album?.artwork} size={42} radius={8} />
         <View style={styles.trackCopy}>
-          <Text numberOfLines={1} style={styles.trackName}>{track.title}</Text>
-          <Text numberOfLines={1} style={styles.trackArtist}>{track.artist}</Text>
+          <Text numberOfLines={1} style={styles.trackName}>{title}</Text>
+          <Text numberOfLines={1} style={styles.trackArtist}>{detail}</Text>
         </View>
       </Pressable>
       <PlayerButton
         icon={favorite ? 'heart.fill' : 'heart'}
         size={17}
-        label={favorite ? `Remove ${track.title} from favorites` : `Favorite ${track.title}`}
+        label={favorite ? `Remove ${title} from favorites` : `Favorite ${title}`}
         selected={favorite}
         color={favorite ? colors.accent : colors.muted}
-        onPress={() => { selectionFeedback(); actions.toggleFavorite(track.id); }}
+        onPress={() => { selectionFeedback(); if (track) setLiked('track', track.id, !favorite); }}
         style={styles.rowAction}
       />
-      <PlayerButton icon="ellipsis" label={`Options for ${track.title}`} size={16} color={colors.muted} onPress={() => onTrackMenu(track.id)} style={styles.rowAction} />
+      <PlayerButton icon="ellipsis" label={`Options for ${title}`} size={16} color={colors.muted}
+        onPress={() => onTrackMenu(entry.trackId, entry.albumId)} style={styles.rowAction} />
       {handle}
     </View>
   );
@@ -448,6 +448,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   autoplayHeader: { marginTop: 15 },
   autoplayTitle: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   trackRow: { height: rowHeight, flexDirection: 'row', alignItems: 'center' },
+  failed: { opacity: 0.45 },
   trackLink: { flex: 1, minHeight: rowHeight, flexDirection: 'row', alignItems: 'center', gap: 10 },
   trackCopy: { flex: 1, minWidth: 0 },
   trackName: { color: colors.text, fontSize: 15, fontWeight: '600' },

@@ -1,15 +1,20 @@
+import type { PlaylistSummary } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { type ReactNode } from 'react';
-import { devices, tracks } from './catalog';
+import type { ReactNode } from 'react';
+import { useAccount } from './account/AccountProvider';
+import { closeSheet } from './closeSheet';
+import { usePlaylistActions, useTrack } from './data/library';
+import { usePlaylists } from './data/queries';
+import { promptForName } from './library/shared';
+import { useRunTrackAction, useTrackActions } from './library/trackActions';
 import { usePlaybackState } from './playback';
-import { SheetFrame, SheetRows, SheetRow, TrackSummary } from './SheetUI';
+import { useVolumeSlider } from './player/volume';
+import { SheetFrame, SheetRows, SheetRow, SheetSlider, TrackSummary } from './SheetUI';
 import { useColors } from './theme';
 
-export function closeSheet(router: ReturnType<typeof useRouter>) {
-  if (router.canGoBack()) router.back();
-  else router.replace('/');
-}
+/** The sheet fits its content; the most recently changed playlists are the likely targets. */
+const recentPlaylists = 8;
 
 function Sheet({ title, children }: { title: string; children?: ReactNode }) {
   const router = useRouter();
@@ -18,49 +23,71 @@ function Sheet({ title, children }: { title: string; children?: ReactNode }) {
 
 export function DeviceSheet() {
   const colors = useColors();
-  const { track, device, actions } = usePlaybackState();
+  const { track, devices, output, volume, session, actions } = usePlaybackState();
+  const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
   return (
     <Sheet title="Playback device">
-      <TrackSummary id={track.id} />
+      <TrackSummary track={track} subtitle={session.activeDeviceId ? `Playing on ${output.name}` : undefined} />
       <SheetRows>
-        {devices.map(candidate => (
-          <SheetRow key={candidate.id} title={candidate.name} icon={candidate.icon}
-            subtitle={device.id === candidate.id ? 'Current output' : candidate.subtitle}
-            selected={device.id === candidate.id}
-            color={device.id === candidate.id ? colors.accent : colors.text}
+        {devices.map(device => (
+          <SheetRow key={device.id} title={device.name} icon={device.icon} subtitle={device.subtitle}
+            selected={device.active}
+            color={device.active ? colors.accent : colors.text}
             onPress={() => {
-              actions.setDevice(candidate.id);
               void Haptics.selectionAsync();
+              if (!device.active) actions.transfer(device.id);
             }} />
         ))}
+      </SheetRows>
+      {session.activeDeviceId && <SheetSlider label={`Volume on ${output.name}`} value={shownVolume} onChange={setVolume} />}
+    </Sheet>
+  );
+}
+
+export function TrackActionSheet({ id, albumId, playlistId, itemId }: { id: string; albumId?: string; playlistId?: string; itemId?: string }) {
+  const track = useTrack(id, albumId || null);
+  const actions = useTrackActions(track, { playlist: playlistId && itemId ? { id: playlistId, itemId } : undefined });
+  const run = useRunTrackAction(true);
+  if (!track) return <Sheet title="Track options" />;
+  return (
+    <Sheet title="Track options">
+      <TrackSummary track={track} subtitle={track.availability === 'none' ? `${track.artistCredit} · Not in your library` : undefined} />
+      <SheetRows>
+        {actions.map(action => <SheetRow key={action.id} title={action.title} icon={action.icon} onPress={() => {
+          void Haptics.selectionAsync();
+          run(action);
+        }} />)}
       </SheetRows>
     </Sheet>
   );
 }
 
-export function TrackActionSheet({ id }: { id: string }) {
+/** Opened from a track's actions: adds the track to a playlist, or to a new one. */
+export function AddToPlaylistSheet({ trackId, albumId }: { trackId: string; albumId?: string }) {
   const router = useRouter();
-  const { state, actions } = usePlaybackState();
-  if (!Object.hasOwn(tracks, id)) return <Sheet title="Track unavailable" />;
-  const favorite = state.favorites.includes(id);
-  const perform = (action: () => void) => {
-    action();
+  const track = useTrack(trackId, albumId || null);
+  const { state } = useAccount();
+  const userId = state.status === 'signedIn' ? state.user.id : null;
+  const owned = usePlaylists().items.filter(playlist => playlist.ownerId === userId);
+  const playlists = usePlaylistActions();
+  const add = (playlist: Pick<PlaylistSummary, 'id' | 'name'>) => {
+    if (!track) return;
     void Haptics.selectionAsync();
+    playlists.add(playlist, [track]);
     closeSheet(router);
   };
+  const create = () => promptForName('New playlist', track?.title ?? '', name => {
+    void playlists.create(name).then(add, () => undefined);
+  });
   return (
-    <Sheet title="Track options">
-      <TrackSummary id={id} />
+    <Sheet title="Add to playlist">
+      <TrackSummary track={track} />
       <SheetRows>
-        <SheetRow title="Play now" icon="play.fill" onPress={() => perform(() => {
-          if (state.trackId !== id || !state.playing) actions.playTrack(id);
-        })} />
-        <SheetRow title="Play next" icon="text.line.first.and.arrowtriangle.forward"
-          onPress={() => perform(() => actions.addToQueue(id, 'next'))} />
-        <SheetRow title="Play last" icon="text.badge.plus"
-          onPress={() => perform(() => actions.addToQueue(id, 'last'))} />
-        <SheetRow title={favorite ? 'Remove from Liked Songs' : 'Add to Liked Songs'} icon={favorite ? 'heart.fill' : 'heart'}
-          onPress={() => perform(() => actions.toggleFavorite(id))} />
+        <SheetRow title="New playlist" icon="plus" onPress={create} />
+        {owned.slice(0, recentPlaylists).map(playlist => (
+          <SheetRow key={playlist.id} title={playlist.name} icon="music.note.list"
+            subtitle={`${playlist.trackCount} ${playlist.trackCount === 1 ? 'song' : 'songs'}`} onPress={() => add(playlist)} />
+        ))}
       </SheetRows>
     </Sheet>
   );

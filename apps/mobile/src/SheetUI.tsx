@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { albums, tracks } from './catalog';
+import type { TrackSummary as Track } from '@squirmy/contracts';
+import TransportSlider from './player/TransportSlider';
 import { Cover, Icon } from './ui';
 import { createThemedStyles, useColors } from './theme';
 
@@ -11,6 +12,8 @@ export type SheetRowProps = {
   selected?: boolean; onPress: () => void;
 };
 export type SheetInfoProps = { icon: string; title: string; subtitle: string };
+export type TrackSummaryProps = { track: Track | undefined; subtitle?: string };
+export type SheetSliderProps = { label: string; value: number; onChange: (value: number) => void };
 
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
   const styles = useStyles();
@@ -51,16 +54,15 @@ export function SheetRow({ title, subtitle, icon, color, selected, onPress }: Sh
   );
 }
 
-export function TrackSummary({ id }: { id: string }) {
+export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
   const colors = useColors();
   const styles = useStyles();
-  const item = tracks[id];
   return (
     <View style={styles.trackSummary}>
-      <Cover source={albums[item.albumId].artwork} size={53} radius={10} />
+      <Cover artwork={track?.album?.artwork} size={53} radius={10} />
       <View style={styles.flex}>
-        <Text numberOfLines={1} style={styles.rowTitle}>{item.title}</Text>
-        <Text numberOfLines={1} style={styles.rowSubtitle}>{item.artist}</Text>
+        <Text numberOfLines={1} style={styles.rowTitle}>{track?.title ?? 'Not Playing'}</Text>
+        <Text numberOfLines={1} style={styles.rowSubtitle}>{subtitle ?? track?.artistCredit ?? ''}</Text>
       </View>
       <Icon name="waveform" size={22} color={colors.accent} />
     </View>
@@ -81,6 +83,21 @@ export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
   );
 }
 
+export function SheetSlider({ label, value, onChange }: SheetSliderProps) {
+  const colors = useColors();
+  const styles = useStyles();
+  return (
+    <View style={styles.slider}>
+      <Text style={styles.rowSubtitle}>{label}</Text>
+      <View style={styles.sliderRow}>
+        <Icon name="speaker.fill" size={13} color={colors.muted} />
+        <View style={styles.flex}><TransportSlider label={label} value={value} maximum={1} accessibilityStep={0.1} onChange={onChange} /></View>
+        <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
+      </View>
+    </View>
+  );
+}
+
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   sheet: { paddingTop: 27, paddingHorizontal: 22, gap: 15 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36 },
@@ -96,4 +113,6 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   selectedIcon: { backgroundColor: colors.selection },
   rowTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
   rowSubtitle: { color: colors.muted, fontSize: 13, fontWeight: '500' },
+  slider: { gap: 4, paddingHorizontal: 4 },
+  sliderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 }));

@@ -4,6 +4,7 @@ import {
   createContext, useContext, useEffect, useMemo, useReducer, type PropsWithChildren,
 } from 'react';
 import { AppState } from 'react-native';
+import { cacheBuster, cacheMaxAgeMs, removeCache, restoreCache, saveCache } from '../data/cache';
 import { reduceAuth, type AuthEvent, type AuthState } from './auth';
 import { clientName, fetchWithTimeout, type Server } from './server';
 import { clientDevice, loadAccount, saveAccount } from './storage';
@@ -21,7 +22,7 @@ focusManager.setEventListener(setFocused => {
 });
 
 export function createQueryClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
+  return new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000, gcTime: cacheMaxAgeMs } } });
 }
 
 function apiFor(server: Server, token: string | null, timeoutMs: number, onUnauthorized?: () => void): Api {
@@ -37,11 +38,13 @@ function apiFor(server: Server, token: string | null, timeoutMs: number, onUnaut
 
 /**
  * Reads the stored session and, when there is one, asks the server whether it still
- * holds. An unreachable server keeps the stored user so the app opens offline.
+ * holds. An unreachable server keeps the stored user so the app opens offline. The saved
+ * library is loaded meanwhile, so the first screen shows it at once.
  */
-async function restore(): Promise<AuthEvent> {
+async function restore(queryClient: QueryClient): Promise<AuthEvent> {
   const stored = await loadAccount();
   if (!stored.server || !stored.token) return { type: 'restored', ...stored };
+  if (stored.user) await restoreCache(queryClient, cacheBuster(stored.server.url, stored.user.id));
   try {
     const user = await apiFor(stored.server, stored.token, restoreTimeoutMs).auth.me();
     return { type: 'restored', ...stored, user };
@@ -73,8 +76,11 @@ export function AccountProvider({ children }: PropsWithChildren) {
   const token = state.status === 'signedIn' ? state.token : null;
 
   useEffect(() => {
-    void restore().then(dispatch);
-  }, []);
+    void restore(queryClient).then(dispatch);
+  }, [queryClient]);
+
+  const buster = state.status === 'signedIn' ? cacheBuster(state.server.url, state.user.id) : null;
+  useEffect(() => buster ? saveCache(queryClient, buster) : undefined, [buster, queryClient]);
 
   useEffect(() => {
     if (state.status === 'restoring') return;
@@ -100,6 +106,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
       // Best effort: the server may be unreachable, and the token is dropped here either way.
       if (token) void api?.auth.logout().catch(() => undefined);
       queryClient.clear();
+      removeCache();
       dispatch(event);
     };
     return {
@@ -108,12 +115,15 @@ export function AccountProvider({ children }: PropsWithChildren) {
       connect: next => dispatch({ type: 'connected', server: next }),
       signIn: async (username, password) => {
         const response = await api!.auth.login({ username: username.trim(), password, device: await clientDevice() });
+        // Whatever is cached may belong to whoever signed in before.
+        queryClient.clear();
         dispatch({ type: 'signedIn', token: response.token, user: response.user });
       },
       register: async (inviteCode, username, password) => {
         const response = await api!.auth.register({
           inviteCode: inviteCode.trim() || undefined, username: username.trim(), password, device: await clientDevice(),
         });
+        queryClient.clear();
         dispatch({ type: 'signedIn', token: response.token, user: response.user });
       },
       signOut: () => leave({ type: 'signedOut' }),
@@ -128,4 +138,16 @@ export function useAccount() {
   const account = useContext(AccountContext);
   if (!account) throw new Error('useAccount must be used inside AccountProvider');
   return account;
+}
+
+/** The API client while signed in, otherwise null (so queries stay disabled while signing out). */
+export function useSignedInApi(): Api | null {
+  const { state, api } = useAccount();
+  return state.status === 'signedIn' ? api : null;
+}
+
+/** The server's root URL, or an empty string before one is chosen. */
+export function useServerUrl(): string {
+  const { state } = useAccount();
+  return state.status === 'signIn' || state.status === 'signedIn' ? state.server.url : '';
 }
