@@ -15,10 +15,11 @@ import { requireAdmin } from '../../lib/auth.js'
 import { randomToken } from '../../lib/crypto.js'
 import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
-import { getServerSettings, updateServerSettings } from '../../lib/settings.js'
+import { getServerSettings, invalidateServerSettings, updateServerSettings } from '../../lib/settings.js'
 import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
 import { hashPassword, insertUser, revokeUserSessions, toUser } from '../auth/service.js'
+import { markEnrichmentStale } from '../enrichment/stale.js'
 import { checkImportSettings } from '../imports/settings.js'
 
 const IdParams = z.object({ id: Id })
@@ -173,7 +174,12 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/admin/settings', async (): Promise<ServerSettings> => getServerSettings())
 
   app.patch('/admin/settings', async (request): Promise<ServerSettings> => {
-    const settings = await updateServerSettings(await checkImportSettings(UpdateServerSettings.parse(request.body)))
+    const patch = await checkImportSettings(UpdateServerSettings.parse(request.body))
+    invalidateServerSettings()
+    const before = await getServerSettings()
+    const settings = await updateServerSettings(patch)
+    // Owned by the enrichment module: music enriched without a source that is now on.
+    await markEnrichmentStale(before, settings)
     await invalidate('admins', [queryKeys.admin()])
     return settings
   })
