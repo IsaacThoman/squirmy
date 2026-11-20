@@ -347,18 +347,32 @@ export const assets = pgTable('assets', {
   kind: text('kind').notNull(),
   /** Where it came from: a URL, or `file:<media_file id>`. */
   source: text('source').notNull(),
-  sha256: text('sha256').notNull(),
-  mime: text('mime').notNull(),
-  width: integer('width').notNull(),
-  height: integer('height').notNull(),
-  bytes: integer('bytes').notNull(),
+  /**
+   * ready: the image is stored locally. remote: it lives at `remote_url` and is fetched
+   * the first time someone asks for it. failed: the last fetch did not produce an image.
+   * The columns that describe stored bytes are null until an asset is ready.
+   */
+  status: text('status').$type<'ready' | 'remote' | 'failed'>().notNull().default('ready'),
+  remoteUrl: text('remote_url'),
+  /** When a remote image was last fetched or last failed. */
+  checkedAt: at('checked_at'),
+  sha256: text('sha256'),
+  mime: text('mime'),
+  width: integer('width'),
+  height: integer('height'),
+  bytes: integer('bytes'),
   /** Dominant color, #rrggbb. */
   color: text('color'),
   thumbhash: text('thumbhash'),
   /** Path relative to the data directory. */
-  storagePath: text('storage_path').notNull(),
+  storagePath: text('storage_path'),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex('assets_sha256').on(t.sha256)])
+}, (t) => [
+  // Local images are content addressed. A remote image may turn out to hold the same
+  // bytes as another row, so it is left out of the uniqueness rule.
+  uniqueIndex('assets_sha256').on(t.sha256).where(sql`${t.remoteUrl} is null`),
+  uniqueIndex('assets_remote_url').on(t.remoteUrl),
+])
 
 export const lyrics = pgTable('lyrics', {
   recordingId: uuid('recording_id').primaryKey().references(() => recordings.id, { onDelete: 'cascade' }),

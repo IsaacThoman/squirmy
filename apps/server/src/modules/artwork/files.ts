@@ -61,8 +61,9 @@ export async function albumArtFromFiles(albumId: string, directories: readonly s
       .where(inArray(assets.id, [...new Set(embeddedAssetIds)])))
   }
   // Folder images come first, so they win ties.
+  const area = (asset: (typeof candidates)[number]) => (asset.width ?? 0) * (asset.height ?? 0)
   const best = candidates.reduce<(typeof candidates)[number] | undefined>(
-    (current, candidate) => (!current || candidate.width * candidate.height > current.width * current.height ? candidate : current), undefined)
+    (current, candidate) => (!current || area(candidate) > area(current) ? candidate : current), undefined)
   return best ? assignAlbumArtwork(albumId, best.id, { onlyIfEmpty: true }) : false
 }
 

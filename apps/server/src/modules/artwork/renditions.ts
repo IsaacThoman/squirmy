@@ -1,13 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import { ART_SIZES, type ArtSize } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import sharp from 'sharp'
 import { z } from 'zod'
-import { db } from '../../database/client.js'
-import { assets } from '../../database/schema.js'
 import { notFound } from '../../lib/errors.js'
-import { dataPath, writeAtomic } from './store.js'
+import { dataPath, ensureStored, writeAtomic } from './store.js'
 
 const Params = z.object({
   assetId: z.uuid(),
@@ -19,7 +16,8 @@ const rendering = new Map<string, Promise<Buffer>>()
 
 /**
  * The square WebP rendition of an asset, cropped to fill. Rendered on first request and
- * kept under `<data>/art/<assetId>/<size>.webp`; that folder is safe to delete.
+ * kept under `<data>/art/<assetId>/<size>.webp`; that folder is safe to delete. A remote
+ * image is downloaded first.
  */
 export async function rendition(assetId: string, size: ArtSize): Promise<Buffer> {
   const file = dataPath('art', assetId, `${size}.webp`)
@@ -35,8 +33,7 @@ export async function rendition(assetId: string, size: ArtSize): Promise<Buffer>
 }
 
 async function render(assetId: string, size: ArtSize, file: string) {
-  const [asset] = await db.select({ storagePath: assets.storagePath }).from(assets).where(eq(assets.id, assetId))
-  if (!asset) throw notFound('No such artwork')
+  const asset = await ensureStored(assetId)
   const original = await readFile(dataPath(asset.storagePath)).catch(() => {
     throw notFound('The artwork file is missing')
   })
@@ -53,9 +50,10 @@ export async function artworkRoutes(app: FastifyInstance) {
     if (!parsed.success) throw notFound('No such artwork')
     const { assetId, size } = parsed.data
     const etag = `"${assetId}-${size}"`
-    reply.header('cache-control', 'public, max-age=31536000, immutable').header('etag', etag)
-    if (request.headers['if-none-match'] === etag) return reply.code(304).send()
+    const cacheForever = 'public, max-age=31536000, immutable'
+    if (request.headers['if-none-match'] === etag) return reply.code(304).header('cache-control', cacheForever).header('etag', etag).send()
+    // Only a rendered image is cacheable; a failed remote fetch may succeed later.
     const image = await rendition(assetId, size)
-    return reply.type('image/webp').send(image)
+    return reply.header('cache-control', cacheForever).header('etag', etag).type('image/webp').send(image)
   })
 }
