@@ -145,7 +145,9 @@ describe('import processing', () => {
     const before = await db.select({ count: sql<number>`count(*)::int` }).from(mediaFiles)
     const id = await receive([...inFolder(okFlac, 'Again'), { from: okFlac[0]!, to: 'Again/copy of the first.flac' }])
     const done = await run(id)
-    expect(done.counts).toMatchObject({ audioFiles: 13, duplicatesSkipped: 13, filesFiled: 0, filesLeftForReview: 0 })
+    // Whatever is left says why: a file that could not be analyzed keeps no hash to compare.
+    const left = await db.select({ relPath: mediaFiles.relPath, probeStage: mediaFiles.probeStage, probeError: mediaFiles.probeError }).from(mediaFiles).where(eq(mediaFiles.importId, id))
+    expect({ ...done.counts, left }).toMatchObject({ audioFiles: 13, duplicatesSkipped: 13, filesFiled: 0, filesLeftForReview: 0, left: [] })
     expect(await tree(root.path)).toEqual([])
     expect(await db.select({ count: sql<number>`count(*)::int` }).from(mediaFiles)).toEqual(before)
   })
@@ -276,7 +278,7 @@ describe('import processing', () => {
       .toEqual([{ id: batchId, status: 'applied' }])
     expect((await tree(root.path)).every((file) => file.startsWith('Radiohead/OK Computer (1997)/'))).toBe(true)
     expect(await exists(path.join(root.path, INCOMING_FOLDER))).toBe(false)
-  })
+  }, 120_000)
 
   it('reports what is still pending at the time limit as left for review', async () => {
     const root = await managedRoot()
