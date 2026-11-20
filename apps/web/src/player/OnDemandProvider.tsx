@@ -19,18 +19,25 @@ const ended = (status: string) => status === 'completed' || failure(status)
 /**
  * Fetching on demand for the signed-in user. Jobs are learned from requests made here and
  * from `acquisition.updated`; a job's end refreshes the track and album it was for, so a
- * fetched track lights up and a failed one goes gray. Failures of a playing track are told
- * by the session (it skips the entry); failures of an album asked for here are told here.
+ * fetched track lights up and a failed one goes gray. A failed track of the session is
+ * told by name: the session skips a failed current entry and drops it in the same change,
+ * so its state alone never says so. Failures of an album asked for here are told once.
  */
 export function OnDemandProvider({ children }: { children: ReactNode }) {
   const api = useApi()
   const queryClient = useQueryClient()
   const user = useCurrentUser()
-  const { current, queue } = usePlayer().state
+  const { current, queue, autoplayQueue } = usePlayer().state
   const [jobs, setJobs] = useState<ReadonlyMap<string, Job>>(new Map())
   const [albums, setAlbums] = useState<ReadonlyMap<string, { title: string; jobIds: string[] }>>(new Map())
 
-  const remember = (entries: [string, Job][]) => setJobs(current => new Map([...current, ...entries]))
+  const remember = (entries: [string, Job][]) => setJobs(known => new Map([...known, ...entries]))
+
+  // Tracks of the session by id, kept after they leave it, so a failure can be told by name.
+  const titles = useRef(new Map<string, string>())
+  useEffect(() => {
+    for (const item of [current, ...queue, ...autoplayQueue]) if (item) titles.current.set(item.track.id, item.track.title)
+  }, [current, queue, autoplayQueue])
 
   useServerEvent('acquisition.updated', event => {
     const known = jobs.get(event.jobId)
@@ -40,6 +47,9 @@ export function OnDemandProvider({ children }: { children: ReactNode }) {
     if (!ended(job.status)) return
     if (job.trackId) void queryClient.invalidateQueries({ queryKey: queryKeys.track(job.trackId) })
     if (job.albumId) void queryClient.invalidateQueries({ queryKey: queryKeys.album(job.albumId) })
+    const title = job.trackId && titles.current.get(job.trackId)
+    // The same words as the session's own notice, so one failure is told once.
+    if (failure(job.status) && title) toast({ title: `Couldn’t get “${title}”`, description: 'It was skipped.' })
   })
 
   // An album asked for here says once, when all its jobs ended, what it could not get.
@@ -64,17 +74,15 @@ export function OnDemandProvider({ children }: { children: ReactNode }) {
   })
   const getAlbum = request.mutateAsync
 
-  const waiting = useMemo(() => {
-    const entries = [current, ...queue].filter(item => item?.entry.state === 'preparing')
-    return new Set(entries.map(item => item!.entry.trackId))
-  }, [current, queue])
+  // Upcoming entries wait as `preparing` too, but only the current one, and those with a job, are being fetched.
+  const waiting = current?.entry.state === 'preparing' ? current.entry.trackId : null
 
   const value = useMemo<OnDemand>(() => {
     const running = [...jobs.values()].filter(job => !ended(job.status))
     return {
       canRequest: canRequestMusic(user),
       isPreparing: track => track.availability !== 'server' && (
-        waiting.has(track.id)
+        track.id === waiting
         || running.some(job => job.trackId === track.id || (job.trackId === null && job.albumId !== null && job.albumId === track.album?.id))
       ),
       getAlbum,
