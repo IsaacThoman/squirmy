@@ -94,7 +94,7 @@ page.setDefaultTimeout(20_000)
 page.on('pageerror', error => console.log(`page error: ${error.message}`))
 await context.addInitScript(instrumentAudio)
 const heading = (name, scope = page) => scope.getByRole('heading', { name, exact: true })
-const button = (name, scope = page) => scope.getByRole('button', { name, exact: true })
+const button = (name, scope = page) => scope.getByRole('button', { name, exact: true }).filter({ visible: true }).first()
 const toastText = text => page.getByText(text, { exact: true }).first()
 
 async function api(method, route, data, on = context) {
@@ -363,7 +363,7 @@ await step('providers page and adding the mock', async () => {
   await heading('No providers').waitFor()
   check('with no provider, fetching is said to be off', await page.getByText('On-demand fetching is off.', { exact: false }).isVisible())
   await shoot('admin-providers-empty', { height: 1300 })
-  await button('Add provider').first().click()
+  await button('Add provider').click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Name').fill('Shelf')
   await dialog.getByLabel('Address').fill(mockUrl)
@@ -420,7 +420,7 @@ await step('play missing music on demand', async () => {
   check('then it plays', await advancing(), track.title)
   const owned = await get(`/tracks/${track.id}`)
   check('and is in the library now', owned.availability === 'server')
-  await button('Pause').first().click()
+  await button('Pause').click()
 })
 
 await step('get an album', async () => {
@@ -449,7 +449,7 @@ await step('a provider that fails', async () => {
     await playFromSearch('Aphex Twin', track)
     await toastText(`Couldn’t get “${track.title}”`).waitFor({ timeout: minutes(2) })
     check('a failed fetch shows a brief notice', true, track.title)
-    await button('Pause').first().click()
+    await button('Pause').click()
     await shoot('on-demand-failed', { toasts: true })
   } finally {
     mock.settings.fail = false
@@ -457,7 +457,7 @@ await step('a provider that fails', async () => {
   const after = await until(() => get(`/tracks/${track.id}`), value => value.availability === 'none', 10_000)
   check('and the track is gray after a refresh', after.availability === 'none')
   await page.goto(`${base}/admin/providers?status=failed`)
-  const failedRow = page.getByRole('list', { name: 'Requests' }).getByRole('listitem').filter({ hasText: track.title })
+  const failedRow = page.getByRole('list', { name: 'Requests' }).getByRole('listitem').filter({ has: page.getByText(`${track.title} — ${track.artistCredit}`, { exact: true }) }).first()
   await failedRow.waitFor()
   check('its job is listed as failed, with the error', (await failedRow.textContent()).includes('The provider failed'), await failedRow.textContent())
   await shoot('admin-provider-jobs-failed', { height: 1700 })
@@ -470,7 +470,7 @@ await step('a provider that delivers the wrong file', async () => {
     await playFromSearch('Autechre', track)
     await toastText(`Couldn’t get “${track.title}”`).waitFor({ timeout: minutes(4) })
     check('a wrong delivery shows the notice too', true, track.title)
-    await button('Pause').first().click()
+    await button('Pause').click()
   } finally {
     mock.settings.wrongFile = false
   }
