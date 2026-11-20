@@ -221,7 +221,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 One function decides it, in `modules/catalog/availability.ts`, and every list and page uses it:
 
 - Track: `server` if a present (not missing) `media_files` row has its `recording_id`. Otherwise `on_demand` if an enabled acquisition provider covers it (coverage `assume_available`, or a cached positive resolve) and it is not in `acquisition_misses`. Otherwise `none`.
-- Album: counts owned tracks on the canonical release. All owned is `full`, some is `partial`; none owned is `on_demand` when its tracks would be, else `none`.
+- Album: counts owned tracks on its track list (`albumTrackList`, below): the canonical release, plus owned recordings filed under the album that the release does not list. All owned is `full`, some is `partial`; none owned is `on_demand` when its tracks would be, else `none`. `trackCount` and `ownedTrackCount` count the same list, so an album with a present, linked file is never `none`.
 
 ### Catalog read side
 
