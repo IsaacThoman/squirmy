@@ -64,8 +64,9 @@ type TrackRow = ArtworkColumns & {
  * that do not exist. Duplicates are kept, so this hydrates queues and playlists as they are.
  *
  * A track's `album` is the album passed with it; else the album of one of its present
- * files; else the album of its first release track. `disc` and `position` are its place
- * on that album, preferring the canonical release.
+ * files; else the album of its first release track; else its `album_hint_id` (a stub
+ * from a catalog search). `disc` and `position` are its place on that album, preferring
+ * the canonical release.
  */
 export async function trackSummaries(userId: string, refs: readonly TrackRef[]): Promise<TrackSummary[]> {
   return (await alignedTrackSummaries(userId, refs)).filter((summary) => summary !== null)
@@ -106,6 +107,8 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
           union all
           select rl.album_id, 2, rt.id from release_tracks rt join releases rl on rl.id = rt.release_id
           where rt.recording_id = r.id
+          union all
+          select r.album_hint_id, 3, null where r.album_hint_id is not null
         ) candidate
         order by candidate.rank, candidate.tiebreak limit 1
       ) chosen on true
