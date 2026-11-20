@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
+import { access, mkdir } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
@@ -24,12 +25,26 @@ const codecs: Record<ToneFormat, string[]> = {
   flac: ['-c:a', 'flac'],
   mp3: ['-c:a', 'libmp3lame', '-b:a', '128k', '-id3v2_version', '3'],
   m4a: ['-c:a', 'aac', '-b:a', '128k'],
-  ogg: ['-c:a', 'libvorbis', '-q:a', '3'],
+  // ffmpeg's built-in encoder, so fixtures do not depend on a libvorbis build.
+  ogg: ['-c:a', 'vorbis', '-strict', 'experimental'],
   opus: ['-c:a', 'libopus', '-b:a', '64k'],
   wav: ['-c:a', 'pcm_s16le'],
 }
 
-/** Writes one short sine tone with the given tags and returns its absolute path. */
+const ffmpeg = () => process.env.FFMPEG_PATH ?? 'ffmpeg'
+
+/** A small solid-color JPEG, made once per color and reused. */
+async function coverImage(color: string): Promise<string> {
+  const file = path.join(tmpdir(), `squirmy-cover-${color.replace(/[^a-z0-9]/gi, '')}.jpg`)
+  try {
+    await access(file)
+  } catch {
+    await run(ffmpeg(), ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${color}:s=96x96`, '-frames:v', '1', file])
+  }
+  return file
+}
+
+/** Writes one sine tone with the given tags and returns its absolute path. */
 export async function makeTone(directory: string, spec: ToneSpec): Promise<string> {
   const output = path.join(directory, spec.path)
   const format = path.extname(output).slice(1) as ToneFormat
@@ -40,13 +55,13 @@ export async function makeTone(directory: string, spec: ToneSpec): Promise<strin
   const args = ['-v', 'error', '-y', '-f', 'lavfi', '-i', `sine=frequency=${spec.frequency ?? 440}:duration=${duration}:sample_rate=44100`]
   const withCover = spec.cover && (format === 'flac' || format === 'mp3' || format === 'm4a')
   if (withCover) {
-    const color = typeof spec.cover === 'string' ? spec.cover : 'purple'
-    args.push('-f', 'lavfi', '-i', `color=c=${color}:s=96x96:d=1`, '-map', '0:a', '-map', '1:v', '-frames:v', '1', '-c:v', 'mjpeg', '-disposition:v', 'attached_pic')
+    const image = await coverImage(typeof spec.cover === 'string' ? spec.cover : 'purple')
+    args.push('-i', image, '-map', '0:a', '-map', '1:v', '-c:v', 'copy', '-disposition:v', 'attached_pic')
   }
   args.push('-af', `volume=${spec.volumeDb ?? -50}dB`, '-ac', '2', ...codecs[format])
   for (const [key, value] of Object.entries(spec.tags ?? {})) args.push('-metadata', `${key}=${value}`)
   args.push(output)
-  await run(process.env.FFMPEG_PATH ?? 'ffmpeg', args)
+  await run(ffmpeg(), args)
   return output
 }
 
