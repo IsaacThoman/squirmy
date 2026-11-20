@@ -11,12 +11,18 @@ import Animated, {
 } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { formatTime } from './catalog';
+import { formatDuration } from '@squirmy/client-core';
+import { useArtworkImage } from './data/artwork';
+import { fallbackTint } from './data/color';
+import { useLibraryActions, useLiked } from './data/library';
+import { useLyrics } from './data/queries';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
   grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type PlayerPage,
 } from './player/transition';
-import { usePlayback, usePlaybackState } from './playback';
+import { usePlaybackState, usePosition } from './playback';
+import { activeLine, lyricLines } from './player/lyrics';
+import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
 import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
@@ -35,7 +41,7 @@ const compactArtworkTop = 7;
 const miniCoverRadius = 8;
 const cardRadius = 38;
 const handover = 50;
-const sheetRoutes = ['/devices', '/track-actions'];
+const sheetRoutes = ['/devices', '/track-actions', '/add-to-playlist'];
 const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
 const panelMotion = { duration: 210 };
 const clamp = Extrapolation.CLAMP;
@@ -78,7 +84,11 @@ export default function Player() {
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
-  const { track, album, state, actions } = usePlaybackState();
+  const { current, track, actions, preparing, remote, output } = usePlaybackState();
+  const { setLiked } = useLibraryActions();
+  const artwork = track?.album?.artwork;
+  const artworkImage = useArtworkImage(artwork, 440);
+  const backdropImage = useArtworkImage(artwork, 300);
   const detail = useSharedValue(0);
   const trackDrag = useSharedValue(0);
   const dragStart = useSharedValue(0);
@@ -90,7 +100,9 @@ export default function Player() {
   const artX = (width - insets.left - insets.right - artSize) / 2;
   const artY = Math.max(0, (availableHeight - artSize - artworkGap - metadataHeight) / 2);
   const artworkPage = page === 'player';
-  const isFavorite = state.favorites.includes(track.id);
+  const isFavorite = useLiked('track', track?.id, track?.liked);
+  const title = track?.title ?? (current ? '' : 'Not Playing');
+  const subtitle = preparing ? 'Preparing…' : remote ? `${track?.artistCredit ?? ''} · ${output.name}` : track?.artistCredit ?? '';
   // Phones with a home indicator have rounded displays; a square card would show in their corners.
   const screenCorner = Platform.OS === 'ios' && !Platform.isPad && bottom > 0 ? 40 : 0;
 
@@ -257,21 +269,21 @@ export default function Player() {
     else setSeenQueue(true);
     setPage(current => current === next ? 'player' : next);
   };
-  const openTrackMenu = (trackId: string) => router.push({ pathname: '/track-actions', params: { id: trackId } });
+  const openTrackMenu = (id: string, albumId?: string | null) => router.push({ pathname: '/track-actions', params: { id, albumId: albumId ?? '' } });
   const trackDetails = (compact: boolean) => (
     <>
       <View style={styles.trackCopy}>
-        <Text numberOfLines={1} style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{track.title}</Text>
-        <Text numberOfLines={1} style={compact ? styles.compactTrackArtist : styles.artist}>{track.artist}</Text>
+        <Text numberOfLines={1} style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{title}</Text>
+        <Text numberOfLines={1} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>
       </View>
-      <PlayerButton
+      {track && <PlayerButton
         icon={isFavorite ? 'heart.fill' : 'heart'}
         label={isFavorite ? 'Remove from favorites' : 'Favorite song'}
         selected={isFavorite}
-        onPress={() => { selectionFeedback(); actions.toggleFavorite(track.id); }}
+        onPress={() => { selectionFeedback(); setLiked('track', track.id, !isFavorite); }}
         color={isFavorite ? colors.accent : colors.text}
-      />
-      <TrackMenuButton trackId={track.id} onPress={() => openTrackMenu(track.id)} />
+      />}
+      {track && <TrackMenuButton track={track} onPress={() => openTrackMenu(track.id, track.album?.id)} />}
     </>
   );
 
@@ -280,8 +292,9 @@ export default function Player() {
       <Animated.View style={[styles.panel, panelStyle]}>
         <Glass tint="systemThinMaterial" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
-          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: album.color }, backdropStyle]} pointerEvents="none">
-            <Image source={album.artwork} blurRadius={70} contentFit="cover" transition={210} style={styles.backdropArt} />
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: artwork?.color ?? fallbackTint }, backdropStyle]} pointerEvents="none">
+            {backdropImage && <Image source={backdropImage.source} placeholder={backdropImage.placeholder} blurRadius={70}
+              contentFit="cover" transition={210} style={styles.backdropArt} />}
             <LinearGradient
               colors={colors.playerGradient}
               locations={[0, 0.39, 0.85, 1]}
@@ -311,7 +324,7 @@ export default function Player() {
                     accessibilityElementsHidden={page !== 'lyrics'}
                     importantForAccessibility={page === 'lyrics' ? 'auto' : 'no-hide-descendants'}
                     style={[StyleSheet.absoluteFill, lyricsStyle]}>
-                    <LyricsPage key={track.id} visible={page === 'lyrics'} />
+                    <LyricsPage key={current?.id ?? 'none'} visible={page === 'lyrics'} />
                   </Animated.View>}
                   {seenQueue && <Animated.View pointerEvents={page === 'queue' ? 'auto' : 'none'}
                     accessibilityElementsHidden={page !== 'queue'}
@@ -322,7 +335,7 @@ export default function Player() {
                 </View>
               </Animated.View>}
             </View>
-            <Transport key={track.id} compact={smallScreen} page={page} onToggle={togglePage}
+            <Transport key={current?.id ?? 'none'} compact={smallScreen} page={page} onToggle={togglePage}
               onDevices={() => router.push('/devices')} />
           </Animated.View>
         </Animated.View>
@@ -330,7 +343,10 @@ export default function Player() {
           <BubbleContent key={`${variant.native}-${variant.compact}`} variant={variant} width={width} />
         ))}
         <Animated.View pointerEvents="none" style={[styles.artwork, artworkStyle]}>
-          <Image source={album.artwork} contentFit="cover" style={StyleSheet.absoluteFill} />
+          {artworkImage
+            ? <Image source={artworkImage.source} placeholder={artworkImage.placeholder} placeholderContentFit="cover"
+              contentFit="cover" transition={160} style={StyleSheet.absoluteFill} />
+            : <View style={styles.noArtwork}><Icon name="music.note" size={48} color={colors.quiet} /></View>}
         </Animated.View>
       </Animated.View>
     </Overlay>
@@ -405,10 +421,11 @@ function BubbleContent({ variant, width }: { variant: BubbleVariant; width: numb
 function LyricsPage({ visible }: { visible: boolean }) {
   const colors = useColors();
   const styles = useStyles();
-  const { track, position, actions } = usePlayback();
-  const lines = track.lyrics ?? [];
-  const step = track.duration / (lines.length + 2);
-  const active = Math.min(lines.length - 1, Math.max(0, Math.floor(position / step) - 1));
+  const { track, actions } = usePlaybackState();
+  const lyrics = useLyrics(track);
+  const { lines, synced } = lyricLines(lyrics.data);
+  const position = usePosition(visible && synced);
+  const active = synced ? Math.max(0, activeLine(lines, position)) : -1;
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const lineCenters = useRef<number[]>([]);
   const [viewport, setViewport] = useState(0);
@@ -419,6 +436,10 @@ function LyricsPage({ visible }: { visible: boolean }) {
       scroll.current?.scrollTo({ y: Math.max(0, center - viewport * 0.33), animated: active > 0 });
     }
   }, [active, visible, viewport]);
+
+  const empty = lyrics.data?.instrumental
+    ? { icon: 'music.note', title: 'Instrumental' }
+    : lyrics.isLoading ? null : { icon: 'quote.bubble', title: 'No lyrics available' };
 
   return (
     <View style={styles.lyricPage}>
@@ -435,15 +456,15 @@ function LyricsPage({ visible }: { visible: boolean }) {
               const { y, height } = event.nativeEvent.layout;
               lineCenters.current[index] = y + height / 2;
             }}>
-              <LyricButton line={line} active={index === active}
-                onPress={() => { selectionFeedback(); actions.seek((index + 1) * step); }} />
+              <LyricButton line={line.text} active={!synced || index === active}
+                onPress={line.startMs === null ? undefined : () => { selectionFeedback(); actions.seek(line.startMs!); }} />
             </View>
           ))}
         </ScrollView>
-      ) : (
+      ) : empty && (
         <View style={styles.noLyrics}>
-          <Icon name="quote.bubble" size={29} color={colors.quiet} />
-          <Text style={styles.noLyricsTitle}>No lyrics available</Text>
+          <Icon name={empty.icon} size={29} color={colors.quiet} />
+          <Text style={styles.noLyricsTitle}>{empty.title}</Text>
         </View>
       )}
     </View>
@@ -453,11 +474,11 @@ function LyricsPage({ visible }: { visible: boolean }) {
 /** The only part of the transport that follows the playback clock, so each tick redraws just this. */
 function Scrubber() {
   const styles = useStyles();
-  const { track, position, actions } = usePlayback();
+  const { durationMs: duration, current, actions } = usePlaybackState();
+  const position = usePosition();
   const [draft, setDraft] = useState<number | null>(null);
-  const duration = track.duration;
-  const shown = draft ?? position;
-  const elapsed = formatTime(shown);
+  const shown = Math.min(draft ?? position, duration || Infinity);
+  const elapsed = formatDuration(shown);
 
   return (
     <>
@@ -465,14 +486,14 @@ function Scrubber() {
         label="Playback position"
         value={shown}
         maximum={duration}
-        accessibilityStep={10}
+        accessibilityStep={10_000}
         valueText={elapsed}
-        onChange={actions.seek}
+        onChange={value => { if (current) actions.seek(value); }}
         onPreview={setDraft}
       />
       <View style={styles.timeRow}>
         <Text style={styles.time}>{elapsed}</Text>
-        <Text style={styles.time}>−{formatTime(Math.max(0, duration - shown))}</Text>
+        <Text style={styles.time}>−{formatDuration(Math.max(0, duration - shown))}</Text>
       </View>
     </>
   );
@@ -486,7 +507,8 @@ function Transport({ compact, page, onToggle, onDevices }: {
 }) {
   const colors = useColors();
   const styles = useStyles();
-  const { state, device, actions } = usePlaybackState();
+  const { session, output, volume, actions } = usePlaybackState();
+  const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
 
   return (
     <View style={[styles.transport, compact && styles.transportCompact]}>
@@ -494,8 +516,8 @@ function Transport({ compact, page, onToggle, onDevices }: {
       <View style={[styles.transportButtons, compact && styles.transportButtonsCompact]}>
         <PlayerButton icon="backward.fill" label="Previous track" size={27} onPress={() => { selectionFeedback(); actions.previous(); }} />
         <PlayerButton
-          icon={state.playing ? 'pause.fill' : 'play.fill'}
-          label={state.playing ? 'Pause' : 'Play'}
+          icon={session.playing ? 'pause.fill' : 'play.fill'}
+          label={session.playing ? 'Pause' : 'Play'}
           size={40}
           color={colors.text}
           onPress={() => { selectionFeedback(); actions.playPause(); }}
@@ -506,7 +528,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
       <View style={styles.volumeRow}>
         <Icon name="speaker.fill" size={13} color={colors.muted} />
         <View style={styles.volumeSlider}>
-          <TransportSlider label="Volume" value={state.volume} maximum={1} accessibilityStep={0.1} onChange={actions.setVolume} />
+          <TransportSlider label={`Volume on ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />
         </View>
         <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
       </View>
@@ -520,7 +542,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
             onPress={() => onToggle('lyrics')} />
         </View>
         <View style={styles.output}>
-          <DeviceButton icon={device.icon} name={device.name}
+          <DeviceButton icon={output.icon} name={output.name}
             onPress={() => { selectionFeedback(); onDevices(); }} />
         </View>
         <View style={styles.footerSide}>
@@ -546,6 +568,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   deckFrame: { flex: 1 },
   nowPlaying: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: artworkInset, gap: artworkGap },
   artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.surface },
+  noArtwork: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   details: { ...StyleSheet.absoluteFill, paddingTop: compactArtworkTop },
   detailPanel: { flex: 1 },
   compactMetadata: { alignSelf: 'stretch', width: 'auto', maxWidth: undefined, minHeight: compactArtworkSize,

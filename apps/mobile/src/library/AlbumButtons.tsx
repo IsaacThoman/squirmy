@@ -3,39 +3,38 @@ import { Icon } from '../ui';
 import { createThemedStyles, useColors } from '../theme';
 
 export type AlbumNavProps = {
-  icon: 'chevron.left' | 'square.and.arrow.up';
+  icon: string;
   label: string;
   onPress: () => void;
+  selected?: boolean;
 };
 
+/** The buttons under a collection's title. The first is the prominent one. */
 export type AlbumPlaybackProps = {
   title: string;
-  onPlay: () => void;
-  onShuffle: () => void;
+  actions: readonly { label: string; symbol: string; onPress: () => void }[];
 };
 
-export function AlbumNavButton({ icon, label, onPress }: AlbumNavProps) {
+export function AlbumNavButton({ icon, label, onPress, selected }: AlbumNavProps) {
+  const colors = useColors();
   const styles = useStyles();
-  return <Pressable accessibilityRole="button" accessibilityLabel={label}
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={selected === undefined ? undefined : { selected }}
     style={({ pressed }) => [styles.nav, pressed && styles.pressed]} onPress={onPress}>
-    <Icon name={icon} size={20} />
+    <Icon name={icon} size={20} color={selected ? colors.accent : colors.text} />
   </Pressable>;
 }
 
-export function AlbumPlaybackButtons({ title, onPlay, onShuffle }: AlbumPlaybackProps) {
+export function AlbumPlaybackButtons({ title, actions }: AlbumPlaybackProps) {
   const colors = useColors();
   const styles = useStyles();
   return <View style={styles.controls}>
-    <Pressable accessibilityRole="button" accessibilityLabel={`Play ${title}`}
-      style={({ pressed }) => [styles.action, styles.play, pressed && styles.pressed]} onPress={onPlay}>
-      <Icon name="play.fill" size={16} color={colors.onAccent} />
-      <Text style={[styles.label, styles.playLabel]}>Play</Text>
-    </Pressable>
-    <Pressable accessibilityRole="button" accessibilityLabel={`Shuffle ${title}`}
-      style={({ pressed }) => [styles.action, pressed && styles.pressed]} onPress={onShuffle}>
-      <Icon name="shuffle" size={18} />
-      <Text style={styles.label}>Shuffle</Text>
-    </Pressable>
+    {actions.map(({ label, symbol, onPress }, index) => (
+      <Pressable key={label} accessibilityRole="button" accessibilityLabel={`${label} ${title}`}
+        style={({ pressed }) => [styles.action, index === 0 && styles.play, pressed && styles.pressed]} onPress={onPress}>
+        <Icon name={symbol} size={17} color={index === 0 ? colors.onAccent : colors.text} />
+        <Text style={[styles.label, index === 0 && styles.playLabel]}>{label}</Text>
+      </Pressable>
+    ))}
   </View>;
 }
 

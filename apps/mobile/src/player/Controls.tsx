@@ -1,3 +1,4 @@
+import type { TrackSummary } from '@squirmy/contracts';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon } from '../ui';
 import { createThemedStyles, useColors } from '../theme';
@@ -13,8 +14,9 @@ export type PlayerButtonProps = {
 };
 
 export type DeviceButtonProps = { icon: string; name: string; onPress: () => void };
-export type TrackMenuButtonProps = { trackId: string; onPress: () => void };
-export type LyricButtonProps = { line: string; active: boolean; onPress: () => void };
+export type TrackMenuButtonProps = { track: TrackSummary; onPress: () => void };
+/** Without `onPress` (plain lyrics) the line is only text. */
+export type LyricButtonProps = { line: string; active: boolean; onPress?: () => void };
 
 export function PlayerButton({ icon, label, size = 20, color, onPress, style, selected }: PlayerButtonProps) {
   const colors = useColors();
@@ -49,6 +51,7 @@ export function DeviceButton({ icon, name, onPress }: DeviceButtonProps) {
 
 export function LyricButton({ line, active, onPress }: LyricButtonProps) {
   const styles = useStyles();
+  if (!onPress) return <Text style={[styles.lyric, styles.lyricButton, active && styles.lyricActive]}>{line}</Text>;
   return <Pressable accessibilityRole="button" accessibilityHint="Seek to this line"
     accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => [styles.lyricButton, pressed && styles.pressed]}>
     <Text style={[styles.lyric, active && styles.lyricActive]}>{line}</Text>

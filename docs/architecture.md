@@ -390,13 +390,21 @@ Catalog data reaches views through props typed with the contracts; session state
 ```
 apps/mobile/
   app/                   expo-router routes; the root layout gates connect → sign-in → (tabs)
-  src/account/           server address, auth state machine, AccountProvider, connect and sign-in screens
+  src/account/           server address, auth state machine, AccountProvider, connect, sign-in and settings screens
+  src/data/              query hooks, the persisted cache, RealtimeProvider, LibraryProvider (likes, playlists, TrackStore)
+  src/library/           browse screens' parts: album, artist, playlist and genre pages, song lists, track actions
+  src/player/            Now Playing parts, the queue, session view logic (session.ts), lyrics
   src/player/engine/     ExpoAudioEngine (PlayerEngine on expo-audio) and the lock screen adapter
+  src/playback.tsx       PlaybackProvider: the SessionClient, its hooks (usePlaybackState, usePosition)
   src/dev/               development-only screens (the engine bench at /dev/engine)
   modules/now-playing/   local Expo module: Now Playing info and remote commands as JS events
 ```
 
-`AccountProvider` owns the auth state: it restores the stored session (holding the splash until the server confirms it, or for at most three seconds offline), creates the API client with the bearer token, and returns to sign-in on a 401. Lock screen buttons arrive through `connectNowPlaying` as callbacks; the caller turns them into session commands, never engine calls.
+- **Accounts.** `AccountProvider` owns the auth state: it restores the stored session (holding the splash until the server confirms it, or for at most three seconds offline), creates the API client with the bearer token, and returns to sign-in on a 401.
+- **Data.** Query keys come from `queryKeys`; lists are infinite queries over the cursor pages. The cache is saved to app storage (expo-sqlite `localStorage`) per server and user, restored before the splash hides, and removed on sign-out. Every response that carries track summaries primes one `TrackStore`, which hydrates queue entries and the lock screen. Likes apply at once and roll back on failure.
+- **Realtime.** `RealtimeProvider` opens one socket per signed-in session with `auth.token`. `invalidate` refreshes the named queries (and refetches a changed track's like); every reconnect refreshes all of them. The socket is renewed when the app returns after being suspended (no server ping for 30 seconds) and when the network type changes. A refused handshake rechecks `me`, so a revoked session signs out.
+- **Playback.** `PlaybackProvider` runs a `SessionClient` on that socket with `ExpoAudioEngine` (`canBoost: false`) and the user's normalization mode. `resolvePlayback` asks for the entry's album, the quality setting for the current network (Wi-Fi or cellular) and the codecs AVPlayer decodes. Components read the session through `usePlaybackState`; the position is polled with `usePosition` by the few components that show it. While another device is active the engine is stopped and the lock screen cleared. An engine error skips the track with a notice, or pauses when the next one fails too.
+- **Lock screen.** Buttons arrive through `connectNowPlaying` as callbacks; the provider turns them into session commands, never engine calls. The system's own pause (calls, unplugged headphones) becomes a session `pause`.
 
 ## Testing
 
