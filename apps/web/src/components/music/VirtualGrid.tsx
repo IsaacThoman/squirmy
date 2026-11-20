@@ -1,13 +1,23 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useScrollContainer } from '@/components/layout/scroll-context'
+import { useEndReached } from './use-end-reached'
 
 const gap = 20
 const rowGap = 28
 const minWidth = 168
 
+type VirtualGridProps<T> = {
+  items: T[]
+  getKey: (item: T) => string
+  renderItem: (item: T) => ReactNode
+  label: string
+  /** Called as the last rows come into view, to load the next page. */
+  onEndReached?: () => void
+}
+
 /** A card grid that renders only the rows near the viewport. For whole-library lists. */
-export function VirtualGrid<T>({ items, getKey, renderItem, label }: { items: T[]; getKey: (item: T) => string; renderItem: (item: T) => ReactNode; label: string }) {
+export function VirtualGrid<T>({ items, getKey, renderItem, label, onEndReached }: VirtualGridProps<T>) {
   const scroller = useScrollContainer()
   const container = useRef<HTMLDivElement>(null)
   const [layout, setLayout] = useState({ width: 1024, margin: 0 })
@@ -38,6 +48,7 @@ export function VirtualGrid<T>({ items, getKey, renderItem, label }: { items: T[
     scrollMargin: layout.margin,
     initialRect: { width: 1024, height: 900 },
   })
+  useEndReached(virtualizer.getVirtualItems().at(-1)?.index ?? -1, rows, onEndReached, 3)
 
   return (
     <div ref={container} role="list" aria-label={label} className="relative" style={{ height: virtualizer.getTotalSize() }}>

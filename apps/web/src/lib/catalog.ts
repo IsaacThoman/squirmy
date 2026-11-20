@@ -12,3 +12,12 @@ export function albumTypeLabel(type: AlbumSummary['type']) {
 export function isUnowned(album: Pick<AlbumSummary, 'availability'>) {
   return album.availability === 'none' || album.availability === 'on_demand'
 }
+
+/** Tile colors for genres, picked by name so a genre keeps its color. */
+const genreColors = ['#344763', '#5a342a', '#4a4d71', '#5f404b', '#334e48', '#64342e', '#644936', '#543553', '#3f4854', '#60464f', '#4d324b', '#54523d']
+
+export function genreColor(name: string) {
+  let hash = 0
+  for (const char of name.toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) | 0
+  return genreColors[Math.abs(hash) % genreColors.length]
+}

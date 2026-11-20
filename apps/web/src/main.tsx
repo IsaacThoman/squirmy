@@ -6,7 +6,6 @@ import { createQueryClient } from '@/api/query-client'
 import { createServices, ServicesContext } from '@/api/services'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toast'
-import { FixtureProviders } from '@/fixtures/FixtureProviders'
 import { EngineProvider } from '@/player/engine/EngineProvider'
 import { AppRoutes } from './App'
 import './index.css'
@@ -21,10 +20,8 @@ createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <TooltipProvider delayDuration={500} skipDelayDuration={200}>
             <EngineProvider>
-              <FixtureProviders>
-                <AppRoutes />
-                <Toaster />
-              </FixtureProviders>
+              <AppRoutes />
+              <Toaster />
             </EngineProvider>
           </TooltipProvider>
         </BrowserRouter>

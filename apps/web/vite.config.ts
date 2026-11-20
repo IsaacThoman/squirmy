@@ -53,6 +53,7 @@ export default defineConfig({
           groups: [
             { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler|react-router)[\\/]/ },
             { name: 'schemas', test: /node_modules[\\/]zod[\\/]|packages[\\/]contracts[\\/]/ },
+            { name: 'ui', test: /node_modules[\\/](radix-ui|@radix-ui|@floating-ui|@tanstack|lucide-react|socket\.io-client|engine\.io-client|socket\.io-parser)[\\/]/ },
           ],
         },
       },

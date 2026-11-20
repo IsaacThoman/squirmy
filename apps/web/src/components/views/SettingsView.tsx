@@ -1,8 +1,8 @@
 import {
-  ChangePasswordRequest, CreateAppPasswordRequest, UpdateUserRequest,
-  type AppPassword, type NormalizationMode, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
+  ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
+  type AppPassword, type NormalizationMode, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
-import { KeyRound, LogOut, Pencil, Plus } from 'lucide-react'
+import { AlertTriangle, KeyRound, LogOut, Pencil, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useFormSubmit } from '@/api/errors'
 import { Page } from '@/components/layout/Page'
@@ -32,8 +32,19 @@ const qualityOptions: SelectOption<StreamQuality>[] = [
 
 type SettingsViewProps = {
   user: User
-  settings: UserSettings
+  /** Undefined while loading. */
+  settings: UserSettings | undefined
   onSettingsChange: (patch: UpdateUserSettings) => void
+  /** This browser's name in device lists, and the one it has without a custom name. */
+  deviceName: string
+  defaultDeviceName: string
+  onDeviceNameChange: (name: string | null) => void
+  /** Undefined while loading. */
+  scrobbling: ScrobblingStatus | undefined
+  onConnectListenBrainz: (token: string) => Promise<unknown>
+  /** Sends the browser to Last.fm, which returns to this page. */
+  onConnectLastFm: () => void
+  onDisconnect: (target: ScrobbleTarget) => Promise<unknown>
   /** Undefined while loading. */
   appPasswords: AppPassword[] | undefined
   /** Resolves with the new password, whose `secret` is shown once. */
@@ -45,33 +56,49 @@ type SettingsViewProps = {
   onLogout: () => void
 }
 
-export function SettingsView({ user, settings, onSettingsChange, appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout }: SettingsViewProps) {
-  const [dialog, setDialog] = useState<'app-password' | 'password' | 'rename' | null>(null)
+export function SettingsView({
+  user, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange, scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect,
+  appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout,
+}: SettingsViewProps) {
+  const [dialog, setDialog] = useState<'app-password' | 'password' | 'rename' | 'listenbrainz' | null>(null)
   const [revoking, setRevoking] = useState<AppPassword | null>(null)
+  const [disconnecting, setDisconnecting] = useState<ScrobbleService | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   return (
     <Page className="flex max-w-3xl flex-col gap-9">
       <PageTitle>Settings</PageTitle>
 
       <SettingsSection title="Playback">
-        <SettingRow htmlFor="normalization" label="Volume normalization" description="Evens out loudness between songs. Automatic uses album levels when you play an album in order.">
-          <Select id="normalization" label="Volume normalization" value={settings.normalization} options={normalizationOptions} onValueChange={normalization => onSettingsChange({ normalization })} />
-        </SettingRow>
-        <SettingRow htmlFor="quality-wifi" label="Streaming quality" description="On Wi-Fi and in the browser. Original plays the file untouched when your device supports it.">
-          <Select id="quality-wifi" label="Streaming quality" value={settings.qualityWifi} options={qualityOptions} onValueChange={qualityWifi => onSettingsChange({ qualityWifi })} />
-        </SettingRow>
-        <SettingRow htmlFor="quality-cellular" label="Cellular quality" description="Used by the iOS app away from Wi-Fi.">
-          <Select id="quality-cellular" label="Cellular quality" value={settings.qualityCellular} options={qualityOptions} onValueChange={qualityCellular => onSettingsChange({ qualityCellular })} />
+        {settings ? (
+          <>
+            <SettingRow htmlFor="normalization" label="Volume normalization" description="Evens out loudness between songs. Automatic uses album levels when you play an album in order.">
+              <Select id="normalization" label="Volume normalization" value={settings.normalization} options={normalizationOptions} onValueChange={normalization => onSettingsChange({ normalization })} />
+            </SettingRow>
+            <SettingRow htmlFor="quality-wifi" label="Streaming quality" description="On Wi-Fi and in the browser. Original plays the file untouched when your device supports it.">
+              <Select id="quality-wifi" label="Streaming quality" value={settings.qualityWifi} options={qualityOptions} onValueChange={qualityWifi => onSettingsChange({ qualityWifi })} />
+            </SettingRow>
+            <SettingRow htmlFor="quality-cellular" label="Cellular quality" description="Used by the iOS app away from Wi-Fi.">
+              <Select id="quality-cellular" label="Cellular quality" value={settings.qualityCellular} options={qualityOptions} onValueChange={qualityCellular => onSettingsChange({ qualityCellular })} />
+            </SettingRow>
+          </>
+        ) : <LoadingRows rows={3} />}
+        <SettingRow htmlFor="device-name" label="This browser’s name" description="How your other devices list it when you move playback.">
+          <DeviceNameField key={deviceName} name={deviceName} placeholder={defaultDeviceName} onChange={onDeviceNameChange} />
         </SettingRow>
       </SettingsSection>
 
-      <SettingsSection title="Scrobbling" description="Send what you listen to to other services.">
-        <SettingRow label="ListenBrainz">
-          <Switch aria-label="Scrobble to ListenBrainz" checked={settings.scrobbleListenBrainz} onCheckedChange={scrobbleListenBrainz => onSettingsChange({ scrobbleListenBrainz })} />
-        </SettingRow>
-        <SettingRow label="Last.fm">
-          <Switch aria-label="Scrobble to Last.fm" checked={settings.scrobbleLastFm} onCheckedChange={scrobbleLastFm => onSettingsChange({ scrobbleLastFm })} />
-        </SettingRow>
+      <SettingsSection title="Scrobbling" description="Send what you listen to to other services. Songs count once you have heard half of them, or four minutes.">
+        {scrobbling
+          ? scrobbling.services.map(service => (
+            <ScrobbleRow
+              key={service.target}
+              service={service}
+              onToggle={enabled => onSettingsChange(service.target === 'listenbrainz' ? { scrobbleListenBrainz: enabled } : { scrobbleLastFm: enabled })}
+              onConnect={service.target === 'listenbrainz' ? () => setDialog('listenbrainz') : onConnectLastFm}
+              onDisconnect={() => setDisconnecting(service)}
+            />
+          ))
+          : <LoadingRows rows={2} />}
       </SettingsSection>
 
       <SettingsSection
@@ -108,6 +135,15 @@ export function SettingsView({ user, settings, onSettingsChange, appPasswords, o
       <CreateAppPasswordDialog open={dialog === 'app-password'} onOpenChange={close} onCreate={onCreateAppPassword} />
       <ChangePasswordDialog open={dialog === 'password'} onOpenChange={close} onChange={onChangePassword} />
       {onRename && <RenameDialog key={user.displayName ?? ''} open={dialog === 'rename'} onOpenChange={close} current={user.displayName} onRename={onRename} />}
+      <ListenBrainzDialog open={dialog === 'listenbrainz'} onOpenChange={close} onConnect={onConnectListenBrainz} />
+      <ConfirmDialog
+        open={!!disconnecting}
+        onOpenChange={open => { if (!open) setDisconnecting(null) }}
+        title={`Disconnect ${disconnecting ? serviceNames[disconnecting.target] : ''}?`}
+        description="Songs you play from now on are not sent. Plays still waiting to be sent are dropped."
+        confirmLabel="Disconnect"
+        onConfirm={() => onDisconnect(disconnecting!.target)}
+      />
       <ConfirmDialog
         open={!!revoking}
         onOpenChange={open => { if (!open) setRevoking(null) }}
@@ -231,6 +267,100 @@ function RenameDialog({ open, onOpenChange, current, onRename }: { open: boolean
           <DialogFooter>
             <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
             <Button type="submit" variant="primary" pending={form.pending}>Save</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function LoadingRows({ rows }: { rows: number }) {
+  return Array.from({ length: rows }, (_, row) => (
+    <SettingRow key={row} label={<Skeleton className="h-5 w-40" />} description={<Skeleton className="mt-1 h-4 w-64 max-w-full" />} />
+  ))
+}
+
+/** Saves on Enter or when focus leaves; empty goes back to the name from the browser. */
+function DeviceNameField({ name, placeholder, onChange }: { name: string; placeholder: string; onChange: (name: string | null) => void }) {
+  const [value, setValue] = useState(name === placeholder ? '' : name)
+  const save = () => {
+    const next = value.trim() || null
+    if ((next ?? placeholder) !== name) onChange(next)
+  }
+  return (
+    <form onSubmit={event => { event.preventDefault(); save() }} className="w-full sm:w-64">
+      <Input id="device-name" value={value} placeholder={placeholder} maxLength={60} onChange={event => setValue(event.target.value)} onBlur={save} className="h-9 text-sm" />
+    </form>
+  )
+}
+
+const serviceNames: Record<ScrobbleTarget, string> = { listenbrainz: 'ListenBrainz', lastfm: 'Last.fm' }
+
+function scrobbleStatus(service: ScrobbleService): string {
+  if (!service.available) return 'An admin of this server has to add a Last.fm API key first.'
+  if (!service.connected) return service.target === 'listenbrainz' ? 'Connect with the user token from your ListenBrainz settings.' : 'Connect your Last.fm account.'
+  const parts = [`Connected as ${service.account ?? 'you'}`]
+  if (service.pending) parts.push(`${service.pending.toLocaleString()} waiting to be sent`)
+  if (service.failed) parts.push(`${service.failed.toLocaleString()} could not be sent`)
+  return parts.join(' · ')
+}
+
+function ScrobbleRow({ service, onToggle, onConnect, onDisconnect }: { service: ScrobbleService; onToggle: (enabled: boolean) => void; onConnect: () => void; onDisconnect: () => void }) {
+  const name = serviceNames[service.target]
+  const problem = service.needsAttention ? `${name} no longer accepts this connection. Connect again to keep scrobbling.` : service.lastError
+  return (
+    <SettingRow
+      label={name}
+      description={(
+        <>
+          {scrobbleStatus(service)}
+          {service.connected && problem && (
+            <span className="mt-1 flex items-start gap-1.5 font-medium text-danger"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" />{problem}</span>
+          )}
+        </>
+      )}
+    >
+      {service.connected ? (
+        <>
+          {service.needsAttention && <Button size="sm" variant="primary" onClick={onConnect}>Reconnect</Button>}
+          <Button size="sm" variant="outline" onClick={onDisconnect}>Disconnect</Button>
+          <Switch aria-label={`Scrobble to ${name}`} checked={service.enabled} onCheckedChange={onToggle} />
+        </>
+      ) : (
+        <Button size="sm" variant="outline" disabled={!service.available} onClick={onConnect}>Connect</Button>
+      )}
+    </SettingRow>
+  )
+}
+
+function ListenBrainzDialog({ open, onOpenChange, onConnect }: { open: boolean; onOpenChange: (open: boolean) => void; onConnect: (token: string) => Promise<unknown> }) {
+  const [token, setToken] = useState('')
+  const form = useFormSubmit(ConnectListenBrainzRequest, ({ token }) => onConnect(token), { invalid_token: 'token' })
+  const close = (next: boolean) => {
+    onOpenChange(next)
+    if (!next) {
+      setToken('')
+      form.reset()
+    }
+  }
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (await form.submit({ token })) close(false)
+  }
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent
+        title="Connect ListenBrainz"
+        description={<>Paste the user token from <a href="https://listenbrainz.org/settings/" target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">your ListenBrainz settings</a>.</>}
+      >
+        <form onSubmit={event => void submit(event)} className="flex flex-col gap-4" noValidate>
+          <Field label="User token" htmlFor="listenbrainz-token" error={form.errors.token}>
+            <Input id="listenbrainz-token" value={token} onChange={event => setToken(event.target.value)} autoComplete="off" spellCheck={false} aria-invalid={!!form.errors.token} autoFocus />
+          </Field>
+          <FormError message={form.errors.form} />
+          <DialogFooter>
+            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+            <Button type="submit" variant="primary" pending={form.pending} disabled={!token.trim()}>Connect</Button>
           </DialogFooter>
         </form>
       </DialogContent>

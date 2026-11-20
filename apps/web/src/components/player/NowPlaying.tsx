@@ -5,7 +5,7 @@ import { Cover } from '@/components/music/Cover'
 import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
-import type { Player } from '@/player/player-context'
+import { playingElsewhere, type Player } from '@/player/player-context'
 import { DevicesPopover, PlayingElsewhere } from './Devices'
 import { LyricsPane } from './Lyrics'
 import { QueueContent } from './Queue'
@@ -29,7 +29,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   const artUrl = useArtUrl()
   const item = state.current
   const artwork = item?.track.album?.artwork ?? null
-  const elsewhere = state.activeDeviceId !== state.thisDeviceId ? state.devices.find(device => device.id === state.activeDeviceId) : undefined
+  const elsewhere = playingElsewhere(state)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
 
   return (
@@ -67,10 +67,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             </div>
             <DevicesPopover
               side="bottom"
-              devices={state.devices}
-              activeDeviceId={state.activeDeviceId}
-              thisDeviceId={state.thisDeviceId}
-              onTransfer={controls.transfer}
+              player={player}
               trigger={<IconButton label="Devices" variant="solid" className={cn('bg-overlay', elsewhere && 'text-accent')}><MonitorSpeaker /></IconButton>}
             />
           </div>

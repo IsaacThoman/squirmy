@@ -19,8 +19,11 @@ const AdminUsersPage = admin('AdminUsersPage')
 const AdminProvidersPage = admin('AdminProvidersPage')
 const AdminSettingsPage = admin('AdminSettingsPage')
 const AdminJobsPage = admin('AdminJobsPage')
-const KitchenSinkPage = lazy(() => import('@/pages/KitchenSink').then(module => ({ default: module.KitchenSinkPage })))
-const EnginePage = lazy(() => import('@/pages/dev-engine').then(module => ({ default: module.EnginePage })))
+// The developer pages run on fixtures, which production builds leave out.
+const dev = import.meta.env.DEV && {
+  KitchenSinkPage: lazy(() => import('@/pages/KitchenSink').then(module => ({ default: module.KitchenSinkPage }))),
+  EnginePage: lazy(() => import('@/pages/dev-engine').then(module => ({ default: module.EnginePage }))),
+}
 
 function Loading({ children }: { children: ReactNode }) {
   return <Suspense fallback={<Page className="flex justify-center pt-32"><Spinner /></Page>}>{children}</Suspense>
@@ -65,8 +68,8 @@ export function AppRoutes() {
                   <Route path="jobs" element={<Loading><AdminJobsPage /></Loading>} />
                 </Route>
               </Route>
-              <Route path="dev/kitchen-sink" element={<Loading><KitchenSinkPage /></Loading>} />
-              <Route path="dev/engine" element={<Loading><EnginePage /></Loading>} />
+              {dev && <Route path="dev/kitchen-sink" element={<Loading><dev.KitchenSinkPage /></Loading>} />}
+              {dev && <Route path="dev/engine" element={<Loading><dev.EnginePage /></Loading>} />}
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Route>
