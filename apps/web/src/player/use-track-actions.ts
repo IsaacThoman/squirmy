@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import type { NowPlaying, TrackAction } from '@/components/music/TrackList'
 import { toast } from '@/lib/toast'
 import { useLibrary } from './library-context'
+import { useOnDemand } from './on-demand-context'
 import { usePlayer } from './player-context'
 
 type TrackActionOptions = {
@@ -17,6 +18,7 @@ type TrackActionOptions = {
 export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContext, options: TrackActionOptions = {}) {
   const { state, controls } = usePlayer()
   const library = useLibrary()
+  const onDemand = useOnDemand()
   const current = state.current
 
   const nowPlaying = useMemo<NowPlaying | null>(() => current && {
@@ -54,6 +56,8 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
   return {
     nowPlaying,
     isWanted: (track: TrackSummary) => library.isWanted(track.id),
+    isPreparing: onDemand.isPreparing,
+    canRequest: onDemand.canRequest,
     playlists: library.playlists,
     onPlay: options.onPlay ?? ((index: number) => controls.playTracks(tracks, index, context)),
     onMove: options.onMove,

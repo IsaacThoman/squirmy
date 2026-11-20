@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { Tooltip } from '@/components/ui/tooltip'
 import { albumTypeLabel, isUnowned } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
+import { useOnDemand } from '@/player/on-demand-context'
 import { PlaylistCover } from './CollectionArt'
 import { Cover } from './Cover'
 
@@ -72,18 +73,22 @@ type AlbumCardProps = {
 }
 
 export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'artist' }: AlbumCardProps) {
+  const { canRequest } = useOnDemand()
   const unowned = isUnowned(album)
   const partial = album.availability === 'partial'
+  // On demand only for people who may fetch music; gray for everyone else.
+  const onDemand = album.availability === 'on_demand' && canRequest
+  const dimmed = album.availability === 'none' || (album.availability === 'on_demand' && !canRequest)
   return (
     <Card
       to={`/album/${album.id}`}
       title={album.title}
       subtitle={subtitle === 'year' ? [album.year, albumTypeLabel(album.type)].filter(Boolean).join(' · ') : album.artistCredit}
-      art={<Cover artwork={album.artwork} dimmed={album.availability === 'none'} className={cn(album.availability === 'on_demand' && 'opacity-80')} />}
+      art={<Cover artwork={album.artwork} dimmed={dimmed} className={cn(onDemand && 'opacity-80')} />}
       onPlay={unowned ? undefined : onPlay}
       want={unowned && onWant ? { wanted, onChange: onWant } : undefined}
-      dimmed={album.availability === 'none'}
-      badge={album.availability === 'on_demand'
+      dimmed={dimmed}
+      badge={onDemand
         ? <Tooltip label="Plays on demand"><span className="flex size-7 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md"><CloudDownload aria-label="Plays on demand" className="size-4" /></span></Tooltip>
         : partial ? <span className="rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-md">{album.ownedTrackCount} of {album.trackCount}</span> : undefined}
     />

@@ -21,7 +21,7 @@ type Parts = typeof DropdownPrimitive | typeof ContextPrimitive
 function Entries({ parts, entries }: { parts: Parts; entries: MenuEntry[] }) {
   return entries.map((entry, index) => {
     if (entry.kind === 'separator') return <parts.Separator key={index} className="mx-1.5 my-1 h-px bg-stroke" />
-    if (entry.kind === 'label') return <parts.Label key={index} className="truncate px-2.5 pb-1 pt-1.5 text-xs font-semibold text-quiet">{entry.label}</parts.Label>
+    if (entry.kind === 'label') return <parts.Label key={index} className="max-w-64 px-2.5 pb-1 pt-1.5 text-xs font-semibold text-quiet">{entry.label}</parts.Label>
     if (entry.kind === 'submenu') {
       return (
         <parts.Sub key={index}>
