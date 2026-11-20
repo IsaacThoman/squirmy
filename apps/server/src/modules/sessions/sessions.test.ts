@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net'
 import type {
   ClientToServerEvents, CommandAck, QueueSeed, ServerToClientEvents, SessionCommand, SessionHelloAck, SessionQueue, SessionState,
 } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect, type Socket } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,6 +41,30 @@ async function eventually<T>(read: () => T | Promise<T>, check: (value: T) => vo
       if (performance.now() > deadline) throw error
     }
     await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
+/** Grace timers that fire only when told to. */
+function manualTimers() {
+  const pending = new Map<number, () => void>()
+  let serial = 0
+  configureSessions({
+    timers: {
+      set: (callback) => {
+        pending.set(++serial, callback)
+        return serial
+      },
+      clear: (handle) => void pending.delete(handle as number),
+    },
+  })
+  return {
+    pending: () => pending.size,
+    fireAll: () => {
+      for (const [handle, callback] of [...pending]) {
+        pending.delete(handle)
+        callback()
+      }
+    },
   }
 }
 
@@ -117,7 +141,7 @@ describe('sessions', () => {
     album = await createAlbum({ owned: true })
   })
   beforeEach(async () => {
-    configureSessions({ deviceGraceMs: 20_000, now: () => Date.now() })
+    configureSessions({ deviceGraceMs: 20_000, now: () => Date.now(), timers: null })
     vi.mocked(requestRecording).mockClear()
     vi.mocked(suggestAutoplay).mockReset().mockResolvedValue([])
     onDemand.clear()
@@ -187,9 +211,12 @@ describe('sessions', () => {
 
     expect(await a.send(playAlbum(), 'play-1')).toEqual({ ok: true, version: 1 })
     const state = await a.state(1)
-    const fromAck = a.log.slice(a.log.findIndex(([event]) => event === 'ack'))
-    expect(fromAck.map(([event]) => event)).toEqual(['ack', 'session:queue', 'session:state', 'devices'])
-    expect(fromAck[1]![1]).toMatchObject({ version: 1, queueVersion: 1 })
+    // The four arrive in order on one socket, but not necessarily in one read: wait for the
+    // last of them before checking the order.
+    const fromAck = () => a.log.slice(a.log.findIndex(([event]) => event === 'ack')).map(([event, payload]) => ({ event, payload }))
+    await eventually(() => fromAck().map(({ event }) => event), (events) => expect(events).toContain('devices'))
+    expect(fromAck().map(({ event }) => event)).toEqual(['ack', 'session:queue', 'session:state', 'devices'])
+    expect(fromAck()[1]!.payload).toMatchObject({ version: 1, queueVersion: 1 })
     expect(state).toMatchObject({ playing: true, activeDeviceId: 'device-a-0002', current: { id: 'play-1.0', trackId: album.tracks[0]!.recordingId } })
     expect(a.lastDevices().find((item) => item.isActive)?.id).toBe('device-a-0002')
 
@@ -273,16 +300,19 @@ describe('sessions', () => {
   })
 
   it('keeps the active device when it reconnects within the grace period', async () => {
-    configureSessions({ deviceGraceMs: 1000 })
+    // However slow the reconnect, the grace period only ends when the test says so.
+    const timers = manualTimers()
     const a = await device('device-a-0007')
     const b = await device('device-b-0007')
     await a.send(playAlbum())
     await b.state(1)
     a.socket.disconnect()
     await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0007']))
+    expect(timers.pending()).toBe(1)
     const back = await device('device-a-0007')
+    expect(timers.pending()).toBe(0)
+    timers.fireAll()
     expect((await getSnapshot(user.id)).state.activeDeviceId).toBe('device-a-0007')
-    await new Promise((resolve) => setTimeout(resolve, 1300))
     expect(b.states().map((update) => update.version)).toEqual([1])
     expect(back.states()).toEqual([])
   })
@@ -307,8 +337,9 @@ describe('sessions', () => {
     await a.send(playAlbum(1))
     await a.send({ type: 'setRepeat', value: 'one' })
     await a.state(2)
-    // Written about a second after the change, without waiting for shutdown.
-    await eventually(async () => (await db.select().from(playbackSessions).where(eq(playbackSessions.userId, user.id)))[0]?.version, (value) => expect(value).toBe(2), 3000)
+    // Written about a second after the change, without waiting for shutdown. The rest of
+    // the deadline is slack for a loaded database; a write that never comes still fails.
+    await eventually(async () => (await db.select().from(playbackSessions).where(eq(playbackSessions.userId, user.id)))[0]?.version, (value) => expect(value).toBe(2), 10_000)
     const before = await getSnapshot(user.id)
 
     await sessionsModule.stop!()
@@ -437,6 +468,27 @@ describe('sessions', () => {
       { recordingId: third!.recordingId, msPlayed: third!.durationMs, completed: true },
     ]))
     await eventually(() => a.events('invalidate'), (value) => expect(value).toContainEqual({ keys: [['history'], ['home']] }))
+  })
+
+  it('waits for the write of a play that closed just before shutdown', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0017')
+    await a.send(playAlbum(), 'late')
+    await a.state(1)
+    clock.advance(60_000)
+    let stopped = false
+    let stopping: Promise<void> | undefined
+    // Holding the table lock keeps the play's insert waiting while the sessions stop.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`lock table plays in exclusive mode`)
+      await a.send({ type: 'next' })
+      stopping = Promise.resolve(sessionsModule.stop!()).then(() => { stopped = true })
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      expect(stopped).toBe(false)
+    })
+    await stopping
+    expect(await db.select({ recordingId: plays.recordingId, msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id)))
+      .toEqual([{ recordingId: album.tracks[0]!.recordingId, msPlayed: 60_000 }])
   })
 
   it('tells play-start listeners once per play that starts on the active device', async () => {

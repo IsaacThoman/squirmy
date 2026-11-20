@@ -94,9 +94,14 @@ describe('realtime', () => {
     const client = await open({ token: member.token })
     const keys = Array.from({ length: 300 }, (_, index) => queryKeys.album(`0190d3a6-0000-7000-8000-${String(index).padStart(12, '0')}`))
     const received: (readonly unknown[])[] = []
-    client.on('invalidate', (update) => received.push(...update.keys))
+    // Resolves on the notification that completes the set, however long the round trips
+    // through Postgres take; keys that never arrive fail the test at its timeout.
+    const all = new Promise<void>((resolve) => client.on('invalidate', (update) => {
+      received.push(...update.keys)
+      if (received.length >= keys.length) resolve()
+    }))
     await invalidate({ user: member.id }, keys)
-    await expect.poll(() => received.length).toBe(300)
+    await all
     expect(received).toEqual(keys)
   })
 

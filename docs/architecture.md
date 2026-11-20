@@ -10,9 +10,12 @@ apps/web               @squirmy/web           Vite + React web app
 apps/server            @squirmy/server        Fastify API, worker, realtime
 packages/contracts     @squirmy/contracts     zod schemas and types for every API
 packages/client-core   @squirmy/client-core   session reducer, session client, API client
+adapters/kit           @squirmy/provider-kit  the provider side of the acquisition protocol
+adapters/cold-storage  @squirmy/adapter-cold-storage  reference provider: a folder of your own files
+adapters/mock          @squirmy/adapter-mock  provider for tests and demos: quiet tagged tones
 ```
 
-npm workspaces, Node 22.13 or newer, TypeScript 6, ESM everywhere except the Expo app. `contracts` and `client-core` compile to `dist` with `tsc`; consumers import the built output, so run `npm run build:packages` (or the packages' `dev` watchers) before typechecking or running anything else.
+npm workspaces, Node 22.13 or newer, TypeScript 6, ESM everywhere except the Expo app. `contracts` and `client-core` compile to `dist` with `tsc`; consumers import the built output, so run `npm run build:packages` (or the packages' `dev` watchers) before typechecking or running anything else. The adapters build the same way (`npm run build:adapters`); the root `typecheck`, `test` and `build` scripts build both. The server image installs only the server's workspaces; the adapters are separate services with their own READMEs.
 
 | Command | What it does |
 |---|---|
@@ -205,8 +208,9 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files; candidates come with the album's files |
 | `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `GET/POST /imports`, `GET/DELETE /imports/:id`, `POST /imports/:id/files`, `POST /imports/:id/commit` | imports | admins and members with `canUpload`; multipart upload; `DELETE` cancels while receiving; a list shows your own imports, or all for an admin |
-| `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
-| `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request; play does it implicitly |
+| `GET/POST /admin/acquisition/providers`, `PATCH/DELETE /admin/acquisition/providers/:id`, `POST /admin/acquisition/providers/:id/test`, `GET/PATCH /admin/acquisition/policy`, `GET /admin/acquisition/jobs` | acquisition | the secret is never returned; `test` calls `capabilities` |
+| `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request, 202 with the jobs; play does it implicitly |
+| `POST /acquisition/deliveries/:jobId/files`, `/complete` | acquisition | for providers: the job's bearer token instead of a session; rate limited |
 | `GET/DELETE /admin/catalog-index`, `POST/DELETE /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
 | `/rest/*` | subsonic | OpenSubsonic, XML and JSON |
 
@@ -260,7 +264,7 @@ The server holds one session per user in memory, loaded on first use and persist
 - **Active device.** The first device that can play and sends a command that starts playback while no device is active becomes active. `transfer` changes it, and only to a connected device that can play. Only the active device may send `trackEnded` and engine reports. A report that is more than a second off the computed position, or changes whether playback is stalled, becomes `syncPosition`.
 - **Disconnects.** If the active device's last socket closes, the server waits 20 seconds, then applies `deviceLost` (pause at the last known position, clear the active device). A session loaded after a restart gives its absent active device the same grace.
 - **Plays.** A play row opens when an entry is current and running on the active device and closes when the entry changes or stops at its end. Listened time comes from the session's position arithmetic, so pauses and seeks add nothing. Plays under five seconds are skips and leave no row; one counts as completed after half the track or four minutes. Writing one invalidates history and home.
-- **On demand.** When the current or an upcoming entry is `on_demand`, the acquisition module is asked for it and the entry is `preparing` until the file is linked, then `setEntryState` flips it to `ready`.
+- **On demand.** When the current or an upcoming entry is `on_demand`, the acquisition module is asked for it and the entry is `preparing` until the file is linked, then `setEntryState` flips it to `ready` (or `failed`, which skips it). Every request gets an answer, so an entry never waits forever; see "Acquisition".
 - **Autoplay.** When the queue is nearly empty and autoplay is on, the radio module supplies `setAutoplayQueue`.
 
 ### Scrobbling
@@ -297,7 +301,7 @@ Jobs, in order. Each is idempotent and keyed by file or album group.
 
 1. `library.scan` `{ rootId, paths? }` walks a root, or just the given paths, and compares `(rel_path, size, mtime)` with `media_files`: new files are inserted at `probe_stage 0`, changed ones reset to it, vanished ones get `missing_since` and returning ones lose it. Probes are queued in bulk. The walk (sorted by UTF-8 bytes) and the rows (read in pages, `collate "C"`) are merged like two sorted lists, so memory and queries stay flat whatever the library size. Hidden entries, `@eaDir`, recycle bins and partial downloads are skipped; symlinks are followed only to files inside the root. A root that cannot be read is skipped rather than marked missing. One scan per root at a time; `library.scan-all` runs nightly.
 2. `library.probe` reads tags and technical details with `music-metadata` (ffprobe fills gaps and takes over when it cannot parse), normalizes them into `FileTags`, reads ReplayGain (and Opus R128) into the `tag_*` columns, stores the embedded picture, sets `probe_stage 1` and the group key, then queues ingest for the group. A file nothing can read gets `probe_error` and is left alone until it changes.
-3. `library.ingest` `{ rootId, groupKey }` creates or reuses local-only catalog rows (artists, album, release, recordings, release tracks) from the group's tags and links the files, in one transaction. Rows the files already use are reused unless another group uses them; rows with a MusicBrainz id in the tags are found by it or created with it, and are never renamed from tags afterwards. A group with a matched or locked file is only relinked. Rows that end up unused (no files, no user data, no MusicBrainz id) are removed. Then album and artist art from the folder and files, lyrics (embedded or a `.lrc` sidecar), and `matching.match-album`. After this step the music is browsable and playable.
+3. `library.ingest` `{ rootId, groupKey }` creates or reuses local-only catalog rows (artists, album, release, recordings, release tracks) from the group's tags and links the files, in one transaction. Rows the files already use are reused unless another group has more files on them (or as many and an older file), so a group that loses a file keeps its rows whichever of the two is ingested first; rows with a MusicBrainz id in the tags are found by it or created with it, and are never renamed from tags afterwards. A group with a matched or locked file is only relinked. Rows that end up unused (no files, no user data, no MusicBrainz id) are removed. Then album and artist art from the folder and files, lyrics (embedded or a `.lrc` sidecar), and `matching.match-album`. After this step the music is browsable and playable.
 4. `library.analyze` (low priority) computes the audio hash and sets `probe_stage 2`. A new file whose hash matches a row whose file is gone is that row moved: the old row takes the new path and keeps its id, links and match state. Then `loudness.measure`.
 5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. It applies under the catalog lock, like ingest. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start.
 6. `enrichment.album` and `enrichment.artist` (queued by the match) fill in covers, images, bios, Deezer ids and lyrics; see "Enrichment".
@@ -324,6 +328,20 @@ receiving ──commit──▶ processing: extracting → moving → identifyin
 - **Completion** is read from the row; every status and step change publishes `import.updated` to the owner and admins.
 - **Inbox.** One worker (an advisory lock) polls the inbox (`inboxPath`, else `SQUIRMY_INBOX_PATH`) and takes each top-level item once it has been unchanged and readable for five seconds, moving it into staging. What an import does not take, and failed inbox imports, go to `Not imported/<importId>/` in the inbox. The inbox may not overlap a library root or the data folder.
 - **`imports.sweep`** (every 15 minutes and at worker start) expires imports stuck receiving, re-queues processing ones and removes orphaned staging folders.
+
+### Acquisition
+
+`modules/acquisition` implements the server side of [provider-protocol.md](./provider-protocol.md). Nothing happens until an admin adds a provider.
+
+- **Providers** are rows in `acquisition_providers`; the secret is encrypted with `encrypt('acquisition-provider-secret', …)`. A provider counts once it is enabled and has answered `capabilities`. The enabled list is cached in memory for 30 seconds (and dropped on every change in that process), so `onDemandRecordings` costs nothing without one. Every call goes through `client.ts`: timeouts, the bearer secret, redirects only within the provider's origin, at most 4 MiB read, contract validation; failures are `ProviderCallError` and end up in `last_error` or the job's `error`.
+- **Policy** is the `acquisition_policy` row of `server_settings` (`AcquisitionPolicy`): lossless preference, per-file limit, storage quota, timeout, target root, and the delivery base URL (the policy's, else `PUBLIC_URL`, else localhost).
+- **Coverage** (`onDemandRecordings`). An `assume_available` provider covers every recording without a miss newer than a day (`acquisition_misses`). A `must_resolve` provider covers recordings with a positive resolve newer than 30 days (`acquisition_offers`, free offers only). Recordings it has never answered for are collected in memory for a quarter second, queued as `acquisition.resolve` jobs of up to 100, and remembered for ten minutes so lists do not queue them again; when the answers arrive, the tracks, their albums and searches are invalidated.
+- **Requests** (`requestRecording` from sessions, the acquire routes). The user must be an admin or have `can_acquire`, a provider without a recent miss must remain, there must be a root to file into, and acquired files must be under the quota (otherwise a `rejected` job is recorded). One job per target is in flight: the `idempotency_key` is `recording:<id>` or `album:<id>` and gets the job id appended when the job ends. A request that cannot go ahead is answered as failed straight away, unless another job is fetching that recording.
+- **Jobs.** `acquisition.start` picks an offer (fresh cached offers, else a resolve, providers in priority order), waits for a slot under the provider's `maxConcurrent`, claims the job with a new random token (only its SHA-256 is stored) and calls `acquire`. Deliveries stream into an import of kind `acquisition` (created on the first upload, filed into the policy's root) under the policy's per-file limit. `complete` commits the import, and `acquisition.finish` waits for it and verifies the delivery (`verify.ts`, rules in the protocol document), merging rows with `mergeRecording` where a delivered file is plainly the requested recording. `acquisition.sweep` (every minute and at worker start) fails jobs past the timeout, polls providers of jobs quiet for a minute, re-queues the start of jobs stuck in `resolving` and the finish of jobs in `importing`, and deletes expired misses and offers.
+- **Outcomes reach the sessions** through the `squirmy_acquisition` NOTIFY channel, which the API process applies with `markRecordingReady` / `markRecordingFailed`. Because sessions ask once per load, the API process also reconciles every 30 seconds while a provider is active: recordings of jobs that ended in the last ten minutes are marked ready when owned, and failed when not owned and no job is still on them.
+- **Events.** Every status change publishes `acquisition.updated` to the requesting user and to admins.
+
+The reference providers live in `adapters/`. `@squirmy/provider-kit` is the protocol's provider side (HTTP, secret, validation, idempotent jobs, streaming uploads); `adapters/cold-storage` indexes a folder's tags and resolves by MusicBrainz id, ISRC, then artist, title and length; `adapters/mock` synthesizes quiet tones and can be slow, failing, wrong or priced. The server's tests run the mock in-process.
 
 ### External metadata
 
@@ -393,13 +411,21 @@ Catalog data reaches views through props typed with the contracts; session state
 ```
 apps/mobile/
   app/                   expo-router routes; the root layout gates connect → sign-in → (tabs)
-  src/account/           server address, auth state machine, AccountProvider, connect and sign-in screens
+  src/account/           server address, auth state machine, AccountProvider, connect, sign-in and settings screens
+  src/data/              query hooks, the persisted cache, RealtimeProvider, LibraryProvider (likes, playlists, TrackStore)
+  src/library/           browse screens' parts: album, artist, playlist and genre pages, song lists, track actions
+  src/player/            Now Playing parts, the queue, session view logic (session.ts), lyrics
   src/player/engine/     ExpoAudioEngine (PlayerEngine on expo-audio) and the lock screen adapter
+  src/playback.tsx       PlaybackProvider: the SessionClient, its hooks (usePlaybackState, usePosition)
   src/dev/               development-only screens (the engine bench at /dev/engine)
   modules/now-playing/   local Expo module: Now Playing info and remote commands as JS events
 ```
 
-`AccountProvider` owns the auth state: it restores the stored session (holding the splash until the server confirms it, or for at most three seconds offline), creates the API client with the bearer token, and returns to sign-in on a 401. Lock screen buttons arrive through `connectNowPlaying` as callbacks; the caller turns them into session commands, never engine calls.
+- **Accounts.** `AccountProvider` owns the auth state: it restores the stored session (holding the splash until the server confirms it, or for at most three seconds offline), creates the API client with the bearer token, and returns to sign-in on a 401.
+- **Data.** Query keys come from `queryKeys`; lists are infinite queries over the cursor pages. The cache is saved to app storage (expo-sqlite `localStorage`) per server and user, restored before the splash hides, and removed on sign-out. Every response that carries track summaries primes one `TrackStore`, which hydrates queue entries and the lock screen. Likes apply at once and roll back on failure.
+- **Realtime.** `RealtimeProvider` opens one socket per signed-in session with `auth.token`. `invalidate` refreshes the named queries (and refetches a changed track's like); every reconnect refreshes all of them. The socket is renewed when the app returns after being suspended (no server ping for 30 seconds) and when the network type changes. A refused handshake rechecks `me`, so a revoked session signs out.
+- **Playback.** `PlaybackProvider` runs a `SessionClient` on that socket with `ExpoAudioEngine` (`canBoost: false`) and the user's normalization mode. `resolvePlayback` asks for the entry's album, the quality setting for the current network (Wi-Fi or cellular) and the codecs AVPlayer decodes. Components read the session through `usePlaybackState`; the position is polled with `usePosition` by the few components that show it. While another device is active the engine is stopped and the lock screen cleared. An engine error skips the track with a notice, or pauses when the next one fails too.
+- **Lock screen.** Buttons arrive through `connectNowPlaying` as callbacks; the provider turns them into session commands, never engine calls. The system's own pause (calls, unplugged headphones) becomes a session `pause`.
 
 ## Testing
 

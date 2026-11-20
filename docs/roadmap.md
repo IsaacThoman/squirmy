@@ -22,15 +22,14 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Loudness measurement and normalization values
 - [x] Likes, playlists, history, user settings
 - [x] Web app: setup, login, library, album and artist pages, player, queue
-- [ ] Mobile app: connect, login, real data, real audio, lock-screen controls
+- [x] Mobile app: connect, login, real data, real audio, lock-screen controls
 
 ## 3. Connect
 
 - [x] Server-held session with command log and versions
-- [x] Device list, transfer, remote control (web)
-- [x] Reconnect rule and device-lost handling (server, client-core, web)
-- [x] Live invalidations on web
-- [ ] Live invalidations on mobile
+- [x] Device list, transfer, remote control
+- [x] Reconnect rule and device-lost handling
+- [x] Live invalidations on web and mobile
 
 ## 4. Identify and reorganize
 
@@ -67,9 +66,9 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 8. Providers and extras
 
-- [ ] Acquisition provider protocol, on-demand playback, policy
-- [ ] Reference adapters: cold storage and mock
-- [x] Scrobbling to ListenBrainz and Last.fm (server, API and web settings)
+- [x] Acquisition provider protocol, on-demand playback, policy (server and API; admin screens to do) ([provider-protocol.md](./provider-protocol.md))
+- [x] Reference adapters: cold storage and mock (`adapters/`)
+- [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
 - [x] Radio and autoplay (server and API)
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [ ] Documentation site
@@ -77,4 +76,3 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 ## Deferred
 
 - Purchasing through acquisition providers (priced offers, caps, budgets)
-- Bandcamp collection adapter

@@ -104,9 +104,10 @@ export function setRateLimitsEnabled(enabled: boolean) {
 /**
  * Reserves the next request slot for `key` and waits until it. The reservation is one
  * upsert on `rate_limits`, so callers in any process queue in the order the database
- * sees them and are spaced at least `intervalMs` apart.
+ * sees them and are spaced at least `intervalMs` apart. Returns how long it waited, in
+ * milliseconds.
  */
-export async function rateLimit(key: string, intervalMs: number): Promise<void> {
+export async function rateLimit(key: string, intervalMs: number): Promise<number> {
   const interval = sql`(${intervalMs}::double precision * interval '1 millisecond')`
   const rows = await db.execute<{ wait_ms: number }>(sql`
     with clock as (select clock_timestamp() as now)
@@ -116,7 +117,9 @@ export async function rateLimit(key: string, intervalMs: number): Promise<void> 
     returning (extract(epoch from r.next_at - (select now from clock)) * 1000 - ${intervalMs}::double precision)::double precision as wait_ms
   `)
   const wait = Number(rows[0]?.wait_ms ?? 0)
-  if (wait > 0) await sleep(wait)
+  if (wait <= 0) return 0
+  await sleep(wait)
+  return wait
 }
 
 /**

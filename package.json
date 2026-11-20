@@ -9,7 +9,8 @@
   },
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "adapters/*"
   ],
   "scripts": {
     "postinstall": "patch-package",
@@ -18,9 +19,10 @@
     "dev:web": "npm run dev -w @squirmy/web",
     "dev:mobile": "npm run start -w @squirmy/mobile",
     "build:packages": "npm run build -w @squirmy/contracts && npm run build -w @squirmy/client-core",
-    "build": "npm run build:packages && npm run build --workspaces --if-present",
-    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
-    "test": "npm run build:packages && npm run test --workspaces --if-present",
+    "build:adapters": "npm run build -w @squirmy/provider-kit && npm run build -w @squirmy/adapter-mock && npm run build -w @squirmy/adapter-cold-storage",
+    "build": "npm run build:packages && npm run build:adapters && npm run build --workspaces --if-present",
+    "typecheck": "npm run build:packages && npm run build:adapters && npm run typecheck --workspaces --if-present",
+    "test": "npm run build:packages && npm run build:adapters && npm run test --workspaces --if-present",
     "lint": "oxlint --report-unused-disable-directives --deny-warnings",
     "db:generate": "npm run db:generate -w @squirmy/server",
     "db:migrate": "npm run db:migrate -w @squirmy/server",

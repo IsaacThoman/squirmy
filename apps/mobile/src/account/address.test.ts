@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayAddress, isExposedHttp, parseServerAddress } from './address';
+import { displayAddress, isExposedHttp, parseServerAddress, socketAddress } from './address';
 
 describe('parseServerAddress', () => {
   it('tries https before http when the scheme is missing', () => {
@@ -56,5 +56,13 @@ describe('isExposedHttp', () => {
     for (const url of ['http://music.example.com', 'http://8.8.8.8:4747', 'http://172.32.0.1']) {
       expect(isExposedHttp(url), url).toBe(true);
     }
+  });
+});
+
+describe('socketAddress', () => {
+  it('connects to the origin, under any reverse proxy prefix', () => {
+    expect(socketAddress('http://192.168.1.20:4747')).toEqual({ origin: 'http://192.168.1.20:4747', path: '/socket.io' });
+    expect(socketAddress('https://home.example.com/squirmy')).toEqual({ origin: 'https://home.example.com', path: '/squirmy/socket.io' });
+    expect(socketAddress('http://[fd00::2]:4747/a/b/')).toEqual({ origin: 'http://[fd00::2]:4747', path: '/a/b/socket.io' });
   });
 });

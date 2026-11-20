@@ -6,6 +6,9 @@ import { Platform, PlatformColor } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AccountProvider, createQueryClient, useAccount } from '../src/account/AccountProvider';
+import { LibraryProvider } from '../src/data/library';
+import { RealtimeProvider } from '../src/data/realtime';
+import { NoticeProvider } from '../src/Notice';
 import Player from '../src/Player';
 import { PlayerTransitionProvider } from '../src/player/transition';
 import { PlaybackProvider } from '../src/playback';
@@ -28,12 +31,18 @@ export default function RootLayout() {
       <ThemeProvider value={theme}>
         <QueryClientProvider client={queryClient}>
           <AccountProvider>
-            <PlaybackProvider>
-              <PlayerTransitionProvider>
-                <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
-                <Routes />
-              </PlayerTransitionProvider>
-            </PlaybackProvider>
+            <NoticeProvider>
+              <RealtimeProvider>
+                <LibraryProvider>
+                  <PlaybackProvider>
+                    <PlayerTransitionProvider>
+                      <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
+                      <Routes />
+                    </PlayerTransitionProvider>
+                  </PlaybackProvider>
+                </LibraryProvider>
+              </RealtimeProvider>
+            </NoticeProvider>
           </AccountProvider>
         </QueryClientProvider>
       </ThemeProvider>
@@ -67,7 +76,9 @@ function Routes() {
         <Stack.Screen name="(tabs)" options={authOptions} />
         <Stack.Screen name="devices" options={sheet} />
         <Stack.Screen name="track-actions" options={sheet} />
+        <Stack.Screen name="add-to-playlist" options={sheet} />
         <Stack.Screen name="account" options={sheet} />
+        <Stack.Screen name="settings" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
         <Stack.Protected guard={__DEV__}>
           <Stack.Screen name="dev/engine" options={{ presentation: 'modal' }} />
         </Stack.Protected>

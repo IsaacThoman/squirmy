@@ -479,6 +479,23 @@ describe('SessionClient engine', () => {
     expect(engine.getStatus()).toMatchObject({ state: 'playing', positionMs: 0 })
   })
 
+  it('retries a failed entry when asked to play again or to seek, not on its own', async () => {
+    const { client, engine, resolvePlayback, calls, settle } = await playingHere()
+    engine.fail('unreachable')
+    await settle()
+    expect(calls('load')).toHaveLength(1)
+    client.dispatch({ type: 'pause' })
+    client.dispatch({ type: 'play' })
+    await settle()
+    expect(calls('load')).toHaveLength(2)
+    expect(resolvePlayback).toHaveBeenCalledTimes(3)
+    expect(engine.getStatus().state).toBe('playing')
+    engine.fail('unreachable')
+    client.dispatch({ type: 'seek', positionMs: 30_000 })
+    await settle()
+    expect(calls('load').at(-1)).toMatchObject(['load', { startMs: 30_000, autoplay: true }])
+  })
+
   it('stops the engine when another device takes over', async () => {
     const { server, transport, client, engine } = await playingHere()
     server.apply({ type: 'transfer', deviceId: WEB }, WEB)

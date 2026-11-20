@@ -4,6 +4,7 @@ import { db } from '../../database/client.js'
 import { transcodes, users } from '../../database/schema.js'
 import { sign, verify } from '../../lib/crypto.js'
 import { notFound } from '../../lib/errors.js'
+import { resolveOne } from '../catalog/redirects.js'
 import { normalizationFor } from '../loudness/normalization.js'
 import { codecFamily, mimeFor, outputSampleRate, profiles } from './profiles.js'
 import { selectFile } from './select.js'
@@ -42,12 +43,14 @@ export async function verifyStreamSignature(fileId: string, profile: StreamProfi
 }
 
 /**
- * `GET /tracks/:id/playback`: picks the file and profile for the recording, signs a URL for
- * `userId`, and describes what that URL will deliver. Throws 404 `not_available` when the
- * recording has no present file.
+ * `GET /tracks/:id/playback`: picks the file and profile for the recording (after following
+ * merges), signs a URL for `userId`, and describes what that URL will deliver. Throws 404
+ * `not_available` when the recording has no present file.
  */
 export async function buildPlaybackDescriptor(userId: string, recordingId: string, query: PlaybackQuery): Promise<PlaybackDescriptor> {
-  const selection = await selectFile(recordingId, { albumId: query.albumId, codecs: query.codecs, quality: query.quality })
+  // Queue entries and playlists keep ids that later lost a merge.
+  const target = await resolveOne('recordings', recordingId) ?? recordingId
+  const selection = await selectFile(target, { albumId: query.albumId, codecs: query.codecs, quality: query.quality })
   if (!selection) throw notFound('No file of this track is available', 'not_available')
   const { file, profile } = selection
   const { url, expiresAt } = signStreamUrl(file.id, profile, userId, { download: query.download })

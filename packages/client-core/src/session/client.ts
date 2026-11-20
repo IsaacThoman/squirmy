@@ -434,13 +434,20 @@ export class SessionClient {
       if (this.loadingEntryId !== current.id) void this.load(current)
       return
     }
+    if (status.state === 'error') {
+      // The engine cannot recover a failed entry. Pressing play again or seeking retries it
+      // with a fresh descriptor; other updates (such as the stall the error report causes) do not.
+      const retry = forceSeek || (session.playing && !previous.playing)
+      if (retry && this.loadingEntryId !== current.id) void this.load(current)
+      return
+    }
     const moved = previous.current?.id !== current.id || previous.positionMs !== session.positionMs || previous.anchorAt !== session.anchorAt
     if (forceSeek || moved) {
       const expected = positionAt(session, this.serverNow())
       if (forceSeek || Math.abs(expected - status.positionMs) > this.driftThresholdMs) engine.seek(expected)
     }
     const running = status.state === 'playing' || status.state === 'buffering' || status.state === 'loading'
-    if (session.playing && !running && status.state !== 'error') engine.play()
+    if (session.playing && !running) engine.play()
     if (!session.playing && running) engine.pause()
     this.applyGain(current)
     this.preloadNext()

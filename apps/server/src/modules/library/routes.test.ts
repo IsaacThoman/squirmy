@@ -11,6 +11,7 @@ import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { makeAlbum } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { libraryModule } from './index.js'
+import { stopProgress } from './progress.js'
 import { addConfiguredRoots } from './roots.js'
 
 describe('library roots API', () => {
@@ -44,6 +45,8 @@ describe('library roots API', () => {
   afterAll(async () => {
     await app.close()
     await stopJobs()
+    // Its debounce timers would otherwise fire after the database is gone.
+    await stopProgress()
     await rm(base, { recursive: true, force: true })
   })
 

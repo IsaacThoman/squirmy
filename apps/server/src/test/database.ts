@@ -41,7 +41,8 @@ export function useTestDatabase() {
   afterAll(async () => {
     // pg-boss holds its own connections, which would fail loudly once the database is dropped.
     await stopJobs()
-    await closeDb()
+    // Final: nothing that outlives the file may reconnect to the database dropped below.
+    await closeDb({ final: true })
     const admin = postgres(adminUrl(), { max: 1, onnotice: () => {} })
     await admin.unsafe(`drop database if exists "${name}" with (force)`)
     await admin.end()

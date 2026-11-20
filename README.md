@@ -24,7 +24,7 @@ To build the image yourself, run `docker compose build`.
 
 ## Mobile app
 
-The app in `apps/mobile` is still the prototype: browse the fictional catalog, open an album, and tap the mini-player to open Now Playing. Playback, favorites, queue state, and the selected output persist locally.
+The iOS app in `apps/mobile` connects to your Squirmy server, browses and searches your library, and plays it, in step with your other devices.
 
 ### Run locally
 
@@ -48,17 +48,16 @@ SQUIRMY_APP_VARIANT=development npx expo start --dev-client --lan --scheme squir
 
 Open the project in Squirmy Dev using the terminal QR code or the Metro URL. JavaScript changes use Fast Refresh. Rebuild Squirmy Dev when native dependencies change.
 
-### Try the prototype
+### Using the app
 
-- Tap the mini-player, or pull it up, to expand it. Tap the grabber or drag down across the artwork or song details to collapse it back into the mini-player. Either way the player follows your finger, and you can let go partway.
-- Swipe left on Now Playing for the next track or right for the previous-track action. The Lyrics and Queue buttons sit below the volume slider. Tap either button again to return to the artwork.
-- In Queue, pull the list down to reveal tracks played earlier. Scroll past Up Next for Autoplay. Drag a reorder handle, or swipe left on a track for Play Next and Remove.
-- Open any album and tap the heart next to a song’s overflow button. Find it again in Library under Liked Songs.
-- Open Playback Device from the mini-player or Now Playing to move the simulated output. The mini-player and Now Playing continue to display and control the same playback session when the output changes.
+On first launch the app asks for your server's address and signs in to it. After that it is your library: Home, Library (playlists, albums, artists and songs), Search, album, artist and playlist pages, and Now Playing with lyrics and the queue. The library is cached on the phone, so it opens instantly and stays browsable offline.
 
-On first launch the app asks for your server's address and signs in to it; an account button on Home shows the server and signs out or switches servers. Behind the sign-in, the screens still show the prototype.
-
-The playback clock, music catalog, lyrics, autoplay, and device switching are demo data and behavior. The prototype does not stream audio, connect to physical playback devices, or synchronize separate app installations.
+- Playback is the server-held session shared by all your devices. Whatever plays on the web or another phone shows here too, and the phone becomes a remote with no sound of its own. Playback Device, from the mini-player or Now Playing, moves playback between devices and sets the playing device's volume. Pressing play when nothing is playing makes this phone the player.
+- Audio keeps playing in the background, with lock screen and Control Center controls.
+- Tap the mini-player, or pull it up, to expand it. Drag down across the artwork or song details to collapse it. Swipe left or right on Now Playing to skip.
+- In Queue, pull the list down for your listening history. Drag to reorder, or swipe a track for Play Next and Remove.
+- Every song has a menu: play next or last, like, add to a playlist, start a radio, go to its album or artist. Songs that are not in your library are gray and can be added to your wantlist.
+- Settings, in the account sheet, holds volume normalization, streaming quality on Wi-Fi and on cellular, and scrobbling to ListenBrainz and Last.fm.
 
 ### Engine bench
 
