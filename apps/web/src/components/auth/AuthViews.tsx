@@ -3,6 +3,7 @@ import { ArrowRight, Check, FolderOpen, PartyPopper, RotateCw, ServerCrash } fro
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useFormSubmit, type FormErrors } from '@/api/errors'
+import { rootPathErrors } from '@/api/folders'
 import { ManagedSwitch } from '@/components/admin/ManagedSwitch'
 import { Logo } from '@/components/layout/Sidebar'
 import { Button } from '@/components/ui/button'
@@ -170,7 +171,7 @@ type SetupLibraryProps = {
 export function SetupLibraryView({ path, listing, listingError, onBrowse, onAddFolder, onSkip }: SetupLibraryProps) {
   const [name, setName] = useState('Music')
   const [managed, setManaged] = useState(false)
-  const form = useFormSubmit(CreateLibraryRootRequest, onAddFolder)
+  const form = useFormSubmit(CreateLibraryRootRequest, onAddFolder, rootPathErrors)
   const submit = (event: FormEvent) => {
     event.preventDefault()
     void form.submit({ name, path: listing?.path ?? '', mode: managed ? 'managed' : 'read_only', watch: true })
@@ -196,8 +197,8 @@ export function SetupLibraryView({ path, listing, listingError, onBrowse, onAddF
   )
 }
 
-/** Step three. `folderPath` is the folder being scanned; without one, `note` says why not. */
-export function SetupDoneView({ folderPath, note, onFinish }: { folderPath?: string; note?: string; onFinish: () => void }) {
+/** Step three. `folderPath` is the folder being scanned, if one was added. */
+export function SetupDoneView({ folderPath, onFinish }: { folderPath?: string; onFinish: () => void }) {
   return (
     <SetupFrame
       step={2}
@@ -209,7 +210,6 @@ export function SetupDoneView({ folderPath, note, onFinish }: { folderPath?: str
       <div className="flex flex-col items-center gap-5 text-center">
         <div className="flex size-16 items-center justify-center rounded-full bg-selection text-accent"><PartyPopper className="size-7" /></div>
         {folderPath && <p className="text-sm text-muted">Scanning <span className="break-all font-mono text-foreground">{folderPath}</span></p>}
-        {note && <p role="status" className="rounded-xl bg-surface px-3.5 py-2.5 text-sm text-muted">{note}</p>}
         <Button variant="primary" size="lg" className="w-full" onClick={onFinish}>Start listening</Button>
       </div>
     </SetupFrame>

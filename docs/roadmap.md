@@ -37,7 +37,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Album matching tiers, review queue, fix match, merges
 - [x] Enrichment: covers, artist images, bios, lyrics, external ids, new-release feed (server)
 - [x] Managed roots: preview, apply, journal, undo (server and API)
-- [ ] Organize screens in the admin UI
+- [x] Admin screens for library folders, the review queue, Fix match and Organize (web)
 - [x] Tag writing with verification
 
 ## 5. OpenSubsonic
@@ -69,7 +69,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Reference adapters: cold storage and mock
 - [x] Scrobbling to ListenBrainz and Last.fm (server and API; settings screens to do)
 - [x] Radio and autoplay (server and API)
-- [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider
+- [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [ ] Documentation site
 
 ## Deferred

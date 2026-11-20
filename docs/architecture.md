@@ -202,12 +202,12 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/scrobbling`, `PUT/DELETE /me/scrobbling/listenbrainz`, `POST /me/scrobbling/lastfm/start`, `DELETE /me/scrobbling/lastfm` | scrobble | every mutation returns `ScrobblingStatus` |
 | `GET /scrobbling/lastfm/callback` | scrobble | no session needed: the signed `state` names the user; redirects to `/settings?lastfm=…` |
 | `POST /radio/track/:id`, `POST /radio/artist/:id` | radio | `RadioResponse`, played with `playTracks` |
-| `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files |
+| `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files; candidates come with the album's files |
 | `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `GET/POST /imports`, `GET/DELETE /imports/:id`, `POST /imports/:id/files`, `POST /imports/:id/commit` | imports | admins and members with `canUpload`; multipart upload; `DELETE` cancels while receiving; a list shows your own imports, or all for an admin |
 | `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request; play does it implicitly |
-| `GET/DELETE /admin/catalog-index`, `POST /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
+| `GET/DELETE /admin/catalog-index`, `POST/DELETE /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
 | `/rest/*` | subsonic | OpenSubsonic, XML and JSON |
 
 ### Availability
@@ -379,7 +379,9 @@ apps/web/src/
 - **Bootstrap.** One API client (same origin, `client: 'web'`) and one `QueryClient`. Before any route renders, `GET /setup/status` and `GET /auth/me` load. Guards: a server without an admin shows the setup wizard on every route; signed-out visitors go to `/login?next=…`; admin routes need the admin role. Signing in or out only changes the cached `me`, and the guards navigate. A 401 from any request signs out; other failures become a toast with the server's message, unless the query or mutation says it shows them itself (`meta: { silent }`, `meta: { inline }`).
 - **Forms** validate with the contract schemas (`useFormSubmit`), show issues under their fields, and map known error codes onto fields.
 - **Realtime.** `RealtimeProvider` opens one socket per signed-in user. `invalidate` refreshes the named queries, every reconnect refreshes all of them, and the shell shows a notice when the socket has been down for three seconds. The socket is in the context for `SessionClient`.
-- **Audio.** `WebPlayerEngine` alternates two `<audio>` elements, each through its own `GainNode`, so normalization can boost. When the browser refuses to start audio the entry goes to `error` and the shell offers "Enable audio", which calls `unlock()` from the click. `/dev/engine` drives it with tones from `scripts/dev-audio.mjs`; `scripts/e2e-engine.mjs` checks it against the contract in Chromium, and `scripts/e2e-auth.mjs` walks the account flows against a fresh server.
+- **Audio.** `WebPlayerEngine` alternates two `<audio>` elements, each through its own `GainNode`, so normalization can boost. When the browser refuses to start audio the entry goes to `error` and the shell offers "Enable audio", which calls `unlock()` from the click. `/dev/engine` drives it with tones from `scripts/dev-audio.mjs`; `scripts/e2e-engine.mjs` checks it against the contract in Chromium, `scripts/e2e-auth.mjs` walks the account flows against a fresh server, and `scripts/e2e-admin.mjs` the admin flows (setup with a real folder, scans, reviews, Fix match, Organize on disk, the search index).
+
+- **Admin.** Pages in `pages/admin.tsx` (lazy) feed views in `components/admin/`. Scan progress comes from `scan.progress` events and invalidations; Organize and index imports report progress only in the database, so those screens poll while one runs. `components/admin/FixMatch.tsx` is the entry point other screens use for Fix match; it loads its dialog on demand.
 
 Catalog data reaches views through props typed with the contracts; session state and user actions come from `PlayerContext` and `LibraryContext`, whose providers are the only code that talks to `SessionClient` and the API. `/dev/kitchen-sink` shows every component state.
 

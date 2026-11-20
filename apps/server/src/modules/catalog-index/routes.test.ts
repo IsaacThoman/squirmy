@@ -1,11 +1,15 @@
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { CatalogIndexStatus } from '@squirmy/contracts'
+import { eq } from 'drizzle-orm'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { getConfig } from '../../config.js'
+import { db } from '../../database/client.js'
+import { catalogIndexImports } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
+import { newId } from '../../lib/ids.js'
 import { useTestDatabase } from '../../test/database.js'
 import { buildDump, testCatalog } from './fixtures.js'
 import { catalogIndexModule } from './index.js'
@@ -77,6 +81,21 @@ describe('catalog index admin routes', () => {
     const current = await status()
     expect(current).toMatchObject({ ready: true, latest: { state: 'failed', source: '/nowhere/dump.tar.zst' } })
     expect(current.latest?.error).toMatch(/ENOENT/)
+  })
+
+  it('cancels a running import and keeps the index', async () => {
+    const idle = await call({ method: 'DELETE', url: '/api/v1/admin/catalog-index/import', headers: admin })
+    expect(idle.statusCode).toBe(409)
+    expect(idle.json()).toMatchObject({ error: { code: 'catalog_index_import_not_running' } })
+
+    const [running] = await db.insert(catalogIndexImports).values({ id: newId(), state: 'running', phase: 'download' }).returning()
+    const response = await call({ method: 'DELETE', url: '/api/v1/admin/catalog-index/import', headers: admin })
+    expect(response.json()).toEqual({ ok: true })
+    const [row] = await db.select().from(catalogIndexImports).where(eq(catalogIndexImports.id, running!.id))
+    expect(row!.cancelRequested).toBe(true)
+    await db.update(catalogIndexImports).set({ state: 'cancelled' }).where(eq(catalogIndexImports.id, running!.id))
+    expect(await status()).toMatchObject({ ready: true, latest: { state: 'cancelled' } })
+    expect(await isCatalogIndexReady()).toBe(true)
   })
 
   it('validates the request', async () => {
