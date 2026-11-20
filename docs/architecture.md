@@ -169,7 +169,7 @@ await schedule('library.scan-all', '0 4 * * *')
 
 ### HTTP API
 
-All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`.
+All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`; short lists (users, invites, app passwords, roots, devices) return every item with `nextCursor: null`. `GET /admin/jobs` returns a bare array. `createApiClient` in client-core has one method per route below, and its response schemas are the reference for each route's shape.
 
 | Route | Module | Notes |
 |---|---|---|
@@ -211,16 +211,22 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 - Clients ask `GET /tracks/:id/playback` and receive a signed URL. The stream route accepts the signature instead of a session so `<audio>`, AVPlayer and downloads need no headers. Signatures bind the file id, profile, user id and an expiry of 12 hours.
 - File choice: files of the recording that belong to the requested album first, then lossless over lossy, then higher bitrate.
 - `quality=original` serves the file as is when the client's codec list includes its codec, and transcodes to `aac_256` otherwise. `high` is `aac_256`. `data_saver` is `opus_128` when the client lists opus and `mp3_192` otherwise. The mapping lives in `streaming/profiles.ts`.
-- A transcode is written to the cache while it is streamed to the first requester; later requests get the cached file with Range support.
+- Signed URLs carry `exp` (epoch seconds), `uid` and `sig`, an HMAC from `sign('stream', …)`. A request without a valid signature may use the session instead.
+- A transcode is written to the cache while it is streamed to the first requester; later requests get the cached file with Range support. ffmpeg writes to a pipe, so every streamed byte is final: AAC 256k in ADTS (`.aac`), Opus 128k in Ogg, MP3 at constant bitrate without a Xing frame. Encoders: `aac`, `libopus`, `libmp3lame`.
+- Requests for the same transcode share one ffmpeg per process; a client that leaves does not stop it. At most half the CPU cores (at least two) encode at once.
+- `streaming.transcode` `{ fileId, profile }` builds a transcode ahead of time. `streaming.evict` runs hourly and at worker start: it reconciles rows with files on disk and deletes least-recently-used transcodes beyond `transcodeCacheMaxBytes`.
 - Normalization values: prefer measured loudness (`-18 − loudness_lufs` gives the gain); fall back to the file's ReplayGain tags. Album values come from `release_loudness`.
+- Loudness is EBU R128 from ffmpeg's `ebur128` filter. `loudness.measure` `{ fileId }` stores a file's integrated loudness and true peak, then queues `loudness.album` `{ releaseId }`, which decodes the release's present files in track order through one concat filter, so gating covers the album as a whole. `loudness.sweep` (every 10 minutes and at worker start) queues files with no loudness in batches of 500 and releases whose file set changed. Silent and very short files store -70 LUFS, which yields no gain.
 
 ### Sessions
 
-The server holds one session per user in memory, persisted to `playback_sessions` on change (debounced one second). Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed.
+The server holds one session per user in memory, loaded on first use and persisted to `playback_sessions` on change (debounced one second, and flushed on shutdown). This assumes one API process: the copy in memory is the truth, so functions that change sessions (`markRecordingReady`, `replaceQueue`) must run in that process. Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed (`queueChanged`), emitted just before the `session:state` of the same version.
 
-- **Active device.** The first device that sends a command that starts playback while no device is active becomes active. `transfer` changes it. Only the active device may send `trackEnded` and engine reports.
-- **Disconnects.** If the active device's last socket closes, the server waits 20 seconds, then applies `deviceLost` (pause at the last known position, clear the active device).
-- **Plays.** A play row opens when an entry starts on the active device and closes when it ends or changes. It counts as completed after half the track or four minutes.
+- **Commands.** The server passes the envelope's `commandId` to the reducer (new entry ids derive from it), remembers recent command ids and acks a duplicate without applying it again, and acks a command before broadcasting its result. Server-issued commands use a fresh id. A user's commands, reports and hellos run one at a time, in arrival order.
+- **Trusted entries.** For `playTracks` and `enqueue` the server keeps only the track ids the client sent: it follows merges, takes durations from the database, drops tracks that are neither owned nor on demand, and sets `ready` or `preparing` itself.
+- **Active device.** The first device that can play and sends a command that starts playback while no device is active becomes active. `transfer` changes it, and only to a connected device that can play. Only the active device may send `trackEnded` and engine reports. A report that is more than a second off the computed position, or changes whether playback is stalled, becomes `syncPosition`.
+- **Disconnects.** If the active device's last socket closes, the server waits 20 seconds, then applies `deviceLost` (pause at the last known position, clear the active device). A session loaded after a restart gives its absent active device the same grace.
+- **Plays.** A play row opens when an entry is current and running on the active device and closes when the entry changes or stops at its end. Listened time comes from the session's position arithmetic, so pauses and seeks add nothing. Plays under five seconds are skips and leave no row; one counts as completed after half the track or four minutes. Writing one invalidates history and home.
 - **On demand.** When the current or an upcoming entry is `on_demand`, the acquisition module is asked for it and the entry is `preparing` until the file is linked, then `setEntryState` flips it to `ready`.
 - **Autoplay.** When the queue is nearly empty and autoplay is on, the radio module supplies `setAutoplayQueue`.
 
@@ -252,13 +258,28 @@ All clients live in `modules/metadata/` and go through `lib/http.ts`:
 
 `client-core` holds everything both clients share and has no React, DOM or React Native imports:
 
-- `reduceSession(state, { command, now })`: the pure session reducer, also run by the server.
-- `SessionClient`: owns the socket, the clock offset, optimistic commands and reconciliation; exposes a store (`getSnapshot`, `subscribe`) for `useSyncExternalStore`.
-- `PlayerEngine`: the interface each platform implements (`load`, `preload`, `play`, `pause`, `seek`, `setVolume`, status events). `SessionClient` drives it when this device is active.
+- `reduceSession(state, { command, now, commandId, deviceId })`: the pure session reducer, also run by the server.
+- `SessionClient`: owns the socket (through `createSocketTransport` from `@squirmy/client-core/socket`), the clock offset, optimistic commands and reconciliation; exposes a store (`getSnapshot`, `subscribe`) for `useSyncExternalStore`.
+- `PlayerEngine`: the interface each platform implements (`load`, `preload`, `play`, `pause`, `seek`, `setGain`, `stop`, status events), with a `FakeEngine` for tests. `SessionClient` drives it when this device is active.
 - `createApiClient({ baseUrl, getToken })`: typed fetch wrapper for every route, returning contract types.
-- Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork URL helpers.
+- `TrackStore`: batched, cached `TrackSummary` hydration for queue entries.
+- Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork and stream URL helpers.
 
 **Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. Colors and type follow the mobile theme in `apps/mobile/src/theme.ts`. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
+
+```
+apps/web/src/
+  components/ui/       primitives (button, slider, menu, dialog, …)
+  components/music/    covers, cards, rails, track lists
+  components/player/   player bar, mini-player, queue, devices, Now Playing
+  components/layout/   app shell, sidebar, top bar, tab bar
+  components/views/    one presentational view per page; data arrives as props
+  pages/               route containers: fetch data, pass it to a view
+  player/              PlayerContext (session state and commands) and LibraryContext (likes, wants)
+  fixtures/            fictional catalog and an in-memory session, until the API is wired
+```
+
+Catalog data reaches views through props typed with the contracts; session state and user actions come from `PlayerContext` and `LibraryContext`, whose providers are the only code that talks to `SessionClient` and the API. `/dev/kitchen-sink` shows every component state.
 
 **Mobile** (`apps/mobile`): the existing Expo app. `expo-audio` implements `PlayerEngine`. The token lives in SecureStore. Screens read through TanStack Query with a persisted cache.
 
