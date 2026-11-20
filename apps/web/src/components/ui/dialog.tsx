@@ -1,7 +1,8 @@
 import { X } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
-import type { ComponentProps, ReactNode } from 'react'
+import { useState, type ComponentProps, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { Button } from './button'
 import { IconButton } from './icon-button'
 
 export const Dialog = DialogPrimitive.Root
@@ -38,4 +39,40 @@ export function DialogContent({ title, description, className, children, ...prop
 
 export function DialogFooter({ className, ...props }: ComponentProps<'div'>) {
   return <div className={cn('flex flex-wrap justify-end gap-2 pt-1', className)} {...props} />
+}
+
+type ConfirmDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  description: ReactNode
+  confirmLabel: string
+  /** Closes the dialog once it resolves; a rejection keeps it open. */
+  onConfirm: () => Promise<unknown>
+}
+
+/** Asks before something that cannot be undone. */
+export function ConfirmDialog({ open, onOpenChange, title, description, confirmLabel, onConfirm }: ConfirmDialogProps) {
+  const [pending, setPending] = useState(false)
+  const confirm = async () => {
+    setPending(true)
+    try {
+      await onConfirm()
+      onOpenChange(false)
+    } catch {
+      // The caller reports the failure; the dialog stays so it can be retried.
+    } finally {
+      setPending(false)
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title={title} description={description}>
+        <DialogFooter>
+          <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+          <Button variant="danger" pending={pending} onClick={() => void confirm()}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }

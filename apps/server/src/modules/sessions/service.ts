@@ -12,7 +12,7 @@ import type { RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { lookupTracks, trustSeeds } from './entries.js'
-import { countUntil, followPlay, insertPlay, isCompleted, savePlay } from './plays.js'
+import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, savePlay } from './plays.js'
 import { connectedDevice, joinDevice, leaveDevice, listDevices } from './presence.js'
 import {
   loadedRecord, loadedRecords, loadRecord, rememberCommand, schedulePersist, serial, type SessionRecord, snapshotOf, unloadAll,
@@ -86,6 +86,7 @@ function commit(record: SessionRecord, next: Session): Change | null {
   if (queue) record.queueVersion += 1
   record.session = next
   const { open, closed } = followPlay(record.play, previous, next, settings.now())
+  if (open && open !== record.play) notifyPlayStart(record.userId, open)
   record.play = open
   if (closed) savePlay(record.userId, closed).catch(report)
   schedulePersist(record, report)

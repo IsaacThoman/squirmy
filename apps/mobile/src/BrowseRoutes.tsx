@@ -20,6 +20,7 @@ function useBrowseProps(tab: Tab) {
     onOpenAlbum: (id: string) => router.push(albumHref(tab, id)),
     onTrackMenu: (id: string) => router.push({ pathname: '/track-actions', params: { id } }),
     onOpenDevices: () => router.push('/devices'),
+    onOpenAccount: () => router.push('/account'),
   };
 }
 

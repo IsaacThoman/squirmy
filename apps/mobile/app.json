@@ -16,11 +16,17 @@
           "dark": { "backgroundColor": "#111014" }
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      ["expo-audio", { "microphonePermission": false, "recordAudioAndroid": false }],
+      ["expo-secure-store", { "faceIDPermission": false }]
     ],
     "ios": {
       "bundleIdentifier": "com.isaacthoman.music",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true },
+        "NSLocalNetworkUsageDescription": "Squirmy connects to your music server on your local network."
+      }
     },
     "android": {
       "package": "com.isaacthoman.music"

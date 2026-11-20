@@ -1,47 +1,76 @@
+import { lazy, Suspense, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
-import { AdminLayout } from '@/components/admin/AdminLayout'
+import { AdminOnly, Bootstrap, RequireSetup, SignedInOnly, SignedOutOnly } from '@/auth/guards'
+import { Page } from '@/components/layout/Page'
+import { Spinner } from '@/components/ui/feedback'
 import { LoginPage, RegisterPage, SettingsPage, SetupPage } from '@/pages/account'
-import {
-  AdminJobsPage, AdminLibraryPage, AdminOrganizePage, AdminProvidersPage, AdminReviewsPage, AdminSettingsPage, AdminUsersPage,
-} from '@/pages/admin'
-import { KitchenSinkPage } from '@/pages/KitchenSink'
 import {
   AlbumPage, ArtistPage, HomePage, LibraryAlbumsPage, LibraryArtistsPage, LibraryPlaylistsPage, LibrarySongsPage, LikedPage, NotFoundPage,
   PlaylistPage, SearchPage, ShellPage, WantlistPage,
 } from '@/pages/music'
 
+// Admin and developer pages are a separate download; most visits never open them.
+const admin = (name: keyof typeof import('@/pages/admin')) => lazy(() => import('@/pages/admin').then(module => ({ default: module[name] })))
+const AdminLayout = admin('AdminLayout')
+const AdminLibraryPage = admin('AdminLibraryPage')
+const AdminReviewsPage = admin('AdminReviewsPage')
+const AdminOrganizePage = admin('AdminOrganizePage')
+const AdminUsersPage = admin('AdminUsersPage')
+const AdminProvidersPage = admin('AdminProvidersPage')
+const AdminSettingsPage = admin('AdminSettingsPage')
+const AdminJobsPage = admin('AdminJobsPage')
+const KitchenSinkPage = lazy(() => import('@/pages/KitchenSink').then(module => ({ default: module.KitchenSinkPage })))
+const EnginePage = lazy(() => import('@/pages/dev-engine').then(module => ({ default: module.EnginePage })))
+
+function Loading({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<Page className="flex justify-center pt-32"><Spinner /></Page>}>{children}</Suspense>
+}
+
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/setup" element={<SetupPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route element={<ShellPage />}>
-        <Route index element={<HomePage />} />
-        <Route path="search" element={<SearchPage />} />
-        <Route path="library" element={<Navigate to="/library/albums" replace />} />
-        <Route path="library/albums" element={<LibraryAlbumsPage />} />
-        <Route path="library/artists" element={<LibraryArtistsPage />} />
-        <Route path="library/songs" element={<LibrarySongsPage />} />
-        <Route path="library/playlists" element={<LibraryPlaylistsPage />} />
-        <Route path="liked" element={<LikedPage />} />
-        <Route path="wantlist" element={<WantlistPage />} />
-        <Route path="album/:id" element={<AlbumPage />} />
-        <Route path="artist/:id" element={<ArtistPage />} />
-        <Route path="playlist/:id" element={<PlaylistPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/admin/library" replace />} />
-          <Route path="library" element={<AdminLibraryPage />} />
-          <Route path="reviews" element={<AdminReviewsPage />} />
-          <Route path="organize" element={<AdminOrganizePage />} />
-          <Route path="users" element={<AdminUsersPage />} />
-          <Route path="providers" element={<AdminProvidersPage />} />
-          <Route path="settings" element={<AdminSettingsPage />} />
-          <Route path="jobs" element={<AdminJobsPage />} />
+      <Route element={<Bootstrap />}>
+        <Route path="/setup" element={<SetupPage step="account" />} />
+        <Route path="/setup/library" element={<SetupPage step="library" />} />
+        <Route path="/setup/done" element={<SetupPage step="done" />} />
+        <Route element={<RequireSetup />}>
+          <Route element={<SignedOutOnly />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+          </Route>
+          <Route element={<SignedInOnly />}>
+            <Route element={<ShellPage />}>
+              <Route index element={<HomePage />} />
+              <Route path="search" element={<SearchPage />} />
+              <Route path="library" element={<Navigate to="/library/albums" replace />} />
+              <Route path="library/albums" element={<LibraryAlbumsPage />} />
+              <Route path="library/artists" element={<LibraryArtistsPage />} />
+              <Route path="library/songs" element={<LibrarySongsPage />} />
+              <Route path="library/playlists" element={<LibraryPlaylistsPage />} />
+              <Route path="liked" element={<LikedPage />} />
+              <Route path="wantlist" element={<WantlistPage />} />
+              <Route path="album/:id" element={<AlbumPage />} />
+              <Route path="artist/:id" element={<ArtistPage />} />
+              <Route path="playlist/:id" element={<PlaylistPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="admin" element={<AdminOnly />}>
+                <Route element={<Loading><AdminLayout /></Loading>}>
+                  <Route index element={<Navigate to="/admin/library" replace />} />
+                  <Route path="library" element={<Loading><AdminLibraryPage /></Loading>} />
+                  <Route path="reviews" element={<Loading><AdminReviewsPage /></Loading>} />
+                  <Route path="organize" element={<Loading><AdminOrganizePage /></Loading>} />
+                  <Route path="users" element={<Loading><AdminUsersPage /></Loading>} />
+                  <Route path="providers" element={<Loading><AdminProvidersPage /></Loading>} />
+                  <Route path="settings" element={<Loading><AdminSettingsPage /></Loading>} />
+                  <Route path="jobs" element={<Loading><AdminJobsPage /></Loading>} />
+                </Route>
+              </Route>
+              <Route path="dev/kitchen-sink" element={<Loading><KitchenSinkPage /></Loading>} />
+              <Route path="dev/engine" element={<Loading><EnginePage /></Loading>} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Route>
         </Route>
-        <Route path="dev/kitchen-sink" element={<KitchenSinkPage />} />
-        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   )
