@@ -12,6 +12,16 @@ packages/contracts     schemas shared by server and clients
 packages/client-core   logic shared by the clients
 ```
 
+## Run with Docker
+
+```sh
+MUSIC_DIR=/path/to/your/music docker compose up -d
+```
+
+Open http://localhost:4747 and create the admin account. The image contains the API, the worker, the web app, ffmpeg and fpcalc; `compose.yaml` adds PostgreSQL. Your music folder is mounted at `/music` and added as a library on first start. Append `:ro` to that volume in `compose.yaml` if the server must never change your files.
+
+To build the image yourself, run `docker compose build`.
+
 ## Mobile app
 
 The app in `apps/mobile` is still the prototype: browse the fictional catalog, open an album, and tap the mini-player to open Now Playing. Playback, favorites, queue state, and the selected output persist locally.
