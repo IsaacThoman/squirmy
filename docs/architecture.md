@@ -328,6 +328,17 @@ Catalog data reaches views through props typed with the contracts; session state
 
 **Mobile** (`apps/mobile`): the existing Expo app. `expo-audio` implements `PlayerEngine`. The token lives in SecureStore. Screens read through TanStack Query with a persisted cache.
 
+```
+apps/mobile/
+  app/                   expo-router routes; the root layout gates connect → sign-in → (tabs)
+  src/account/           server address, auth state machine, AccountProvider, connect and sign-in screens
+  src/player/engine/     ExpoAudioEngine (PlayerEngine on expo-audio) and the lock screen adapter
+  src/dev/               development-only screens (the engine bench at /dev/engine)
+  modules/now-playing/   local Expo module: Now Playing info and remote commands as JS events
+```
+
+`AccountProvider` owns the auth state: it restores the stored session (holding the splash until the server confirms it, or for at most three seconds offline), creates the API client with the bearer token, and returns to sign-in on a 401. Lock screen buttons arrive through `connectNowPlaying` as callbacks; the caller turns them into session commands, never engine calls.
+
 ## Testing
 
 - `vitest` everywhere. A test file sits next to the code it tests as `*.test.ts`.

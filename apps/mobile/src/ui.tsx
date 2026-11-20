@@ -22,7 +22,9 @@ const material: Record<string, AndroidSymbol> = {
   'square.and.arrow.up': 'ios_share', 'text.badge.plus': 'playlist_add', 'text.insert': 'playlist_play',
   'text.line.first.and.arrowtriangle.forward': 'playlist_play', 'trash': 'delete',
   'quote.bubble': 'format_quote', 'waveform': 'graphic_eq', 'xmark': 'close', 'xmark.circle.fill': 'cancel',
-  'square.grid.2x2': 'grid_view', 'music.note.list': 'library_music', 'music.note.house': 'home',
+  'square.grid.2x2': 'grid_view', 'person.crop.circle': 'account_circle', 'person.crop.circle.fill': 'account_circle',
+  'person.crop.circle.badge.plus': 'person_add', 'server.rack': 'dns', 'arrow.left.arrow.right': 'swap_horiz',
+  'rectangle.portrait.and.arrow.right': 'logout', 'safari': 'open_in_browser', 'ticket': 'confirmation_number', 'music.note.list': 'library_music', 'music.note.house': 'home',
 };
 
 export function Icon({ name, size = 22, color, style }: {

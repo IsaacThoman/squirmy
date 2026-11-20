@@ -10,6 +10,7 @@ export type SheetRowProps = {
   title: string; subtitle?: string; icon: string; color?: string;
   selected?: boolean; onPress: () => void;
 };
+export type SheetInfoProps = { icon: string; title: string; subtitle: string };
 
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
   const styles = useStyles();
@@ -62,6 +63,20 @@ export function TrackSummary({ id }: { id: string }) {
         <Text numberOfLines={1} style={styles.rowSubtitle}>{item.artist}</Text>
       </View>
       <Icon name="waveform" size={22} color={colors.accent} />
+    </View>
+  );
+}
+
+export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
+  const colors = useColors();
+  const styles = useStyles();
+  return (
+    <View style={styles.trackSummary}>
+      <View style={[styles.rowIcon, styles.selectedIcon]}><Icon name={icon} size={20} color={colors.accent} /></View>
+      <View style={styles.flex}>
+        <Text numberOfLines={1} style={styles.rowTitle}>{title}</Text>
+        <Text numberOfLines={1} style={styles.rowSubtitle}>{subtitle}</Text>
+      </View>
     </View>
   );
 }
