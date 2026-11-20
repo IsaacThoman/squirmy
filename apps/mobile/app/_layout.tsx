@@ -31,8 +31,8 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <ThemeProvider value={theme}>
         <QueryClientProvider client={queryClient}>
-          <AccountProvider>
-            <NoticeProvider>
+          <NoticeProvider>
+            <AccountProvider>
               <RealtimeProvider>
                 <LibraryProvider>
                   <DownloadsProvider>
@@ -45,8 +45,8 @@ export default function RootLayout() {
                   </DownloadsProvider>
                 </LibraryProvider>
               </RealtimeProvider>
-            </NoticeProvider>
-          </AccountProvider>
+            </AccountProvider>
+          </NoticeProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
