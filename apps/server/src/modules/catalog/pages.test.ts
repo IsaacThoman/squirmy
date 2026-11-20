@@ -70,7 +70,7 @@ describe('catalog pages', () => {
     expect(detail.discs.map((disc) => [disc.disc, disc.tracks.map((track) => [track.title, track.position, track.availability, track.album?.id])])).toEqual([
       [1, [['Opener', 1, 'server', album.albumId], ['Closer', 2, 'server', album.albumId], ['Bonus B', null, 'server', album.albumId], ['Bonus A', null, 'server', album.albumId]]],
     ])
-    expect(detail).toMatchObject({ availability: 'full', trackCount: 2 })
+    expect(detail).toMatchObject({ availability: 'full', trackCount: 4, ownedTrackCount: 4 })
 
     const library = body(await get('/library/tracks?limit=50'), TrackPage)
     expect(library.items.map((track) => track.id)).toEqual(expect.arrayContaining(bonus.tracks.map((track) => track.recordingId)))

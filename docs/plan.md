@@ -152,7 +152,7 @@ Off by default. This is a generic interface for a service that can supply missin
 - **Separate services,** registered by URL and shared secret. No third-party code loads into the server.
 - **Three calls:** `capabilities`, `resolve` (returns offers with format and quality), `acquire` (starts a job).
 - **Delivery reuses the import endpoint,** so files go through the normal identify-and-file pipeline.
-- **Verify before linking.** Check duration and fingerprint against the request; quarantine mismatches.
+- **Verify before linking.** Check identifiers, title, artist and duration against the request. A mismatch is never linked to it: the file stays in the library as what it is, marked with the provider it came from, and the request fails.
 - **Playback.** An `on_demand` track enters `preparing`, and the socket announces when it is ready. The server prefetches the next queue entries.
 - **Policy on the server:** who may trigger fetches, preferred formats, storage quota, audit log.
 - **Reference adapters:** cold storage and a mock.
