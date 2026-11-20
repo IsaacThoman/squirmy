@@ -37,7 +37,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
       <DialogPrimitive.Portal>
         <DialogPrimitive.Content
           aria-describedby={undefined}
-          className="fixed inset-0 z-40 flex animate-slide-in flex-col overflow-hidden text-foreground focus:outline-none data-[state=closed]:animate-exit"
+          className="fixed inset-0 z-40 flex animate-slide-in flex-col overflow-clip text-foreground focus:outline-none data-[state=closed]:animate-exit"
           style={{ backgroundColor: artwork?.color ?? 'var(--background)' }}
         >
           <div aria-hidden className="absolute inset-0">
@@ -81,7 +81,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
               </div>
             </div>
             {pane !== 'art' && (
-              <div className="min-h-0 overflow-hidden">
+              <div className="min-h-0 overflow-clip">
                 {pane === 'lyrics'
                   ? <LyricsPane lyrics={state.lyrics} onSeek={controls.seek} />
                   : <div className="h-full overflow-y-auto pr-1 [scrollbar-width:thin]"><QueueContent player={player} /></div>}
