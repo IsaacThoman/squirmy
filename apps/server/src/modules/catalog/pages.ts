@@ -4,11 +4,13 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { notFound } from '../../lib/errors.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
+import { similarArtists } from '../radio/index.js'
 import { canonicalRelease } from './availability.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
 
 const TOP_TRACKS = 10
+const SIMILAR = 10
 
 async function resolveOrThrow(table: 'artists' | 'albums' | 'recordings', id: string, what: 'artist' | 'album' | 'track') {
   const resolved = await resolveOne(table, id)
@@ -60,13 +62,13 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
 
 /**
  * The artist page: profile, every album the artist is credited on (newest first), and
- * top tracks ranked by completed plays on this server, then popularity. Fetches missing
- * detail first. `similar` stays empty until the radio module supplies it.
+ * top tracks ranked by completed plays on this server, then popularity, and similar
+ * artists from the radio module. Fetches missing detail first.
  */
 export async function artistDetail(userId: string, id: string): Promise<ArtistDetail> {
   await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
   const artistId = await resolveOrThrow('artists', id, 'artist')
-  const [[summary], [profile], albums, top] = await Promise.all([
+  const [[summary], [profile], albums, top, similar] = await Promise.all([
     artistSummaries([artistId]),
     db.execute<{ sortName: string | null; disambiguation: string | null; bio: string | null; bioUrl: string | null; genres: string[]; liked: boolean }>(sql`
       select a.sort_name as "sortName", a.disambiguation, a.bio, a.bio_url as "bioUrl", a.genres,
@@ -87,13 +89,14 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
       order by (select count(*) from plays p where p.recording_id = r.id and p.completed) desc,
         r.popularity desc nulls last, r.title_key, r.id
       limit ${TOP_TRACKS}`),
+    similarArtists(artistId, { limit: SIMILAR }).then((rows) => artistSummaries(rows.map((row) => row.artistId))),
   ])
   if (!summary || !profile) throw notFound('No such artist', 'artist_not_found')
   const [albumList, topTracks] = await Promise.all([
     albumSummaries(albums.map((row) => row.id)),
     trackSummaries(userId, top.map((row) => ({ id: row.id }))),
   ])
-  return { ...summary, ...profile, topTracks, albums: albumList, similar: [] }
+  return { ...summary, ...profile, topTracks, albums: albumList, similar }
 }
 
 /** One track, in the given album's context when there is one. */

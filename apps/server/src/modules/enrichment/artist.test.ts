@@ -75,8 +75,11 @@ describe('artist detail', () => {
     expect(popular[0]!.popularity).toBe(1)
     expect(popular.every((track) => track.popularity! > 0 && track.popularity! <= 1)).toBe(true)
 
+    const blur = await artistStub({ name: 'Blur' })
     const page = await artistDetail(userId, stub)
     expect(page).toMatchObject({ id: existing, name: 'Radiohead' })
+    // Similar artists come from the radio module, limited to artists in the catalog.
+    expect(page.similar.map((artist) => artist.id)).toContain(blur)
     expect(page.albums.length).toBe(discography.length)
     expect(page.topTracks[0]!.title).toBe(popular[0]!.title)
     expect(page.image).not.toBeNull()
