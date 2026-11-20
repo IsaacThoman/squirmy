@@ -52,7 +52,9 @@ A template is a path of literal text, tokens and `[optional]` parts, separated b
 - No empty folder names (`//`, or a `/` at either end), no `.` or `..` folders, and none of `< > : " \ | ? *` or control characters.
 - At most 500 characters.
 
-The admin screens do not edit the template yet. Set it through the API with the folder's `template` field: `POST /api/v1/admin/library/roots` when adding a folder, or `PATCH /api/v1/admin/library/roots/<id>` later. `null` goes back to the default. A template that breaks a rule is refused with error code `invalid_request` and the reason, for example `The file name must end with .{ext}`. `GET /api/v1/admin/organize/template` returns the default template and the tokens with their descriptions.
+To change it, open **Admin → Library**, choose the managed folder's **⋯** menu, then **Edit…**. **Naming template** shows the folder's template, marked **Default** while it uses the default. Edit it in place: under the field, an example shows the path a track on a two-disc album would get, and **Tokens** lists every token with its description. **Save** checks the template; one that breaks a rule is refused with the reason under the field, for example `The file name must end with .{ext}`. **Reset to default** goes back to the default. A preview on **Organize** says whether it used the default template or the folder's own, with **Change it in Library** to open this editor.
+
+Through the API, the template is the folder's `template` field: `POST /api/v1/admin/library/roots` when adding a folder, or `PATCH /api/v1/admin/library/roots/<id>` later, with `null` for the default. A refused template is error code `invalid_request` with the reason. `GET /api/v1/admin/organize/template` returns the default template and the tokens with their descriptions.
 
 Changing the template moves nothing by itself: the next preview plans moves to the new layout. A batch already previewed keeps the template it was planned with.
 

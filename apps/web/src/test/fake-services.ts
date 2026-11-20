@@ -1,7 +1,9 @@
 import { ApiError, createInitialSession, queueChanged, reduceSession, splitSession, type ApiClient } from '@squirmy/client-core'
 import type { SquirmySocket } from '@squirmy/client-core/socket'
-import type {
-  AcquisitionPolicy, CommandEnvelope, DeviceInfo, Import, LibraryRoot, LibraryStats, PlaylistSummary, ScrobblingStatus, SessionHello, SetupStatus, TrackSummariesRequest, User, WantItem,
+import {
+  DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
+  type AcquisitionPolicy, type CommandEnvelope, type DeviceInfo, type Import, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
+  type ScrobblingStatus, type SessionHello, type SetupStatus, type TrackSummariesRequest, type User, type WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
 import type { Services } from '@/api/services'
@@ -109,6 +111,11 @@ const scrobbling: ScrobblingStatus = {
   ],
 }
 
+export const templateInfo: OrganizeTemplateInfo = {
+  defaultTemplate: DEFAULT_ORGANIZE_TEMPLATE,
+  tokens: ORGANIZE_TEMPLATE_TOKENS.map(token => ({ token, description: token === 'album' ? 'The album title' : `The ${token}` })),
+}
+
 export const root: LibraryRoot = {
   id: '00000000-0000-4000-8900-000000000001', name: 'Music', path: '/srv/music', mode: 'read_only', enabled: true, watch: true, template: null, scanning: false,
   fileCount: 120, lastScanStartedAt: '2026-11-20T10:00:00.000Z', lastScanFinishedAt: '2026-11-20T10:02:00.000Z',
@@ -177,6 +184,7 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       reviews: vi.fn(async () => list([])),
     },
     organize: {
+      template: vi.fn(async () => templateInfo),
       batches: vi.fn(async () => list([])),
     },
     catalogIndex: {

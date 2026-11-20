@@ -57,6 +57,12 @@ function useRoots() {
   return useQuery({ queryKey: queryKeys.adminRoots(), queryFn: () => api.library.roots(), select: page => page.items })
 }
 
+/** The default naming template and its tokens; they only change with the server. */
+function useTemplateInfo() {
+  const api = useApi()
+  return useQuery({ queryKey: [...queryKeys.adminOrganize(), 'template'], queryFn: () => api.organize.template(), staleTime: Infinity }).data
+}
+
 const managedOnly = (roots: LibraryRoot[] | undefined) => roots?.filter(root => root.mode === 'managed' && root.enabled)
 
 export function AdminLayout() {
@@ -99,6 +105,8 @@ export function AdminLibraryPage() {
   const api = useApi()
   const queryClient = useQueryClient()
   const roots = useRoots()
+  const templateInfo = useTemplateInfo()
+  const [params, setParams] = useSearchParams()
   const stats = useQuery({ queryKey: statsKey, queryFn: () => api.library.stats() })
   const openReviews = useOpenReviewCount()
   const [progress, setProgress] = useState<Record<string, ScanProgress>>({})
@@ -152,6 +160,9 @@ export function AdminLibraryPage() {
         stats={stats.data}
         openReviews={openReviews}
         progress={progress}
+        templateInfo={templateInfo}
+        editRootId={params.get('edit')}
+        onEditorClosed={() => setParams({}, { replace: true })}
         folders={{ path: listing.data?.path ?? browsePath, listing: listing.data, error: listing.isError ? errorMessage(listing.error) : undefined, onBrowse: setBrowsePath }}
         onScan={id => scan.mutateAsync(id)}
         onAdd={request => add.mutateAsync(request)}
@@ -218,6 +229,7 @@ export function AdminOrganizePage() {
   const api = useApi()
   const queryClient = useQueryClient()
   const roots = useRoots()
+  const templateInfo = useTemplateInfo()
   const managed = roots.data?.filter(root => root.mode === 'managed')
   const [chosenRoot, setChosenRoot] = useState<string | null>(null)
   const rootId = managed?.find(root => root.id === chosenRoot)?.id ?? managed?.[0]?.id ?? null
@@ -266,6 +278,7 @@ export function AdminOrganizePage() {
         rootId={rootId}
         onRootChange={setChosenRoot}
         preview={planned ? preview.data : undefined}
+        defaultTemplate={templateInfo?.defaultTemplate}
         running={running}
         history={batches.data?.items.filter(batch => batch.status !== 'planned')}
         onPreview={(options: OrganizeOptions) => plan.mutateAsync({ rootId: rootId!, ...options })}

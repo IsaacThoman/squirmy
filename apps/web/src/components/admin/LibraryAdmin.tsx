@@ -1,6 +1,9 @@
-import { CreateLibraryRootRequest, UpdateLibraryRootRequest, type DirectoryListing, type JobQueueStats, type LibraryRoot, type LibraryStats, type ServerEvent } from '@squirmy/contracts'
-import { Briefcase, Eye, FolderOpen, FolderPlus, MoreHorizontal, RefreshCw, ScanLine, Wand2 } from 'lucide-react'
-import { useState } from 'react'
+import {
+  CreateLibraryRootRequest, UpdateLibraryRootRequest,
+  type DirectoryListing, type JobQueueStats, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type ServerEvent,
+} from '@squirmy/contracts'
+import { Briefcase, ChevronRight, Eye, FolderOpen, FolderPlus, MoreHorizontal, RefreshCw, ScanLine, Wand2 } from 'lucide-react'
+import { Fragment, useState } from 'react'
 import { Link } from 'react-router'
 import type { z } from 'zod'
 import { useFormSubmit } from '@/api/errors'
@@ -10,9 +13,10 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog, Dialog, DialogContent } from '@/components/ui/dialog'
 import { Badge, EmptyState, ProgressBar, Skeleton, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
-import { Field, Input } from '@/components/ui/input'
+import { Field, Input, Label } from '@/components/ui/input'
 import { DropdownMenu } from '@/components/ui/menu'
 import { formatBytes, formatRelative, formatTotalDuration, plural } from '@/lib/format'
+import { templateExample } from '@/lib/template'
 import { cn } from '@/lib/utils'
 import { AdminHeader, DialogForm, Stat } from './AdminLayout'
 import { ManagedConfirmation, ManagedSwitch, SwitchRow } from './ManagedSwitch'
@@ -35,6 +39,11 @@ type LibraryAdminProps = {
   openReviews: number | undefined
   /** The latest `scan.progress` of each root, by root id. */
   progress: Record<string, ScanProgress>
+  /** The default naming template and its tokens, for managed folders. Undefined while loading. */
+  templateInfo: OrganizeTemplateInfo | undefined
+  /** A folder whose editor opens once the folders load, from a link such as Organize's. */
+  editRootId?: string | null
+  onEditorClosed?: () => void
   folders: FolderBrowser
   onScan: (rootId: string) => Promise<unknown>
   onAdd: (request: z.input<typeof CreateLibraryRootRequest>) => Promise<unknown>
@@ -45,9 +54,15 @@ type LibraryAdminProps = {
 
 type RootDialog = { kind: 'add' } | { kind: 'edit' | 'remove'; root: LibraryRoot }
 
-export function LibraryAdmin({ roots, stats, openReviews, progress, folders, onScan, onAdd, onUpdate, onRemove, onFixMatch }: LibraryAdminProps) {
-  const [dialog, setDialog] = useState<RootDialog | null>(null)
-  const close = (open: boolean) => { if (!open) setDialog(null) }
+export function LibraryAdmin({ roots, stats, openReviews, progress, templateInfo, editRootId, onEditorClosed, folders, onScan, onAdd, onUpdate, onRemove, onFixMatch }: LibraryAdminProps) {
+  const [opened, setDialog] = useState<RootDialog | null>(null)
+  const linked = editRootId ? roots?.find(root => root.id === editRootId) : undefined
+  const dialog: RootDialog | null = opened ?? (linked ? { kind: 'edit', root: linked } : null)
+  const close = (open: boolean) => {
+    if (open) return
+    setDialog(null)
+    if (linked) onEditorClosed?.()
+  }
   return (
     <div>
       <AdminHeader title="Library" description="Folders the server scans. Managed folders are renamed and filed once their music is identified.">
@@ -81,7 +96,7 @@ export function LibraryAdmin({ roots, stats, openReviews, progress, folders, onS
       </ul>
 
       <AddRootDialog open={dialog?.kind === 'add'} onOpenChange={close} folders={folders} onAdd={onAdd} />
-      {dialog?.kind === 'edit' && <EditRootDialog root={dialog.root} onOpenChange={close} onSave={patch => onUpdate(dialog.root.id, patch)} />}
+      {dialog?.kind === 'edit' && <EditRootDialog root={dialog.root} templateInfo={templateInfo} onOpenChange={close} onSave={patch => onUpdate(dialog.root.id, patch)} />}
       <ConfirmDialog
         open={dialog?.kind === 'remove'}
         onOpenChange={close}
@@ -238,12 +253,16 @@ function AddRootDialog({ open, onOpenChange, folders, onAdd }: { open: boolean; 
   )
 }
 
-function EditRootDialog({ root, onOpenChange, onSave }: { root: LibraryRoot; onOpenChange: (open: boolean) => void; onSave: (patch: UpdateLibraryRootRequest) => Promise<unknown> }) {
-  const [value, setValue] = useState({ name: root.name, managed: root.mode === 'managed', watch: root.watch, enabled: root.enabled })
+type EditRootProps = { root: LibraryRoot; templateInfo: OrganizeTemplateInfo | undefined; onOpenChange: (open: boolean) => void; onSave: (patch: UpdateLibraryRootRequest) => Promise<unknown> }
+
+function EditRootDialog({ root, templateInfo, onOpenChange, onSave }: EditRootProps) {
+  const [value, setValue] = useState({ name: root.name, managed: root.mode === 'managed', watch: root.watch, enabled: root.enabled, template: root.template })
   const [confirming, setConfirming] = useState(false)
   const form = useFormSubmit(UpdateLibraryRootRequest, onSave)
   const save = async () => {
-    if (await form.submit({ name: value.name, mode: value.managed ? 'managed' : 'read_only', watch: value.watch, enabled: value.enabled })) onOpenChange(false)
+    const patch = { name: value.name, mode: value.managed ? 'managed' : 'read_only', watch: value.watch, enabled: value.enabled }
+    // Only a changed template is sent, so saving other options never trips over it.
+    if (await form.submit(value.template === root.template ? patch : { ...patch, template: value.template })) onOpenChange(false)
   }
   // Becoming managed lets the server change files, so it is said plainly before it is saved.
   const submit = () => (value.managed && root.mode !== 'managed' && !confirming ? setConfirming(true) : void save())
@@ -258,12 +277,53 @@ function EditRootDialog({ root, onOpenChange, onSave }: { root: LibraryRoot; onO
               <Input id="edit-root-name" value={value.name} onChange={event => setValue({ ...value, name: event.target.value })} aria-invalid={!!form.errors.name} autoFocus />
             </Field>
             <ManagedSwitch checked={value.managed} onChange={managed => setValue({ ...value, managed })} />
+            {value.managed && <TemplateField value={value.template} onChange={template => setValue({ ...value, template })} info={templateInfo} error={form.errors.template} />}
             <SwitchRow label="Watch for changes" description="Pick up new and changed files as they appear." checked={value.watch} onChange={watch => setValue({ ...value, watch })} />
             <SwitchRow label="Enabled" description="A disabled folder is not scanned or watched. Its music stays in the library." checked={value.enabled} onChange={enabled => setValue({ ...value, enabled })} />
           </DialogForm>
         </DialogContent>
       )}
     </Dialog>
+  )
+}
+
+/** A managed folder's naming template: null is the server's default, shown as text to start editing from. */
+function TemplateField({ value, onChange, info, error }: { value: string | null; onChange: (value: string | null) => void; info: OrganizeTemplateInfo | undefined; error: string | undefined }) {
+  if (!info) return <Skeleton className="h-24 rounded-xl" />
+  const text = value ?? info.defaultTemplate
+  const example = templateExample(text, info.tokens.map(token => token.token))
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex min-h-5 items-center justify-between gap-3">
+        <Label htmlFor="root-template">Naming template</Label>
+        {value === null
+          ? <Badge>Default</Badge>
+          : <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => onChange(null)}>Reset to default</Button>}
+      </div>
+      <Input
+        id="root-template" value={text} spellCheck={false} autoCapitalize="none" autoComplete="off" className="font-mono text-[13px]"
+        aria-invalid={!!error} aria-describedby="root-template-message"
+        // The default typed out in full is still the default, and follows the server's if it changes.
+        onChange={event => onChange(event.target.value === info.defaultTemplate ? null : event.target.value)}
+      />
+      <p id="root-template-message" className={cn('text-xs', error ? 'font-medium text-danger' : 'text-quiet')}>
+        {error ?? (example ? <>For example <span className="block font-mono text-muted [overflow-wrap:anywhere]">{example.split('/').map((part, index) => <Fragment key={index}>{index > 0 && <>/<wbr /></>}{part}</Fragment>)}</span></> : 'Use only the tokens below, with matching brackets.')}
+      </p>
+      <details className="group rounded-xl bg-surface text-xs">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-3.5 py-2.5 font-semibold text-muted [&::-webkit-details-marker]:hidden">
+          Tokens<ChevronRight aria-hidden className="size-4 text-quiet transition-transform group-open:rotate-90" />
+        </summary>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 px-3.5 pb-3">
+          {info.tokens.map(({ token, description }) => (
+            <div key={token} className="contents">
+              <dt className="font-mono text-foreground">{`{${token}}`}</dt>
+              <dd className="text-muted">{description}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="px-3.5 pb-3 text-quiet">Text in [square brackets] is left out when a token inside it has no value.</p>
+      </details>
+    </div>
   )
 }
 
