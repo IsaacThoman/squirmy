@@ -17,7 +17,7 @@ import { createAlbum, createLibraryRoot, createUser } from '../../test/factories
 import { requestRecording } from '../acquisition/coverage.js'
 import { createSession } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
-import { sessionsModule } from './index.js'
+import { onPlayStart, sessionsModule } from './index.js'
 import { configureSessions, getSnapshot, markRecordingFailed, markRecordingReady, recordExternalPlay, replaceQueue } from './service.js'
 
 const onDemand = vi.hoisted(() => new Set<string>())
@@ -437,6 +437,26 @@ describe('sessions', () => {
       { recordingId: third!.recordingId, msPlayed: third!.durationMs, completed: true },
     ]))
     await eventually(() => a.events('invalidate'), (value) => expect(value).toContainEqual({ keys: [['history'], ['home']] }))
+  })
+
+  it('tells play-start listeners once per play that starts on the active device', async () => {
+    const started: string[] = []
+    const unsubscribe = onPlayStart((userId, play) => {
+      if (userId === user.id) started.push(play.recordingId)
+    })
+    try {
+      const a = await device('device-a-0016')
+      const [first, second] = album.tracks
+      await a.send(playAlbum(), 'start')
+      await a.state(1)
+      await a.send({ type: 'pause' })
+      await a.send({ type: 'play' })
+      await a.send({ type: 'next' })
+      await a.state(4)
+      expect(started).toEqual([first!.recordingId, second!.recordingId])
+    } finally {
+      unsubscribe()
+    }
   })
 
   it('re-anchors on engine reports that drift or stall, and ignores the rest', async () => {
