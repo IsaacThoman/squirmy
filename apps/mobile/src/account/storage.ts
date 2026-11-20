@@ -5,6 +5,7 @@ import { uuid } from 'expo';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { Keychain } from './keychain';
 import type { Server } from './server';
 
 /** The server and user are not secret; they live in app storage, which an uninstall removes. */
@@ -14,7 +15,14 @@ const savedKey = 'squirmy.account.v1';
 const tokenKey = 'squirmy.token';
 const deviceKey = 'squirmy.device-id';
 // Readable while the phone is locked, so background playback can keep talking to the server.
-const keychain = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+const access = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+
+/** Holds the token and the device id. When it refuses, they last only until the app quits. */
+export const keychain = new Keychain({
+  getItemAsync: key => SecureStore.getItemAsync(key, access),
+  setItemAsync: (key, value) => SecureStore.setItemAsync(key, value, access),
+  deleteItemAsync: key => SecureStore.deleteItemAsync(key, access),
+});
 
 export type StoredAccount = { server: Server | null; token: string | null; user: User | null };
 
@@ -23,10 +31,10 @@ export async function loadAccount(): Promise<StoredAccount> {
   // The keychain outlives an uninstall. Without the saved server this is a fresh install,
   // so a token found there belongs to an earlier one.
   if (!saved) {
-    await SecureStore.deleteItemAsync(tokenKey, keychain).catch(() => undefined);
+    await keychain.remove(tokenKey);
     return { server: null, token: null, user: null };
   }
-  const token = await SecureStore.getItemAsync(tokenKey, keychain).catch(() => null);
+  const token = await keychain.get(tokenKey);
   return { server: saved.server, token, user: token ? saved.user : null };
 }
 
@@ -38,8 +46,8 @@ export async function saveAccount(server: Server | null, session?: { token: stri
   } catch {
     // The app still works for this launch; the next one starts at Connect.
   }
-  if (session) await SecureStore.setItemAsync(tokenKey, session.token, keychain);
-  else await SecureStore.deleteItemAsync(tokenKey, keychain).catch(() => undefined);
+  if (session) await keychain.set(tokenKey, session.token);
+  else await keychain.remove(tokenKey);
 }
 
 function readSaved(): Saved | null {
@@ -61,10 +69,10 @@ let device: Promise<ClientDevice> | undefined;
 /** This install as the server sees it. The id is generated once and kept in the keychain. */
 export function clientDevice(): Promise<ClientDevice> {
   device ??= (async () => {
-    let id = await SecureStore.getItemAsync(deviceKey, keychain).catch(() => null);
+    let id = await keychain.get(deviceKey);
     if (!id) {
       id = uuid.v4();
-      await SecureStore.setItemAsync(deviceKey, id, keychain).catch(() => undefined);
+      await keychain.set(deviceKey, id);
     }
     const name = (Device.deviceName || Device.modelName || (Platform.OS === 'ios' ? 'iPhone' : 'Phone')).slice(0, 80);
     const kind = Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'other';

@@ -36,7 +36,7 @@ export function ConnectScreen() {
           if (lookup.error) lookup.reset();
         }} />
     </AuthSection>
-    {problem?.url && <AuthSection footer={`Setup runs in the web app at ${problem.url}.`}>
+    {problem?.url && <AuthSection footer={`Squirmy ${problem.version}. Setup runs in the web app at ${problem.url}.`}>
       <AuthLink title="Open in Browser" icon="safari" onPress={() => void Linking.openURL(problem.url!)} />
     </AuthSection>}
     <AuthSubmit title="Continue" busy={lookup.isPending} disabled={!address.trim()} onPress={submit} />

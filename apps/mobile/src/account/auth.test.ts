@@ -48,6 +48,16 @@ describe('reduceAuth', () => {
     expect(run({ status: 'signIn', server, notice: expiredNotice }, { type: 'switchServer' })).toEqual({ status: 'connect', previous: server });
   });
 
+  it('takes what the server now says about itself, for the same server only', () => {
+    const updated = { ...server, version: 'dev+1a2b3c4', name: 'Home Music' };
+    expect(run(signedIn, { type: 'serverLoaded', server: updated })).toEqual({ ...signedIn, server: updated });
+    const signIn: AuthState = { status: 'signIn', server, notice: null };
+    expect(run(signIn, { type: 'serverLoaded', server: updated })).toEqual({ ...signIn, server: updated });
+    expect(run(signedIn, { type: 'serverLoaded', server: { ...updated, url: other.url } })).toBe(signedIn);
+    expect(run(signedIn, { type: 'serverLoaded', server: { ...server } })).toBe(signedIn);
+    expect(run({ status: 'connect', previous: null }, { type: 'serverLoaded', server: updated })).toEqual({ status: 'connect', previous: null });
+  });
+
   it('updates the user while signed in and ignores stray events elsewhere', () => {
     const renamed = { ...user, displayName: 'Ada' };
     expect(run(signedIn, { type: 'userLoaded', user: renamed })).toEqual({ ...signedIn, user: renamed });

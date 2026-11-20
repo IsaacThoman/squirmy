@@ -8,9 +8,9 @@ import type { TrackSummary } from '@squirmy/contracts';
 import { useLibraryActions, useLiked } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
-import { downloadSymbol, unavailableReason } from '../downloads/model';
+import { trackMark, unavailableReason } from '../downloads/model';
 import { IconButton, TrackActions, TrackCover, TrackMenu, hitShape } from '../native/Controls';
-import { usePlaybackState } from '../playback';
+import { usePlaybackState, useTrackPreparing } from '../playback';
 import type { SongListProps } from './SongList';
 import { unavailableOpacity, useColors } from '../theme';
 
@@ -53,7 +53,8 @@ function SongRow({ track, number, onPlay, playlist }: {
   const current = session.current?.trackId === track.id;
   const playable = useCanPlay(track);
   const { offline } = useRealtime();
-  const mark = downloadSymbol(useTrackDownload(track.id));
+  const mark = trackMark(useTrackDownload(track.id), track, playable);
+  const preparing = useTrackPreparing(track.id);
   const favoriteLabel = liked ? `Unlike ${track.title}` : `Like ${track.title}`;
   const playNext = () => actions.enqueue([track], 'next');
   const options = playlist && { playlist: { id: playlist.id, itemId: playlist.itemId } };
@@ -88,8 +89,10 @@ function SongRow({ track, number, onPlay, playlist }: {
                 <VStack alignment="leading" spacing={3}>
                   <Text modifiers={[foregroundStyle(current ? colors.accent : colors.text), font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
                   <HStack spacing={3}>
-                    {mark && <Image systemName={mark as 'arrow.down.circle.fill'} color={colors.muted} size={10} />}
-                    <Text modifiers={[foregroundStyle(colors.muted), font({ size: 12 }), lineLimit(1)]}>{track.artistCredit}</Text>
+                    {mark && !preparing && <Image systemName={mark as 'arrow.down.circle.fill'} color={colors.muted} size={10} />}
+                    <Text modifiers={[foregroundStyle(preparing ? colors.accent : colors.muted), font({ size: 12 }), lineLimit(1)]}>
+                      {preparing ? 'Preparing…' : track.artistCredit}
+                    </Text>
                   </HStack>
                 </VStack>
                 <Spacer minLength={5} />

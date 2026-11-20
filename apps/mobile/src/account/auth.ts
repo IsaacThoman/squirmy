@@ -18,6 +18,8 @@ export type AuthEvent =
   | { type: 'connected'; server: Server }
   | { type: 'signedIn'; token: string; user: User }
   | { type: 'userLoaded'; user: User }
+  /** The server answered `GET /setup/status` again: its name, version or invite rule may have changed. */
+  | { type: 'serverLoaded'; server: Server }
   /** A request made with `token` came back 401. */
   | { type: 'unauthorized'; token: string }
   | { type: 'signedOut' }
@@ -44,6 +46,11 @@ export function reduceAuth(state: AuthState, event: AuthEvent): AuthState {
         : state;
     case 'userLoaded':
       return state.status === 'signedIn' ? { ...state, user: event.user } : state;
+    case 'serverLoaded':
+      return (state.status === 'signIn' || state.status === 'signedIn') && state.server.url === event.server.url
+        && !sameServer(state.server, event.server)
+        ? { ...state, server: event.server }
+        : state;
     case 'unauthorized':
       // A late 401 for a token that was already replaced says nothing about this one.
       return state.status === 'signedIn' && state.token === event.token
@@ -56,6 +63,10 @@ export function reduceAuth(state: AuthState, event: AuthEvent): AuthState {
         ? { status: 'connect', previous: state.server }
         : state;
   }
+}
+
+function sameServer(a: Server, b: Server): boolean {
+  return a.name === b.name && a.version === b.version && a.registrationRequiresInvite === b.registrationRequiresInvite;
 }
 
 /** What to tell the person when signing in or registering fails. */

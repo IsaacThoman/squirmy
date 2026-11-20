@@ -87,6 +87,7 @@ function DetailPage({ item, tint, title, artist, info, buttons, nav, status, des
     transform: [{ translateY: scrollOffset.value < 0 ? 1 - scrollOffset.value : 0 }],
   }));
   const artSize = Math.min(238, Math.floor(width * 0.60));
+  const artRadius = item.round ? artSize / 2 : 17;
   const headerColor = tint ? interpolateColor(colors.albumTint, [0, 1], [colors.background, tint], 'RGB', { gamma: 1 }) : colors.background;
 
   return <View style={styles.page}>
@@ -106,7 +107,8 @@ function DetailPage({ item, tint, title, artist, info, buttons, nav, status, des
       <View style={[styles.header, { paddingTop: top + albumNavSize + 12 }]}>
         {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
           locations={[0, 1]} style={StyleSheet.absoluteFill} />}
-        <ZoomTarget style={styles.art}><CollectionCover item={item} size={artSize} radius={item.round ? artSize / 2 : 17} /></ZoomTarget>
+        {/* The shadow needs the cover's shape and an opaque fill to be drawn efficiently. */}
+        <ZoomTarget style={StyleSheet.flatten([styles.art, { borderRadius: artRadius }])}><CollectionCover item={item} size={artSize} radius={artRadius} /></ZoomTarget>
         <AlbumMetadata title={title} artist={artist} info={info} />
         {buttons && buttons.length > 0 && <AlbumPlaybackButtons title={title} actions={buttons} />}
         {status}
@@ -145,6 +147,7 @@ function songCount(tracks: readonly TrackSummary[], durationMs = tracks.reduce((
 }
 
 function share(message: string) {
+  tapFeedback();
   void Share.share({ message }).catch(() => Alert.alert('Sharing unavailable'));
 }
 
@@ -180,7 +183,11 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
   const wantable = data.availability !== 'full' && !data.wanted && !offline;
   const buttons = playButtons(tracks, canPlay, play);
   const wantButton = offline ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
-    onPress: () => { if (!data.wanted) want('album', data.id, data.title); } }];
+    onPress: () => {
+      if (data.wanted) return;
+      tapFeedback();
+      want('album', data.id, data.title);
+    } }];
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title} artist={data.artistCredit}
     info={[typeNames[data.type], data.genres[0], data.year, owned].filter(Boolean).join('  ·  ')}
@@ -189,7 +196,8 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
       { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.title}` : `Like ${data.title}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked); } },
       control.nav,
-      buttons.length > 0 && wantable && { icon: 'star', label: `Add ${data.title} to your wantlist`, onPress: () => want('album', data.id, data.title) },
+      buttons.length > 0 && wantable && { icon: 'star', label: `Add ${data.title} to your wantlist`,
+        onPress: () => { tapFeedback(); want('album', data.id, data.title); } },
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
     description={data.description} onBack={onBack} bottomInset={bottomInset}>
@@ -419,7 +427,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   overscrollFill: { position: 'absolute', bottom: '100%', height: '100%', left: 0, right: 0 },
   status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
   header: { alignItems: 'center', paddingHorizontal: gutter },
-  art: { marginTop: 8, marginBottom: 21, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
+  art: { marginTop: 8, marginBottom: 21, backgroundColor: colors.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
   description: { marginHorizontal: gutter, color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
   trackListHeader: { marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 8 },
   trackListTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },

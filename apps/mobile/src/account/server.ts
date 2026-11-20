@@ -1,4 +1,5 @@
 import { ApiError, createApiClient, type FetchLike } from '@squirmy/client-core';
+import type { SetupStatus } from '@squirmy/contracts';
 import { displayAddress, parseServerAddress } from './address';
 
 /** `registrationRequiresInvite` is false when anyone may create an account. */
@@ -8,10 +9,15 @@ export type ConnectProblem = 'invalid' | 'unreachable' | 'notSquirmy' | 'serverE
 
 export class ConnectError extends Error {
   override readonly name = 'ConnectError';
-  /** `url` is the server that needs setup, for `needsSetup`. */
-  constructor(readonly problem: ConnectProblem, message: string, readonly url?: string) {
+  /** `url` and `version` are the server that needs setup, for `needsSetup`. */
+  constructor(readonly problem: ConnectProblem, message: string, readonly url?: string, readonly version?: string) {
     super(message);
   }
+}
+
+/** The server at `url` as its setup status describes it. */
+export function serverFrom(url: string, status: SetupStatus): Server {
+  return { url, name: status.serverName, version: status.version, registrationRequiresInvite: status.registrationRequiresInvite };
 }
 
 /** Sent as `X-Squirmy-Client` by every request from the app. */
@@ -48,9 +54,9 @@ export async function findServer(input: string, fetchImpl: FetchLike = fetchWith
     try {
       const status = await api.auth.setupStatus();
       if (status.needsSetup) {
-        throw new ConnectError('needsSetup', `${status.serverName} isn’t set up yet. Create the first account in a browser, then come back.`, url);
+        throw new ConnectError('needsSetup', `${status.serverName} isn’t set up yet. Create the first account in a browser, then come back.`, url, status.version);
       }
-      return { url, name: status.serverName, version: status.version, registrationRequiresInvite: status.registrationRequiresInvite };
+      return serverFrom(url, status);
     } catch (error) {
       if (error instanceof ConnectError) throw error;
       const problem = describe(error, url);

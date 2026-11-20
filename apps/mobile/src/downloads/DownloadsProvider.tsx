@@ -4,7 +4,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
 import { Platform } from 'react-native';
-import { useAccountKey, useServerUrl, useSignedInApi, type Api } from '../account/AccountProvider';
+import { useAccount, useAccountKey, useServerUrl, useSignedInApi, type Api } from '../account/AccountProvider';
 import { accountItem } from '../data/accountStorage';
 import { useTrackStore } from '../data/library';
 import { useUserSettings } from '../data/queries';
@@ -14,7 +14,7 @@ import { downloadIndex } from './database';
 import { downloadFiles, downloadNetwork } from './files';
 import { DownloadManager, type CollectionContent, type DownloadSource } from './manager';
 import {
-  albumCollectionId, canPlay, likedId, playlistCollectionId, type CollectionDownload, type CollectionKind, type TrackDownload,
+  albumCollectionId, canPlay, canRequestMusic, likedId, playlistCollectionId, type CollectionDownload, type CollectionKind, type TrackDownload,
 } from './model';
 
 /** Covers are kept at the size the lock screen uses. */
@@ -24,9 +24,10 @@ const syncIntervalMs = 6 * 3600_000;
 /** Server changes come in bursts (a scan, a playlist edit); collections are re-read once they settle. */
 const invalidateDelayMs = 3000;
 
-type DownloadsValue = { manager: DownloadManager | null; offline: boolean };
+/** `canRequest`: the user may have on-demand tracks fetched. */
+type DownloadsValue = { manager: DownloadManager | null; offline: boolean; canRequest: boolean };
 
-const DownloadsContext = createContext<DownloadsValue>({ manager: null, offline: false });
+const DownloadsContext = createContext<DownloadsValue>({ manager: null, offline: false, canRequest: false });
 
 const noSubscription = () => () => undefined;
 const noVersion = () => 0;
@@ -133,7 +134,9 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
     };
   }, [manager, onInvalidate]);
 
-  const value = useMemo(() => ({ manager, offline }), [manager, offline]);
+  const { state } = useAccount();
+  const canRequest = state.status === 'signedIn' && canRequestMusic(state.user);
+  const value = useMemo(() => ({ manager, offline, canRequest }), [canRequest, manager, offline]);
   return <DownloadsContext.Provider value={value}>{children}</DownloadsContext.Provider>;
 }
 
@@ -173,20 +176,23 @@ export function useDownloadsSummary() {
  * not on download progress.
  */
 export function useAvailability() {
-  const { manager, offline } = useContext(DownloadsContext);
+  const { manager, offline, canRequest } = useContext(DownloadsContext);
   const version = useFilesVersion(manager);
   return useMemo(() => {
     const downloaded = (trackId: string) => manager?.isDownloaded(trackId) ?? false;
-    return { offline, downloaded, canPlay: (track: Pick<TrackSummary, 'id' | 'availability'>) => canPlay(track, { offline, downloaded }) };
-  }, [manager, offline, version]);
+    return {
+      offline, canRequest, downloaded,
+      canPlay: (track: Pick<TrackSummary, 'id' | 'availability'>) => canPlay(track, { offline, downloaded, canRequest }),
+    };
+  }, [canRequest, manager, offline, version]);
 }
 
 /** Whether one track can be played now; re-renders only when the answer changes. */
 export function useCanPlay(track: Pick<TrackSummary, 'id' | 'availability'> | undefined): boolean {
-  const { manager, offline } = useContext(DownloadsContext);
+  const { manager, offline, canRequest } = useContext(DownloadsContext);
   const subject = track ?? noTrack;
   return useSyncExternalStore(manager?.subscribe ?? noSubscription,
-    () => canPlay(subject, { offline, downloaded: trackId => manager?.isDownloaded(trackId) ?? false }));
+    () => canPlay(subject, { offline, canRequest, downloaded: trackId => manager?.isDownloaded(trackId) ?? false }));
 }
 
 /** The local copy of a cover, when one was kept with a download. */

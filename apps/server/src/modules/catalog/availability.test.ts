@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../../database/client.js'
 import { albums, mediaFiles } from '../../database/schema.js'
+import { newId } from '../../lib/ids.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum } from '../../test/factories.js'
 import { onDemandRecordings } from '../acquisition/coverage.js'
@@ -35,6 +36,39 @@ describe('availability', () => {
     await db.update(mediaFiles).set({ missingSince: new Date() }).where(eq(mediaFiles.id, album.tracks[0]!.fileId!))
     expect((await albumAvailability([album.albumId])).get(album.albumId)?.availability).toBe('partial')
     expect((await trackAvailability([album.tracks[0]!.recordingId])).get(album.tracks[0]!.recordingId)).toBe('none')
+  })
+
+  it('counts owned recordings filed under the album that its release does not list', async () => {
+    const album = await createAlbum()
+    // A file matching attached to the album with no track on it: a bonus track of another
+    // edition, or a delivery tagged with the album's name that is none of its tracks.
+    const other = await createAlbum({ owned: true, tracks: [{ title: 'Bonus' }] })
+    const extra = other.tracks[0]!.fileId!
+    await db.update(mediaFiles).set({ albumId: album.albumId, releaseId: album.releaseId, releaseTrackId: null }).where(eq(mediaFiles.id, extra))
+
+    // The album has a present file, so it is in the library and must not show gray.
+    expect((await albumAvailability([album.albumId])).get(album.albumId)).toEqual({ availability: 'partial', trackCount: 4, ownedTrackCount: 1 })
+
+    // The acquisition seam is not asked about an album that already has music.
+    coverage.mockImplementation(async (ids) => new Set(ids))
+    expect((await albumAvailability([album.albumId])).get(album.albumId)?.availability).toBe('partial')
+    expect(coverage).not.toHaveBeenCalled()
+
+    await db.update(mediaFiles).set({ missingSince: new Date() }).where(eq(mediaFiles.id, extra))
+    expect((await albumAvailability([album.albumId])).get(album.albumId)).toEqual({ availability: 'on_demand', trackCount: 3, ownedTrackCount: 0 })
+  })
+
+  it('counts a recording once however many files and editions hold it', async () => {
+    const album = await createAlbum({ owned: true })
+    const [first] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, album.tracks[0]!.fileId!))
+    // A second copy of a listed track, and two copies of one extra.
+    await db.insert(mediaFiles).values({ ...first!, id: newId(), relPath: 'copy/01.flac', releaseTrackId: null })
+    const other = await createAlbum({ owned: true, tracks: [{ title: 'Bonus' }] })
+    const [bonus] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, other.tracks[0]!.fileId!))
+    await db.update(mediaFiles).set({ albumId: album.albumId, releaseId: album.releaseId, releaseTrackId: null }).where(eq(mediaFiles.id, bonus!.id))
+    await db.insert(mediaFiles).values({ ...bonus!, id: newId(), relPath: 'copy/bonus.flac', albumId: album.albumId, releaseId: album.releaseId, releaseTrackId: null })
+
+    expect((await albumAvailability([album.albumId])).get(album.albumId)).toEqual({ availability: 'full', trackCount: 4, ownedTrackCount: 4 })
   })
 
   it('asks the acquisition seam about unowned recordings only', async () => {
