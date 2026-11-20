@@ -128,11 +128,16 @@ class GroupWriter {
     return new Set(rows.map((row) => row.id!))
   }
 
-  /** The row most of the group's files link to, if no other group uses it. */
-  private async reusable(column: LinkColumn, pick: (file: File) => string | null): Promise<string | undefined> {
-    const candidate = majority(this.files.map(pick))
-    if (!candidate) return undefined
-    return (await this.sharedOutside(column, [candidate])).has(candidate) ? undefined : candidate
+  /**
+   * Rows the group's files link to that no other group uses, oldest first (ids are
+   * time-ordered). The oldest wins rather than the most linked: it carries the identity
+   * (likes, plays), and while a moved album's files are reconnected one by one the group
+   * briefly holds both the old album's files and new duplicates.
+   */
+  private async reusable(column: LinkColumn, pick: (file: File) => string | null): Promise<string[]> {
+    const candidates = [...new Set(this.files.map(pick).filter((id): id is string => Boolean(id)))]
+    const shared = await this.sharedOutside(column, candidates)
+    return candidates.filter((id) => !shared.has(id)).sort()
   }
 
   /** Finds or creates the artist for one credit: by MusicBrainz id, else by name (preferring rows with an id). */
@@ -207,8 +212,10 @@ class GroupWriter {
     if (!album) {
       const albumCredits = await this.credits(plan.album.credits)
       const values = { mbid: plan.album.mbReleaseGroupId, ...this.albumValues(plan, albumCredits[0]!.artistId) }
-      const linked = await this.reusable(mediaFiles.albumId, (file) => file.albumId)
-      if (linked) [album] = await tx.update(albums).set(values).where(and(eq(albums.id, linked), isNull(albums.mbid))).returning()
+      const [linked] = await tx.select({ id: albums.id }).from(albums)
+        .where(and(inArray(albums.id, await this.reusable(mediaFiles.albumId, (file) => file.albumId)), isNull(albums.mbid)))
+        .orderBy(asc(albums.id)).limit(1)
+      if (linked) [album] = await tx.update(albums).set(values).where(eq(albums.id, linked.id)).returning()
       if (!album) [album] = await tx.insert(albums).values({ id: newId(), detailLevel: 1, ...values }).returning()
       const former = await tx.delete(albumArtists).where(eq(albumArtists.albumId, album!.id)).returning({ artistId: albumArtists.artistId })
       this.formerArtists.push(...former.map((row) => row.artistId))
@@ -216,8 +223,9 @@ class GroupWriter {
     }
 
     if (!release) {
-      const linked = await this.reusable(mediaFiles.releaseId, (file) => file.releaseId)
-      if (linked) [release] = await tx.select().from(releases).where(and(eq(releases.id, linked), eq(releases.albumId, album!.id), isNull(releases.mbid)))
+      ;[release] = await tx.select().from(releases)
+        .where(and(inArray(releases.id, await this.reusable(mediaFiles.releaseId, (file) => file.releaseId)), eq(releases.albumId, album!.id), isNull(releases.mbid)))
+        .orderBy(asc(releases.id)).limit(1)
       if (release) {
         ;[release] = await tx.update(releases).set({ mbid: plan.release.mbReleaseId, ...this.releaseValues(plan) }).where(eq(releases.id, release.id)).returning()
       } else {

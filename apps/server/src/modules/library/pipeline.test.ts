@@ -266,7 +266,8 @@ describe('library pipeline', () => {
 
     // A new album name moves the file to its own album and the old track goes away.
     await makeTone(library, { path: relPath, durationSec: 1, frequency: 300, tags: { title: 'Contact', artist: 'Daft Punk', album_artist: 'Daft Punk', album: 'Contact EP', track: 1 } })
-    await scan()
+    expect(await scan()).toMatchObject({ filesChanged: 1 })
+    expect(await fileAt(relPath)).toMatchObject({ probeStage: 2, probeError: null })
     const moved = (await fileAt(relPath))!
     expect(moved.albumId).not.toBe(before.albumId)
     expect((await tracksOf(before.albumId!)).map((track) => track.title)).toEqual(['Get Lucky', 'Instant Crush'])
