@@ -18,7 +18,7 @@ Responses are cached in the database (`http_cache`), so the same question is not
 
 | Service | Contacted when | What is sent | Default | Turn it off |
 |---|---|---|---|---|
-| **MusicBrainz** (`musicbrainz.org`, or your mirror) | Identifying albums after a scan or import; **Fix match** searches; opening an artist or album page; catalog search when Deezer is off and there is no local index | Album artist and title, track counts, barcodes and ISRCs from your tags, MusicBrainz ids, Deezer links and barcodes being bridged to MusicBrainz, and the search text an admin types in Fix match (or any user's search text, when it answers catalog search) | On | **Admin → Server settings → MusicBrainz**. Nothing new is identified while it is off. |
+| **MusicBrainz** (`musicbrainz.org`, or your mirror) | Identifying albums after a scan or import; **Fix match** searches; opening an artist or album page; catalog search when Deezer is off and there is no local index | Album artist and title, track counts, barcodes and ISRCs from your tags, MusicBrainz ids, Deezer links and barcodes being bridged to MusicBrainz, and the search text an admin types in Fix match (or any user's search text, when it answers catalog search) | On | **Admin → Server settings → MusicBrainz**. Nothing new is identified while it is off; switching it back on starts on what waited. |
 | **Cover Art Archive** (`coverartarchive.org`, images served from `archive.org`) | Fetching covers for identified albums, and for albums you browse | MusicBrainz release and release-group ids | On | **Cover Art Archive** |
 | **Deezer** (`api.deezer.com`, images from Deezer's image servers) | **Every catalog search**, as users type, unless the local search index is ready; artist pages; covers MusicBrainz lacks; radio | Users' search text; artist names; album barcodes (UPC); ISRCs; Deezer ids | On | **Deezer**. Catalog search then falls back to MusicBrainz, which matches titles only. |
 | **Wikidata, Wikipedia, Wikimedia Commons** | Artist images and biographies, album descriptions | Wikidata ids taken from MusicBrainz, Wikipedia page titles | On | **Wikidata and Wikipedia** |
@@ -42,7 +42,7 @@ Add these in **Admin → Server settings → API keys** with **Add key**. They a
 | Key | Where to get it | What it unlocks |
 |---|---|---|
 | **ListenBrainz** user token | Your ListenBrainz profile settings | Top songs and popularity on artist pages, similar artists for radio and Subsonic "similar songs". Not needed for users to scrobble to ListenBrainz. |
-| **AcoustID** API key | An application key from acoustid.org | Identifying untagged files (no album or artist tags) by their audio fingerprint. |
+| **AcoustID** API key | An application key from acoustid.org | Identifying untagged files (no album or artist tags) by their audio fingerprint. Untagged files already in the library are tried again when the key is added ([Turning identification on later](./library.md#turning-identification-on-later)). |
 | **fanart.tv** API key | A personal or project key from fanart.tv | Better artist images. |
 | **Last.fm** API key and shared secret | A Last.fm API account | Lets users connect their Last.fm account for scrobbling. See [Scrobbling](./scrobbling.md). |
 

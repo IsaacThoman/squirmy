@@ -9,13 +9,14 @@ import {
 import { drainJobs, enqueue, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { ProviderError } from '../../lib/http.js'
 import { newId } from '../../lib/ids.js'
-import { updateServerSettings } from '../../lib/settings.js'
+import { getServerSettings, updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createLibraryRoot, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
 import { demoAlbums, ingestAlbum, ingestLoose, type DemoAlbum } from '../../test/matching.js'
 import { matchingModule } from './index.js'
 import { matchGroup, sweep } from './match.js'
+import { queueNewlyPossibleMatching, retryWithFingerprints } from './retry.js'
 
 const okComputerGroup = 'b1392450-e666-3926-a536-22c65f834433'
 const okComputerCd = '52709206-8816-3c12-9ff6-f957f2f1eecf'
@@ -285,6 +286,41 @@ describe('matching.match-album', () => {
     expect(link).toMatchObject({ status: 'matched', title: 'Karma Police', recordingMbid: karmaPolice })
     expect((await filesOf(untagged))[0]).toMatchObject({ matchSource: 'acoustid', acoustid: '5f8a2c1e-9b7d-4e3a-8c6f-2d1b0a9e8f7c' })
     await updateServerSettings({ acoustIdKey: null })
+  })
+
+  it('gives fingerprint-only files another go when an AcoustID key is added', async () => {
+    const retryRoot = (await createLibraryRoot()).id
+    const untagged = await ingestLoose(retryRoot, 'rips/track07.mp3', {}, 200_000)
+    const titled = await ingestLoose(retryRoot, 'Singles/Some Song.m4a', { title: 'Some Song', artist: 'Some Artist' }, 180_000)
+    const kept = await ingestLoose(retryRoot, 'rips/kept/track01.mp3', {}, 210_000)
+    // Searched by its tags and found nothing: a fingerprint would not change that.
+    const searched = await ingestAlbum(retryRoot, { artist: 'Nobody Known', album: 'Nothing Found', tracks: [{ title: 'Silence', durationMs: 100_000 }] })
+    await db.update(mediaFiles).set({ matchStatus: 'unmatched' }).where(eq(mediaFiles.rootId, retryRoot))
+    await db.update(mediaFiles).set({ matchLocked: true }).where(eq(mediaFiles.groupKey, kept.groupKey))
+
+    const settings = await getServerSettings()
+    await queueNewlyPossibleMatching({ ...settings, acoustIdKeySet: false }, { ...settings, acoustIdKeySet: true })
+    expect(await queuedJobs('matching.retry-fingerprints')).toHaveLength(1)
+    // Nothing changed: nothing is queued.
+    await queueNewlyPossibleMatching(settings, settings)
+    expect(await queuedJobs('matching.retry-fingerprints')).toHaveLength(1)
+
+    // Loose files of earlier tests in other roots count too.
+    expect(await retryWithFingerprints()).toBeGreaterThanOrEqual(2)
+    for (const group of [untagged, titled]) expect((await filesOf(group))[0]!.matchStatus).toBe('pending')
+    for (const group of [kept, searched]) expect((await filesOf(group)).every((file) => file.matchStatus === 'unmatched')).toBe(true)
+    const keys = (await queuedJobs('matching.match-album')).map((job) => job.singleton_key)
+    expect(keys).toEqual(expect.arrayContaining([`${retryRoot}:${untagged.groupKey}`, `${retryRoot}:${titled.groupKey}`]))
+    expect(keys).not.toContain(`${retryRoot}:${kept.groupKey}`)
+    expect(keys).not.toContain(`${retryRoot}:${searched.groupKey}`)
+    await db.update(mediaFiles).set({ missingSince: new Date() }).where(eq(mediaFiles.rootId, retryRoot))
+  })
+
+  it('sweeps at once when MusicBrainz is switched on', async () => {
+    const settings = await getServerSettings()
+    const before = (await queuedJobs('matching.sweep')).length
+    await queueNewlyPossibleMatching({ ...settings, musicBrainzEnabled: false }, { ...settings, musicBrainzEnabled: true })
+    expect(await queuedJobs('matching.sweep')).toHaveLength(before + 1)
   })
 
   it('leaves files pending while MusicBrainz is off, and lets provider failures retry', async () => {
