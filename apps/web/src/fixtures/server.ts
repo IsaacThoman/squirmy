@@ -1,7 +1,6 @@
 import type {
-  AppPassword, DeviceInfo, Invite, JobQueueStats, LibraryRoot, LibraryStats, ServerSettings, User, UserSettings,
+  AppPassword, DeviceInfo, Invite, JobQueueStats, ServerSettings, User, UserSettings,
 } from '@squirmy/contracts'
-import { album, albums } from './catalog'
 
 const at = (iso: string) => `2026-11-${iso}:00.000Z`
 
@@ -65,27 +64,6 @@ export const serverSettings: ServerSettings = {
   importMaxBytes: 64 * 1024 ** 3,
 }
 
-export const libraryRoots: LibraryRoot[] = [
-  {
-    id: '00000000-0000-4000-8a00-000000000001', name: 'Music', path: '/srv/music', mode: 'managed', enabled: true, watch: true,
-    scanning: true, fileCount: 18342, lastScanStartedAt: at('20T08:02'), lastScanFinishedAt: at('19T04:11'),
-    lastScanStats: { filesSeen: 18310, filesAdded: 42, filesChanged: 7, filesMissing: 0, errors: 1 },
-  },
-  {
-    id: '00000000-0000-4000-8a00-000000000002', name: 'Vinyl rips', path: '/mnt/archive/vinyl', mode: 'read_only', enabled: true, watch: false,
-    scanning: false, fileCount: 2210, lastScanStartedAt: at('19T04:00'), lastScanFinishedAt: at('19T04:06'),
-    lastScanStats: { filesSeen: 2210, filesAdded: 0, filesChanged: 0, filesMissing: 3, errors: 0 },
-  },
-]
-
-/** Live progress for a scanning root, as the `scan.progress` socket event reports it. */
-export const scanProgress = { rootId: libraryRoots[0].id, phase: 'probing' as const, processed: 12840, total: 18342 }
-
-export const libraryStats: LibraryStats = {
-  artists: 1204, albums: 2310, tracks: 20114, files: 20552, bytes: 812 * 1024 ** 3, durationMs: 1_381_000_000,
-  matched: 19210, unmatched: 512, inReview: 14, pending: 378, missing: 3,
-}
-
 export const jobs: JobQueueStats[] = [
   { name: 'library.scan', queued: 0, active: 1, failed: 0 },
   { name: 'library.probe', queued: 5502, active: 4, failed: 2 },
@@ -95,32 +73,7 @@ export const jobs: JobQueueStats[] = [
   { name: 'enrichment.covers', queued: 0, active: 0, failed: 0 },
 ]
 
-/** The matching and organize contracts are not written yet; these are the shapes the shells assume. */
-export const reviews = [
-  {
-    id: 'r1', folder: '/srv/music/Unsorted/Mira Vale - Blue Hour (2025) [FLAC]', album: albums[0], fileCount: 7,
-    candidates: [
-      { title: 'Blue Hour (Deluxe)', artist: 'Mira Vale', year: 2025, tracks: 7, country: 'GB', score: 0.86 },
-      { title: 'Blue Hour', artist: 'Mira Vale', year: 2025, tracks: 5, country: 'XW', score: 0.71 },
-    ],
-  },
-  {
-    id: 'r2', folder: '/srv/music/Downloads/north index - glass city', album: album('glass-city'), fileCount: 4,
-    candidates: [{ title: 'Glass City', artist: 'North Index', year: 2026, tracks: 4, country: 'DE', score: 0.82 }],
-  },
-  {
-    id: 'r3', folder: '/srv/music/Unsorted/untitled 04', album: null, fileCount: 11, candidates: [],
-  },
-]
-
-export const organizeMoves = [
-  { from: 'Unsorted/Mira Vale - Blue Hour (2025) [FLAC]/01 night swimming.flac', to: 'Mira Vale/Blue Hour (2025)/1-01 Night Swimming.flac' },
-  { from: 'Unsorted/Mira Vale - Blue Hour (2025) [FLAC]/02 soft signal.flac', to: 'Mira Vale/Blue Hour (2025)/1-02 Soft Signal.flac' },
-  { from: 'Unsorted/Mira Vale - Blue Hour (2025) [FLAC]/cover.jpg', to: 'Mira Vale/Blue Hour (2025)/cover.jpg' },
-  { from: 'Downloads/north index - glass city/track1.mp3', to: 'North Index/Glass City (2026)/01 Static Bloom.mp3' },
-  { from: 'Downloads/north index - glass city/track2.mp3', to: 'North Index/Glass City (2026)/02 Fifth Platform.mp3' },
-]
-
+/** The acquisition contracts are not written yet; this is the shape the providers shell assumes. */
 export const providers = [
   { id: 'p1', name: 'Cold storage', url: 'http://cold-storage.lan:9300', enabled: true, status: 'healthy', formats: ['flac'], lastCheck: at('20T08:00') },
   { id: 'p2', name: 'Mock provider', url: 'http://127.0.0.1:9400', enabled: false, status: 'disabled', formats: ['flac', 'mp3'], lastCheck: null },

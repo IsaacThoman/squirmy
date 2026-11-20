@@ -21,8 +21,6 @@ RUN npm ci --ignore-scripts --include=dev --include-workspace-root \
 COPY packages packages
 COPY apps/server apps/server
 COPY apps/web apps/web
-# The web app's fixture pages still use the prototype's cover images.
-COPY apps/mobile/assets/covers apps/mobile/assets/covers
 RUN npm run build:packages \
  && npm run build -w @squirmy/server \
  && npm run build -w @squirmy/web
