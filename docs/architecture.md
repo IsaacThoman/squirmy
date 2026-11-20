@@ -292,7 +292,7 @@ The server holds one session per user in memory, loaded on first use and persist
 - Every request authenticates with an app password (token, password or `apiKey`); failures are limited per IP in the API process.
 - Ids carry their kind (`ar-`, `al-`, `tr-`, `pl-`, `ca-` for an artwork asset) and are checked on the way in. Music folders are library roots, numbered by a hash of the root id.
 - Only owned music appears. `songs.ts`, `albums.ts` and `artists.ts` build response objects in batches with a fixed number of queries; a song is shown through the present file `selectFile` would stream.
-- Sync clients page through everything with an empty `search3`. The page that starts where the user's previous one ended continues from its last key, so deep pages cost what the first does.
+- `search3` and `search2` rank a query with the search module's library search (`searchLibrary`), so typos are tolerated as in the apps. Sync clients page through everything with an empty `search3`. The page that starts where the user's previous one ended continues from its last key, so deep pages cost what the first does.
 - `stream` serves originals and the streaming profiles through `openStream`; a bitrate below every profile, or a `timeOffset`, is a live ffmpeg encode that is not cached.
 - The play queue is the session queue (`getSnapshot`, `replaceQueue`). The songs a client saved before its current one are remembered in memory while the session's current entry and queue are unchanged.
 

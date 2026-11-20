@@ -421,6 +421,11 @@ describe('subsonic', () => {
       expect(legacy.album).toEqual([expect.objectContaining({ isDir: true, title: 'Blue Hour' })])
     })
 
+    it('finds a song through a typo, ranked like the apps rank it', async () => {
+      const result = (await mira.client.call('search3', { query: 'night swiming' })).searchResult3
+      expect(result.song[0]).toMatchObject({ title: 'Night Swimming' })
+    })
+
     it('returns everything for an empty query, paged by the offsets', async () => {
       for (const query of ['', '""']) {
         const seen: string[] = []
