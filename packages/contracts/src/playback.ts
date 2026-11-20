@@ -18,14 +18,15 @@ export const PlaybackQuery = z.object({
   quality: StreamQuality.default('original'),
   /** Comma separated codec list. Missing means "anything the browser/OS plays". */
   codecs: z.string().optional(),
-  /** Marks the response for saving to the device rather than streaming. */
-  download: z.coerce.boolean().optional(),
+  /** Marks the response for saving to the device rather than streaming. Accepts true/false and 1/0. */
+  download: z.union([z.boolean(), z.stringbool()]).optional(),
 })
 export type PlaybackQuery = z.infer<typeof PlaybackQuery>
 
 /**
  * Loudness data for client-side normalization. Gains are dB relative to a -18 LUFS
- * reference (ReplayGain 2.0); peaks are linear sample peaks (1.0 = full scale).
+ * reference (ReplayGain 2.0); peaks are linear (1.0 = full scale): true peaks when the
+ * server measured the file, the tagged sample peaks otherwise.
  */
 export const Normalization = z.object({
   trackGainDb: z.number().nullable(),

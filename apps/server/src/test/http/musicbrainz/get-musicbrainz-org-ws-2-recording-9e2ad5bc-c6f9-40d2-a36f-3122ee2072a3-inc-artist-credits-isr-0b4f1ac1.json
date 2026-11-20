@@ -1,0 +1,1980 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/recording/9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3?inc=artist-credits+isrcs+releases+release-groups&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": "9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3",
+      "releases": [
+        {
+          "country": "JP",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "packaging": null,
+          "packaging-id": null,
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "barcode": "4988006729254",
+          "release-events": [
+            {
+              "area": {
+                "name": "Japan",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "JP"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "Japan",
+                "id": "2db42837-c832-3c27-b4a3-08198f75693c"
+              },
+              "date": "1997-05-21"
+            }
+          ],
+          "disambiguation": "",
+          "date": "1997-05-21",
+          "release-group": {
+            "artist-credit": [
+              {
+                "name": "Radiohead",
+                "artist": {
+                  "name": "Radiohead",
+                  "type": "Group",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB",
+                  "disambiguation": "",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead"
+                },
+                "joinphrase": ""
+              }
+            ],
+            "secondary-types": [],
+            "secondary-type-ids": [],
+            "first-release-date": "1997-05-21",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "primary-type": "Album",
+            "releases": [],
+            "title": "OK Computer",
+            "disambiguation": ""
+          },
+          "quality": "normal",
+          "id": "1834eae1-741b-3c03-9ca5-0df3decb43ea",
+          "status": "Official",
+          "title": "OK Computer",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "id": "fba5f8fe-c6c8-4511-8562-c9febf482674",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "title": "OK Computer",
+          "status": "Official",
+          "release-group": {
+            "disambiguation": "",
+            "title": "OK Computer",
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "primary-type": "Album",
+            "releases": [],
+            "first-release-date": "1997-05-21",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "secondary-type-ids": [],
+            "secondary-types": [],
+            "artist-credit": [
+              {
+                "artist": {
+                  "type": "Group",
+                  "name": "Radiohead",
+                  "country": "GB",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "disambiguation": "",
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+                },
+                "joinphrase": "",
+                "name": "Radiohead"
+              }
+            ]
+          },
+          "quality": "normal",
+          "release-events": [
+            {
+              "date": "1997-06-16",
+              "area": {
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null,
+                "name": "United Kingdom"
+              }
+            }
+          ],
+          "barcode": "724385522949",
+          "disambiguation": "",
+          "date": "1997-06-16",
+          "country": "GB",
+          "packaging": "Cassette Case",
+          "artist-credit": [
+            {
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          }
+        },
+        {
+          "id": "c7569949-0f67-4682-a0d8-75c4290c52dc",
+          "status": "Official",
+          "title": "OK Computer",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "release-group": {
+            "disambiguation": "",
+            "title": "OK Computer",
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "primary-type": "Album",
+            "releases": [],
+            "first-release-date": "1997-05-21",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "secondary-type-ids": [],
+            "secondary-types": [],
+            "artist-credit": [
+              {
+                "artist": {
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead",
+                  "disambiguation": "",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB",
+                  "name": "Radiohead",
+                  "type": "Group"
+                },
+                "joinphrase": "",
+                "name": "Radiohead"
+              }
+            ]
+          },
+          "quality": "normal",
+          "barcode": "724385522925",
+          "release-events": [
+            {
+              "date": "1997-06-16",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "sort-name": "Europe",
+                "disambiguation": "",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "name": "Europe",
+                "type": null
+              }
+            },
+            {
+              "date": "1997-06-16",
+              "area": {
+                "disambiguation": "",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "name": "United Kingdom",
+                "type": null,
+                "type-id": null
+              }
+            }
+          ],
+          "disambiguation": "EMI SWINDON",
+          "date": "1997-06-16",
+          "country": "XE",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "packaging": "Jewel Case",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          }
+        },
+        {
+          "country": "XE",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ],
+          "packaging": "Jewel Case",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "barcode": "724385522925",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type": null,
+                "name": "Europe",
+                "type-id": null
+              },
+              "date": "1997-06-16"
+            }
+          ],
+          "disambiguation": "EMI UDEN, made in Italy, printed in Italy",
+          "date": "1997-06-16",
+          "release-group": {
+            "secondary-types": [],
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "artist": {
+                  "name": "Radiohead",
+                  "type": "Group",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB",
+                  "disambiguation": "",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead"
+                },
+                "name": "Radiohead"
+              }
+            ],
+            "first-release-date": "1997-05-21",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "secondary-type-ids": [],
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "releases": [],
+            "primary-type": "Album",
+            "disambiguation": "",
+            "title": "OK Computer"
+          },
+          "quality": "normal",
+          "id": "52709206-8816-3c12-9ff6-f957f2f1eecf",
+          "status": "Official",
+          "title": "OK Computer",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "title": "OK Computer",
+          "status": "Official",
+          "id": "541a0976-ca45-3c0f-89e5-26bc376f58d1",
+          "quality": "normal",
+          "release-group": {
+            "secondary-type-ids": [],
+            "first-release-date": "1997-05-21",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "artist-credit": [
+              {
+                "name": "Radiohead",
+                "joinphrase": "",
+                "artist": {
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB",
+                  "name": "Radiohead",
+                  "type": "Group",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead",
+                  "disambiguation": ""
+                }
+              }
+            ],
+            "secondary-types": [],
+            "title": "OK Computer",
+            "disambiguation": "",
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "releases": [],
+            "primary-type": "Album"
+          },
+          "date": "1997-06-16",
+          "disambiguation": "",
+          "release-events": [
+            {
+              "area": {
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null,
+                "name": "United Kingdom"
+              },
+              "date": "1997-06-16"
+            }
+          ],
+          "barcode": "724385522918",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "packaging": "Cardboard/Paper Sleeve",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "country": "GB"
+        },
+        {
+          "country": "XE",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "packaging": "Jewel Case",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "barcode": "724385522925",
+          "release-events": [
+            {
+              "date": "1997-06-16",
+              "area": {
+                "type": null,
+                "name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "Europe",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a"
+              }
+            }
+          ],
+          "disambiguation": "made in Italy; printed in Holland",
+          "date": "1997-06-16",
+          "release-group": {
+            "artist-credit": [
+              {
+                "name": "Radiohead",
+                "artist": {
+                  "disambiguation": "",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead",
+                  "type": "Group",
+                  "name": "Radiohead",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB"
+                },
+                "joinphrase": ""
+              }
+            ],
+            "secondary-types": [],
+            "secondary-type-ids": [],
+            "first-release-date": "1997-05-21",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "releases": [],
+            "primary-type": "Album",
+            "title": "OK Computer",
+            "disambiguation": ""
+          },
+          "quality": "normal",
+          "id": "ad0e6676-3e55-4bd6-a9ed-7f6424fd46f6",
+          "title": "OK Computer",
+          "status": "Official",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "release-group": {
+            "first-release-date": "1997-05-21",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "secondary-type-ids": [],
+            "secondary-types": [],
+            "artist-credit": [
+              {
+                "artist": {
+                  "disambiguation": "",
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "type": "Group",
+                  "name": "Radiohead",
+                  "country": "GB",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                },
+                "joinphrase": "",
+                "name": "Radiohead"
+              }
+            ],
+            "disambiguation": "",
+            "title": "OK Computer",
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "primary-type": "Album",
+            "releases": []
+          },
+          "quality": "normal",
+          "id": "a64e09a7-2f26-4d7a-8505-f2561ad3299b",
+          "title": "OK Computer",
+          "status": "Official",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "country": "GB",
+          "artist-credit": [
+            {
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "packaging": "Jewel Case",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "barcode": "724385522987",
+          "release-events": [
+            {
+              "area": {
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null,
+                "name": "United Kingdom"
+              },
+              "date": "1997-06-16"
+            }
+          ],
+          "disambiguation": "",
+          "date": "1997-06-16"
+        },
+        {
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              }
+            }
+          ],
+          "packaging": "Jewel Case",
+          "country": "XE",
+          "date": "1997-06-16",
+          "disambiguation": "UDEN",
+          "barcode": "724385522925",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type": null,
+                "name": "Europe",
+                "type-id": null
+              },
+              "date": "1997-06-16"
+            },
+            {
+              "area": {
+                "type-id": null,
+                "type": null,
+                "name": "France",
+                "iso-3166-1-codes": [
+                  "FR"
+                ],
+                "sort-name": "France",
+                "id": "08310658-51eb-3801-80de-5a0739207115",
+                "disambiguation": ""
+              },
+              "date": "1997-06-16"
+            },
+            {
+              "area": {
+                "disambiguation": "",
+                "sort-name": "Germany",
+                "id": "85752fda-13c4-31a3-bee5-0e5cb1f51dad",
+                "name": "Germany",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "DE"
+                ],
+                "type-id": null
+              },
+              "date": "1997-06-16"
+            },
+            {
+              "date": "1997-06-16",
+              "area": {
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "IT"
+                ],
+                "type": null,
+                "name": "Italy",
+                "id": "c6500277-9a3d-349b-bf30-41afdbf42add",
+                "sort-name": "Italy",
+                "disambiguation": ""
+              }
+            },
+            {
+              "area": {
+                "disambiguation": "",
+                "sort-name": "United Kingdom",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "name": "United Kingdom",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type-id": null
+              },
+              "date": "1997-06-16"
+            }
+          ],
+          "quality": "normal",
+          "release-group": {
+            "primary-type": "Album",
+            "releases": [],
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "title": "OK Computer",
+            "disambiguation": "",
+            "artist-credit": [
+              {
+                "artist": {
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "disambiguation": "",
+                  "country": "GB",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "name": "Radiohead",
+                  "type": "Group"
+                },
+                "joinphrase": "",
+                "name": "Radiohead"
+              }
+            ],
+            "secondary-types": [],
+            "secondary-type-ids": [],
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "first-release-date": "1997-05-21"
+          },
+          "status": "Official",
+          "title": "OK Computer",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "id": "425d8db9-88a3-31e2-bd23-b1a967626dd5"
+        },
+        {
+          "id": "4b3d18cc-8937-36f4-8de0-481088be58e6",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "title": "OK Computer",
+          "status": "Official",
+          "release-group": {
+            "secondary-type-ids": [],
+            "first-release-date": "1997-05-21",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "artist-credit": [
+              {
+                "name": "Radiohead",
+                "joinphrase": "",
+                "artist": {
+                  "country": "GB",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "type": "Group",
+                  "name": "Radiohead",
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "disambiguation": ""
+                }
+              }
+            ],
+            "secondary-types": [],
+            "title": "OK Computer",
+            "disambiguation": "",
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "primary-type": "Album",
+            "releases": []
+          },
+          "quality": "normal",
+          "release-events": [
+            {
+              "date": "1997-06-17",
+              "area": {
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "CA"
+                ],
+                "name": "Canada",
+                "type": null,
+                "id": "71bbafaa-e825-3e15-8ca9-017dcad1748b",
+                "sort-name": "Canada",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "barcode": "724385522925",
+          "disambiguation": "",
+          "date": "1997-06-17",
+          "country": "CA",
+          "packaging": "Jewel Case",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          }
+        },
+        {
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "country": "US",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ],
+          "packaging": "Jewel Case",
+          "disambiguation": "",
+          "date": "1997-07-01",
+          "barcode": null,
+          "release-events": [
+            {
+              "area": {
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "name": "United States",
+                "type": null,
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "sort-name": "United States",
+                "disambiguation": ""
+              },
+              "date": "1997-07-01"
+            }
+          ],
+          "quality": "normal",
+          "release-group": {
+            "disambiguation": "",
+            "title": "OK Computer",
+            "releases": [],
+            "primary-type": "Album",
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "first-release-date": "1997-05-21",
+            "secondary-type-ids": [],
+            "secondary-types": [],
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "artist": {
+                  "country": "GB",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "type": "Group",
+                  "name": "Radiohead",
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "disambiguation": ""
+                },
+                "name": "Radiohead"
+              }
+            ]
+          },
+          "status": "Official",
+          "title": "OK Computer",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "id": "0b6b4ba0-d36f-47bd-b4ea-6a5b91842d29"
+        },
+        {
+          "status": "Official",
+          "title": "OK Computer",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "id": "6a09041b-0f79-3278-88d9-0552dd28d37f",
+          "quality": "normal",
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "primary-type": "Album",
+            "releases": [],
+            "title": "OK Computer",
+            "disambiguation": "",
+            "artist-credit": [
+              {
+                "name": "Radiohead",
+                "joinphrase": "",
+                "artist": {
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "disambiguation": "",
+                  "country": "GB",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "type": "Group",
+                  "name": "Radiohead"
+                }
+              }
+            ],
+            "secondary-types": [],
+            "secondary-type-ids": [],
+            "first-release-date": "1997-05-21",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "disambiguation": "",
+          "date": "1997-07-01",
+          "barcode": "724385522925",
+          "release-events": [
+            {
+              "area": {
+                "name": "United States",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "United States",
+                "id": "489ce91b-6658-3307-9877-795b68554c98"
+              },
+              "date": "1997-07-01"
+            }
+          ],
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "country": "US",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "packaging": "Jewel Case"
+        },
+        {
+          "release-group": {
+            "title": "Karma Police",
+            "disambiguation": "",
+            "id": "d8758f15-65c9-3f34-baf9-475b30755e2b",
+            "releases": [],
+            "primary-type": "Single",
+            "secondary-type-ids": [],
+            "first-release-date": "1997-07",
+            "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+            "artist-credit": [
+              {
+                "name": "Radiohead",
+                "joinphrase": "",
+                "artist": {
+                  "disambiguation": "",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead",
+                  "name": "Radiohead",
+                  "type": "Group",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB"
+                }
+              }
+            ],
+            "secondary-types": []
+          },
+          "quality": "normal",
+          "id": "d6eb21af-6595-3aa9-9733-87bc0e245ec1",
+          "status": "Official",
+          "title": "Karma Police",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "artist-credit": [
+            {
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "packaging": null,
+          "country": "NL",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "packaging-id": null,
+          "barcode": null,
+          "release-events": [
+            {
+              "area": {
+                "name": "Netherlands",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "NL"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "Netherlands",
+                "id": "ef1b7cc0-cd26-36f4-8ea0-04d9623786c7"
+              },
+              "date": "1997-07"
+            }
+          ],
+          "date": "1997-07",
+          "disambiguation": ""
+        },
+        {
+          "quality": "normal",
+          "release-group": {
+            "secondary-types": [],
+            "artist-credit": [
+              {
+                "artist": {
+                  "disambiguation": "",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead",
+                  "type": "Group",
+                  "name": "Radiohead",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB"
+                },
+                "joinphrase": "",
+                "name": "Radiohead"
+              }
+            ],
+            "first-release-date": "1997-07",
+            "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+            "secondary-type-ids": [],
+            "id": "d8758f15-65c9-3f34-baf9-475b30755e2b",
+            "releases": [],
+            "primary-type": "Single",
+            "disambiguation": "",
+            "title": "Karma Police"
+          },
+          "status": "Official",
+          "title": "Karma Police",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "id": "bb4f353f-7f15-4946-92e6-77cbfe66b1ea",
+          "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "country": "AU",
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "packaging": "Digipak",
+          "disambiguation": "",
+          "date": "1997-07",
+          "barcode": "724388416221",
+          "release-events": [
+            {
+              "date": "1997-07",
+              "area": {
+                "type": null,
+                "name": "Australia",
+                "iso-3166-1-codes": [
+                  "AU"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "Australia",
+                "id": "106e0bec-b638-3b37-b731-f53d507dc00e"
+              }
+            }
+          ]
+        },
+        {
+          "barcode": "724388455626",
+          "release-events": [
+            {
+              "area": {
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "disambiguation": "",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null,
+                "name": "United Kingdom"
+              },
+              "date": "1997-08-25"
+            }
+          ],
+          "date": "1997-08-25",
+          "disambiguation": "CD 2",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "packaging": null,
+          "country": "GB",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging-id": null,
+          "id": "b0b892ea-216a-42fe-a395-7fb0e3e41325",
+          "status": "Official",
+          "title": "Karma Police",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "release-group": {
+            "secondary-type-ids": [],
+            "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+            "first-release-date": "1997-07",
+            "artist-credit": [
+              {
+                "name": "Radiohead",
+                "joinphrase": "",
+                "artist": {
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB",
+                  "name": "Radiohead",
+                  "type": "Group",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead",
+                  "disambiguation": ""
+                }
+              }
+            ],
+            "secondary-types": [],
+            "title": "Karma Police",
+            "disambiguation": "",
+            "releases": [],
+            "primary-type": "Single",
+            "id": "d8758f15-65c9-3f34-baf9-475b30755e2b"
+          },
+          "quality": "normal"
+        },
+        {
+          "title": "Karma Police",
+          "status": "Official",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "id": "2c96e80f-c68b-40fd-abba-c274e6463e38",
+          "quality": "normal",
+          "release-group": {
+            "title": "Karma Police",
+            "disambiguation": "",
+            "releases": [],
+            "primary-type": "Single",
+            "id": "d8758f15-65c9-3f34-baf9-475b30755e2b",
+            "secondary-type-ids": [],
+            "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+            "first-release-date": "1997-07",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "artist": {
+                  "country": "GB",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "name": "Radiohead",
+                  "type": "Group",
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "disambiguation": ""
+                },
+                "name": "Radiohead"
+              }
+            ],
+            "secondary-types": []
+          },
+          "date": "1997-08-25",
+          "disambiguation": "CD 1",
+          "barcode": "0724388455527",
+          "release-events": [
+            {
+              "date": "1997-08-25",
+              "area": {
+                "type-id": null,
+                "name": "United Kingdom",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "sort-name": "United Kingdom",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "packaging-id": null,
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "packaging": null,
+          "country": "GB"
+        },
+        {
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "packaging": "Jewel Case",
+          "artist-credit": [
+            {
+              "artist": {
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "country": null,
+                "type": "Other",
+                "name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist"
+              },
+              "joinphrase": "",
+              "name": "Various Artists"
+            }
+          ],
+          "country": "NL",
+          "date": "1997-09",
+          "disambiguation": "",
+          "release-events": [
+            {
+              "area": {
+                "type-id": null,
+                "type": null,
+                "name": "Netherlands",
+                "iso-3166-1-codes": [
+                  "NL"
+                ],
+                "sort-name": "Netherlands",
+                "id": "ef1b7cc0-cd26-36f4-8ea0-04d9623786c7",
+                "disambiguation": ""
+              },
+              "date": "1997-09"
+            }
+          ],
+          "barcode": "90909099997",
+          "quality": "normal",
+          "release-group": {
+            "releases": [],
+            "primary-type": "Album",
+            "id": "cc6e687b-8e34-4ec4-8b8c-ad7740f7a9e6",
+            "disambiguation": "",
+            "title": "Hit Explosion ’97, Volume 9",
+            "secondary-types": [
+              "Compilation"
+            ],
+            "artist-credit": [
+              {
+                "name": "Various Artists",
+                "artist": {
+                  "disambiguation": "add compilations to this artist",
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "name": "Various Artists",
+                  "type": "Other",
+                  "country": null,
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86"
+                },
+                "joinphrase": ""
+              }
+            ],
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "first-release-date": "1997-09",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ]
+          },
+          "status-id": "1156806e-d06a-38bd-83f0-cf2284a808b9",
+          "title": "Hit Explosion ’97, Volume 9",
+          "status": "Bootleg",
+          "id": "3b437de0-62a5-42fd-9d00-28786562935f"
+        },
+        {
+          "date": "1997-11-17",
+          "disambiguation": "",
+          "barcode": "0724382391128",
+          "release-events": [
+            {
+              "date": "1997-11-17",
+              "area": {
+                "type": null,
+                "name": "United Kingdom",
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "United Kingdom",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed"
+              }
+            }
+          ],
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "artist": {
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "country": null,
+                "type": "Other",
+                "name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "packaging": "Jewel Case",
+          "country": "GB",
+          "title": "Now That’s What I Call Music! 38",
+          "status": "Official",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "id": "6c939a5d-ea41-47aa-ad97-fb3c76279d72",
+          "quality": "normal",
+          "release-group": {
+            "secondary-types": [
+              "Compilation"
+            ],
+            "artist-credit": [
+              {
+                "name": "Various Artists",
+                "joinphrase": "",
+                "artist": {
+                  "disambiguation": "add compilations to this artist",
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "country": null,
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86"
+                }
+              }
+            ],
+            "first-release-date": "1997-11-17",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "id": "26c77d0d-6361-3b85-ace9-70b476e53b25",
+            "primary-type": "Album",
+            "releases": [],
+            "disambiguation": "UK",
+            "title": "Now That’s What I Call Music! 38"
+          }
+        },
+        {
+          "release-events": [
+            {
+              "date": "1997-11-17",
+              "area": {
+                "disambiguation": "",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "sort-name": "United Kingdom",
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null,
+                "name": "United Kingdom",
+                "type-id": null
+              }
+            }
+          ],
+          "barcode": "724382391142",
+          "disambiguation": "",
+          "date": "1997-11-17",
+          "country": "GB",
+          "packaging": "Cassette Case",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Various Artists",
+                "type": "Other",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "country": null,
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists"
+              },
+              "name": "Various Artists"
+            }
+          ],
+          "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "id": "4fc611f8-f59b-4497-abf9-c2e2bab48de6",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "title": "Now That’s What I Call Music! 38",
+          "status": "Official",
+          "release-group": {
+            "artist-credit": [
+              {
+                "name": "Various Artists",
+                "joinphrase": "",
+                "artist": {
+                  "disambiguation": "add compilations to this artist",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "sort-name": "Various Artists",
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "country": null
+                }
+              }
+            ],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "first-release-date": "1997-11-17",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "id": "26c77d0d-6361-3b85-ace9-70b476e53b25",
+            "releases": [],
+            "primary-type": "Album",
+            "title": "Now That’s What I Call Music! 38",
+            "disambiguation": "UK"
+          },
+          "quality": "normal"
+        },
+        {
+          "quality": "normal",
+          "release-group": {
+            "title": "Attitude",
+            "disambiguation": "Tower Records",
+            "id": "6ac62eec-209a-44e3-b060-32c35d424d37",
+            "primary-type": "Album",
+            "releases": [],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "first-release-date": "1997",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "artist-credit": [
+              {
+                "name": "Various Artists",
+                "artist": {
+                  "country": null,
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "type": "Other",
+                  "name": "Various Artists",
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "disambiguation": "add compilations to this artist"
+                },
+                "joinphrase": ""
+              }
+            ],
+            "secondary-types": [
+              "Compilation"
+            ]
+          },
+          "title": "Attitude",
+          "status": "Promotion",
+          "status-id": "518ffc83-5cde-34df-8627-81bff5093d92",
+          "id": "f9bfc41f-9dab-4909-8658-2e0653c3cd98",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "add compilations to this artist",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "sort-name": "Various Artists",
+                "type": "Other",
+                "name": "Various Artists",
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "country": null
+              },
+              "joinphrase": "",
+              "name": "Various Artists"
+            }
+          ],
+          "packaging": "Cardboard/Paper Sleeve",
+          "country": "XW",
+          "date": "1997",
+          "disambiguation": "Tower Records",
+          "barcode": "",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "sort-name": "[Worldwide]",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "type": null,
+                "name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "type-id": null
+              },
+              "date": "1997"
+            }
+          ]
+        },
+        {
+          "quality": "normal",
+          "release-group": {
+            "id": "53f59e5b-adc9-4c36-a724-cf3aeab69b38",
+            "releases": [],
+            "primary-type": "Album",
+            "disambiguation": "",
+            "title": "Computer K.O.",
+            "secondary-types": [
+              "Live"
+            ],
+            "artist-credit": [
+              {
+                "artist": {
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "disambiguation": "",
+                  "country": "GB",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "type": "Group",
+                  "name": "Radiohead"
+                },
+                "joinphrase": "",
+                "name": "Radiohead"
+              }
+            ],
+            "first-release-date": "1997",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "secondary-type-ids": [
+              "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+            ]
+          },
+          "status-id": "1156806e-d06a-38bd-83f0-cf2284a808b9",
+          "status": "Bootleg",
+          "title": "Computer K.O.",
+          "id": "c5c6d967-fdb1-48bf-b283-06b5860e6f35",
+          "packaging-id": null,
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "country": null,
+          "packaging": null,
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "date": "1997",
+          "release-events": [
+            {
+              "area": null,
+              "date": "1997"
+            }
+          ],
+          "barcode": null
+        },
+        {
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "name": "United States",
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "United States",
+                "id": "489ce91b-6658-3307-9877-795b68554c98"
+              },
+              "date": "1997"
+            }
+          ],
+          "barcode": "",
+          "date": "1997",
+          "disambiguation": "",
+          "packaging": "Jewel Case",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "country": "US",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "id": "a53d05f6-7ee2-4719-8ed0-82dd2a94c24a",
+          "status-id": "518ffc83-5cde-34df-8627-81bff5093d92",
+          "title": "Karma Police",
+          "status": "Promotion",
+          "release-group": {
+            "artist-credit": [
+              {
+                "name": "Radiohead",
+                "artist": {
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead",
+                  "disambiguation": "",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB",
+                  "type": "Group",
+                  "name": "Radiohead"
+                },
+                "joinphrase": ""
+              }
+            ],
+            "secondary-types": [],
+            "secondary-type-ids": [],
+            "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+            "first-release-date": "1997-07",
+            "primary-type": "Single",
+            "releases": [],
+            "id": "d8758f15-65c9-3f34-baf9-475b30755e2b",
+            "title": "Karma Police",
+            "disambiguation": ""
+          },
+          "quality": "normal"
+        },
+        {
+          "packaging": null,
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "country": "XE",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging-id": null,
+          "release-events": [
+            {
+              "date": "1997",
+              "area": {
+                "disambiguation": "",
+                "sort-name": "Europe",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "type": null,
+                "name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type-id": null
+              }
+            }
+          ],
+          "barcode": "",
+          "date": "1997",
+          "disambiguation": "",
+          "release-group": {
+            "secondary-types": [],
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "artist": {
+                  "name": "Radiohead",
+                  "type": "Group",
+                  "country": "GB",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "disambiguation": "",
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+                },
+                "name": "Radiohead"
+              }
+            ],
+            "first-release-date": "1997-07",
+            "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+            "secondary-type-ids": [],
+            "id": "d8758f15-65c9-3f34-baf9-475b30755e2b",
+            "releases": [],
+            "primary-type": "Single",
+            "disambiguation": "",
+            "title": "Karma Police"
+          },
+          "quality": "normal",
+          "id": "f1429171-cf32-415f-97c5-23dfc8d2d37d",
+          "status-id": "518ffc83-5cde-34df-8627-81bff5093d92",
+          "status": "Promotion",
+          "title": "Karma Police"
+        },
+        {
+          "quality": "normal",
+          "release-group": {
+            "title": "Karma Police",
+            "disambiguation": "",
+            "primary-type": "Single",
+            "releases": [],
+            "id": "d8758f15-65c9-3f34-baf9-475b30755e2b",
+            "secondary-type-ids": [],
+            "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+            "first-release-date": "1997-07",
+            "artist-credit": [
+              {
+                "name": "Radiohead",
+                "joinphrase": "",
+                "artist": {
+                  "disambiguation": "",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "sort-name": "Radiohead",
+                  "type": "Group",
+                  "name": "Radiohead",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "country": "GB"
+                }
+              }
+            ],
+            "secondary-types": []
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "status": "Official",
+          "title": "Karma Police",
+          "id": "63b2c45e-59ae-4909-b454-9d2a57b38d95",
+          "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "country": "NZ",
+          "packaging": "Cassette Case",
+          "artist-credit": [
+            {
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "date": "1997",
+          "release-events": [
+            {
+              "date": "1997",
+              "area": {
+                "id": "8524c7d9-f472-3890-a458-f28d5081d9c4",
+                "sort-name": "New Zealand",
+                "disambiguation": "",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "NZ"
+                ],
+                "name": "New Zealand",
+                "type": null
+              }
+            }
+          ],
+          "barcode": "724388416245"
+        },
+        {
+          "quality": "normal",
+          "release-group": {
+            "id": "dcc1a8fa-8d03-4012-a830-dbe74cabd2e1",
+            "primary-type": "Album",
+            "releases": [],
+            "title": "Kiss FM Hits 5",
+            "disambiguation": "",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "artist": {
+                  "name": "Various Artists",
+                  "type": "Other",
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "country": null,
+                  "disambiguation": "add compilations to this artist",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "sort-name": "Various Artists"
+                },
+                "name": "Various Artists"
+              }
+            ],
+            "secondary-types": [
+              "Compilation"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "first-release-date": "1997",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+          },
+          "title": "Kiss FM Hits 5",
+          "status": "Official",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "id": "d86a24b4-ee1b-420f-8255-9bb37f1c31a6",
+          "packaging-id": null,
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "country": "FI",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "add compilations to this artist",
+                "sort-name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists",
+                "type": "Other",
+                "country": null,
+                "type-id": "ac897045-5043-3294-969b-187360e45d86"
+              },
+              "name": "Various Artists"
+            }
+          ],
+          "packaging": null,
+          "disambiguation": "",
+          "date": "1997",
+          "barcode": "0731455514421",
+          "release-events": [
+            {
+              "date": "1997",
+              "area": {
+                "sort-name": "Finland",
+                "id": "6a264f94-6ff1-30b1-9a81-41f7bfabd616",
+                "disambiguation": "",
+                "type-id": null,
+                "type": null,
+                "name": "Finland",
+                "iso-3166-1-codes": [
+                  "FI"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "disambiguation": "",
+          "date": "1997",
+          "release-events": [
+            {
+              "date": "1997",
+              "area": {
+                "type": null,
+                "name": "Sweden",
+                "iso-3166-1-codes": [
+                  "SE"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "Sweden",
+                "id": "23d10872-f5ae-3f0c-bf55-332788a16ecb"
+              }
+            }
+          ],
+          "barcode": null,
+          "packaging-id": null,
+          "text-representation": {
+            "script": "Latn",
+            "language": null
+          },
+          "country": "SE",
+          "packaging": null,
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "artist": {
+                "country": null,
+                "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                "name": "Various Artists",
+                "type": "Other",
+                "sort-name": "Various Artists",
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "disambiguation": "add compilations to this artist"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "title": "Mr Music Hits 11. 1997",
+          "status": "Official",
+          "id": "24e31042-2e93-4ab8-86e7-68c84661e9af",
+          "quality": "normal",
+          "release-group": {
+            "title": "Mr Music Hits 11. 1997",
+            "disambiguation": "",
+            "id": "035848e3-a486-4066-a18b-97a8b57bdb98",
+            "releases": [],
+            "primary-type": "Album",
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+            ],
+            "first-release-date": "1997",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "artist-credit": [
+              {
+                "name": "Various Artists",
+                "artist": {
+                  "sort-name": "Various Artists",
+                  "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                  "disambiguation": "add compilations to this artist",
+                  "country": null,
+                  "type-id": "ac897045-5043-3294-969b-187360e45d86",
+                  "name": "Various Artists",
+                  "type": "Other"
+                },
+                "joinphrase": ""
+              }
+            ],
+            "secondary-types": [
+              "Compilation"
+            ]
+          }
+        }
+      ],
+      "length": 262426,
+      "title": "Karma Police",
+      "video": false,
+      "disambiguation": "",
+      "artist-credit": [
+        {
+          "name": "Radiohead",
+          "artist": {
+            "disambiguation": "",
+            "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "sort-name": "Radiohead",
+            "name": "Radiohead",
+            "type": "Group",
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "country": "GB"
+          },
+          "joinphrase": ""
+        }
+      ],
+      "isrcs": [
+        "GBAYE9701368",
+        "GBAYE9701424",
+        "GBBKS1700112"
+      ],
+      "first-release-date": "1997-05-21"
+    }
+  }
+}

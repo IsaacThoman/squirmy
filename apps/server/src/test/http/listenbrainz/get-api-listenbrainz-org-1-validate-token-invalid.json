@@ -1,0 +1,13 @@
+{
+  "note": "Hand-written from the ListenBrainz API docs (GET /1/validate-token answers 200 with valid: false for an unknown token).",
+  "request": {
+    "method": "GET",
+    "url": "https://api.listenbrainz.org/1/validate-token",
+    "headers": { "authorization": "Token invalid-user-token" }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "content-type": "application/json" },
+    "json": { "code": 200, "message": "Token invalid.", "valid": false }
+  }
+}

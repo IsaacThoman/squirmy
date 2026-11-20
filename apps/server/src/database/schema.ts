@@ -181,6 +181,7 @@ export const artists = pgTable('artists', {
   uniqueIndex('artists_mbid').on(t.mbid),
   index('artists_name_key_trgm').using('gin', t.nameKey.op('gin_trgm_ops')),
   index('artists_name_key').on(t.nameKey),
+  index('artists_name_sort').on(sql`regexp_replace(${t.nameKey}, '^(the|a|an) ', '')`, t.id),
 ])
 
 /** An album is a MusicBrainz release group: the abstract album across all its editions. */
@@ -216,6 +217,15 @@ export const albums = pgTable('albums', {
   index('albums_title_key_trgm').using('gin', t.titleKey.op('gin_trgm_ops')),
   index('albums_match_key').on(t.matchKey),
   index('albums_primary_artist').on(t.primaryArtistId),
+  // Library orderings (modules/catalog/library.ts). The expressions are `sortKey` over the
+  // stored match keys and must stay identical to `sortKeys` in modules/catalog/sql.ts.
+  index('albums_title_sort').on(sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`, t.id),
+  index('albums_artist_sort').on(
+    sql`regexp_replace(split_part(${t.matchKey}, '|', 1), '^(the|a|an) ', '')`,
+    sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`,
+    t.id,
+  ),
+  index('albums_year_sort').on(sql`coalesce(${t.year}, 0) desc`, sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`, t.id),
 ])
 
 export const albumArtists = pgTable('album_artists', {
@@ -278,6 +288,16 @@ export const recordings = pgTable('recordings', {
   index('recordings_match_key').on(t.matchKey),
   index('recordings_isrcs').using('gin', t.isrcs),
   index('recordings_primary_artist').on(t.primaryArtistId),
+  index('recordings_title_sort').on(
+    sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`,
+    sql`regexp_replace(split_part(${t.matchKey}, '|', 1), '^(the|a|an) ', '')`,
+    t.id,
+  ),
+  index('recordings_artist_sort').on(
+    sql`regexp_replace(split_part(${t.matchKey}, '|', 1), '^(the|a|an) ', '')`,
+    sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`,
+    t.id,
+  ),
 ])
 
 export const recordingArtists = pgTable('recording_artists', {
@@ -327,18 +347,32 @@ export const assets = pgTable('assets', {
   kind: text('kind').notNull(),
   /** Where it came from: a URL, or `file:<media_file id>`. */
   source: text('source').notNull(),
-  sha256: text('sha256').notNull(),
-  mime: text('mime').notNull(),
-  width: integer('width').notNull(),
-  height: integer('height').notNull(),
-  bytes: integer('bytes').notNull(),
+  /**
+   * ready: the image is stored locally. remote: it lives at `remote_url` and is fetched
+   * the first time someone asks for it. failed: the last fetch did not produce an image.
+   * The columns that describe stored bytes are null until an asset is ready.
+   */
+  status: text('status').$type<'ready' | 'remote' | 'failed'>().notNull().default('ready'),
+  remoteUrl: text('remote_url'),
+  /** When a remote image was last fetched or last failed. */
+  checkedAt: at('checked_at'),
+  sha256: text('sha256'),
+  mime: text('mime'),
+  width: integer('width'),
+  height: integer('height'),
+  bytes: integer('bytes'),
   /** Dominant color, #rrggbb. */
   color: text('color'),
   thumbhash: text('thumbhash'),
   /** Path relative to the data directory. */
-  storagePath: text('storage_path').notNull(),
+  storagePath: text('storage_path'),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex('assets_sha256').on(t.sha256)])
+}, (t) => [
+  // Local images are content addressed. A remote image may turn out to hold the same
+  // bytes as another row, so it is left out of the uniqueness rule.
+  uniqueIndex('assets_sha256').on(t.sha256).where(sql`${t.remoteUrl} is null`),
+  uniqueIndex('assets_remote_url').on(t.remoteUrl),
+])
 
 export const lyrics = pgTable('lyrics', {
   recordingId: uuid('recording_id').primaryKey().references(() => recordings.id, { onDelete: 'cascade' }),
@@ -422,19 +456,31 @@ export const mediaFiles = pgTable('media_files', {
   importId: uuid('import_id'),
   /** 0 discovered, 1 tags read (playable), 2 audio hash and loudness done. */
   probeStage: smallint('probe_stage').notNull().default(0),
+  /**
+   * Why the last probe or analysis of this file failed. Set instead of retrying; a scan
+   * clears it when the file's size or mtime changes.
+   */
+  probeError: text('probe_error'),
   /** Set when a scan no longer finds the file. Cleared if it returns. */
   missingSince: at('missing_since'),
   addedAt: at('added_at').notNull().defaultNow(),
   updatedAt: updatedAt(),
 }, (t) => [
   uniqueIndex('media_files_path').on(t.rootId, t.relPath),
+  // Byte order, so a scan can merge a sorted directory walk with the rows page by page.
+  index('media_files_scan_order').on(t.rootId, sql`${t.relPath} collate "C"`),
   index('media_files_audio_hash').on(t.audioHash),
+  index('media_files_release_track').on(t.releaseTrackId),
   index('media_files_recording').on(t.recordingId),
   index('media_files_album').on(t.albumId),
   index('media_files_release').on(t.releaseId),
   index('media_files_group').on(t.rootId, t.groupKey),
   index('media_files_match_status').on(t.matchStatus),
   index('media_files_added').on(t.addedAt),
+  // Present files only: ownership checks and the "recently added" walks.
+  index('media_files_present_recent').on(t.addedAt, t.id).where(sql`${t.missingSince} is null`),
+  index('media_files_present_album').on(t.albumId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
+  index('media_files_present_recording').on(t.recordingId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
 ])
 
 /** Album loudness, measured across the owned files of one release. */
@@ -698,21 +744,59 @@ export const rateLimits = pgTable('rate_limits', {
   nextAt: at('next_at').notNull().defaultNow(),
 })
 
+export type CatalogIndexKind = 'artist' | 'album' | 'recording'
+export type CatalogIndexImportState = 'running' | 'active' | 'failed' | 'cancelled' | 'replaced' | 'dropped'
+export type CatalogIndexImportPhase = 'download' | 'build' | 'swap'
+
 /**
  * Optional local search index loaded from MusicBrainz canonical dumps. Empty unless
- * the operator runs the importer.
+ * the operator runs the importer, which builds a replacement table and swaps it in
+ * (modules/catalog-index/import.ts), so the DDL there must match this definition.
+ * Rows are written once, in descending `score` order within each kind, and never
+ * updated; search relies on that physical order. There is no primary key: nothing
+ * looks rows up by id, and at tens of millions of rows the index would cost gigabytes.
+ * See docs/local-search-index.md for the design and its measurements.
  */
 export const catalogIndex = pgTable('catalog_index', {
-  id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
-  /** artist | album | recording */
-  kind: text('kind').notNull(),
+  kind: text('kind').$type<CatalogIndexKind>().notNull(),
+  /** Artist, release group or recording MBID. */
   mbid: uuid('mbid').notNull(),
   name: text('name').notNull(),
   artistName: text('artist_name'),
   albumName: text('album_name'),
   nameKey: text('name_key').notNull(),
-  score: real('score').notNull().default(0),
+  /** Popularity prior from 0 to 1. */
+  score: real('score').notNull(),
+  /** Among the most popular rows of its kind; only these carry the fuzzy trigram index. */
+  head: boolean('head').notNull(),
 }, (t) => [
-  index('catalog_index_key_trgm').using('gin', t.nameKey.op('gin_trgm_ops')),
-  uniqueIndex('catalog_index_kind_mbid').on(t.kind, t.mbid),
+  index('catalog_index_artist_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'artist' and head`),
+  index('catalog_index_album_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'album' and head`),
+  index('catalog_index_recording_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'recording' and head`),
+  index('catalog_index_prefix').on(t.kind, sql`(${t.nameKey} collate "C")`),
 ])
+
+/**
+ * One row per import of the local search index. The row in state `active` describes
+ * the index currently in `catalog_index`; at most one row is `running`.
+ */
+export const catalogIndexImports = pgTable('catalog_index_imports', {
+  id: id(),
+  state: text('state').$type<CatalogIndexImportState>().notNull(),
+  phase: text('phase').$type<CatalogIndexImportPhase>(),
+  source: text('source'),
+  /** When MetaBrainz produced the dump, from its TIMESTAMP file. */
+  dumpDate: at('dump_date'),
+  /** Size knob: keep at most this many recordings per artist credit; null keeps all. */
+  recordingsPerArtist: integer('recordings_per_artist'),
+  bytesRead: bigint('bytes_read', { mode: 'number' }).notNull().default(0),
+  totalBytes: bigint('total_bytes', { mode: 'number' }),
+  rowsRead: bigint('rows_read', { mode: 'number' }).notNull().default(0),
+  artists: integer('artists'),
+  albums: integer('albums'),
+  recordings: integer('recordings'),
+  error: text('error'),
+  cancelRequested: boolean('cancel_requested').notNull().default(false),
+  startedAt: at('started_at').notNull().defaultNow(),
+  finishedAt: at('finished_at'),
+}, (t) => [index('catalog_index_imports_state').on(t.state)])

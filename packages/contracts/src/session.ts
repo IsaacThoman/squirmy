@@ -300,9 +300,11 @@ export const queryKeys = {
   wants: () => ['wants'] as const,
   search: () => ['search'] as const,
   settings: () => ['settings'] as const,
+  scrobbling: () => ['scrobbling'] as const,
   admin: () => ['admin'] as const,
   adminRoots: () => ['admin', 'roots'] as const,
   adminJobs: () => ['admin', 'jobs'] as const,
   adminReviews: () => ['admin', 'reviews'] as const,
   adminUsers: () => ['admin', 'users'] as const,
+  adminOrganize: () => ['admin', 'organize'] as const,
 } as const

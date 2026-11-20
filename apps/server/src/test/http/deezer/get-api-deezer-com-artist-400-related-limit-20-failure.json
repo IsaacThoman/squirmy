@@ -1,0 +1,12 @@
+{
+  "note": "Hand-written: a Deezer outage, so the similar-artist lookup has to fall back to its other source.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/400/related?limit=20"
+  },
+  "response": {
+    "status": 500,
+    "headers": { "content-type": "text/html" },
+    "text": "Internal Server Error"
+  }
+}

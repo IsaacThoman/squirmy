@@ -1,0 +1,686 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/5588dfca-c011-4f66-9899-dcaa5f4efed5?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "packaging": "Jewel Case",
+      "text-representation": {
+        "script": "Jpan",
+        "language": "jpn"
+      },
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "release-group": {
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "first-release-date": "1999-02-24",
+        "title": "無罪モラトリアム",
+        "secondary-type-ids": [],
+        "artist-credit": [
+          {
+            "artist": {
+              "disambiguation": "",
+              "type": "Person",
+              "sort-name": "Sheena, Ringo",
+              "name": "椎名林檎",
+              "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+              "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+              "country": "JP"
+            },
+            "name": "椎名林檎",
+            "joinphrase": ""
+          }
+        ],
+        "primary-type": "Album",
+        "id": "923db16c-6620-3e44-ba00-a20745c6a957",
+        "secondary-types": [],
+        "disambiguation": ""
+      },
+      "country": "JP",
+      "artist-credit": [
+        {
+          "name": "椎名林檎",
+          "joinphrase": "",
+          "artist": {
+            "type": "Person",
+            "disambiguation": "",
+            "sort-name": "Sheena, Ringo",
+            "name": "椎名林檎",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+            "country": "JP",
+            "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87"
+          }
+        }
+      ],
+      "status": "Official",
+      "barcode": "4988006158429",
+      "asin": "B00000JD1I",
+      "release-events": [
+        {
+          "date": "1999-02-24",
+          "area": {
+            "iso-3166-1-codes": [
+              "JP"
+            ],
+            "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+            "name": "Japan",
+            "type-id": null,
+            "sort-name": "Japan",
+            "disambiguation": "",
+            "type": null
+          }
+        }
+      ],
+      "relations": [
+        {
+          "attribute-ids": {},
+          "ended": false,
+          "source-credit": "",
+          "url": {
+            "id": "738929cc-32b1-44c5-8113-72e417dd149a",
+            "resource": "https://www.amazon.co.jp/gp/product/B00000JD1I"
+          },
+          "end": null,
+          "target-type": "url",
+          "attributes": [],
+          "attribute-values": {},
+          "begin": null,
+          "type": "amazon asin",
+          "target-credit": "",
+          "direction": "forward",
+          "type-id": "4f2e710d-166c-480c-a293-2e2c8d658d87"
+        },
+        {
+          "direction": "forward",
+          "type-id": "4a78823c-1c53-4176-a5f3-58026c76f2bc",
+          "begin": null,
+          "attribute-values": {},
+          "type": "discogs",
+          "target-credit": "",
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "d3f64665-d179-4a03-ae18-6bf132e3044d",
+            "resource": "https://www.discogs.com/release/2900397"
+          },
+          "target-type": "url",
+          "attributes": [],
+          "attribute-ids": {}
+        }
+      ],
+      "quality": "normal",
+      "disambiguation": "",
+      "media": [
+        {
+          "title": "",
+          "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+          "id": "f8087390-fdb4-3b19-ad7d-25303d050430",
+          "tracks": [
+            {
+              "number": "1",
+              "position": 1,
+              "length": 232666,
+              "title": "正しい街",
+              "id": "8ca11b28-6b62-3a3e-be4e-bab8644112ab",
+              "recording": {
+                "length": 232666,
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "椎名林檎",
+                    "artist": {
+                      "disambiguation": "",
+                      "type": "Person",
+                      "sort-name": "Sheena, Ringo",
+                      "name": "椎名林檎",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                      "country": "JP"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "JPTO09834910"
+                ],
+                "id": "64dd3158-9423-45a2-bb6a-63fb05444ee6",
+                "video": false,
+                "title": "正しい街",
+                "first-release-date": "1999-02-24"
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "椎名林檎",
+                  "artist": {
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "country": "JP",
+                    "name": "椎名林檎",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Sheena, Ringo",
+                    "type": "Person",
+                    "disambiguation": ""
+                  }
+                }
+              ]
+            },
+            {
+              "title": "歌舞伎町の女王",
+              "id": "ae064482-2d66-3b54-9b9d-2350d50171bf",
+              "recording": {
+                "video": false,
+                "id": "4dd9d08d-376c-42b2-8b44-e3322ed657b7",
+                "isrcs": [
+                  "JPTO09822500"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "椎名林檎",
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "type": "Person",
+                      "sort-name": "Sheena, Ringo",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "椎名林檎",
+                      "country": "JP",
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87"
+                    }
+                  }
+                ],
+                "first-release-date": "1998-09-09",
+                "title": "歌舞伎町の女王",
+                "disambiguation": "",
+                "length": 173000
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "type": "Person",
+                    "sort-name": "Sheena, Ringo",
+                    "name": "椎名林檎",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "JP",
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87"
+                  },
+                  "name": "椎名林檎",
+                  "joinphrase": ""
+                }
+              ],
+              "number": "2",
+              "position": 2,
+              "length": 173466
+            },
+            {
+              "length": 235866,
+              "position": 3,
+              "number": "3",
+              "recording": {
+                "length": 235666,
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "JP",
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "椎名林檎",
+                      "sort-name": "Sheena, Ringo",
+                      "disambiguation": "",
+                      "type": "Person"
+                    },
+                    "joinphrase": "",
+                    "name": "椎名林檎"
+                  }
+                ],
+                "isrcs": [
+                  "JPTO09834920"
+                ],
+                "id": "4f94f1c9-4e46-451b-917c-77ebdf8097e3",
+                "video": false,
+                "title": "丸の内サディスティック",
+                "first-release-date": "1999-02-24"
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "椎名林檎",
+                  "artist": {
+                    "name": "椎名林檎",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "JP",
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "disambiguation": "",
+                    "type": "Person",
+                    "sort-name": "Sheena, Ringo"
+                  }
+                }
+              ],
+              "id": "05ad8152-f8ad-3aaa-9cfa-1a292eb02e10",
+              "title": "丸の内サディスティック"
+            },
+            {
+              "number": "4",
+              "position": 4,
+              "length": 179333,
+              "id": "eb36b4af-4395-3a33-aa0e-0213f14cdf5d",
+              "recording": {
+                "title": "幸福論（悦楽編）",
+                "first-release-date": "1999-02-24",
+                "id": "b237e68b-05a7-41f3-8230-b2e7dc48f22a",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "name": "椎名林檎",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                      "country": "JP",
+                      "name": "椎名林檎",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Sheena, Ringo",
+                      "disambiguation": "",
+                      "type": "Person"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "JPTO09834930"
+                ],
+                "disambiguation": "",
+                "length": 179026
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "椎名林檎",
+                  "artist": {
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "country": "JP",
+                    "name": "椎名林檎",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Sheena, Ringo",
+                    "type": "Person",
+                    "disambiguation": ""
+                  }
+                }
+              ],
+              "title": "幸福論（悦楽編）"
+            },
+            {
+              "title": "茜さす 帰路照らされど…",
+              "id": "6bed0b98-9aa4-3089-8aaf-5a6dab84d7f5",
+              "recording": {
+                "length": 247200,
+                "disambiguation": "",
+                "title": "茜さす　帰路照らされど…",
+                "first-release-date": "1999-02-24",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "椎名林檎",
+                    "artist": {
+                      "disambiguation": "",
+                      "type": "Person",
+                      "sort-name": "Sheena, Ringo",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "椎名林檎",
+                      "country": "JP",
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "JPTO09834940"
+                ],
+                "id": "bb42351a-33c7-43e2-9e39-1e24330df914",
+                "video": false
+              },
+              "artist-credit": [
+                {
+                  "name": "椎名林檎",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "type": "Person",
+                    "sort-name": "Sheena, Ringo",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "椎名林檎",
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "country": "JP"
+                  }
+                }
+              ],
+              "number": "5",
+              "position": 5,
+              "length": 247200
+            },
+            {
+              "position": 6,
+              "number": "6",
+              "length": 243466,
+              "id": "78645f09-9015-3017-9702-ea8555c44a3a",
+              "artist-credit": [
+                {
+                  "name": "椎名林檎",
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "JP",
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "椎名林檎",
+                    "sort-name": "Sheena, Ringo",
+                    "type": "Person",
+                    "disambiguation": ""
+                  }
+                }
+              ],
+              "recording": {
+                "id": "c3626aa5-071c-42eb-8e63-bdaf7d39ca59",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "name": "椎名林檎",
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "JP",
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                      "name": "椎名林檎",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Sheena, Ringo",
+                      "disambiguation": "",
+                      "type": "Person"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "JPTO09834950"
+                ],
+                "title": "シドと白昼夢",
+                "first-release-date": "1999-02-24",
+                "disambiguation": "",
+                "length": 243306
+              },
+              "title": "シドと白昼夢"
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "country": "JP",
+                    "name": "椎名林檎",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Sheena, Ringo",
+                    "disambiguation": "",
+                    "type": "Person"
+                  },
+                  "name": "椎名林檎",
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "disambiguation": "",
+                "length": 203626,
+                "title": "積木遊び",
+                "first-release-date": "1999-02-24",
+                "id": "43cfc238-8eed-416c-b04f-94faebd30000",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Sheena, Ringo",
+                      "disambiguation": "",
+                      "type": "Person",
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                      "country": "JP",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "椎名林檎"
+                    },
+                    "name": "椎名林檎",
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "JPTO09834960"
+                ]
+              },
+              "id": "dcbe63a6-df76-355d-94c6-58d64836f729",
+              "title": "積木遊び",
+              "length": 203626,
+              "number": "7",
+              "position": 7
+            },
+            {
+              "id": "8c9cd446-3b22-3a99-962b-8d34ee496b2a",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "country": "JP",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "椎名林檎",
+                    "sort-name": "Sheena, Ringo",
+                    "disambiguation": "",
+                    "type": "Person"
+                  },
+                  "name": "椎名林檎",
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "length": 259000,
+                "disambiguation": "",
+                "isrcs": [
+                  "JPTO09832780"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "JP",
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "椎名林檎",
+                      "sort-name": "Sheena, Ringo",
+                      "type": "Person",
+                      "disambiguation": ""
+                    },
+                    "name": "椎名林檎",
+                    "joinphrase": ""
+                  }
+                ],
+                "video": false,
+                "id": "65d7d58f-5b49-4524-99af-037ca1568ff8",
+                "first-release-date": "1999-01-20",
+                "title": "ここでキスして。"
+              },
+              "title": "ここでキスして。",
+              "number": "8",
+              "position": 8,
+              "length": 259666
+            },
+            {
+              "number": "9",
+              "position": 9,
+              "length": 218000,
+              "title": "同じ夜",
+              "id": "d81fe5cb-1d93-34c2-a9cb-73f551ef3344",
+              "recording": {
+                "disambiguation": "",
+                "length": 218000,
+                "id": "75bf18c4-0609-48f6-9636-763f8301d1cc",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "name": "椎名林檎",
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "椎名林檎",
+                      "country": "JP",
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                      "type": "Person",
+                      "disambiguation": "",
+                      "sort-name": "Sheena, Ringo"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "JPTO09834970"
+                ],
+                "title": "同じ夜",
+                "first-release-date": "1999-02-24"
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "JP",
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "name": "椎名林檎",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Sheena, Ringo",
+                    "type": "Person",
+                    "disambiguation": ""
+                  },
+                  "name": "椎名林檎",
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "title": "警告",
+              "id": "230474ac-fcf0-3e54-bf41-e8f23745baed",
+              "recording": {
+                "disambiguation": "",
+                "length": 245400,
+                "title": "警告",
+                "first-release-date": "1999-02-24",
+                "id": "1e27b300-8c63-4889-bb7c-4e9b346351a7",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                      "country": "JP",
+                      "name": "椎名林檎",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Sheena, Ringo",
+                      "disambiguation": "",
+                      "type": "Person"
+                    },
+                    "joinphrase": "",
+                    "name": "椎名林檎"
+                  }
+                ],
+                "isrcs": [
+                  "JPTO09834980"
+                ]
+              },
+              "artist-credit": [
+                {
+                  "name": "椎名林檎",
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Sheena, Ringo",
+                    "disambiguation": "",
+                    "type": "Person",
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "country": "JP",
+                    "name": "椎名林檎",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                  }
+                }
+              ],
+              "number": "10",
+              "position": 10,
+              "length": 245466
+            },
+            {
+              "position": 11,
+              "number": "11",
+              "length": 221733,
+              "title": "モルヒネ",
+              "id": "e81821f1-6cbe-3806-b15c-436879f136bd",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "椎名林檎",
+                  "artist": {
+                    "sort-name": "Sheena, Ringo",
+                    "disambiguation": "",
+                    "type": "Person",
+                    "country": "JP",
+                    "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                    "name": "椎名林檎",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                  }
+                }
+              ],
+              "recording": {
+                "first-release-date": "1999-02-24",
+                "title": "モルヒネ",
+                "isrcs": [
+                  "JPTO09834990"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Sheena, Ringo",
+                      "type": "Person",
+                      "disambiguation": "",
+                      "country": "JP",
+                      "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                      "name": "椎名林檎",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "name": "椎名林檎",
+                    "joinphrase": ""
+                  }
+                ],
+                "video": false,
+                "id": "d982937f-69af-4dbc-922a-e02cca12d1dc",
+                "length": 221733,
+                "disambiguation": ""
+              }
+            }
+          ],
+          "format": "CD",
+          "position": 1,
+          "track-offset": 0,
+          "track-count": 11
+        }
+      ],
+      "id": "5588dfca-c011-4f66-9899-dcaa5f4efed5",
+      "label-info": [
+        {
+          "label": {
+            "id": "31af4a29-1d1a-46f4-bf47-a3e8e84dadfb",
+            "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+            "name": "EASTWORLD",
+            "sort-name": "EASTWORLD",
+            "disambiguation": "Japanese imprint",
+            "type": "Imprint",
+            "label-code": null
+          },
+          "catalog-number": "TOCT-24065"
+        }
+      ],
+      "date": "1999-02-24",
+      "cover-art-archive": {
+        "back": true,
+        "artwork": true,
+        "front": true,
+        "count": 12,
+        "darkened": false
+      },
+      "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+      "title": "無罪モラトリアム"
+    }
+  }
+}

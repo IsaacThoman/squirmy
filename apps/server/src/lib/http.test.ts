@@ -136,10 +136,13 @@ describe('lib/http', () => {
     const finished: number[] = []
     await Promise.all(Array.from({ length: 5 }, () => rateLimit('test:queue', interval).then(() => finished.push(Date.now()))))
     finished.sort((a, b) => a - b)
+    // Each caller sleeps from the moment its reservation comes back, so a slow round trip
+    // can close the gap to the next caller. The slots themselves never move: the last of
+    // five callers cannot finish before four intervals have passed.
     for (let index = 1; index < finished.length; index++) {
-      expect(finished[index]! - finished[index - 1]!).toBeGreaterThanOrEqual(interval - 15)
+      expect(finished[index]! - finished[index - 1]!).toBeGreaterThanOrEqual(interval / 2)
     }
-    expect(finished.at(-1)! - started).toBeGreaterThanOrEqual(interval * 4 - 15)
+    expect(finished.at(-1)! - started).toBeGreaterThanOrEqual(interval * 4 - 5)
 
     const other = Date.now()
     await rateLimit('test:other', interval)

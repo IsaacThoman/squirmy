@@ -1,0 +1,496 @@
+import type { AddressInfo } from 'node:net'
+import type {
+  ClientToServerEvents, CommandAck, QueueSeed, ServerToClientEvents, SessionCommand, SessionHelloAck, SessionQueue, SessionState,
+} from '@squirmy/contracts'
+import { eq } from 'drizzle-orm'
+import type { FastifyInstance } from 'fastify'
+import { io as connect, type Socket } from 'socket.io-client'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildApp } from '../../app.js'
+import { db } from '../../database/client.js'
+import { devices, mediaFiles, playbackSessions, plays, recordings } from '../../database/schema.js'
+import { newId } from '../../lib/ids.js'
+import { matchKey } from '../../lib/text.js'
+import { startRealtime } from '../../realtime/index.js'
+import { useTestDatabase } from '../../test/database.js'
+import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
+import { requestRecording } from '../acquisition/coverage.js'
+import { createSession } from '../auth/service.js'
+import { suggestAutoplay } from '../radio/suggest.js'
+import { onPlayStart, sessionsModule } from './index.js'
+import { configureSessions, getSnapshot, markRecordingFailed, markRecordingReady, recordExternalPlay, replaceQueue } from './service.js'
+
+const onDemand = vi.hoisted(() => new Set<string>())
+vi.mock('../acquisition/coverage.js', () => ({
+  onDemandRecordings: vi.fn(async (ids: readonly string[]) => new Set(ids.filter((id) => onDemand.has(id)))),
+  requestRecording: vi.fn(async () => {}),
+}))
+vi.mock('../radio/suggest.js', () => ({ suggestAutoplay: vi.fn(async () => []) }))
+
+type Client = Socket<ServerToClientEvents, ClientToServerEvents>
+
+/** Polls in real time until `check` passes. Unlike `expect.poll`, it never advances a fake clock. */
+async function eventually<T>(read: () => T | Promise<T>, check: (value: T) => void, timeoutMs = 5000): Promise<void> {
+  const deadline = performance.now() + timeoutMs
+  for (;;) {
+    const value = await read()
+    try {
+      check(value)
+      return
+    } catch (error) {
+      if (performance.now() > deadline) throw error
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
+/** A session clock that moves only when told to. */
+function stoppedClock() {
+  let time = Date.now()
+  configureSessions({ now: () => time })
+  return { now: () => time, advance: (ms: number) => void (time += ms) }
+}
+
+type Logged = [event: string, payload: unknown]
+
+/** A raw socket.io client that logs every session event and every ack, in arrival order. */
+class Peer {
+  readonly log: Logged[] = []
+  private serial = 0
+
+  constructor(readonly socket: Client, readonly deviceId: string) {
+    for (const event of ['session:state', 'session:queue', 'devices', 'invalidate'] as const) {
+      socket.on(event, (payload: unknown) => this.log.push([event, payload]))
+    }
+  }
+
+  hello(canPlay = true): Promise<SessionHelloAck> {
+    return this.socket.emitWithAck('session:hello', { device: { id: this.deviceId, name: `Device ${this.deviceId}`, kind: 'web' }, canPlay })
+  }
+
+  /** Sends a command; the ack is logged from the socket.io callback, in order with events. */
+  send(command: SessionCommand, commandId = `${this.deviceId}-${++this.serial}`): Promise<CommandAck> {
+    return new Promise((resolve) => {
+      this.socket.emit('session:command', { commandId, command }, (ack) => {
+        this.log.push(['ack', ack])
+        resolve(ack)
+      })
+    })
+  }
+
+  events(name: string): unknown[] {
+    return this.log.filter(([event]) => event === name).map(([, payload]) => payload)
+  }
+
+  /** Waits for the `session:state` of `version` and returns it. */
+  async state(version: number): Promise<SessionState> {
+    await eventually(() => this.states().map((update) => update.version), (versions) => expect(versions).toContain(version))
+    return this.states().find((update) => update.version === version)!.state
+  }
+
+  states(): { version: number; state: SessionState }[] {
+    return this.events('session:state') as { version: number; state: SessionState }[]
+  }
+
+  queues(): { version: number; queueVersion: number; queue: SessionQueue }[] {
+    return this.events('session:queue') as { version: number; queueVersion: number; queue: SessionQueue }[]
+  }
+
+  lastDevices(): { id: string; isActive: boolean }[] {
+    return this.events('devices').at(-1) as { id: string; isActive: boolean }[]
+  }
+}
+
+describe('sessions', () => {
+  useTestDatabase()
+  let app: FastifyInstance
+  let url = ''
+  const sockets: Client[] = []
+  let album: Awaited<ReturnType<typeof createAlbum>>
+  let user: { id: string; token: string }
+
+  beforeAll(async () => {
+    app = await buildApp()
+    await sessionsModule.realtime!(await startRealtime(app))
+    await app.listen({ host: '127.0.0.1', port: 0 })
+    url = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`
+    album = await createAlbum({ owned: true })
+  })
+  beforeEach(async () => {
+    configureSessions({ deviceGraceMs: 20_000, now: () => Date.now() })
+    vi.mocked(requestRecording).mockClear()
+    vi.mocked(suggestAutoplay).mockReset().mockResolvedValue([])
+    onDemand.clear()
+    user = await newUser()
+  })
+  afterEach(async () => {
+    for (const socket of sockets.splice(0)) socket.disconnect()
+    await sessionsModule.stop!()
+  })
+  afterAll(async () => {
+    await app.close()
+  })
+
+  async function newUser() {
+    const row = await createUser()
+    const { token } = await createSession(db, { userId: row.id, clientKind: 'test' })
+    return { id: row.id, token }
+  }
+
+  async function open(deviceId: string, token = user.token): Promise<Peer> {
+    const socket: Client = connect(url, { path: '/socket.io', transports: ['websocket'], reconnection: false, auth: { token } })
+    sockets.push(socket)
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', resolve)
+      socket.once('connect_error', reject)
+    })
+    return new Peer(socket, deviceId)
+  }
+
+  async function device(deviceId: string, options: { canPlay?: boolean; token?: string } = {}): Promise<Peer> {
+    const peer = await open(deviceId, options.token)
+    await peer.hello(options.canPlay ?? true)
+    return peer
+  }
+
+  const seeds = (tracks = album.tracks): QueueSeed[] => tracks.map((track) => ({ trackId: track.recordingId, albumId: album.albumId, durationMs: 1 }))
+  const playAlbum = (startIndex?: number): SessionCommand => ({ type: 'playTracks', tracks: seeds(), startIndex, seed: 1, context: { type: 'album', id: album.albumId, title: album.title } })
+  const get = (path: string, token = user.token) => app.inject({ method: 'GET', url: `/api/v1${path}`, headers: { authorization: `Bearer ${token}` } })
+
+  it('answers hello with the server time, the snapshot and the connected devices', async () => {
+    const a = await open('device-a-0001')
+    const before = Date.now()
+    const reply = await a.hello()
+    expect(reply.serverTime).toBeGreaterThanOrEqual(before)
+    expect(reply.snapshot).toMatchObject({ version: 0, queueVersion: 0, state: { current: null, playing: false, activeDeviceId: null }, queue: { queue: [] } })
+    expect(reply.devices).toEqual([{ id: 'device-a-0001', name: 'Device device-a-0001', kind: 'web', canPlay: true, isActive: false }])
+
+    const b = await open('device-b-0001')
+    const second = await b.hello(false)
+    expect(second.devices.map((item) => item.id)).toEqual(['device-a-0001', 'device-b-0001'])
+    await eventually(() => a.lastDevices()?.map((item) => item.id), (value) => expect(value).toEqual(['device-a-0001', 'device-b-0001']))
+    expect(b.events('devices')).toEqual([])
+    expect(await db.select({ id: devices.id }).from(devices).where(eq(devices.userId, user.id))).toHaveLength(2)
+
+    expect((await get('/me/devices')).json()).toEqual({ items: second.devices, nextCursor: null })
+    expect((await get('/me/session')).json()).toEqual(second.snapshot)
+    expect((await app.inject({ method: 'GET', url: '/api/v1/me/session' })).statusCode).toBe(401)
+    expect((await app.inject({ method: 'GET', url: '/api/v1/me/devices' })).statusCode).toBe(401)
+
+    b.socket.disconnect()
+    await eventually(() => a.lastDevices()?.map((item) => item.id), (value) => expect(value).toEqual(['device-a-0001']))
+  })
+
+  it('acks before it broadcasts, sends the queue just before the state of the same version, and versions both halves', async () => {
+    const a = await device('device-a-0002')
+    const b = await device('device-b-0002')
+
+    expect(await a.send(playAlbum(), 'play-1')).toEqual({ ok: true, version: 1 })
+    const state = await a.state(1)
+    const fromAck = a.log.slice(a.log.findIndex(([event]) => event === 'ack'))
+    expect(fromAck.map(([event]) => event)).toEqual(['ack', 'session:queue', 'session:state', 'devices'])
+    expect(fromAck[1]![1]).toMatchObject({ version: 1, queueVersion: 1 })
+    expect(state).toMatchObject({ playing: true, activeDeviceId: 'device-a-0002', current: { id: 'play-1.0', trackId: album.tracks[0]!.recordingId } })
+    expect(a.lastDevices().find((item) => item.isActive)?.id).toBe('device-a-0002')
+
+    await b.state(1)
+    expect(b.queues().map((update) => update.version)).toEqual([1])
+    expect(b.queues()[0]!.queue.queue.map((entry) => entry.id)).toEqual(['play-1.1', 'play-1.2'])
+
+    expect(await b.send({ type: 'pause' })).toEqual({ ok: true, version: 2 })
+    expect(await a.state(2)).toMatchObject({ playing: false })
+    expect(a.queues()).toHaveLength(1)
+    expect((await get('/me/session')).json()).toMatchObject({ version: 2, queueVersion: 1 })
+
+    expect(await b.send({ type: 'enqueue', tracks: seeds().slice(0, 1), placement: 'last' }, 'add-1')).toEqual({ ok: true, version: 3 })
+    await a.state(3)
+    expect(a.queues().at(-1)).toMatchObject({ version: 3, queueVersion: 2 })
+  })
+
+  it('acks duplicate command ids and no-op commands with the current version without broadcasting', async () => {
+    const a = await device('device-a-0003')
+    await a.send(playAlbum(), 'once')
+    await a.state(1)
+    expect(await a.send(playAlbum(), 'once')).toEqual({ ok: true, version: 1 })
+    expect(await a.send({ type: 'setRepeat', value: 'off' })).toEqual({ ok: true, version: 1 })
+    expect(await a.send({ type: 'pause' })).toEqual({ ok: true, version: 2 })
+    await a.state(2)
+    expect(a.states().map((update) => update.version)).toEqual([1, 2])
+    expect((await getSnapshot(user.id)).state.current?.id).toBe('once.0')
+  })
+
+  it('enforces who may send which command', async () => {
+    const stranger = await open('device-x-0004')
+    expect(await stranger.send({ type: 'play' })).toEqual({ ok: false, error: 'hello_required' })
+    expect(await new Promise((resolve) => stranger.socket.emit('session:command', { commandId: '', command: { type: 'play' } }, resolve)))
+      .toEqual({ ok: false, error: 'invalid_command' })
+
+    const a = await device('device-a-0004')
+    const b = await device('device-b-0004')
+    const remote = await device('remote-0004', { canPlay: false })
+    await a.send(playAlbum(), 'start')
+    await a.state(1)
+
+    expect(await b.send({ type: 'trackEnded', entryId: 'start.0' })).toEqual({ ok: false, error: 'not_active_device' })
+    expect(await b.send({ type: 'transfer', deviceId: 'remote-0004' })).toEqual({ ok: false, error: 'device_unavailable' })
+    expect(await b.send({ type: 'transfer', deviceId: 'nowhere-0004' })).toEqual({ ok: false, error: 'device_unavailable' })
+    expect(await b.send({ type: 'setVolume', deviceId: 'nowhere-0004', value: 0.5 })).toEqual({ ok: false, error: 'unknown_device' })
+    await db.insert(devices).values({ userId: user.id, id: 'offline-0004', name: 'Offline' })
+    expect(await b.send({ type: 'setVolume', deviceId: 'offline-0004', value: 0.5 })).toEqual({ ok: true, version: 2 })
+
+    // A remote that cannot play never becomes the active device.
+    await a.send({ type: 'transfer', deviceId: 'device-b-0004', play: false })
+    expect((await remote.state(3)).activeDeviceId).toBe('device-b-0004')
+    await remote.send({ type: 'playTracks', tracks: seeds(), seed: 1 })
+    expect((await remote.state(4)).activeDeviceId).toBe('device-b-0004')
+
+    expect(await a.send({ type: 'trackEnded', entryId: 'start.0' })).toEqual({ ok: false, error: 'not_active_device' })
+  })
+
+  it('transfers playback, keeping the position', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0005')
+    const b = await device('device-b-0005')
+    await a.send(playAlbum())
+    await b.state(1)
+    clock.advance(42_000)
+    expect(await b.send({ type: 'transfer', deviceId: 'device-b-0005' })).toEqual({ ok: true, version: 2 })
+    expect(await a.state(2)).toMatchObject({ activeDeviceId: 'device-b-0005', playing: true, positionMs: 42_000, anchorAt: clock.now() })
+    await eventually(() => a.lastDevices().find((item) => item.isActive)?.id, (value) => expect(value).toBe('device-b-0005'))
+  })
+
+  it('applies deviceLost when the active device does not return within the grace period', async () => {
+    const clock = stoppedClock()
+    configureSessions({ deviceGraceMs: 100 })
+    const a = await device('device-a-0006')
+    const b = await device('device-b-0006')
+    await a.send(playAlbum())
+    await b.state(1)
+    clock.advance(10_000)
+    a.socket.disconnect()
+    await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0006']))
+    expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
+  })
+
+  it('keeps the active device when it reconnects within the grace period', async () => {
+    configureSessions({ deviceGraceMs: 1000 })
+    const a = await device('device-a-0007')
+    const b = await device('device-b-0007')
+    await a.send(playAlbum())
+    await b.state(1)
+    a.socket.disconnect()
+    await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0007']))
+    const back = await device('device-a-0007')
+    expect((await getSnapshot(user.id)).state.activeDeviceId).toBe('device-a-0007')
+    await new Promise((resolve) => setTimeout(resolve, 1300))
+    expect(b.states().map((update) => update.version)).toEqual([1])
+    expect(back.states()).toEqual([])
+  })
+
+  it('never shows one user the session of another', async () => {
+    const other = await newUser()
+    const mine = await device('device-a-0008')
+    const theirs = await device('device-a-0008', { token: other.token })
+    await mine.send(playAlbum())
+    await mine.state(1)
+    expect(await theirs.send({ type: 'setRepeat', value: 'all' })).toEqual({ ok: true, version: 1 })
+    await theirs.state(1)
+    expect(mine.states()).toHaveLength(1)
+    expect(theirs.states()).toHaveLength(1)
+    expect(theirs.states()[0]!.state).toMatchObject({ current: null, repeat: 'all' })
+    expect(theirs.lastDevices()).toBeUndefined()
+    expect((await getSnapshot(user.id)).state.repeat).toBe('off')
+  })
+
+  it('persists sessions, reloads them, and starts fresh from a corrupt stored session', async () => {
+    const a = await device('device-a-0009')
+    await a.send(playAlbum(1))
+    await a.send({ type: 'setRepeat', value: 'one' })
+    await a.state(2)
+    // Written about a second after the change, without waiting for shutdown.
+    await eventually(async () => (await db.select().from(playbackSessions).where(eq(playbackSessions.userId, user.id)))[0]?.version, (value) => expect(value).toBe(2), 3000)
+    const before = await getSnapshot(user.id)
+
+    await sessionsModule.stop!()
+    expect(await getSnapshot(user.id)).toEqual(before)
+
+    await a.send({ type: 'pause' })
+    await sessionsModule.stop!()
+    const [row] = await db.select().from(playbackSessions).where(eq(playbackSessions.userId, user.id))
+    expect(row).toMatchObject({ version: 3, queueVersion: 1 })
+
+    await db.update(playbackSessions).set({ state: { state: { current: 'not an entry' }, queue: [] } }).where(eq(playbackSessions.userId, user.id))
+    const reloaded = await getSnapshot(user.id)
+    expect(reloaded.state).toMatchObject({ current: null, playing: false, repeat: 'off' })
+    expect(reloaded.version).toBe(3)
+  })
+
+  it('starts the grace period for an active device that is not connected when a session loads', async () => {
+    configureSessions({ deviceGraceMs: 100 })
+    const a = await device('device-a-0010')
+    await a.send(playAlbum())
+    await a.state(1)
+    a.socket.disconnect()
+    await sessionsModule.stop!()
+    const b = await device('device-b-0010')
+    expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false })
+  })
+
+  it('takes durations from the database and drops tracks that cannot be played', async () => {
+    const partial = await createAlbum({ owned: [0, 2], tracks: [{ title: 'One', durationMs: 100_000 }, { title: 'Two' }, { title: 'Three', durationMs: 300_000 }] })
+    const merged = newId()
+    await db.insert(recordings).values({ id: merged, title: 'Old', artistCredit: 'x', titleKey: matchKey('Old'), matchKey: 'x|old', mergedIntoId: partial.tracks[0]!.recordingId })
+    const a = await device('device-a-0011')
+    const tracks: QueueSeed[] = [
+      { trackId: newId(), durationMs: 5 },
+      { trackId: partial.tracks[1]!.recordingId, albumId: partial.albumId, durationMs: 5 },
+      { trackId: partial.tracks[2]!.recordingId, albumId: partial.albumId, durationMs: 5, state: 'preparing' },
+      { trackId: merged, albumId: newId(), durationMs: 5 },
+    ]
+    expect(await a.send({ type: 'playTracks', tracks, startIndex: 1, seed: 1 }, 'checked')).toEqual({ ok: true, version: 1 })
+    expect((await a.state(1)).current).toEqual({ id: 'checked.0', trackId: partial.tracks[2]!.recordingId, albumId: partial.albumId, durationMs: 300_000, state: 'ready' })
+    expect(a.queues()[0]!.queue.queue).toEqual([{ id: 'checked.1', trackId: partial.tracks[0]!.recordingId, albumId: null, durationMs: 100_000, state: 'ready' }])
+
+    expect(await a.send({ type: 'enqueue', tracks: tracks.slice(0, 2), placement: 'next' })).toEqual({ ok: false, error: 'nothing_playable' })
+    expect(await a.send({ type: 'playTracks', tracks: tracks.slice(0, 2), seed: 1 })).toEqual({ ok: false, error: 'nothing_playable' })
+  })
+
+  it('prepares on-demand tracks and follows them to ready or failed', async () => {
+    const remote = await createAlbum({ tracks: [{ title: 'Far' }, { title: 'Farther' }, { title: 'Farthest' }] })
+    const [far, farther, farthest] = remote.tracks.map((track) => track.recordingId) as [string, string, string]
+    for (const id of [far, farther, farthest]) onDemand.add(id)
+    const a = await device('device-a-0012')
+    const tracks = [far, album.tracks[0]!.recordingId, farther, farthest].map((trackId) => ({ trackId, albumId: remote.albumId, durationMs: 1 }))
+    await a.send({ type: 'playTracks', tracks, seed: 1 })
+    const state = await a.state(1)
+    expect(state).toMatchObject({ stalled: true, playing: true, current: { trackId: far, state: 'preparing' } })
+    // The current entry and the next two are requested; the fourth is not yet.
+    expect(vi.mocked(requestRecording).mock.calls.map(([request]) => request.recordingId)).toEqual([far, farther])
+    expect(vi.mocked(requestRecording).mock.calls[0]![0]).toEqual({ userId: user.id, recordingId: far, albumId: remote.albumId })
+
+    await markRecordingReady(far)
+    expect(await a.state(2)).toMatchObject({ stalled: false, current: { trackId: far, state: 'ready' } })
+    await markRecordingFailed(farther)
+    await a.state(3)
+    expect(a.queues().at(-1)!.queue.queue.map((entry) => [entry.trackId, entry.state])).toEqual([
+      [album.tracks[0]!.recordingId, 'ready'], [farther, 'failed'], [farthest, 'preparing'],
+    ])
+    await a.send({ type: 'next' })
+    await a.send({ type: 'next' })
+    expect((await a.state(5)).current).toMatchObject({ trackId: farthest, state: 'preparing' })
+    expect(vi.mocked(requestRecording).mock.calls.map(([request]) => request.recordingId)).toEqual([far, farther, farthest])
+
+    // A session loaded from the database re-checks its preparing entries.
+    await sessionsModule.stop!()
+    const root = await createLibraryRoot()
+    await db.insert(mediaFiles).values({ id: newId(), rootId: root.id, relPath: 'farthest.flac', size: 1, mtime: new Date(), container: 'flac', codec: 'flac', durationMs: 1000, recordingId: farthest })
+    expect((await getSnapshot(user.id)).state).toMatchObject({ stalled: false, current: { trackId: farthest, state: 'ready' } })
+  })
+
+  it('refills autoplay from the radio module once per entry, and never loops on an empty answer', async () => {
+    const extra = await createAlbum({ owned: true, tracks: [{ title: 'Suggested' }] })
+    const suggestion: QueueSeed = { trackId: extra.tracks[0]!.recordingId, albumId: extra.albumId, durationMs: extra.tracks[0]!.durationMs, state: 'ready' }
+    vi.mocked(suggestAutoplay).mockResolvedValueOnce([]).mockResolvedValueOnce([suggestion])
+    const a = await device('device-a-0013')
+    const [first, second] = album.tracks
+
+    await a.send({ type: 'playTracks', tracks: seeds([first!]), seed: 1 })
+    await a.state(1)
+    await a.send({ type: 'pause' })
+    await a.send({ type: 'play' })
+    await a.state(3)
+    expect(suggestAutoplay).toHaveBeenCalledTimes(1)
+    expect(suggestAutoplay).toHaveBeenCalledWith({ userId: user.id, seeds: [first!.recordingId], exclude: [first!.recordingId], limit: 10 })
+
+    await a.send({ type: 'playTracks', tracks: seeds([second!]), seed: 1 })
+    await eventually(() => a.queues().at(-1)!.queue.autoplayQueue.map((entry) => entry.trackId), (value) => expect(value).toEqual([suggestion.trackId]))
+    expect(suggestAutoplay).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(suggestAutoplay).mock.calls[1]![0].seeds).toEqual([first!.recordingId, second!.recordingId])
+  })
+
+  it('accounts plays from the anchor arithmetic: pauses and seeks add nothing, skips write nothing', async () => {
+    const clock = stoppedClock()
+    const start = clock.now()
+    const a = await device('device-a-0014')
+    const [first, , third] = album.tracks
+    await a.send(playAlbum(), 'acct')
+    await a.state(1)
+    clock.advance(60_000)
+    await a.send({ type: 'pause' })
+    clock.advance(300_000)
+    await a.send({ type: 'play' })
+    clock.advance(20_000)
+    await a.send({ type: 'seek', positionMs: 170_000 })
+    clock.advance(30_000) // capped: only 10 s remain
+    await a.send({ type: 'seek', positionMs: 0 })
+    clock.advance(5_000)
+    await a.send({ type: 'next' })
+    await a.state(6)
+    clock.advance(2_000)
+    await a.send({ type: 'next' })
+    clock.advance(500_000)
+    await a.send({ type: 'trackEnded', entryId: 'acct.2' })
+    expect(await a.state(8)).toMatchObject({ playing: false, current: { id: 'acct.2' } })
+
+    await eventually(() => db.select().from(plays).where(eq(plays.userId, user.id)).orderBy(plays.startedAt), (rows) => expect(rows).toMatchObject([
+      { recordingId: first!.recordingId, albumId: album.albumId, deviceId: 'device-a-0014', client: 'app', msPlayed: 95_000, completed: true, startedAt: new Date(start) },
+      { recordingId: third!.recordingId, msPlayed: third!.durationMs, completed: true },
+    ]))
+    await eventually(() => a.events('invalidate'), (value) => expect(value).toContainEqual({ keys: [['history'], ['home']] }))
+  })
+
+  it('tells play-start listeners once per play that starts on the active device', async () => {
+    const started: string[] = []
+    const unsubscribe = onPlayStart((userId, play) => {
+      if (userId === user.id) started.push(play.recordingId)
+    })
+    try {
+      const a = await device('device-a-0016')
+      const [first, second] = album.tracks
+      await a.send(playAlbum(), 'start')
+      await a.state(1)
+      await a.send({ type: 'pause' })
+      await a.send({ type: 'play' })
+      await a.send({ type: 'next' })
+      await a.state(4)
+      expect(started).toEqual([first!.recordingId, second!.recordingId])
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it('re-anchors on engine reports that drift or stall, and ignores the rest', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0015')
+    const b = await device('device-b-0015')
+    await a.send(playAlbum(), 'rep')
+    await b.state(1)
+    clock.advance(10_000)
+    const at = clock.now()
+    b.socket.emit('session:report', { entryId: 'rep.0', status: 'playing', positionMs: 20_000, at })
+    a.socket.emit('session:report', { entryId: 'rep.0', status: 'playing', positionMs: 10_500, at })
+    a.socket.emit('session:report', { entryId: 'rep.1', status: 'playing', positionMs: 0, at })
+    a.socket.emit('session:report', { entryId: 'rep.0', status: 'buffering', positionMs: 9_000, at })
+    expect(await b.state(2)).toMatchObject({ positionMs: 9_000, anchorAt: at, stalled: true })
+    clock.advance(3_000)
+    a.socket.emit('session:report', { entryId: 'rep.0', status: 'playing', positionMs: 9_000, at: clock.now() })
+    expect(await b.state(3)).toMatchObject({ positionMs: 9_000, anchorAt: clock.now(), stalled: false })
+    expect(b.states().map((update) => update.version)).toEqual([1, 2, 3])
+  })
+
+  it('replaces the queue for Subsonic and records external plays', async () => {
+    const a = await device('device-a-0016')
+    const ids = album.tracks.map((track) => track.recordingId)
+    const snapshot = await replaceQueue(user.id, { trackIds: [newId(), ...ids], currentId: ids[1], positionMs: 12_000 })
+    expect(snapshot.state).toMatchObject({ playing: false, positionMs: 12_000, current: { trackId: ids[1], durationMs: album.tracks[1]!.durationMs } })
+    expect(snapshot.queue.queue.map((entry) => entry.trackId)).toEqual([ids[2]])
+    expect((await a.state(snapshot.version)).current?.trackId).toBe(ids[1])
+    expect((await replaceQueue(user.id, { trackIds: [] })).queue.queue).toEqual([])
+
+    expect(await recordExternalPlay(user.id, newId())).toBe(false)
+    expect(await recordExternalPlay(user.id, ids[0]!, { playedAt: new Date('2026-01-01T00:00:00Z') })).toBe(true)
+    expect(await db.select().from(plays).where(eq(plays.userId, user.id))).toMatchObject([
+      { recordingId: ids[0], client: 'subsonic', msPlayed: album.tracks[0]!.durationMs, completed: true, startedAt: new Date('2026-01-01T00:00:00Z') },
+    ])
+  })
+})

@@ -1,0 +1,907 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/bbfc83ad-826f-4957-893d-a808105c828b?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "cover-art-archive": {
+        "artwork": true,
+        "front": true,
+        "count": 1,
+        "back": false,
+        "darkened": false
+      },
+      "release-group": {
+        "secondary-types": [],
+        "title": "Random Access Memories",
+        "id": "aa997ea0-2936-40bd-884d-3af8a0e064dc",
+        "first-release-date": "2013-05-17",
+        "artist-credit": [
+          {
+            "name": "Daft Punk",
+            "joinphrase": "",
+            "artist": {
+              "name": "Daft Punk",
+              "type": "Group",
+              "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+              "country": "FR",
+              "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+              "disambiguation": "French electronic duo",
+              "sort-name": "Daft Punk"
+            }
+          }
+        ],
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "primary-type": "Album",
+        "disambiguation": "",
+        "secondary-type-ids": []
+      },
+      "label-info": [
+        {
+          "label": {
+            "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+            "sort-name": "Columbia",
+            "label-code": 162,
+            "disambiguation": "owned by Sony Music Entertainment, worldwide except JP; formerly owned by CBS between 1938–1990 within US/CA/MX",
+            "id": "011d1192-6f65-45bd-85c4-0400dd45693e",
+            "type": "Imprint",
+            "name": "Columbia"
+          },
+          "catalog-number": "88883716862"
+        }
+      ],
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "barcode": "0888837168625",
+      "quality": "normal",
+      "country": "AU",
+      "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+      },
+      "date": "2013-05-17",
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "name": "Daft Punk",
+          "artist": {
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "disambiguation": "French electronic duo",
+            "sort-name": "Daft Punk",
+            "name": "Daft Punk",
+            "type": "Group",
+            "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+            "country": "FR"
+          }
+        }
+      ],
+      "asin": null,
+      "disambiguation": "",
+      "packaging": "Jewel Case",
+      "media": [
+        {
+          "id": "285e5b69-5727-3b54-9179-d5ccb0c1fcb9",
+          "position": 1,
+          "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+          "format": "CD",
+          "tracks": [
+            {
+              "number": "1",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "name": "Daft Punk"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ],
+              "title": "Give Life Back to Music",
+              "length": 274000,
+              "id": "6eac78f7-69ae-497f-a7b0-08e2693778a0",
+              "recording": {
+                "id": "0c871a4a-efdf-47f8-98c2-cc277f806d2f",
+                "first-release-date": "2013-05-17",
+                "length": 274000,
+                "title": "Give Life Back to Music",
+                "video": false,
+                "isrcs": [
+                  "USQX91300101"
+                ],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "name": "Daft Punk"
+                    },
+                    "joinphrase": " feat. ",
+                    "name": "Daft Punk"
+                  },
+                  {
+                    "artist": {
+                      "id": "c6d571dd-c0ae-4ac8-9500-780b1b9b25e5",
+                      "country": "US",
+                      "type": "Person",
+                      "name": "Nile Rodgers",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Rodgers, Nile",
+                      "disambiguation": ""
+                    },
+                    "name": "Nile Rodgers",
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "position": 1
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "Daft Punk",
+                    "type": "Group",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "country": "FR",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ],
+              "number": "2",
+              "recording": {
+                "video": false,
+                "title": "The Game of Love",
+                "length": 321000,
+                "id": "294a1b4d-ebc0-4b03-be25-6171d382cb58",
+                "first-release-date": "2013-05-17",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type": "Group",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "name": "Daft Punk",
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": "",
+                    "name": "Daft Punk"
+                  }
+                ],
+                "isrcs": [
+                  "USQX91300102"
+                ],
+                "disambiguation": ""
+              },
+              "position": 2,
+              "id": "8011ee91-6937-44d9-a832-b9af2e7347b3",
+              "length": 321000,
+              "title": "The Game of Love"
+            },
+            {
+              "number": "3",
+              "artist-credit": [
+                {
+                  "name": "Daft Punk",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Daft Punk",
+                    "type": "Group",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "country": "FR"
+                  }
+                }
+              ],
+              "id": "9a8ebbe5-cf68-4e0b-9a9e-df8bbb71cb26",
+              "position": 3,
+              "recording": {
+                "video": false,
+                "title": "Giorgio by Moroder",
+                "length": 544000,
+                "id": "cac27da9-20c5-4722-9a25-f2c26e2c04cf",
+                "first-release-date": "2013-05-17",
+                "artist-credit": [
+                  {
+                    "name": "Daft Punk",
+                    "joinphrase": " feat. ",
+                    "artist": {
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type": "Group",
+                      "name": "Daft Punk"
+                    }
+                  },
+                  {
+                    "artist": {
+                      "type": "Person",
+                      "country": "IT",
+                      "id": "38dd6337-19ae-4793-ab4b-313eff523457",
+                      "name": "Giorgio Moroder",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "",
+                      "sort-name": "Moroder, Giorgio"
+                    },
+                    "joinphrase": "",
+                    "name": "Giorgio Moroder"
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "USQX91300103"
+                ]
+              },
+              "length": 544000,
+              "title": "Giorgio by Moroder"
+            },
+            {
+              "number": "4",
+              "artist-credit": [
+                {
+                  "name": "Daft Punk",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "name": "Daft Punk"
+                  }
+                }
+              ],
+              "title": "Within",
+              "id": "a682d2f3-d069-40a0-9c1b-105fc08fc220",
+              "position": 4,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "Daft Punk",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "type": "Group",
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "name": "Daft Punk",
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "joinphrase": "",
+                    "name": "Chilly Gonzales",
+                    "artist": {
+                      "id": "9c306413-56b6-4ff6-982a-7e4b87d01340",
+                      "country": "DE",
+                      "type": "Person",
+                      "name": "Chilly Gonzales",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Gonzales, Chilly",
+                      "disambiguation": "Canadian musician Jason Charles Beck"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "isrcs": [
+                  "USQX91300104"
+                ],
+                "title": "Within",
+                "video": false,
+                "first-release-date": "2013-05-17",
+                "id": "20999e3e-b964-4d66-b7c2-660fc45178bb",
+                "length": 228000
+              },
+              "length": 228000
+            },
+            {
+              "title": "Instant Crush",
+              "length": 337000,
+              "id": "5eeff7bc-2e0a-41e5-a30e-36975f7438b6",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": " feat. ",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "name": "Daft Punk"
+                    }
+                  },
+                  {
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Casablancas, Julian",
+                      "disambiguation": "",
+                      "name": "Julian Casablancas",
+                      "id": "c5ce487b-0462-444e-a184-4de0fef7e028",
+                      "country": "US",
+                      "type": "Person"
+                    },
+                    "name": "Julian Casablancas",
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "album version",
+                "isrcs": [
+                  "USQX91300105"
+                ],
+                "video": false,
+                "title": "Instant Crush",
+                "length": 337000,
+                "first-release-date": "2013-05-17",
+                "id": "dbc0da50-4bc6-4230-9e7b-136b5dc2b31a"
+              },
+              "position": 5,
+              "number": "5",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Daft Punk",
+                  "artist": {
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Daft Punk",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "country": "FR",
+                    "type": "Group"
+                  }
+                }
+              ]
+            },
+            {
+              "title": "Lose Yourself to Dance",
+              "length": 353000,
+              "recording": {
+                "length": 353000,
+                "first-release-date": "2013-05-17",
+                "id": "9f381fef-7bbd-4f2a-be8b-2acd072bb7e1",
+                "video": false,
+                "title": "Lose Yourself to Dance",
+                "disambiguation": "",
+                "isrcs": [
+                  "USQX91300106"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "name": "Daft Punk"
+                    },
+                    "name": "Daft Punk",
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "joinphrase": "",
+                    "name": "Pharrell Williams",
+                    "artist": {
+                      "sort-name": "Williams, Pharrell",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "149f91ef-1287-46da-9a8e-87fee02f1471",
+                      "country": "US",
+                      "type": "Person",
+                      "name": "Pharrell Williams"
+                    }
+                  }
+                ]
+              },
+              "position": 6,
+              "id": "676d963b-e41f-4797-b50a-32fc3ba77c1a",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "name": "Daft Punk",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ],
+              "number": "6"
+            },
+            {
+              "title": "Touch",
+              "id": "362480e1-6c61-4c8d-ae74-71557cb008d2",
+              "position": 7,
+              "recording": {
+                "first-release-date": "2013-05-17",
+                "id": "2c718ee9-ad54-4016-ae43-e8df5ea1b4e1",
+                "length": 498000,
+                "title": "Touch",
+                "video": false,
+                "isrcs": [
+                  "USQX91300107"
+                ],
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "type": "Group",
+                      "name": "Daft Punk",
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "name": "Daft Punk",
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "US songwriter/soft rock vocalist",
+                      "sort-name": "Williams, Paul",
+                      "type": "Person",
+                      "country": "US",
+                      "id": "2307602e-a3ce-4f37-bb2b-d54f1980ed5f",
+                      "name": "Paul Williams"
+                    },
+                    "joinphrase": "",
+                    "name": "Paul Williams"
+                  }
+                ]
+              },
+              "length": 498000,
+              "number": "7",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "name": "Daft Punk",
+                    "type": "Group",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ]
+            },
+            {
+              "number": "8",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Daft Punk",
+                  "artist": {
+                    "type": "Group",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  }
+                }
+              ],
+              "length": 367000,
+              "id": "fc6fb219-d630-4e09-8f60-35bdd28fab43",
+              "recording": {
+                "length": 369000,
+                "first-release-date": "2013-05-17",
+                "id": "833f00e1-781f-4edd-90e4-e52712618862",
+                "video": false,
+                "title": "Get Lucky",
+                "disambiguation": "",
+                "isrcs": [
+                  "USQX91300108"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": " feat. ",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type": "Group",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "name": "Daft Punk"
+                    }
+                  },
+                  {
+                    "name": "Pharrell Williams",
+                    "joinphrase": " & ",
+                    "artist": {
+                      "name": "Pharrell Williams",
+                      "id": "149f91ef-1287-46da-9a8e-87fee02f1471",
+                      "country": "US",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Williams, Pharrell",
+                      "disambiguation": ""
+                    }
+                  },
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "sort-name": "Rodgers, Nile",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person",
+                      "id": "c6d571dd-c0ae-4ac8-9500-780b1b9b25e5",
+                      "country": "US",
+                      "name": "Nile Rodgers"
+                    },
+                    "name": "Nile Rodgers",
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "position": 8,
+              "title": "Get Lucky"
+            },
+            {
+              "length": 290000,
+              "recording": {
+                "length": 290000,
+                "id": "ce495790-b2f7-4ff0-858c-8df38c2025ab",
+                "first-release-date": "2013-05-17",
+                "video": false,
+                "title": "Beyond",
+                "disambiguation": "",
+                "isrcs": [
+                  "USQX91300109"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Daft Punk",
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Daft Punk",
+                      "type": "Group",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR"
+                    }
+                  }
+                ]
+              },
+              "position": 9,
+              "id": "3a4e20aa-dba4-473c-b3eb-0bb9eb789c09",
+              "title": "Beyond",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Daft Punk",
+                    "type": "Group",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ],
+              "number": "9"
+            },
+            {
+              "length": 341000,
+              "recording": {
+                "disambiguation": "",
+                "isrcs": [
+                  "USQX91300110"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "country": "FR",
+                      "type": "Group",
+                      "name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo"
+                    },
+                    "name": "Daft Punk",
+                    "joinphrase": ""
+                  }
+                ],
+                "length": 341000,
+                "first-release-date": "2013-05-17",
+                "id": "762e120f-6d52-4fae-a796-699ae0a0ea9f",
+                "video": false,
+                "title": "Motherboard"
+              },
+              "position": 10,
+              "id": "3d4e196f-1ac3-4fdf-a8f0-0c5294948c79",
+              "title": "Motherboard",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "Daft Punk",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group",
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "Daft Punk"
+                }
+              ],
+              "number": "10"
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Daft Punk",
+                  "artist": {
+                    "type": "Group",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "country": "FR",
+                    "name": "Daft Punk",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "French electronic duo",
+                    "sort-name": "Daft Punk"
+                  }
+                }
+              ],
+              "number": "11",
+              "title": "Fragments of Time",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": " feat. ",
+                    "name": "Daft Punk",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type": "Group",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "name": "Daft Punk"
+                    }
+                  },
+                  {
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Edwards, Todd",
+                      "disambiguation": "",
+                      "name": "Todd Edwards",
+                      "country": "US",
+                      "id": "fa0e2024-95ff-44b6-9a86-f0ab120b6a72",
+                      "type": "Person"
+                    },
+                    "name": "Todd Edwards",
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "USQX91300111"
+                ],
+                "disambiguation": "",
+                "video": false,
+                "title": "Fragments of Time",
+                "length": 279000,
+                "first-release-date": "2013-05-17",
+                "id": "770894b7-030e-404d-a833-4a77d0558cb2"
+              },
+              "position": 11,
+              "id": "5c509948-8a53-400c-826c-819a10e82bbf",
+              "length": 279000
+            },
+            {
+              "title": "Doin’ It Right",
+              "length": 251000,
+              "id": "f01833a9-8602-4e8f-886e-448e09d022b7",
+              "position": 12,
+              "recording": {
+                "disambiguation": "",
+                "isrcs": [
+                  "USQX91300112"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Daft Punk",
+                    "joinphrase": " feat. ",
+                    "artist": {
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "type": "Group",
+                      "name": "Daft Punk",
+                      "sort-name": "Daft Punk",
+                      "disambiguation": "French electronic duo",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    }
+                  },
+                  {
+                    "joinphrase": "",
+                    "name": "Panda Bear",
+                    "artist": {
+                      "disambiguation": "Noah Lennox from Animal Collective",
+                      "sort-name": "Panda Bear",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Panda Bear",
+                      "type": "Person",
+                      "country": "US",
+                      "id": "fd3c3f9f-a471-498e-ab3a-940ac20b6bbd"
+                    }
+                  }
+                ],
+                "id": "4e4a5947-a6e5-4091-9b42-f7e9ba387c1b",
+                "first-release-date": "2013-05-17",
+                "length": 251000,
+                "title": "Doin’ It Right",
+                "video": false
+              },
+              "number": "12",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "Daft Punk",
+                  "artist": {
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group",
+                    "name": "Daft Punk"
+                  }
+                }
+              ]
+            },
+            {
+              "length": 381000,
+              "recording": {
+                "video": false,
+                "title": "Contact",
+                "length": 381000,
+                "first-release-date": "2013-05-17",
+                "id": "78194fbe-3bcd-4afe-b4a6-7a97711c325f",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "French electronic duo",
+                      "sort-name": "Daft Punk",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "country": "FR",
+                      "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                      "name": "Daft Punk"
+                    },
+                    "joinphrase": " feat. ",
+                    "name": "Daft Punk"
+                  },
+                  {
+                    "artist": {
+                      "name": "DJ Falcon",
+                      "country": "FR",
+                      "id": "98764c37-c165-4aae-85eb-02c8114ded63",
+                      "type": "Person",
+                      "sort-name": "Falcon, DJ",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "name": "DJ Falcon",
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "USQX91300113"
+                ],
+                "disambiguation": ""
+              },
+              "position": 13,
+              "id": "63932c28-b03c-4494-b5c4-a1e68e2b40bd",
+              "title": "Contact",
+              "artist-credit": [
+                {
+                  "name": "Daft Punk",
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Daft Punk",
+                    "disambiguation": "French electronic duo",
+                    "name": "Daft Punk",
+                    "country": "FR",
+                    "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+                    "type": "Group"
+                  }
+                }
+              ],
+              "number": "13"
+            }
+          ],
+          "title": "",
+          "track-count": 13,
+          "track-offset": 0
+        }
+      ],
+      "release-events": [
+        {
+          "date": "2013-05-17",
+          "area": {
+            "type": null,
+            "id": "106e0bec-b638-3b37-b731-f53d507dc00e",
+            "name": "Australia",
+            "iso-3166-1-codes": [
+              "AU"
+            ],
+            "type-id": null,
+            "disambiguation": "",
+            "sort-name": "Australia"
+          }
+        }
+      ],
+      "title": "Random Access Memories",
+      "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+      "status": "Official",
+      "id": "bbfc83ad-826f-4957-893d-a808105c828b",
+      "relations": [
+        {
+          "source-credit": "",
+          "target-type": "url",
+          "url": {
+            "resource": "https://www.discogs.com/release/4572672",
+            "id": "6a75b8f0-e205-4831-8ee8-7a72bef998fd"
+          },
+          "attribute-values": {},
+          "end": null,
+          "attribute-ids": {},
+          "type-id": "4a78823c-1c53-4176-a5f3-58026c76f2bc",
+          "direction": "forward",
+          "attributes": [],
+          "target-credit": "",
+          "ended": false,
+          "begin": null,
+          "type": "discogs"
+        }
+      ]
+    }
+  }
+}

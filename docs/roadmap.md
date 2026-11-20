@@ -10,23 +10,23 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] CI: lint, typecheck, build, tests against Postgres
 - [x] semantic-release on `main`
 - [x] Shared session reducer and session client in `client-core`
-- [ ] Docker image and `compose.yaml`
+- [x] Docker image and `compose.yaml`
 
 ## 2. Your files, playing
 
 - [x] Server core: auth, users, invites, settings, jobs, realtime transport
-- [ ] Library scan, tag reading, local-only catalog rows
-- [ ] Artwork store and renditions
-- [ ] Library and catalog read API, home
-- [ ] Streaming: playback descriptor, signed URLs, Range, transcode cache
-- [ ] Loudness measurement and normalization values
-- [ ] Likes, playlists, history, user settings
+- [x] Library scan, tag reading, local-only catalog rows
+- [x] Artwork store and renditions
+- [x] Library and catalog read API, home
+- [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
+- [x] Loudness measurement and normalization values
+- [x] Likes, playlists, history, user settings
 - [ ] Web app: setup, login, library, album and artist pages, player, queue
 - [ ] Mobile app: connect, login, real data, real audio, lock-screen controls
 
 ## 3. Connect
 
-- [ ] Server-held session with command log and versions
+- [x] Server-held session with command log and versions
 - [ ] Device list, transfer, remote control
 - [ ] Reconnect rule and device-lost handling
 - [ ] Live invalidations on web and mobile
@@ -34,10 +34,11 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 ## 4. Identify and reorganize
 
 - [ ] Metadata clients with cache and rate limits
-- [ ] Album matching tiers, review queue, fix match, merges
+- [x] Album matching tiers, review queue, fix match, merges
 - [ ] Enrichment: covers, artist images, bios, lyrics, external ids
-- [ ] Managed roots: preview, apply, journal, undo
-- [ ] Tag writing with verification
+- [x] Managed roots: preview, apply, journal, undo (server and API)
+- [ ] Organize screens in the admin UI
+- [x] Tag writing with verification
 
 ## 5. OpenSubsonic
 
@@ -64,9 +65,9 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [ ] Acquisition provider protocol, on-demand playback, policy
 - [ ] Reference adapters: cold storage and mock
-- [ ] Scrobbling to ListenBrainz and Last.fm
-- [ ] Radio and autoplay
-- [ ] Local search index
+- [x] Scrobbling to ListenBrainz and Last.fm (server and API; settings screens to do)
+- [x] Radio and autoplay (server and API)
+- [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)); the search module still has to offer it as a provider
 - [ ] Documentation site
 
 ## Deferred
