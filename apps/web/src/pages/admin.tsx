@@ -1,5 +1,5 @@
-import { MatchReviewStatus, queryKeys, type AlbumSummary, type CatalogIndexStatus, type LibraryRoot, type MatchReview, type OrganizeBatchSummary, type ResolveReviewRequest, type UpdateLibraryRootRequest, type User, type UpdateUserRequest } from '@squirmy/contracts'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { MatchReviewStatus, queryKeys, type CatalogIndexStatus, type LibraryRoot, type MatchReview, type OrganizeBatchSummary, type ResolveReviewRequest, type UpdateLibraryRootRequest, type User, type UpdateUserRequest } from '@squirmy/contracts'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
@@ -54,32 +54,18 @@ export function AdminLayout() {
 }
 
 /** "Fix match" from anywhere in admin: the album search, then the dialog for the album picked. */
-const MAX_FIND_ALBUMS = 5000
-const searchKey = (text: string) => text.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
-
 function useFixMatch() {
   const api = useApi()
   const [finding, setFinding] = useState(false)
   const [query, setQuery] = useState('')
   const [albumId, setAlbumId] = useState<string | null>(null)
-  // The library search route is not on the server yet, so this filters the album list, which
-  // is plenty for an admin's occasional fix.
-  const albums = useQuery({
-    queryKey: [...queryKeys.libraryAlbums(), 'by-title'],
-    queryFn: async () => {
-      const items: AlbumSummary[] = []
-      let cursor: string | undefined
-      do {
-        const page = await api.catalog.albums({ sort: 'title', limit: 200, cursor })
-        items.push(...page.items)
-        cursor = page.nextCursor ?? undefined
-      } while (cursor && items.length < MAX_FIND_ALBUMS)
-      return items
-    },
-    enabled: finding,
+  const q = query.trim()
+  const results = useQuery({
+    queryKey: [...queryKeys.search(), 'library', q],
+    queryFn: () => api.search.library({ q, limit: 12 }),
+    enabled: finding && !!q,
+    placeholderData: keepPreviousData,
   })
-  const words = searchKey(query).split(' ').filter(Boolean)
-  const found = words.length ? albums.data?.filter(album => words.every(word => searchKey(`${album.title} ${album.artistCredit}`).includes(word))).slice(0, 12) : undefined
   const dialogs = (
     <>
       <FindAlbumDialog
@@ -87,7 +73,7 @@ function useFixMatch() {
         onOpenChange={setFinding}
         query={query}
         onQueryChange={setQuery}
-        albums={found}
+        albums={q ? results.data?.albums : undefined}
         onPick={album => {
           setFinding(false)
           setAlbumId(album.id)

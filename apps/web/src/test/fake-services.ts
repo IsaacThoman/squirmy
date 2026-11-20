@@ -106,6 +106,9 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
     organize: {
       batches: vi.fn(async () => list([])),
     },
+    search: {
+      library: vi.fn(async () => ({ artists: [], albums: [], tracks: [], provider: null })),
+    },
     catalogIndex: {
       status: vi.fn(async () => ({
         ready: false, dumpDate: null, importedAt: null, counts: { artists: 0, albums: 0, recordings: 0 }, sizeBytes: 0, active: null, latest: null,

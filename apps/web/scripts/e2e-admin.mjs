@@ -87,7 +87,7 @@ const api = async (route, method = 'GET') => {
   const response = await page.request.fetch(`${base}/api/v1${route}`, { method, headers: { 'X-Squirmy-Request': '1' } })
   return response.json()
 }
-const albumNamed = async title => (await api('/library/albums?sort=title&limit=200')).items.find(album => album.title === title)
+const albumNamed = async title => (await api(`/search/library?q=${encodeURIComponent(title)}&limit=5`)).albums.find(album => album.title === title)
 /** Types a path into the folder picker and waits for it to be listed. */
 async function browseTo(folder, scope = page) {
   const field = scope.getByLabel('Folder path')
