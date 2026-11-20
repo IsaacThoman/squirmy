@@ -10,9 +10,11 @@ export type Executor = Database | Transaction
 
 let client: postgres.Sql | undefined
 let database: Database | undefined
+let sealed = false
 
 /** The postgres.js client, created on first use from DATABASE_URL. */
 export function getSql(): postgres.Sql {
+  if (sealed) throw new Error('The database is closed')
   if (!client) {
     const config = getConfig()
     client = postgres(config.DATABASE_URL, {
@@ -45,8 +47,14 @@ function lazy<T extends object>(resolve: () => T): T {
  */
 export const db: Database = lazy(getDb)
 
-/** Closes the pool. The next use reconnects with the current DATABASE_URL. */
-export async function closeDb() {
+/**
+ * Closes the pool. The next use reconnects with the current DATABASE_URL, unless `final`
+ * is set: then every use throws until the next close without it. A test database closes
+ * finally before it is dropped, so work that outlives it (a timer, a socket handler)
+ * fails like any query instead of opening a pool to a database that is being dropped.
+ */
+export async function closeDb({ final = false }: { final?: boolean } = {}) {
+  sealed = final
   const current = client
   client = undefined
   database = undefined
