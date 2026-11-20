@@ -590,7 +590,10 @@ export const imports = pgTable('imports', {
   /** extracting | moving | identifying | filing while processing, else null. */
   step: text('step').$type<ImportStep>(),
   stepStartedAt: at('step_started_at'),
-  /** When identification decided which of the import's files are duplicates and removed them. */
+  /**
+   * When identification decided which of the import's files are duplicates and removed them.
+   * Until then automatic matching leaves the import's files alone (`matching/match.ts`).
+   */
   duplicatesDecidedAt: at('duplicates_decided_at'),
   /** The inbox item's name, or what the uploader called it. */
   label: text('label'),

@@ -8,7 +8,7 @@
  *                ingest, analyze, match); this step watches the rows until every file is
  *                read and hashed, then decides once which are duplicates and removes them,
  *                and waits until the rest is matched, or until the time limit leaves it for
- *                review
+ *                review. Matching holds off the import's files until duplicates are decided
  *   filing       an organize batch moves the identified albums to their place in the root
  *
  * Each step is idempotent and records its outcome before the import moves to the next, so
@@ -28,6 +28,7 @@ import { AppError } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { invalidate } from '../../realtime/index.js'
 import { lockCatalog, removeOrphans } from '../library/cleanup.js'
+import { matchJobKey } from '../matching/index.js'
 import { applyBatch } from '../organize/apply.js'
 import { errorCode, moveFile, realFileOps, type FileOps } from '../organize/files.js'
 import { planOrganize } from '../organize/plan.js'
@@ -305,6 +306,7 @@ async function identify(row: ImportRow, root: Root, stats: Stats, work: ImportWo
     }).from(mediaFiles).where(ofImport(row))
     const expected = (stats.audioFiles ?? 0) - (stats.duplicatesSkipped ?? 0)
     if (decided && state!.rows >= expected && state!.pending === 0) return
+    if (decided && musicBrainzEnabled) await queueMatches(row, root)
     if (state!.rows < expected && !await scanQueued(root.id)) {
       // Owned by the library module; one scan per root at a time, so this may need a retry.
       await enqueue('library.scan', { rootId: root.id, paths: [folder] }, { singletonKey: root.id })
@@ -315,6 +317,27 @@ async function identify(row: ImportRow, root: Root, stats: Stats, work: ImportWo
     }
     await sleep(options.pollMs)
   }
+}
+
+/**
+ * Queues matching for the import's ingested groups still waiting for it. Their match jobs
+ * did nothing while duplicates were undecided, and one that is still finishing makes a new
+ * one with its key a no-op, so this looks again on every pass. A group whose job failed
+ * after its retries is left to the matching sweep, as anywhere else in the library.
+ */
+async function queueMatches(row: ImportRow, root: Root) {
+  const groups = await db.selectDistinct({ groupKey: mediaFiles.groupKey }).from(mediaFiles).where(and(
+    ofImport(row), eq(mediaFiles.rootId, root.id), eq(mediaFiles.matchStatus, 'pending'), eq(mediaFiles.matchLocked, false),
+    sql`${mediaFiles.groupKey} is not null and ${mediaFiles.recordingId} is not null`,
+  ))
+  const keys = new Map(groups.map(({ groupKey }) => [matchJobKey(root.id, groupKey!), groupKey!]))
+  if (keys.size === 0) return
+  const queued = await db.execute<{ key: string }>(sql`
+    select singleton_key as key from pgboss.job
+    where name = 'matching.match-album' and singleton_key in ${[...keys.keys()]} and state in ('created', 'retry', 'active', 'failed')`)
+  for (const { key } of queued) keys.delete(key)
+  // Owned by the matching module.
+  for (const [key, groupKey] of keys) await enqueue('matching.match-album', { rootId: root.id, groupKey }, { singletonKey: key })
 }
 
 async function scanQueued(rootId: string): Promise<boolean> {
@@ -334,8 +357,9 @@ async function scanQueued(rootId: string): Promise<boolean> {
  * file always wins, then the older import, then the first path, whatever order the hashes
  * arrived in.
  *
- * The decision, its paths, the count and the rows' deletion commit together. Returns the
- * paths whose files are to be deleted, or null when it is too early to decide.
+ * The decision, its paths, the count and the rows' deletion commit together, and matching
+ * starts on the import's files once it is recorded. Returns the paths whose files are to be
+ * deleted, or null when it is too early to decide.
  */
 async function decideDuplicates(tx: Transaction, row: ImportRow, root: Root, stats: Stats, work: ImportWork, force: boolean): Promise<string[] | null> {
   const [state] = await tx.select({
@@ -373,7 +397,8 @@ async function deleteRows(tx: Transaction, where: SQL | undefined): Promise<stri
 }
 
 /**
- * Deletes the decided duplicates' files and queues ingest for the import's groups. Run again after a crash, it finishes the job: rows a scan brought back
+ * Deletes the decided duplicates' files and queues ingest (and with it matching) for the
+ * import's groups. Run again after a crash, it finishes the job: rows a scan brought back
  * for files not yet deleted go first, since analysis takes a row whose file has vanished for
  * a moved file.
  */

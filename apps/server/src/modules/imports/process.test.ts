@@ -186,6 +186,8 @@ describe('import processing', () => {
     const id = await receive([{ from: archive, to: 'OK Computer.zip' }])
     const done = await run(id)
 
+    // One search, for the whole album.
+    expect(http.requests.filter((request) => request.includes('/ws/2/release?query='))).toEqual([expect.stringContaining('tracks%3A12')])
     expect(done).toMatchObject({
       status: 'completed', step: null, timedOut: false, reviewFolder: null, error: null,
       counts: { filesReceived: 1, filesExtracted: 13, filesRejected: 1, archivesRejected: 0, audioFiles: 12, duplicatesSkipped: 0, albumsIdentified: 1, albumsFiled: 1, filesFiled: 12, filesLeftForReview: 0 },
@@ -222,8 +224,8 @@ describe('import processing', () => {
     await copy.reached
     await until(async () => pipeline.finished.slice(analyzed).filter((job) => job.name === 'library.analyze').length === 12, 'the other twelve are hashed')
     await sleep(10 * fast.pollMs!)
-    // Nothing is removed while a hash is missing.
-    expect(await inIncoming(id)).toHaveLength(13)
+    // Nothing is removed while a hash is missing, and nothing is matched before the removal.
+    expect((await inIncoming(id)).map((row) => row.matchStatus)).toEqual(Array(13).fill('pending'))
     copy.release()
     const counts = (await done).counts
     // Whatever is left says why: a file that could not be analyzed keeps no hash to compare.
@@ -231,6 +233,25 @@ describe('import processing', () => {
     expect({ ...counts, left }).toMatchObject({ audioFiles: 13, duplicatesSkipped: 13, filesFiled: 0, filesLeftForReview: 0, left: [] })
     expect(await tree(root.path)).toEqual([])
     expect(await db.select({ count: sql<number>`count(*)::int` }).from(mediaFiles)).toEqual(before)
+    expect(http.requests, 'no provider is asked about duplicates').toEqual([])
+  })
+
+  it('asks no provider about part of an album before its duplicates are decided', async () => {
+    await managedRoot()
+    const late = okFlac.slice(9).map((file) => pipeline.hold('library.probe', fileAt(`Again/${path.basename(file)}`)))
+    const matched = pipeline.finished.length
+    const id = await receive(inFolder(okFlac, 'Again'))
+    const done = run(id)
+    await Promise.all(late.map((held) => held.reached))
+    const early = async () => (await inIncoming(id)).filter((row) => row.probeStage >= 1)
+    await until(async () => (await early()).filter((row) => row.recordingId).length === 9, 'the first nine are ingested')
+    await until(async () => (await db.execute(sql`select 1 from pgboss.job where name = 'matching.match-album' and state in ('created', 'retry', 'active')`)).length === 0, 'their matching has run')
+    expect(pipeline.finished.slice(matched).some((job) => job.name === 'matching.match-album')).toBe(true)
+    // Playable from their tags meanwhile, and left pending.
+    expect((await early()).map((row) => row.matchStatus)).toEqual(Array(9).fill('pending'))
+    for (const held of late) held.release()
+    expect((await done).counts).toMatchObject({ audioFiles: 12, duplicatesSkipped: 12, filesLeftForReview: 0 })
+    expect(http.requests).toEqual([])
   })
 
   describe('keeps the first of two copies within an import', () => {
