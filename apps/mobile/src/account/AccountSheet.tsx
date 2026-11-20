@@ -21,7 +21,9 @@ export function AccountSheet() {
   const leaving = (message: string) => kept && downloads
     ? `${message} The ${downloads.count} ${downloads.count === 1 ? 'song' : 'songs'} (${formatBytes(downloads.usedBytes)}) downloaded from it will be removed from this ${Platform.OS === 'ios' ? 'iPhone' : 'phone'}.`
     : message;
+  // The sheet closes first: left open, it would outlive the tabs beneath it for a moment.
   const leave = (perform: () => void) => () => {
+    closeSheet(router);
     removeAll();
     perform();
   };
