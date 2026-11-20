@@ -1,6 +1,7 @@
-import { Button, Host, HStack, Image, Text } from '@expo/ui/swift-ui';
+import { Button, Host, HStack, Image, ProgressView, Text } from '@expo/ui/swift-ui';
 import {
-  accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, font, foregroundStyle, frame, shapes,
+  accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, font, foregroundStyle, frame,
+  progressViewStyle, shapes, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { ComponentProps } from 'react';
@@ -10,16 +11,18 @@ import { useColors } from '../theme';
 type SymbolName = ComponentProps<typeof Image>['systemName'];
 const hitShape = contentShape(shapes.rectangle());
 
-export function AlbumNavButton({ icon, label, onPress, selected }: AlbumNavProps) {
+export function AlbumNavButton({ icon, label, onPress, selected, busy }: AlbumNavProps) {
   const colors = useColors();
   const glass = isLiquidGlassAvailable();
+  const size = frame(glass ? { width: 26, height: 26 } : { width: 44, height: 44 });
   return (
     <Host style={{ width: 44, height: 44 }}>
       <Button onPress={onPress} modifiers={glass
         ? [buttonStyle('glass'), buttonBorderShape('circle'), accessibilityLabel(label)]
         : [buttonStyle('plain'), background(colors.surface), clipShape('circle'), accessibilityLabel(label)]}>
-        <Image systemName={icon as SymbolName} size={20} color={selected ? colors.accent : colors.text}
-          modifiers={[frame(glass ? { width: 26, height: 26 } : { width: 44, height: 44 }), hitShape]} />
+        {busy
+          ? <ProgressView modifiers={[progressViewStyle('circular'), tint(colors.text), size, hitShape]} />
+          : <Image systemName={icon as SymbolName} size={20} color={selected ? colors.accent : colors.text} modifiers={[size, hitShape]} />}
       </Button>
     </Host>
   );

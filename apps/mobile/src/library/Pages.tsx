@@ -13,16 +13,21 @@ import { fallbackTint } from '../data/color';
 import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
 import { useAlbum, useArtist, useGenreAlbums, useHistory, useLikedTracks, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
+import { useRealtime } from '../data/realtime';
+import {
+  useAvailability, useDownloadActions, useDownloadedAlbum, useDownloadedLikes, useDownloadedPlaylist,
+} from '../downloads/DownloadsProvider';
+import { albumCollectionId, likedId as likedDownloadId, playlistCollectionId } from '../downloads/model';
 import { useNotice } from '../Notice';
 import { usePlaybackState } from '../playback';
-import { isPlayable } from '../player/session';
 import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
 import { AlbumStatusBlur } from './AlbumStatusBlur';
 import { AlbumMetadata, CollectionGrid } from './BrowseControls';
+import { useDownloadControl } from './DownloadControl';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
-  promptForName, QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, type Collection,
+  QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useOfflineDim, type Collection,
 } from './shared';
 import { SongList } from './SongList';
 import { ZoomTarget } from './ZoomLink';
@@ -51,6 +56,8 @@ type DetailProps = {
   info: string;
   buttons?: AlbumPlaybackProps['actions'];
   nav: readonly (AlbumNavProps | false)[];
+  /** A line under the buttons, such as the download's progress. */
+  status?: ReactNode;
   description?: string | null;
   onBack: () => void;
   onEndReached?: () => void;
@@ -62,7 +69,7 @@ type DetailProps = {
  * The page a collection zooms open into: its cover over the collection's tint, the title,
  * the play buttons, and the content below. Scrolling past the cover blurs the status bar.
  */
-function DetailPage({ item, tint, title, artist, info, buttons, nav, description, onBack, onEndReached, bottomInset, children }: DetailProps) {
+function DetailPage({ item, tint, title, artist, info, buttons, nav, status, description, onBack, onEndReached, bottomInset, children }: DetailProps) {
   const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
@@ -99,9 +106,10 @@ function DetailPage({ item, tint, title, artist, info, buttons, nav, description
       <View style={[styles.header, { paddingTop: top + albumNavSize + 12 }]}>
         {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
           locations={[0, 1]} style={StyleSheet.absoluteFill} />}
-        <ZoomTarget style={styles.art}><CollectionCover item={{ ...item, dim: false }} size={artSize} radius={item.round ? artSize / 2 : 17} /></ZoomTarget>
+        <ZoomTarget style={styles.art}><CollectionCover item={item} size={artSize} radius={item.round ? artSize / 2 : 17} /></ZoomTarget>
         <AlbumMetadata title={title} artist={artist} info={info} />
         {buttons && buttons.length > 0 && <AlbumPlaybackButtons title={title} actions={buttons} />}
+        {status}
       </View>
       {description ? <Text style={styles.description} numberOfLines={6}>{description}</Text> : null}
       {children}
@@ -141,8 +149,8 @@ function share(message: string) {
 }
 
 /** Play and Shuffle, for a list with something playable in it. */
-function playButtons(tracks: readonly TrackSummary[], play: (shuffle: boolean) => void): AlbumPlaybackProps['actions'] {
-  if (!tracks.some(isPlayable)) return [];
+function playButtons(tracks: readonly TrackSummary[], canPlay: (track: TrackSummary) => boolean, play: (shuffle: boolean) => void): AlbumPlaybackProps['actions'] {
+  if (!tracks.some(canPlay)) return [];
   return [
     { label: 'Play', symbol: 'play.fill', onPress: () => play(false) },
     { label: 'Shuffle', symbol: 'shuffle', onPress: () => play(true) },
@@ -151,12 +159,17 @@ function playButtons(tracks: readonly TrackSummary[], play: (shuffle: boolean) =
 
 export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const album = useAlbum(id);
+  const kept = useDownloadedAlbum(id);
+  const data = album.data ?? kept;
   const { actions } = usePlaybackState();
-  const liked = useLiked('album', id, album.data?.liked);
+  const { canPlay, offline } = useAvailability();
+  const download = useDownloadActions();
+  const liked = useLiked('album', id, data?.liked);
   const { setLiked, want } = useLibraryActions();
+  const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
+    album.data?.discs.some(disc => disc.tracks.some(track => track.availability === 'server')) ? () => download.album(album.data!) : null);
   useBackSwipeOnly();
-  if (!album.data) return <PageFallback query={album} what="this album" onBack={onBack} />;
-  const data = album.data;
+  if (!data) return <PageFallback query={album} what="this album" onBack={onBack} />;
   const tracks = data.discs.flatMap(disc => disc.tracks);
   const context: PlaybackContext = { type: 'album', id: data.id, title: data.title };
   const play = (shuffle?: boolean, start?: number) => {
@@ -164,16 +177,18 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
     actions.playTracks(tracks, { start, shuffle, context });
   };
   const owned = data.availability === 'partial' ? `${data.ownedTrackCount} of ${data.trackCount} in your library` : null;
-  const wantable = data.availability !== 'full' && !data.wanted;
-  const buttons = playButtons(tracks, play);
+  const wantable = data.availability !== 'full' && !data.wanted && !offline;
+  const buttons = playButtons(tracks, canPlay, play);
+  const wantButton = offline ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
+    onPress: () => { if (!data.wanted) want('album', data.id, data.title); } }];
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title} artist={data.artistCredit}
     info={[typeNames[data.type], data.genres[0], data.year, owned].filter(Boolean).join('  ·  ')}
-    buttons={buttons.length ? buttons : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
-      onPress: () => { if (!data.wanted) want('album', data.id, data.title); } }]}
+    buttons={buttons.length ? buttons : wantButton} status={control.status}
     nav={[
       { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.title}` : `Like ${data.title}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked); } },
+      control.nav,
       buttons.length > 0 && wantable && { icon: 'star', label: `Add ${data.title} to your wantlist`, onPress: () => want('album', data.id, data.title) },
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
@@ -191,7 +206,7 @@ export function PlaylistScreen(props: PageProps) {
   return <UserPlaylistScreen {...props} />;
 }
 
-function TrackListPage({ item, title, info, tracks, context, empty, loadMore, loadingMore, props }: {
+function TrackListPage({ item, title, info, tracks, context, empty, loadMore, loadingMore, download, props }: {
   item: Collection;
   title: string;
   info: string;
@@ -200,14 +215,17 @@ function TrackListPage({ item, title, info, tracks, context, empty, loadMore, lo
   empty: { title: string; description: string };
   loadMore: () => void;
   loadingMore: boolean;
+  download?: ReturnType<typeof useDownloadControl>;
   props: PageProps;
 }) {
   const { actions } = usePlaybackState();
+  const { canPlay } = useAvailability();
   const play = (shuffle?: boolean, start?: number) => {
     tapFeedback();
     actions.playTracks(tracks, { start, shuffle, context });
   };
-  return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, play)} nav={[]}
+  return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play)}
+    nav={download ? [download.nav] : []} status={download?.status}
     onBack={props.onBack} onEndReached={loadMore} bottomInset={props.bottomInset ?? 155}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)}>
       <SongList tracks={tracks} onPlay={start => play(undefined, start)} onTrackMenu={track => props.onTrackMenu(track)} />
@@ -218,9 +236,14 @@ function TrackListPage({ item, title, info, tracks, context, empty, loadMore, lo
 
 function LikedScreen(props: PageProps) {
   const liked = useLikedTracks();
+  const kept = useDownloadedLikes();
+  const download = useDownloadActions();
+  const tracks = liked.data ? liked.items : kept;
+  const control = useDownloadControl(likedDownloadId, 'Liked Songs',
+    liked.items.some(track => track.availability === 'server') ? () => download.liked(liked.items) : null);
   useBackSwipeOnly();
-  if (!liked.data) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
-  return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={liked.items}
+  if (!tracks) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
+  return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={tracks} download={control}
     context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage}
     empty={{ title: 'Your favorites go here', description: 'Tap a heart next to any song to save it here.' }} props={props} />;
 }
@@ -235,23 +258,30 @@ function HistoryScreen(props: PageProps) {
     empty={{ title: 'Nothing played yet', description: 'Play a song and it will appear in your history.' }} props={props} />;
 }
 
-function UserPlaylistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }: PageProps) {
+function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const { state } = useAccount();
   const playlist = usePlaylist(id);
+  const kept = useDownloadedPlaylist(id);
+  const data = playlist.data ?? kept;
   const { actions } = usePlaybackState();
+  const { canPlay } = useAvailability();
+  const { offline } = useRealtime();
   const edits = usePlaylistActions();
+  const download = useDownloadActions();
   const [editing, setEditing] = useState(false);
+  const control = useDownloadControl(playlistCollectionId(id), data?.name ?? '',
+    playlist.data?.items.some(item => item.track.availability === 'server') ? () => download.playlist(playlist.data!) : null);
   useBackSwipeOnly();
-  if (!playlist.data) return <PageFallback query={playlist} what="this playlist" onBack={onBack} />;
-  const data = playlist.data;
+  if (!data) return <PageFallback query={playlist} what="this playlist" onBack={onBack} />;
   const tracks = data.items.map(item => item.track);
-  const mine = state.status === 'signedIn' && data.ownerId === state.user.id;
+  // The kept copy has no item ids, and edits need the server.
+  const mine = state.status === 'signedIn' && data.ownerId === state.user.id && Boolean(playlist.data) && !offline;
   const context: PlaybackContext = { type: 'playlist', id: data.id, title: data.name };
   const play = (shuffle?: boolean, start?: number) => {
     tapFeedback();
     actions.playTracks(tracks, { start, shuffle, context });
   };
-  const rename = () => promptForName('Rename playlist', data.name, name => edits.rename(data.id, name));
+  const rename = () => onOpen({ pathname: '/name-playlist', params: { mode: 'rename', id: data.id, name: data.name } });
   const remove = () => Alert.alert(`Delete “${data.name}”?`, 'This can’t be undone.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Delete Playlist', style: 'destructive', onPress: () => {
@@ -277,9 +307,10 @@ function UserPlaylistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
   };
 
   return <DetailPage item={playlistCollection(data, link)} tint={data.artworks[0]?.color ?? null} title={data.name}
-    artist={mine ? undefined : data.ownerName} info="Playlist"
-    buttons={playButtons(tracks, play)} description={data.description}
+    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info="Playlist"
+    buttons={playButtons(tracks, canPlay, play)} description={data.description} status={control.status}
     nav={[
+      control.nav,
       mine && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
         label: editing ? 'Finish reordering' : 'Reorder songs', selected: editing, onPress: () => { tapFeedback(); setEditing(!editing); } },
       mine && { icon: 'ellipsis', label: `Manage ${data.name}`, onPress: manage },
@@ -305,6 +336,7 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
   const notify = useNotice();
   const artist = useArtist(id);
   const { actions } = usePlaybackState();
+  const { canPlay, offline } = useAvailability();
   const liked = useLiked('artist', id, artist.data?.liked);
   const { setLiked } = useLibraryActions();
   useBackSwipeOnly();
@@ -327,11 +359,11 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
 
   return <DetailPage item={artistCollection(data, link)} tint={data.image?.color ?? null} title={data.name}
     info={['Artist', ...data.genres.slice(0, 2)].join('  ·  ')}
-    buttons={playButtons(top, play)} description={data.bio}
+    buttons={playButtons(top, canPlay, play)} description={data.bio}
     nav={[
       { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.name}` : `Like ${data.name}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked); } },
-      data.inLibrary && { icon: 'dot.radiowaves.left.and.right', label: `Start a radio for ${data.name}`, onPress: radio },
+      data.inLibrary && !offline && { icon: 'dot.radiowaves.left.and.right', label: `Start a radio for ${data.name}`, onPress: radio },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
     onBack={onBack} bottomInset={bottomInset}>
@@ -358,6 +390,7 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const albums = useGenreAlbums(id);
+  const offlineDim = useOfflineDim();
   const onScroll = useAnimatedScrollHandler(event => {
     if (nearEnd(event)) scheduleOnRN(albums.loadMore);
   });
@@ -370,8 +403,8 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
       <Text accessibilityRole="header" style={styles.genreTitle}>{id}</Text>
       {!albums.data && <QueryState query={albums} what={id} />}
       <CollectionGrid columns={columns} items={albums.items.map(album => {
-        const item = albumCollection(album, link);
-        return { id: item.key, title: item.title, subtitle: item.subtitle, size, cover: <CollectionCover item={item} size={size} />, href: item.href };
+        const item = offlineDim(albumCollection(album, link));
+        return { id: item.key, title: item.title, subtitle: item.subtitle, size, cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim };
       })} />
       {albums.isFetchingNextPage && <ActivityIndicator style={styles.more} />}
     </Animated.ScrollView>

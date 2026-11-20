@@ -10,13 +10,15 @@ import {
   createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
 import { AppState, Platform } from 'react-native';
-import { useServerUrl, useSignedInApi } from './account/AccountProvider';
+import { useAccountKey, useServerUrl, useSignedInApi } from './account/AccountProvider';
 import { clientDevice } from './account/storage';
 import { useTrack, useTrackStore } from './data/library';
 import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
+import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
 import { useNotice } from './Notice';
 import { connectNowPlaying, createPlayerEngine } from './player/engine';
+import { loadSession, saveSession } from './player/savedSession';
 import {
   codecsFor, deviceRows, findEntry, isRemote, newlyFailed, nextRepeat, outputDevice, playableSeeds, qualityFor, seedOf,
 } from './player/session';
@@ -30,6 +32,8 @@ const defaultQuality: Pick<UserSettings, 'qualityWifi' | 'qualityCellular'> = { 
 /** Two failures this close together mean the server, not the file, is the problem. */
 const errorSkipWindowMs = 8000;
 const lockScreenArtSize = 600;
+/** The session is saved this long after it last changed, and when the app leaves the screen. */
+const saveDelayMs = 2000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
@@ -46,12 +50,18 @@ const RuntimeContext = createContext<Runtime | null>(null);
  * phone's audio engine while this phone is the active device; otherwise the phone is a
  * remote and stays silent. Lock screen and Control Center buttons become session
  * commands too.
+ *
+ * Downloaded tracks play from their files. The session is saved as it changes, so a
+ * relaunch with no connection shows it (and the commands made offline still reach the
+ * server). Offline, an entry that is not downloaded is skipped.
  */
 export function PlaybackProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
+  const account = useAccountKey();
   const serverUrl = useServerUrl();
-  const { socket } = useRealtime();
+  const { socket, offline } = useRealtime();
   const tracks = useTrackStore();
+  const downloads = useDownloadManager();
   const notify = useNotice();
   const settings = useUserSettings().data;
   const network = Network.useNetworkState();
@@ -59,24 +69,31 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   // Read when a track is resolved, so a change applies from the next track on.
   const stream = useRef({ settings, network: network.type });
   stream.current = { settings, network: network.type };
+  const live = useRef({ downloads, offline });
+  live.current = { downloads, offline };
 
   useEffect(() => {
-    if (!socket || !api) return;
+    if (!socket || !api || !account) return;
     let cancelled = false;
     let teardown: (() => void) | undefined;
     void clientDevice().then(device => {
       if (cancelled) return;
       const send = (command: SessionCommand) => client.dispatch(command);
       const engine = createPlayerEngine({ onInterrupted: () => send({ type: 'pause' }) });
+      const saved = loadSession(account);
+      if (saved) tracks.prime(saved.tracks);
       const client: SessionClient = new SessionClient({
         transport: createSocketTransport(socket),
         device,
+        restore: saved?.session,
         player: {
           engine,
           baseUrl: serverUrl,
           canBoost: false,
           normalization: stream.current.settings?.normalization,
-          resolvePlayback: entry => {
+          resolvePlayback: async entry => {
+            const local = live.current.downloads?.playback(entry.trackId);
+            if (local) return local;
             const { settings: current, network: type } = stream.current;
             const kind = type === Network.NetworkStateType.CELLULAR ? 'cellular' : type === Network.NetworkStateType.WIFI ? 'wifi' : 'other';
             return api.streaming.playback(entry.trackId, {
@@ -100,7 +117,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           title: track.title,
           artist: track.artistCredit,
           album: track.album?.title,
-          artworkUrl: artworkUrl(serverUrl, track.album?.artwork, lockScreenArtSize) ?? undefined,
+          artworkUrl: (track.album?.artwork && live.current.downloads?.artworkUri(track.album.artwork.id))
+            || (artworkUrl(serverUrl, track.album?.artwork, lockScreenArtSize) ?? undefined),
           durationMs: entry.durationMs || track.durationMs,
         };
       }, {
@@ -128,10 +146,31 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       // A file that will not play is skipped. When the next one fails as well, the
       // connection is the likelier cause, so playback pauses instead.
       let lastSkip = -Infinity;
+      // Offline, only downloads can play: an entry that is not one is passed over, with one notice per spell offline.
+      let skipped: string | null = null;
+      const skipUndownloaded = () => {
+        const { session, isActiveDevice } = client.getSnapshot();
+        const current = session.current;
+        if (!live.current.offline) skipped = null;
+        if (!live.current.offline || !isActiveDevice || !current || current.state !== 'ready') return false;
+        if (live.current.downloads?.isDownloaded(current.trackId) || skipped === current.id) return false;
+        if (skipped === null) notify('Skipped songs that aren’t downloaded.');
+        skipped = current.id;
+        send({ type: 'next' });
+        return true;
+      };
+      const stopSkipping = client.subscribe(() => {
+        const { session } = client.getSnapshot();
+        const status = engine.getStatus();
+        // A stream that is still playing from its buffer is left to finish.
+        if (!session.playing || (status.entryId === session.current?.id && (status.state === 'playing' || status.state === 'buffering'))) return;
+        skipUndownloaded();
+      });
+
       const stopErrors = engine.subscribe(event => {
         if (event.type !== 'error') return;
         const { session, connection } = client.getSnapshot();
-        if (session.current?.id !== event.entryId) return;
+        if (session.current?.id !== event.entryId || skipUndownloaded()) return;
         const title = tracks.get(session.current.trackId, session.current.albumId)?.title;
         if (connection === 'online' && Date.now() - lastSkip > errorSkipWindowMs) {
           lastSkip = Date.now();
@@ -143,9 +182,27 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         }
       });
 
+      let saveTimer: ReturnType<typeof setTimeout> | undefined;
+      const save = () => {
+        clearTimeout(saveTimer);
+        saveSession(account, client, tracks);
+      };
+      const stopSaving = client.subscribe(() => {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(save, saveDelayMs);
+      });
+      const appState = AppState.addEventListener('change', status => {
+        if (status !== 'active') save();
+      });
+
       client.start();
       setRuntime({ client, device });
       teardown = () => {
+        // Not saved here: this runs on sign-out too, after the account's data was removed.
+        clearTimeout(saveTimer);
+        appState.remove();
+        stopSaving();
+        stopSkipping();
         stopErrors();
         stopWatching();
         stopWaiting();
@@ -158,7 +215,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       teardown?.();
       setRuntime(null);
     };
-  }, [api, notify, serverUrl, socket, tracks]);
+  }, [account, api, notify, serverUrl, socket, tracks]);
+
+  // Where a track plays from changed: resolve entries again.
+  useEffect(() => {
+    if (runtime && downloads) return downloads.onFilesChanged(() => runtime.client.forgetPlayback());
+  }, [downloads, runtime]);
 
   const normalization = settings?.normalization;
   useEffect(() => {
@@ -173,11 +235,11 @@ function useSnapshot(): SessionClientSnapshot {
   return useSyncExternalStore(runtime?.client.subscribe ?? noSubscription, runtime?.client.getSnapshot ?? idleSnapshot);
 }
 
-function createActions(runtime: Runtime | null) {
+function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) => boolean) {
   const send = (command: SessionCommand) => runtime?.client.dispatch(command);
   const session = () => (runtime?.client.getSnapshot() ?? idle).session;
   const enqueue = (tracks: readonly TrackSummary[], placement: 'next' | 'last') => {
-    const { seeds } = playableSeeds(tracks);
+    const { seeds } = playableSeeds(tracks, 0, canPlay);
     if (seeds.length) send({ type: 'enqueue', tracks: seeds, placement });
   };
   return {
@@ -197,7 +259,7 @@ function createActions(runtime: Runtime | null) {
      * index into `tracks`). `shuffle` left out keeps the session's shuffle setting.
      */
     playTracks: (tracks: readonly TrackSummary[], { start, shuffle, context }: PlayOptions = {}) => {
-      const { seeds, startIndex } = playableSeeds(tracks, start);
+      const { seeds, startIndex } = playableSeeds(tracks, start, canPlay);
       if (!seeds.length) return;
       send({
         type: 'playTracks', tracks: seeds, seed: randomSeed(), shuffle, context: context ?? null,
@@ -236,7 +298,8 @@ export function usePlaybackState() {
   const { session, queue, devices } = snapshot;
   const current = session.current;
   const track = useTrack(current?.trackId, current?.albumId);
-  const actions = useMemo(() => createActions(runtime), [runtime]);
+  const { canPlay } = useAvailability();
+  const actions = useMemo(() => createActions(runtime, canPlay), [canPlay, runtime]);
   const device = runtime?.device;
   const rows = useMemo(() => {
     const self: DeviceInfo = { id: device?.id ?? '', name: device?.name ?? 'iPhone', kind: device?.kind ?? 'ios', canPlay: true, isActive: false };

@@ -3,7 +3,7 @@ import { Button, Divider, Grid, Host, HStack, Menu, Picker, RNHostView, Spacer, 
 import {
   accessibilityAddTraits, accessibilityLabel, autocorrectionDisabled, background, buttonBorderShape, buttonStyle, clipShape,
   font, foregroundStyle, frame, lineLimit, menuIndicator, multilineTextAlignment, offset, padding, pickerStyle,
-  rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
+  opacity, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { StyleSheet, View } from 'react-native';
@@ -12,7 +12,7 @@ import type {
   AlbumMetadataProps, BrowseButtonProps, CollectionButtonProps, CollectionGridProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
   LinkedButtonProps, SearchFieldProps,
 } from './BrowseControls';
-import { useColors } from '../theme';
+import { unavailableOpacity, useColors } from '../theme';
 import { ZoomLink, ZoomSource } from './ZoomLink';
 
 const footnote = font({ textStyle: 'footnote' });
@@ -104,10 +104,10 @@ function CollectionTileButton({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><TileButton {...props} /></ZoomLink>;
 }
 
-function TileButton({ title, subtitle, cover, size, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+function TileButton({ title, subtitle, cover, size, dim, onPress }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   return <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
-    <VStack alignment="leading" spacing={6} modifiers={[frame({ width: size, alignment: 'leading' }), hitShape]}>
+    <VStack alignment="leading" spacing={6} modifiers={[frame({ width: size, alignment: 'leading' }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
       <HostedCover cover={cover} size={size} zoom />
       <VStack alignment="leading" spacing={2}>
         <Text modifiers={[labelFont, lineLimit(1)]}>{title}</Text>
@@ -123,11 +123,11 @@ export function CollectionRow({ href, ...props }: CollectionButtonProps) {
   </Host>;
 }
 
-function RowButton({ title, subtitle, cover, size, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+function RowButton({ title, subtitle, cover, size, dim, onPress }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   return <VStack spacing={0}>
     <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
-      <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape]}>
+      <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
         <HostedCover cover={cover} size={size} zoom />
         <VStack alignment="leading" spacing={3}>
           <Text modifiers={[labelFont, lineLimit(1)]}>{title}</Text>

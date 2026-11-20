@@ -6,11 +6,13 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import type { TrackSummary } from '@squirmy/contracts';
 import { useLibraryActions, useLiked } from '../data/library';
+import { useRealtime } from '../data/realtime';
+import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
+import { downloadSymbol, unavailableReason } from '../downloads/model';
 import { IconButton, TrackActions, TrackCover, TrackMenu, hitShape } from '../native/Controls';
 import { usePlaybackState } from '../playback';
-import { isPlayable } from '../player/session';
 import type { SongListProps } from './SongList';
-import { useColors } from '../theme';
+import { unavailableOpacity, useColors } from '../theme';
 
 const rowHeight = 58;
 const swipeLabelStyle = labelStyle('iconOnly');
@@ -49,7 +51,9 @@ function SongRow({ track, number, onPlay, playlist }: {
   const liked = useLiked('track', track.id, track.liked);
   const { setLiked } = useLibraryActions();
   const current = session.current?.trackId === track.id;
-  const playable = isPlayable(track);
+  const playable = useCanPlay(track);
+  const { offline } = useRealtime();
+  const mark = downloadSymbol(useTrackDownload(track.id));
   const favoriteLabel = liked ? `Unlike ${track.title}` : `Like ${track.title}`;
   const playNext = () => actions.enqueue([track], 'next');
   const options = playlist && { playlist: { id: playlist.id, itemId: playlist.itemId } };
@@ -70,8 +74,8 @@ function SongRow({ track, number, onPlay, playlist }: {
             <Button onPress={playable ? onPlay : undefined}
               modifiers={[buttonStyle('plain'), accessibilityLabel(playable
                 ? `Play ${track.title} by ${track.artistCredit}`
-                : `${track.title} by ${track.artistCredit}, not in your library`)]}>
-              <HStack spacing={10} modifiers={[frame({ height: rowHeight }), hitShape, ...(playable ? [] : [opacity(0.42)])]}>
+                : `${track.title} by ${track.artistCredit}, ${unavailableReason(track, offline)}`)]}>
+              <HStack spacing={10} modifiers={[frame({ height: rowHeight }), hitShape, ...(playable ? [] : [opacity(unavailableOpacity)])]}>
                 {number !== undefined ? (
                   <HStack modifiers={[frame({ width: 27 })]}>
                     {current ? <Image systemName={session.playing ? 'waveform' : 'pause.fill'} color={colors.accent} size={16} /> : (
@@ -83,7 +87,10 @@ function SongRow({ track, number, onPlay, playlist }: {
                 )}
                 <VStack alignment="leading" spacing={3}>
                   <Text modifiers={[foregroundStyle(current ? colors.accent : colors.text), font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
-                  <Text modifiers={[foregroundStyle(colors.muted), font({ size: 12 }), lineLimit(1)]}>{track.artistCredit}</Text>
+                  <HStack spacing={3}>
+                    {mark && <Image systemName={mark as 'arrow.down.circle.fill'} color={colors.muted} size={10} />}
+                    <Text modifiers={[foregroundStyle(colors.muted), font({ size: 12 }), lineLimit(1)]}>{track.artistCredit}</Text>
+                  </HStack>
                 </VStack>
                 <Spacer minLength={5} />
               </HStack>

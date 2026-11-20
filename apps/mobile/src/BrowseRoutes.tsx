@@ -21,6 +21,7 @@ function useBrowseProps(tab: Tab) {
     }),
     onOpenDevices: () => router.push('/devices'),
     onOpenAccount: () => router.push('/account'),
+    onOpenDownloads: () => router.push('/downloads'),
   };
 }
 

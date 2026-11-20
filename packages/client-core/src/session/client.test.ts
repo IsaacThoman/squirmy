@@ -12,7 +12,7 @@ import type {
 } from '@squirmy/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeEngine } from '../engine.js'
-import { SessionClient } from './client.js'
+import { type SavedSession, SessionClient } from './client.js'
 import { createInitialSession, positionAt, queueChanged, reduceSession, splitSession } from './reducer.js'
 import type { AckCallback, AckEvent, AckPayload, AckReply, SessionTransport } from './transport.js'
 
@@ -75,6 +75,10 @@ class FakeServer {
       this.commands.push(envelope)
       if (this.rejecting) return send({ ok: false, error: 'rejected' })
       if (this.seen.has(envelope.commandId)) return send({ ok: true, version: this.version })
+      // As the real server: only the active device may end a track.
+      if (envelope.command.type === 'trackEnded' && this.session.activeDeviceId !== transport.deviceId) {
+        return send({ ok: false, error: 'not_active_device' })
+      }
       this.seen.add(envelope.commandId)
       const before = this.session
       const next = reduceSession(before, { command: envelope.command, now: this.now(), commandId: envelope.commandId, deviceId: transport.deviceId })
@@ -202,8 +206,9 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true } = {}) {
-  const server = new FakeServer()
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer() }: {
+  canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer
+} = {}) {
   const transport = new FakeTransport(server)
   const engine = new FakeEngine()
   engine.durationMs = 200_000
@@ -212,6 +217,7 @@ function setup({ canPlay = true, connect = true } = {}) {
     transport,
     device: { id: PHONE, name: 'Phone', kind: 'ios' },
     player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off' } : undefined,
+    restore,
   })
   client.start()
   const settle = async () => {
@@ -450,7 +456,8 @@ describe('SessionClient engine', () => {
     expect(engine.preloaded?.entryId).toBe(client.getSnapshot().queue.queue[0]!.id)
     transport.connect()
     await settle()
-    expect(server.commands.map(envelope => envelope.command.type)).toEqual(['playTracks', 'trackEnded'])
+    // The engine's position follows the replayed end, which the server anchors on arrival.
+    expect(server.commands.map(envelope => envelope.command.type)).toEqual(['playTracks', 'trackEnded', 'seek'])
     expect(server.session.current!.id).toBe(second.id)
   })
 
@@ -532,6 +539,94 @@ describe('SessionClient engine', () => {
     expect(client.getSnapshot().isActiveDevice).toBe(true)
     expect(engine.getStatus()).toMatchObject({ state: 'playing', positionMs: 35_000 })
     expect(calls('stop')).toEqual([])
+  })
+
+  it('keeps the tracks it ended offline after the server gave up on it', async () => {
+    const { server, transport, client, engine, settle } = await playingHere(4)
+    transport.disconnect()
+    await vi.advanceTimersByTimeAsync(25_000)
+    server.apply({ type: 'deviceLost', deviceId: PHONE })
+    engine.finish()
+    await vi.advanceTimersByTimeAsync(0)
+    engine.finish()
+    await vi.advanceTimersByTimeAsync(0)
+    client.dispatch({ type: 'pause' })
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(trackOf(client.getSnapshot().session.current)).toBe(3)
+    transport.connect()
+    await settle()
+    expect(trackOf(server.session.current)).toBe(3)
+    expect(server.session).toMatchObject({ activeDeviceId: PHONE, playing: false })
+    expect(trackOf(client.getSnapshot().session.current)).toBe(3)
+    expect(client.getSnapshot().session.playing).toBe(false)
+  })
+
+  it('keeps the music where it is after commands made during a short disconnect', async () => {
+    const { server, transport, client, engine, calls, settle } = await playingHere()
+    transport.disconnect()
+    client.dispatch({ type: 'next' })
+    await settle()
+    await vi.advanceTimersByTimeAsync(30_000)
+    const seeks = calls('seek').length
+    transport.connect()
+    await settle()
+    expect(trackOf(server.session.current)).toBe(2)
+    expect(positionAt(server.session, server.now())).toBe(30_000)
+    expect(engine.getStatus().positionMs).toBe(30_000)
+    expect(calls('seek').length).toBe(seeks)
+  })
+
+  it('leaves the session alone on reconnect when it was paused here and nothing ended', async () => {
+    const { server, transport, client, settle } = await playingHere()
+    client.dispatch({ type: 'pause' })
+    await settle()
+    transport.disconnect()
+    server.apply({ type: 'deviceLost', deviceId: PHONE })
+    transport.connect()
+    await settle()
+    expect(server.session.activeDeviceId).toBeNull()
+    expect(client.getSnapshot().isActiveDevice).toBe(false)
+  })
+
+  it('saves and restores the session with its unsent commands, paused where it was', async () => {
+    const first = await playingHere(3)
+    await vi.advanceTimersByTimeAsync(40_000)
+    first.transport.disconnect()
+    first.client.dispatch({ type: 'next' })
+    await vi.advanceTimersByTimeAsync(20_000)
+    const saved = JSON.parse(JSON.stringify(first.client.save())) as SavedSession
+    first.client.dispose()
+
+    const { server, transport, client, calls, settle } = setup({ restore: saved, connect: false, server: first.server })
+    expect(client.getSnapshot()).toMatchObject({ isActiveDevice: true, session: { playing: false } })
+    expect(trackOf(client.getSnapshot().session.current)).toBe(2)
+    expect(client.getPositionMs()).toBe(20_000)
+    await settle()
+    expect(calls('load')[0]![1]).toMatchObject({ startMs: 20_000, autoplay: false })
+
+    server.apply({ type: 'deviceLost', deviceId: PHONE })
+    transport.connect()
+    await settle()
+    expect(trackOf(server.session.current)).toBe(2)
+    expect(server.session).toMatchObject({ playing: false, positionMs: 20_000 })
+  })
+
+  it('restores a session another device plays as it was', async () => {
+    const { server, client, settle } = setup()
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 }, WEB)
+    await settle()
+    const saved = client.save()
+    const restored = new SessionClient({ transport: new FakeTransport(server), device: { id: PHONE, name: 'Phone', kind: 'ios' }, restore: saved })
+    expect(restored.getSnapshot()).toMatchObject({ isActiveDevice: false, session: { playing: true, activeDeviceId: WEB } })
+    expect(restored.save().pending).toEqual([])
+  })
+
+  it('resolves entries again after forgetting descriptors', async () => {
+    const { client, resolvePlayback } = await playingHere()
+    const count = resolvePlayback.mock.calls.length
+    client.forgetPlayback()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(resolvePlayback.mock.calls.length).toBe(count + 1)
   })
 
   it('loads at the current position when the session is transferred here', async () => {

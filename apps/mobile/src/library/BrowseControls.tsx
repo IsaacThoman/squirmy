@@ -2,7 +2,7 @@ import type { Href } from 'expo-router';
 import { useImperativeHandle, useRef, type ComponentRef, type ReactElement, type Ref } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '../ui';
-import { createThemedStyles, useColors } from '../theme';
+import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
 import { ZoomLink } from './ZoomLink';
 
 export type SearchHandle = Pick<ComponentRef<typeof TextInput>, 'focus' | 'blur'> & { setText: (text: string) => void };
@@ -17,8 +17,8 @@ export type SearchFieldProps = {
 
 export type BrowseButtonProps = { label: string; icon?: string; title?: string; glass?: boolean; onPress: () => void };
 export type FilterProps<T extends string> = { options: readonly T[]; value: T; onChange: (option: T) => void };
-/** A collection that opens `href` when pressed. On iOS the page zooms out of its cover. */
-export type CollectionButtonProps = { title: string; subtitle: string; cover: ReactElement; size: number; href: Href };
+/** A collection that opens `href` when pressed. On iOS the page zooms out of its cover. `dim` grays it, cover and title alike. */
+export type CollectionButtonProps = { title: string; subtitle: string; cover: ReactElement; size: number; href: Href; dim?: boolean };
 /** The button a `ZoomLink` wraps. The link supplies `onPress`. */
 export type LinkedButtonProps<T> = Omit<T, 'href'> & { onPress?: () => void };
 export type GenreCardProps = { title: string; color: string; width: number; cover: ReactElement; onPress: () => void };
@@ -75,10 +75,10 @@ export function CollectionTile({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><TileButton {...props} /></ZoomLink>;
 }
 
-function TileButton({ title, subtitle, cover, size, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+function TileButton({ title, subtitle, cover, size, dim, onPress }: LinkedButtonProps<CollectionButtonProps>) {
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
-    style={({ pressed }) => [{ width: size }, pressed && styles.pressed]}>
+    style={({ pressed }) => [{ width: size }, dim && styles.dim, pressed && styles.pressed]}>
     {cover}
     <Text numberOfLines={1} style={[styles.collectionTitle, { marginTop: 7 }]}>{title}</Text>
     <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
@@ -96,11 +96,11 @@ export function CollectionRow({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><RowButton {...props} /></ZoomLink>;
 }
 
-function RowButton({ title, subtitle, cover, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+function RowButton({ title, subtitle, cover, dim, onPress }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
-    style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}>
+    style={({ pressed }) => [styles.collectionRow, dim && styles.dim, pressed && styles.pressed]}>
     {cover}
     <View style={styles.flex}>
       <Text numberOfLines={1} style={styles.collectionTitle}>{title}</Text>
@@ -147,6 +147,7 @@ export function AlbumMetadata({ title, info, artist }: AlbumMetadataProps) {
 }
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
+  dim: { opacity: unavailableOpacity },
   flex: { flex: 1 },
   pressed: { opacity: 0.68 },
   button: { minWidth: 44, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },

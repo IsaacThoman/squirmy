@@ -1,10 +1,13 @@
-import { Button, Divider, Host, HStack, Slider, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Divider, Host, HStack, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, font, foregroundStyle, frame, lineLimit, padding, tint,
+  accessibilityAddTraits, accessibilityLabel, background, clipShape, disabled as disabledModifier, font, foregroundStyle,
+  frame, lineLimit, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconButton, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
-import type { SheetFrameProps, SheetInfoProps, SheetRowProps, SheetSliderProps, TrackSummaryProps } from './SheetUI';
+import type {
+  SheetActionProps, SheetFieldProps, SheetFrameProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps, TrackSummaryProps,
+} from './SheetUI';
 import { useColors } from './theme';
 
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
@@ -24,6 +27,13 @@ export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
 
 export function SheetRows({ children }: { children: React.ReactNode }) {
   return <VStack alignment="leading" spacing={0}>{children}</VStack>;
+}
+
+/** Rows that scroll inside a sheet of this height, for lists that would not fit. */
+export function SheetScroll({ height, children }: SheetScrollProps) {
+  return <ScrollView modifiers={[frame({ height })]}>
+    <VStack alignment="leading" spacing={0}>{children}</VStack>
+  </ScrollView>;
 }
 
 export function SheetRow({ title, subtitle, icon, selected, onPress }: SheetRowProps) {
@@ -83,4 +93,21 @@ export function SheetSlider({ label, value, onChange }: SheetSliderProps) {
       <Symbol name="speaker.wave.3.fill" size={15} color={colors.muted} />
     </HStack>
   </VStack>;
+}
+
+export function SheetField({ label, value, onChange, onSubmit, autoFocus }: SheetFieldProps) {
+  const colors = useColors();
+  const text = useNativeState(value);
+  return <TextField text={text} onTextChange={onChange} placeholder={label} autoFocus={autoFocus}
+    modifiers={[accessibilityLabel(label), submitLabel('done'), onSubmitModifier(onSubmit), font({ textStyle: 'body' }),
+      padding({ horizontal: 14 }), frame({ maxWidth: Infinity, minHeight: 48 }), background(colors.surface), clipShape('roundedRectangle', 14)]} />;
+}
+
+/** The sheet's one prominent button. */
+export function SheetAction({ title, disabled, onPress }: SheetActionProps) {
+  const colors = useColors();
+  return <Button onPress={onPress} modifiers={[plainButton, disabledModifier(disabled), accessibilityLabel(title)]}>
+    <Text modifiers={[font({ size: 15, weight: 'bold' }), foregroundStyle(colors.onAccent), frame({ maxWidth: Infinity, minHeight: 48 }),
+      background(colors.accent), clipShape('capsule'), hitShape, ...(disabled ? [opacity(0.45)] : [])]}>{title}</Text>
+  </Button>;
 }

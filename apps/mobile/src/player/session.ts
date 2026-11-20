@@ -97,13 +97,14 @@ export function seedOf(track: TrackSummary): QueueSeed {
 
 /**
  * The playable tracks of a list as seeds, and where `start` (an index into `tracks`)
- * lands among them. A gray start falls through to the next playable track.
+ * lands among them. A gray start falls through to the next playable track. `playable`
+ * decides what counts, e.g. only downloads while offline.
  */
-export function playableSeeds(tracks: readonly TrackSummary[], start = 0): { seeds: QueueSeed[]; startIndex: number } {
+export function playableSeeds(tracks: readonly TrackSummary[], start = 0, playable: (track: TrackSummary) => boolean = isPlayable): { seeds: QueueSeed[]; startIndex: number } {
   const seeds: QueueSeed[] = [];
   let startIndex = -1;
   tracks.forEach((track, index) => {
-    if (!isPlayable(track)) return;
+    if (!playable(track)) return;
     if (startIndex < 0 && index >= start) startIndex = seeds.length;
     seeds.push(seedOf(track));
   });
