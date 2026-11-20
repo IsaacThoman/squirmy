@@ -34,6 +34,11 @@ export const OrganizePreviewRequest = z.object({
   includeUnmatched: z.boolean().default(false),
   /** Write catalog tags into identified files while organizing. Not undone by revert. */
   writeTags: z.boolean().default(false),
+  /**
+   * Also file music waiting in the root's `_Incoming` folder, such as an import left for
+   * review whose match an admin has since fixed. Off by default.
+   */
+  includeIncoming: z.boolean().default(false),
 })
 export type OrganizePreviewRequest = z.infer<typeof OrganizePreviewRequest>
 

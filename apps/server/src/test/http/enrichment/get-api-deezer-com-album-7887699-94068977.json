@@ -1,0 +1,77 @@
+{
+  "note": "Trimmed: the embedded track list (16 entries) is left out; the client reads tracks from album/<id>/tracks.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/7887699"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 7887699,
+      "title": "Miraculé",
+      "upc": "602537872398",
+      "link": "https://www.deezer.com/album/7887699",
+      "share": "https://www.deezer.com/album/7887699?utm_source=deezer&utm_content=album-7887699&utm_term=0_1795197203&utm_medium=web",
+      "cover": "https://api.deezer.com/album/7887699/image",
+      "cover_small": "https://cdn-images.dzcdn.net/images/cover/52b98fdc9c20bb74334b71c04445f513/56x56-000000-80-0-0.jpg",
+      "cover_medium": "https://cdn-images.dzcdn.net/images/cover/52b98fdc9c20bb74334b71c04445f513/250x250-000000-80-0-0.jpg",
+      "cover_big": "https://cdn-images.dzcdn.net/images/cover/52b98fdc9c20bb74334b71c04445f513/500x500-000000-80-0-0.jpg",
+      "cover_xl": "https://cdn-images.dzcdn.net/images/cover/52b98fdc9c20bb74334b71c04445f513/1000x1000-000000-80-0-0.jpg",
+      "md5_image": "52b98fdc9c20bb74334b71c04445f513",
+      "genre_id": 116,
+      "genres": {
+        "data": [
+          {
+            "id": 116,
+            "name": "Rap/Hip Hop",
+            "picture": "https://api.deezer.com/genre/116/image",
+            "type": "genre"
+          }
+        ]
+      },
+      "label": "Universal Music Division Capitol Music France",
+      "nb_tracks": 16,
+      "duration": 3972,
+      "fans": 169171,
+      "release_date": "2014-07-08",
+      "record_type": "album",
+      "available": true,
+      "tracklist": "https://api.deezer.com/album/7887699/tracks",
+      "explicit_lyrics": true,
+      "explicit_content_lyrics": 1,
+      "explicit_content_cover": 0,
+      "contributors": [
+        {
+          "id": 58624,
+          "name": "Niro",
+          "link": "https://www.deezer.com/artist/58624",
+          "share": "https://www.deezer.com/artist/58624?utm_source=deezer&utm_content=artist-58624&utm_term=0_1795197203&utm_medium=web",
+          "picture": "https://api.deezer.com/artist/58624/image",
+          "picture_small": "https://cdn-images.dzcdn.net/images/artist/572831844e25b714cab8a26059831a20/56x56-000000-80-0-0.jpg",
+          "picture_medium": "https://cdn-images.dzcdn.net/images/artist/572831844e25b714cab8a26059831a20/250x250-000000-80-0-0.jpg",
+          "picture_big": "https://cdn-images.dzcdn.net/images/artist/572831844e25b714cab8a26059831a20/500x500-000000-80-0-0.jpg",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/572831844e25b714cab8a26059831a20/1000x1000-000000-80-0-0.jpg",
+          "radio": true,
+          "tracklist": "https://api.deezer.com/artist/58624/top?limit=50",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 58624,
+        "name": "Niro",
+        "picture": "https://api.deezer.com/artist/58624/image",
+        "picture_small": "https://cdn-images.dzcdn.net/images/artist/572831844e25b714cab8a26059831a20/56x56-000000-80-0-0.jpg",
+        "picture_medium": "https://cdn-images.dzcdn.net/images/artist/572831844e25b714cab8a26059831a20/250x250-000000-80-0-0.jpg",
+        "picture_big": "https://cdn-images.dzcdn.net/images/artist/572831844e25b714cab8a26059831a20/500x500-000000-80-0-0.jpg",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/572831844e25b714cab8a26059831a20/1000x1000-000000-80-0-0.jpg",
+        "tracklist": "https://api.deezer.com/artist/58624/top?limit=50",
+        "type": "artist"
+      },
+      "type": "album"
+    }
+  }
+}

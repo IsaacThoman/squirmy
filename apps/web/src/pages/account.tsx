@@ -1,9 +1,9 @@
-import { ApiError } from '@squirmy/client-core'
-import { queryKeys, type CreateLibraryRootRequest, type ScrobblingStatus, type ScrobbleTarget, type UpdateUserSettings, type User, type UserSettings } from '@squirmy/contracts'
+import { queryKeys, type ScrobblingStatus, type ScrobbleTarget, type UpdateUserSettings, type User, type UserSettings } from '@squirmy/contracts'
 import { notifyManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
+import { useFolderListing } from '@/api/folders'
 import { useScrobbling, useUserSettings } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useLogout } from '@/auth/actions'
@@ -185,39 +185,22 @@ function SetupAccount() {
   return <SetupAccountView onCreateAdmin={credentials => setup.mutateAsync({ ...credentials, device: webDevice() })} />
 }
 
-type DoneState = { path?: string; note?: string } | null
+type DoneState = { path: string } | null
 
 function SetupLibrary() {
   const api = useApi()
   const navigate = useNavigate()
   const [path, setPath] = useState<string>()
-  const listing = useQuery({
-    queryKey: ['admin', 'fs', path ?? null],
-    queryFn: () => api.admin.directories({ path }),
-    retry: false,
-    meta: { silent: true },
-  })
+  const listing = useFolderListing(path)
   const done = (state: DoneState) => navigate('/setup/done', { replace: true, state })
-  const create = useMutation({
-    mutationFn: (request: CreateLibraryRootRequest) => api.library.createRoot(request),
-    meta: { inline: true },
-  })
-  const addFolder = async (request: CreateLibraryRootRequest) => {
-    try {
-      await create.mutateAsync(request)
-      done({ path: request.path })
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 404)) throw error
-      done({ note: 'This server cannot add library folders yet, so setup skipped this step. Add the folder later from Admin → Library.' })
-    }
-  }
+  const create = useMutation({ mutationFn: api.library.createRoot, meta: { inline: true } })
   return (
     <SetupLibraryView
       path={listing.data?.path ?? path}
       listing={listing.data}
       listingError={listing.isError ? errorMessage(listing.error) : undefined}
       onBrowse={setPath}
-      onAddFolder={addFolder}
+      onAddFolder={async request => done({ path: (await create.mutateAsync(request)).path })}
       onSkip={() => done(null)}
     />
   )
@@ -226,5 +209,5 @@ function SetupLibrary() {
 function SetupDone() {
   const navigate = useNavigate()
   const state = useLocation().state as DoneState
-  return <SetupDoneView folderPath={state?.path} note={state?.note} onFinish={() => navigate('/', { replace: true })} />
+  return <SetupDoneView folderPath={state?.path} onFinish={() => navigate('/', { replace: true })} />
 }

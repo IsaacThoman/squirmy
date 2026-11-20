@@ -345,6 +345,21 @@ export async function searchArtists(name: string, options: { limit?: number } = 
   return (data?.artists ?? []).map(artistSummary)
 }
 
+/**
+ * Release groups and recordings for free text, best first, as the plain search on
+ * musicbrainz.org does it: the text is matched against titles only.
+ */
+export async function searchReleaseGroupsByText(text: string, options: { limit?: number } = {}): Promise<MbReleaseGroupSummary[]> {
+  const data = await get<{ 'release-groups': RawReleaseGroup[] }>('release-group', { query: escapeQuery(text), limit: String(options.limit ?? 10) }, searchTtl)
+  return (data?.['release-groups'] ?? []).map(releaseGroupSummary)
+}
+
+/** See `searchReleaseGroupsByText`. Each recording lists the releases it appears on. */
+export async function searchRecordingsByText(text: string, options: { limit?: number } = {}): Promise<MbRecording[]> {
+  const data = await get<{ recordings: RawRecording[] }>('recording', { query: escapeQuery(text), limit: String(options.limit ?? 10) }, searchTtl)
+  return (data?.recordings ?? []).map(recording)
+}
+
 /** Release groups by title, optionally narrowed to an artist, best first. */
 export async function searchReleaseGroups(query: { title: string; artist?: string }, options: { limit?: number } = {}): Promise<MbReleaseGroupSummary[]> {
   const terms = [`releasegroup:${phrase(query.title)}`]
@@ -409,9 +424,14 @@ async function browseAll<T>(path: string, params: Record<string, string>, listKe
   }
 }
 
-/** The artist's whole discography: every release group credited to them, across all pages. */
-export async function browseReleaseGroups(artistMbid: string): Promise<MbReleaseGroupSummary[]> {
-  const raw = await browseAll<RawReleaseGroup>('release-group', { artist: artistMbid, inc: 'artist-credits' }, 'release-groups', 'release-group-count')
+/**
+ * The artist's discography: every release group credited to them, across all pages. With
+ * `officialOnly`, only groups with an official release, as the MusicBrainz website lists
+ * them by default; bootleg-only groups can outnumber the rest many times over.
+ */
+export async function browseReleaseGroups(artistMbid: string, options: { officialOnly?: boolean } = {}): Promise<MbReleaseGroupSummary[]> {
+  const params = { artist: artistMbid, inc: 'artist-credits', ...(options.officialOnly ? { 'release-group-status': 'website-default' } : {}) }
+  const raw = await browseAll<RawReleaseGroup>('release-group', params, 'release-groups', 'release-group-count')
   return (raw ?? []).map(releaseGroupSummary)
 }
 

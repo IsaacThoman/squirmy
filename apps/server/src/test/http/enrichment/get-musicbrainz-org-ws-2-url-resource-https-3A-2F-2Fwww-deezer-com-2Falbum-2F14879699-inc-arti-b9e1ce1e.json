@@ -1,0 +1,65 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/url?resource=https%3A%2F%2Fwww.deezer.com%2Falbum%2F14879699&inc=artist-rels+release-rels+release-group-rels+recording-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": "ebd25f97-6b27-489c-99d4-01260c1b23c7",
+      "resource": "https://www.deezer.com/album/14879699",
+      "relations": [
+        {
+          "attribute-values": {},
+          "begin": null,
+          "attributes": [],
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "attribute-ids": {},
+          "direction": "backward",
+          "type": "free streaming",
+          "target-type": "release",
+          "end": null,
+          "release": {
+            "packaging-id": null,
+            "date": "2016-04-01",
+            "title": "OK Computer",
+            "id": "30702389-5c67-4438-9ea0-2351c8de0f1d",
+            "release-events": [
+              {
+                "area": {
+                  "disambiguation": "",
+                  "type-id": null,
+                  "sort-name": "[Worldwide]",
+                  "name": "[Worldwide]",
+                  "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                  "type": null,
+                  "iso-3166-1-codes": [
+                    "XW"
+                  ]
+                },
+                "date": "2016-04-01"
+              }
+            ],
+            "packaging": null,
+            "text-representation": {
+              "script": "Latn",
+              "language": "eng"
+            },
+            "quality": "normal",
+            "status": null,
+            "country": "XW",
+            "disambiguation": "",
+            "barcode": "634904078164",
+            "status-id": null
+          },
+          "ended": false,
+          "source-credit": "",
+          "target-credit": ""
+        }
+      ]
+    }
+  }
+}

@@ -15,6 +15,7 @@ const AdminLayout = admin('AdminLayout')
 const AdminLibraryPage = admin('AdminLibraryPage')
 const AdminReviewsPage = admin('AdminReviewsPage')
 const AdminOrganizePage = admin('AdminOrganizePage')
+const AdminSearchIndexPage = admin('AdminSearchIndexPage')
 const AdminUsersPage = admin('AdminUsersPage')
 const AdminProvidersPage = admin('AdminProvidersPage')
 const AdminSettingsPage = admin('AdminSettingsPage')
@@ -62,6 +63,7 @@ export function AppRoutes() {
                   <Route path="library" element={<Loading><AdminLibraryPage /></Loading>} />
                   <Route path="reviews" element={<Loading><AdminReviewsPage /></Loading>} />
                   <Route path="organize" element={<Loading><AdminOrganizePage /></Loading>} />
+                  <Route path="search-index" element={<Loading><AdminSearchIndexPage /></Loading>} />
                   <Route path="users" element={<Loading><AdminUsersPage /></Loading>} />
                   <Route path="providers" element={<Loading><AdminProvidersPage /></Loading>} />
                   <Route path="settings" element={<Loading><AdminSettingsPage /></Loading>} />

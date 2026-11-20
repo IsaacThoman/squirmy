@@ -21,6 +21,7 @@ const routes: [string, string | RegExp][] = [
   ['/admin/library', 'Admin'],
   ['/admin/reviews', 'Admin'],
   ['/admin/organize', 'Admin'],
+  ['/admin/search-index', 'Admin'],
   ['/admin/users', 'Admin'],
   ['/admin/providers', 'Admin'],
   ['/admin/settings', 'Admin'],

@@ -35,30 +35,32 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [ ] Metadata clients with cache and rate limits
 - [x] Album matching tiers, review queue, fix match, merges
-- [ ] Enrichment: covers, artist images, bios, lyrics, external ids
+- [x] Enrichment: covers, artist images, bios, lyrics, external ids, new-release feed (server)
 - [x] Managed roots: preview, apply, journal, undo (server and API)
-- [ ] Organize screens in the admin UI
+- [x] Admin screens for library folders, the review queue, Fix match and Organize (web)
 - [x] Tag writing with verification
 
 ## 5. OpenSubsonic
 
-- [ ] `/rest` router with XML and JSON
-- [ ] App passwords and API keys
-- [ ] Browsing, search, streaming, cover art, stars, playlists, scrobble, play queue, lyrics
-- [ ] Client test pass
+- [x] `/rest` router with XML and JSON ([subsonic.md](./subsonic.md))
+- [x] App passwords and API keys
+- [x] Browsing, search, streaming, cover art, stars, playlists, scrobble, play queue, lyrics
+- [x] Client test pass: py-opensonic, py-sonic, subsonic-api (Node) and Airsonic Refix
 
 ## 6. Search everything
 
-- [ ] Library search
-- [ ] Deezer and MusicBrainz search providers, stub rows, resolve on open
+- [x] Library search
+- [x] Local index, Deezer and MusicBrainz search providers, stub rows, stub cleanup
+- [ ] Resolve stubs on open (enrichment)
 - [ ] Artist and album pages for music you do not own
 - [ ] Wantlist and new-release feed
 - [ ] Gray-out on web and mobile
 
 ## 7. Add and take
 
-- [ ] Web upload and inbox folder
-- [ ] Fingerprinting for untagged files
+- [x] Imports: upload API, inbox folder, staging, zip extraction, duplicates, filing into a managed root (server)
+- [ ] Upload screen in the web app
+- [x] Fingerprinting for untagged files
 - [ ] Offline downloads on mobile
 
 ## 8. Providers and extras
@@ -67,7 +69,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Reference adapters: cold storage and mock
 - [x] Scrobbling to ListenBrainz and Last.fm (server and API; settings screens to do)
 - [x] Radio and autoplay (server and API)
-- [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)); the search module still has to offer it as a provider
+- [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [ ] Documentation site
 
 ## Deferred

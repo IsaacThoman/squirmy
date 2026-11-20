@@ -1,0 +1,118 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/artist?query=ok+computer&limit=3&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T18:06:10.072Z",
+      "count": 713,
+      "offset": 0,
+      "artists": [
+        {
+          "id": "e132d370-2a59-4437-8610-756df28a5a02",
+          "type": "Group",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "score": 100,
+          "name": "OK Go",
+          "sort-name": "OK Go",
+          "country": "US",
+          "area": {
+            "id": "489ce91b-6658-3307-9877-795b68554c98",
+            "type": "Country",
+            "type-id": "06dd0ae4-8c74-30bb-b43d-95dcedf961de",
+            "name": "United States",
+            "sort-name": "United States",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "begin-area": {
+            "id": "29a709d8-0320-493e-8d0c-f2c386662b7f",
+            "type": "City",
+            "type-id": "6fd8f29a-3d0a-32fc-980d-ea697b69da78",
+            "name": "Chicago",
+            "sort-name": "Chicago",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "life-span": {
+            "begin": "1998",
+            "ended": null
+          },
+          "aliases": [
+            {
+              "sort-name": "O.K. Go",
+              "name": "O.K. Go",
+              "locale": null,
+              "type": null,
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            },
+            {
+              "sort-name": "okgo",
+              "name": "okgo",
+              "locale": null,
+              "type": null,
+              "primary": null,
+              "begin-date": null,
+              "end-date": null
+            }
+          ],
+          "tags": [
+            {
+              "count": 1,
+              "name": "alternative rock"
+            },
+            {
+              "count": 1,
+              "name": "indie rock"
+            },
+            {
+              "count": 1,
+              "name": "united states"
+            }
+          ]
+        },
+        {
+          "id": "8e975194-bf64-4c3c-9182-c0dc8ac7e2b6",
+          "score": 97,
+          "name": "OK・OK・OK",
+          "sort-name": "OK・OK・OK",
+          "life-span": {
+            "ended": null
+          }
+        },
+        {
+          "id": "be70969a-5f63-46db-95f3-0d74320162db",
+          "type": "Group",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "score": 97,
+          "name": "OK OK OK",
+          "sort-name": "OK OK OK",
+          "country": "AU",
+          "area": {
+            "id": "106e0bec-b638-3b37-b731-f53d507dc00e",
+            "type": "Country",
+            "type-id": "06dd0ae4-8c74-30bb-b43d-95dcedf961de",
+            "name": "Australia",
+            "sort-name": "Australia",
+            "life-span": {
+              "ended": null
+            }
+          },
+          "disambiguation": "Australian band",
+          "life-span": {
+            "ended": null
+          }
+        }
+      ]
+    }
+  }
+}

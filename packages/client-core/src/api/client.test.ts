@@ -106,6 +106,49 @@ describe('createApiClient', () => {
 })
 
 describe('artworkUrl', () => {
+  it('calls the admin library, matching, organize and search index routes', async () => {
+    const calls: [string, string, string | undefined][] = []
+    const fetch = vi.fn<FetchLike>(async (url, init) => {
+      calls.push([init.method, url, init.body])
+      return { ok: true, status: 200, statusText: '', text: async () => '{}' }
+    })
+    const api = createApiClient({ baseUrl: '', fetch, validate: false })
+    await api.library.scanRoot(id)
+    await api.matching.reviews({ status: 'open', limit: 10 })
+    await api.matching.review(id)
+    await api.matching.resolveReview(id, { action: 'keep_local' })
+    await api.matching.candidates(id, { query: 'Radiohead - OK Computer' })
+    await api.matching.rematch(id)
+    await api.matching.unmatch(id)
+    await api.organize.preview({ rootId: id, writeTags: true })
+    await api.organize.batches({ rootId: id })
+    await api.organize.batch(id)
+    await api.organize.apply(id)
+    await api.organize.revert(id)
+    await api.catalogIndex.status()
+    await api.catalogIndex.startImport({ recordingsPerArtist: 100 })
+    await api.catalogIndex.cancelImport()
+    await api.catalogIndex.remove()
+    expect(calls).toEqual([
+      ['POST', `/api/v1/admin/library/roots/${id}/scan`, undefined],
+      ['GET', '/api/v1/admin/reviews?status=open&limit=10', undefined],
+      ['GET', `/api/v1/admin/reviews/${id}`, undefined],
+      ['POST', `/api/v1/admin/reviews/${id}/resolve`, '{"action":"keep_local"}'],
+      ['GET', `/api/v1/admin/albums/${id}/candidates?query=Radiohead%20-%20OK%20Computer`, undefined],
+      ['POST', `/api/v1/admin/albums/${id}/rematch`, '{}'],
+      ['POST', `/api/v1/admin/albums/${id}/unmatch`, undefined],
+      ['POST', '/api/v1/admin/organize/preview', `{"rootId":"${id}","writeTags":true}`],
+      ['GET', `/api/v1/admin/organize/batches?rootId=${id}`, undefined],
+      ['GET', `/api/v1/admin/organize/batches/${id}`, undefined],
+      ['POST', `/api/v1/admin/organize/batches/${id}/apply`, undefined],
+      ['POST', `/api/v1/admin/organize/batches/${id}/revert`, undefined],
+      ['GET', '/api/v1/admin/catalog-index', undefined],
+      ['POST', '/api/v1/admin/catalog-index/import', '{"recordingsPerArtist":100}'],
+      ['DELETE', '/api/v1/admin/catalog-index/import', undefined],
+      ['DELETE', '/api/v1/admin/catalog-index', undefined],
+    ])
+  })
+
   it('picks the smallest served size that is large enough', () => {
     const artwork = { id, color: null, thumbhash: null }
     expect(artworkUrl('https://music.test', artwork, 120)).toBe(`https://music.test/api/v1/art/${id}/300`)

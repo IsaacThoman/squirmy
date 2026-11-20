@@ -12,6 +12,7 @@ import { enqueue } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { invalidate, publish } from '../../realtime/index.js'
+import { lockCatalog } from '../library/cleanup.js'
 import { acoustid, musicbrainz } from '../metadata/index.js'
 import type { MbRelease, MbReleaseSummary } from '../metadata/musicbrainz.js'
 import { applyMatch, type ApplyResult } from './apply.js'
@@ -313,6 +314,9 @@ export async function matchGroup(rootId: string, groupKey: string): Promise<void
   const applied: ApplyResult[] = []
   let reviewOpened = false
   await db.transaction(async (tx) => {
+    // Applying merges and relinks catalog rows, as ingest does for the same group; without
+    // the catalog lock, taken before any row lock, the two deadlock.
+    await lockCatalog(tx)
     // Files locked while the network calls ran are no longer ours to change.
     const ids = files.map((file) => file.id)
     const open = new Set((await tx.select({ id: mediaFiles.id }).from(mediaFiles)

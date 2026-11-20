@@ -28,9 +28,19 @@ async function capture(target, shot, scheme, storageState) {
   const width = shot.width ?? 1440
   const context = await target.newContext({ viewport: { width, height: shot.height ?? 900 }, colorScheme: scheme, deviceScaleFactor: 2, storageState })
   const page = await context.newPage()
-  await page.goto(base + shot.path)
+  // The review queue opens on its first review, open or not.
+  const review = shot.review && ((await reviews(page, 'open')) ?? (await reviews(page, 'resolved')))
+  await page.goto(base + shot.path + (review ? `?status=${review.status}&review=${review.id}` : ''))
   await page.waitForLoadState('networkidle')
-  for (const name of [shot.click, shot.then].filter(Boolean)) await page.getByRole('button', { name, exact: true }).filter({ visible: true }).first().click()
+  const click = name => page.getByRole('button', { name, exact: true }).filter({ visible: true }).first().click()
+  if (shot.click) await click(shot.click)
+  if (shot.find) {
+    await page.getByRole('dialog').getByPlaceholder('Album or artist').fill(shot.find)
+    await page.getByRole('list', { name: 'Albums' }).getByRole('button').first().click()
+    await page.getByText('Track by track').waitFor({ timeout: 120_000 })
+  }
+  if (shot.review) await page.getByText('Track by track').or(page.getByText('MusicBrainz offered nothing close')).first().waitFor()
+  if (shot.then) await click(shot.then)
   if (shot.create) {
     // The settings rows load in and move the button; wait for the last of them.
     await page.getByRole('button', { name: /^(Connect|Disconnect)$/ }).first().waitFor()
@@ -49,6 +59,11 @@ async function api(context, method, path, data) {
   const response = await context.request.fetch(`${base}/api/v1${path}`, { method, headers, data })
   if (!response.ok()) throw new Error(`${method} ${path}: ${response.status()}`)
   return response.json()
+}
+
+async function reviews(page, status) {
+  const response = await page.request.get(`${base}/api/v1/admin/reviews?status=${status}&limit=1`, { headers })
+  return response.ok() ? (await response.json()).items[0] : undefined
 }
 
 /** Signs in once (sign-in is rate limited) and returns the cookies for every later context. */
@@ -119,6 +134,12 @@ const shots = [
   { name: 'admin-invite', path: '/admin/users', click: 'Invite someone', then: 'Create invite' },
   { name: 'admin-settings', path: '/admin/settings', height: 1500 },
   { name: 'admin-jobs', path: '/admin/jobs' },
+  { name: 'admin-library', path: '/admin/library' },
+  { name: 'admin-add-folder', path: '/admin/library', click: 'Add folder' },
+  { name: 'admin-reviews', path: '/admin/reviews', review: true, height: 1400 },
+  { name: 'admin-fix-match', path: '/admin/library', click: 'Fix a match', find: 'Abbey Road', wait: 1000 },
+  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', wait: 1500, height: 1300 },
+  { name: 'admin-search-index', path: '/admin/search-index' },
   { name: 'kitchen-sink', path: '/dev/kitchen-sink', height: 6200 },
   { name: 'audio-blocked', path: '/dev/engine?autoplay=a', strict: true, wait: 1500 },
   ...['home', 'library', 'album', 'artist', 'playlist', 'search'].map(name => ({ name, path: { home: '/', library: '/library/albums', album, artist, playlist: `/playlist/${playlist.id}`, search: '/search?q=blue' }[name], width: 1024, height: 768, wait: 1200 })),
@@ -126,12 +147,19 @@ const shots = [
   { name: 'now-playing', path: '/', click: 'Lyrics', width: 1024, height: 768, wait: 900 },
   { name: 'admin-users', path: '/admin/users', width: 1024 },
   { name: 'admin-settings', path: '/admin/settings', width: 1024 },
+  { name: 'admin-library', path: '/admin/library', width: 1024 },
+  { name: 'admin-reviews', path: '/admin/reviews', review: true, width: 1024, height: 1300 },
+  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', wait: 1500, width: 1024 },
   ...['home', 'library', 'album', 'artist', 'playlist', 'search'].map(name => ({ name, path: { home: '/', library: '/library/albums', album, artist, playlist: `/playlist/${playlist.id}`, search: '/search?q=blue' }[name], width: 390, height: 844, wait: 1200 })),
   { name: 'now-playing', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming', then: 'Show lyrics', wait: 900 },
   { name: 'queue', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming', then: 'Show queue' },
   { name: 'settings', path: '/settings', width: 390, height: 844 },
   { name: 'admin-users', path: '/admin/users', width: 390, height: 844 },
   { name: 'admin-settings', path: '/admin/settings', width: 390, height: 844 },
+  { name: 'admin-library', path: '/admin/library', width: 390, height: 844 },
+  { name: 'admin-reviews', path: '/admin/reviews', review: true, width: 390, height: 844 },
+  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', wait: 1500, width: 390, height: 844 },
+  { name: 'admin-search-index', path: '/admin/search-index', width: 390, height: 844 },
 ]
 
 for (const scheme of ['light', 'dark']) {

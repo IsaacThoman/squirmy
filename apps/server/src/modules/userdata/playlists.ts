@@ -231,3 +231,48 @@ export async function removePlaylistItem(userId: string, id: string, itemId: str
   return getPlaylist(userId, id)
 }
 
+
+export type PlaylistItemSlot = { itemId: string } | { trackId: string; albumId?: string | null }
+
+/**
+ * Replaces the playlist's items with `slots`, in order. A slot with `itemId` keeps that
+ * item (and when it was added); one with `trackId` adds a track as `addPlaylistItems`
+ * would. Items not named are removed. Unknown tracks fail with `track_not_found`, items
+ * of another playlist with `playlist_item_not_found`. Owner only.
+ */
+export async function replacePlaylistItems(userId: string, id: string, slots: readonly PlaylistItemSlot[]): Promise<void> {
+  checkOwner(userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0])
+  const added = slots.flatMap((slot) => 'trackId' in slot ? [slot] : [])
+  const summaries = await alignedTrackSummaries(userId, added.map((slot) => ({ id: slot.trackId, albumId: slot.albumId })))
+  const unknown = added.filter((_, index) => !summaries[index]).map((slot) => slot.trackId)
+  if (unknown.length > 0) throw badRequest('Some tracks do not exist', 'track_not_found', { ids: unknown })
+
+  const playlist = await db.transaction(async (tx) => {
+    const playlist = await lockOwned(tx, userId, id)
+    const existing = new Set((await tx.select({ id: playlistItems.id }).from(playlistItems).where(eq(playlistItems.playlistId, id))).map((row) => row.id))
+    const kept = slots.flatMap((slot, position) => 'itemId' in slot ? [{ id: slot.itemId, position }] : [])
+    if (kept.some((item) => !existing.has(item.id)) || new Set(kept.map((item) => item.id)).size !== kept.length) {
+      throw notFound('No such playlist item', 'playlist_item_not_found')
+    }
+    await tx.delete(playlistItems).where(and(
+      eq(playlistItems.playlistId, id),
+      sql`${playlistItems.id} <> all(${uuidArray(kept.map((item) => item.id))})`,
+    ))
+    if (kept.length > 0) {
+      await tx.execute(sql`
+        update playlist_items set position = moved.position
+        from unnest(${uuidArray(kept.map((item) => item.id))}, ${`{${kept.map((item) => item.position).join(',')}}`}::int[]) as moved(id, position)
+        where playlist_items.id = moved.id`)
+    }
+    let next = 0
+    const inserts = slots.flatMap((slot, position) => {
+      if (!('trackId' in slot)) return []
+      const summary = summaries[next++]!
+      return [{ id: newId(), playlistId: id, position, recordingId: summary.id, albumId: summary.album?.id ?? null, addedBy: userId }]
+    })
+    if (inserts.length > 0) await tx.insert(playlistItems).values(inserts)
+    await touch(tx, id)
+    return playlist
+  })
+  await invalidatePlaylist(userId, playlist.isPublic)
+}
