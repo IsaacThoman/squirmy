@@ -288,7 +288,8 @@ export function SearchPage() {
     staleTime: 60_000,
   })
   // The library answers fast, so its last results stay up while the next ones load;
-  // the catalog is slower and its old results would be wrong for longer.
+  // the catalog is slower and its old results would be wrong for longer. A refresh of the
+  // same search (a track fetched on demand changes it) keeps its results on screen.
   const library = useQuery({ ...search('library'), placeholderData: keepPreviousData })
   const catalog = useQuery(search('catalog'))
   const active = term.length > 0
@@ -300,9 +301,9 @@ export function SearchPage() {
         setParams(q ? { q } : {}, { replace: true })
       }}
       library={active ? library.data ?? null : null}
-      catalog={active && !catalog.isFetching ? catalog.data ?? null : null}
+      catalog={active ? catalog.data ?? null : null}
       libraryLoading={active && library.isPending}
-      catalogLoading={active && catalog.isFetching}
+      catalogLoading={active && catalog.isPending}
       unavailable={library.data === null && catalog.data === null}
       genres={genres}
       onBrowseGenre={genre => void navigate(`/library/albums?genre=${encodeURIComponent(genre)}`)}
