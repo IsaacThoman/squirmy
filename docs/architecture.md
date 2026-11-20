@@ -235,6 +235,20 @@ All clients live in `modules/metadata/` and go through `lib/http.ts`:
 
 **Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. Colors and type follow the mobile theme in `apps/mobile/src/theme.ts`. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
 
+```
+apps/web/src/
+  components/ui/       primitives (button, slider, menu, dialog, …)
+  components/music/    covers, cards, rails, track lists
+  components/player/   player bar, mini-player, queue, devices, Now Playing
+  components/layout/   app shell, sidebar, top bar, tab bar
+  components/views/    one presentational view per page; data arrives as props
+  pages/               route containers: fetch data, pass it to a view
+  player/              PlayerContext (session state and commands) and LibraryContext (likes, wants)
+  fixtures/            fictional catalog and an in-memory session, until the API is wired
+```
+
+Catalog data reaches views through props typed with the contracts; session state and user actions come from `PlayerContext` and `LibraryContext`, whose providers are the only code that talks to `SessionClient` and the API. `/dev/kitchen-sink` shows every component state.
+
 **Mobile** (`apps/mobile`): the existing Expo app. `expo-audio` implements `PlayerEngine`. The token lives in SecureStore. Screens read through TanStack Query with a persisted cache.
 
 ## Testing
