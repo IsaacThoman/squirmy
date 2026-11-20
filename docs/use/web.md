@@ -32,7 +32,7 @@ Click a song, or the play button on an album or playlist. The player bar at the 
 
 ## Music the server does not have
 
-With an [acquisition provider](../server/acquisition.md) connected, gray songs it can supply show a cloud icon, "Plays on demand". Play one and it shows **Preparing…** until the file arrives, then plays; an album page offers **Get this album**. If a fetch fails, a notice says so and the song is skipped. Without permission to fetch music, those songs stay gray, and their row says to ask an admin.
+With an [acquisition provider](../server/acquisition.md) connected, gray songs it can supply show a cloud icon, "Plays on demand". Play one and it shows **Preparing…** until the file arrives, then plays. The server fetches the playing song and the next two ahead of time; in the queue, those say **Preparing…** and songs further down keep the cloud icon until their turn comes; an album page offers **Get this album**. If a fetch fails, a notice says so and the song is skipped. Without permission to fetch music, those songs stay gray, and their row says to ask an admin.
 
 ## Adding music
 

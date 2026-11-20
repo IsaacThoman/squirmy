@@ -1,4 +1,4 @@
-import { GripVertical, Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
+import { CloudDownload, GripVertical, Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
@@ -6,9 +6,11 @@ import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip } from '@/components/ui/tooltip'
 import { pillClass } from '@/components/ui/tabs'
 import { dropIndex } from '@/lib/reorder'
 import { cn } from '@/lib/utils'
+import { useOnDemand } from '@/player/on-demand-context'
 import type { Player, QueueItem } from '@/player/player-context'
 
 const rowHeight = 56
@@ -96,7 +98,10 @@ type QueueRowProps = {
 
 function QueueRow({ item, current, playing = false, faded, onPlay, children }: QueueRowProps) {
   const { track, entry } = item
-  const preparing = entry.state === 'preparing'
+  const onDemand = useOnDemand()
+  // Upcoming on-demand entries all wait as `preparing`; only those the server is fetching say so.
+  const preparing = entry.state === 'preparing' && onDemand.isPreparing(track)
+  const waiting = entry.state === 'preparing' && !preparing
   const body = (
     <>
       <div className="relative size-10 shrink-0">
@@ -108,7 +113,10 @@ function QueueRow({ item, current, playing = false, faded, onPlay, children }: Q
         )}
       </div>
       <span className="min-w-0 flex-1 text-left">
-        <span className={cn('block truncate text-sm font-semibold', current && 'text-accent')}>{track.title}</span>
+        <span className="flex items-center gap-1.5">
+          <span className={cn('truncate text-sm font-semibold', current && 'text-accent')}>{track.title}</span>
+          {waiting && <Tooltip label="Plays on demand"><CloudDownload aria-label="Plays on demand" className="size-3.5 shrink-0 text-quiet" /></Tooltip>}
+        </span>
         <span className="block truncate text-xs text-muted">{preparing ? 'Preparing…' : entry.state === 'failed' ? 'Could not be fetched' : track.artistCredit}</span>
       </span>
     </>
