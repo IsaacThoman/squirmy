@@ -14,7 +14,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 2. Your files, playing
 
-- [ ] Server core: auth, users, invites, settings, jobs, realtime transport
+- [x] Server core: auth, users, invites, settings, jobs, realtime transport
 - [ ] Library scan, tag reading, local-only catalog rows
 - [ ] Artwork store and renditions
 - [ ] Library and catalog read API, home
