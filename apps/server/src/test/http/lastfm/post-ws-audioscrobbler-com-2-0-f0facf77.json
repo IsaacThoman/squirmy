@@ -1,0 +1,70 @@
+{
+  "note": "Hand-written from the Last.fm API docs; recording needs a real API key and session.",
+  "request": {
+    "method": "POST",
+    "url": "https://ws.audioscrobbler.com/2.0/",
+    "body": "sk=test-session-key&artist%5B0%5D=Radiohead&track%5B0%5D=Airbag&album%5B0%5D=OK+Computer&duration%5B0%5D=284&trackNumber%5B0%5D=1&timestamp%5B0%5D=1795176000&artist%5B1%5D=Radiohead&track%5B1%5D=Paranoid+Android&album%5B1%5D=OK+Computer&duration%5B1%5D=383&trackNumber%5B1%5D=2&mbid%5B1%5D=ef2a4d5c-58b4-4ec4-b1b2-3d0dd3ee2bfd&timestamp%5B1%5D=1795176284&method=track.scrobble&api_key=test-lastfm-key&api_sig=5b4403d60af9f7b950d92d7a31a224c2&format=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "scrobbles": {
+        "@attr": {
+          "accepted": 2,
+          "ignored": 0
+        },
+        "scrobble": [
+          {
+            "artist": {
+              "corrected": "0",
+              "#text": "Radiohead"
+            },
+            "track": {
+              "corrected": "0",
+              "#text": "Airbag"
+            },
+            "album": {
+              "corrected": "0",
+              "#text": "OK Computer"
+            },
+            "albumArtist": {
+              "corrected": "0",
+              "#text": ""
+            },
+            "timestamp": "1795176000",
+            "ignoredMessage": {
+              "code": "0",
+              "#text": ""
+            }
+          },
+          {
+            "artist": {
+              "corrected": "0",
+              "#text": "Radiohead"
+            },
+            "track": {
+              "corrected": "0",
+              "#text": "Paranoid Android"
+            },
+            "album": {
+              "corrected": "0",
+              "#text": "OK Computer"
+            },
+            "albumArtist": {
+              "corrected": "0",
+              "#text": ""
+            },
+            "timestamp": "1795176284",
+            "ignoredMessage": {
+              "code": "0",
+              "#text": ""
+            }
+          }
+        ]
+      }
+    }
+  }
+}

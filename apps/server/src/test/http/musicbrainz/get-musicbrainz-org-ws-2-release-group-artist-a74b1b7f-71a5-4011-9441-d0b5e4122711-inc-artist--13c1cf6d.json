@@ -1,0 +1,2759 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group?artist=a74b1b7f-71a5-4011-9441-d0b5e4122711&inc=artist-credits&limit=100&offset=0&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-groups": [
+        {
+          "disambiguation": "",
+          "title": "Man of War",
+          "primary-type": "Single",
+          "id": "03031fcb-cbcd-47f1-bae7-27582757120f",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2017-06-22",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "id": "03393cc5-d252-4a52-b777-e04861389dc0",
+          "primary-type": "Single",
+          "title": "Feral (Lone RMX) / Morning Mr Magpie (Pearson Sound Scavenger RMX) / Separator (Four Tet RMX)",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "first-release-date": "2011",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9"
+        },
+        {
+          "secondary-type-ids": [],
+          "first-release-date": "2009-08-17",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "title": "These Are My Twisted Words",
+          "disambiguation": "",
+          "id": "033e0907-9071-46af-b927-97584eb2c8b7",
+          "primary-type": "Single"
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2016-10-05",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type": "Single",
+          "id": "07a88745-2798-4d9a-8624-637bf22a9f4f",
+          "disambiguation": "",
+          "title": "The Numbers: Jonny, Thom & a CR78"
+        },
+        {
+          "id": "0c253d8d-2f26-42d4-93b2-3004d2937d39",
+          "primary-type": "Broadcast",
+          "disambiguation": "",
+          "title": "Live in Berlin (September 2016) #StayHome #WithMe",
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "first-release-date": "2020-04-16",
+          "primary-type-id": "3b2e49e1-2875-37b8-9fa9-1f7cf3f49900",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2020-01-20",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "I Want None of This",
+          "primary-type": "Single",
+          "id": "0c2d2bb7-a2e5-4406-ae31-ce754659c581"
+        },
+        {
+          "primary-type": "Album",
+          "id": "0ef22186-e92d-4f03-9b05-500fa2d581ad",
+          "disambiguation": "",
+          "title": "27 5 94: The Astoria London Live",
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "1995-03-13",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "US hip hop group, aka Greenhouse Effect",
+                "sort-name": "Greenhouse",
+                "id": "bec9c3ab-7428-4d65-909d-2e024fbcb924",
+                "name": "Greenhouse",
+                "type": "Group",
+                "country": "US",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": " vs. ",
+              "name": "Greenhouse Effect"
+            },
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2005-08",
+          "primary-type": "Album",
+          "id": "11f16b31-da2e-48b8-90a1-f65014bc8262",
+          "title": "Greenhouse Effect vs. Radiohead",
+          "disambiguation": ""
+        },
+        {
+          "id": "12f97317-edb1-4345-b0dd-55e7118c8cc4",
+          "primary-type": "Single",
+          "title": "TKOL RMX8",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "first-release-date": "2011-11-21",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9"
+        },
+        {
+          "primary-type": "EP",
+          "id": "1626bbb8-05bd-3621-a0c7-9278e3b79dca",
+          "disambiguation": "",
+          "title": "No Surprises / Running From Demons",
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "1997-12-10",
+          "secondary-type-ids": []
+        },
+        {
+          "disambiguation": "",
+          "title": "Lucky",
+          "primary-type": "Single",
+          "id": "1887c325-dfd7-4740-936c-a9ba14afcae1",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1997-12",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "disambiguation": "",
+          "title": "MINIDISCS [HACKED]",
+          "primary-type": "Album",
+          "id": "1af3fda4-4281-4ed9-ba38-389ed83d9ab2",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2019-06-05",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "81598169-0d6c-3bce-b4be-866fa658eda3"
+          ],
+          "secondary-types": [
+            "Compilation",
+            "Demo"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "id": "1d2f8f1a-a590-4ece-a697-339a597aa301",
+          "primary-type": "Single",
+          "title": "Little by Little (Caribou RMX) / Lotus Flower (Jacques Greene RMX)",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "first-release-date": "2011",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9"
+        },
+        {
+          "primary-type": "Single",
+          "id": "1f4d4fe7-ddb0-36b8-8fd9-283d40190c3b",
+          "title": "Paranoid Android",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1997-05-26"
+        },
+        {
+          "disambiguation": "",
+          "title": "Live @ Balelec, Lausanne, Switzerland, 20‐05‐1994",
+          "id": "1fcc8c7c-235c-422d-86b1-e6bcab30e08f",
+          "primary-type": "Broadcast",
+          "first-release-date": "1994-05-20",
+          "primary-type-id": "3b2e49e1-2875-37b8-9fa9-1f7cf3f49900",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ]
+        },
+        {
+          "disambiguation": "",
+          "title": "The Interview",
+          "primary-type": "Album",
+          "id": "270ff9af-bcfb-402c-8e6b-d1372a1e8824",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2010-08-23",
+          "secondary-type-ids": [
+            "12af3f5e-ce2a-3941-8b93-d482884031e5"
+          ],
+          "secondary-types": [
+            "Interview"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ]
+        },
+        {
+          "disambiguation": "",
+          "title": "Treefingers (extended version)",
+          "primary-type": "Single",
+          "id": "2c2c4603-a366-4b3e-bb66-cd34505fe5a3",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2020-02-21",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "id": "30eb21a4-b9df-435f-b779-590617fe9b44",
+          "primary-type": "EP",
+          "title": "In Rainbows Disk 2",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              }
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "first-release-date": "2009-06-09",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf"
+        },
+        {
+          "disambiguation": "Pablo Honey / The Bends / OK Computer / Kid A / Amnesiac",
+          "title": "5 Album Set",
+          "id": "30f765ef-d7f0-4cce-8a3b-d6e1069f1dda",
+          "primary-type": "Album",
+          "first-release-date": "2012-10-12",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "secondary-types": [
+            "Remix"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2011-11-13",
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "primary-type": "Single",
+          "id": "35179fe9-eebe-4ab2-86fa-f6407a041c91",
+          "disambiguation": "",
+          "title": "Codex (deadmau5 cover)"
+        },
+        {
+          "disambiguation": "",
+          "title": "Supercollider / The Butcher",
+          "id": "38cbf1e6-1627-4390-bf1e-f080ba7489a4",
+          "primary-type": "Single",
+          "first-release-date": "2011-04-16",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "first-release-date": "2011",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "title": "Bloom (Jamie XX Rework) / Separator (Anstam RMX) / Lotus Flower (SBTRKT RMX)",
+          "disambiguation": "",
+          "id": "42b012bb-44f0-4a55-b8c8-d8141f74c497",
+          "primary-type": "Single"
+        },
+        {
+          "id": "441803f3-eb4d-3847-93cf-ab473cf0b8ec",
+          "primary-type": "Album",
+          "title": "1997-06-28: Glastonbury Festival of Contemporary Performing Arts",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "first-release-date": "1997-06-28",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "first-release-date": "2025-08-13",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "disambiguation": "",
+          "title": "Hail to the Thief: Live Recordings 2003–2009",
+          "id": "44419ec0-d44a-4ec5-875c-d08f5c7ec13c",
+          "primary-type": "Album"
+        },
+        {
+          "primary-type": "Single",
+          "id": "45c42d7a-9d39-3da9-a196-31bef84b6887",
+          "disambiguation": "",
+          "title": "Pop Is Dead",
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1993-05-10",
+          "secondary-type-ids": []
+        },
+        {
+          "primary-type": "EP",
+          "id": "471b4ff5-004f-4a7b-b0ba-a0837c41da14",
+          "title": "Creep",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "1992-09-21"
+        },
+        {
+          "title": "The Daily Mail / Staircase",
+          "disambiguation": "",
+          "primary-type": "Single",
+          "id": "4860d0eb-11ab-434a-9c2a-695c3932fb98",
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2011-12-19",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": []
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "first-release-date": "2020-02-21",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "id": "4b426376-7beb-42c4-a051-f35c5246cd43",
+          "primary-type": "Single",
+          "title": "The Gloaming (The 33.33333 remix)",
+          "disambiguation": ""
+        },
+        {
+          "first-release-date": "2001-05-15",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "title": "Pyramid Song",
+          "id": "4c497a28-76fd-3570-9303-b0b85e7ce84d",
+          "primary-type": "Single"
+        },
+        {
+          "primary-type": "Single",
+          "id": "4e653c77-f83f-3972-a384-870fce0d6a31",
+          "title": "2 + 2 = 5",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              }
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2003-11-17"
+        },
+        {
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2003-05-26",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "Hail to the Thief",
+          "primary-type": "Album",
+          "id": "5c14fd50-a2f1-3672-9537-b0dad91bea2f"
+        },
+        {
+          "primary-type": "Single",
+          "id": "61bfbadd-c9fe-413c-bf52-89cd34e6d554",
+          "title": "Creep (Very 2021 rmx)",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Thom Yorke",
+              "joinphrase": " feat. ",
+              "artist": {
+                "sort-name": "Yorke, Thom",
+                "id": "8ed2e0b3-aa4c-4e13-bec3-dc7393ed4d6b",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "type": "Person",
+                "name": "Thom Yorke"
+              }
+            },
+            {
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2021-07-13"
+        },
+        {
+          "disambiguation": "",
+          "title": "Knives Out",
+          "id": "62bfe814-969e-3dfb-9dc9-88d7a7d23c94",
+          "primary-type": "Single",
+          "first-release-date": "2001-08-06",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "id": "62db99f0-2629-305c-8c2d-b860b5b99744",
+          "primary-type": "EP",
+          "disambiguation": "",
+          "title": "Com Lag: 2plus2isfive",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "first-release-date": "2004-03-24",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ]
+        },
+        {
+          "primary-type": "EP",
+          "id": "63b2aeb3-146b-343e-bbb5-0317c8a1e328",
+          "title": "Itch",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "1994-06-01"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "first-release-date": "2022-01-21",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "title": "2008-08-01: Lollapalooza, Chicago, IL",
+          "disambiguation": "",
+          "id": "69553ea8-c62c-4e2a-a878-d85276c45215",
+          "primary-type": "Album"
+        },
+        {
+          "disambiguation": "",
+          "title": "Anyone Can Play Guitar",
+          "id": "6972f148-6bd0-4cbe-8733-36bf24a3e19e",
+          "primary-type": "EP",
+          "first-release-date": "1994-06-06",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "primary-type": "Album",
+          "id": "6ac50c71-cfbf-4f6d-acb0-84af1462aae3",
+          "title": "1995-06-01: PASTE.COM Presents: Radiohead Live at Tramps: New York, NY, USA",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2013-06-21"
+        },
+        {
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2007-10-10",
+          "secondary-type-ids": [],
+          "primary-type": "Album",
+          "id": "6e335887-60ba-38f0-95af-fae7774336bf",
+          "disambiguation": "",
+          "title": "In Rainbows"
+        },
+        {
+          "disambiguation": "",
+          "title": "2016‐05‐27: Roundhouse, London, UK",
+          "primary-type": "Album",
+          "id": "6e78d500-67be-44e3-9aa5-e4d366e29f61",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2020-01",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "id": "6f25f9fb-e9e3-4c0d-8904-ecb8b46cd8aa",
+          "primary-type": "Album",
+          "title": "KID A MNESIA",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "first-release-date": "2021-11-05",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc"
+        },
+        {
+          "disambiguation": "",
+          "title": "The Gloaming (DJ Shadow remix)",
+          "id": "6f365e6f-58b0-4ba1-993d-82c3308842b3",
+          "primary-type": "Single",
+          "first-release-date": "2004-11",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "artist-credit": [
+            {
+              "name": "DJ Shadow",
+              "joinphrase": " vs. ",
+              "artist": {
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "country": "US",
+                "type": "Person",
+                "name": "DJ Shadow",
+                "id": "efa2c11a-1a35-4b60-bc1b-66d37de88511",
+                "sort-name": "Shadow, DJ",
+                "disambiguation": "US hip hop producer, DJ & instrumentalist"
+              }
+            },
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ]
+        },
+        {
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2011",
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "Morning Mr Magpie (Nathan Fake RMX) / Bloom (Harmonic 313 RMX) / Bloom (Mark Pritchard RMX)",
+          "primary-type": "Single",
+          "id": "71e8905f-bdeb-48dc-b280-747359fbd0b7"
+        },
+        {
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2020-02-21",
+          "secondary-type-ids": [],
+          "primary-type": "Single",
+          "id": "720f8fde-f44c-4c00-a50a-4f9fd2a5a17d",
+          "disambiguation": "",
+          "title": "Talk Show Host (Nellee Hooper mix)"
+        },
+        {
+          "primary-type": "Single",
+          "id": "73d4d70e-4e43-4e19-a440-4ad0b4561ca9",
+          "disambiguation": "",
+          "title": "Lift",
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2017-09-12",
+          "secondary-type-ids": []
+        },
+        {
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2015-12-25",
+          "secondary-type-ids": [],
+          "primary-type": "Single",
+          "id": "7510af18-6d4a-444d-8a52-2a438f0191a8",
+          "disambiguation": "",
+          "title": "Spectre"
+        },
+        {
+          "primary-type-id": "3b2e49e1-2875-37b8-9fa9-1f7cf3f49900",
+          "first-release-date": "",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "title": "KCRW Sessions 2003‐06‐26",
+          "primary-type": "Broadcast",
+          "id": "75faca09-1ee6-42dd-81d5-35825986f121"
+        },
+        {
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "first-release-date": "1995-05-15",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "secondary-type-ids": [],
+          "id": "78690342-5a02-382c-9778-6b1c3dd741a2",
+          "primary-type": "Single",
+          "disambiguation": "",
+          "title": "Fake Plastic Trees"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "first-release-date": "1995",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "title": "High & Dry: Live Package",
+          "disambiguation": "",
+          "id": "7b097568-f5be-3f76-b333-7a1777050538",
+          "primary-type": "EP"
+        },
+        {
+          "primary-type": "EP",
+          "id": "7b39ccb5-b49c-37e1-80ec-5ac0b2a89fe4",
+          "disambiguation": "",
+          "title": "Airbag / How Am I Driving?",
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              }
+            }
+          ],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "1998-04-21",
+          "secondary-type-ids": []
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2011",
+          "primary-type": "Single",
+          "id": "7b92bef4-4348-4069-986c-860cf34b07d2",
+          "title": "Give Up the Ghost (Thriller Houseghost RMX) / Codex (Illum Sphere RMX) / Little by Little (Shed RMX)",
+          "disambiguation": ""
+        },
+        {
+          "id": "80975c59-4094-30d5-bb58-365e8b061274",
+          "primary-type": "Album",
+          "disambiguation": "",
+          "title": "The Best Of",
+          "secondary-types": [
+            "Compilation"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "first-release-date": "2008-05-28",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ]
+        },
+        {
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "3b2e49e1-2875-37b8-9fa9-1f7cf3f49900",
+          "first-release-date": "2011-12-19",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type": "Broadcast",
+          "id": "82e34c05-6892-456b-8182-f3d55106b1b6",
+          "disambiguation": "",
+          "title": "The King of Limbs: Live From the Basement"
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1996-01-22",
+          "primary-type": "Single",
+          "id": "88477b42-055d-3d1c-9e5c-7e1de8f35243",
+          "title": "Street Spirit (Fade Out)",
+          "disambiguation": ""
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2008-09-23",
+          "primary-type": "Single",
+          "id": "895a0d8b-3ed5-3bd5-be8c-1e01d6146c0d",
+          "title": "Reckoner",
+          "disambiguation": ""
+        },
+        {
+          "secondary-type-ids": [],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2011-02-18",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [],
+          "title": "The King of Limbs",
+          "disambiguation": "",
+          "primary-type": "Album",
+          "id": "899b6d09-807e-4c18-a6d4-3642e00d6a3d"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "first-release-date": "2020-04-09",
+          "primary-type-id": "3b2e49e1-2875-37b8-9fa9-1f7cf3f49900",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "title": "Live From a Tent in Dublin (October 2000) #StayHome #WithMe",
+          "disambiguation": "",
+          "id": "8cf049ea-c57b-4982-81ad-5971c3adfa50",
+          "primary-type": "Broadcast"
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "first-release-date": "1996-07-26",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "id": "8ea92211-a70b-3993-9301-bb80e0d1a24a",
+          "primary-type": "Single",
+          "title": "The Bends",
+          "disambiguation": ""
+        },
+        {
+          "title": "Ill Wind",
+          "disambiguation": "",
+          "id": "8eba2fa6-a9c6-4446-bd9c-d1a24a70365a",
+          "primary-type": "Single",
+          "secondary-type-ids": [],
+          "first-release-date": "2019-01-11",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": []
+        },
+        {
+          "title": "High & Dry",
+          "disambiguation": "",
+          "id": "96838f33-94ec-3d55-9147-f158e2247bf3",
+          "primary-type": "Single",
+          "secondary-type-ids": [],
+          "first-release-date": "1995-02-27",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit": [
+            {
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": []
+        },
+        {
+          "title": "Go to Sleep",
+          "disambiguation": "",
+          "primary-type": "Single",
+          "id": "97c152f4-8b39-3b3b-8a09-7f37212076ee",
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2003-08-18",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": []
+        },
+        {
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              }
+            }
+          ],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "1994-09-24",
+          "secondary-type-ids": [],
+          "primary-type": "EP",
+          "id": "99445a2b-578a-321e-851e-c6539bfbbd7f",
+          "disambiguation": "",
+          "title": "My Iron Lung"
+        },
+        {
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "first-release-date": "2008-03-31",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "secondary-type-ids": [],
+          "id": "9dc059c7-78a0-3cf9-a8c3-db7de05ed0fb",
+          "primary-type": "Single",
+          "disambiguation": "",
+          "title": "Nude"
+        },
+        {
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2021-09-07",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "If You Say the Word",
+          "primary-type": "Single",
+          "id": "9e55e78a-cd94-41af-a93f-4d9d6b5a0e2a"
+        },
+        {
+          "title": "Daydreaming",
+          "disambiguation": "",
+          "id": "a1b1494d-fdb8-4e52-9028-eefe1ec1694c",
+          "primary-type": "Single",
+          "secondary-type-ids": [],
+          "first-release-date": "2016-05-06",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": []
+        },
+        {
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2011",
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "title": "Good Evening Mrs Magpie (Modeselektor RMX) / Bloom (Objekt RMX)",
+          "primary-type": "Single",
+          "id": "a2ef2254-a5db-4896-af7a-b5f5f96f9b23"
+        },
+        {
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "1996-05",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "The Bends (Pinkpop edition)",
+          "primary-type": "EP",
+          "id": "aed96293-b66e-3637-a1e1-2bdbf6548afa"
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "first-release-date": "1997-05-21",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "id": "b1392450-e666-3926-a536-22c65f834433",
+          "primary-type": "Album",
+          "title": "OK Computer",
+          "disambiguation": ""
+        },
+        {
+          "first-release-date": "1992-05-05",
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "Drill",
+          "id": "b2246643-115e-3b53-9a96-6d2df930f970",
+          "primary-type": "EP"
+        },
+        {
+          "title": "Live au Forum",
+          "disambiguation": "",
+          "primary-type": "EP",
+          "id": "b3979f8d-573e-3a77-8b8f-6b5c47e15be7",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "1995-03-24",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "disambiguation": "",
+          "title": "Burn the Witch",
+          "primary-type": "Single",
+          "id": "b7359a82-10ac-49c1-954a-d0ebe9f1f9ca",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2016-05-03",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "primary-type": "Single",
+          "id": "b7b8503e-486a-3bb8-9c4e-628fe8be0580",
+          "disambiguation": "",
+          "title": "There There",
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2003-04",
+          "secondary-type-ids": []
+        },
+        {
+          "disambiguation": "",
+          "title": "Album Box Set",
+          "primary-type": "Album",
+          "id": "b7db08f4-835a-4a69-970b-5321e6305032",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2007-12-10",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              }
+            }
+          ]
+        },
+        {
+          "disambiguation": "",
+          "title": "The Bends",
+          "primary-type": "Album",
+          "id": "b8048f24-c026-3398-b23a-b5e50716cbc7",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "1994-11-29",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ]
+        },
+        {
+          "disambiguation": "",
+          "title": "1997‐07‐04: Eurockéennes Festival, Belfort, France",
+          "primary-type": "Album",
+          "id": "b9e65b67-32e2-45ac-9e6b-cad36c248c14",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2020-07-02",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group"
+              }
+            }
+          ]
+        },
+        {
+          "title": "A Moon Shaped Pool",
+          "disambiguation": "",
+          "primary-type": "Album",
+          "id": "bbce0087-d386-4246-a51d-dbcdfdbe8fb2",
+          "secondary-type-ids": [],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2016-05-08",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": []
+        },
+        {
+          "title": "Amnesiac",
+          "disambiguation": "",
+          "id": "bca9280e-28b4-327f-8fe0-fd918579e486",
+          "primary-type": "Album",
+          "secondary-type-ids": [],
+          "first-release-date": "2001-05-30",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": []
+        },
+        {
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "first-release-date": "1993-10-01",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "id": "bd3aaea6-145a-41bb-a909-91f264c24a8f",
+          "primary-type": "Single",
+          "title": "Stop Whispering",
+          "disambiguation": ""
+        },
+        {
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1992-09-21",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "secondary-types": [],
+          "title": "Creep",
+          "disambiguation": "",
+          "primary-type": "Single",
+          "id": "c5bc370b-95c2-3634-bb89-51bb2dce97c3"
+        },
+        {
+          "title": "Just",
+          "disambiguation": "",
+          "primary-type": "Single",
+          "id": "c61da894-4c25-3e7b-a211-cd674f979d9d",
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1995-08-07",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": []
+        },
+        {
+          "first-release-date": "2016-09-15",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "name": "Radiohead",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "title": "Present Tense: Jonny, Thom & a CR78",
+          "id": "cb134529-ca8c-4376-87ac-f051ac336f5d",
+          "primary-type": "Single"
+        },
+        {
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "first-release-date": "2011",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "title": "Give Up the Ghost (Brokenchord RMX) / TKOL (Altrice RMX) / Bloom (Blawan RMX)",
+          "disambiguation": "",
+          "id": "cb9b0e33-feea-4b88-836b-3e0cd79d9cfd",
+          "primary-type": "Single"
+        },
+        {
+          "disambiguation": "",
+          "title": "Jigsaw Falling Into Place",
+          "id": "cd1e8570-67c8-3266-87ba-3efd0b5ccd0d",
+          "primary-type": "Single",
+          "first-release-date": "2008-01-14",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": ""
+            }
+          ]
+        },
+        {
+          "first-release-date": "1993-02-22",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "Pablo Honey",
+          "id": "cd76f76b-ff15-3784-a71d-4da3078a6851",
+          "primary-type": "Album"
+        },
+        {
+          "disambiguation": "",
+          "title": "In Rainbows: From the Basement",
+          "primary-type": "Album",
+          "id": "d2f48ef0-9a77-42bc-95af-89dd0c8452b4",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2008-06-24",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "title": "Like Spinning Plates",
+          "disambiguation": "",
+          "id": "d64b2d43-bf54-41e9-8b53-6593aacebd54",
+          "primary-type": "Single",
+          "secondary-type-ids": [],
+          "first-release-date": "2024-10-11",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "; ",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              }
+            },
+            {
+              "name": "Anastasia Kobekina",
+              "artist": {
+                "sort-name": "Kobekina, Anastasia",
+                "id": "8f985a30-7eb1-4d40-8969-ac31e2c98a4e",
+                "disambiguation": "cellist",
+                "country": null,
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "name": "Anastasia Kobekina",
+                "type": "Person"
+              },
+              "joinphrase": ", "
+            },
+            {
+              "name": "Jean-Sélim Abdelmoula",
+              "joinphrase": "",
+              "artist": {
+                "country": null,
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "type": "Person",
+                "name": "Jean-Sélim Abdelmoula",
+                "sort-name": "Abdelmoula, Jean-Sélim",
+                "id": "c1a1088a-6906-49fd-b924-049f88298bcb",
+                "disambiguation": "pianist/composer"
+              }
+            }
+          ],
+          "secondary-types": []
+        },
+        {
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2011-07-04",
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "TKOL RMX1",
+          "primary-type": "Single",
+          "id": "d7969a3f-1696-446f-b54a-b27ea7fe9758"
+        },
+        {
+          "primary-type": "Single",
+          "id": "d8758f15-65c9-3f34-baf9-475b30755e2b",
+          "title": "Karma Police",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1997-07"
+        },
+        {
+          "first-release-date": "2008-01-01",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "disambiguation": "",
+          "title": "Radiohead Box",
+          "id": "d8dd81ab-d840-4663-8da3-d8c27c2eaf91",
+          "primary-type": "Album"
+        },
+        {
+          "title": "Live at BBC Radio 1992",
+          "disambiguation": "",
+          "primary-type": "EP",
+          "id": "d8e20b49-9d91-409f-93b8-a50f36d037a9",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type-id": "6d0c5bf6-7a33-3420-a519-44fc63eedebf",
+          "first-release-date": "2023-05-17",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              }
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ]
+        },
+        {
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2017-06-02",
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "title": "I Promise",
+          "disambiguation": "",
+          "primary-type": "Single",
+          "id": "db3d9e25-a1c9-4c2f-9c40-0fda86f26139"
+        },
+        {
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "type": "Group",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": ""
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2021-11-01",
+          "secondary-type-ids": [],
+          "primary-type": "Single",
+          "id": "decdfa41-e09b-486a-a0b3-d728dcc4904f",
+          "disambiguation": "",
+          "title": "Follow Me Around"
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "first-release-date": "",
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "title": "2017‐04‐17: Greek Theatre, Berkely, CA, USA",
+          "disambiguation": "",
+          "id": "e078a7ce-4147-4bbb-8909-0aaa2a7972ad",
+          "primary-type": "Album"
+        },
+        {
+          "title": "Bloom (Jamie xx Rework, Pt. 3)",
+          "disambiguation": "",
+          "id": "e21e8bdb-c551-45d9-a5af-54a1d6aa98a2",
+          "primary-type": "Single",
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "first-release-date": "2012-01-23",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "artist-credit": [
+            {
+              "artist": {
+                "name": "Radiohead",
+                "type": "Group",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "disambiguation": "",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ]
+        },
+        {
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "first-release-date": "1997-11",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "secondary-type-ids": [],
+          "id": "e263349d-6dc2-3cba-864a-e28407b2bf2b",
+          "primary-type": "Single",
+          "disambiguation": "",
+          "title": "No Surprises"
+        },
+        {
+          "primary-type": "Album",
+          "id": "e404b349-7cef-398f-ac5e-ce06737341d1",
+          "disambiguation": "",
+          "title": "I Might Be Wrong: Live Recordings",
+          "secondary-types": [
+            "Live"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "joinphrase": "",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2001-11-07",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ]
+        },
+        {
+          "primary-type": "Album",
+          "id": "e75c0549-ad55-39e3-8025-c72c5d4a3c5d",
+          "disambiguation": "",
+          "title": "Kid A",
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "name": "Radiohead"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2000-08-03",
+          "secondary-type-ids": []
+        },
+        {
+          "disambiguation": "",
+          "title": "Harry Patch (In Memory Of)",
+          "primary-type": "Single",
+          "id": "e9cf2244-560c-4450-9c13-7001090c71e3",
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "2009-08-05",
+          "secondary-type-ids": [],
+          "secondary-types": [],
+          "artist-credit": [
+            {
+              "artist": {
+                "sort-name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "disambiguation": "",
+                "country": "GB",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "joinphrase": "",
+              "name": "Radiohead"
+            }
+          ]
+        },
+        {
+          "primary-type": "Album",
+          "id": "f1b5c8a1-a597-40c5-b244-f3c0f34f83ee",
+          "disambiguation": "",
+          "title": "TKOL RMX 1 2 3 4 5 6 7",
+          "secondary-types": [
+            "Compilation",
+            "Remix"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "type": "Group",
+                "name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "disambiguation": "",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+          "first-release-date": "2011-09-21",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ]
+        },
+        {
+          "primary-type": "Single",
+          "id": "f8c54de0-d93b-39bb-b820-47d19471e56e",
+          "title": "Anyone Can Play Guitar",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "country": "GB",
+                "name": "Radiohead",
+                "type": "Group"
+              },
+              "name": "Radiohead"
+            }
+          ],
+          "secondary-types": [],
+          "secondary-type-ids": [],
+          "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+          "first-release-date": "1993-02-01"
+        }
+      ],
+      "release-group-offset": 0,
+      "release-group-count": 587
+    }
+  }
+}

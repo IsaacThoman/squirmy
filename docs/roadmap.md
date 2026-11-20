@@ -9,12 +9,12 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Database schema for every milestone, initial migration, test harness
 - [x] CI: lint, typecheck, build, tests against Postgres
 - [x] semantic-release on `main`
-- [ ] Shared session reducer and session client in `client-core`
+- [x] Shared session reducer and session client in `client-core`
 - [ ] Docker image and `compose.yaml`
 
 ## 2. Your files, playing
 
-- [ ] Server core: auth, users, invites, settings, jobs, realtime transport
+- [x] Server core: auth, users, invites, settings, jobs, realtime transport
 - [ ] Library scan, tag reading, local-only catalog rows
 - [ ] Artwork store and renditions
 - [ ] Library and catalog read API, home

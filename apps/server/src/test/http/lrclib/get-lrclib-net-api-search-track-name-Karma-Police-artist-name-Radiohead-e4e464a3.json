@@ -1,0 +1,63 @@
+{
+  "note": "Trimmed: lyrics cut to their first two lines (and search results to a few entries) to keep song text out of the repository.",
+  "request": {
+    "method": "GET",
+    "url": "https://lrclib.net/api/search?track_name=Karma+Police&artist_name=Radiohead"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": [
+      {
+        "id": 7077341,
+        "name": "Karma Police",
+        "trackName": "Karma Police",
+        "artistName": "Radiohead",
+        "albumName": "90s Rock",
+        "duration": 261,
+        "instrumental": false,
+        "hasWordSync": false,
+        "plainLyrics": "Karma police\nArrest this man",
+        "syncedLyrics": "[00:26.85] Karma police\n[00:31.03] Arrest this man"
+      },
+      {
+        "id": 7183999,
+        "name": "Karma Police",
+        "trackName": "Karma Police",
+        "artistName": "Radiohead",
+        "albumName": "College Karma EP",
+        "duration": 264,
+        "instrumental": false,
+        "hasWordSync": false,
+        "plainLyrics": "Karma police\nArrest this man",
+        "syncedLyrics": "[00:21.57] Karma police\n[00:26.51] "
+      },
+      {
+        "id": 7279770,
+        "name": "Karma Police",
+        "trackName": "Karma Police",
+        "artistName": "Radiohead",
+        "albumName": "not my fault.",
+        "duration": 270,
+        "instrumental": false,
+        "hasWordSync": false,
+        "plainLyrics": "Karma police\nArrest this man",
+        "syncedLyrics": "[00:30.92] Karma police\n[00:34.94] Arrest this man"
+      },
+      {
+        "id": 8075887,
+        "name": "Karma Police",
+        "trackName": "Karma Police",
+        "artistName": "Radiohead",
+        "albumName": "woah",
+        "duration": 264,
+        "instrumental": false,
+        "hasWordSync": false,
+        "plainLyrics": "Karma police\nArrest this man",
+        "syncedLyrics": "[00:26.86] Karma police\n[00:31.21] Arrest this man"
+      }
+    ]
+  }
+}
