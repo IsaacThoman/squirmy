@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&ids=Q202996&props=sitelinks&sitefilter=enwiki"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "entities": {
+        "Q202996": {
+          "type": "item",
+          "id": "Q202996",
+          "sitelinks": {
+            "enwiki": {
+              "site": "enwiki",
+              "title": "OK Computer",
+              "badges": [
+                "Q17437796"
+              ]
+            }
+          }
+        }
+      },
+      "success": 1
+    }
+  }
+}
