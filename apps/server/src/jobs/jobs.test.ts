@@ -26,6 +26,12 @@ describe('jobs', () => {
       failures.set(data.value, context.attempt)
       if (context.attempt <= data.failTimes) throw new Error(`attempt ${context.attempt} fails`)
     })
+    jobs.define<{ value: string }>('test.fails-once', { concurrency: 4 }, async (data, context) => {
+      failures.set(data.value, context.attempt)
+      // Fails at a varying moment, so some failures land while drainJobs is between queries.
+      await new Promise((resolve) => setTimeout(resolve, Math.random() * 20))
+      if (context.attempt === 1) throw new Error('first attempt fails')
+    })
     jobs.define<{ value: string }>('test.slow', {}, async () => {
       await new Promise<void>((resolve) => { release = resolve })
     })
@@ -65,6 +71,14 @@ describe('jobs', () => {
     expect(failures.get('gives-up')).toBe(3)
     const stats = await getQueueStats()
     expect(stats.find((queue) => queue.name === 'test.flaky')).toEqual({ name: 'test.flaky', queued: 0, active: 0, failed: 1 })
+  })
+
+  it('waits for the retry of a job that fails while it drains', async () => {
+    for (let round = 0; round < 40; round++) {
+      await enqueue('test.fails-once', { value: `round-${round}` })
+      await drainJobs()
+      expect(failures.get(`round-${round}`), `round ${round}`).toBe(2)
+    }
   })
 
   it('commits a job with the caller transaction and discards it on rollback', async () => {
