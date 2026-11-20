@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Id, IsoDateTime, patchOf } from './common.js'
+import { Id, IsoDateTime } from './common.js'
 
 /**
  * The acquisition provider protocol, version 1. A provider is an HTTP service the
@@ -171,7 +171,7 @@ export const CreateAcquisitionProviderRequest = z.object({
   priority: z.number().int().default(0),
 })
 export type CreateAcquisitionProviderRequest = z.infer<typeof CreateAcquisitionProviderRequest>
-export const UpdateAcquisitionProviderRequest = patchOf(CreateAcquisitionProviderRequest)
+export const UpdateAcquisitionProviderRequest = CreateAcquisitionProviderRequest.partial()
 export type UpdateAcquisitionProviderRequest = z.infer<typeof UpdateAcquisitionProviderRequest>
 
 export const AcquisitionJobStatus = z.enum(['resolving', 'queued', 'downloading', 'importing', 'completed', 'failed', 'rejected'])

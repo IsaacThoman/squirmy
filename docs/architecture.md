@@ -27,7 +27,7 @@ npm workspaces, Node 22.13 or newer, TypeScript 6, ESM everywhere except the Exp
 ## Code conventions
 
 - Relative imports end in `.js` in server and packages (NodeNext). No path aliases in server or packages.
-- **Contracts first.** Every request and response body is a zod schema in `packages/contracts/src/<domain>.ts`, exported with its inferred type under the same name. Routes parse input with the schema and return objects that satisfy the response type. A partial update of a schema with defaults is `patchOf(schema)`, not `.partial()`: in zod 4 a field left out of a `.partial()` still takes its default.
+- **Contracts first.** Every request and response body is a zod schema in `packages/contracts/src/<domain>.ts`, exported with its inferred type under the same name. Routes parse input with the schema and return objects that satisfy the response type.
 - **Units.** Durations are integer milliseconds. Timestamps on the wire are ISO 8601 strings; the session protocol uses epoch milliseconds. Gains are dB; peaks are linear.
 - **IDs.** UUIDv7 from `newId()`. Artwork asset ids are UUIDv4 from `newPublicId()`.
 - **Errors.** Throw `AppError` (or the helpers in `lib/errors.ts`). The response body is `{ error: { code, message, details? } }`. Codes are stable snake_case strings.
@@ -150,6 +150,9 @@ await schedule('library.scan-all', '0 4 * * *')
 - Handlers are idempotent: running one twice leaves the same result.
 - `enqueue` accepts a transaction (`{ tx }`) so a row and its job commit together. It goes through pg-boss's Drizzle adapter, so the job insert runs on the caller's transaction; there is no outbox.
 - `singletonKey` makes a duplicate a no-op while a job with that key is queued, retrying or active. Queues use pg-boss's `exclusive` policy and keyless jobs get a unique key, so only keyed jobs are deduplicated.
+- A definition can choose `policy: 'stately'` instead: one queued and one active job per key, so a request made while a job runs is kept as a single follow-up (`library.ingest` uses it). The policy is fixed when the queue is created.
+- `enqueueMany(name, items)` inserts many jobs in one statement with the same deduplication.
+- Each concurrency slot is its own pg-boss worker and is woken as soon as its job finishes, so a backlog drains continuously rather than waiting out pg-boss's 30 second notify backstop between jobs.
 - Failures retry with exponential backoff (default 3 retries). `timeoutSeconds` fails a job that runs too long.
 - Every process starts pg-boss: `index.ts` calls `startJobs({ work })` with `work` true for worker roles. Modules' `jobs` hooks run only in worker roles; a process that enqueues a job it has no definition for creates the queue on first use.
 - `getQueueStats()` counts jobs live; `GET /admin/jobs` returns it.
@@ -182,7 +185,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | |
 | `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` |
 | `GET /home` | catalog | `HomeResponse` |
-| `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand |
+| `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
 | `POST /tracks/summaries` | catalog | hydrate queue entries |
 | `GET /tracks/:id/playback` | streaming | `PlaybackDescriptor` |
 | `GET /stream/:fileId`, `/stream/:fileId/:profile` | streaming | signed URL or session; Range |
@@ -192,11 +195,12 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
-| `GET /admin/reviews`, `POST /admin/reviews/:id/resolve`, `POST /admin/albums/:id/rematch`, `GET /admin/albums/:id/candidates` | matching | |
-| `POST /admin/organize/preview`, `GET /admin/organize/batches`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | |
+| `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files |
+| `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `POST /imports`, `POST /imports/:id/files`, `POST /imports/:id/commit`, `GET /imports/:id` | imports | multipart upload |
 | `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request; play does it implicitly |
+| `GET/DELETE /admin/catalog-index`, `POST /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
 | `/rest/*` | subsonic | OpenSubsonic, XML and JSON |
 
 ### Availability
@@ -206,22 +210,34 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 - Track: `server` if a present (not missing) `media_files` row has its `recording_id`. Otherwise `on_demand` if an enabled acquisition provider covers it (coverage `assume_available`, or a cached positive resolve) and it is not in `acquisition_misses`. Otherwise `none`.
 - Album: counts owned tracks on the canonical release. All owned is `full`, some is `partial`; none owned is `on_demand` when its tracks would be, else `none`.
 
+### Catalog read side
+
+- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, Subsonic, userdata) use these rather than writing their own.
+- Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
+- Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
+- A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
+
 ### Playback and streaming
 
 - Clients ask `GET /tracks/:id/playback` and receive a signed URL. The stream route accepts the signature instead of a session so `<audio>`, AVPlayer and downloads need no headers. Signatures bind the file id, profile, user id and an expiry of 12 hours.
 - File choice: files of the recording that belong to the requested album first, then lossless over lossy, then higher bitrate.
 - `quality=original` serves the file as is when the client's codec list includes its codec, and transcodes to `aac_256` otherwise. `high` is `aac_256`. `data_saver` is `opus_128` when the client lists opus and `mp3_192` otherwise. The mapping lives in `streaming/profiles.ts`.
-- A transcode is written to the cache while it is streamed to the first requester; later requests get the cached file with Range support.
+- Signed URLs carry `exp` (epoch seconds), `uid` and `sig`, an HMAC from `sign('stream', …)`. A request without a valid signature may use the session instead.
+- A transcode is written to the cache while it is streamed to the first requester; later requests get the cached file with Range support. ffmpeg writes to a pipe, so every streamed byte is final: AAC 256k in ADTS (`.aac`), Opus 128k in Ogg, MP3 at constant bitrate without a Xing frame. Encoders: `aac`, `libopus`, `libmp3lame`.
+- Requests for the same transcode share one ffmpeg per process; a client that leaves does not stop it. At most half the CPU cores (at least two) encode at once.
+- `streaming.transcode` `{ fileId, profile }` builds a transcode ahead of time. `streaming.evict` runs hourly and at worker start: it reconciles rows with files on disk and deletes least-recently-used transcodes beyond `transcodeCacheMaxBytes`.
 - Normalization values: prefer measured loudness (`-18 − loudness_lufs` gives the gain); fall back to the file's ReplayGain tags. Album values come from `release_loudness`.
+- Loudness is EBU R128 from ffmpeg's `ebur128` filter. `loudness.measure` `{ fileId }` stores a file's integrated loudness and true peak, then queues `loudness.album` `{ releaseId }`, which decodes the release's present files in track order through one concat filter, so gating covers the album as a whole. `loudness.sweep` (every 10 minutes and at worker start) queues files with no loudness in batches of 500 and releases whose file set changed. Silent and very short files store -70 LUFS, which yields no gain.
 
 ### Sessions
 
-The server holds one session per user in memory, persisted to `playback_sessions` on change (debounced one second). Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed (`queueChanged`), emitted just before the `session:state` of the same version.
+The server holds one session per user in memory, loaded on first use and persisted to `playback_sessions` on change (debounced one second, and flushed on shutdown). This assumes one API process: the copy in memory is the truth, so functions that change sessions (`markRecordingReady`, `replaceQueue`) must run in that process. Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed (`queueChanged`), emitted just before the `session:state` of the same version.
 
-- **Commands.** The server passes the envelope's `commandId` to the reducer (new entry ids derive from it), remembers recent command ids and acks a duplicate without applying it again, and acks a command before broadcasting its result. Server-issued commands use a fresh id.
-- **Active device.** The first device that sends a command that starts playback while no device is active becomes active. `transfer` changes it. Only the active device may send `trackEnded` and engine reports.
-- **Disconnects.** If the active device's last socket closes, the server waits 20 seconds, then applies `deviceLost` (pause at the last known position, clear the active device).
-- **Plays.** A play row opens when an entry starts on the active device and closes when it ends or changes. It counts as completed after half the track or four minutes.
+- **Commands.** The server passes the envelope's `commandId` to the reducer (new entry ids derive from it), remembers recent command ids and acks a duplicate without applying it again, and acks a command before broadcasting its result. Server-issued commands use a fresh id. A user's commands, reports and hellos run one at a time, in arrival order.
+- **Trusted entries.** For `playTracks` and `enqueue` the server keeps only the track ids the client sent: it follows merges, takes durations from the database, drops tracks that are neither owned nor on demand, and sets `ready` or `preparing` itself.
+- **Active device.** The first device that can play and sends a command that starts playback while no device is active becomes active. `transfer` changes it, and only to a connected device that can play. Only the active device may send `trackEnded` and engine reports. A report that is more than a second off the computed position, or changes whether playback is stalled, becomes `syncPosition`.
+- **Disconnects.** If the active device's last socket closes, the server waits 20 seconds, then applies `deviceLost` (pause at the last known position, clear the active device). A session loaded after a restart gives its absent active device the same grace.
+- **Plays.** A play row opens when an entry is current and running on the active device and closes when the entry changes or stops at its end. Listened time comes from the session's position arithmetic, so pauses and seeks add nothing. Plays under five seconds are skips and leave no row; one counts as completed after half the track or four minutes. Writing one invalidates history and home.
 - **On demand.** When the current or an upcoming entry is `on_demand`, the acquisition module is asked for it and the entry is `preparing` until the file is linked, then `setEntryState` flips it to `ready`.
 - **Autoplay.** When the queue is nearly empty and autoplay is on, the radio module supplies `setAutoplayQueue`.
 
@@ -229,14 +245,16 @@ The server holds one session per user in memory, persisted to `playback_sessions
 
 Jobs, in order. Each is idempotent and keyed by file or album group.
 
-1. `library.scan` walks a root, compares `(rel_path, size, mtime)`, inserts or updates `media_files` at `probe_stage 0`, marks vanished files `missing_since`, and enqueues probes.
-2. `library.probe` reads tags and technical details with `music-metadata`, stores embedded art, and sets `probe_stage 1`. It then calls `library.ingest` for the file's album group.
-3. `library.ingest` creates or reuses local-only catalog rows (artist, album, release, recordings, release tracks) from the group's tags and links the files. After this step the music is browsable and playable.
-4. `library.analyze` (low priority) computes the audio hash and loudness, sets `probe_stage 2`, and reconnects moved files by hash.
-5. `matching.match-album` (milestone 4) upgrades local-only rows to MusicBrainz rows or opens a review.
+1. `library.scan` `{ rootId, paths? }` walks a root, or just the given paths, and compares `(rel_path, size, mtime)` with `media_files`: new files are inserted at `probe_stage 0`, changed ones reset to it, vanished ones get `missing_since` and returning ones lose it. Probes are queued in bulk. The walk (sorted by UTF-8 bytes) and the rows (read in pages, `collate "C"`) are merged like two sorted lists, so memory and queries stay flat whatever the library size. Hidden entries, `@eaDir`, recycle bins and partial downloads are skipped; symlinks are followed only to files inside the root. A root that cannot be read is skipped rather than marked missing. One scan per root at a time; `library.scan-all` runs nightly.
+2. `library.probe` reads tags and technical details with `music-metadata` (ffprobe fills gaps and takes over when it cannot parse), normalizes them into `FileTags`, reads ReplayGain (and Opus R128) into the `tag_*` columns, stores the embedded picture, sets `probe_stage 1` and the group key, then queues ingest for the group. A file nothing can read gets `probe_error` and is left alone until it changes.
+3. `library.ingest` `{ rootId, groupKey }` creates or reuses local-only catalog rows (artists, album, release, recordings, release tracks) from the group's tags and links the files, in one transaction. Rows the files already use are reused unless another group uses them; rows with a MusicBrainz id in the tags are found by it or created with it, and are never renamed from tags afterwards. A group with a matched or locked file is only relinked. Rows that end up unused (no files, no user data, no MusicBrainz id) are removed. Then album and artist art from the folder and files, lyrics (embedded or a `.lrc` sidecar), and `matching.match-album`. After this step the music is browsable and playable.
+4. `library.analyze` (low priority) computes the audio hash and sets `probe_stage 2`. A new file whose hash matches a row whose file is gone is that row moved: the old row takes the new path and keeps its id, links and match state. Then `loudness.measure`.
+5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start.
 6. `enrichment.*` (milestone 4) fills in covers, images, bios and lyrics.
 
-Album grouping key: root id, parent directory (ignoring `CD1`/`Disc 2` subfolders), and `matchKey` of album artist and album.
+`library.purge-missing` runs daily and deletes files missing longer than `missingFileGraceDays`. The grouping and album artist rules are written out at the top of `modules/library/grouping.ts`. In short, the album grouping key is root id, parent directory (ignoring `CD1`/`Disc 2` subfolders), and `matchKey` of album artist and album.
+
+Watching: roots with `watch` on are watched while a worker runs, and changed paths are scanned after two quiet seconds. macOS and Windows use one recursive watch per root; Linux uses one inotify watch per folder. Network mounts and exhausted inotify limits fall back to the nightly scan.
 
 ### External metadata
 

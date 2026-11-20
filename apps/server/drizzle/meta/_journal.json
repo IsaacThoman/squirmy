@@ -8,6 +8,27 @@
       "when": 1795189412213,
       "tag": "0000_initial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795192375973,
+      "tag": "0001_library_sort_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795193981538,
+      "tag": "0002_catalog_index_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795194767597,
+      "tag": "0003_library_scan",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { db } from '../database/client.js'
 import { serverSettings } from '../database/schema.js'
 import { useTestDatabase } from '../test/database.js'
-import { drainJobs, enqueue, getQueueStats, jobs, schedule, startJobs, stopJobs } from './index.js'
+import { drainJobs, enqueue, enqueueMany, getQueueStats, jobs, schedule, startJobs, stopJobs } from './index.js'
 
 describe('jobs', () => {
   useTestDatabase()
@@ -28,6 +28,10 @@ describe('jobs', () => {
     })
     jobs.define<{ value: string }>('test.slow', {}, async () => {
       await new Promise<void>((resolve) => { release = resolve })
+    })
+    jobs.define<{ value: string }>('test.stately', { policy: 'stately' }, async (data) => {
+      seen.push({ data, attempt: 1 })
+      if (data.value === 'first') await new Promise<void>((resolve) => { release = resolve })
     })
     await schedule('test.record', '0 4 * * *')
     await startJobs({ work: true })
@@ -92,5 +96,37 @@ describe('jobs', () => {
   it('registers schedules', async () => {
     const [row] = await db.execute<{ cron: string }>(sql`select cron from pgboss.schedule where name = 'test.record'`)
     expect(row?.cron).toBe('0 4 * * *')
+  })
+
+  it('works through a backlog without waiting between jobs', async () => {
+    const values = Array.from({ length: 12 }, (_, index) => `backlog-${index}`)
+    await enqueueMany('test.record', values.map((value) => ({ data: { value } })))
+    // No drainJobs here: it wakes workers itself, which would hide a worker idling between jobs.
+    await expect.poll(() => seen.filter((job) => job.data.value.startsWith('backlog-')).length, { timeout: 5000 }).toBe(12)
+  })
+
+  it('skips keys already queued when enqueueing many', async () => {
+    await enqueueMany('test.slow', [{ data: { value: 'a' }, singletonKey: 'same' }, { data: { value: 'b' }, singletonKey: 'same' }, { data: { value: 'c' }, singletonKey: 'other' }])
+    const [row] = await db.execute<{ count: number }>(sql`select count(*)::int as count from pgboss.job where name = 'test.slow' and state in ('created', 'active')`)
+    expect(row?.count).toBe(2)
+    for (let job = 0; job < 2; job += 1) {
+      await expect.poll(() => release, { timeout: 5000 }).toBeDefined()
+      release!()
+      release = undefined
+    }
+    await drainJobs()
+  })
+
+  it('keeps one follow-up of a stately job requested while it runs', async () => {
+    await enqueue('test.stately', { value: 'first' }, { singletonKey: 'group' })
+    await expect.poll(() => release, { timeout: 5000 }).toBeDefined()
+    expect(await enqueue('test.stately', { value: 'follow-up' }, { singletonKey: 'group' })).not.toBeNull()
+    expect(await enqueue('test.stately', { value: 'dropped' }, { singletonKey: 'group' })).toBeNull()
+    release!()
+    release = undefined
+    await drainJobs()
+    const values = seen.map((job) => job.data.value)
+    expect(values).toContain('follow-up')
+    expect(values).not.toContain('dropped')
   })
 })

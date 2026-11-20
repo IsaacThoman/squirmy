@@ -1,0 +1,2262 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/6c939a5d-ea41-47aa-ad97-fb3c76279d72?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "artist-credit": [
+        {
+          "artist": {
+            "sort-name": "Various Artists",
+            "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+            "disambiguation": "add compilations to this artist",
+            "country": null,
+            "type-id": "ac897045-5043-3294-969b-187360e45d86",
+            "name": "Various Artists",
+            "type": "Other"
+          },
+          "joinphrase": "",
+          "name": "Various Artists"
+        }
+      ],
+      "relations": [
+        {
+          "url": {
+            "resource": "https://www.amazon.co.uk/gp/product/B000007VWC",
+            "id": "0e822d8c-f503-4c01-872e-ab57dc6f568d"
+          },
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "type-id": "4f2e710d-166c-480c-a293-2e2c8d658d87",
+          "attribute-ids": {},
+          "target-credit": "",
+          "attributes": [],
+          "target-type": "url",
+          "begin": null,
+          "direction": "forward",
+          "type": "amazon asin",
+          "attribute-values": {}
+        },
+        {
+          "url": {
+            "resource": "https://www.discogs.com/release/1559037",
+            "id": "b2bf1214-5226-4fb1-8758-63b1839a1e74"
+          },
+          "end": null,
+          "source-credit": "",
+          "ended": false,
+          "attributes": [],
+          "target-credit": "",
+          "type-id": "4a78823c-1c53-4176-a5f3-58026c76f2bc",
+          "attribute-ids": {},
+          "attribute-values": {},
+          "type": "discogs",
+          "direction": "forward",
+          "begin": null,
+          "target-type": "url"
+        }
+      ],
+      "packaging": "Jewel Case",
+      "country": "GB",
+      "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+      },
+      "media": [
+        {
+          "title": "",
+          "id": "faef9d36-e8a4-3941-a26c-472fcc654733",
+          "position": 1,
+          "track-count": 22,
+          "track-offset": 0,
+          "tracks": [
+            {
+              "id": "7ce00e25-01b8-3fae-b8e6-860cd63d8cdd",
+              "length": 213133,
+              "position": 1,
+              "title": "Tubthumping",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Chumbawamba",
+                    "type": "Group",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "id": "7b7b1e6f-e73e-41a0-9d72-8f0b30c6992d",
+                    "sort-name": "Chumbawamba"
+                  },
+                  "name": "Chumbawamba"
+                }
+              ],
+              "recording": {
+                "title": "Tubthumping",
+                "disambiguation": "single mix",
+                "video": false,
+                "length": 212684,
+                "id": "b54f79d8-f199-4d19-b8e9-7a56b62fe8ae",
+                "first-release-date": "1997-08-11",
+                "artist-credit": [
+                  {
+                    "name": "Chumbawamba",
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Chumbawamba",
+                      "id": "7b7b1e6f-e73e-41a0-9d72-8f0b30c6992d",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Chumbawamba",
+                      "type": "Group"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "DEA349700052",
+                  "DEA349700542",
+                  "DEA349701394",
+                  "DEA3A9700542",
+                  "USUR19700175",
+                  "USUR19700191"
+                ]
+              },
+              "number": "1"
+            },
+            {
+              "position": 2,
+              "id": "018bc6ff-9304-3f11-a6d4-670082ade0bc",
+              "length": 172400,
+              "title": "Spice Up Your Life",
+              "number": "2",
+              "recording": {
+                "length": 173826,
+                "id": "a16271ec-05d3-4269-9245-035d432ec397",
+                "disambiguation": "",
+                "video": false,
+                "title": "Spice Up Your Life",
+                "isrcs": [
+                  "GBAAA9700032",
+                  "GBAAA9710052"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "bf0caafc-2b20-4e07-ab85-87e14ff430ce",
+                      "sort-name": "Spice Girls",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "Spice Girls"
+                    },
+                    "name": "Spice Girls"
+                  }
+                ],
+                "first-release-date": "1997-10-13"
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Spice Girls",
+                    "id": "bf0caafc-2b20-4e07-ab85-87e14ff430ce",
+                    "disambiguation": "",
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Spice Girls",
+                    "type": "Group"
+                  },
+                  "joinphrase": "",
+                  "name": "Spice Girls"
+                }
+              ]
+            },
+            {
+              "id": "f106ab00-b4a2-3199-9800-321543cd0a0b",
+              "length": 250240,
+              "position": 3,
+              "title": "Where's the Love",
+              "artist-credit": [
+                {
+                  "name": "Hanson",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "US",
+                    "type": "Group",
+                    "name": "Hanson",
+                    "id": "3c0a0074-4f26-4d3b-b723-a66bf6cc3753",
+                    "sort-name": "Hanson",
+                    "disambiguation": "American pop group"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "isrcs": [
+                  "USMR19786794",
+                  "USMRI9786794"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Hanson",
+                    "artist": {
+                      "id": "3c0a0074-4f26-4d3b-b723-a66bf6cc3753",
+                      "sort-name": "Hanson",
+                      "disambiguation": "American pop group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "US",
+                      "type": "Group",
+                      "name": "Hanson"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "first-release-date": "1997-05-06",
+                "length": 253000,
+                "id": "f9bab486-131c-4f3c-867d-4846e1fcb6a2",
+                "disambiguation": "",
+                "video": false,
+                "title": "Where’s the Love"
+              },
+              "number": "3"
+            },
+            {
+              "number": "4",
+              "recording": {
+                "title": "Picture of You",
+                "disambiguation": "",
+                "video": false,
+                "length": 208467,
+                "id": "a2bc2c46-1f1c-46a8-aab4-acbd84726666",
+                "first-release-date": "1996-10-28",
+                "artist-credit": [
+                  {
+                    "name": "Boyzone",
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Group",
+                      "name": "Boyzone",
+                      "country": "IE",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "sort-name": "Boyzone",
+                      "id": "5523ed49-38bc-44fa-8670-2a9c354de0b1"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "IEAAA9700014"
+                ]
+              },
+              "artist-credit": [
+                {
+                  "name": "Boyzone",
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Group",
+                    "name": "Boyzone",
+                    "country": "IE",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "sort-name": "Boyzone",
+                    "id": "5523ed49-38bc-44fa-8670-2a9c354de0b1"
+                  }
+                }
+              ],
+              "title": "Picture of You",
+              "position": 4,
+              "id": "951fc453-4e32-3060-b970-df4b31de12bb",
+              "length": 203093
+            },
+            {
+              "title": "As Long as You Love Me",
+              "id": "2bb7da07-f1db-359f-98ad-86e8ae20bac1",
+              "length": 210733,
+              "position": 5,
+              "recording": {
+                "title": "As Long as You Love Me",
+                "video": false,
+                "disambiguation": "radio version",
+                "id": "57a2b620-ba3a-4930-9c04-d46efa2d779c",
+                "length": 212066,
+                "first-release-date": "1997-09-30",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Backstreet Boys",
+                      "id": "2f569e60-0a1b-4fb9-95a4-3dc1525d1aad",
+                      "disambiguation": "",
+                      "country": "US",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Backstreet Boys",
+                      "type": "Group"
+                    },
+                    "name": "Backstreet Boys"
+                  }
+                ],
+                "isrcs": [
+                  "USJI19710149"
+                ]
+              },
+              "artist-credit": [
+                {
+                  "name": "Backstreet Boys",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "US",
+                    "type": "Group",
+                    "name": "Backstreet Boys",
+                    "id": "2f569e60-0a1b-4fb9-95a4-3dc1525d1aad",
+                    "sort-name": "Backstreet Boys",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "5"
+            },
+            {
+              "recording": {
+                "first-release-date": "1997-09-29",
+                "isrcs": [
+                  "GBAYE9700201"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Eternal",
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Group",
+                      "name": "Eternal",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "GB",
+                      "disambiguation": "British R&B girl group",
+                      "id": "7343056e-041e-4b28-a85a-58e8fb975136",
+                      "sort-name": "Eternal"
+                    }
+                  }
+                ],
+                "disambiguation": "original mix",
+                "video": false,
+                "title": "Angel of Mine",
+                "length": 258933,
+                "id": "333cde8d-2e05-48a8-b5f2-28bf02e21ac5"
+              },
+              "artist-credit": [
+                {
+                  "name": "Eternal",
+                  "artist": {
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "name": "Eternal",
+                    "sort-name": "Eternal",
+                    "id": "7343056e-041e-4b28-a85a-58e8fb975136",
+                    "disambiguation": "British R&B girl group"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "6",
+              "length": 258800,
+              "id": "de50fbbc-8655-36ef-9936-303ea24faf5f",
+              "position": 6,
+              "title": "Angel of Mine"
+            },
+            {
+              "recording": {
+                "first-release-date": "1997-11-17",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "id": "3ebe18d1-dfb6-41eb-8447-4a7693f79d9a",
+                      "sort-name": "Lighthouse Family",
+                      "name": "Lighthouse Family",
+                      "type": "Group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "GB"
+                    },
+                    "joinphrase": "",
+                    "name": "Lighthouse Family"
+                  }
+                ],
+                "isrcs": [
+                  "GBALS9700046"
+                ],
+                "title": "Raincloud",
+                "disambiguation": "",
+                "video": false,
+                "length": 244013,
+                "id": "0c321325-8947-4bdf-9515-ee449a3fd6d4"
+              },
+              "artist-credit": [
+                {
+                  "name": "Lighthouse Family",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "name": "Lighthouse Family",
+                    "type": "Group",
+                    "id": "3ebe18d1-dfb6-41eb-8447-4a7693f79d9a",
+                    "sort-name": "Lighthouse Family",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "7",
+              "title": "Raincloud",
+              "length": 238200,
+              "id": "9159b1cf-c2c6-36fb-bab7-ee597c0db28b",
+              "position": 7
+            },
+            {
+              "position": 8,
+              "id": "e57d771e-21ff-300c-900a-7b8c577cbf2b",
+              "length": 218733,
+              "title": "Got 'til It's Gone",
+              "number": "8",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "6be2828f-6c0d-4059-99d4-fa18acf1a296",
+                    "sort-name": "Jackson, Janet",
+                    "disambiguation": "",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "US",
+                    "name": "Janet Jackson",
+                    "type": "Person"
+                  },
+                  "joinphrase": "",
+                  "name": "Janet Jackson"
+                }
+              ],
+              "recording": {
+                "video": false,
+                "disambiguation": "",
+                "title": "Got ’til It’s Gone (radio edit)",
+                "id": "16a44374-4976-42a4-93fa-822be3042260",
+                "length": 219040,
+                "first-release-date": "1997-09-18",
+                "isrcs": [
+                  "USVI29701057"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Janet Jackson",
+                    "artist": {
+                      "sort-name": "Jackson, Janet",
+                      "id": "6be2828f-6c0d-4059-99d4-fa18acf1a296",
+                      "disambiguation": "",
+                      "country": "US",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Janet Jackson",
+                      "type": "Person"
+                    },
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "artist": {
+                      "type": "Person",
+                      "name": "Q‐Tip",
+                      "country": "US",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "American rapper",
+                      "sort-name": "Q‐Tip",
+                      "id": "b3c94036-6166-41d2-91a2-dc3a0b5fa188"
+                    },
+                    "joinphrase": " & ",
+                    "name": "Q‐Tip"
+                  },
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "sort-name": "Mitchell, Joni",
+                      "id": "a6de8ef9-b1a1-4756-97aa-481bbb8a4069",
+                      "name": "Joni Mitchell",
+                      "type": "Person",
+                      "country": "CA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "name": "Joni Mitchell"
+                  }
+                ]
+              }
+            },
+            {
+              "title": "You've Got a Friend",
+              "position": 9,
+              "length": 189440,
+              "id": "8a0d38d3-9e4d-3608-ac7a-1e9be8379eee",
+              "number": "9",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "GB",
+                      "name": "The Brand New Heavies",
+                      "type": "Group",
+                      "id": "9b8d6e2c-2b4e-4924-82ae-226b4e701f6b",
+                      "sort-name": "Brand New Heavies, The",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": "",
+                    "name": "The Brand New Heavies"
+                  }
+                ],
+                "isrcs": [],
+                "first-release-date": "1997-11-17",
+                "length": 189440,
+                "id": "787e075e-0809-4976-8bb5-b478eff376b8",
+                "title": "You’ve Got a Friend",
+                "disambiguation": "",
+                "video": false
+              },
+              "artist-credit": [
+                {
+                  "name": "The Brand New Heavies",
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "9b8d6e2c-2b4e-4924-82ae-226b4e701f6b",
+                    "sort-name": "Brand New Heavies, The",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "name": "The Brand New Heavies",
+                    "type": "Group"
+                  }
+                }
+              ]
+            },
+            {
+              "length": 218733,
+              "id": "a9e191f0-67af-31aa-bdb6-d38bf02753e4",
+              "position": 10,
+              "title": "I Know Where It's At",
+              "recording": {
+                "disambiguation": "",
+                "video": false,
+                "title": "I Know Where It’s At",
+                "length": 218733,
+                "id": "5ba2cca2-93e0-433e-8536-b80d94184db8",
+                "first-release-date": "1997-11-17",
+                "isrcs": [],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type": "Group",
+                      "name": "All Saints",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "sort-name": "All Saints",
+                      "id": "a371601f-c184-4683-806d-2eb35e88f0d7"
+                    },
+                    "joinphrase": "",
+                    "name": "All Saints"
+                  }
+                ]
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Group",
+                    "name": "All Saints",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "id": "a371601f-c184-4683-806d-2eb35e88f0d7",
+                    "sort-name": "All Saints"
+                  },
+                  "name": "All Saints"
+                }
+              ],
+              "number": "10"
+            },
+            {
+              "recording": {
+                "length": 228866,
+                "id": "29316421-91bb-41d1-b63d-f11d77541e24",
+                "disambiguation": "",
+                "video": false,
+                "title": "Arms Around the World",
+                "isrcs": [
+                  "GBAYE9701447"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "GB",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Louise",
+                      "type": "Person",
+                      "sort-name": "Louise",
+                      "id": "61fb53dd-80e0-437a-88c0-72dd3bc52567",
+                      "disambiguation": "British pop singer"
+                    },
+                    "name": "Louise"
+                  }
+                ],
+                "first-release-date": "1997-11-17"
+              },
+              "artist-credit": [
+                {
+                  "name": "Louise",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "GB",
+                    "name": "Louise",
+                    "type": "Person",
+                    "id": "61fb53dd-80e0-437a-88c0-72dd3bc52567",
+                    "sort-name": "Louise",
+                    "disambiguation": "British pop singer"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "11",
+              "title": "Arms Around the World",
+              "length": 228960,
+              "id": "9d8ca632-92b3-38fc-9c95-08b8b1e763bd",
+              "position": 11
+            },
+            {
+              "recording": {
+                "length": 212266,
+                "id": "abe21152-d9dd-4913-a43d-2a70b9fd5673",
+                "disambiguation": "edit mix",
+                "video": false,
+                "title": "Freed From Desire",
+                "isrcs": [
+                  "DEA319601492",
+                  "DEA319601493",
+                  "ITA179600048",
+                  "ITA179700143"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "IT",
+                      "type": "Person",
+                      "name": "Gala",
+                      "id": "cd34e8ed-2f44-4031-849e-e56034b02cf9",
+                      "sort-name": "Gala",
+                      "disambiguation": "Italian singer & dance act"
+                    },
+                    "name": "Gala"
+                  }
+                ],
+                "first-release-date": "1996-08-09"
+              },
+              "artist-credit": [
+                {
+                  "name": "Gala",
+                  "artist": {
+                    "disambiguation": "Italian singer & dance act",
+                    "id": "cd34e8ed-2f44-4031-849e-e56034b02cf9",
+                    "sort-name": "Gala",
+                    "type": "Person",
+                    "name": "Gala",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "IT"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "12",
+              "title": "Freed From Desire",
+              "length": 210973,
+              "id": "0030c8df-bfa0-3171-aea1-e7de15597510",
+              "position": 12
+            },
+            {
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "Sash!",
+                    "joinphrase": " feat. ",
+                    "artist": {
+                      "type": "Group",
+                      "name": "Sash!",
+                      "country": "DE",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "German DJ/production team",
+                      "sort-name": "Sash!",
+                      "id": "29e26734-788a-44aa-8d86-a452bc4232a6"
+                    }
+                  },
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "3713ed09-65c3-4fe8-b105-f8c44a521a0b",
+                      "sort-name": "Trec, La",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": null,
+                      "name": "La Trec",
+                      "type": "Person"
+                    },
+                    "name": "La Trec"
+                  }
+                ],
+                "isrcs": [
+                  "BEAA19703728",
+                  "DEF069708200"
+                ],
+                "first-release-date": "1997-10-06",
+                "id": "681ed2f0-a5eb-4021-aba3-a1005135240a",
+                "length": 210480,
+                "title": "Stay (original single edit)",
+                "video": false,
+                "disambiguation": ""
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "Sash!",
+                    "type": "Group",
+                    "country": "DE",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "German DJ/production team",
+                    "sort-name": "Sash!",
+                    "id": "29e26734-788a-44aa-8d86-a452bc4232a6"
+                  },
+                  "joinphrase": " feat. ",
+                  "name": "Sash!"
+                },
+                {
+                  "artist": {
+                    "id": "3713ed09-65c3-4fe8-b105-f8c44a521a0b",
+                    "sort-name": "Trec, La",
+                    "disambiguation": "",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": null,
+                    "name": "La Trec",
+                    "type": "Person"
+                  },
+                  "joinphrase": "",
+                  "name": "La Trec"
+                }
+              ],
+              "number": "13",
+              "length": 209560,
+              "id": "dcd3c6bb-4466-3ef5-948a-f8933ba0bc59",
+              "position": 13,
+              "title": "Stay"
+            },
+            {
+              "number": "14",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "Dario G",
+                    "type": "Group",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "id": "8b763a0b-7951-4d24-b12a-58c2ab6cce8e",
+                    "sort-name": "Dario G"
+                  },
+                  "joinphrase": "",
+                  "name": "Dario G"
+                }
+              ],
+              "recording": {
+                "title": "Sunchyme (radio edit)",
+                "video": false,
+                "disambiguation": "",
+                "id": "20b1d1a1-4538-48d3-852c-10ef32435205",
+                "length": 235000,
+                "first-release-date": "1997-09-12",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Dario G",
+                      "id": "8b763a0b-7951-4d24-b12a-58c2ab6cce8e",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "name": "Dario G"
+                    },
+                    "joinphrase": "",
+                    "name": "Dario G"
+                  }
+                ],
+                "isrcs": [
+                  "GBAHT1200629",
+                  "GBAHT9702479",
+                  "GBCFZ0900364",
+                  "GBCFZ1600067"
+                ]
+              },
+              "position": 14,
+              "length": 234466,
+              "id": "989061e6-e136-3b61-ac17-933006914196",
+              "title": "Sunchyme"
+            },
+            {
+              "title": "Never Gonna Let You Go (Kelly G Bump-N-Go vocal mix)",
+              "position": 15,
+              "id": "f5614217-24cb-386b-9b58-fbaafed81650",
+              "length": 251306,
+              "number": "15",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Tina Moore",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "US",
+                    "disambiguation": "R&B vocalist, key track \"Never Gonna Let You Go\"",
+                    "id": "1cd7775f-26f8-48a7-a14a-d568e000f633",
+                    "sort-name": "Moore, Tina"
+                  },
+                  "name": "Tina Moore"
+                }
+              ],
+              "recording": {
+                "length": 251306,
+                "id": "a89eb307-40b4-44ba-ad6e-b14bb3c25eb6",
+                "title": "Never Gonna Let You Go (Kelly G Bump-N-Go vocal mix)",
+                "disambiguation": "",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "name": "Tina Moore",
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "US",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Tina Moore",
+                      "type": "Person",
+                      "sort-name": "Moore, Tina",
+                      "id": "1cd7775f-26f8-48a7-a14a-d568e000f633",
+                      "disambiguation": "R&B vocalist, key track \"Never Gonna Let You Go\""
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "USRC10400010",
+                  "USRC12002289"
+                ],
+                "first-release-date": "1997-11-17"
+              }
+            },
+            {
+              "recording": {
+                "disambiguation": "",
+                "video": false,
+                "title": "You Sexy Thing",
+                "length": 210933,
+                "id": "dcbb118c-884a-4921-a705-c5d7c2e7cf26",
+                "first-release-date": "1975",
+                "isrcs": [
+                  "GBAYE0900554"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Hot Chocolate",
+                    "artist": {
+                      "disambiguation": "70s and 80s British soul band",
+                      "sort-name": "Hot Chocolate",
+                      "id": "a749130e-c2d8-4a7c-b740-908ea4574961",
+                      "type": "Group",
+                      "name": "Hot Chocolate",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "artist-credit": [
+                {
+                  "name": "Hot Chocolate",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Hot Chocolate",
+                    "type": "Group",
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "70s and 80s British soul band",
+                    "sort-name": "Hot Chocolate",
+                    "id": "a749130e-c2d8-4a7c-b740-908ea4574961"
+                  }
+                }
+              ],
+              "number": "16",
+              "length": 209626,
+              "id": "4a7add88-1976-3f50-a3d8-fa529fd9793c",
+              "position": 16,
+              "title": "You Sexy Thing"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "N‐Trance",
+                  "joinphrase": " feat. ",
+                  "artist": {
+                    "name": "N‐Trance",
+                    "type": "Group",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "id": "17adce06-a815-4c5b-9be7-e6b184f92ee4",
+                    "sort-name": "N‐Trance"
+                  }
+                },
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "name": "Rod Stewart",
+                    "sort-name": "Stewart, Rod",
+                    "id": "a35237a0-4f47-40a6-b6f3-1e786db23402",
+                    "disambiguation": ""
+                  },
+                  "name": "Rod Stewart"
+                }
+              ],
+              "recording": {
+                "title": "Da Ya Think I’m Sexy? (radio edit)",
+                "video": false,
+                "disambiguation": "",
+                "id": "ec26e4c1-ed18-4d79-941c-7284fac5e3d3",
+                "length": 258533,
+                "first-release-date": "1997-10-27",
+                "artist-credit": [
+                  {
+                    "name": "N‐Trance",
+                    "joinphrase": " featuring ",
+                    "artist": {
+                      "id": "17adce06-a815-4c5b-9be7-e6b184f92ee4",
+                      "sort-name": "N‐Trance",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "GB",
+                      "type": "Group",
+                      "name": "N‐Trance"
+                    }
+                  },
+                  {
+                    "name": "Rod Stewart",
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Rod Stewart",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "GB",
+                      "disambiguation": "",
+                      "id": "a35237a0-4f47-40a6-b6f3-1e786db23402",
+                      "sort-name": "Stewart, Rod"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "AUXN20904406",
+                  "GBCFZ9700681"
+                ]
+              },
+              "number": "17",
+              "title": "Da Ya Think I'm Sexy",
+              "id": "3cb7a913-2cf4-3ce0-980c-a88ad9fe4245",
+              "length": 256506,
+              "position": 17
+            },
+            {
+              "number": "18",
+              "artist-credit": [
+                {
+                  "name": "LL Cool J",
+                  "artist": {
+                    "sort-name": "LL Cool J",
+                    "id": "a4dd0e77-83b8-4e92-89b7-effb0e47fd8c",
+                    "disambiguation": "",
+                    "country": "US",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "name": "LL Cool J"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "isrcs": [
+                  "USDJ29700003"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "US",
+                      "name": "LL Cool J",
+                      "type": "Person",
+                      "id": "a4dd0e77-83b8-4e92-89b7-effb0e47fd8c",
+                      "sort-name": "LL Cool J",
+                      "disambiguation": ""
+                    },
+                    "name": "LL Cool J"
+                  }
+                ],
+                "first-release-date": "1997-10",
+                "length": 186413,
+                "id": "4d64cb09-7b9e-414a-ab88-d2b473caf5d3",
+                "disambiguation": "radio edit",
+                "video": false,
+                "title": "Phenomenon"
+              },
+              "position": 18,
+              "id": "b1d35d80-b3af-3bd4-b07f-ffdd34139423",
+              "length": 185826,
+              "title": "Phenomenon"
+            },
+            {
+              "position": 19,
+              "length": 189533,
+              "id": "ac2038b2-6760-3820-b646-be5496ac277e",
+              "title": "Party People...Friday Night",
+              "number": "19",
+              "recording": {
+                "length": 189533,
+                "id": "121fe0d3-e524-4d0f-a4d0-343801c3d11e",
+                "title": "Party People… Friday Night",
+                "disambiguation": "",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "name": "911",
+                    "artist": {
+                      "type": "Group",
+                      "name": "911",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "UK boy band",
+                      "sort-name": "911",
+                      "id": "d71881a2-a7b7-4fcb-b15d-ff52463a04db"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "GBAAA9700034"
+                ],
+                "first-release-date": "1997-11-17"
+              },
+              "artist-credit": [
+                {
+                  "name": "911",
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "911",
+                    "id": "d71881a2-a7b7-4fcb-b15d-ff52463a04db",
+                    "disambiguation": "UK boy band",
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "name": "911"
+                  }
+                }
+              ]
+            },
+            {
+              "position": 20,
+              "length": 238600,
+              "id": "b2abf42e-3dba-3a93-a5bb-cb9107219605",
+              "title": "Maria",
+              "number": "20",
+              "artist-credit": [
+                {
+                  "name": "Ricky Martin",
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Martin, Ricky",
+                    "id": "70ea63ea-70dc-4b63-951a-2c249d2b3b0a",
+                    "disambiguation": "Puerto Rican singer, actor, author & king of Latin pop",
+                    "country": "PR",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "name": "Ricky Martin"
+                  }
+                }
+              ],
+              "recording": {
+                "first-release-date": "1997-08-29",
+                "isrcs": [],
+                "artist-credit": [
+                  {
+                    "name": "Ricky Martin",
+                    "artist": {
+                      "type": "Person",
+                      "name": "Ricky Martin",
+                      "country": "PR",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "Puerto Rican singer, actor, author & king of Latin pop",
+                      "sort-name": "Martin, Ricky",
+                      "id": "70ea63ea-70dc-4b63-951a-2c249d2b3b0a"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "video": false,
+                "disambiguation": "",
+                "title": "Maria",
+                "id": "4fce5eed-e455-4b95-8e4e-9a9e6b287334",
+                "length": 240000
+              }
+            },
+            {
+              "title": "Samba de Janeiro",
+              "position": 21,
+              "length": 168066,
+              "id": "6eda3d65-2398-3186-9c12-0e665e602e45",
+              "number": "21",
+              "artist-credit": [
+                {
+                  "name": "Bellini",
+                  "artist": {
+                    "name": "Bellini",
+                    "type": "Group",
+                    "country": "DE",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "electronic/hip‐hop trio; single “Samba de Janeiro”",
+                    "sort-name": "Bellini",
+                    "id": "9e4b3bc8-1153-4f8f-87ce-f46035bae7ea"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "first-release-date": "1996",
+                "isrcs": [
+                  "DE7L09700030",
+                  "DE7LO9700010",
+                  "DEG129700451",
+                  "DEN060700810",
+                  "DEP992200029"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "electronic/hip‐hop trio; single “Samba de Janeiro”",
+                      "id": "9e4b3bc8-1153-4f8f-87ce-f46035bae7ea",
+                      "sort-name": "Bellini",
+                      "name": "Bellini",
+                      "type": "Group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "DE"
+                    },
+                    "name": "Bellini"
+                  }
+                ],
+                "video": false,
+                "disambiguation": "radio edit",
+                "title": "Samba de Janeiro",
+                "id": "a5aa60e3-51db-40b8-bfd1-2c0ec8b1e39b",
+                "length": 168608
+              }
+            },
+            {
+              "length": 191440,
+              "id": "0ba9d890-fad9-3c44-81cd-7ab2a1ff6fae",
+              "position": 22,
+              "title": "Free",
+              "artist-credit": [
+                {
+                  "name": "DJ Quicksilver",
+                  "artist": {
+                    "country": "DE",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "DJ Quicksilver",
+                    "type": "Person",
+                    "sort-name": "Quicksilver, DJ",
+                    "id": "e7d7256f-5278-47c2-9a14-c1faa478717f",
+                    "disambiguation": "German-Turkish DJ/producer Orhan Terzi"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "title": "Free (original radio edit)",
+                "disambiguation": "",
+                "video": false,
+                "length": 191733,
+                "id": "22f55adc-4b74-4320-973c-a0fb9001fccc",
+                "first-release-date": "1997-01-01",
+                "artist-credit": [
+                  {
+                    "name": "DJ Quicksilver",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "e7d7256f-5278-47c2-9a14-c1faa478717f",
+                      "sort-name": "Quicksilver, DJ",
+                      "disambiguation": "German-Turkish DJ/producer Orhan Terzi",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "DE",
+                      "type": "Person",
+                      "name": "DJ Quicksilver"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "GB01A0900757"
+                ]
+              },
+              "number": "22"
+            }
+          ],
+          "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+          "format": "CD"
+        },
+        {
+          "title": "",
+          "id": "b0ba8b7c-e388-33f8-88a5-c798a21b54fc",
+          "position": 2,
+          "track-count": 19,
+          "track-offset": 0,
+          "tracks": [
+            {
+              "id": "d662e2ff-aad4-32d0-a32b-6244aed83610",
+              "length": 166773,
+              "position": 1,
+              "title": "Yesterday",
+              "recording": {
+                "first-release-date": "1997-11-17",
+                "isrcs": [
+                  "GBF089700432"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Wet Wet Wet",
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Wet Wet Wet",
+                      "type": "Group",
+                      "sort-name": "Wet Wet Wet",
+                      "id": "45bbfc68-2523-49e4-96f7-d7d1c3d41aac",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "video": false,
+                "disambiguation": "",
+                "title": "Yesterday",
+                "id": "ad905bff-f6eb-4210-8d2b-65342624b795",
+                "length": 168000
+              },
+              "artist-credit": [
+                {
+                  "name": "Wet Wet Wet",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Wet Wet Wet",
+                    "type": "Group",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "id": "45bbfc68-2523-49e4-96f7-d7d1c3d41aac",
+                    "sort-name": "Wet Wet Wet"
+                  }
+                }
+              ],
+              "number": "1"
+            },
+            {
+              "title": "You Have Been Loved",
+              "position": 2,
+              "id": "27e7af04-2bfb-355c-bd76-ea342b06695a",
+              "length": 326893,
+              "number": "2",
+              "artist-credit": [
+                {
+                  "name": "George Michael",
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "name": "George Michael",
+                    "sort-name": "Michael, George",
+                    "id": "ccb8f30e-4d71-40c4-8b1d-846dafe73e2c",
+                    "disambiguation": ""
+                  }
+                }
+              ],
+              "recording": {
+                "isrcs": [
+                  "GBAAA9600007",
+                  "GBDFN9600010"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "id": "ccb8f30e-4d71-40c4-8b1d-846dafe73e2c",
+                      "sort-name": "Michael, George",
+                      "name": "George Michael",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "GB"
+                    },
+                    "joinphrase": "",
+                    "name": "George Michael"
+                  }
+                ],
+                "first-release-date": "1996-05-06",
+                "id": "e33e3184-858e-424d-9a25-1031d61a8763",
+                "length": 329000,
+                "video": false,
+                "disambiguation": "",
+                "title": "You Have Been Loved"
+              }
+            },
+            {
+              "title": "The Drugs Don't Work",
+              "id": "01ec9cdf-9bc0-3b8e-a482-523c393340dd",
+              "length": 285306,
+              "position": 3,
+              "artist-credit": [
+                {
+                  "name": "The Verve",
+                  "artist": {
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "name": "The Verve",
+                    "sort-name": "Verve, The",
+                    "id": "d4d17620-fd97-4574-92a8-a2cb7e72ce42",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "length": 285440,
+                "id": "ada4c286-ddd1-4319-bf53-c2d209446616",
+                "disambiguation": "",
+                "video": false,
+                "title": "The Drugs Don’t Work",
+                "isrcs": [
+                  "GBAAA9700033"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "The Verve",
+                    "artist": {
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "The Verve",
+                      "type": "Group",
+                      "sort-name": "Verve, The",
+                      "id": "d4d17620-fd97-4574-92a8-a2cb7e72ce42",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "first-release-date": "1997-10-06"
+              },
+              "number": "3"
+            },
+            {
+              "recording": {
+                "length": 356560,
+                "id": "a6dffce0-dcee-4872-9756-1569cd99600a",
+                "title": "Stand by Me",
+                "disambiguation": "",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "name": "Oasis",
+                    "artist": {
+                      "sort-name": "Oasis",
+                      "id": "39ab1aed-75e0-4140-bd47-540276886b60",
+                      "disambiguation": "Noel & Liam Gallagher",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Oasis",
+                      "type": "Group"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "GBBQY9700008",
+                  "GBQCP1600012"
+                ],
+                "first-release-date": "1997-08-21"
+              },
+              "artist-credit": [
+                {
+                  "name": "Oasis",
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "Oasis",
+                    "id": "39ab1aed-75e0-4140-bd47-540276886b60",
+                    "disambiguation": "Noel & Liam Gallagher",
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "name": "Oasis"
+                  }
+                }
+              ],
+              "number": "4",
+              "length": 356333,
+              "id": "41d83595-b470-3b19-8bd6-e4b1802b69cc",
+              "position": 4,
+              "title": "Stand by Me"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Embrace",
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Group",
+                    "name": "Embrace",
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "British indie group",
+                    "sort-name": "Embrace",
+                    "id": "77f049ad-f469-4ad1-8283-7a2606a6722e"
+                  }
+                }
+              ],
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "Embrace",
+                    "artist": {
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "name": "Embrace",
+                      "sort-name": "Embrace",
+                      "id": "77f049ad-f469-4ad1-8283-7a2606a6722e",
+                      "disambiguation": "British indie group"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "GBAAA9700035"
+                ],
+                "first-release-date": "1997-02-17",
+                "length": 375920,
+                "id": "587941eb-f1c4-4d5e-8a48-cc33a7a613c1",
+                "title": "All You Good Good People (Fierce Panda version)",
+                "disambiguation": "",
+                "video": false
+              },
+              "number": "5",
+              "length": 375733,
+              "id": "51e72e27-ca47-38cd-90a9-3346f0bc06c6",
+              "position": 5,
+              "title": "All You Good Good People"
+            },
+            {
+              "recording": {
+                "isrcs": [],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "Faithless",
+                      "type": "Group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "GB",
+                      "disambiguation": "",
+                      "id": "23d9d74d-c95e-46a6-be26-a6075c49747a",
+                      "sort-name": "Faithless"
+                    },
+                    "joinphrase": "",
+                    "name": "Faithless"
+                  }
+                ],
+                "first-release-date": "1996",
+                "length": 193173,
+                "id": "2b2d713b-261b-4787-8179-a377cb740e39",
+                "disambiguation": "",
+                "video": false,
+                "title": "Don’t Leave (The Hard mix)"
+              },
+              "artist-credit": [
+                {
+                  "name": "Faithless",
+                  "artist": {
+                    "disambiguation": "",
+                    "id": "23d9d74d-c95e-46a6-be26-a6075c49747a",
+                    "sort-name": "Faithless",
+                    "name": "Faithless",
+                    "type": "Group",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "6",
+              "title": "Don't Leave (hard mix)",
+              "length": 191960,
+              "id": "2267dba1-e8dd-3913-a59a-dcf52ab77484",
+              "position": 6
+            },
+            {
+              "id": "36afff38-6de2-33d3-94f8-2c71a2b3d856",
+              "length": 262133,
+              "position": 7,
+              "title": "Karma Police",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "sort-name": "Radiohead",
+                    "type": "Group",
+                    "name": "Radiohead",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB"
+                  },
+                  "joinphrase": "",
+                  "name": "Radiohead"
+                }
+              ],
+              "recording": {
+                "first-release-date": "1997-05-21",
+                "isrcs": [
+                  "GBAYE9701368",
+                  "GBAYE9701424",
+                  "GBBKS1700112"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "name": "Radiohead"
+                    },
+                    "joinphrase": "",
+                    "name": "Radiohead"
+                  }
+                ],
+                "disambiguation": "",
+                "video": false,
+                "title": "Karma Police",
+                "length": 262426,
+                "id": "9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3"
+              },
+              "number": "7"
+            },
+            {
+              "recording": {
+                "first-release-date": "1997-10-27",
+                "isrcs": [
+                  "GBAJH0602035",
+                  "USMG29700152"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Moby",
+                      "id": "8970d868-0723-483b-a75b-51088913d3d4",
+                      "disambiguation": "electronic musician Richard Melville Hall",
+                      "country": "US",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person",
+                      "name": "Moby"
+                    },
+                    "name": "Moby"
+                  }
+                ],
+                "disambiguation": "",
+                "video": false,
+                "title": "James Bond Theme (Moby’s re-version)",
+                "length": 192000,
+                "id": "bacdd875-5f7a-4b36-967a-37873911252f"
+              },
+              "artist-credit": [
+                {
+                  "name": "Moby",
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "US",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Moby",
+                    "type": "Person",
+                    "sort-name": "Moby",
+                    "id": "8970d868-0723-483b-a75b-51088913d3d4",
+                    "disambiguation": "electronic musician Richard Melville Hall"
+                  }
+                }
+              ],
+              "number": "8",
+              "id": "1b5fdc3f-fcf3-36b1-abae-103a17528d14",
+              "length": 189666,
+              "position": 8,
+              "title": "James Bond Theme"
+            },
+            {
+              "title": "Choose Life",
+              "length": 228773,
+              "id": "25661a7b-73fb-3931-a7b9-3e438474aecc",
+              "position": 9,
+              "recording": {
+                "id": "4f1c7acf-8868-4513-911d-306447c10a2f",
+                "length": 230000,
+                "video": false,
+                "disambiguation": "",
+                "title": "Choose Life",
+                "isrcs": [
+                  "GBAYE9700097",
+                  "GBAYE9702364"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "PF Project",
+                    "artist": {
+                      "disambiguation": "",
+                      "sort-name": "PF Project",
+                      "id": "fae6f524-9823-4b90-9f7a-0132699a0a01",
+                      "name": "PF Project",
+                      "type": "Group",
+                      "country": null,
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "name": "Ewan McGregor",
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Person",
+                      "name": "Ewan McGregor",
+                      "country": "GB",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "",
+                      "sort-name": "McGregor, Ewan",
+                      "id": "adc133fb-279c-4011-af61-d40132d7bb80"
+                    }
+                  }
+                ],
+                "first-release-date": "1997-10-06"
+              },
+              "artist-credit": [
+                {
+                  "name": "PF Project",
+                  "joinphrase": " feat. ",
+                  "artist": {
+                    "country": null,
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "name": "PF Project",
+                    "sort-name": "PF Project",
+                    "id": "fae6f524-9823-4b90-9f7a-0132699a0a01",
+                    "disambiguation": ""
+                  }
+                },
+                {
+                  "artist": {
+                    "id": "adc133fb-279c-4011-af61-d40132d7bb80",
+                    "sort-name": "McGregor, Ewan",
+                    "disambiguation": "",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "GB",
+                    "type": "Person",
+                    "name": "Ewan McGregor"
+                  },
+                  "joinphrase": "",
+                  "name": "Ewan McGregor"
+                }
+              ],
+              "number": "9"
+            },
+            {
+              "title": "Lazy Days",
+              "position": 10,
+              "id": "075262f9-2e70-3d7f-9de6-d7f5a498b886",
+              "length": 229293,
+              "number": "10",
+              "recording": {
+                "isrcs": [
+                  "GBAYE9701180",
+                  "GBAYK0400098",
+                  "GBFFG0400098"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Robbie Williams",
+                    "artist": {
+                      "type": "Person",
+                      "name": "Robbie Williams",
+                      "country": "GB",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "",
+                      "sort-name": "Williams, Robbie",
+                      "id": "db4624cf-0e44-481e-a9dc-2142b833ec2f"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "first-release-date": "1997-07-14",
+                "id": "e0cd1fa9-1645-4f68-bb55-f5d63b7fa468",
+                "length": 234000,
+                "video": false,
+                "disambiguation": "",
+                "title": "Lazy Days"
+              },
+              "artist-credit": [
+                {
+                  "name": "Robbie Williams",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "id": "db4624cf-0e44-481e-a9dc-2142b833ec2f",
+                    "sort-name": "Williams, Robbie",
+                    "type": "Person",
+                    "name": "Robbie Williams",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "GB"
+                  }
+                }
+              ]
+            },
+            {
+              "length": 255373,
+              "id": "9b2072aa-1938-3d06-b3c8-a09f828395e3",
+              "position": 11,
+              "title": "A Life Less Ordinary",
+              "artist-credit": [
+                {
+                  "name": "Ash",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Ash",
+                    "type": "Group",
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "Northern Ireland alternative rock band",
+                    "sort-name": "Ash",
+                    "id": "99164692-c02d-407c-81c9-25d338dd21f4"
+                  }
+                }
+              ],
+              "recording": {
+                "first-release-date": "1997-11-17",
+                "isrcs": [
+                  "GBBUG9700501"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Ash",
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Ash",
+                      "type": "Group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "GB",
+                      "disambiguation": "Northern Ireland alternative rock band",
+                      "id": "99164692-c02d-407c-81c9-25d338dd21f4",
+                      "sort-name": "Ash"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "video": false,
+                "title": "A Life Less Ordinary",
+                "length": 255853,
+                "id": "0a3a1694-ef1c-44d9-b0f6-785e33f493e5"
+              },
+              "number": "11"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Texas",
+                  "artist": {
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "type": "Group",
+                    "name": "Texas",
+                    "sort-name": "Texas",
+                    "id": "7289d10d-d8d2-41ff-8308-c56ec9346e07",
+                    "disambiguation": "Scottish pop rock band"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "isrcs": [
+                  "GBF089700465"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "Scottish pop rock band",
+                      "sort-name": "Texas",
+                      "id": "7289d10d-d8d2-41ff-8308-c56ec9346e07",
+                      "type": "Group",
+                      "name": "Texas",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    },
+                    "name": "Texas"
+                  }
+                ],
+                "first-release-date": "1997-11-17",
+                "length": 197666,
+                "id": "fb08e97f-8e0b-4002-aa09-b7e297a42bd8",
+                "disambiguation": "",
+                "video": false,
+                "title": "Black Eyed Boy"
+              },
+              "number": "12",
+              "title": "Black Eyed Boy",
+              "id": "bd08acd6-b6ac-35d7-8dfa-40d9a52a8419",
+              "length": 193800,
+              "position": 12
+            },
+            {
+              "number": "13",
+              "recording": {
+                "id": "4f270972-1300-4736-9384-2c71cbc016bc",
+                "length": 238973,
+                "video": false,
+                "disambiguation": "",
+                "title": "Bitch (edit)",
+                "isrcs": [
+                  "USCA29600186",
+                  "USCA29701376"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Meredith Brooks",
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Meredith Brooks",
+                      "type": "Person",
+                      "country": "US",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "US singer/songwriter and guitarist",
+                      "sort-name": "Brooks, Meredith",
+                      "id": "6f033da5-396f-4381-a581-1f38c2d0a2d4"
+                    }
+                  }
+                ],
+                "first-release-date": "1997-04"
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "6f033da5-396f-4381-a581-1f38c2d0a2d4",
+                    "sort-name": "Brooks, Meredith",
+                    "disambiguation": "US singer/songwriter and guitarist",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "US",
+                    "type": "Person",
+                    "name": "Meredith Brooks"
+                  },
+                  "joinphrase": "",
+                  "name": "Meredith Brooks"
+                }
+              ],
+              "title": "Bitch",
+              "position": 13,
+              "id": "b6c70e2d-be92-316f-b4cc-24c4fb595618",
+              "length": 242600
+            },
+            {
+              "length": 224400,
+              "id": "c909531d-666e-304d-8065-bd92b0b889d3",
+              "position": 14,
+              "title": "Janie, Don't Take Your Love to Town",
+              "recording": {
+                "length": 224400,
+                "id": "bef20491-87f9-410b-a121-15e3dffa7303",
+                "disambiguation": "",
+                "video": false,
+                "title": "Janie, Don’t Take Your Love to Town",
+                "isrcs": [],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type": "Person",
+                      "name": "Jon Bon Jovi",
+                      "country": "US",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "",
+                      "sort-name": "Bon Jovi, Jon",
+                      "id": "5ace9b0c-cc21-4d8f-8e08-a70234439f2a"
+                    },
+                    "joinphrase": "",
+                    "name": "Jon Bon Jovi"
+                  }
+                ],
+                "first-release-date": "1997-11-17"
+              },
+              "artist-credit": [
+                {
+                  "name": "Jon Bon Jovi",
+                  "artist": {
+                    "disambiguation": "",
+                    "id": "5ace9b0c-cc21-4d8f-8e08-a70234439f2a",
+                    "sort-name": "Bon Jovi, Jon",
+                    "name": "Jon Bon Jovi",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "US"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "14"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Ocean Colour Scene",
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "name": "Ocean Colour Scene",
+                    "type": "Group",
+                    "id": "601d793d-7e96-4bb6-b4a6-712d5c926259",
+                    "sort-name": "Ocean Colour Scene",
+                    "disambiguation": ""
+                  }
+                }
+              ],
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group",
+                      "name": "Ocean Colour Scene",
+                      "sort-name": "Ocean Colour Scene",
+                      "id": "601d793d-7e96-4bb6-b4a6-712d5c926259",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": "",
+                    "name": "Ocean Colour Scene"
+                  }
+                ],
+                "isrcs": [
+                  "GBBBY9710943"
+                ],
+                "first-release-date": "1997-09-10",
+                "length": 226000,
+                "id": "c63496f3-09d1-4bef-a8ae-570c030dfe9a",
+                "title": "Better Day",
+                "disambiguation": "",
+                "video": false
+              },
+              "number": "15",
+              "id": "97ed0a7e-63b9-324c-b731-46a25af33134",
+              "length": 225693,
+              "position": 15,
+              "title": "Better Day"
+            },
+            {
+              "number": "16",
+              "recording": {
+                "isrcs": [
+                  "GBAKW9700159"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Cast",
+                      "id": "a6f84719-b3da-42f0-be81-8fe03545efed",
+                      "disambiguation": "British indie band",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Cast",
+                      "type": "Group"
+                    },
+                    "joinphrase": "",
+                    "name": "Cast"
+                  }
+                ],
+                "first-release-date": "1997-04-14",
+                "id": "006a1b2a-e4f3-4507-b137-ccd1720093c8",
+                "length": 261000,
+                "video": false,
+                "disambiguation": "",
+                "title": "I’m So Lonely"
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "GB",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Cast",
+                    "type": "Group",
+                    "sort-name": "Cast",
+                    "id": "a6f84719-b3da-42f0-be81-8fe03545efed",
+                    "disambiguation": "British indie band"
+                  },
+                  "name": "Cast"
+                }
+              ],
+              "title": "I'm So Lonely",
+              "position": 16,
+              "length": 260333,
+              "id": "bae9d665-5618-38a8-a6ae-65b5a1904689"
+            },
+            {
+              "id": "f3ecb34d-c39d-3e7b-b0de-377172d04b32",
+              "length": 241706,
+              "position": 17,
+              "title": "Earthbound",
+              "recording": {
+                "first-release-date": "1997-11-03",
+                "isrcs": [],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "Reeves, Conner",
+                      "id": "522534bb-9c7f-46bb-a2e3-c68174308298",
+                      "disambiguation": "",
+                      "country": "GB",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Conner Reeves",
+                      "type": "Person"
+                    },
+                    "joinphrase": "",
+                    "name": "Conner Reeves"
+                  }
+                ],
+                "video": false,
+                "disambiguation": "",
+                "title": "Earthbound",
+                "id": "2fa8a5ac-d98b-4b89-95ea-490f038b7de9",
+                "length": 242000
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Conner Reeves",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "id": "522534bb-9c7f-46bb-a2e3-c68174308298",
+                    "sort-name": "Reeves, Conner"
+                  },
+                  "name": "Conner Reeves"
+                }
+              ],
+              "number": "17"
+            },
+            {
+              "title": "Lonely",
+              "position": 18,
+              "length": 225293,
+              "id": "0e3ffdac-18d7-37a8-a4a9-69ed985498b1",
+              "number": "18",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "AU",
+                    "name": "Peter Andre",
+                    "type": "Person",
+                    "id": "090e9c0a-6767-49e0-8f51-84a43226a174",
+                    "sort-name": "Andre, Peter",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": "",
+                  "name": "Peter Andre"
+                }
+              ],
+              "recording": {
+                "length": 225293,
+                "id": "06f531a2-ae22-4c0e-8c9f-31bb4f41511a",
+                "title": "Lonely",
+                "disambiguation": "",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "name": "Peter Andre",
+                    "artist": {
+                      "sort-name": "Andre, Peter",
+                      "id": "090e9c0a-6767-49e0-8f51-84a43226a174",
+                      "disambiguation": "",
+                      "country": "AU",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Peter Andre",
+                      "type": "Person"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [],
+                "first-release-date": "1997-11-17"
+              }
+            },
+            {
+              "position": 19,
+              "id": "0fd9b496-2cfb-315d-8a2a-7afa5132b9ab",
+              "length": 267506,
+              "title": "4 Seasons of Loneliness",
+              "number": "19",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Boyz II Men",
+                    "id": "b42eca0f-9381-43db-badb-1cba080a7dc2",
+                    "disambiguation": "",
+                    "country": "US",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "name": "Boyz II Men",
+                    "type": "Group"
+                  },
+                  "joinphrase": "",
+                  "name": "Boyz II Men"
+                }
+              ],
+              "recording": {
+                "isrcs": [],
+                "artist-credit": [
+                  {
+                    "name": "Boyz II Men",
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "id": "b42eca0f-9381-43db-badb-1cba080a7dc2",
+                      "sort-name": "Boyz II Men",
+                      "type": "Group",
+                      "name": "Boyz II Men",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "US"
+                    }
+                  }
+                ],
+                "first-release-date": "1997-11-17",
+                "id": "9e296948-0367-46cf-b210-f6a06347514e",
+                "length": 268333,
+                "video": false,
+                "disambiguation": "",
+                "title": "4 Seasons of Loneliness"
+              }
+            }
+          ],
+          "format": "CD",
+          "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+        }
+      ],
+      "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+      "barcode": "0724382391128",
+      "release-events": [
+        {
+          "area": {
+            "type-id": null,
+            "iso-3166-1-codes": [
+              "GB"
+            ],
+            "type": null,
+            "name": "United Kingdom",
+            "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+            "sort-name": "United Kingdom",
+            "disambiguation": ""
+          },
+          "date": "1997-11-17"
+        }
+      ],
+      "date": "1997-11-17",
+      "disambiguation": "",
+      "release-group": {
+        "disambiguation": "UK",
+        "title": "Now That’s What I Call Music! 38",
+        "id": "26c77d0d-6361-3b85-ace9-70b476e53b25",
+        "primary-type": "Album",
+        "first-release-date": "1997-11-17",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "secondary-type-ids": [
+          "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+        ],
+        "secondary-types": [
+          "Compilation"
+        ],
+        "artist-credit": [
+          {
+            "name": "Various Artists",
+            "joinphrase": "",
+            "artist": {
+              "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+              "sort-name": "Various Artists",
+              "disambiguation": "add compilations to this artist",
+              "type-id": "ac897045-5043-3294-969b-187360e45d86",
+              "country": null,
+              "type": "Other",
+              "name": "Various Artists"
+            }
+          }
+        ]
+      },
+      "label-info": [
+        {
+          "label": null,
+          "catalog-number": "7243 8 23911 2 8"
+        },
+        {
+          "catalog-number": "CD NOW 38",
+          "label": {
+            "type-id": null,
+            "label-code": null,
+            "name": "NOW",
+            "type": null,
+            "id": "f1875ddd-98ed-42be-9d7c-0cfa707b227d",
+            "sort-name": "NOW",
+            "disambiguation": "bogus label for the UK series; please use the actual record company logos"
+          }
+        }
+      ],
+      "cover-art-archive": {
+        "back": true,
+        "darkened": false,
+        "front": true,
+        "artwork": true,
+        "count": 2
+      },
+      "quality": "normal",
+      "id": "6c939a5d-ea41-47aa-ad97-fb3c76279d72",
+      "title": "Now That’s What I Call Music! 38",
+      "status": "Official",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "asin": "B000007VWC"
+    }
+  }
+}

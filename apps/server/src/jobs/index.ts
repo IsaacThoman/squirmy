@@ -56,6 +56,20 @@ export async function enqueue<T extends object>(name: string, data: T, options: 
   })
 }
 
+/**
+ * Adds many jobs in one statement. Jobs whose singleton key is already queued or active are
+ * skipped, as with `enqueue`.
+ */
+export async function enqueueMany<T extends object>(name: string, items: readonly { data: T; singletonKey?: string; priority?: number }[]) {
+  if (items.length === 0) return
+  await ensureQueue(name)
+  await running().insert(name, items.map((item) => ({
+    data: item.data,
+    singletonKey: item.singletonKey ?? newId(),
+    ...(item.priority !== undefined && { priority: item.priority }),
+  })))
+}
+
 /** Runs `name` on a cron expression (UTC). Call it from a module's `jobs` hook or after `startJobs`. */
 export async function schedule(name: string, cron: string) {
   schedules.set(name, cron)
@@ -100,17 +114,29 @@ export async function startJobs({ work }: { work: boolean }) {
 
   for (const [name, { options }] of definitions) {
     const queue = { retryLimit: options.retryLimit ?? baseQueue.retryLimit, expireInSeconds: options.timeoutSeconds ?? 15 * 60 }
-    await ensureQueue(name, queue)
-    // createQueue keeps an existing queue's options; apply the definition's.
+    await ensureQueue(name, { ...queue, ...(options.policy && { policy: options.policy }) })
+    // createQueue keeps an existing queue's options; apply the definition's. The policy is
+    // fixed when the queue is created.
     await instance.updateQueue(name, queue)
   }
   if (!work) return
 
   for (const [name, { options, handler }] of definitions) {
-    const id = await instance.work<object>(name, { localConcurrency: options.concurrency ?? 1 }, async ([job]) => {
-      if (job) await handler(job.data, { id: job.id, attempt: job.retryCount + 1 })
-    })
-    workerIds.push(id)
+    // One pg-boss worker per slot, so each can be woken by id. With LISTEN/NOTIFY on, a
+    // worker otherwise waits out the 30 second notify backstop after every job, and a
+    // backlog drains at one job per slot per 30 seconds.
+    for (let slot = 0; slot < (options.concurrency ?? 1); slot += 1) {
+      let id = ''
+      id = await instance.work<object>(name, { localConcurrency: 1 }, async ([job]) => {
+        if (!job) return
+        try {
+          await handler(job.data, { id: job.id, attempt: job.retryCount + 1 })
+        } finally {
+          instance.notifyWorker(id)
+        }
+      })
+      workerIds.push(id)
+    }
   }
   for (const [name, cron] of schedules) {
     await ensureQueue(name)

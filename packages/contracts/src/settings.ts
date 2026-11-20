@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { patchOf } from './common.js'
 import { NormalizationMode, StreamQuality } from './playback.js'
 
 /** Per-user preferences, stored on the user row. */
@@ -13,7 +12,16 @@ export const UserSettings = z.object({
   scrobbleLastFm: z.boolean().default(false),
 })
 export type UserSettings = z.infer<typeof UserSettings>
-export const UpdateUserSettings = patchOf(UserSettings)
+/** `PATCH /api/v1/me/settings`. Keys left out keep their value; there are no defaults here. */
+export const UpdateUserSettings = z.object({
+  normalization: NormalizationMode,
+  qualityWifi: StreamQuality,
+  qualityCellular: StreamQuality,
+  downloadQuality: StreamQuality,
+  downloadOnWifiOnly: z.boolean(),
+  scrobbleListenBrainz: z.boolean(),
+  scrobbleLastFm: z.boolean(),
+}).partial()
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 
 /**
@@ -41,13 +49,26 @@ export const ServerSettings = z.object({
 })
 export type ServerSettings = z.infer<typeof ServerSettings>
 
-export const UpdateServerSettings = patchOf(ServerSettings.omit({
-  listenBrainzTokenSet: true, acoustIdKeySet: true, fanartKeySet: true, lastFmKeySet: true,
-})).extend({
-  listenBrainzToken: z.string().nullable().optional(),
-  acoustIdKey: z.string().nullable().optional(),
-  fanartKey: z.string().nullable().optional(),
-  lastFmKey: z.string().nullable().optional(),
-  lastFmSecret: z.string().nullable().optional(),
-})
+/**
+ * `PATCH /admin/settings`. Keys left out keep their value, so nothing here has a default.
+ * A secret set to null or an empty string is removed.
+ */
+export const UpdateServerSettings = z.object({
+  serverName: z.string(),
+  deezerEnabled: z.boolean(),
+  musicBrainzEnabled: z.boolean(),
+  musicBrainzBaseUrl: z.string(),
+  coverArtArchiveEnabled: z.boolean(),
+  wikidataEnabled: z.boolean(),
+  lrclibEnabled: z.boolean(),
+  matchAutoAcceptScore: z.number().min(0).max(1),
+  missingFileGraceDays: z.number().int().min(0).max(365),
+  transcodeCacheMaxBytes: z.number().int().min(0),
+  registrationRequiresInvite: z.boolean(),
+  listenBrainzToken: z.string().nullable(),
+  acoustIdKey: z.string().nullable(),
+  fanartKey: z.string().nullable(),
+  lastFmKey: z.string().nullable(),
+  lastFmSecret: z.string().nullable(),
+}).partial()
 export type UpdateServerSettings = z.infer<typeof UpdateServerSettings>

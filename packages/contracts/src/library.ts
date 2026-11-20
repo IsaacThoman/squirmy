@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Id, IsoDateTime } from './common.js'
+import { Id, IsoDateTime, page } from './common.js'
 
 /** `read_only`: scanned in place, never modified. `managed`: the server may rename, move and tag files. */
 export const LibraryRootMode = z.enum(['read_only', 'managed'])
@@ -29,6 +29,9 @@ export const LibraryRoot = z.object({
 })
 export type LibraryRoot = z.infer<typeof LibraryRoot>
 
+export const LibraryRootList = page(LibraryRoot)
+export type LibraryRootList = z.infer<typeof LibraryRootList>
+
 export const CreateLibraryRootRequest = z.object({
   name: z.string().trim().min(1).max(80),
   path: z.string().trim().min(1),
@@ -44,6 +47,10 @@ export const UpdateLibraryRootRequest = z.object({
   watch: z.boolean().optional(),
 })
 export type UpdateLibraryRootRequest = z.infer<typeof UpdateLibraryRootRequest>
+
+/** `queued` is false when a scan of the root is already queued or running. */
+export const ScanRootResponse = z.object({ queued: z.boolean() })
+export type ScanRootResponse = z.infer<typeof ScanRootResponse>
 
 export const LibraryStats = z.object({
   artists: z.number().int(),
