@@ -71,9 +71,26 @@ describe('GET /search/library', () => {
     expect(titles((await search('para')).tracks)).toEqual(['Paranoid Android'])
   })
 
+  it('names the best match across kinds as top', async () => {
+    const top = async (q: string) => {
+      const results = await search(q)
+      const all = [...results.artists.map((item) => ({ ...item, title: item.name })), ...results.albums, ...results.tracks]
+      return results.top && [results.top.type, all.find((item) => item.id === results.top!.id)!.title]
+    }
+    expect(await top('radiohead')).toEqual(['artist', 'Radiohead'])
+    expect(await top('ok computer')).toEqual(['album', 'OK Computer'])
+    // An album and its title track tie on text; the album leads.
+    expect(await top('kid a')).toEqual(['album', 'Kid A'])
+    expect(await top('karma police')).toEqual(['track', 'Karma Police'])
+    expect(await top('radiohead lucky')).toEqual(['track', 'Lucky'])
+    expect(await top('para')).toEqual(['track', 'Paranoid Android'])
+    // A typo finds the artist, but nothing matches well enough to lead with.
+    expect(await top('radiohed')).toBeNull()
+  })
+
   it('works from the second character', async () => {
     expect(titles((await search('ok')).albums)).toEqual(['OK Computer'])
-    expect(await search('o')).toEqual({ artists: [], albums: [], tracks: [], provider: null })
+    expect(await search('o')).toEqual({ artists: [], albums: [], tracks: [], provider: null, top: null })
   })
 
   it('tolerates typos', async () => {
