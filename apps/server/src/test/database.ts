@@ -6,6 +6,7 @@ import postgres from 'postgres'
 import { afterAll, beforeAll } from 'vitest'
 import { resetConfig } from '../config.js'
 import { closeDb } from '../database/client.js'
+import { stopJobs } from '../jobs/index.js'
 import { adminUrl, databaseUrl } from './global-setup.js'
 
 /**
@@ -38,6 +39,8 @@ export function useTestDatabase() {
   })
 
   afterAll(async () => {
+    // pg-boss holds its own connections, which would fail loudly once the database is dropped.
+    await stopJobs()
     await closeDb()
     const admin = postgres(adminUrl(), { max: 1, onnotice: () => {} })
     await admin.unsafe(`drop database if exists "${name}" with (force)`)

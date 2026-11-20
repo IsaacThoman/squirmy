@@ -1,0 +1,61 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://en.wikipedia.org/api/rest_v1/page/summary/Joy_Division"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8; profile=\"https://www.mediawiki.org/wiki/Specs/Summary/1.5.0\""
+    },
+    "json": {
+      "type": "standard",
+      "title": "Joy Division",
+      "displaytitle": "<span lang=\"en\" dir=\"ltr\"><span class=\"mw-page-title-main\">Joy Division</span></span>",
+      "namespace": {
+        "id": 0,
+        "text": ""
+      },
+      "wikibase_item": "Q172763",
+      "titles": {
+        "canonical": "Joy_Division",
+        "normalized": "Joy Division",
+        "display": "<span lang=\"en\" dir=\"ltr\"><span class=\"mw-page-title-main\">Joy Division</span></span>"
+      },
+      "pageid": 16579,
+      "thumbnail": {
+        "source": "https://thumb.wikimedia.org/wikipedia/en/thumb/a/a0/Joy_Division_promo_photo.jpg/330px-Joy_Division_promo_photo.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+        "width": 330,
+        "height": 220
+      },
+      "originalimage": {
+        "source": "https://upload.wikimedia.org/wikipedia/en/a/a0/Joy_Division_promo_photo.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+        "width": 389,
+        "height": 259
+      },
+      "lang": "en",
+      "dir": "ltr",
+      "revision": "1384538317",
+      "tid": "94a59d4d-dbaa-11f1-8326-c21e0ec24768",
+      "timestamp": "2026-11-08T19:28:31Z",
+      "description": "English rock band (1976–1980)",
+      "description_source": "local",
+      "content_urls": {
+        "desktop": {
+          "page": "https://en.wikipedia.org/wiki/Joy_Division",
+          "revisions": "https://en.wikipedia.org/wiki/Joy_Division?action=history",
+          "edit": "https://en.wikipedia.org/wiki/Joy_Division?action=edit",
+          "talk": "https://en.wikipedia.org/wiki/Talk:Joy_Division"
+        },
+        "mobile": {
+          "page": "https://en.wikipedia.org/wiki/Joy_Division",
+          "revisions": "https://en.wikipedia.org/wiki/Special:History/Joy_Division",
+          "edit": "https://en.wikipedia.org/wiki/Joy_Division?action=edit",
+          "talk": "https://en.wikipedia.org/wiki/Talk:Joy_Division"
+        }
+      },
+      "extract": "Joy Division were an English rock band formed in Salford in 1976. The group consisted of vocalist, guitarist and lyricist Ian Curtis, guitarist and keyboardist Bernard Sumner, bassist Peter Hook, and drummer Stephen Morris.",
+      "extract_html": "<p><b>Joy Division</b> were an English rock band formed in Salford in 1976. The group consisted of vocalist, guitarist and lyricist Ian Curtis, guitarist and keyboardist Bernard Sumner, bassist Peter Hook, and drummer Stephen Morris.</p>"
+    }
+  }
+}

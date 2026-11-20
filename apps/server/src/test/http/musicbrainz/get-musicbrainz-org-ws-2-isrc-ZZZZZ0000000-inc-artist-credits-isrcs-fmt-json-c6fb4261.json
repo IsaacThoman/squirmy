@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/isrc/ZZZZZ0000000?inc=artist-credits+isrcs&fmt=json"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "help": "For usage, please see: https://musicbrainz.org/development/mmd",
+      "error": "Not Found"
+    }
+  }
+}

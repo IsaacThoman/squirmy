@@ -57,5 +57,13 @@ export type HomeSection = z.infer<typeof HomeSection>
 export const HomeResponse = z.object({ sections: z.array(HomeSection) })
 export type HomeResponse = z.infer<typeof HomeResponse>
 
-export const LibrarySort = z.enum(['recent', 'title', 'artist', 'year'])
-export type LibrarySort = z.infer<typeof LibrarySort>
+/** `PUT/DELETE /me/wants/:type/:id`. */
+export const WantEntityType = z.enum(['album', 'track'])
+export type WantEntityType = z.infer<typeof WantEntityType>
+
+/** An item of `GET /me/wants`, newest first. `fulfilledAt` is set once an import completed it. */
+export const WantItem = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('album'), wantedAt: IsoDateTime, fulfilledAt: IsoDateTime.nullable(), album: AlbumSummary }),
+  z.object({ type: z.literal('track'), wantedAt: IsoDateTime, fulfilledAt: IsoDateTime.nullable(), track: TrackSummary }),
+])
+export type WantItem = z.infer<typeof WantItem>

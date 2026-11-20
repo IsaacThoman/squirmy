@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Id } from './common.js'
+import { Id, PageQuery } from './common.js'
 
 /**
  * Whether a track can be played.
@@ -127,6 +127,25 @@ export const Lyrics = z.object({
   source: z.string(),
 })
 export type Lyrics = z.infer<typeof Lyrics>
+
+export const LibrarySort = z.enum(['recent', 'title', 'artist', 'year'])
+export type LibrarySort = z.infer<typeof LibrarySort>
+
+/** Query of `GET /library/albums`, `/library/artists` and `/library/tracks`. */
+export const LibraryQuery = PageQuery.extend({
+  sort: LibrarySort.default('recent'),
+  /** Only items with this genre, matched case-insensitively. */
+  genre: z.string().min(1).optional(),
+})
+export type LibraryQuery = z.infer<typeof LibraryQuery>
+
+/** An item of `GET /library/genres`, sorted by name. */
+export const GenreSummary = z.object({ name: z.string(), albumCount: z.number().int() })
+export type GenreSummary = z.infer<typeof GenreSummary>
+
+/** Query of `GET /tracks/:id`: the album the track is shown in (see `TrackSummary.album`). */
+export const TrackQuery = z.object({ albumId: Id.optional() })
+export type TrackQuery = z.infer<typeof TrackQuery>
 
 /** `POST /api/v1/tracks/summaries` hydrates queue entries and playlists in one call. */
 export const TrackSummariesRequest = z.object({

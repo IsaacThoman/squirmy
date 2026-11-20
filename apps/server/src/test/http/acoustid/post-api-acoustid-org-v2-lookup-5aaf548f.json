@@ -1,0 +1,78 @@
+{
+  "note": "Hand-written from the AcoustID v2 lookup docs; recording needs a real API key. The fingerprint is made up.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.acoustid.org/v2/lookup",
+    "body": "client=test-acoustid-key&meta=recordings&duration=236&fingerprint=AQADtEmUaFKSRMmSRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGi"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "status": "ok",
+      "results": [
+        {
+          "id": "a6c3e3b2-2f07-4d1b-9ac4-3f0c6ad4e2a1",
+          "score": 0.97,
+          "recordings": [
+            {
+              "id": "33b6b148-9dce-4894-902d-d218ecc30666",
+              "title": "Uptown Funk",
+              "duration": 270,
+              "artists": [
+                {
+                  "id": "c3c82bdc-d9e7-4836-9746-c24ead47ca19",
+                  "name": "Mark Ronson",
+                  "joinphrase": " feat. "
+                },
+                {
+                  "id": "afb680f2-b6eb-4cd7-a70b-a63b25c763d5",
+                  "name": "Bruno Mars"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "0d8f5f0e-7c32-4c4a-8f0b-7b1d3a8d6c55",
+          "score": 0.42,
+          "recordings": [
+            {
+              "id": "c3a25100-952c-44cc-a3f5-2d2ecdb5892b",
+              "title": "Uptown Funk (BB Disco dub)",
+              "duration": 335,
+              "artists": [
+                {
+                  "id": "c3c82bdc-d9e7-4836-9746-c24ead47ca19",
+                  "name": "Mark Ronson"
+                }
+              ]
+            },
+            {
+              "id": "33b6b148-9dce-4894-902d-d218ecc30666",
+              "title": "Uptown Funk",
+              "duration": 270,
+              "artists": [
+                {
+                  "id": "c3c82bdc-d9e7-4836-9746-c24ead47ca19",
+                  "name": "Mark Ronson",
+                  "joinphrase": " feat. "
+                },
+                {
+                  "id": "afb680f2-b6eb-4cd7-a70b-a63b25c763d5",
+                  "name": "Bruno Mars"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "5b0e8b16-2a8c-4a35-9f0f-2c5e6f4c1d7e",
+          "score": 0.31
+        }
+      ]
+    }
+  }
+}
