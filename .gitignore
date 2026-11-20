@@ -8,3 +8,11 @@ android/
 *.log
 .env*.local
 expo-env.d.ts
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+coverage/
+/data/
+.vitepress/cache/
+.vitepress/dist/
