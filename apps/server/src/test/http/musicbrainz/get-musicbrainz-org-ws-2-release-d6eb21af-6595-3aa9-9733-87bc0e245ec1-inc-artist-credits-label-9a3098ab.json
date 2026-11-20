@@ -1,0 +1,256 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/d6eb21af-6595-3aa9-9733-87bc0e245ec1?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-group": {
+        "secondary-type-ids": [],
+        "first-release-date": "1997-07",
+        "primary-type-id": "d6038452-8ee0-3f68-affc-2de9a1ede0b9",
+        "artist-credit": [
+          {
+            "name": "Radiohead",
+            "joinphrase": "",
+            "artist": {
+              "sort-name": "Radiohead",
+              "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+              "disambiguation": "",
+              "country": "GB",
+              "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+              "name": "Radiohead",
+              "type": "Group"
+            }
+          }
+        ],
+        "secondary-types": [],
+        "title": "Karma Police",
+        "disambiguation": "",
+        "id": "d8758f15-65c9-3f34-baf9-475b30755e2b",
+        "primary-type": "Single"
+      },
+      "label-info": [],
+      "cover-art-archive": {
+        "back": false,
+        "darkened": false,
+        "front": false,
+        "artwork": false,
+        "count": 0
+      },
+      "quality": "normal",
+      "id": "d6eb21af-6595-3aa9-9733-87bc0e245ec1",
+      "title": "Karma Police",
+      "status": "Official",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "asin": null,
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "artist": {
+            "country": "GB",
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "type": "Group",
+            "name": "Radiohead",
+            "sort-name": "Radiohead",
+            "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+            "disambiguation": ""
+          },
+          "name": "Radiohead"
+        }
+      ],
+      "relations": [],
+      "packaging": null,
+      "country": "NL",
+      "text-representation": {
+        "language": "eng",
+        "script": "Latn"
+      },
+      "media": [
+        {
+          "format-id": null,
+          "format": null,
+          "tracks": [
+            {
+              "artist-credit": [
+                {
+                  "name": "Radiohead",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "sort-name": "Radiohead",
+                    "type": "Group",
+                    "name": "Radiohead",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB"
+                  }
+                }
+              ],
+              "recording": {
+                "title": "Karma Police",
+                "video": false,
+                "disambiguation": "",
+                "id": "9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3",
+                "length": 262426,
+                "first-release-date": "1997-05-21",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "Radiohead",
+                      "type": "Group",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+                    },
+                    "joinphrase": "",
+                    "name": "Radiohead"
+                  }
+                ],
+                "isrcs": [
+                  "GBAYE9701368",
+                  "GBAYE9701424",
+                  "GBBKS1700112"
+                ]
+              },
+              "number": "1",
+              "title": "Karma Police",
+              "id": "93422789-4a3c-30bd-baf8-871bda0f5876",
+              "length": 263066,
+              "position": 1
+            },
+            {
+              "number": "2",
+              "artist-credit": [
+                {
+                  "name": "Radiohead",
+                  "joinphrase": "",
+                  "artist": {
+                    "name": "Radiohead",
+                    "type": "Group",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "disambiguation": "",
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "sort-name": "Radiohead"
+                  }
+                }
+              ],
+              "recording": {
+                "id": "72f541ac-0d82-44e1-9f12-e50a7d23cfcf",
+                "length": 232386,
+                "title": "A Reminder",
+                "video": false,
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "Radiohead",
+                    "artist": {
+                      "name": "Radiohead",
+                      "type": "Group",
+                      "country": "GB",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "GBAYE9701277",
+                  "GBBKS1700125"
+                ],
+                "first-release-date": "1997-05-26"
+              },
+              "position": 2,
+              "id": "046a6108-c090-3b9f-ac47-b0d877725e7c",
+              "length": 233933,
+              "title": "A Reminder"
+            },
+            {
+              "title": "Melatonin",
+              "length": 128333,
+              "id": "6f1ba463-71f1-34a1-8536-46df7d068499",
+              "position": 3,
+              "recording": {
+                "first-release-date": "1997-05-26",
+                "isrcs": [
+                  "GBAYE9701279",
+                  "GBBKS1700124"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Radiohead",
+                    "artist": {
+                      "disambiguation": "",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "sort-name": "Radiohead",
+                      "name": "Radiohead",
+                      "type": "Group",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "country": "GB"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "video": false,
+                "disambiguation": "",
+                "title": "Melatonin",
+                "id": "08dcb5f9-a716-4a36-ac5e-b3740cf85cbb",
+                "length": 128986
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                    "sort-name": "Radiohead",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "country": "GB",
+                    "type": "Group",
+                    "name": "Radiohead"
+                  },
+                  "joinphrase": "",
+                  "name": "Radiohead"
+                }
+              ],
+              "number": "3"
+            }
+          ],
+          "track-count": 3,
+          "track-offset": 0,
+          "position": 1,
+          "id": "09c9759b-3e75-3598-957d-0377c8b5f8d3",
+          "title": ""
+        }
+      ],
+      "packaging-id": null,
+      "barcode": null,
+      "release-events": [
+        {
+          "date": "1997-07",
+          "area": {
+            "disambiguation": "",
+            "id": "ef1b7cc0-cd26-36f4-8ea0-04d9623786c7",
+            "sort-name": "Netherlands",
+            "iso-3166-1-codes": [
+              "NL"
+            ],
+            "name": "Netherlands",
+            "type": null,
+            "type-id": null
+          }
+        }
+      ],
+      "date": "1997-07",
+      "disambiguation": ""
+    }
+  }
+}

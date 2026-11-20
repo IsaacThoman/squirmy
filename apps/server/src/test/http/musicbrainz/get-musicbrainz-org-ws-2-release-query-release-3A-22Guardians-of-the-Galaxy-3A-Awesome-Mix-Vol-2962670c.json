@@ -1,0 +1,570 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=release%3A%22Guardians+of+the+Galaxy%3A+Awesome+Mix+Vol.+1%22+AND+artist%3A%22Various+Artists%22+tracks%3A12&limit=10&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T16:35:38.491Z",
+      "count": 7,
+      "offset": 0,
+      "releases": [
+        {
+          "id": "8c930411-7b42-4089-b20e-337aca7b8e64",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "949a7fd5-fe73-3e8f-922e-01ff4ca958f7",
+          "count": 1,
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1",
+          "status": "Official",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "artist": {
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "950092d6-45f6-4269-87da-99a9ff2fcc52",
+            "type-id": "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+            "disambiguation": "Original Motion Picture Soundtrack",
+            "primary-type": "Album",
+            "secondary-types": [
+              "Compilation",
+              "Soundtrack"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+              "22a628ad-c082-3c4f-b1b6-d41665107b88"
+            ]
+          },
+          "date": "2014-08-29",
+          "country": "DE",
+          "release-events": [
+            {
+              "date": "2014-08-29",
+              "area": {
+                "id": "85752fda-13c4-31a3-bee5-0e5cb1f51dad",
+                "name": "Germany",
+                "sort-name": "Germany",
+                "iso-3166-1-codes": [
+                  "DE"
+                ]
+              }
+            },
+            {
+              "date": "2014-07-28",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "barcode": "050087314460",
+          "asin": "B00LBKI41K",
+          "label-info": [
+            {
+              "catalog-number": "00050087314460",
+              "label": {
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "name": "Hollywood Records"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "31bc8948-75e8-35f7-8579-d3fe90828f69",
+              "format": "CD",
+              "disc-count": 1,
+              "track-count": 12
+            }
+          ],
+          "tags": [
+            {
+              "count": 1,
+              "name": "soundtrack"
+            },
+            {
+              "count": 1,
+              "name": "no cd-text"
+            },
+            {
+              "count": 1,
+              "name": "disc with isrc"
+            }
+          ]
+        },
+        {
+          "id": "6ef1aa4d-8e7b-4075-bdfa-d7110ec1e80a",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "artist-credit-id": "949a7fd5-fe73-3e8f-922e-01ff4ca958f7",
+          "count": 1,
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1",
+          "status": "Official",
+          "packaging": "Cardboard/Paper Sleeve",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "artist": {
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "950092d6-45f6-4269-87da-99a9ff2fcc52",
+            "type-id": "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+            "disambiguation": "Original Motion Picture Soundtrack",
+            "primary-type": "Album",
+            "secondary-types": [
+              "Compilation",
+              "Soundtrack"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+              "22a628ad-c082-3c4f-b1b6-d41665107b88"
+            ]
+          },
+          "date": "2014-09-29",
+          "country": "XE",
+          "release-events": [
+            {
+              "date": "2014-09-29",
+              "area": {
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "barcode": "050087316419",
+          "label-info": [
+            {
+              "catalog-number": "050087316419",
+              "label": {
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "name": "Hollywood Records"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "dce93cce-7573-3251-9105-3b96c32dd08b",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "94d3e761-411e-4a11-b20c-4121f9355195",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "949a7fd5-fe73-3e8f-922e-01ff4ca958f7",
+          "count": 1,
+          "title": "Guardians of the Galaxy: Awesome Mix Vol. 1",
+          "status": "Official",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "artist": {
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "950092d6-45f6-4269-87da-99a9ff2fcc52",
+            "type-id": "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+            "disambiguation": "Original Motion Picture Soundtrack",
+            "primary-type": "Album",
+            "secondary-types": [
+              "Compilation",
+              "Soundtrack"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+              "22a628ad-c082-3c4f-b1b6-d41665107b88"
+            ]
+          },
+          "date": "2014",
+          "country": "AU",
+          "release-events": [
+            {
+              "date": "2014",
+              "area": {
+                "id": "106e0bec-b638-3b37-b731-f53d507dc00e",
+                "name": "Australia",
+                "sort-name": "Australia",
+                "iso-3166-1-codes": [
+                  "AU"
+                ]
+              }
+            }
+          ],
+          "barcode": "050087314460",
+          "label-info": [
+            {
+              "catalog-number": "8731446",
+              "label": {
+                "id": "58a95510-5b87-41dd-9cd1-235fc75611f3",
+                "name": "Universal Music Australia"
+              }
+            },
+            {
+              "catalog-number": "8731446",
+              "label": {
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "name": "Hollywood Records"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "d2e26b34-e34c-450a-be4a-b1008e716c8a",
+              "format": "CD",
+              "disc-count": 1,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "4eefc25d-dc10-4b3c-87bf-1d516d9e4725",
+          "score": 81,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "artist-credit-id": "949a7fd5-fe73-3e8f-922e-01ff4ca958f7",
+          "count": 1,
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+          "status": "Official",
+          "packaging": "None",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "artist": {
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "950092d6-45f6-4269-87da-99a9ff2fcc52",
+            "type-id": "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+            "disambiguation": "Original Motion Picture Soundtrack",
+            "primary-type": "Album",
+            "secondary-types": [
+              "Compilation",
+              "Soundtrack"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+              "22a628ad-c082-3c4f-b1b6-d41665107b88"
+            ]
+          },
+          "barcode": "00050087310868",
+          "label-info": [
+            {
+              "catalog-number": "[none]",
+              "label": {
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "name": "Hollywood Records"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "25eeb475-1337-3b6a-935d-9c0eb3e4eb74",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "10e05aca-28ac-4466-95bb-40c2d0bb560f",
+          "score": 81,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906",
+          "artist-credit-id": "949a7fd5-fe73-3e8f-922e-01ff4ca958f7",
+          "count": 1,
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+          "status": "Official",
+          "packaging": "Cassette Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "artist": {
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "950092d6-45f6-4269-87da-99a9ff2fcc52",
+            "type-id": "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+            "disambiguation": "Original Motion Picture Soundtrack",
+            "primary-type": "Album",
+            "secondary-types": [
+              "Compilation",
+              "Soundtrack"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+              "22a628ad-c082-3c4f-b1b6-d41665107b88"
+            ]
+          },
+          "date": "2014-11-24",
+          "country": "GB",
+          "release-events": [
+            {
+              "date": "2014-11-24",
+              "area": {
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "name": "United Kingdom",
+                "sort-name": "United Kingdom",
+                "iso-3166-1-codes": [
+                  "GB"
+                ]
+              }
+            }
+          ],
+          "barcode": "050087316471",
+          "asin": "B00OMEJB4Q",
+          "label-info": [
+            {
+              "catalog-number": "050087316471",
+              "label": {
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "name": "Hollywood Records"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "8382878c-ffb7-321f-b73f-180ad45aa858",
+              "format": "Cassette",
+              "disc-count": 0,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "e02022fc-2f0d-40fa-99ff-c2b9d06d2b3b",
+          "score": 81,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "949a7fd5-fe73-3e8f-922e-01ff4ca958f7",
+          "count": 1,
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+          "status": "Official",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "artist": {
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "950092d6-45f6-4269-87da-99a9ff2fcc52",
+            "type-id": "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+            "disambiguation": "Original Motion Picture Soundtrack",
+            "primary-type": "Album",
+            "secondary-types": [
+              "Compilation",
+              "Soundtrack"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+              "22a628ad-c082-3c4f-b1b6-d41665107b88"
+            ]
+          },
+          "date": "2014-07-29",
+          "country": "US",
+          "release-events": [
+            {
+              "date": "2014-07-29",
+              "area": {
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "sort-name": "United States",
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              }
+            }
+          ],
+          "barcode": "050087310851",
+          "asin": "B00KLF5J64",
+          "label-info": [
+            {
+              "catalog-number": "D002054602",
+              "label": {
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "name": "Hollywood Records"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "e1b7e0d3-5f62-37ed-bf64-9a8464f266dd",
+              "format": "Enhanced CD",
+              "disc-count": 1,
+              "track-count": 12
+            }
+          ]
+        },
+        {
+          "id": "57ff6c7e-3007-4bc4-ba17-c0dfc315169d",
+          "score": 81,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "artist-credit-id": "949a7fd5-fe73-3e8f-922e-01ff4ca958f7",
+          "count": 1,
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+          "status": "Official",
+          "packaging": "None",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Various Artists",
+              "artist": {
+                "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+                "name": "Various Artists",
+                "sort-name": "Various Artists",
+                "disambiguation": "add compilations to this artist"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "950092d6-45f6-4269-87da-99a9ff2fcc52",
+            "type-id": "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+            "disambiguation": "Original Motion Picture Soundtrack",
+            "primary-type": "Album",
+            "secondary-types": [
+              "Compilation",
+              "Soundtrack"
+            ],
+            "secondary-type-ids": [
+              "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+              "22a628ad-c082-3c4f-b1b6-d41665107b88"
+            ]
+          },
+          "date": "2015-09-18",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "2015-09-18",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "barcode": "0050087334536",
+          "label-info": [
+            {
+              "label": {
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "name": "Hollywood Records"
+              }
+            }
+          ],
+          "track-count": 12,
+          "media": [
+            {
+              "id": "c119754c-0621-3f1f-8321-fb67cba88c5f",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 12
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

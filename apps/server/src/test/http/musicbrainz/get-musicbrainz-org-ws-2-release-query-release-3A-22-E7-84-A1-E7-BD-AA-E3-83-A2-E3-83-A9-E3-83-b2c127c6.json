@@ -1,0 +1,217 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=release%3A%22%E7%84%A1%E7%BD%AA%E3%83%A2%E3%83%A9%E3%83%88%E3%83%AA%E3%82%A2%E3%83%A0%22+AND+artist%3A%22%E6%A4%8E%E5%90%8D%E6%9E%97%E6%AA%8E%22+tracks%3A11&limit=10&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T16:35:42.963Z",
+      "count": 3,
+      "offset": 0,
+      "releases": [
+        {
+          "id": "294fdf0c-5207-4361-adfa-dee7585627ef",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "artist-credit-id": "bb276166-b6c9-3446-8339-2fb6a8c650f9",
+          "count": 1,
+          "title": "無罪モラトリアム",
+          "status": "Official",
+          "packaging": "Cardboard/Paper Sleeve",
+          "text-representation": {
+            "language": "jpn",
+            "script": "Jpan"
+          },
+          "artist-credit": [
+            {
+              "name": "椎名林檎",
+              "artist": {
+                "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                "name": "椎名林檎",
+                "sort-name": "Sheena, Ringo"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "923db16c-6620-3e44-ba00-a20745c6a957",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "無罪モラトリアム",
+            "primary-type": "Album"
+          },
+          "date": "2008-11-28",
+          "country": "JP",
+          "release-events": [
+            {
+              "date": "2008-11-28",
+              "area": {
+                "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+                "name": "Japan",
+                "sort-name": "Japan",
+                "iso-3166-1-codes": [
+                  "JP"
+                ]
+              }
+            }
+          ],
+          "barcode": "",
+          "label-info": [
+            {
+              "catalog-number": "TOJT-24065",
+              "label": {
+                "id": "31af4a29-1d1a-46f4-bf47-a3e8e84dadfb",
+                "name": "EASTWORLD"
+              }
+            }
+          ],
+          "track-count": 11,
+          "media": [
+            {
+              "id": "808f84bb-21e1-3764-84e3-e1ebf9854d8e",
+              "format": "12\" Vinyl",
+              "disc-count": 0,
+              "track-count": 11
+            }
+          ]
+        },
+        {
+          "id": "5588dfca-c011-4f66-9899-dcaa5f4efed5",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "artist-credit-id": "bb276166-b6c9-3446-8339-2fb6a8c650f9",
+          "count": 1,
+          "title": "無罪モラトリアム",
+          "status": "Official",
+          "packaging": "Jewel Case",
+          "text-representation": {
+            "language": "jpn",
+            "script": "Jpan"
+          },
+          "artist-credit": [
+            {
+              "name": "椎名林檎",
+              "artist": {
+                "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                "name": "椎名林檎",
+                "sort-name": "Sheena, Ringo"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "923db16c-6620-3e44-ba00-a20745c6a957",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "無罪モラトリアム",
+            "primary-type": "Album"
+          },
+          "date": "1999-02-24",
+          "country": "JP",
+          "release-events": [
+            {
+              "date": "1999-02-24",
+              "area": {
+                "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+                "name": "Japan",
+                "sort-name": "Japan",
+                "iso-3166-1-codes": [
+                  "JP"
+                ]
+              }
+            }
+          ],
+          "barcode": "4988006158429",
+          "asin": "B00000JD1I",
+          "label-info": [
+            {
+              "catalog-number": "TOCT-24065",
+              "label": {
+                "id": "31af4a29-1d1a-46f4-bf47-a3e8e84dadfb",
+                "name": "EASTWORLD"
+              }
+            }
+          ],
+          "track-count": 11,
+          "media": [
+            {
+              "id": "f8087390-fdb4-3b19-ad7d-25303d050430",
+              "format": "CD",
+              "disc-count": 2,
+              "track-count": 11
+            }
+          ]
+        },
+        {
+          "id": "ab744638-f272-4ab6-9a2d-34823a2c984d",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "artist-credit-id": "bb276166-b6c9-3446-8339-2fb6a8c650f9",
+          "count": 1,
+          "title": "無罪モラトリアム",
+          "status": "Official",
+          "packaging": "None",
+          "text-representation": {
+            "language": "jpn",
+            "script": "Jpan"
+          },
+          "artist-credit": [
+            {
+              "name": "椎名林檎",
+              "artist": {
+                "id": "9e414497-23b7-4ab7-9ec6-8ea9864c9e87",
+                "name": "椎名林檎",
+                "sort-name": "Sheena, Ringo"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "923db16c-6620-3e44-ba00-a20745c6a957",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "無罪モラトリアム",
+            "primary-type": "Album"
+          },
+          "date": "",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "barcode": "602567661191",
+          "label-info": [
+            {
+              "label": {
+                "id": "a20eafb7-8512-446d-b5d8-7f5d31032e64",
+                "name": "EMI Records"
+              }
+            }
+          ],
+          "track-count": 11,
+          "media": [
+            {
+              "id": "08b428c9-2d4b-3560-a18d-839dc7634bb0",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 11
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

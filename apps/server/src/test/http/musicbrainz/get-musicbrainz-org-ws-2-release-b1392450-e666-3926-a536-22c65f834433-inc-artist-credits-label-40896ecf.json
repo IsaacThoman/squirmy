@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/b1392450-e666-3926-a536-22c65f834433?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "error": "Not Found",
+      "help": "For usage, please see: https://musicbrainz.org/development/mmd"
+    }
+  }
+}
