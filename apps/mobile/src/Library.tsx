@@ -38,6 +38,7 @@ export type BrowseProps = {
   albumHref: (albumId: string) => Href;
   onTrackMenu: (trackId: string) => void;
   onOpenDevices?: () => void;
+  onOpenAccount?: () => void;
   bottomInset?: number;
 };
 
@@ -110,7 +111,7 @@ function SectionTitle({ title, onPress }: { title: string; onPress?: () => void 
   </View>;
 }
 
-export function HomeScreen({ onOpenAlbum, albumHref, onOpenDevices, bottomInset = 155 }: BrowseProps) {
+export function HomeScreen({ onOpenAlbum, albumHref, onOpenDevices, onOpenAccount, bottomInset = 155 }: BrowseProps) {
   const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
@@ -130,6 +131,7 @@ export function HomeScreen({ onOpenAlbum, albumHref, onOpenDevices, bottomInset 
       <View style={[styles.pageHeader, styles.homeHeader]}>
         <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Listen now</Text>
         {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
+        {onOpenAccount && <BrowseButton label="Account" icon="person.crop.circle" glass onPress={onOpenAccount} />}
       </View>
       <ZoomLink href={albumHref(hero.id)}><HeroCard album={hero} size={heroSize} /></ZoomLink>
       <View style={styles.homeSection}>

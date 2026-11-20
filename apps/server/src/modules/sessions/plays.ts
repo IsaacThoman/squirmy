@@ -29,6 +29,23 @@ export type OpenPlay = {
   countedTo: number
 }
 
+type PlayStartListener = (userId: string, play: Readonly<OpenPlay>) => void
+const playStartListeners = new Set<PlayStartListener>()
+
+/**
+ * Calls `listener` each time a play opens: an entry starts running on the user's active
+ * device. Called synchronously; it must not throw. Returns a function that unsubscribes.
+ */
+export function onPlayStart(listener: PlayStartListener): () => void {
+  playStartListeners.add(listener)
+  return () => void playStartListeners.delete(listener)
+}
+
+/** Tells the `onPlayStart` listeners that `play` just opened. */
+export function notifyPlayStart(userId: string, play: OpenPlay): void {
+  for (const listener of playStartListeners) listener(userId, play)
+}
+
 /** Time advances for the current entry: a device is outputting it and nothing holds it up. */
 function isRunning(session: Session): boolean {
   return session.activeDeviceId !== null && session.playing && !session.stalled && session.current?.state === 'ready'
