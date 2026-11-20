@@ -17,10 +17,10 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Server core: auth, users, invites, settings, jobs, realtime transport
 - [ ] Library scan, tag reading, local-only catalog rows
 - [ ] Artwork store and renditions
-- [ ] Library and catalog read API, home
+- [x] Library and catalog read API, home
 - [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
 - [x] Loudness measurement and normalization values
-- [ ] Likes, playlists, history, user settings
+- [x] Likes, playlists, history, user settings
 - [ ] Web app: setup, login, library, album and artist pages, player, queue
 - [ ] Mobile app: connect, login, real data, real audio, lock-screen controls
 

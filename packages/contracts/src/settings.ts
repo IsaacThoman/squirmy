@@ -12,7 +12,16 @@ export const UserSettings = z.object({
   scrobbleLastFm: z.boolean().default(false),
 })
 export type UserSettings = z.infer<typeof UserSettings>
-export const UpdateUserSettings = UserSettings.partial()
+/** `PATCH /api/v1/me/settings`. Keys left out keep their value; there are no defaults here. */
+export const UpdateUserSettings = z.object({
+  normalization: NormalizationMode,
+  qualityWifi: StreamQuality,
+  qualityCellular: StreamQuality,
+  downloadQuality: StreamQuality,
+  downloadOnWifiOnly: z.boolean(),
+  scrobbleListenBrainz: z.boolean(),
+  scrobbleLastFm: z.boolean(),
+}).partial()
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 
 /**
