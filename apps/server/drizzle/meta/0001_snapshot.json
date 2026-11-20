@@ -1,5 +1,5 @@
 {
-  "id": "31b284a8-544f-489f-a146-e1a726ebaa53",
+  "id": "6407cbd5-967e-4b49-9813-003a815562ed",
   "prevId": "12c50c85-f8fb-4b85-be65-b4fb1fc932a4",
   "version": "7",
   "dialect": "postgresql",
@@ -659,6 +659,81 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "albums_title_sort": {
+          "name": "albums_title_sort",
+          "columns": [
+            {
+              "expression": "regexp_replace(\"title_key\", '^(the|a|an) ', '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "albums_artist_sort": {
+          "name": "albums_artist_sort",
+          "columns": [
+            {
+              "expression": "regexp_replace(split_part(\"match_key\", '|', 1), '^(the|a|an) ', '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "regexp_replace(\"title_key\", '^(the|a|an) ', '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "albums_year_sort": {
+          "name": "albums_year_sort",
+          "columns": [
+            {
+              "expression": "coalesce(\"year\", 0) desc",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "regexp_replace(\"title_key\", '^(the|a|an) ', '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -937,6 +1012,27 @@
           "columns": [
             {
               "expression": "name_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "artists_name_sort": {
+          "name": "artists_name_sort",
+          "columns": [
+            {
+              "expression": "regexp_replace(\"name_key\", '^(the|a|an) ', '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2471,12 +2567,6 @@
           "notNull": true,
           "default": 0
         },
-        "probe_error": {
-          "name": "probe_error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "missing_since": {
           "name": "missing_since",
           "type": "timestamp with time zone",
@@ -2520,47 +2610,11 @@
           "method": "btree",
           "with": {}
         },
-        "media_files_scan_order": {
-          "name": "media_files_scan_order",
-          "columns": [
-            {
-              "expression": "root_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "\"rel_path\" collate \"C\"",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "media_files_audio_hash": {
           "name": "media_files_audio_hash",
           "columns": [
             {
               "expression": "audio_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_files_release_track": {
-          "name": "media_files_release_track",
-          "columns": [
-            {
-              "expression": "release_track_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2663,6 +2717,84 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_files_present_recent": {
+          "name": "media_files_present_recent",
+          "columns": [
+            {
+              "expression": "added_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"media_files\".\"missing_since\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_files_present_album": {
+          "name": "media_files_present_album",
+          "columns": [
+            {
+              "expression": "album_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "added_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"media_files\".\"missing_since\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_files_present_recording": {
+          "name": "media_files_present_recording",
+          "columns": [
+            {
+              "expression": "recording_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "added_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"media_files\".\"missing_since\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -3612,6 +3744,60 @@
           "columns": [
             {
               "expression": "primary_artist_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "recordings_title_sort": {
+          "name": "recordings_title_sort",
+          "columns": [
+            {
+              "expression": "regexp_replace(\"title_key\", '^(the|a|an) ', '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "regexp_replace(split_part(\"match_key\", '|', 1), '^(the|a|an) ', '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "recordings_artist_sort": {
+          "name": "recordings_artist_sort",
+          "columns": [
+            {
+              "expression": "regexp_replace(split_part(\"match_key\", '|', 1), '^(the|a|an) ', '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "regexp_replace(\"title_key\", '^(the|a|an) ', '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

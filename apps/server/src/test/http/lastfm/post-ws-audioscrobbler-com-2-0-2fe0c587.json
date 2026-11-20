@@ -1,0 +1,21 @@
+{
+  "note": "Hand-written from the Last.fm API docs; recording needs a real API key and session.",
+  "request": {
+    "method": "POST",
+    "url": "https://ws.audioscrobbler.com/2.0/",
+    "body": "token=authorized-token&method=auth.getSession&api_key=test-lastfm-key&api_sig=80510ed45f5c717a4e3784cb3fd4c22f&format=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "session": {
+        "name": "squirmy-test",
+        "key": "test-session-key",
+        "subscriber": 0
+      }
+    }
+  }
+}

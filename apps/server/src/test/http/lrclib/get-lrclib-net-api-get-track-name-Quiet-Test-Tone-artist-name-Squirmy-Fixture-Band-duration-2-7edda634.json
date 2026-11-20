@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://lrclib.net/api/get?track_name=Quiet+Test+Tone&artist_name=Squirmy+Fixture+Band&duration=2"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "message": "Failed to find specified track",
+      "name": "TrackNotFound",
+      "statusCode": 404
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "note": "Hand-written from the Last.fm API docs; recording needs a real API key and session.",
+  "request": {
+    "method": "POST",
+    "url": "https://ws.audioscrobbler.com/2.0/",
+    "body": "sk=revoked-session-key&artist%5B0%5D=Radiohead&track%5B0%5D=Airbag&album%5B0%5D=OK+Computer&duration%5B0%5D=284&trackNumber%5B0%5D=1&timestamp%5B0%5D=1795176000&method=track.scrobble&api_key=test-lastfm-key&api_sig=db3269a46cbd51a59ac2706264a47561&format=json"
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "error": 9,
+      "message": "Invalid session key - Please re-authenticate"
+    }
+  }
+}

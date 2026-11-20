@@ -9,7 +9,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Database schema for every milestone, initial migration, test harness
 - [x] CI: lint, typecheck, build, tests against Postgres
 - [x] semantic-release on `main`
-- [ ] Shared session reducer and session client in `client-core`
+- [x] Shared session reducer and session client in `client-core`
 - [ ] Docker image and `compose.yaml`
 
 ## 2. Your files, playing
@@ -17,16 +17,16 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Server core: auth, users, invites, settings, jobs, realtime transport
 - [x] Library scan, tag reading, local-only catalog rows
 - [x] Artwork store and renditions
-- [ ] Library and catalog read API, home
-- [ ] Streaming: playback descriptor, signed URLs, Range, transcode cache
-- [ ] Loudness measurement and normalization values
-- [ ] Likes, playlists, history, user settings
+- [x] Library and catalog read API, home
+- [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
+- [x] Loudness measurement and normalization values
+- [x] Likes, playlists, history, user settings
 - [ ] Web app: setup, login, library, album and artist pages, player, queue
 - [ ] Mobile app: connect, login, real data, real audio, lock-screen controls
 
 ## 3. Connect
 
-- [ ] Server-held session with command log and versions
+- [x] Server-held session with command log and versions
 - [ ] Device list, transfer, remote control
 - [ ] Reconnect rule and device-lost handling
 - [ ] Live invalidations on web and mobile
@@ -36,8 +36,9 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Metadata clients with cache and rate limits
 - [ ] Album matching tiers, review queue, fix match, merges
 - [ ] Enrichment: covers, artist images, bios, lyrics, external ids
-- [ ] Managed roots: preview, apply, journal, undo
-- [ ] Tag writing with verification
+- [x] Managed roots: preview, apply, journal, undo (server and API)
+- [ ] Organize screens in the admin UI
+- [x] Tag writing with verification
 
 ## 5. OpenSubsonic
 

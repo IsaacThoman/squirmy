@@ -1,0 +1,54 @@
+{
+  "note": "Hand-written from the fanart.tv v3 music API docs; recording needs a real API key.",
+  "request": {
+    "method": "GET",
+    "url": "https://webservice.fanart.tv/v3/music/a74b1b7f-71a5-4011-9441-d0b5e4122711?api_key=test-fanart-key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "name": "Radiohead",
+      "mbid_id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+      "artistthumb": [
+        {
+          "id": "25811",
+          "url": "https://assets.fanart.tv/fanart/music/a74b1b7f-71a5-4011-9441-d0b5e4122711/artistthumb/radiohead-5096a4f4d4b7c.jpg",
+          "likes": "2"
+        },
+        {
+          "id": "14423",
+          "url": "https://assets.fanart.tv/fanart/music/a74b1b7f-71a5-4011-9441-d0b5e4122711/artistthumb/radiohead-4fe1f4ea2e2e4.jpg",
+          "likes": "7"
+        }
+      ],
+      "artistbackground": [
+        {
+          "id": "10771",
+          "url": "https://assets.fanart.tv/fanart/music/a74b1b7f-71a5-4011-9441-d0b5e4122711/artistbackground/radiohead-4f8c1d3a3c6f1.jpg",
+          "likes": "5"
+        }
+      ],
+      "musiclogo": [
+        {
+          "id": "2011",
+          "url": "https://assets.fanart.tv/fanart/music/a74b1b7f-71a5-4011-9441-d0b5e4122711/musiclogo/radiohead-4dc4bd8d6d4a8.png",
+          "likes": "3"
+        }
+      ],
+      "albums": {
+        "b1392450-e666-3926-a536-22c65f834433": {
+          "albumcover": [
+            {
+              "id": "1201",
+              "url": "https://assets.fanart.tv/fanart/music/a74b1b7f-71a5-4011-9441-d0b5e4122711/albumcover/ok-computer-4e5b1a0c8b8f2.jpg",
+              "likes": "4"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

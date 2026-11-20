@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Id } from './common.js'
+import { Id, page, PageQuery } from './common.js'
 
 /**
  * Whether a track can be played.
@@ -128,6 +128,25 @@ export const Lyrics = z.object({
 })
 export type Lyrics = z.infer<typeof Lyrics>
 
+export const LibrarySort = z.enum(['recent', 'title', 'artist', 'year'])
+export type LibrarySort = z.infer<typeof LibrarySort>
+
+/** Query of `GET /library/albums`, `/library/artists` and `/library/tracks`. */
+export const LibraryQuery = PageQuery.extend({
+  sort: LibrarySort.default('recent'),
+  /** Only items with this genre, matched case-insensitively. */
+  genre: z.string().min(1).optional(),
+})
+export type LibraryQuery = z.infer<typeof LibraryQuery>
+
+/** An item of `GET /library/genres`, sorted by name. */
+export const GenreSummary = z.object({ name: z.string(), albumCount: z.number().int() })
+export type GenreSummary = z.infer<typeof GenreSummary>
+
+/** Query of `GET /tracks/:id`: the album the track is shown in (see `TrackSummary.album`). */
+export const TrackQuery = z.object({ albumId: Id.optional() })
+export type TrackQuery = z.infer<typeof TrackQuery>
+
 /** `POST /api/v1/tracks/summaries` hydrates queue entries and playlists in one call. */
 export const TrackSummariesRequest = z.object({
   tracks: z.array(z.object({ id: Id, albumId: Id.nullable().optional() })).max(500),
@@ -135,3 +154,13 @@ export const TrackSummariesRequest = z.object({
 export type TrackSummariesRequest = z.infer<typeof TrackSummariesRequest>
 export const TrackSummariesResponse = z.object({ tracks: z.array(TrackSummary) })
 export type TrackSummariesResponse = z.infer<typeof TrackSummariesResponse>
+
+/** Responses of the library lists and of `GET /me/likes/:type`. */
+export const TrackPage = page(TrackSummary)
+export type TrackPage = z.infer<typeof TrackPage>
+export const AlbumPage = page(AlbumSummary)
+export type AlbumPage = z.infer<typeof AlbumPage>
+export const ArtistPage = page(ArtistSummary)
+export type ArtistPage = z.infer<typeof ArtistPage>
+export const GenrePage = page(GenreSummary)
+export type GenrePage = z.infer<typeof GenrePage>

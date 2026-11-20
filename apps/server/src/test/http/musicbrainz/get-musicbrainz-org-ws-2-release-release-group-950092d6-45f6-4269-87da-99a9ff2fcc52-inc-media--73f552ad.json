@@ -1,0 +1,554 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?release-group=950092d6-45f6-4269-87da-99a9ff2fcc52&inc=media+labels&limit=100&offset=0&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-offset": 0,
+      "release-count": 8,
+      "releases": [
+        {
+          "country": "GB",
+          "barcode": "050087316471",
+          "quality": "normal",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "label-info": [
+            {
+              "catalog-number": "050087316471",
+              "label": {
+                "label-code": 10024,
+                "sort-name": "Hollywood Records",
+                "disambiguation": "a label of Disney Music Group",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "Hollywood Records",
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "type": "Imprint"
+              }
+            }
+          ],
+          "cover-art-archive": {
+            "front": true,
+            "artwork": true,
+            "darkened": false,
+            "back": true,
+            "count": 6
+          },
+          "id": "10e05aca-28ac-4466-95bb-40c2d0bb560f",
+          "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906",
+          "status": "Official",
+          "release-events": [
+            {
+              "date": "2014-11-24",
+              "area": {
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "disambiguation": "",
+                "sort-name": "United Kingdom",
+                "type": null,
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "name": "United Kingdom"
+              }
+            }
+          ],
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+          "asin": "B00OMEJB4Q",
+          "disambiguation": "",
+          "media": [
+            {
+              "track-count": 12,
+              "title": "",
+              "format-id": "f5e6e254-8f39-331c-936b-9c69d686dc47",
+              "position": 1,
+              "id": "8382878c-ffb7-321f-b73f-180ad45aa858",
+              "format": "Cassette"
+            }
+          ],
+          "packaging": "Cassette Case",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "date": "2014-11-24"
+        },
+        {
+          "cover-art-archive": {
+            "artwork": true,
+            "front": true,
+            "back": false,
+            "darkened": false,
+            "count": 1
+          },
+          "label-info": [
+            {
+              "catalog-number": "UICY-15597",
+              "label": {
+                "disambiguation": "a label of Disney Music Group",
+                "sort-name": "Hollywood Records",
+                "label-code": 10024,
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "Hollywood Records",
+                "type": "Imprint",
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d"
+              }
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "barcode": "4988031219577",
+          "quality": "normal",
+          "country": "JP",
+          "text-representation": {
+            "language": "eng",
+            "script": null
+          },
+          "date": "2017-05-12",
+          "asin": "B06XXQQR3P",
+          "disambiguation": "",
+          "media": [
+            {
+              "title": "",
+              "track-count": 12,
+              "format": "CD",
+              "id": "9f3d728b-db18-31a2-bc45-9be36faa00aa",
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+            }
+          ],
+          "packaging": "Jewel Case",
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+                "name": "Japan",
+                "disambiguation": "",
+                "sort-name": "Japan",
+                "iso-3166-1-codes": [
+                  "JP"
+                ],
+                "type-id": null
+              },
+              "date": "2017-05-12"
+            }
+          ],
+          "title": "ガーディアンズ・オブ・ギャラクシー：オーサム・ミックス VOL.1",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "status": "Official",
+          "id": "1b3d7b3f-e224-41f6-a1a5-0a44ca8402ff"
+        },
+        {
+          "label-info": [
+            {
+              "catalog-number": "[none]",
+              "label": {
+                "label-code": 10024,
+                "sort-name": "Hollywood Records",
+                "disambiguation": "a label of Disney Music Group",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "type": "Imprint",
+                "name": "Hollywood Records"
+              }
+            }
+          ],
+          "cover-art-archive": {
+            "darkened": false,
+            "back": false,
+            "count": 1,
+            "front": true,
+            "artwork": true
+          },
+          "country": null,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "barcode": "00050087310868",
+          "quality": "normal",
+          "disambiguation": "",
+          "asin": null,
+          "media": [
+            {
+              "track-count": 12,
+              "title": "",
+              "format": "Digital Media",
+              "id": "25eeb475-1337-3b6a-935d-9c0eb3e4eb74",
+              "position": 1,
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794"
+            }
+          ],
+          "packaging": "None",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "date": "2014-07-29",
+          "id": "4eefc25d-dc10-4b3c-87bf-1d516d9e4725",
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+          "release-events": [
+            {
+              "date": "2014-07-29",
+              "area": null
+            }
+          ],
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "status": "Official"
+        },
+        {
+          "id": "57ff6c7e-3007-4bc4-ba17-c0dfc315169d",
+          "release-events": [
+            {
+              "date": "2015-09-18",
+              "area": {
+                "type": null,
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "[Worldwide]"
+              }
+            }
+          ],
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+          "status": "Official",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "packaging": "None",
+          "media": [
+            {
+              "position": 1,
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "id": "c119754c-0621-3f1f-8321-fb67cba88c5f",
+              "format": "Digital Media",
+              "track-count": 12,
+              "title": ""
+            }
+          ],
+          "disambiguation": "",
+          "asin": null,
+          "date": "2015-09-18",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "country": "XW",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "quality": "normal",
+          "barcode": "0050087334536",
+          "label-info": [
+            {
+              "label": {
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "type": "Imprint",
+                "name": "Hollywood Records",
+                "label-code": 10024,
+                "sort-name": "Hollywood Records",
+                "disambiguation": "a label of Disney Music Group",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded"
+              },
+              "catalog-number": null
+            }
+          ],
+          "cover-art-archive": {
+            "darkened": false,
+            "back": false,
+            "count": 1,
+            "front": true,
+            "artwork": true
+          }
+        },
+        {
+          "cover-art-archive": {
+            "artwork": true,
+            "front": true,
+            "back": true,
+            "darkened": false,
+            "count": 3
+          },
+          "label-info": [
+            {
+              "label": {
+                "label-code": 10024,
+                "sort-name": "Hollywood Records",
+                "disambiguation": "a label of Disney Music Group",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "Hollywood Records",
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "type": "Imprint"
+              },
+              "catalog-number": "050087316419"
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "quality": "normal",
+          "barcode": "050087316419",
+          "country": "XE",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "date": "2014-09-29",
+          "disambiguation": "",
+          "asin": null,
+          "packaging": "Cardboard/Paper Sleeve",
+          "media": [
+            {
+              "position": 1,
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "id": "dce93cce-7573-3251-9105-3b96c32dd08b",
+              "format": "12\" Vinyl",
+              "track-count": 12,
+              "title": ""
+            }
+          ],
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1",
+          "release-events": [
+            {
+              "area": {
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "Europe",
+                "name": "Europe",
+                "type": null,
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a"
+              },
+              "date": "2014-09-29"
+            }
+          ],
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "status": "Official",
+          "id": "6ef1aa4d-8e7b-4075-bdfa-d7110ec1e80a"
+        },
+        {
+          "barcode": "050087314460",
+          "quality": "normal",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "country": "XE",
+          "cover-art-archive": {
+            "back": true,
+            "darkened": false,
+            "count": 10,
+            "artwork": true,
+            "front": true
+          },
+          "label-info": [
+            {
+              "catalog-number": "00050087314460",
+              "label": {
+                "type": "Imprint",
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "name": "Hollywood Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "disambiguation": "a label of Disney Music Group",
+                "label-code": 10024,
+                "sort-name": "Hollywood Records"
+              }
+            }
+          ],
+          "status": "Official",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "sort-name": "Europe",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "name": "Europe",
+                "type": null,
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a"
+              },
+              "date": "2014-07-28"
+            },
+            {
+              "area": {
+                "type": null,
+                "id": "85752fda-13c4-31a3-bee5-0e5cb1f51dad",
+                "name": "Germany",
+                "iso-3166-1-codes": [
+                  "DE"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "Germany"
+              },
+              "date": "2014-08-29"
+            }
+          ],
+          "id": "8c930411-7b42-4089-b20e-337aca7b8e64",
+          "date": "2014-07-28",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "media": [
+            {
+              "format": "CD",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "position": 1,
+              "id": "31bc8948-75e8-35f7-8579-d3fe90828f69",
+              "title": "",
+              "track-count": 12
+            }
+          ],
+          "packaging": "Jewel Case",
+          "asin": "B00LBKI41K",
+          "disambiguation": ""
+        },
+        {
+          "id": "94d3e761-411e-4a11-b20c-4121f9355195",
+          "status": "Official",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "release-events": [
+            {
+              "date": "2014",
+              "area": {
+                "name": "Australia",
+                "id": "106e0bec-b638-3b37-b731-f53d507dc00e",
+                "type": null,
+                "sort-name": "Australia",
+                "disambiguation": "",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "AU"
+                ]
+              }
+            }
+          ],
+          "title": "Guardians of the Galaxy: Awesome Mix Vol. 1",
+          "media": [
+            {
+              "format": "CD",
+              "id": "d2e26b34-e34c-450a-be4a-b1008e716c8a",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "position": 1,
+              "track-count": 12,
+              "title": ""
+            }
+          ],
+          "packaging": "Jewel Case",
+          "disambiguation": "",
+          "asin": null,
+          "date": "2014",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "country": "AU",
+          "barcode": "050087314460",
+          "quality": "normal",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "label-info": [
+            {
+              "catalog-number": "8731446",
+              "label": {
+                "name": "Hollywood Records",
+                "type": "Imprint",
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "disambiguation": "a label of Disney Music Group",
+                "label-code": 10024,
+                "sort-name": "Hollywood Records"
+              }
+            },
+            {
+              "label": {
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "label-code": null,
+                "sort-name": "Universal Music Australia",
+                "disambiguation": "see annotation before using",
+                "id": "58a95510-5b87-41dd-9cd1-235fc75611f3",
+                "type": "Imprint",
+                "name": "Universal Music Australia"
+              },
+              "catalog-number": "8731446"
+            }
+          ],
+          "cover-art-archive": {
+            "count": 0,
+            "back": false,
+            "darkened": false,
+            "artwork": false,
+            "front": false
+          }
+        },
+        {
+          "label-info": [
+            {
+              "label": {
+                "type": "Imprint",
+                "id": "6bb7c1b2-cb06-4381-9c59-02b1ae4aa96d",
+                "name": "Hollywood Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "disambiguation": "a label of Disney Music Group",
+                "label-code": 10024,
+                "sort-name": "Hollywood Records"
+              },
+              "catalog-number": "D002054602"
+            }
+          ],
+          "cover-art-archive": {
+            "count": 12,
+            "darkened": false,
+            "back": true,
+            "front": true,
+            "artwork": true
+          },
+          "country": "US",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "quality": "normal",
+          "barcode": "050087310851",
+          "media": [
+            {
+              "position": 1,
+              "format-id": "8a08dc62-1aa2-34de-a904-fa467c53052c",
+              "id": "e1b7e0d3-5f62-37ed-bf64-9a8464f266dd",
+              "format": "Enhanced CD",
+              "title": "",
+              "track-count": 12
+            }
+          ],
+          "packaging": "Jewel Case",
+          "asin": "B00KLF5J64",
+          "disambiguation": "",
+          "date": "2014-07-29",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "id": "e02022fc-2f0d-40fa-99ff-c2b9d06d2b3b",
+          "release-events": [
+            {
+              "date": "2014-07-29",
+              "area": {
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "United States",
+                "type": null,
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States"
+              }
+            }
+          ],
+          "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+          "status": "Official",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a"
+        }
+      ]
+    }
+  }
+}

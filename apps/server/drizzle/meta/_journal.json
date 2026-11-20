@@ -12,8 +12,15 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1795191815439,
-      "tag": "0001_library_scan",
+      "when": 1795192375973,
+      "tag": "0001_library_sort_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795194037097,
+      "tag": "0002_library_scan",
       "breakpoints": true
     }
   ]
