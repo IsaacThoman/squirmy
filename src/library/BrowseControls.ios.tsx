@@ -150,7 +150,8 @@ function TileGrid<T extends { id: string }>({ items, columns, verticalSpacing, r
 }) {
   const rows = Array.from({ length: Math.ceil(items.length / columns) },
     (_, index) => items.slice(index * columns, (index + 1) * columns));
-  return <Host alignment="topLeading" matchContents={{ vertical: true }}>
+  // React Native handles screen insets. Keep the grid anchored while its host scrolls through them.
+  return <Host alignment="topLeading" ignoreSafeArea="container" matchContents={{ vertical: true }}>
     <Grid alignment="topLeading" horizontalSpacing={12} verticalSpacing={verticalSpacing}>
       {rows.map(row => <Grid.Row key={row[0].id}>
         {row.map(item => <Fragment key={item.id}>{render(item)}</Fragment>)}
