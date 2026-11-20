@@ -729,6 +729,11 @@ export const acquisitionJobs = pgTable('acquisition_jobs', {
   recordingId: uuid('recording_id').references(() => recordings.id, { onDelete: 'set null' }),
   albumId: uuid('album_id').references(() => albums.id, { onDelete: 'set null' }),
   offer: jsonb('offer').$type<Record<string, unknown>>(),
+  /**
+   * The recordings the job is for: the requested one, or an album's tracks that were not
+   * owned when it was requested. A delivery is checked against these.
+   */
+  recordingIds: uuid('recording_ids').array().notNull().default(sql`'{}'::uuid[]`),
   /** resolving | queued | downloading | importing | completed | failed | rejected */
   status: text('status').notNull().default('resolving'),
   error: text('error'),
@@ -747,6 +752,21 @@ export const acquisitionJobs = pgTable('acquisition_jobs', {
   index('acquisition_jobs_status').on(t.status),
 ])
 
+/**
+ * Positive resolve cache: free offers a `must_resolve` provider returned for a recording.
+ * A recording with a recent row here is on demand from that provider.
+ */
+export const acquisitionOffers = pgTable('acquisition_offers', {
+  providerId: uuid('provider_id').notNull().references(() => acquisitionProviders.id, { onDelete: 'cascade' }),
+  recordingId: uuid('recording_id').notNull().references(() => recordings.id, { onDelete: 'cascade' }),
+  /** ProviderOffer[] from @squirmy/contracts, priced offers left out. */
+  offers: jsonb('offers').$type<unknown[]>().notNull(),
+  resolvedAt: at('resolved_at').notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.providerId, t.recordingId] }),
+  index('acquisition_offers_recording').on(t.recordingId),
+])
+
 /** Negative cache: things a provider could not supply, so they go back to gray. */
 export const acquisitionMisses = pgTable('acquisition_misses', {
   providerId: uuid('provider_id').notNull().references(() => acquisitionProviders.id, { onDelete: 'cascade' }),
@@ -754,7 +774,10 @@ export const acquisitionMisses = pgTable('acquisition_misses', {
   entityId: uuid('entity_id').notNull(),
   reason: text('reason'),
   createdAt: createdAt(),
-}, (t) => [primaryKey({ columns: [t.providerId, t.entityType, t.entityId] })])
+}, (t) => [
+  primaryKey({ columns: [t.providerId, t.entityType, t.entityId] }),
+  index('acquisition_misses_entity').on(t.entityId),
+])
 
 // ---------------------------------------------------------------------------
 // Infrastructure
