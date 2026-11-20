@@ -12,6 +12,7 @@ import { createUser } from '../../test/factories.js'
 import { analyzeFile } from './analyze.js'
 import { ingestGroup } from './ingest.js'
 import { probeFile } from './probe.js'
+import { stopProgress } from './progress.js'
 import { insertRoot } from './roots.js'
 import { scanRoot } from './scan.js'
 
@@ -41,6 +42,8 @@ describe('moving an album', () => {
   })
   afterAll(async () => {
     await stopJobs()
+    // Its debounce timers would otherwise fire after the database is gone.
+    await stopProgress()
     await rm(library, { recursive: true, force: true })
   })
 

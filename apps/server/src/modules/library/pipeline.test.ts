@@ -15,6 +15,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createUser } from '../../test/factories.js'
 import { VARIOUS_ARTISTS_MBID } from './grouping.js'
 import { libraryModule } from './index.js'
+import { stopProgress } from './progress.js'
 import { insertRoot } from './roots.js'
 import { scanRoot } from './scan.js'
 
@@ -123,6 +124,8 @@ describe('library pipeline', () => {
 
   afterAll(async () => {
     await stopJobs()
+    // Its debounce timers would otherwise fire after the database is gone.
+    await stopProgress()
     await rm(library, { recursive: true, force: true })
     await rm(outside, { recursive: true, force: true })
   })
