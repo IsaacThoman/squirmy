@@ -1,6 +1,7 @@
 import { enqueue, schedule } from '../../jobs/index.js'
 import type { ServerModule } from '../types.js'
 import { matchGroup, matchJobKey, sweep } from './match.js'
+import { matchingRoutes } from './routes.js'
 
 export { mergeAlbum, mergeArtist, mergeRecording, resolveMerged } from './merge.js'
 export { matchJobKey }
@@ -15,6 +16,7 @@ export type MatchAlbumJob = { rootId: string; groupKey: string }
  */
 export const matchingModule: ServerModule = {
   name: 'matching',
+  routes: matchingRoutes,
   async jobs(registry) {
     // Mostly waiting on MusicBrainz's one request a second; a mirror has no such limit.
     registry.define<MatchAlbumJob>('matching.match-album', { concurrency: 2, timeoutSeconds: 30 * 60 }, async ({ rootId, groupKey }) => {
