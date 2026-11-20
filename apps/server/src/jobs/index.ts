@@ -56,6 +56,20 @@ export async function enqueue<T extends object>(name: string, data: T, options: 
   })
 }
 
+/**
+ * Adds many jobs in one statement. Jobs whose singleton key is already queued or active are
+ * skipped, as with `enqueue`.
+ */
+export async function enqueueMany<T extends object>(name: string, items: readonly { data: T; singletonKey?: string; priority?: number }[]) {
+  if (items.length === 0) return
+  await ensureQueue(name)
+  await running().insert(name, items.map((item) => ({
+    data: item.data,
+    singletonKey: item.singletonKey ?? newId(),
+    ...(item.priority !== undefined && { priority: item.priority }),
+  })))
+}
+
 /** Runs `name` on a cron expression (UTC). Call it from a module's `jobs` hook or after `startJobs`. */
 export async function schedule(name: string, cron: string) {
   schedules.set(name, cron)
@@ -100,8 +114,9 @@ export async function startJobs({ work }: { work: boolean }) {
 
   for (const [name, { options }] of definitions) {
     const queue = { retryLimit: options.retryLimit ?? baseQueue.retryLimit, expireInSeconds: options.timeoutSeconds ?? 15 * 60 }
-    await ensureQueue(name, queue)
-    // createQueue keeps an existing queue's options; apply the definition's.
+    await ensureQueue(name, { ...queue, ...(options.policy && { policy: options.policy }) })
+    // createQueue keeps an existing queue's options; apply the definition's. The policy is
+    // fixed when the queue is created.
     await instance.updateQueue(name, queue)
   }
   if (!work) return
