@@ -27,7 +27,7 @@ npm workspaces, Node 22.13 or newer, TypeScript 6, ESM everywhere except the Exp
 ## Code conventions
 
 - Relative imports end in `.js` in server and packages (NodeNext). No path aliases in server or packages.
-- **Contracts first.** Every request and response body is a zod schema in `packages/contracts/src/<domain>.ts`, exported with its inferred type under the same name. Routes parse input with the schema and return objects that satisfy the response type.
+- **Contracts first.** Every request and response body is a zod schema in `packages/contracts/src/<domain>.ts`, exported with its inferred type under the same name. Routes parse input with the schema and return objects that satisfy the response type. A partial update of a schema with defaults is `patchOf(schema)`, not `.partial()`: in zod 4 a field left out of a `.partial()` still takes its default.
 - **Units.** Durations are integer milliseconds. Timestamps on the wire are ISO 8601 strings; the session protocol uses epoch milliseconds. Gains are dB; peaks are linear.
 - **IDs.** UUIDv7 from `newId()`. Artwork asset ids are UUIDv4 from `newPublicId()`.
 - **Errors.** Throw `AppError` (or the helpers in `lib/errors.ts`). The response body is `{ error: { code, message, details? } }`. Codes are stable snake_case strings.
@@ -264,6 +264,9 @@ All clients live in `modules/metadata/` and go through `lib/http.ts`:
 
 ```
 apps/web/src/
+  api/                 the API client (`useApi()`), query client, form error helpers
+  auth/                session queries, route guards, logout
+  realtime/            the user's socket.io connection, invalidations, `useServerEvent`
   components/ui/       primitives (button, slider, menu, dialog, …)
   components/music/    covers, cards, rails, track lists
   components/player/   player bar, mini-player, queue, devices, Now Playing
@@ -271,8 +274,14 @@ apps/web/src/
   components/views/    one presentational view per page; data arrives as props
   pages/               route containers: fetch data, pass it to a view
   player/              PlayerContext (session state and commands) and LibraryContext (likes, wants)
+  player/engine/       WebPlayerEngine, the Media Session adapter, the page's engine
   fixtures/            fictional catalog and an in-memory session, until the API is wired
 ```
+
+- **Bootstrap.** One API client (same origin, `client: 'web'`) and one `QueryClient`. Before any route renders, `GET /setup/status` and `GET /auth/me` load. Guards: a server without an admin shows the setup wizard on every route; signed-out visitors go to `/login?next=…`; admin routes need the admin role. Signing in or out only changes the cached `me`, and the guards navigate. A 401 from any request signs out; other failures become a toast with the server's message, unless the query or mutation says it shows them itself (`meta: { silent }`, `meta: { inline }`).
+- **Forms** validate with the contract schemas (`useFormSubmit`), show issues under their fields, and map known error codes onto fields.
+- **Realtime.** `RealtimeProvider` opens one socket per signed-in user. `invalidate` refreshes the named queries, every reconnect refreshes all of them, and the shell shows a notice when the socket has been down for three seconds. The socket is in the context for `SessionClient`.
+- **Audio.** `WebPlayerEngine` alternates two `<audio>` elements, each through its own `GainNode`, so normalization can boost. When the browser refuses to start audio the entry goes to `error` and the shell offers "Enable audio", which calls `unlock()` from the click. `/dev/engine` drives it with tones from `scripts/dev-audio.mjs`; `scripts/e2e-engine.mjs` checks it against the contract in Chromium, and `scripts/e2e-auth.mjs` walks the account flows against a fresh server.
 
 Catalog data reaches views through props typed with the contracts; session state and user actions come from `PlayerContext` and `LibraryContext`, whose providers are the only code that talks to `SessionClient` and the API. `/dev/kitchen-sink` shows every component state.
 
