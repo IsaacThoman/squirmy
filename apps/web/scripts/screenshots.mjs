@@ -4,6 +4,7 @@
 // (`npm run demo:library -w @squirmy/server`, prepared by `scripts/e2e-playback.mjs --prepare`).
 // On a server that is not set up yet it also captures the setup wizard, creating the admin
 // from SQUIRMY_USER and SQUIRMY_PASSWORD. It plays a few seconds of the quiet demo tones.
+// SQUIRMY_SHOTS=home,album,… captures only the shots with those names.
 import { mkdir } from 'node:fs/promises'
 import { chromium } from 'playwright'
 
@@ -12,6 +13,8 @@ const out = process.argv[3] ?? '.screenshots'
 const credentials = { username: process.env.SQUIRMY_USER ?? 'admin', password: process.env.SQUIRMY_PASSWORD ?? 'correct horse battery' }
 const headers = { 'X-Squirmy-Client': 'web', 'X-Squirmy-Request': '1' }
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const only = process.env.SQUIRMY_SHOTS?.split(',')
+const wanted = shot => !only || only.includes(shot.name)
 
 const signedOutShots = [
   { name: 'login', path: '/login', width: 1024 },
@@ -39,7 +42,7 @@ async function capture(target, shot, scheme, storageState) {
     await page.getByRole('list', { name: 'Albums' }).getByRole('button').first().click()
     await page.getByText('Track by track').waitFor({ timeout: 120_000 })
   }
-  if (shot.review) await page.getByText('Track by track').or(page.getByText('MusicBrainz offered nothing close')).first().waitFor()
+  if (review) await page.getByText('Track by track').or(page.getByText('MusicBrainz offered nothing close')).first().waitFor()
   if (shot.then) await click(shot.then)
   if (shot.create) {
     // The settings rows load in and move the button; wait for the last of them.
@@ -124,7 +127,7 @@ const shots = [
   { name: 'album', path: album },
   { name: 'artist', path: artist },
   { name: 'playlist', path: `/playlist/${playlist.id}` },
-  { name: 'search', path: '/search?q=blue', wait: 1200 },
+  { name: 'search', path: '/search?q=blue', wait: 1500, height: 1700 },
   { name: 'library-songs', path: '/library/songs' },
   { name: 'queue', path: album, click: 'Queue' },
   { name: 'now-playing', path: '/', click: 'Lyrics', wait: 900 },
@@ -163,8 +166,8 @@ const shots = [
 ]
 
 for (const scheme of ['light', 'dark']) {
-  for (const shot of shots) await capture(shot.strict ? strict : browser, shot, scheme, session)
-  for (const shot of signedOutShots) await capture(browser, shot, scheme)
+  for (const shot of shots.filter(wanted)) await capture(shot.strict ? strict : browser, shot, scheme, session)
+  for (const shot of signedOutShots.filter(wanted)) await capture(browser, shot, scheme)
 }
 
 // Another device plays: every page shows where, and the devices list offers to bring it here.
@@ -186,7 +189,7 @@ const elsewhere = [
   { name: 'devices', path: '/', width: 390, height: 844, click: 'Devices', wait: 900 },
 ]
 for (const scheme of ['light', 'dark']) {
-  for (const shot of elsewhere) await capture(browser, shot, scheme, session)
+  for (const shot of elsewhere.filter(wanted)) await capture(browser, shot, scheme, session)
 }
 await playing.getByRole('button', { name: 'Pause', exact: true }).first().click()
 await sleep(500)
