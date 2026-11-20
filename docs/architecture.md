@@ -193,7 +193,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
 | `GET /admin/reviews`, `POST /admin/reviews/:id/resolve`, `POST /admin/albums/:id/rematch`, `GET /admin/albums/:id/candidates` | matching | |
-| `POST /admin/organize/preview`, `GET /admin/organize/batches`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | |
+| `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `POST /imports`, `POST /imports/:id/files`, `POST /imports/:id/commit`, `GET /imports/:id` | imports | multipart upload |
 | `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request; play does it implicitly |
@@ -227,12 +227,13 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 
 ### Sessions
 
-The server holds one session per user in memory, persisted to `playback_sessions` on change (debounced one second). Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed (`queueChanged`), emitted just before the `session:state` of the same version.
+The server holds one session per user in memory, loaded on first use and persisted to `playback_sessions` on change (debounced one second, and flushed on shutdown). This assumes one API process: the copy in memory is the truth, so functions that change sessions (`markRecordingReady`, `replaceQueue`) must run in that process. Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast: `session:state` on every change, `session:queue` only when the queue half changed (`queueChanged`), emitted just before the `session:state` of the same version.
 
-- **Commands.** The server passes the envelope's `commandId` to the reducer (new entry ids derive from it), remembers recent command ids and acks a duplicate without applying it again, and acks a command before broadcasting its result. Server-issued commands use a fresh id.
-- **Active device.** The first device that sends a command that starts playback while no device is active becomes active. `transfer` changes it. Only the active device may send `trackEnded` and engine reports.
-- **Disconnects.** If the active device's last socket closes, the server waits 20 seconds, then applies `deviceLost` (pause at the last known position, clear the active device).
-- **Plays.** A play row opens when an entry starts on the active device and closes when it ends or changes. It counts as completed after half the track or four minutes.
+- **Commands.** The server passes the envelope's `commandId` to the reducer (new entry ids derive from it), remembers recent command ids and acks a duplicate without applying it again, and acks a command before broadcasting its result. Server-issued commands use a fresh id. A user's commands, reports and hellos run one at a time, in arrival order.
+- **Trusted entries.** For `playTracks` and `enqueue` the server keeps only the track ids the client sent: it follows merges, takes durations from the database, drops tracks that are neither owned nor on demand, and sets `ready` or `preparing` itself.
+- **Active device.** The first device that can play and sends a command that starts playback while no device is active becomes active. `transfer` changes it, and only to a connected device that can play. Only the active device may send `trackEnded` and engine reports. A report that is more than a second off the computed position, or changes whether playback is stalled, becomes `syncPosition`.
+- **Disconnects.** If the active device's last socket closes, the server waits 20 seconds, then applies `deviceLost` (pause at the last known position, clear the active device). A session loaded after a restart gives its absent active device the same grace.
+- **Plays.** A play row opens when an entry is current and running on the active device and closes when the entry changes or stops at its end. Listened time comes from the session's position arithmetic, so pauses and seeks add nothing. Plays under five seconds are skips and leave no row; one counts as completed after half the track or four minutes. Writing one invalidates history and home.
 - **On demand.** When the current or an upcoming entry is `on_demand`, the acquisition module is asked for it and the entry is `preparing` until the file is linked, then `setEntryState` flips it to `ready`.
 - **Autoplay.** When the queue is nearly empty and autoplay is on, the radio module supplies `setAutoplayQueue`.
 
