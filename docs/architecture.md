@@ -173,7 +173,7 @@ await schedule('library.scan-all', '0 4 * * *')
 - `startRealtime(app)` attaches to the Fastify server before it listens; closing the app closes the socket server.
 - The handshake takes the session token from `auth.token` or the `squirmy_session` cookie and is refused without a valid one.
 - Each socket joins the room `user:<id>`. Admin sockets also join `admins`. Handlers passed to `onConnection` run after that; register socket listeners before the first `await`.
-- `publish(target, event)` and `invalidate(target, keys)` are callable from any process. They `NOTIFY squirmy_events` with a JSON payload; the API process `LISTEN`s on a dedicated connection and forwards to rooms. `target` is `{ user: id }`, `'admins'` or `'all'`. Keys that do not fit in one notification (8000 bytes) are split across several. `disconnectSockets(userId, { only | except })` closes sockets of revoked sessions the same way.
+- `publish(target, event)` and `invalidate(target, keys)` are callable from any process. They `NOTIFY squirmy_events` with a JSON payload; the API process `LISTEN`s on a dedicated connection and forwards to rooms. `target` is `{ user: id }`, `'admins'`, `'all'`, or a list of them, which reaches each socket once however many of them it is in (an admin is in their own room and in `admins`). Keys that do not fit in one notification (8000 bytes) are split across several. `disconnectSockets(userId, { only | except })` closes sockets of revoked sessions the same way.
 - `time:sync` is answered here; the `session:*` events belong to the `sessions` module.
 - Every mutation that changes what another open screen shows calls `invalidate` with keys from `queryKeys`.
 

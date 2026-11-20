@@ -90,6 +90,24 @@ describe('realtime', () => {
     expect(missed).toEqual([])
   })
 
+  it('delivers an event for a user and for admins once to an admin, who is in both rooms', async () => {
+    const adminClient = await open({ token: admin.token })
+    const memberClient = await open({ token: member.token })
+    const received: ServerEvent[] = []
+    const toMember: ServerEvent[] = []
+    adminClient.on('event', (event) => received.push(event))
+    memberClient.on('event', (event) => toMember.push(event))
+    const event: ServerEvent = { type: 'import.updated', importId: '0190d3a6-0000-7000-8000-000000000001', status: 'processing' }
+    await publish([{ user: admin.id }, 'admins'], event)
+    // A marker sent after it: once it arrives, any duplicate would have too.
+    const marker: ServerEvent = { ...event, status: 'completed' }
+    const markerArrived = new Promise<void>((resolve) => adminClient.on('event', (next) => next.type === 'import.updated' && next.status === 'completed' && resolve()))
+    await publish({ user: admin.id }, marker)
+    await markerArrived
+    expect(received).toEqual([event, marker])
+    expect(toMember).toEqual([])
+  })
+
   it('splits invalidations that do not fit in one notification', async () => {
     const client = await open({ token: member.token })
     const keys = Array.from({ length: 300 }, (_, index) => queryKeys.album(`0190d3a6-0000-7000-8000-${String(index).padStart(12, '0')}`))

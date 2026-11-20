@@ -79,8 +79,7 @@ export async function loadJob(jobId: string): Promise<JobRow | null> {
 /** Sends `acquisition.updated` to whoever asked and to admins. */
 async function announce(job: JobRow) {
   const event = { type: 'acquisition.updated' as const, jobId: job.id, trackId: job.recordingId, status: job.status }
-  if (job.requestedBy) await publish({ user: job.requestedBy }, event)
-  await publish('admins', event)
+  await publish(job.requestedBy ? [{ user: job.requestedBy }, 'admins'] : 'admins', event)
 }
 
 /** Updates a job that is in one of `from`, announcing a status change. Null when it was not. */
