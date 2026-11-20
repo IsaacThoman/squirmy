@@ -68,12 +68,16 @@ import {
 } from '@squirmy/contracts'
 import { z } from 'zod'
 
+/** An `AbortSignal`; client-core is built without the DOM and Node types that declare it. */
+export type AbortSignalLike = { readonly aborted: boolean }
+
 /** The subset of `fetch` the client uses. The platform's `fetch` satisfies it. */
 export type FetchLike = (url: string, init: {
   method: string
   headers: Record<string, string>
   body?: string
   credentials: 'include' | 'omit'
+  signal?: AbortSignalLike
 }) => Promise<{ ok: boolean; status: number; statusText: string; text(): Promise<string> }>
 
 export type ApiClientOptions = {
@@ -121,7 +125,9 @@ export class ApiError extends Error {
 }
 
 type Query = Record<string, string | number | boolean | null | undefined>
-type RequestOptions<T> = { query?: Query; body?: unknown; schema: z.ZodType<T> }
+type RequestOptions<T> = { query?: Query; body?: unknown; schema: z.ZodType<T>; signal?: AbortSignalLike }
+/** Per-call options of the methods that accept them. `signal` aborts the request (it then fails with `network_error`). */
+export type CallOptions = { signal?: AbortSignalLike }
 /** Request bodies accept the schema's input type, so fields with defaults are optional. */
 type Input<T extends z.ZodType> = z.input<T>
 
@@ -148,7 +154,7 @@ export function createApiClient(options: ApiClientOptions) {
   const base = `${trimSlash(options.baseUrl)}${API_PREFIX}`
   const validate = options.validate ?? true
 
-  async function request<T>(method: string, path: string, { query, body, schema }: RequestOptions<T>): Promise<T> {
+  async function request<T>(method: string, path: string, { query, body, schema, signal }: RequestOptions<T>): Promise<T> {
     const doFetch = options.fetch ?? (globalThis as unknown as { fetch: FetchLike }).fetch
     const token = await options.getToken?.()
     const headers: Record<string, string> = {
@@ -167,6 +173,7 @@ export function createApiClient(options: ApiClientOptions) {
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
         credentials: token ? 'omit' : 'include',
+        signal,
       })
       text = await response.text()
     } catch (error) {
@@ -183,7 +190,7 @@ export function createApiClient(options: ApiClientOptions) {
     return validate ? schema.parse(json) : json as T
   }
 
-  const get = <T>(path: string, schema: z.ZodType<T>, query?: Query) => request('GET', path, { schema, query })
+  const get = <T>(path: string, schema: z.ZodType<T>, query?: Query, options: CallOptions = {}) => request('GET', path, { schema, query, ...options })
   const send = <T>(method: string, path: string, schema: z.ZodType<T>, body?: unknown) => request(method, path, { schema, body })
   const id = encodeURIComponent
 
@@ -266,8 +273,8 @@ export function createApiClient(options: ApiClientOptions) {
       devices: () => get('/me/devices', DeviceList),
     },
     search: {
-      library: (query: SearchParams) => get('/search/library', SearchResults, query),
-      catalog: (query: SearchParams) => get('/search/catalog', SearchResults, query),
+      library: (query: SearchParams, options?: CallOptions) => get('/search/library', SearchResults, query, options),
+      catalog: (query: SearchParams, options?: CallOptions) => get('/search/catalog', SearchResults, query, options),
     },
     scrobble: {
       status: () => get('/me/scrobbling', ScrobblingStatus),
