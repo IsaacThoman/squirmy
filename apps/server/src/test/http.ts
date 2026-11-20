@@ -10,7 +10,11 @@ import { setRateLimitsEnabled } from '../lib/http.js'
 export type HttpFixture = {
   /** Why the fixture was trimmed or written by hand, when it was. */
   note?: string
-  request: { method: string; url: string; body?: string }
+  /**
+   * `headers` (lowercase names) must match too when given; hand-written fixtures use it
+   * for requests that differ only in a header, such as an Authorization token.
+   */
+  request: { method: string; url: string; body?: string; headers?: Record<string, string> }
   response: {
     status: number
     headers?: Record<string, string>
@@ -34,7 +38,7 @@ const keptHeaders = ['content-type', 'retry-after', 'location']
  */
 export function useHttpFixtures(...providers: string[]) {
   const recording = process.env.SQUIRMY_RECORD_HTTP === '1'
-  const fixtures = new Map<string, HttpFixture>()
+  const fixtures = new Map<string, HttpFixture[]>()
   const requests: string[] = []
   const unmatched: string[] = []
   const realFetch = globalThis.fetch
@@ -46,7 +50,8 @@ export function useHttpFixtures(...providers: string[]) {
       for (const file of await readdir(directory)) {
         if (!file.endsWith('.json')) continue
         const fixture = JSON.parse(await readFile(path.join(directory, file), 'utf8')) as HttpFixture
-        fixtures.set(fixtureKey(fixture.request.method, fixture.request.url, fixture.request.body), fixture)
+        const key = fixtureKey(fixture.request.method, fixture.request.url, fixture.request.body)
+        fixtures.set(key, [...(fixtures.get(key) ?? []), fixture])
       }
     }
     setRateLimitsEnabled(recording)
@@ -62,7 +67,9 @@ export function useHttpFixtures(...providers: string[]) {
       const method = (init?.method ?? 'GET').toUpperCase()
       const body = typeof init?.body === 'string' ? init.body : undefined
       requests.push(`${method} ${url}`)
+      const headers = new Headers(init?.headers)
       const fixture = fixtures.get(fixtureKey(method, url, body))
+        ?.find((candidate) => Object.entries(candidate.request.headers ?? {}).every(([name, value]) => headers.get(name) === value))
       if (fixture) return toResponse(fixture)
       if (!recording) {
         unmatched.push(`${method} ${url}`)
@@ -73,7 +80,7 @@ export function useHttpFixtures(...providers: string[]) {
       // A throttled or failing service is not a response worth replaying forever.
       if (response.status === 429 || response.status >= 500) return toResponse(recorded)
       await save(providers[0] ?? 'misc', recorded)
-      fixtures.set(fixtureKey(method, url, body), recorded)
+      fixtures.set(fixtureKey(method, url, body), [recorded])
       return toResponse(recorded)
     })
   }

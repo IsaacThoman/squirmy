@@ -106,7 +106,7 @@ Modules reach each other in three ways, in this order of preference:
 
 1. **Database state.** A module finds its own work by querying for rows that need it (files with no loudness, albums still `pending`). Sweeps make this robust to ordering and restarts.
 2. **Jobs by name.** A module may enqueue another module's job (`enqueue('loudness.measure', { fileId })`). The job name and payload are that module's public interface.
-3. **Seam functions.** A few direct calls are declared up front and start as no-ops: `enrichment/detail.ts` (`ensureAlbumDetail`, `ensureArtistDetail`), `acquisition/coverage.ts` (`onDemandRecordings`, `requestRecording`), `radio/suggest.ts` (`suggestAutoplay`). The owning module fills them in; callers never change.
+3. **Seam functions.** A few direct calls are declared up front and start as no-ops: `enrichment/detail.ts` (`ensureAlbumDetail`, `ensureArtistDetail`), `acquisition/coverage.ts` (`onDemandRecordings`, `requestRecording`), `radio/suggest.ts` (`suggestAutoplay`). The owning module fills them in; callers never change. In the other direction, sessions exports `onPlayStart` (`sessions/plays.ts`), a subscription to plays opening on the active device, which scrobble uses for "now playing".
 
 ### Configuration
 
@@ -199,6 +199,9 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
+| `GET /me/scrobbling`, `PUT/DELETE /me/scrobbling/listenbrainz`, `POST /me/scrobbling/lastfm/start`, `DELETE /me/scrobbling/lastfm` | scrobble | every mutation returns `ScrobblingStatus` |
+| `GET /scrobbling/lastfm/callback` | scrobble | no session needed: the signed `state` names the user; redirects to `/settings?lastfm=…` |
+| `POST /radio/track/:id`, `POST /radio/artist/:id` | radio | `RadioResponse`, played with `playTracks` |
 | `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files |
 | `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `POST /imports`, `POST /imports/:id/files`, `POST /imports/:id/commit`, `GET /imports/:id` | imports | multipart upload |
@@ -244,6 +247,22 @@ The server holds one session per user in memory, loaded on first use and persist
 - **Plays.** A play row opens when an entry is current and running on the active device and closes when the entry changes or stops at its end. Listened time comes from the session's position arithmetic, so pauses and seeks add nothing. Plays under five seconds are skips and leave no row; one counts as completed after half the track or four minutes. Writing one invalidates history and home.
 - **On demand.** When the current or an upcoming entry is `on_demand`, the acquisition module is asked for it and the entry is `preparing` until the file is linked, then `setEntryState` flips it to `ready`.
 - **Autoplay.** When the queue is nearly empty and autoplay is on, the radio module supplies `setAutoplayQueue`.
+
+### Scrobbling
+
+- **Connections** live on the user row under `settings.secrets.<listenbrainz|lastfm>`: the credential (ListenBrainz user token, Last.fm session key) encrypted with `encrypt('scrobble-credential', …)`, the account name, `since`, `needsAttention` and `lastError`. Connecting verifies the credential (`listenbrainz.validateToken`, Last.fm's web auth flow) and switches the user's `scrobbleListenBrainz`/`scrobbleLastFm` on; disconnecting switches it off and drops unsent rows. Reconnecting the same account keeps `since`, so plays waiting for it are still sent.
+- **Last.fm web auth.** `POST /me/scrobbling/lastfm/start` returns Last.fm's approval URL with a callback carrying `state` = user id, expiry (10 minutes) and `sign('lastfm-connect-state', …)`. The callback base is `PUBLIC_URL`, else the request's origin.
+- **Sweep.** `scrobble.sweep` (every minute and at worker start) inserts one `scrobble_deliveries` row per service for each completed play of the last 14 days that started at or after `since`: `pending` when the service is switched on, `skipped` when off. It then queues `scrobble.deliver` `{ userId, target }`, keyed by both, where rows are ready.
+- **Delivery.** `scrobble.deliver` locks the oldest ready rows (`for update skip locked`) in the service's batch size (ListenBrainz 1000, Last.fm 50), submits them with the MusicBrainz recording, release, release group and artist ids when known, track number, duration, album and start time, and marks them `sent`. A failure counts an attempt and the row waits 1, 2, 4… minutes (at most 6 hours) for the next sweep; after 10 attempts it is `failed` and left alone. A rejected credential (ListenBrainz 401, Last.fm error 9) sets `needsAttention` instead, and rows wait for the user to reconnect.
+- **Guarantees.** The row is the idempotency record: one per play and service, submitted while locked, so overlapping sweeps and deliveries send a play once. The one gap is a crash after a service accepted a batch and before the commit, which resends that batch once.
+- **Now playing** is sent from the API process when `onPlayStart` fires, best effort and without retries.
+
+### Radio
+
+- `suggestAutoplay` (the seam) and the radio routes rank with `radio/ranking.ts`: profile the seeds (artists, album and artist genres, years), gather a few hundred owned candidates in one query from bounded pools (seed artists, similar artists, albums sharing a genre or era, tracks the user played within half an hour of a seed, liked tracks and artists, a few random albums), score them with the weights in `ranking.ts` plus noise, and pick under variety rules over any ten consecutive tracks, seeds included: two per artist, one per album, three by seed artists, no artist twice in a row. Rules relax only when nothing else fits. `on_demand` tracks are used only when no owned track qualifies.
+- Random sampling in SQL uses `uuid_hash_extended` with a salt drawn from the injected random source, so a seeded source repeats a result exactly.
+- `similarArtists(artistId)` merges Deezer related artists (Deezer id from `external_ids`, else an exact name search) and ListenBrainz similar artists (with a server token and an artist MBID), mapped to catalog artists by MBID, else `name_key`. A source that is off or fails is skipped; lookups during ranking give up after 2.5 seconds.
+- A radio is 50 tracks starting with the seed track (for an artist, its most played, liked or popular owned track) with context `{ type: 'radio', id: 'track:<id>' | 'artist:<id>' }`. Nothing is stored: when the radio runs out and autoplay is on, the session's history (the radio's last tracks) seeds the next batch, so it continues in the same direction.
 
 ### Library pipeline
 
@@ -305,7 +324,7 @@ Catalog data reaches views through props typed with the contracts; session state
 - `vitest` everywhere. A test file sits next to the code it tests as `*.test.ts`.
 - **Database tests** call `useTestDatabase()` from `src/test/database.ts`, which clones a migrated template database for the file. They need `SQUIRMY_TEST_DATABASE_URL` (default `postgres://localhost:54329/postgres`). CI provides a Postgres service.
 - **Audio fixtures** are generated with ffmpeg by `src/test/audio.ts`: short, very quiet tones with real tags. No real music is committed.
-- **HTTP fixtures** for external services are recorded JSON; no live calls in tests.
+- **HTTP fixtures** for external services are recorded JSON; no live calls in tests. A hand-written fixture may list `request.headers` that must match too, for requests that differ only in a header.
 - **Before a change is done:** `npm run build:packages && npm run typecheck && npm run lint && npm test` all pass.
 
 ## Git

@@ -12,6 +12,7 @@ import {
   AuthResponse,
   type AddPlaylistItemsRequest,
   type ChangePasswordRequest,
+  type ConnectListenBrainzRequest,
   type CreateAppPasswordRequest,
   CreateInviteRequest,
   CreateLibraryRootRequest,
@@ -26,6 +27,7 @@ import {
   Invite,
   InviteList,
   JobQueueStats,
+  LastFmConnectStart,
   type LibraryQuery,
   LibraryRoot,
   LibraryStats,
@@ -42,7 +44,9 @@ import {
   PlaylistDetail,
   PlaylistSummary,
   type RegisterRequest,
+  RadioResponse,
   SearchResults,
+  ScrobblingStatus,
   ServerSettings,
   SessionSnapshot,
   SetupStatus,
@@ -264,6 +268,18 @@ export function createApiClient(options: ApiClientOptions) {
     search: {
       library: (query: SearchParams) => get('/search/library', SearchResults, query),
       catalog: (query: SearchParams) => get('/search/catalog', SearchResults, query),
+    },
+    scrobble: {
+      status: () => get('/me/scrobbling', ScrobblingStatus),
+      connectListenBrainz: (body: ConnectListenBrainzRequest) => send('PUT', '/me/scrobbling/listenbrainz', ScrobblingStatus, body),
+      disconnectListenBrainz: () => send('DELETE', '/me/scrobbling/listenbrainz', ScrobblingStatus),
+      /** Open the returned `url` in a browser; the server finishes the connection and redirects to `/settings`. */
+      startLastFm: () => send('POST', '/me/scrobbling/lastfm/start', LastFmConnectStart),
+      disconnectLastFm: () => send('DELETE', '/me/scrobbling/lastfm', ScrobblingStatus),
+    },
+    radio: {
+      track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
+      artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
     },
   }
 }
