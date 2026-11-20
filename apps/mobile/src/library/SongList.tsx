@@ -6,8 +6,8 @@ import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reani
 import { useLibraryActions, useLiked } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
-import { downloadSymbol, unavailableReason } from '../downloads/model';
-import { usePlaybackState } from '../playback';
+import { trackMark, unavailableReason } from '../downloads/model';
+import { usePlaybackState, useTrackPreparing } from '../playback';
 import { Cover, Icon } from '../ui';
 import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
 
@@ -70,7 +70,8 @@ function SongRow({ track, number, onPlay, onMenu, onRemove }: {
   const current = session.current?.trackId === track.id;
   const playable = useCanPlay(track);
   const { offline } = useRealtime();
-  const mark = downloadSymbol(useTrackDownload(track.id));
+  const mark = trackMark(useTrackDownload(track.id), track, playable);
+  const preparing = useTrackPreparing(track.id);
   const playNext = () => {
     tapFeedback();
     actions.enqueue([track], 'next');
@@ -101,8 +102,8 @@ function SongRow({ track, number, onPlay, onMenu, onRemove }: {
         <View style={styles.flex}>
           <Text numberOfLines={1} style={[styles.rowTitle, current && styles.currentTitle]}>{track.title}</Text>
           <View style={styles.subtitle}>
-            {mark && <Icon name={mark} size={11} color={colors.muted} />}
-            <Text numberOfLines={1} style={[styles.rowSub, styles.flex]}>{track.artistCredit}</Text>
+            {mark && !preparing && <Icon name={mark} size={11} color={colors.muted} />}
+            <Text numberOfLines={1} style={[styles.rowSub, preparing && styles.preparing, styles.flex]}>{preparing ? 'Preparing…' : track.artistCredit}</Text>
           </View>
         </View>
       </Pressable>
@@ -130,6 +131,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   songPosition: { width: 25, alignItems: 'center', marginRight: 2 },
   songNumber: { fontSize: 13, color: colors.quiet, fontVariant: ['tabular-nums'] },
   currentTitle: { color: colors.accent },
+  preparing: { color: colors.accent },
   rowIcon: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
   swipeTray: { width: swipeActionWidth },
   swipeAction: { flex: 1, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },

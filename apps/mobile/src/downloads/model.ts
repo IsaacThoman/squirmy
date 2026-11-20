@@ -1,5 +1,5 @@
 import type {
-  AlbumDetail, Artwork, PlaybackDescriptor, PlaylistSummary, StreamQuality, TrackSummary,
+  AlbumDetail, Artwork, PlaybackDescriptor, PlaylistSummary, StreamQuality, TrackSummary, User,
 } from '@squirmy/contracts';
 
 /**
@@ -218,12 +218,21 @@ export function unreferenced(rows: Iterable<DownloadRow>, collections: Iterable<
   return [...rows].filter(row => !kept.has(row.trackId)).map(row => row.trackId);
 }
 
-/** Whether `track` can be played: with no connection only downloads can; otherwise what the server has, and downloads. */
-export function canPlay(track: Pick<TrackSummary, 'id' | 'availability'>, { offline, downloaded }: {
-  offline: boolean; downloaded: (trackId: string) => boolean;
+/** Admins, and members allowed to, may have on-demand tracks fetched; for others those tracks are gray. */
+export function canRequestMusic(user: Pick<User, 'role' | 'canAcquire'>): boolean {
+  return user.role === 'admin' || user.canAcquire;
+}
+
+/**
+ * Whether `track` can be played: with no connection only downloads can; otherwise what the
+ * server has, what it can fetch when `canRequest`, and downloads.
+ */
+export function canPlay(track: Pick<TrackSummary, 'id' | 'availability'>, { offline, downloaded, canRequest }: {
+  offline: boolean; downloaded: (trackId: string) => boolean; canRequest: boolean;
 }): boolean {
   if (downloaded(track.id)) return true;
-  return !offline && track.availability !== 'none';
+  if (offline) return false;
+  return track.availability === 'server' || (track.availability === 'on_demand' && canRequest);
 }
 
 export function formatBytes(bytes: number): string {
@@ -245,5 +254,11 @@ export function downloadSymbol(download: TrackDownload | undefined): string | nu
 
 /** Why a gray track is gray, for screen readers. */
 export function unavailableReason(track: Pick<TrackSummary, 'availability'>, offline: boolean): string {
-  return offline && track.availability !== 'none' ? 'not downloaded' : 'not in your library';
+  if (offline && track.availability !== 'none') return 'not downloaded';
+  return track.availability === 'on_demand' ? 'not on the server yet; ask an admin to let you fetch missing music' : 'not in your library';
+}
+
+/** The small mark next to a track's artist: its download, or that the server fetches it when played. */
+export function trackMark(download: TrackDownload | undefined, track: Pick<TrackSummary, 'availability'>, playable: boolean): string | null {
+  return downloadSymbol(download) ?? (track.availability === 'on_demand' && playable ? 'icloud.and.arrow.down' : null);
 }

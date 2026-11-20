@@ -1,20 +1,22 @@
 import { ApiError, createApiClient } from '@squirmy/client-core';
 import { focusManager, QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  createContext, useContext, useEffect, useMemo, useReducer, useState, type PropsWithChildren,
+  createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type PropsWithChildren,
 } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { removeAccountItems } from '../data/accountStorage';
 import { cacheBuster, cacheMaxAgeMs, removeCache, restoreCache, saveCache } from '../data/cache';
+import { useNotice } from '../Notice';
 import { reduceAuth, type AuthEvent, type AuthState } from './auth';
-import { clientName, fetchWithTimeout, type Server } from './server';
-import { clientDevice, loadAccount, saveAccount } from './storage';
+import { clientName, fetchWithTimeout, serverFrom, type Server } from './server';
+import { clientDevice, keychain, loadAccount, saveAccount } from './storage';
 
 export type Api = ReturnType<typeof createApiClient>;
 
 /** How long launch waits for the server to confirm the stored session before trusting it. */
 const restoreTimeoutMs = 3000;
 const requestTimeoutMs = 15_000;
+const unsavedNotice = `This ${Platform.OS === 'ios' ? 'iPhone' : 'phone'} couldn’t save your sign-in. You’ll need to sign in again next time.`;
 
 // Refetch on returning to the app, the native counterpart of a browser tab regaining focus.
 focusManager.setEventListener(setFocused => {
@@ -86,6 +88,17 @@ export function AccountProvider({ children }: PropsWithChildren) {
     });
   }, [queryClient]);
 
+  // A keychain that refuses keeps the session for this launch only. Say so once, when signed in.
+  const notify = useNotice();
+  const [unsaved, setUnsaved] = useState(keychain.refused);
+  const told = useRef(false);
+  useEffect(() => keychain.onRefused(() => setUnsaved(true)), []);
+  useEffect(() => {
+    if (!unsaved || state.status !== 'signedIn' || told.current) return;
+    told.current = true;
+    notify(unsavedNotice);
+  }, [notify, state.status, unsaved]);
+
   const buster = state.status === 'signedIn' ? cacheBuster(state.server.url, state.user.id) : null;
   useEffect(() => buster ? saveCache(queryClient, buster) : undefined, [buster, queryClient]);
 
@@ -107,6 +120,16 @@ export function AccountProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (me.data) dispatch({ type: 'userLoaded', user: me.data });
   }, [me.data]);
+
+  // The server may have been updated or renamed since it was saved; what it says now is shown.
+  const status = useQuery({
+    queryKey: ['setup-status', server?.url],
+    queryFn: () => api!.auth.setupStatus(),
+    enabled: Boolean(api),
+  });
+  useEffect(() => {
+    if (status.data && server) dispatch({ type: 'serverLoaded', server: serverFrom(server.url, status.data) });
+  }, [server, status.data]);
 
   const value = useMemo<AccountContextValue>(() => {
     const leave = (event: AuthEvent) => {

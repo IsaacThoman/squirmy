@@ -324,6 +324,18 @@ export function usePlaybackState() {
   };
 }
 
+/**
+ * Whether `trackId` is the current entry and waits for the server to fetch it; re-renders
+ * only when that changes. Queued entries say so in the queue.
+ */
+export function useTrackPreparing(trackId: string | undefined): boolean {
+  const runtime = useContext(RuntimeContext);
+  return useSyncExternalStore(runtime?.client.subscribe ?? noSubscription, () => {
+    const current = runtime?.client.getSnapshot().session.current;
+    return Boolean(trackId) && current?.trackId === trackId && current?.state === 'preparing';
+  });
+}
+
 function useAppActive(): boolean {
   const [active, setActive] = useState(AppState.currentState === 'active');
   useEffect(() => {

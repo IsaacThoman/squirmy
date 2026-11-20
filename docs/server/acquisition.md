@@ -84,7 +84,7 @@ Under **Admin → Providers → Policy**, or `GET` and `PATCH /api/v1/admin/acqu
 
 ## What users see
 
-- Albums and tracks a provider can supply show a cloud icon, "Plays on demand", in the web app. An album page offers **Get this album**, which fetches its missing songs and shows how many have arrived; the menu offers it on albums you have part of.
+- Albums and tracks a provider can supply show a cloud icon, "Plays on demand", in the web app; the [iOS app](../use/ios.md#on-demand-songs) marks such songs with a small cloud next to the artist. A web album page offers **Get this album**, which fetches its missing songs and shows how many have arrived; the menu offers it on albums you have part of.
 - Pressing play queues them as usual. A track being fetched shows **Preparing…** wherever it appears (lists, the queue, the player and Now Playing), and the session waits at its start; it plays as soon as the file arrives. Upcoming tracks in the queue are fetched ahead of time.
 - If a fetch fails, a notice says so, the track is skipped, and it shows gray for a day.
 - A member without **Can fetch missing music** sees those tracks gray, and their row and menu say to ask an admin.

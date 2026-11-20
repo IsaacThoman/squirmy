@@ -26,6 +26,14 @@ export type HeroActionsProps = { title: string; artist: string; onOpen: () => vo
 export type CollectionGridProps = { items: readonly (CollectionButtonProps & { id: string })[]; columns: number };
 export type GenreGridProps = { items: readonly (GenreCardProps & { id: string })[] };
 export type AlbumMetadataProps = { title: string; info: string; artist?: string };
+/**
+ * The search result to lead with. With `href` it opens that page, which zooms out of its
+ * cover; without, pressing it runs `onPress`. `onPlay` adds a play button.
+ */
+export type TopResultProps = {
+  title: string; subtitle: string; cover: ReactElement; size: number; href?: Href; dim?: boolean;
+  onPress?: () => void; onPlay?: () => void;
+};
 
 export function SearchField({ value, onChange, placeholder, autoFocus, inputRef }: SearchFieldProps) {
   const colors = useColors();
@@ -137,6 +145,29 @@ export function HeroActions({ title, artist, onOpen, onPlay }: HeroActionsProps)
   </View>;
 }
 
+export function TopResult({ href, onPlay, ...props }: TopResultProps) {
+  const styles = useStyles();
+  return <View style={styles.topResult}>
+    {href ? <ZoomLink href={href}><TopResultButton {...props} playable={Boolean(onPlay)} /></ZoomLink>
+      : <TopResultButton {...props} playable={Boolean(onPlay)} />}
+    {onPlay && <View style={styles.topPlay}><BrowseButton icon="play.fill" label={`Play ${props.title}`} onPress={onPlay} glass /></View>}
+  </View>;
+}
+
+function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay'> & { playable: boolean }) {
+  const colors = useColors();
+  const styles = useStyles();
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
+    style={({ pressed }) => [styles.topButton, playable && styles.topPlayable, dim && styles.dim, pressed && styles.pressed]}>
+    {cover}
+    <View style={styles.flex}>
+      <Text numberOfLines={2} style={styles.topTitle}>{title}</Text>
+      <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
+    </View>
+    {!playable && <Icon name="chevron.right" size={12} color={colors.muted} />}
+  </Pressable>;
+}
+
 export function AlbumMetadata({ title, info, artist }: AlbumMetadataProps) {
   const styles = useStyles();
   return <View style={styles.metadata}>
@@ -171,6 +202,11 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   heroTitle: { color: '#F5F2FF', fontSize: 36, fontWeight: '800', letterSpacing: -1.4 },
   heroSubtitle: { color: '#F0E6FA' },
   heroPlay: { position: 'absolute', right: 19, bottom: 19 },
+  topResult: { borderRadius: 18, backgroundColor: colors.surface, justifyContent: 'center' },
+  topButton: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, paddingRight: 18 },
+  topPlayable: { paddingRight: 72 },
+  topTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
+  topPlay: { position: 'absolute', right: 14 },
   metadata: { alignItems: 'center', gap: 3 },
   albumTitle: { color: colors.text, fontWeight: '800', fontSize: 31, textAlign: 'center' },
   artist: { color: colors.text, fontSize: 17, textAlign: 'center' },

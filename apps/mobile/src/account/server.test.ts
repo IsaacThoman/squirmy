@@ -67,7 +67,7 @@ describe('findServer', () => {
 
   it('asks to finish setup in a browser, with the address', async () => {
     const { asked, fetch } = serve({ 'https://music.example.com': { status: 200, body: { ...status, needsSetup: true } } });
-    expect(await failure(findServer('music.example.com', fetch))).toMatchObject({ problem: 'needsSetup', url: 'https://music.example.com' });
+    expect(await failure(findServer('music.example.com', fetch))).toMatchObject({ problem: 'needsSetup', url: 'https://music.example.com', version: '1.4.0' });
     expect(asked).toEqual(['https://music.example.com']);
   });
 

@@ -69,7 +69,8 @@ export function useTrackActions(track: TrackSummary | undefined, { playlist }: T
     playable && online && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right', run: () => {
       api?.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
     } },
-    track.availability === 'none' && online && { id: 'want', title: 'Add to wantlist', icon: 'star', run: () => want('track', track.id, track.title) },
+    // Gray tracks, including on-demand ones this user may not have fetched.
+    !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star', run: () => want('track', track.id, track.title) },
     Boolean(track.album) && { id: 'album', title: 'Go to album', icon: 'square.stack', href: link('album', track.album!.id) },
     Boolean(track.artists[0]) && { id: 'artist', title: 'Go to artist', icon: 'music.mic', href: link('artist', track.artists[0]!.id) },
     playlist !== undefined && online && { id: 'remove', title: 'Remove from playlist', icon: 'minus.circle', destructive: true,
