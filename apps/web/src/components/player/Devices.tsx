@@ -71,7 +71,7 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
               >
                 <DeviceIcon kind={device.kind} className={cn('size-5 shrink-0', device.id === thisDeviceId ? 'text-accent' : 'text-muted')} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">{deviceName(device, thisDeviceId)}</span>
+                  <span className="block truncate text-sm font-semibold" title={deviceName(device, thisDeviceId)}>{deviceName(device, thisDeviceId)}</span>
                   <span className="block truncate text-xs text-muted">{device.id === thisDeviceId ? 'Play in this tab' : device.canPlay ? deviceKind(device.kind) : 'Remote control only'}</span>
                 </span>
             </button>

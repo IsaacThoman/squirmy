@@ -54,7 +54,7 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered 
           </button>
         )}
       </div>
-      <Link to={to} className={cn('mt-2.5 truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none', dimmed && 'text-quiet', 'w-full')}>
+      <Link to={to} title={title} className={cn('mt-2.5 truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none', dimmed && 'text-quiet', 'w-full')}>
         {title}
       </Link>
       <div className={cn('mt-0.5 w-full truncate text-[13px] text-muted', dimmed && 'text-quiet')}>{subtitle}</div>

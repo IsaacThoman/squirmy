@@ -31,7 +31,7 @@ export function FindAlbumDialog({ open, onOpenChange, query, onQueryChange, albu
                   <button type="button" onClick={() => onPick(album)} className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-overlay">
                     <Cover artwork={album.artwork} size={96} className="size-11 rounded-md" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">{album.title}</span>
+                      <span className="block truncate text-sm font-semibold" title={album.title}>{album.title}</span>
                       <span className="block truncate text-xs text-muted">{album.artistCredit}{album.year ? ` · ${album.year}` : ''}{album.mbid ? '' : ' · from tags'}</span>
                     </span>
                     <ChevronRight aria-hidden className="size-4 shrink-0 text-quiet" />

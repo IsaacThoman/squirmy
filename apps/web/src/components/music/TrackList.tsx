@@ -202,7 +202,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className={cn('truncate text-[15px] font-medium tracking-[-0.01em]', current && 'text-accent', unavailable && 'text-quiet')}>{track.title}</span>
+              <span title={track.title} className={cn('truncate text-[15px] font-medium tracking-[-0.01em]', current && 'text-accent', unavailable && 'text-quiet')}>{track.title}</span>
               {track.availability === 'on_demand' && !notAllowed && (
                 <Tooltip label="Plays on demand">
                   <CloudDownload tabIndex={0} aria-label="Plays on demand" className="size-3.5 shrink-0 text-quiet outline-none focus-visible:text-accent" />

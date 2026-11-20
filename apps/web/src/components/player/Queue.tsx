@@ -114,7 +114,7 @@ function QueueRow({ item, current, playing = false, faded, onPlay, children }: Q
       </div>
       <span className="min-w-0 flex-1 text-left">
         <span className="flex items-center gap-1.5">
-          <span className={cn('truncate text-sm font-semibold', current && 'text-accent')}>{track.title}</span>
+          <span title={track.title} className={cn('truncate text-sm font-semibold', current && 'text-accent')}>{track.title}</span>
           {waiting && <Tooltip label="Plays on demand"><CloudDownload aria-label="Plays on demand" className="size-3.5 shrink-0 text-quiet" /></Tooltip>}
         </span>
         <span className="block truncate text-xs text-muted">{preparing ? 'Preparing…' : entry.state === 'failed' ? 'Could not be fetched' : track.artistCredit}</span>

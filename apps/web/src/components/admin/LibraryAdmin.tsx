@@ -354,22 +354,24 @@ export function JobsAdmin({ jobs, updatedAt, onRefresh }: JobsAdminProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-stroke text-left text-xs font-semibold uppercase tracking-wider text-quiet">
-                <th className="px-4 py-3 font-semibold">Queue</th>
-                <th className="px-4 py-3 text-right font-semibold">Queued</th>
-                <th className="px-4 py-3 text-right font-semibold">Active</th>
-                <th className="px-4 py-3 text-right font-semibold">Failed</th>
+                <th className="px-4 py-3 font-semibold max-sm:px-3">Queue</th>
+                <th className="px-4 py-3 text-right font-semibold max-sm:px-3">Queued</th>
+                <th className="px-4 py-3 text-right font-semibold max-sm:px-3">Active</th>
+                <th className="px-4 py-3 text-right font-semibold max-sm:px-3">Failed</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stroke">
               {jobs.map(job => (
                 <tr key={job.name} className="transition-colors hover:bg-overlay">
-                  <td className="px-4 py-3 font-mono text-[13px]">
-                    <span className={cn('mr-2.5 inline-block size-2 rounded-full', job.active ? 'bg-accent' : 'bg-stroke')} aria-hidden />
-                    {job.name}
+                  <td className="px-4 py-3 font-mono text-[13px] max-sm:px-3">
+                    <span className="flex items-center gap-2.5">
+                      <span className={cn('size-2 shrink-0 rounded-full', job.active ? 'bg-accent' : 'bg-stroke')} aria-hidden />
+                      <span className="[overflow-wrap:anywhere]">{job.name.split('.').map((part, index) => <Fragment key={index}>{index > 0 && <>.<wbr /></>}{part}</Fragment>)}</span>
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-right tabular">{job.queued.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right tabular">{job.active}</td>
-                  <td className={cn('px-4 py-3 text-right tabular', job.failed ? 'font-semibold text-danger' : 'text-quiet')}>{job.failed}</td>
+                  <td className="px-4 py-3 text-right tabular max-sm:px-3">{job.queued.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right tabular max-sm:px-3">{job.active}</td>
+                  <td className={cn('px-4 py-3 text-right tabular max-sm:px-3', job.failed ? 'font-semibold text-danger' : 'text-quiet')}>{job.failed}</td>
                 </tr>
               ))}
             </tbody>
