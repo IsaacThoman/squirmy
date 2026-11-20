@@ -78,8 +78,9 @@ describe('route guards', () => {
 })
 
 describe('setup wizard', () => {
-  it('creates the admin, browses for a folder and skips when the server cannot add one', async () => {
+  it('creates the admin, browses for a folder and adds it', async () => {
     const { services, api } = fakeServices({ user: null, status: { needsSetup: true } })
+    api.library.createRoot.mockRejectedValueOnce(new ApiError(409, 'nested_root', 'That folder overlaps the library root /home/alex'))
     renderWithApp(app, '/setup', services)
     await userEvent.type(await screen.findByLabelText('Username'), 'alex')
     await userEvent.type(screen.getByLabelText('Password'), 'correct horse')
@@ -90,10 +91,12 @@ describe('setup wizard', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Music' }))
     await waitFor(() => expect(screen.getByLabelText('Folder path')).toHaveValue('/home/alex/Music'))
     await userEvent.click(screen.getByRole('button', { name: 'Add and scan' }))
+    expect(await screen.findByText('That folder overlaps the library root /home/alex')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Add and scan' }))
 
     expect(await screen.findByRole('heading', { name: 'You’re all set' })).toBeInTheDocument()
-    expect(screen.getByText(/cannot add library folders yet/)).toBeInTheDocument()
-    expect(api.library.createRoot).toHaveBeenCalledWith({ name: 'Music', path: '/home/alex/Music', mode: 'read_only', watch: true })
+    expect(screen.getByText('/home/alex/Music')).toBeInTheDocument()
+    expect(api.library.createRoot.mock.calls[1]![0]).toEqual({ name: 'Music', path: '/home/alex/Music', mode: 'read_only', watch: true })
     await userEvent.click(screen.getByRole('button', { name: 'Start listening' }))
     expect(where()).toBe('/')
   })

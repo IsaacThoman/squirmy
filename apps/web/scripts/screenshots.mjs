@@ -27,18 +27,31 @@ const shots = [
   { name: 'admin-invite', path: '/admin/users', click: 'Invite someone', then: 'Create invite' },
   { name: 'admin-settings', path: '/admin/settings', height: 1500 },
   { name: 'admin-jobs', path: '/admin/jobs' },
+  { name: 'admin-library', path: '/admin/library' },
+  { name: 'admin-add-folder', path: '/admin/library', click: 'Add folder' },
+  { name: 'admin-reviews', path: '/admin/reviews', review: true, height: 1400 },
+  { name: 'admin-fix-match', path: '/admin/library', click: 'Fix a match', find: 'Abbey Road', wait: 1000 },
+  { name: 'admin-organize', path: '/admin/organize', height: 1300 },
+  { name: 'admin-search-index', path: '/admin/search-index' },
   { name: 'kitchen-sink', path: '/dev/kitchen-sink', height: 6200 },
   { name: 'audio-blocked', path: '/dev/engine?autoplay=a', strict: true, wait: 1500 },
   { name: 'home', path: '/', width: 1024 },
   { name: 'album', path: album, width: 1024 },
   { name: 'admin-users', path: '/admin/users', width: 1024 },
   { name: 'admin-settings', path: '/admin/settings', width: 1024 },
+  { name: 'admin-library', path: '/admin/library', width: 1024 },
+  { name: 'admin-reviews', path: '/admin/reviews', review: true, width: 1024, height: 1300 },
+  { name: 'admin-organize', path: '/admin/organize', width: 1024 },
   { name: 'home', path: '/', width: 390, height: 844 },
   { name: 'album', path: album, width: 390, height: 844 },
   { name: 'now-playing', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming' },
   { name: 'settings', path: '/settings', width: 390, height: 844 },
   { name: 'admin-users', path: '/admin/users', width: 390, height: 844 },
   { name: 'admin-settings', path: '/admin/settings', width: 390, height: 844 },
+  { name: 'admin-library', path: '/admin/library', width: 390, height: 844 },
+  { name: 'admin-reviews', path: '/admin/reviews', review: true, width: 390, height: 844 },
+  { name: 'admin-organize', path: '/admin/organize', width: 390, height: 844 },
+  { name: 'admin-search-index', path: '/admin/search-index', width: 390, height: 844 },
 ]
 
 const signedOutShots = [
@@ -56,9 +69,17 @@ async function capture(target, shot, scheme, storageState) {
   const width = shot.width ?? 1440
   const context = await target.newContext({ viewport: { width, height: shot.height ?? 900 }, colorScheme: scheme, deviceScaleFactor: 2, storageState })
   const page = await context.newPage()
-  await page.goto(base + shot.path)
+  // The review queue opens on its first review, open or not.
+  const review = shot.review && ((await reviews(page, 'open')) ?? (await reviews(page, 'resolved')))
+  await page.goto(base + shot.path + (review ? `?status=${review.status}&review=${review.id}` : ''))
   await page.waitForLoadState('networkidle')
   if (shot.click) await page.getByRole('button', { name: shot.click, exact: true }).first().click()
+  if (shot.find) {
+    await page.getByRole('dialog').getByPlaceholder('Album or artist').fill(shot.find)
+    await page.getByRole('list', { name: 'Albums' }).getByRole('button').first().click()
+    await page.getByText('Track by track').waitFor({ timeout: 120_000 })
+  }
+  if (shot.review) await page.getByText('Track by track').or(page.getByText('MusicBrainz offered nothing close')).first().waitFor()
   if (shot.then) await page.getByRole('button', { name: shot.then, exact: true }).click()
   if (shot.create) {
     await page.getByRole('button', { name: 'Create', exact: true }).click()
@@ -74,6 +95,11 @@ async function capture(target, shot, scheme, storageState) {
   await page.waitForTimeout(shot.wait ?? 600)
   await page.screenshot({ path: `${out}/${shot.name}-${width}-${scheme}.png` })
   await context.close()
+}
+
+async function reviews(page, status) {
+  const response = await page.request.get(`${base}/api/v1/admin/reviews?status=${status}&limit=1`, { headers })
+  return response.ok() ? (await response.json()).items[0] : undefined
 }
 
 /** Signs in once (sign-in is rate limited) and returns the cookies for every later context. */

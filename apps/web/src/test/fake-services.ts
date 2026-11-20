@@ -1,6 +1,6 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
 import type { SquirmySocket } from '@squirmy/client-core/socket'
-import type { SetupStatus, User } from '@squirmy/contracts'
+import type { LibraryRoot, LibraryStats, SetupStatus, User } from '@squirmy/contracts'
 import { vi } from 'vitest'
 import type { Services } from '@/api/services'
 import { appPasswords, currentUser, invites, jobs, serverSettings, users } from '@/fixtures/server'
@@ -48,6 +48,14 @@ export class FakeSocket {
 
 const list = <T>(items: T[]) => ({ items, nextCursor: null })
 
+export const root: LibraryRoot = {
+  id: '00000000-0000-4000-8900-000000000001', name: 'Music', path: '/srv/music', mode: 'read_only', enabled: true, watch: true, scanning: false,
+  fileCount: 120, lastScanStartedAt: '2026-11-20T10:00:00.000Z', lastScanFinishedAt: '2026-11-20T10:02:00.000Z',
+  lastScanStats: { filesSeen: 120, filesAdded: 120, filesChanged: 0, filesMissing: 0, errors: 0 },
+}
+
+const stats: LibraryStats = { artists: 9, albums: 12, tracks: 118, files: 120, bytes: 4e8, durationMs: 3e7, matched: 100, unmatched: 8, inReview: 12, pending: 0, missing: 0 }
+
 export type FakeOptions = { status?: Partial<SetupStatus>; user?: User | null }
 
 /** An API answering from the fixtures, signed in as the fixture admin unless told otherwise. Every method is a mock. */
@@ -85,9 +93,23 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       })),
     },
     library: {
-      createRoot: vi.fn(async (): Promise<unknown> => {
-        throw new ApiError(404, 'not_found', 'Not found')
-      }),
+      roots: vi.fn(async () => list([root])),
+      createRoot: vi.fn(async (request: { name: string; path: string }) => ({ ...root, ...request })),
+      updateRoot: vi.fn(async (_id: string, patch: object) => ({ ...root, ...patch })),
+      deleteRoot: vi.fn(async () => ({ ok: true as const })),
+      scanRoot: vi.fn(async () => ({ queued: true })),
+      stats: vi.fn(async () => stats),
+    },
+    matching: {
+      reviews: vi.fn(async () => list([])),
+    },
+    organize: {
+      batches: vi.fn(async () => list([])),
+    },
+    catalogIndex: {
+      status: vi.fn(async () => ({
+        ready: false, dumpDate: null, importedAt: null, counts: { artists: 0, albums: 0, recordings: 0 }, sizeBytes: 0, active: null, latest: null,
+      })),
     },
   }
   const services: Services = { api: api as unknown as ApiClient, createSocket: () => socket as unknown as SquirmySocket }
