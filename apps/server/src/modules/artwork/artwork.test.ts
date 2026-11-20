@@ -51,9 +51,10 @@ describe('artwork', () => {
     expect(first.id).toMatch(/^[0-9a-f-]{36}$/)
     expect(first.color).toMatch(/^#3[0-9a-f]6[0-9a-f]9[0-9a-f]$/)
     expect(Buffer.from(first.thumbhash!, 'base64').length).toBeGreaterThan(5)
-    expect(first.storagePath).toBe(`assets/${first.sha256.slice(0, 2)}/${first.sha256.slice(2, 4)}/${first.sha256}.jpg`)
-    const folder = path.join(getConfig().SQUIRMY_DATA_DIR, path.dirname(first.storagePath))
-    expect(await readdir(folder)).toEqual([`${first.sha256}.jpg`])
+    const sha256 = first.sha256!
+    expect(first.storagePath).toBe(`assets/${sha256.slice(0, 2)}/${sha256.slice(2, 4)}/${sha256}.jpg`)
+    const folder = path.join(getConfig().SQUIRMY_DATA_DIR, path.dirname(first.storagePath!))
+    expect(await readdir(folder)).toEqual([`${sha256}.jpg`])
     expect(await db.select().from(assets)).toHaveLength(1)
   })
 

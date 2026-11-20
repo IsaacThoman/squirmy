@@ -1,0 +1,13 @@
+{
+  "note": "Hand-written from the ListenBrainz API docs (GET /1/validate-token); recording it would need a real user token.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.listenbrainz.org/1/validate-token",
+    "headers": { "authorization": "Token valid-user-token" }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "content-type": "application/json" },
+    "json": { "code": 200, "message": "Token valid.", "valid": true, "user_name": "squirmy-test" }
+  }
+}

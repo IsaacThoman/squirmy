@@ -133,6 +133,25 @@ export async function similarArtists(artistMbid: string, options: { limit?: numb
     .map((one) => ({ mbid: one.artist_mbid, name: one.name, comment: one.comment ?? '', type: one.type ?? null, score: one.score }))
 }
 
+/**
+ * Checks a user's token with ListenBrainz. Returns the account it belongs to, or null
+ * when ListenBrainz does not accept it. Works without a server token: scrobbling only
+ * needs the user's own.
+ */
+export async function validateToken(userToken: string): Promise<{ userName: string } | null> {
+  // The token travels in a header, which is not part of the cache key, so nothing is cached.
+  const result = await cachedFetch(provider, `${api}validate-token`, {
+    ttlSeconds: 0,
+    cache: 'no-store',
+    headers: { Accept: 'application/json', Authorization: `Token ${userToken}` },
+    ...rateLimit,
+  })
+  if (result.status === 400 || result.status === 401) return null
+  if (result.status !== 200) throw unexpectedResponse(provider, result)
+  const body = result.json as { valid?: boolean; user_name?: string } | undefined
+  return body?.valid && body.user_name ? { userName: body.user_name } : null
+}
+
 function payload(listen: LbListen, type: LbListenType) {
   const info: Record<string, unknown> = { submission_client: 'Squirmy', media_player: 'Squirmy' }
   if (listen.recordingMbid) info.recording_mbid = listen.recordingMbid
