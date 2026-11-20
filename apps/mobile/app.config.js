@@ -14,7 +14,7 @@ module.exports = ({ config }) => {
       bundleIdentifier: 'com.isaacthoman.music.dev',
       infoPlist: {
         ...config.ios.infoPlist,
-        NSLocalNetworkUsageDescription: 'Squirmy Dev connects to Metro on your Mac to load the latest app code.',
+        NSLocalNetworkUsageDescription: 'Squirmy Dev connects to your music server, and to Metro on your Mac to load the latest app code.',
       },
     },
     android: { ...config.android, package: 'com.isaacthoman.music.dev' },

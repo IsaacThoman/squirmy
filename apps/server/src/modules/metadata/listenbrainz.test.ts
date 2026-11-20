@@ -3,7 +3,7 @@ import { ProviderError } from '../../lib/http.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { useHttpFixtures } from '../../test/http.js'
-import { recordingPopularity, similarArtists, submitListens, topRecordingsForArtist } from './listenbrainz.js'
+import { recordingPopularity, similarArtists, submitListens, topRecordingsForArtist, validateToken } from './listenbrainz.js'
 
 const radiohead = 'a74b1b7f-71a5-4011-9441-d0b5e4122711'
 const uptownFunk = '33b6b148-9dce-4894-902d-d218ecc30666'
@@ -57,6 +57,11 @@ describe('listenbrainz', () => {
     await submitListens('valid-user-token', [listen], 'single')
     const [single] = http.requests
     expect(single).toBe('POST https://api.listenbrainz.org/1/submit-listens')
+  })
+
+  it('validates a user token and names its account', async () => {
+    expect(await validateToken('valid-user-token')).toEqual({ userName: 'squirmy-test' })
+    expect(await validateToken('invalid-user-token')).toBeNull()
   })
 
   it('rejects an invalid user token with a 401 ProviderError', async () => {

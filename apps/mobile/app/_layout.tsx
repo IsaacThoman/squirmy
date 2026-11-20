@@ -1,37 +1,83 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect, useState } from 'react';
 import { Platform, PlatformColor } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AccountProvider, createQueryClient, useAccount } from '../src/account/AccountProvider';
 import Player from '../src/Player';
 import { PlayerTransitionProvider } from '../src/player/transition';
 import { PlaybackProvider } from '../src/playback';
 import { useAppearance, useColors } from '../src/theme';
 
+// Sheets opened by a link or a restored route still get the tabs beneath them.
+export const unstable_settings = { anchor: '(tabs)' };
+
+// Held until the stored session is checked, so launch never flashes the wrong screen.
+void SplashScreen.preventAutoHideAsync();
+
 export default function RootLayout() {
   const appearance = useAppearance();
   const colors = useColors();
   const theme = appearance === 'dark' ? DarkTheme : DefaultTheme;
-  const sheetBackground = Platform.OS === 'ios' ? PlatformColor('secondarySystemBackgroundColor') : colors.sheet;
-  const sheet = { ...sheetOptions, contentStyle: { backgroundColor: sheetBackground } };
+  const [queryClient] = useState(createQueryClient);
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <ThemeProvider value={theme}>
-        <PlaybackProvider>
-          <PlayerTransitionProvider>
-            <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="devices" options={sheet} />
-              <Stack.Screen name="track-actions" options={sheet} />
-            </Stack>
-            <Player />
-          </PlayerTransitionProvider>
-        </PlaybackProvider>
+        <QueryClientProvider client={queryClient}>
+          <AccountProvider>
+            <PlaybackProvider>
+              <PlayerTransitionProvider>
+                <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
+                <Routes />
+              </PlayerTransitionProvider>
+            </PlaybackProvider>
+          </AccountProvider>
+        </QueryClientProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
+
+/** Connect, then sign in, then the app. Each step is the only one reachable until it is done. */
+function Routes() {
+  const colors = useColors();
+  const { state } = useAccount();
+  const restoring = state.status === 'restoring';
+  const signedIn = state.status === 'signedIn';
+  const sheetBackground = Platform.OS === 'ios' ? PlatformColor('secondarySystemBackgroundColor') : colors.sheet;
+  const sheet = { ...sheetOptions, contentStyle: { backgroundColor: sheetBackground } };
+
+  useEffect(() => {
+    if (!restoring) SplashScreen.hide();
+  }, [restoring]);
+
+  if (restoring) return null;
+  return <>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+      <Stack.Protected guard={state.status === 'connect'}>
+        <Stack.Screen name="connect" options={authOptions} />
+      </Stack.Protected>
+      <Stack.Protected guard={state.status === 'signIn'}>
+        <Stack.Screen name="sign-in" options={authOptions} />
+      </Stack.Protected>
+      <Stack.Protected guard={signedIn}>
+        <Stack.Screen name="(tabs)" options={authOptions} />
+        <Stack.Screen name="devices" options={sheet} />
+        <Stack.Screen name="track-actions" options={sheet} />
+        <Stack.Screen name="account" options={sheet} />
+        <Stack.Protected guard={__DEV__}>
+          <Stack.Screen name="dev/engine" options={{ presentation: 'modal' }} />
+        </Stack.Protected>
+      </Stack.Protected>
+    </Stack>
+    {signedIn && <Player />}
+  </>;
+}
+
+const authOptions = { animation: 'fade' } as const;
 
 const sheetOptions = {
   presentation: 'formSheet',

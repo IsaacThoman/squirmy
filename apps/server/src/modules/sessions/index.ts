@@ -4,6 +4,7 @@ import { stopSessions } from './service.js'
 import { registerSessionSockets } from './socket.js'
 
 export { getSnapshot, markRecordingFailed, markRecordingReady, recordExternalPlay, replaceQueue } from './service.js'
+export { onPlayStart } from './plays.js'
 
 /**
  * Playback sessions: one per user, held in the API process's memory, changed by

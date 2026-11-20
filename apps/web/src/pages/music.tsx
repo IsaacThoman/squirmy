@@ -22,7 +22,8 @@ import {
   albumDetail, albumTracks, artistDetail, featuredAlbum, genres, home, libraryAlbums, libraryArtists, libraryTracks, likedTracks,
   playlistDetail, playlistSummaries, searchFixtures, wantlist,
 } from '@/fixtures/catalog'
-import { currentUser } from '@/fixtures/server'
+import { useLogout } from '@/auth/actions'
+import { useCurrentUser } from '@/auth/session'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
@@ -40,11 +41,14 @@ function usePlayCollections() {
 }
 
 export function ShellPage() {
+  const user = useCurrentUser()
+  const logout = useLogout()
   const library = useLibrary()
   const likedCount = likedTracks.filter(track => library.isLiked(track.id, true)).length
   return (
     <AppShell
-      user={currentUser}
+      user={user}
+      onLogout={logout}
       playlists={playlistSummaries}
       likedCount={likedCount}
       onCreatePlaylist={request => toast({ title: 'Playlist created', description: request.name })}
