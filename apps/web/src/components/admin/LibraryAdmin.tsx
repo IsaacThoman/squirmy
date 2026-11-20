@@ -15,7 +15,7 @@ import { DropdownMenu } from '@/components/ui/menu'
 import { formatBytes, formatRelative, formatTotalDuration, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AdminHeader, DialogForm, Stat } from './AdminLayout'
-import { MANAGED_EXPLAINED, ManagedSwitch, SwitchRow } from './ManagedSwitch'
+import { ManagedConfirmation, ManagedSwitch, SwitchRow } from './ManagedSwitch'
 
 export type ScanProgress = Omit<Extract<ServerEvent, { type: 'scan.progress' }>, 'type'>
 
@@ -250,13 +250,7 @@ function EditRootDialog({ root, onOpenChange, onSave }: { root: LibraryRoot; onO
   return (
     <Dialog open onOpenChange={onOpenChange}>
       {confirming ? (
-        <DialogContent title={`Let Squirmy manage ${value.name.trim() || root.name}?`} description={MANAGED_EXPLAINED}>
-          <DialogForm onSubmit={submit} errors={form.errors} pending={form.pending} submitLabel="Make managed">
-            <p className="rounded-xl bg-surface px-3.5 py-3 text-[13px] leading-relaxed text-muted">
-              Files stay where they are until you apply a batch. Tags are only written when you ask for it, and undoing a batch moves the files back but leaves written tags as they are.
-            </p>
-          </DialogForm>
-        </DialogContent>
+        <ManagedConfirmation name={value.name.trim() || root.name} errors={form.errors} pending={form.pending} onConfirm={submit} />
       ) : (
         <DialogContent title={`Edit ${root.name}`} description={<span className="break-all font-mono text-[13px]">{root.path}</span>}>
           <DialogForm onSubmit={submit} errors={form.errors} pending={form.pending} submitLabel="Save">

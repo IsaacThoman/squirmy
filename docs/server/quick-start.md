@@ -62,7 +62,9 @@ curl http://localhost:4747/ready
 
 1. Open `http://localhost:4747` (or the machine's address and your `SQUIRMY_PORT`).
 2. **Welcome to Squirmy**: choose a username and a password of at least 8 characters, then **Continue**. The first account is the admin.
-3. **Where is your music?**: choose **Skip for now**. Your music folder was already added from `compose.yaml`, and adding `/music` a second time fails with "That folder is already a library root". Add other folders later in **Admin → Library**.
+3. **Where is your music?**: your music folder is already listed, because `compose.yaml` adds `/music` at startup. It shows as **Read-only** with its scan progress. Choose **Continue**. You can also:
+   - choose **Let Squirmy organize it…** and confirm with **Make managed**, if you want Squirmy to rename and file it ([Organizing files](./organizing.md); the mount must be writable);
+   - choose **Add another** to add a second folder. A folder that is already listed is marked **Already added** instead of being added twice.
 4. **You're all set**: choose **Start listening**.
 
 Everyone else joins by invite. See [Users and access](./users.md).

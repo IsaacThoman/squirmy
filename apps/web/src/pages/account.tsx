@@ -1,4 +1,8 @@
-import { queryKeys, type ScrobblingStatus, type ScrobbleTarget, type UpdateUserSettings, type User, type UserSettings } from '@squirmy/contracts'
+import { ApiError } from '@squirmy/client-core'
+import {
+  DuplicateLibraryRootDetails, queryKeys,
+  type CreateLibraryRootRequest, type ScrobblingStatus, type ScrobbleTarget, type UpdateLibraryRootRequest, type UpdateUserSettings, type User, type UserSettings,
+} from '@squirmy/contracts'
 import { notifyManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
@@ -185,23 +189,54 @@ function SetupAccount() {
   return <SetupAccountView onCreateAdmin={credentials => setup.mutateAsync({ ...credentials, device: webDevice() })} />
 }
 
-type DoneState = { path: string } | null
+type DoneState = { paths: string[] } | null
+
+// Scans report progress as events only to signed-in pages; the wizard asks again while one runs.
+const SCANNING_REFRESH_MS = 2000
 
 function SetupLibrary() {
   const api = useApi()
   const navigate = useNavigate()
   const [path, setPath] = useState<string>()
+  const [alreadyAdded, setAlreadyAdded] = useState<string | null>(null)
   const listing = useFolderListing(path)
+  const roots = useQuery({
+    queryKey: queryKeys.adminRoots(),
+    queryFn: () => api.library.roots(),
+    select: page => page.items,
+    refetchInterval: query => query.state.data?.items.some(root => root.scanning) ? SCANNING_REFRESH_MS : false,
+  })
+  const paths = roots.data?.map(root => root.path) ?? []
   const done = (state: DoneState) => navigate('/setup/done', { replace: true, state })
   const create = useMutation({ mutationFn: api.library.createRoot, meta: { inline: true } })
+  const update = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateLibraryRootRequest }) => api.library.updateRoot(id, patch),
+    onSuccess: () => roots.refetch(),
+    meta: { inline: true },
+  })
+  const addFolder = async (request: CreateLibraryRootRequest) => {
+    try {
+      const root = await create.mutateAsync(request)
+      done({ paths: [...paths, root.path] })
+    } catch (error) {
+      // A folder the server already has, often the one its configuration added at startup, is simply there.
+      const existing = error instanceof ApiError && error.code === 'duplicate_root' ? DuplicateLibraryRootDetails.safeParse(error.details).data : undefined
+      if (!existing) throw error
+      setAlreadyAdded(existing.rootId)
+      await roots.refetch()
+    }
+  }
   return (
     <SetupLibraryView
+      roots={roots.data}
+      alreadyAdded={alreadyAdded}
       path={listing.data?.path ?? path}
       listing={listing.data}
       listingError={listing.isError ? errorMessage(listing.error) : undefined}
       onBrowse={setPath}
-      onAddFolder={async request => done({ path: (await create.mutateAsync(request)).path })}
-      onSkip={() => done(null)}
+      onAddFolder={addFolder}
+      onMakeManaged={(id, patch) => update.mutateAsync({ id, patch })}
+      onContinue={() => done(paths.length ? { paths } : null)}
     />
   )
 }
@@ -209,5 +244,5 @@ function SetupLibrary() {
 function SetupDone() {
   const navigate = useNavigate()
   const state = useLocation().state as DoneState
-  return <SetupDoneView folderPath={state?.path} onFinish={() => navigate('/', { replace: true })} />
+  return <SetupDoneView folderPaths={state?.paths ?? []} onFinish={() => navigate('/', { replace: true })} />
 }
