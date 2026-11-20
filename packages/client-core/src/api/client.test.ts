@@ -121,6 +121,7 @@ describe('artworkUrl', () => {
     await api.matching.candidates(id, { query: 'Radiohead - OK Computer' })
     await api.matching.rematch(id)
     await api.matching.unmatch(id)
+    await api.organize.template()
     await api.organize.preview({ rootId: id, writeTags: true })
     await api.organize.batches({ rootId: id })
     await api.organize.batch(id)
@@ -138,6 +139,7 @@ describe('artworkUrl', () => {
       ['GET', `/api/v1/admin/albums/${id}/candidates?query=Radiohead%20-%20OK%20Computer`, undefined],
       ['POST', `/api/v1/admin/albums/${id}/rematch`, '{}'],
       ['POST', `/api/v1/admin/albums/${id}/unmatch`, undefined],
+      ['GET', '/api/v1/admin/organize/template', undefined],
       ['POST', '/api/v1/admin/organize/preview', `{"rootId":"${id}","writeTags":true}`],
       ['GET', `/api/v1/admin/organize/batches?rootId=${id}`, undefined],
       ['GET', `/api/v1/admin/organize/batches/${id}`, undefined],

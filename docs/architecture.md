@@ -189,7 +189,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/PATCH /me/settings` | userdata | `UserSettings` |
 | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/:id`; `GET/POST /admin/invites`, `DELETE /admin/invites/:id` | admin | the last active admin cannot be demoted, disabled or deleted |
 | `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists directories only, symlinks resolved; home directory by default |
-| `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | |
+| `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | `template` is checked with organize's `validateTemplate`; a bad one is `invalid_request` with an issue on `template` |
 | `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` |
 | `GET /home` | catalog | `HomeResponse` |
 | `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
@@ -206,7 +206,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /scrobbling/lastfm/callback` | scrobble | no session needed: the signed `state` names the user; redirects to `/settings?lastfm=…` |
 | `POST /radio/track/:id`, `POST /radio/artist/:id` | radio | `RadioResponse`, played with `playTracks` |
 | `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files; candidates come with the album's files |
-| `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
+| `GET /admin/organize/template`, `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `GET/POST /imports`, `GET/DELETE /imports/:id`, `POST /imports/:id/files`, `POST /imports/:id/commit` | imports | admins and members with `canUpload`; multipart upload; `DELETE` cancels while receiving; a list shows your own imports, or all for an admin |
 | `GET/POST /admin/acquisition/providers`, `PATCH/DELETE /admin/acquisition/providers/:id`, `POST /admin/acquisition/providers/:id/test`, `GET/PATCH /admin/acquisition/policy`, `GET /admin/acquisition/jobs` | acquisition | the secret is never returned; `test` calls `capabilities` |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request, 202 with the jobs; play does it implicitly |

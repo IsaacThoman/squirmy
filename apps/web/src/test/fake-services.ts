@@ -110,7 +110,7 @@ const scrobbling: ScrobblingStatus = {
 }
 
 export const root: LibraryRoot = {
-  id: '00000000-0000-4000-8900-000000000001', name: 'Music', path: '/srv/music', mode: 'read_only', enabled: true, watch: true, scanning: false,
+  id: '00000000-0000-4000-8900-000000000001', name: 'Music', path: '/srv/music', mode: 'read_only', enabled: true, watch: true, template: null, scanning: false,
   fileCount: 120, lastScanStartedAt: '2026-11-20T10:00:00.000Z', lastScanFinishedAt: '2026-11-20T10:02:00.000Z',
   lastScanStats: { filesSeen: 120, filesAdded: 120, filesChanged: 0, filesMissing: 0, errors: 0 },
 }

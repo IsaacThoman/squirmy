@@ -61,6 +61,7 @@ import {
   OrganizeBatchList,
   type OrganizeBatchListQuery,
   OrganizePreviewRequest,
+  OrganizeTemplateInfo,
   page,
   type Page,
   type PageQuery,
@@ -355,6 +356,8 @@ export function createApiClient(options: ApiClientOptions) {
       unmatch: (albumId: string) => send('POST', `/admin/albums/${id(albumId)}/unmatch`, MatchActionResult),
     },
     organize: {
+      /** The default path template and the tokens a template may use. */
+      template: () => get('/admin/organize/template', OrganizeTemplateInfo),
       preview: (body: Input<typeof OrganizePreviewRequest>) => send('POST', '/admin/organize/preview', OrganizeBatch, body),
       batches: (query: Partial<OrganizeBatchListQuery> = {}) => get('/admin/organize/batches', OrganizeBatchList, query),
       batch: (batchId: string) => get(`/admin/organize/batches/${id(batchId)}`, OrganizeBatch),

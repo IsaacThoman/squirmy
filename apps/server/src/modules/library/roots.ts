@@ -8,6 +8,7 @@ import { libraryRoots } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { AppError, badRequest, conflict, forbidden } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
+import { validateTemplate } from '../organize/template.js'
 import { warn } from './progress.js'
 
 type RootRow = typeof libraryRoots.$inferSelect
@@ -28,6 +29,15 @@ export async function resolveRootPath(requested: string): Promise<string> {
   }
 }
 
+/**
+ * Refuses a template organize could not use, as a validation issue on `template` so a form
+ * can show the message next to the field. Null (the default) is always fine.
+ */
+export function checkTemplate(template: string | null | undefined) {
+  const message = template == null ? null : validateTemplate(template)
+  if (message) throw badRequest(message, 'invalid_request', [{ code: 'custom', path: ['template'], message }])
+}
+
 const inside = (parent: string, child: string) => {
   const relative = path.relative(parent, child)
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
@@ -37,7 +47,7 @@ const inside = (parent: string, child: string) => {
  * Inserts a root unless it repeats or overlaps an existing one: a file must belong to
  * exactly one root. Holds a lock so two requests cannot add overlapping roots at once.
  */
-export async function insertRoot(input: { name: string; path: string; mode: LibraryRootMode; watch: boolean }): Promise<RootRow> {
+export async function insertRoot(input: { name: string; path: string; mode: LibraryRootMode; watch: boolean; template?: string | null }): Promise<RootRow> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('squirmy:library-roots'))`)
     for (const existing of await tx.select({ path: libraryRoots.path }).from(libraryRoots)) {
@@ -66,6 +76,7 @@ export async function listRoots(executor: Executor = db, id?: string): Promise<L
     mode: root.mode,
     enabled: root.enabled,
     watch: root.watch,
+    template: root.template,
     scanning,
     fileCount,
     lastScanStartedAt: root.lastScanStartedAt?.toISOString() ?? null,

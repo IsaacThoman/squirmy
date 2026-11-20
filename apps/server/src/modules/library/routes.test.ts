@@ -81,6 +81,29 @@ describe('library roots API', () => {
     expect(stats.durationMs).toBeGreaterThan(1500)
   })
 
+  it('sets a path template, checked by organize, and clears it with null', async () => {
+    const created = await create({ name: 'Tidy', path: path.join(base, 'tidy'), mode: 'managed', template: '{artist}/{title}.{ext}' })
+    expect(created.json().error.code).toBe('path_not_found')
+    await mkdir(path.join(base, 'tidy'))
+    const invalid = await create({ name: 'Tidy', path: path.join(base, 'tidy'), mode: 'managed', template: '{artist}/{title}' })
+    expect(invalid.statusCode).toBe(400)
+    expect(invalid.json().error).toMatchObject({
+      code: 'invalid_request',
+      message: 'The file name must end with .{ext}',
+      details: [{ path: ['template'], message: 'The file name must end with .{ext}' }],
+    })
+    const root = (await create({ name: 'Tidy', path: path.join(base, 'tidy'), mode: 'managed', template: '{artist}/{title}.{ext}' })).json()
+    expect(root).toMatchObject({ mode: 'managed', template: '{artist}/{title}.{ext}' })
+
+    const url = `/api/v1/admin/library/roots/${root.id}`
+    const unknown = await call({ method: 'PATCH', url, headers: admin, payload: { template: '{album}/{song}.{ext}' } })
+    expect(unknown.json().error.details).toEqual([expect.objectContaining({ path: ['template'], message: 'Unknown token {song}' })])
+    expect((await call({ method: 'PATCH', url, headers: admin, payload: { template: '{album}/{track} {title}.{ext}' } })).json().template).toBe('{album}/{track} {title}.{ext}')
+    expect((await call({ method: 'PATCH', url, headers: admin, payload: { name: 'Tidier' } })).json().template).toBe('{album}/{track} {title}.{ext}')
+    expect((await call({ method: 'PATCH', url, headers: admin, payload: { template: null } })).json().template).toBeNull()
+    expect((await call({ method: 'DELETE', url, headers: admin })).statusCode).toBe(200)
+  })
+
   it('refuses duplicate and nested roots', async () => {
     expect((await create({ name: 'Again', path: music })).json().error.code).toBe('duplicate_root')
     expect((await create({ name: 'Again', path: `${music}/` })).json().error.code).toBe('duplicate_root')

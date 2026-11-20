@@ -42,6 +42,7 @@ export const apiRoutes = {
   'matching.rematch': 'POST /admin/albums/:id/rematch',
   'matching.unmatch': 'POST /admin/albums/:id/unmatch',
 
+  'organize.template': 'GET /admin/organize/template',
   'organize.preview': 'POST /admin/organize/preview',
   'organize.batches': 'GET /admin/organize/batches',
   'organize.batch': 'GET /admin/organize/batches/:id',

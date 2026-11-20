@@ -21,6 +21,11 @@ export const LibraryRoot = z.object({
   mode: LibraryRootMode,
   enabled: z.boolean(),
   watch: z.boolean(),
+  /**
+   * Path template organize files a managed root by; null means the default
+   * (`GET /admin/organize/template` gives it and the tokens).
+   */
+  template: z.string().nullable(),
   scanning: z.boolean(),
   fileCount: z.number().int(),
   lastScanStartedAt: IsoDateTime.nullable(),
@@ -32,11 +37,19 @@ export type LibraryRoot = z.infer<typeof LibraryRoot>
 export const LibraryRootList = page(LibraryRoot)
 export type LibraryRootList = z.infer<typeof LibraryRootList>
 
+/**
+ * A root's path template. Null means the default. The server checks it with organize's own
+ * rules and answers `invalid_request` with an issue on `template` when it is not valid.
+ */
+export const LibraryRootTemplate = z.string().max(500).nullable()
+
 export const CreateLibraryRootRequest = z.object({
   name: z.string().trim().min(1).max(80),
   path: z.string().trim().min(1),
   mode: LibraryRootMode.default('read_only'),
   watch: z.boolean().default(true),
+  /** Omitted or null: the default template. */
+  template: LibraryRootTemplate.optional(),
 })
 export type CreateLibraryRootRequest = z.infer<typeof CreateLibraryRootRequest>
 
@@ -45,6 +58,8 @@ export const UpdateLibraryRootRequest = z.object({
   mode: LibraryRootMode.optional(),
   enabled: z.boolean().optional(),
   watch: z.boolean().optional(),
+  /** Null goes back to the default template. */
+  template: LibraryRootTemplate.optional(),
 })
 export type UpdateLibraryRootRequest = z.infer<typeof UpdateLibraryRootRequest>
 
