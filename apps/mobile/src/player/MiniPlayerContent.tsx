@@ -1,7 +1,7 @@
 import type { ComponentRef, Ref } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { usePlayback, usePlaybackState } from '../playback';
+import { usePlaybackState, usePosition } from '../playback';
 import { Cover, Icon } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import { createThemedStyles, useColors } from '../theme';
@@ -19,7 +19,9 @@ export type MiniPlayerContentProps = Appearance & {
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
   const colors = useColors();
   const styles = useStyles();
-  const { track, album, device, state, actions } = usePlaybackState();
+  const { track, output, session, actions, preparing, remote } = usePlaybackState();
+  const title = track?.title ?? 'Not Playing';
+  const subtitle = preparing ? 'Preparing…' : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
   // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
@@ -34,23 +36,23 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
       importantForAccessibility={preview ? 'no-hide-descendants' : 'auto'}
       style={styles.flex}>
       <Animated.View style={[styles.container, compact && styles.compact, visibility]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Open Now Playing, ${track.title}`}
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open Now Playing, ${title}`}
           onPress={onOpen} style={styles.info}>
           {preview ? <View style={{ width: size, height: size }} /> : (
-            <Cover source={album.artwork} size={size} radius={8} />
+            <Cover artwork={track?.album?.artwork} size={size} radius={8} />
           )}
           <View style={styles.copy}>
-            <Text numberOfLines={1} style={styles.title}>{track.title}</Text>
-            {!compact && <Text numberOfLines={1} style={styles.subtitle}>{track.artist}</Text>}
+            <Text numberOfLines={1} style={styles.title}>{title}</Text>
+            {!compact && <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>}
           </View>
         </Pressable>
-        {!compact && <Pressable accessibilityRole="button" accessibilityLabel={`Playback device, ${device.name}`}
+        {!compact && <Pressable accessibilityRole="button" accessibilityLabel={`Playback device, ${output.name}`}
           style={styles.control} onPress={onDevices}>
           <Icon name="airplay.audio" size={21} color={colors.accent} />
         </Pressable>}
-        <Pressable accessibilityRole="button" accessibilityLabel={state.playing ? 'Pause' : 'Play'}
+        <Pressable accessibilityRole="button" accessibilityLabel={session.playing ? 'Pause' : 'Play'}
           onPress={preview ? undefined : actions.playPause} style={styles.control}>
-          <Icon name={state.playing ? 'pause.fill' : 'play.fill'} size={23} />
+          <Icon name={session.playing ? 'pause.fill' : 'play.fill'} size={23} />
         </Pressable>
         {!compact && <Progress />}
       </Animated.View>
@@ -61,10 +63,12 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
 /** The only part of the bubble that follows the playback clock, so each tick redraws just this. */
 function Progress() {
   const styles = useStyles();
-  const { track, position } = usePlayback();
+  const { durationMs } = usePlaybackState();
+  const position = usePosition();
+  const fraction = durationMs > 0 ? Math.min(1, position / durationMs) : 0;
   return (
     <View style={styles.progress} pointerEvents="none">
-      <View style={[styles.progressFill, { width: `${Math.min(1, position / track.duration) * 100}%` }]} />
+      <View style={[styles.progressFill, { width: `${fraction * 100}%` }]} />
     </View>
   );
 }

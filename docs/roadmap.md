@@ -22,14 +22,14 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Loudness measurement and normalization values
 - [x] Likes, playlists, history, user settings
 - [ ] Web app: setup, login, library, album and artist pages, player, queue
-- [ ] Mobile app: connect, login, real data, real audio, lock-screen controls
+- [x] Mobile app: connect, login, real data, real audio, lock-screen controls
 
 ## 3. Connect
 
 - [x] Server-held session with command log and versions
-- [ ] Device list, transfer, remote control
-- [ ] Reconnect rule and device-lost handling
-- [ ] Live invalidations on web and mobile
+- [ ] Device list, transfer, remote control (mobile done; web to do)
+- [ ] Reconnect rule and device-lost handling (mobile done; web to do)
+- [ ] Live invalidations on web and mobile (mobile done)
 
 ## 4. Identify and reorganize
 
@@ -67,7 +67,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [ ] Acquisition provider protocol, on-demand playback, policy
 - [ ] Reference adapters: cold storage and mock
-- [x] Scrobbling to ListenBrainz and Last.fm (server and API; settings screens to do)
+- [x] Scrobbling to ListenBrainz and Last.fm (server, API and mobile settings; web settings to do)
 - [x] Radio and autoplay (server and API)
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [ ] Documentation site

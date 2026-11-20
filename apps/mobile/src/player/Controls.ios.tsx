@@ -26,9 +26,9 @@ export function CollapseButton({ onPress }: { onPress: () => void }) {
   </Host>;
 }
 
-export function TrackMenuButton({ trackId }: TrackMenuButtonProps) {
+export function TrackMenuButton({ track }: TrackMenuButtonProps) {
   const colors = useColors();
-  return <Host style={styles.icon}><TrackMenu trackId={trackId} label="Song options" color={colors.text} /></Host>;
+  return <Host style={styles.icon}><TrackMenu track={track} label="Song options" color={colors.text} /></Host>;
 }
 
 export function DeviceButton({ icon, name, onPress }: DeviceButtonProps) {
@@ -45,17 +45,16 @@ export function DeviceButton({ icon, name, onPress }: DeviceButtonProps) {
 
 export function LyricButton({ line, active, onPress }: LyricButtonProps) {
   const colors = useColors();
+  const text = <Text modifiers={[
+    foregroundStyle(active ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
+    frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), hitShape,
+  ]}>{line}</Text>;
   return <View style={styles.lyricRow}>
     <Host matchContents={{ vertical: true }}>
-      <Button onPress={onPress} modifiers={[
+      {onPress ? <Button onPress={onPress} modifiers={[
         plainButton, accessibilityHint('Seek to this line'),
         ...(active ? [accessibilityAddTraits(['isSelected'])] : []),
-      ]}>
-        <Text modifiers={[
-          foregroundStyle(active ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
-          frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), hitShape,
-        ]}>{line}</Text>
-      </Button>
+      ]}>{text}</Button> : text}
     </Host>
   </View>;
 }
