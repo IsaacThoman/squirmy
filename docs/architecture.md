@@ -95,6 +95,14 @@ export type ServerModule = {
 | `radio` | autoplay suggestions from similar-artist data | 8 |
 | `catalog-index` | optional local search index from MusicBrainz canonical dumps | 8 |
 
+### Seams between modules
+
+Modules reach each other in three ways, in this order of preference:
+
+1. **Database state.** A module finds its own work by querying for rows that need it (files with no loudness, albums still `pending`). Sweeps make this robust to ordering and restarts.
+2. **Jobs by name.** A module may enqueue another module's job (`enqueue('loudness.measure', { fileId })`). The job name and payload are that module's public interface.
+3. **Seam functions.** A few direct calls are declared up front and start as no-ops: `enrichment/detail.ts` (`ensureAlbumDetail`, `ensureArtistDetail`), `acquisition/coverage.ts` (`onDemandRecordings`, `requestRecording`), `radio/suggest.ts` (`suggestAutoplay`). The owning module fills them in; callers never change.
+
 ### Configuration
 
 Environment variables are parsed in `config.ts`; see that file for the full list. The ones a self-hoster sets: `DATABASE_URL` (required), `SQUIRMY_DATA_DIR`, `SQUIRMY_LIBRARY_PATHS`, `PORT`, `PUBLIC_URL`, `TRUST_PROXY`, `SQUIRMY_ROLE`. `SQUIRMY_SECRET` is generated into the data directory on first boot when unset.
