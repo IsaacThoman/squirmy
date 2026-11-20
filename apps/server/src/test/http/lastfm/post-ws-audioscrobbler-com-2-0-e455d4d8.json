@@ -1,0 +1,38 @@
+{
+  "note": "Hand-written from the Last.fm API docs; recording needs a real API key and session.",
+  "request": {
+    "method": "POST",
+    "url": "https://ws.audioscrobbler.com/2.0/",
+    "body": "sk=test-session-key&artist=Radiohead&track=Airbag&album=OK+Computer&duration=284&trackNumber=1&method=track.updateNowPlaying&api_key=test-lastfm-key&api_sig=8629ef5c265a0f79d9e293d2efd63950&format=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "nowplaying": {
+        "artist": {
+          "corrected": "0",
+          "#text": "Radiohead"
+        },
+        "track": {
+          "corrected": "0",
+          "#text": "Airbag"
+        },
+        "album": {
+          "corrected": "0",
+          "#text": "OK Computer"
+        },
+        "albumArtist": {
+          "corrected": "0",
+          "#text": ""
+        },
+        "ignoredMessage": {
+          "code": "0",
+          "#text": ""
+        }
+      }
+    }
+  }
+}

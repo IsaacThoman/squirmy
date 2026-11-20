@@ -1,0 +1,17 @@
+{
+  "note": "Hand-written from the fanart.tv v3 music API docs; recording needs a real API key.",
+  "request": {
+    "method": "GET",
+    "url": "https://webservice.fanart.tv/v3/music/11111111-2222-4333-8444-555555555555?api_key=test-fanart-key"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "status": "error",
+      "error message": "Not found"
+    }
+  }
+}

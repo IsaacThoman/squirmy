@@ -88,7 +88,7 @@ export type ServerModule = {
 | `loudness` | EBU R128 measurement, album loudness, normalization values | 2 |
 | `userdata` | likes, ratings, playlists, history, wants, user settings | 2 |
 | `sessions` | playback sessions over socket.io, devices, play recording | 2–3 |
-| `metadata` | clients for MusicBrainz, Cover Art Archive, Deezer, Wikidata, LRCLIB, ListenBrainz, AcoustID, fanart.tv | 4 |
+| `metadata` | clients for MusicBrainz, Cover Art Archive, Deezer, Wikidata, LRCLIB, ListenBrainz, AcoustID, fanart.tv, Last.fm | 4 |
 | `matching` | album matcher, scoring, review queue, fix match, merges | 4 |
 | `enrichment` | covers, artist images, bios, lyrics, external ids, new-release feed | 4 |
 | `organize` | managed roots: planner, mover, journal, undo, tag writer | 4 |
@@ -243,11 +243,12 @@ Album grouping key: root id, parent directory (ignoring `CD1`/`Disc 2` subfolder
 
 All clients live in `modules/metadata/` and go through `lib/http.ts`:
 
-- `cachedFetch(provider, url, { ttl })` stores responses in `http_cache` and serves them until they expire.
-- `rateLimit(key, intervalMs)` reserves the next slot in the `rate_limits` table, so the limit holds across processes. MusicBrainz uses 1100 ms.
+- `cachedFetch(provider, url, { ttlSeconds, … })` stores responses in `http_cache` and serves them until they expire. 404s are cached for at most six hours, 5xx never; 429/503 are retried honoring `Retry-After`. `cache: 'reload' | 'no-store'` bypasses the cache for one call.
+- `rateLimit(key, intervalMs)` reserves the next slot in the `rate_limits` table, so the limit holds across processes. MusicBrainz uses 1100 ms (only against musicbrainz.org; a mirror is not limited).
 - User-Agent: `Squirmy/<version> ( https://github.com/IsaacThoman/squirmy )`.
-- Every provider checks its toggle in `ServerSettings` and returns "unavailable" rather than throwing when it is off.
-- Tests never touch the network. They load recorded responses from `src/test/http/<provider>/` through a `fetch` stub.
+- Every provider checks its toggle or key in `ServerSettings` and returns null or an empty list rather than throwing when it is off. "Not found" is null too; a provider failure (network, timeout, 5xx, bad key) throws `ProviderError`.
+- Other modules import the clients from `modules/metadata/index.ts`, e.g. `musicbrainz.getRelease(mbid)`.
+- Tests never touch the network. `useHttpFixtures(provider)` from `src/test/http.ts` serves recorded responses from `src/test/http/<provider>/` and fails on any unrecorded request. `SQUIRMY_RECORD_HTTP=1` records missing fixtures from the real service.
 
 ## Clients
 
@@ -261,6 +262,20 @@ All clients live in `modules/metadata/` and go through `lib/http.ts`:
 - Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork and stream URL helpers.
 
 **Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. Colors and type follow the mobile theme in `apps/mobile/src/theme.ts`. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
+
+```
+apps/web/src/
+  components/ui/       primitives (button, slider, menu, dialog, …)
+  components/music/    covers, cards, rails, track lists
+  components/player/   player bar, mini-player, queue, devices, Now Playing
+  components/layout/   app shell, sidebar, top bar, tab bar
+  components/views/    one presentational view per page; data arrives as props
+  pages/               route containers: fetch data, pass it to a view
+  player/              PlayerContext (session state and commands) and LibraryContext (likes, wants)
+  fixtures/            fictional catalog and an in-memory session, until the API is wired
+```
+
+Catalog data reaches views through props typed with the contracts; session state and user actions come from `PlayerContext` and `LibraryContext`, whose providers are the only code that talks to `SessionClient` and the API. `/dev/kitchen-sink` shows every component state.
 
 **Mobile** (`apps/mobile`): the existing Expo app. `expo-audio` implements `PlayerEngine`. The token lives in SecureStore. Screens read through TanStack Query with a persisted cache.
 

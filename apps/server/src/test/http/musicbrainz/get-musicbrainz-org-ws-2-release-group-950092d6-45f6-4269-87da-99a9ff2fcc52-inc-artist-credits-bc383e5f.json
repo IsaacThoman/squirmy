@@ -1,0 +1,181 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group/950092d6-45f6-4269-87da-99a9ff2fcc52?inc=artist-credits+genres+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "disambiguation": "Original Motion Picture Soundtrack",
+      "secondary-type-ids": [
+        "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1",
+        "22a628ad-c082-3c4f-b1b6-d41665107b88"
+      ],
+      "primary-type": "Album",
+      "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "artist-credit": [
+        {
+          "artist": {
+            "disambiguation": "add compilations to this artist",
+            "sort-name": "Various Artists",
+            "type-id": "ac897045-5043-3294-969b-187360e45d86",
+            "type": "Other",
+            "country": null,
+            "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+            "name": "Various Artists",
+            "genres": [
+              {
+                "disambiguation": "",
+                "id": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+                "name": "alternative rock",
+                "count": 1
+              },
+              {
+                "count": 1,
+                "disambiguation": "",
+                "id": "3f3388b4-e36a-4bf8-a0be-66b10d92aaa4",
+                "name": "electropop"
+              },
+              {
+                "disambiguation": "",
+                "id": "797e2e85-5ffd-495c-a757-8b4079052f0e",
+                "name": "pop rock",
+                "count": 1
+              }
+            ]
+          },
+          "name": "Various Artists",
+          "joinphrase": ""
+        }
+      ],
+      "relations": [
+        {
+          "target-credit": "",
+          "ended": false,
+          "direction": "forward",
+          "attributes": [],
+          "type-id": "a50a1d20-2b20-4d2c-9a29-eb771dd78386",
+          "end": null,
+          "attribute-ids": {},
+          "type": "allmusic",
+          "begin": null,
+          "target-type": "url",
+          "url": {
+            "id": "5b4af675-ca8a-4867-96b2-b9748ceaeecd",
+            "resource": "https://www.allmusic.com/album/mw0002697953"
+          },
+          "source-credit": "",
+          "attribute-values": {}
+        },
+        {
+          "attribute-values": {},
+          "source-credit": "",
+          "target-type": "url",
+          "url": {
+            "id": "90c42048-e474-4119-8718-c23230775d72",
+            "resource": "https://www.last.fm/music/Various+Artists/Guardians+of+the+Galaxy:+Awesome+Mix,+Vol.+1:+Original+Motion+Picture+Soundtrack"
+          },
+          "begin": null,
+          "type": "discography entry",
+          "type-id": "5849de4a-78ae-4876-975d-2181107e70b7",
+          "end": null,
+          "attribute-ids": {},
+          "ended": false,
+          "target-credit": "",
+          "direction": "forward",
+          "attributes": []
+        },
+        {
+          "attribute-values": {},
+          "url": {
+            "id": "407f6618-0bd7-42b1-adc3-8005777d19d2",
+            "resource": "https://www.discogs.com/master/724766"
+          },
+          "target-type": "url",
+          "source-credit": "",
+          "type": "discogs",
+          "begin": null,
+          "attributes": [],
+          "direction": "forward",
+          "target-credit": "",
+          "ended": false,
+          "attribute-ids": {},
+          "end": null,
+          "type-id": "99e550f3-5ab4-3110-b5b9-fe01d970b126"
+        },
+        {
+          "type": "IMDb",
+          "begin": null,
+          "ended": false,
+          "target-credit": "",
+          "attributes": [],
+          "direction": "forward",
+          "type-id": "85b0a010-3237-47c7-8476-6fcefd4761af",
+          "attribute-ids": {},
+          "end": null,
+          "attribute-values": {},
+          "url": {
+            "id": "001b759f-47cc-47b1-a433-92d4555a9d98",
+            "resource": "https://www.imdb.com/title/tt2015381/"
+          },
+          "target-type": "url",
+          "source-credit": ""
+        },
+        {
+          "type": "other databases",
+          "begin": null,
+          "target-credit": "",
+          "ended": false,
+          "attributes": [],
+          "direction": "forward",
+          "type-id": "38320e40-9f4a-3ae7-8cb2-3f3c9c5d856d",
+          "attribute-ids": {},
+          "end": null,
+          "attribute-values": {},
+          "url": {
+            "id": "d391bfe7-96f4-4cc1-bdd6-4a590096a49c",
+            "resource": "https://www.offiziellecharts.de/charts/album-details-250614"
+          },
+          "target-type": "url",
+          "source-credit": ""
+        },
+        {
+          "type-id": "b988d08c-5d86-4a57-9557-c83b399e3580",
+          "end": null,
+          "attribute-ids": {},
+          "ended": false,
+          "target-credit": "",
+          "direction": "forward",
+          "attributes": [],
+          "begin": null,
+          "type": "wikidata",
+          "source-credit": "",
+          "target-type": "url",
+          "url": {
+            "id": "f0c38e71-e628-4f45-b415-dcd6c73544c9",
+            "resource": "https://www.wikidata.org/wiki/Q18014977"
+          },
+          "attribute-values": {}
+        }
+      ],
+      "id": "950092d6-45f6-4269-87da-99a9ff2fcc52",
+      "first-release-date": "2014-07-28",
+      "genres": [
+        {
+          "count": 1,
+          "name": "classic rock",
+          "id": "93244085-20e5-4f16-9067-1d19143b3810",
+          "disambiguation": ""
+        }
+      ],
+      "title": "Guardians of the Galaxy: Awesome Mix, Vol. 1: Original Motion Picture Soundtrack",
+      "secondary-types": [
+        "Compilation",
+        "Soundtrack"
+      ]
+    }
+  }
+}

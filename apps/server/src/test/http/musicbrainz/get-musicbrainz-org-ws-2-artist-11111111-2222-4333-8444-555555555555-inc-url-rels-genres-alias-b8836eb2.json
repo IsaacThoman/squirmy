@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/artist/11111111-2222-4333-8444-555555555555?inc=url-rels+genres+aliases&fmt=json"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "error": "Not Found",
+      "help": "For usage, please see: https://musicbrainz.org/development/mmd"
+    }
+  }
+}

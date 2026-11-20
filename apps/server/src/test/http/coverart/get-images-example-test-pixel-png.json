@@ -1,0 +1,14 @@
+{
+  "note": "Hand-written: exercises fetchImage without downloading real artwork.",
+  "request": {
+    "method": "GET",
+    "url": "https://images.example.test/pixel.png"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+  }
+}
