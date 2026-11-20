@@ -110,7 +110,7 @@ async function invalidatePlaylist(ownerId: string, isPublic: boolean) {
 }
 
 /** Creates an empty playlist owned by the user. */
-export async function createPlaylist(userId: string, input: CreatePlaylistRequest): Promise<PlaylistDetail> {
+export async function createPlaylist(userId: string, input: CreatePlaylistRequest): Promise<PlaylistSummary> {
   const [row] = await db.insert(playlists).values({
     id: newId(),
     ownerId: userId,
@@ -119,7 +119,7 @@ export async function createPlaylist(userId: string, input: CreatePlaylistReques
     isPublic: input.isPublic ?? false,
   }).returning()
   await invalidatePlaylist(userId, row!.isPublic)
-  return getPlaylist(userId, row!.id)
+  return (await playlistSummaries([row!.id]))[0]!
 }
 
 /** Renames, re-describes or publishes a playlist. Owner only. */

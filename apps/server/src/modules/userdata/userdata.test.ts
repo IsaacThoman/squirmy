@@ -1,5 +1,5 @@
 import {
-  AlbumDetail, AlbumPage, ArtistPage, HistoryPage, Ok, PlaylistDetail, PlaylistPage, PlaylistSummary, queryKeys, TrackPage, TrackSummary, UserSettings, WantsResponse,
+  AlbumDetail, AlbumPage, ArtistPage, HistoryPage, Ok, PlaylistDetail, PlaylistPage, PlaylistSummary, queryKeys, TrackPage, TrackSummary, UserSettings, WantPage,
 } from '@squirmy/contracts'
 import { and, asc, eq } from 'drizzle-orm'
 import type { FastifyInstance, InjectOptions } from 'fastify'
@@ -122,14 +122,14 @@ describe('userdata', () => {
 
   describe('playlists', () => {
     const create = async (who: typeof mira, payload: object) =>
-      body(await call(who, { method: 'POST', url: '/playlists', payload }), PlaylistDetail, 201)
+      body(await call(who, { method: 'POST', url: '/playlists', payload }), PlaylistSummary, 201)
     const add = (who: typeof mira, id: string, payload: object) => call(who, { method: 'POST', url: `/playlists/${id}/items`, payload })
     const positions = async (playlistId: string) =>
       (await db.select().from(playlistItems).where(eq(playlistItems.playlistId, playlistId)).orderBy(asc(playlistItems.position))).map((item) => item.position)
 
     it('creates, lists, reads and updates playlists with owner-only changes', async () => {
       const mine = await create(mira, { name: 'Morning', description: 'Slow start' })
-      expect(mine).toMatchObject({ name: 'Morning', description: 'Slow start', ownerId: mira.id, ownerName: 'mira', isPublic: false, trackCount: 0, durationMs: 0, artworks: [], items: [] })
+      expect(mine).toMatchObject({ name: 'Morning', description: 'Slow start', ownerId: mira.id, ownerName: 'mira', isPublic: false, trackCount: 0, durationMs: 0, artworks: [] })
       expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.playlists(), queryKeys.home()])
       const shared = await create(lune, { name: 'Shared', isPublic: true })
       expect(invalidated).toHaveBeenCalledWith('all', [queryKeys.playlists()])
@@ -256,7 +256,11 @@ describe('userdata', () => {
   })
 
   describe('wants', () => {
-    it('lists wants until imports fulfil them', async () => {
+    const wantsOf = async (who: typeof mira, query = '') => body(await call(who, { url: `/me/wants${query}` }), WantPage)
+    const describeItem = (item: WantPage['items'][number]) =>
+      item.type === 'album' ? ['album', item.album.id, item.fulfilledAt !== null] : ['track', item.track.id, item.fulfilledAt !== null]
+
+    it('lists wants newest first and marks them fulfilled once imports cover them', async () => {
       const wanter = await signIn()
       const album = await createAlbum({ owned: [0] })
       const single = await createAlbum({ tracks: [{ title: 'Single' }] })
@@ -265,21 +269,27 @@ describe('userdata', () => {
       body(await call(wanter, { method: 'PUT', url: `/me/wants/track/${track}` }), Ok)
       expect(invalidated).toHaveBeenCalledWith({ user: wanter.id }, [queryKeys.wants(), queryKeys.home(), queryKeys.track(track)])
 
-      let list = body(await call(wanter, { url: '/me/wants' }), WantsResponse)
-      expect(list.albums.map((item) => [item.id, item.availability])).toEqual([[album.albumId, 'partial']])
-      expect(list.tracks.map((item) => item.id)).toEqual([track])
+      let list = await wantsOf(wanter)
+      expect(list.items.map(describeItem)).toEqual([['track', track, false], ['album', album.albumId, false]])
+      expect(list.items[1]).toMatchObject({ album: { availability: 'partial' }, fulfilledAt: null })
       expect(body(await call(wanter, { url: `/albums/${album.albumId}` }), AlbumDetail).wanted).toBe(true)
+      // Pages walk the same list.
+      const first = await wantsOf(wanter, '?limit=1')
+      const second = await wantsOf(wanter, `?limit=1&cursor=${first.nextCursor}`)
+      expect([...first.items, ...second.items].map(describeItem)).toEqual(list.items.map(describeItem))
+      expect(second.nextCursor).toBeNull()
 
-      // The import pipeline links the missing files and refreshes everyone's wants.
+      // A partly owned album is not fulfilled; the import pipeline links the rest and refreshes everyone's wants.
+      await refreshWants()
+      expect((await wantsOf(wanter)).items.every((item) => item.fulfilledAt === null)).toBe(true)
       for (const missing of album.tracks.slice(1)) await createFile({ rootId: album.rootId!, recordingId: missing.recordingId, albumId: album.albumId })
       await createFile({ rootId: album.rootId!, recordingId: track })
       invalidated.mockClear()
       await refreshWants()
       expect(invalidated).toHaveBeenCalledWith({ user: wanter.id }, [queryKeys.wants(), queryKeys.home()])
-      list = body(await call(wanter, { url: '/me/wants' }), WantsResponse)
-      expect(list).toEqual({ albums: [], tracks: [] })
-      const stored = await db.select().from(wants).where(eq(wants.userId, wanter.id))
-      expect(stored.every((want) => want.fulfilledAt !== null)).toBe(true)
+      list = await wantsOf(wanter)
+      expect(list.items.map(describeItem)).toEqual([['track', track, true], ['album', album.albumId, true]])
+      expect(body(await call(wanter, { url: `/albums/${album.albumId}` }), AlbumDetail).wanted).toBe(false)
     })
 
     it('fulfils wants for owned music at once and removes wants', async () => {
@@ -288,9 +298,9 @@ describe('userdata', () => {
       const other = await createAlbum()
       body(await call(wanter, { method: 'PUT', url: `/me/wants/album/${owned.albumId}` }), Ok)
       body(await call(wanter, { method: 'PUT', url: `/me/wants/album/${other.albumId}` }), Ok)
-      expect(body(await call(wanter, { url: '/me/wants' }), WantsResponse).albums.map((album) => album.id)).toEqual([other.albumId])
+      expect((await wantsOf(wanter)).items.map(describeItem)).toEqual([['album', other.albumId, false], ['album', owned.albumId, true]])
       body(await call(wanter, { method: 'DELETE', url: `/me/wants/album/${other.albumId}` }), Ok)
-      expect(body(await call(wanter, { url: '/me/wants' }), WantsResponse).albums).toEqual([])
+      expect((await wantsOf(wanter)).items.map(describeItem)).toEqual([['album', owned.albumId, true]])
       expect(await db.select().from(wants).where(and(eq(wants.userId, wanter.id), eq(wants.entityId, other.albumId)))).toEqual([])
 
       expect(errorCode(await call(wanter, { method: 'PUT', url: `/me/wants/artist/${owned.artist.id}` }), 400)).toBe('invalid_request')
@@ -303,7 +313,7 @@ describe('userdata', () => {
       const loser = await createAlbum({ tracks: [{ title: 'Gone' }] })
       await db.update(recordings).set({ mergedIntoId: winner.tracks[0]!.recordingId }).where(eq(recordings.id, loser.tracks[0]!.recordingId))
       body(await call(wanter, { method: 'PUT', url: `/me/wants/track/${loser.tracks[0]!.recordingId}` }), Ok)
-      expect(body(await call(wanter, { url: '/me/wants' }), WantsResponse).tracks.map((item) => item.id)).toEqual([winner.tracks[0]!.recordingId])
+      expect((await wantsOf(wanter)).items.map(describeItem)).toEqual([['track', winner.tracks[0]!.recordingId, false]])
     })
   })
 

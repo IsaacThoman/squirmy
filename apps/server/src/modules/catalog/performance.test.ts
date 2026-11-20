@@ -76,6 +76,7 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
     for (const sort of ['recent', 'title', 'artist'] as const) {
       cases.push([`tracks ${sort}`, (cursor) => libraryTracksQuery({ sort, limit: 50, cursor }), `/api/v1/library/tracks?sort=${sort}`])
     }
+    cases.push(['tracks genre=Jazz by title', (cursor) => libraryTracksQuery({ sort: 'title', genre: 'Jazz', limit: 50, cursor }), '/api/v1/library/tracks?sort=title&genre=Jazz'])
     cases.push(['artists', (cursor) => libraryArtistsQuery({ limit: 50, cursor }), '/api/v1/library/artists'])
 
     for (const [name, query, url] of cases) {
@@ -103,6 +104,8 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
     await route('/api/v1/home')
     await route('/api/v1/me/history?limit=50')
     await route('/api/v1/me/likes/track?limit=50')
+    await route('/api/v1/me/wants?limit=50')
+    await route('/api/v1/playlists?limit=50')
     await route('/api/v1/library/genres')
   }, 300_000)
 })

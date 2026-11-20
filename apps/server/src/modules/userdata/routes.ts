@@ -2,7 +2,7 @@ import {
   AddPlaylistItemsRequest, CreatePlaylistRequest, Id, LikeEntityType, MovePlaylistItemRequest, PageQuery, UpdatePlaylistRequest,
   UpdateUserSettings, WantEntityType,
   type AlbumSummary, type ArtistSummary, type HistoryPage, type Ok, type Page, type PlaylistDetail, type PlaylistPage, type PlaylistSummary,
-  type TrackSummary, type UserSettings, type WantsResponse,
+  type TrackSummary, type UserSettings, type WantPage,
 } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
@@ -40,7 +40,7 @@ export async function userdataRoutes(app: FastifyInstance) {
     listLikes(requireUser(request).id, LikeTypeParams.parse(request.params).type, PageQuery.parse(request.query)))
 
   app.get('/playlists', async (request): Promise<PlaylistPage> => listPlaylists(requireUser(request).id, PageQuery.parse(request.query)))
-  app.post('/playlists', async (request, reply): Promise<PlaylistDetail> => {
+  app.post('/playlists', async (request, reply): Promise<PlaylistSummary> => {
     const playlist = await createPlaylist(requireUser(request).id, CreatePlaylistRequest.parse(request.body))
     reply.code(201)
     return playlist
@@ -67,7 +67,7 @@ export async function userdataRoutes(app: FastifyInstance) {
 
   app.get('/me/history', async (request): Promise<HistoryPage> => listHistory(requireUser(request).id, PageQuery.parse(request.query)))
 
-  app.get('/me/wants', async (request): Promise<WantsResponse> => listWants(requireUser(request).id))
+  app.get('/me/wants', async (request): Promise<WantPage> => listWants(requireUser(request).id, PageQuery.parse(request.query)))
   app.put('/me/wants/:type/:id', async (request): Promise<Ok> => {
     const { type, id } = WantParams.parse(request.params)
     await wantEntity(requireUser(request).id, type, id)

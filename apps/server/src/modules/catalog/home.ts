@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { listLikes } from '../userdata/likes.js'
 import { listPlaylists } from '../userdata/playlists.js'
-import { refreshWants, wantedIds } from '../userdata/wants.js'
+import { refreshWants, wantedAlbumIds } from '../userdata/wants.js'
 import { listLibraryAlbums } from './library.js'
 import { albumSummaries, trackSummaries } from './summaries.js'
 
@@ -37,7 +37,7 @@ export async function home(userId: string): Promise<HomeResponse> {
       group by recording_id order by count(*) desc, max(started_at) desc limit ${RAIL}`).then((rows) => trackSummaries(userId, rows)),
     listPlaylists(userId, { limit: RAIL }, { ownOnly: true }),
     listLikes(userId, 'album', { limit: RAIL }),
-    wantedIds(userId, 'album', RAIL).then(albumSummaries),
+    wantedAlbumIds(userId, RAIL).then(albumSummaries),
   ])
   const sections: HomeSection[] = [
     { kind: 'albums', id: 'recently-added', title: 'Recently added', albums: recentlyAdded.items },

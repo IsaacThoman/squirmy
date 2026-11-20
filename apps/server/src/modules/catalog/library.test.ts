@@ -118,15 +118,27 @@ describe('library lists', () => {
   })
 
   it('filters albums by genre and lists genres with counts', async () => {
-    const rock = body(await app.inject({ url: '/api/v1/library/albums?genre=Rock&sort=title', headers }), AlbumPage)
+    const rock = body(await app.inject({ url: '/api/v1/library/albums?genre=rock&sort=title', headers }), AlbumPage)
     expect(ids(rock.items)).toEqual([owned[2]!.albumId, owned[0]!.albumId])
     const recentRock = body(await app.inject({ url: '/api/v1/library/albums?genre=Rock', headers }), AlbumPage)
     expect(ids(recentRock.items)).toEqual([owned[2]!.albumId, owned[0]!.albumId])
-    // The album whose files are all missing does not count.
+    // The album whose files are all missing does not count; spellings differing in case count together.
     expect(await walk('/api/v1/library/genres', GenrePage, 1)).toEqual([{ name: 'Jazz', albumCount: 1 }, { name: 'Rock', albumCount: 2 }])
+    await db.update(albums).set({ genres: ['rock', 'ROCK'] }).where(eq(albums.id, owned[4]!.albumId))
+    expect(await walk('/api/v1/library/genres', GenrePage, 1)).toEqual([{ name: 'Jazz', albumCount: 1 }, { name: 'Rock', albumCount: 3 }])
+    await db.update(albums).set({ genres: [] }).where(eq(albums.id, owned[4]!.albumId))
+
+    // A track has the genres of its file's album.
+    const jazzIds = owned[0]!.tracks.map((track) => track.recordingId)
+    for (const sort of ['recent', 'title', 'artist']) {
+      const jazz = await walk(`/api/v1/library/tracks?genre=JAZZ&sort=${sort}`, TrackPage, 2)
+      expect(ids(jazz).sort(), sort).toEqual([...jazzIds].sort())
+    }
   })
 
   it('lists album artists of owned albums by sort name', async () => {
+    // Artists have one order; `sort` and `genre` do not apply.
+    expect(await walk('/api/v1/library/artists?sort=year&genre=Jazz', ArtistPage, 1)).toEqual(await walk('/api/v1/library/artists', ArtistPage, 1))
     const artists = await walk('/api/v1/library/artists', ArtistPage, 1)
     expect(artists.map((artist) => artist.name)).toEqual(['The Abc', 'Moss', 'Zed'])
     expect(artists.every((artist) => artist.inLibrary)).toBe(true)
@@ -158,6 +170,7 @@ describe('library lists', () => {
     expect(errorCode(await app.inject({ url: '/api/v1/library/albums?cursor=nonsense', headers }), 400)).toBe('invalid_cursor')
     const forged = Buffer.from(JSON.stringify({ o: 'albums:recent', k: ["'; drop table albums; --", 'x'] })).toString('base64url')
     expect(errorCode(await app.inject({ url: `/api/v1/library/albums?cursor=${forged}`, headers }), 400)).toBe('invalid_cursor')
-    expect(errorCode(await app.inject({ url: '/api/v1/library/tracks?sort=year', headers }), 400)).toBe('invalid_request')
+    expect(errorCode(await app.inject({ url: '/api/v1/library/tracks?sort=year', headers }), 400)).toBe('unsupported_sort')
+    expect(errorCode(await app.inject({ url: '/api/v1/library/albums?sort=newest', headers }), 400)).toBe('invalid_request')
   })
 })

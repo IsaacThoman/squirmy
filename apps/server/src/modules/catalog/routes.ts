@@ -1,5 +1,5 @@
 import {
-  Id, LibraryAlbumsQuery, LibraryTracksQuery, PageQuery, TrackQuery, TrackSummariesRequest,
+  Id, LibraryQuery, PageQuery, TrackQuery, TrackSummariesRequest,
   type AlbumDetail, type AlbumPage, type ArtistDetail, type ArtistPage, type GenrePage, type HomeResponse, type Lyrics,
   type TrackPage, type TrackSummariesResponse, type TrackSummary,
 } from '@squirmy/contracts'
@@ -18,10 +18,10 @@ export async function catalogRoutes(app: FastifyInstance) {
     requireUser(request)
   })
 
-  app.get('/library/albums', async (request): Promise<AlbumPage> => listLibraryAlbums(LibraryAlbumsQuery.parse(request.query)))
-  app.get('/library/artists', async (request): Promise<ArtistPage> => listLibraryArtists(PageQuery.parse(request.query)))
+  app.get('/library/albums', async (request): Promise<AlbumPage> => listLibraryAlbums(LibraryQuery.parse(request.query)))
+  app.get('/library/artists', async (request): Promise<ArtistPage> => listLibraryArtists(LibraryQuery.parse(request.query)))
   app.get('/library/tracks', async (request): Promise<TrackPage> =>
-    listLibraryTracks(requireUser(request).id, LibraryTracksQuery.parse(request.query)))
+    listLibraryTracks(requireUser(request).id, LibraryQuery.parse(request.query)))
   app.get('/library/genres', async (request): Promise<GenrePage> => listLibraryGenres(PageQuery.parse(request.query)))
 
   app.get('/home', async (request): Promise<HomeResponse> => home(requireUser(request).id))

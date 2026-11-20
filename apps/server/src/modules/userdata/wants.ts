@@ -1,16 +1,18 @@
 /**
  * The wantlist: albums and tracks a user does not have yet. A want is fulfilled once
  * the album is fully owned (every track of its canonical release) or the track is
- * owned; fulfilled wants leave the list.
+ * owned; it then stays listed with `fulfilledAt` set, and leaves the Home rail.
  */
-import { queryKeys, type WantEntityType, type WantsResponse } from '@squirmy/contracts'
+import { queryKeys, type PageQuery, type WantEntityType, type WantItem, type WantPage } from '@squirmy/contracts'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { wants } from '../../database/schema.js'
 import { invalidate } from '../../realtime/index.js'
 import { canonicalRelease, recordingOwned } from '../catalog/availability.js'
+import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pagination.js'
 import { resolveMerged } from '../catalog/redirects.js'
-import { albumSummaries, trackSummaries } from '../catalog/summaries.js'
+import { isoTime } from '../catalog/sql.js'
+import { alignedTrackSummaries, albumSummaries } from '../catalog/summaries.js'
 import { entityKey, entityTable, resolveEntity, storedType } from './entities.js'
 
 /**
@@ -57,18 +59,51 @@ export async function unwantEntity(userId: string, type: WantEntityType, id: str
   await invalidate({ user: userId }, [queryKeys.wants(), queryKeys.home(), entityKey(type, resolved)])
 }
 
-/** Ids of the user's open wants of one type, newest first. */
-export async function wantedIds(userId: string, type: WantEntityType, limit?: number): Promise<string[]> {
-  const query = db.select({ id: wants.entityId }).from(wants)
-    .where(and(eq(wants.userId, userId), eq(wants.entityType, storedType[type]), isNull(wants.fulfilledAt)))
+/** Ids of the user's open album wants, newest first. */
+export async function wantedAlbumIds(userId: string, limit: number): Promise<string[]> {
+  const rows = await db.select({ id: wants.entityId }).from(wants)
+    .where(and(eq(wants.userId, userId), eq(wants.entityType, 'album'), isNull(wants.fulfilledAt)))
     .orderBy(sql`${wants.createdAt} desc, ${wants.entityId} desc`)
-  return (await (limit ? query.limit(limit) : query)).map((row) => row.id)
+    .limit(limit)
+  return rows.map((row) => row.id)
 }
 
-/** The user's open wants, newest first, after fulfilling any the library now covers. */
-export async function listWants(userId: string): Promise<WantsResponse> {
+const wantOrdering: Ordering = {
+  name: 'wants',
+  keys: [
+    { expression: sql.raw('w.created_at'), type: 'timestamptz', descending: true },
+    { expression: sql.raw('w.entity_type'), type: 'text', descending: true },
+    { expression: sql.raw('w.entity_id'), type: 'uuid', descending: true },
+  ],
+}
+
+/** One page of the user's wants, newest first, fulfilled ones included, after fulfilling any the library now covers. */
+export async function listWants(userId: string, query: PageQuery): Promise<WantPage> {
   await refreshWants(userId)
-  const [albumIds, trackIds] = await Promise.all([wantedIds(userId, 'album'), wantedIds(userId, 'track')])
-  const [albums, tracks] = await Promise.all([albumSummaries(albumIds), trackSummaries(userId, trackIds.map((id) => ({ id })))])
-  return { albums, tracks }
+  const rows = await db.execute<{ type: 'album' | 'recording'; id: string; wantedAt: string; fulfilledAt: string | null; cursorKeys: string[] }>(sql`
+    select w.entity_type as type, w.entity_id as id, ${isoTime('w.created_at')} as "wantedAt",
+      case when w.fulfilled_at is null then null else ${isoTime('w.fulfilled_at')} end as "fulfilledAt",
+      ${cursorKeys(wantOrdering)}
+    from wants w
+    where w.user_id = ${userId} and ${after(wantOrdering, query.cursor)}
+    order by ${orderBy(wantOrdering)} limit ${query.limit + 1}`)
+  const page = rows.slice(0, query.limit)
+  const albumIds = page.filter((row) => row.type === 'album').map((row) => row.id)
+  const trackRows = page.filter((row) => row.type === 'recording')
+  const [albums, tracks] = await Promise.all([
+    albumSummaries(albumIds),
+    alignedTrackSummaries(userId, trackRows.map((row) => ({ id: row.id }))),
+  ])
+  const albumById = new Map(albums.map((album) => [album.id, album]))
+  const trackById = new Map(trackRows.flatMap((row, index) => tracks[index] ? [[row.id, tracks[index]] as const] : []))
+  const items = page.flatMap((row): WantItem[] => {
+    const base = { wantedAt: row.wantedAt, fulfilledAt: row.fulfilledAt }
+    if (row.type === 'album') {
+      const album = albumById.get(row.id)
+      return album ? [{ type: 'album', ...base, album }] : []
+    }
+    const track = trackById.get(row.id)
+    return track ? [{ type: 'track', ...base, track }] : []
+  })
+  return toPage(wantOrdering, rows, query.limit, items)
 }
