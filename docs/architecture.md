@@ -285,7 +285,7 @@ The server holds one session per user in memory, loaded on first use and persist
 
 ### Subsonic
 
-`modules/subsonic` serves OpenSubsonic under `/rest` over the same services; [subsonic.md](./subsonic.md) lists what it supports.
+`modules/subsonic` serves OpenSubsonic under `/rest` over the same services; [subsonic.md](./server/subsonic.md) lists what it supports.
 
 - `router.ts` answers every method on GET and form POST, with or without `.view`. Handlers return plain objects that `serialize.ts` writes as XML or JSON(P). Failures are Subsonic error codes in a 200; service `AppError`s map to the closest code (404 is 70, 403 is 50).
 - Every request authenticates with an app password (token, password or `apiKey`); failures are limited per IP in the API process.

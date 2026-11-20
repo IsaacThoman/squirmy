@@ -1,0 +1,96 @@
+import { defineConfig } from 'vitepress'
+
+const repository = 'https://github.com/IsaacThoman/squirmy'
+// GitHub Pages serves a project site under /<repository>/; the deploy workflow sets this.
+const base = process.env.DOCS_BASE ?? '/'
+
+const sidebar = [
+  {
+    text: 'Run a server',
+    items: [
+      { text: 'Quick start', link: '/server/quick-start' },
+      { text: 'Configuration', link: '/server/configuration' },
+      { text: 'Reverse proxies and HTTPS', link: '/server/reverse-proxy' },
+      { text: 'Backup, restore and moving', link: '/server/backup' },
+      { text: 'Troubleshooting', link: '/server/troubleshooting' },
+    ],
+  },
+  {
+    text: 'Your music',
+    items: [
+      { text: 'Your library', link: '/server/library' },
+      { text: 'Organizing files', link: '/server/organizing' },
+      { text: 'Adding music', link: '/server/adding-music' },
+      { text: 'Metadata and privacy', link: '/server/metadata-and-privacy' },
+      { text: 'Playback', link: '/server/playback' },
+    ],
+  },
+  {
+    text: 'People and apps',
+    items: [
+      { text: 'Users and access', link: '/server/users' },
+      { text: 'Subsonic clients', link: '/server/subsonic' },
+      { text: 'Scrobbling', link: '/server/scrobbling' },
+      { text: 'Acquisition providers', link: '/server/acquisition' },
+    ],
+  },
+  {
+    text: 'Using Squirmy',
+    items: [
+      { text: 'The web app', link: '/use/web' },
+      { text: 'The iOS app', link: '/use/ios' },
+      { text: 'Keyboard shortcuts', link: '/use/keyboard-shortcuts' },
+      { text: 'The wantlist', link: '/use/wantlist' },
+    ],
+  },
+  {
+    text: 'Development',
+    collapsed: true,
+    items: [
+      { text: 'Product plan', link: '/plan' },
+      { text: 'Architecture', link: '/architecture' },
+      { text: 'Roadmap', link: '/roadmap' },
+      { text: 'Provider protocol', link: '/provider-protocol' },
+      { text: 'Local search index', link: '/local-search-index' },
+    ],
+  },
+]
+
+export default defineConfig({
+  lang: 'en-US',
+  title: 'Squirmy',
+  titleTemplate: ':title · Squirmy',
+  description: 'Squirmy is a self-hosted music server with a web app and an iOS app.',
+  base,
+  cleanUrls: true,
+  lastUpdated: true,
+  // Dead links fail the build, so a broken link fails CI.
+  ignoreDeadLinks: false,
+  head: [
+    ['link', { rel: 'icon', type: 'image/png', href: `${base}icon.png` }],
+    ['link', { rel: 'apple-touch-icon', href: `${base}icon.png` }],
+    ['meta', { name: 'theme-color', content: '#5B439E' }],
+  ],
+  themeConfig: {
+    logo: '/icon.png',
+    siteTitle: 'Squirmy',
+    nav: [
+      { text: 'Quick start', link: '/server/quick-start' },
+      { text: 'Configuration', link: '/server/configuration' },
+      { text: 'Roadmap', link: '/roadmap' },
+    ],
+    sidebar,
+    search: {
+      provider: 'local',
+    },
+    socialLinks: [{ icon: 'github', link: repository }],
+    editLink: {
+      pattern: `${repository}/edit/dev/docs/:path`,
+      text: 'Edit this page on GitHub',
+    },
+    outline: { level: [2, 3] },
+  },
+  vite: {
+    publicDir: '../apps/mobile/assets',
+  },
+})
