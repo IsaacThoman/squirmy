@@ -42,10 +42,10 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 5. OpenSubsonic
 
-- [ ] `/rest` router with XML and JSON
-- [ ] App passwords and API keys
-- [ ] Browsing, search, streaming, cover art, stars, playlists, scrobble, play queue, lyrics
-- [ ] Client test pass
+- [x] `/rest` router with XML and JSON ([subsonic.md](./subsonic.md))
+- [x] App passwords and API keys
+- [x] Browsing, search, streaming, cover art, stars, playlists, scrobble, play queue, lyrics
+- [x] Client test pass: py-opensonic, py-sonic, subsonic-api (Node) and Airsonic Refix
 
 ## 6. Search everything
 

@@ -219,7 +219,7 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 
 ### Catalog read side
 
-- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, Subsonic, userdata) use these rather than writing their own.
+- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, userdata) use these rather than writing their own. Subsonic builds its own, because its objects describe files (size, codec, path), but takes availability and redirects from the catalog.
 - Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
 - Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
 - A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
@@ -263,6 +263,18 @@ The server holds one session per user in memory, loaded on first use and persist
 - Random sampling in SQL uses `uuid_hash_extended` with a salt drawn from the injected random source, so a seeded source repeats a result exactly.
 - `similarArtists(artistId)` merges Deezer related artists (Deezer id from `external_ids`, else an exact name search) and ListenBrainz similar artists (with a server token and an artist MBID), mapped to catalog artists by MBID, else `name_key`. A source that is off or fails is skipped; lookups during ranking give up after 2.5 seconds.
 - A radio is 50 tracks starting with the seed track (for an artist, its most played, liked or popular owned track) with context `{ type: 'radio', id: 'track:<id>' | 'artist:<id>' }`. Nothing is stored: when the radio runs out and autoplay is on, the session's history (the radio's last tracks) seeds the next batch, so it continues in the same direction.
+
+### Subsonic
+
+`modules/subsonic` serves OpenSubsonic under `/rest` over the same services; [subsonic.md](./subsonic.md) lists what it supports.
+
+- `router.ts` answers every method on GET and form POST, with or without `.view`. Handlers return plain objects that `serialize.ts` writes as XML or JSON(P). Failures are Subsonic error codes in a 200; service `AppError`s map to the closest code (404 is 70, 403 is 50).
+- Every request authenticates with an app password (token, password or `apiKey`); failures are limited per IP in the API process.
+- Ids carry their kind (`ar-`, `al-`, `tr-`, `pl-`, `ca-` for an artwork asset) and are checked on the way in. Music folders are library roots, numbered by a hash of the root id.
+- Only owned music appears. `songs.ts`, `albums.ts` and `artists.ts` build response objects in batches with a fixed number of queries; a song is shown through the present file `selectFile` would stream.
+- Sync clients page through everything with an empty `search3`. The page that starts where the user's previous one ended continues from its last key, so deep pages cost what the first does.
+- `stream` serves originals and the streaming profiles through `openStream`; a bitrate below every profile, or a `timeOffset`, is a live ffmpeg encode that is not cached.
+- The play queue is the session queue (`getSnapshot`, `replaceQueue`). The songs a client saved before its current one are remembered in memory while the session's current entry and queue are unchanged.
 
 ### Library pipeline
 
