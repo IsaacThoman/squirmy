@@ -1,10 +1,10 @@
-import { AlbumDetail, ArtistDetail, Lyrics, TrackSummariesResponse, TrackSummary } from '@squirmy/contracts'
+import { AlbumDetail, ArtistDetail, HomeResponse, Lyrics, TrackSummariesResponse, TrackSummary } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, artists, likes, lyrics, recordings, releaseTracks, wants } from '../../database/schema.js'
+import { albumArtists, albums, artists, likes, lyrics, playlistItems, playlists, recordings, releaseTracks, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createPlay } from '../../test/catalog.js'
@@ -140,4 +140,40 @@ describe('catalog pages', () => {
     expect(errorCode(rejected, 400)).toBe('invalid_request')
   })
 
+  it('builds home from sections with content, with stable ids', async () => {
+    const fresh = await signIn()
+    const homeOf = async () => body(await app.inject({ url: '/api/v1/home', headers: fresh.headers }), HomeResponse).sections
+
+    // Only the shared library has content for a new user.
+    expect((await homeOf()).map((section) => section.id)).toEqual(['recently-added'])
+
+    const played = await createAlbum({ owned: true, title: 'Played' })
+    const liked = await createAlbum({ title: 'Liked' })
+    const wanted = await createAlbum({ title: 'Wanted' })
+    await createPlay({ userId: fresh.id, recordingId: played.tracks[0]!.recordingId, albumId: played.albumId, minutesAgo: 10 })
+    await createPlay({ userId: fresh.id, recordingId: played.tracks[1]!.recordingId, albumId: played.albumId, minutesAgo: 5 })
+    await createPlay({ userId: fresh.id, recordingId: played.tracks[1]!.recordingId, albumId: played.albumId, minutesAgo: 1 })
+    await createPlay({ userId: fresh.id, recordingId: played.tracks[2]!.recordingId, minutesAgo: 60 * 24 * 100 })
+    await db.insert(likes).values({ userId: fresh.id, entityType: 'album', entityId: liked.albumId })
+    await db.insert(wants).values({ userId: fresh.id, entityType: 'album', entityId: wanted.albumId })
+    // A want for something already owned is fulfilled and leaves the rail.
+    await db.insert(wants).values({ userId: fresh.id, entityType: 'album', entityId: played.albumId })
+    const playlistId = newId()
+    await db.insert(playlists).values({ id: playlistId, ownerId: fresh.id, name: 'Mine' })
+    await db.insert(playlistItems).values({ id: newId(), playlistId, position: 0, recordingId: played.tracks[0]!.recordingId, albumId: played.albumId })
+    // Someone else's public playlist is not "yours".
+    await db.insert(playlists).values({ id: newId(), ownerId: user.id, name: 'Theirs', isPublic: true })
+
+    const sections = await homeOf()
+    expect(sections.map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'liked-albums', 'wantlist'])
+    const byId = Object.fromEntries(sections.map((section) => [section.id, section]))
+    expect(byId['recently-added']).toMatchObject({ kind: 'albums', title: 'Recently added' })
+    expect(byId['recently-added']!.kind === 'albums' && byId['recently-added']!.albums[0]!.id).toBe(played.albumId)
+    expect(byId['recently-played']).toMatchObject({ kind: 'albums', albums: [{ id: played.albumId }] })
+    // The play from 100 days ago is outside the window.
+    expect(byId['most-played']).toMatchObject({ kind: 'tracks', tracks: [{ id: played.tracks[1]!.recordingId }, { id: played.tracks[0]!.recordingId }] })
+    expect(byId.playlists).toMatchObject({ kind: 'playlists', title: 'Your playlists', playlists: [{ name: 'Mine', trackCount: 1 }] })
+    expect(byId['liked-albums']).toMatchObject({ kind: 'albums', albums: [{ id: liked.albumId }] })
+    expect(byId.wantlist).toMatchObject({ kind: 'albums', albums: [{ id: wanted.albumId }] })
+  })
 })
