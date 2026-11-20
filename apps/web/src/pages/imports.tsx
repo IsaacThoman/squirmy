@@ -68,10 +68,10 @@ function useOwners() {
 /** A live import, starting from what is already known of it. */
 function useImport(id: string | undefined, initial?: Import | null) {
   const api = useApi()
-  const item = useQuery({ queryKey: importKey(id ?? ''), queryFn: () => api.imports.getImport(id!), enabled: !!id, initialData: initial ?? undefined, meta: { silent: true } })
+  const item = useQuery({ queryKey: importKey(id ?? ''), queryFn: () => api.imports.get(id!), enabled: !!id, initialData: initial ?? undefined, meta: { silent: true } })
   const albums = useQuery({
     queryKey: albumsKey(id ?? ''),
-    queryFn: () => api.imports.importAlbums(id!),
+    queryFn: () => api.imports.albums(id!),
     enabled: item.data?.status === 'completed',
     select: page => page.items,
     meta: { silent: true },
@@ -83,7 +83,7 @@ function useCancelImport() {
   const api = useApi()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (item: Import) => api.imports.cancelImport(item.id),
+    mutationFn: (item: Import) => api.imports.cancel(item.id),
     onSuccess: () => {
       toast({ title: 'Import cancelled', description: 'The files it received are gone.' })
       return queryClient.invalidateQueries({ queryKey: importsKey })
@@ -108,8 +108,8 @@ function AddMusic() {
   const user = useCurrentUser()
   const isAdmin = user.role === 'admin'
   useImportEvents()
-  const options = useQuery({ queryKey: optionsKey, queryFn: () => api.imports.importOptions() })
-  const recent = useQuery({ queryKey: listKey, queryFn: () => api.imports.listImports({ limit: 30 }), select: page => page.items })
+  const options = useQuery({ queryKey: optionsKey, queryFn: () => api.imports.options() })
+  const recent = useQuery({ queryKey: listKey, queryFn: () => api.imports.list({ limit: 30 }), select: page => page.items })
   const ownerOf = useOwners()
   const cancelImport = useCancelImport()
   const { upload, snapshot } = useActiveUpload()

@@ -12,9 +12,12 @@ export type { Realtime, RealtimeServer, RealtimeSocket, RealtimeTarget, SocketDa
 
 type QueryKey = readonly unknown[]
 
+/** One target, or several whose sockets each get a message once, even in more than one of them. */
+type Targets = RealtimeTarget | readonly RealtimeTarget[]
+
 type Message =
-  | { kind: 'event'; target: RealtimeTarget; event: ServerEvent }
-  | { kind: 'invalidate'; target: RealtimeTarget; keys: QueryKey[] }
+  | { kind: 'event'; target: Targets; event: ServerEvent }
+  | { kind: 'invalidate'; target: Targets; keys: QueryKey[] }
   | { kind: 'disconnect'; userId: string; only?: string; except?: string }
 
 const channel = 'squirmy_events'
@@ -27,13 +30,16 @@ async function notify(message: Message) {
   await getSql()`select pg_notify(${channel}, ${payload})`
 }
 
-/** Sends `event` to the target's sockets. Works from any process. */
-export async function publish(target: RealtimeTarget, event: ServerEvent) {
+/**
+ * Sends `event` to the targets' sockets, once per socket however many targets it is in (an
+ * admin is in their own room and in `admins`). Works from any process.
+ */
+export async function publish(target: Targets, event: ServerEvent) {
   await notify({ kind: 'event', target, event })
 }
 
 /** Tells the target's clients to refetch these query keys. Works from any process. */
-export async function invalidate(target: RealtimeTarget, keys: readonly QueryKey[]) {
+export async function invalidate(target: Targets, keys: readonly QueryKey[]) {
   // Keys that do not fit in one notification are split across several.
   const base = Buffer.byteLength(JSON.stringify({ kind: 'invalidate', target, keys: [] }))
   let batch: QueryKey[] = []
@@ -63,6 +69,12 @@ function room(target: RealtimeTarget) {
   return target === 'admins' || target === 'all' ? target : `user:${target.user}`
 }
 
+/** The sockets of the targets. socket.io emits once per socket across the rooms of one `to`. */
+function audience(io: RealtimeServer, target: Targets) {
+  const targets: readonly RealtimeTarget[] = Array.isArray(target) ? target : [target as RealtimeTarget]
+  return targets.includes('all') ? io : io.to(targets.map(room))
+}
+
 function deliver(io: RealtimeServer, message: Message) {
   if (message.kind === 'disconnect') {
     for (const socket of io.of('/').sockets.values()) {
@@ -74,7 +86,7 @@ function deliver(io: RealtimeServer, message: Message) {
     }
     return
   }
-  const sockets = message.target === 'all' ? io : io.to(room(message.target))
+  const sockets = audience(io, message.target)
   if (message.kind === 'event') sockets.emit('event', message.event)
   else sockets.emit('invalidate', { keys: message.keys })
 }

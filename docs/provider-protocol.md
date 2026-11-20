@@ -149,7 +149,7 @@ Polled only when a job has had no upload or completion for a while.
 
 ## On the server
 
-A job goes `resolving → queued → downloading → importing → completed`, or ends `failed` or `rejected`. Each change is published to the requesting user as `acquisition.updated`. A playback session waiting on the track (`preparing`) becomes `ready` when the job completes, and `failed` (and is skipped) when it fails. A failed job records a miss, so the track is gray for a day. `GET /api/v1/admin/acquisition/jobs` lists every job with who asked, the provider, the status and the error.
+A job goes `resolving → queued → downloading → importing → completed`, or ends `failed` or `rejected`. Each change is published to the requesting user as `acquisition.updated`. A playback session waiting on the track (`preparing`) becomes `ready` as soon as a delivered file has been read, linked and checked against the request, while identification and filing carry on, and `failed` (and is skipped) when the job fails. If identification later finds the file is a different recording, the job fails then: the track is not cut off if it is already playing, but later plays of it fail. A failed job records a miss, so the track is gray for a day. `GET /api/v1/admin/acquisition/jobs` lists every job with who asked, the provider, the status and the error.
 
 ## What the server enforces
 

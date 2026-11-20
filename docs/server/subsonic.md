@@ -38,7 +38,7 @@ A working server and password answer `"status":"ok"`. A wrong password answers `
 | Browsing by tags | `getMusicFolders`, `getArtists`, `getArtist`, `getAlbum`, `getSong`, `getGenres`, `getArtistInfo`, `getArtistInfo2`, `getAlbumInfo`, `getAlbumInfo2`, `getTopSongs`, `getSimilarSongs`, `getSimilarSongs2` |
 | Browsing by folders | `getIndexes`, `getMusicDirectory`: artist, then album, then songs |
 | Lists | `getAlbumList` and `getAlbumList2` (every type), `getRandomSongs`, `getSongsByGenre`, `getStarred`, `getStarred2`, `getNowPlaying` |
-| Search | `search2`, `search3`; an empty query returns everything, for apps that sync the library |
+| Search | `search2`, `search3`, ranked like the search in Squirmy's apps and tolerant of typos; an empty query returns everything, for apps that sync the library |
 | Media | `stream`, `download`, `getCoverArt`, `getLyrics`, `getLyricsBySongId` |
 | Stars, ratings, plays | `star`, `unstar`, `setRating`, `scrobble` |
 | Playlists | `getPlaylists`, `getPlaylist`, `createPlaylist`, `updatePlaylist`, `deletePlaylist` |

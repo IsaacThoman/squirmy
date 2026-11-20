@@ -83,8 +83,7 @@ export function toImport(row: ImportRow): Import {
 /** Sends `import.updated` to the import's owner and to admins. Works from any process. */
 export async function announceImport(row: Pick<ImportRow, 'id' | 'userId' | 'status'>) {
   const event = { type: 'import.updated' as const, importId: row.id, status: row.status }
-  if (row.userId) await publish({ user: row.userId }, event)
-  await publish('admins', event)
+  await publish(row.userId ? [{ user: row.userId }, 'admins'] : 'admins', event)
 }
 
 export async function loadImport(importId: string): Promise<ImportRow> {

@@ -7,12 +7,12 @@ const importRow = { id: '00000000-0000-4000-8000-000000000001', status: 'receivi
 const file = (path: string, size = 10): PickedFile => ({ file: new File([new Uint8Array(size)], path.split('/').pop()!), path })
 const accepted = (path: string, bytes = 10): ImportFileResult => ({ path, status: 'accepted', reason: null, bytes })
 
-function fakeImports(addImportFiles: (...args: never[]) => Promise<unknown>) {
+function fakeImports(addFiles: (...args: never[]) => Promise<unknown>) {
   return {
-    createImport: vi.fn(async () => importRow),
-    addImportFiles: vi.fn(addImportFiles),
-    commitImport: vi.fn(async () => ({ ...importRow, status: 'processing' }) as Import),
-    cancelImport: vi.fn(async () => ({ ...importRow, status: 'failed' }) as Import),
+    create: vi.fn(async () => importRow),
+    addFiles: vi.fn(addFiles),
+    commit: vi.fn(async () => ({ ...importRow, status: 'processing' }) as Import),
+    cancel: vi.fn(async () => ({ ...importRow, status: 'failed' }) as Import),
   }
 }
 
@@ -40,14 +40,14 @@ describe('Upload', () => {
     expect(upload.getSnapshot().files.map(state => state.reason)).toEqual([null, null, 'file_too_large'])
     await upload.start()
     const snapshot = upload.getSnapshot()
-    expect(api.createImport).toHaveBeenCalledWith({ label: 'Album' })
-    expect(api.addImportFiles.mock.calls[0]![1]).toEqual([
+    expect(api.create).toHaveBeenCalledWith({ label: 'Album' })
+    expect(api.addFiles.mock.calls[0]![1]).toEqual([
       expect.objectContaining({ name: '01.flac', relativePath: 'Album/01.flac' }),
       expect.objectContaining({ name: 'notes.txt', relativePath: 'Album/notes.txt' }),
     ])
     expect(snapshot.files.map(state => [state.status, state.reason])).toEqual([['accepted', null], ['rejected', 'unsupported_type'], ['rejected', 'file_too_large']])
     expect(snapshot).toMatchObject({ phase: 'committed', totalBytes: 10, sentBytes: 10 })
-    expect(api.commitImport).toHaveBeenCalledWith(importRow.id)
+    expect(api.commit).toHaveBeenCalledWith(importRow.id)
   })
 
   it('marks the file the server refused for its size and carries on with the rest', async () => {
@@ -61,7 +61,7 @@ describe('Upload', () => {
     await upload.start()
     expect(upload.getSnapshot().files.map(state => [state.path, state.status])).toEqual([['a.flac', 'accepted'], ['big.flac', 'rejected'], ['c.flac', 'accepted']])
     expect(upload.getSnapshot().files[1]!.reason).toBe('file_too_large')
-    expect(api.addImportFiles.mock.calls[1]![1]).toEqual([expect.objectContaining({ relativePath: 'c.flac' })])
+    expect(api.addFiles.mock.calls[1]![1]).toEqual([expect.objectContaining({ relativePath: 'c.flac' })])
   })
 
   it('pauses mid-request and, on resuming, counts a file the server already had as sent', async () => {
@@ -74,13 +74,13 @@ describe('Upload', () => {
     })
     const upload = new Upload(api as never, [file('a.flac')], { maxFileBytes: 1000 })
     const started = upload.start()
-    await vi.waitFor(() => expect(api.addImportFiles).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(api.addFiles).toHaveBeenCalledOnce())
     upload.pause()
     await started
     expect(upload.getSnapshot()).toMatchObject({ phase: 'paused', files: [{ status: 'waiting' }] })
     await upload.start()
     expect(upload.getSnapshot()).toMatchObject({ phase: 'committed', files: [{ status: 'accepted' }] })
-    expect(api.createImport).toHaveBeenCalledOnce()
+    expect(api.create).toHaveBeenCalledOnce()
   })
 
   it('cancels the import, and gives up when nothing could be taken', async () => {
@@ -88,8 +88,8 @@ describe('Upload', () => {
     const upload = new Upload(api as never, [file('notes.txt')], { maxFileBytes: 1000 })
     await upload.start()
     expect(upload.getSnapshot()).toMatchObject({ phase: 'failed', error: 'None of these files can be imported.' })
-    expect(api.cancelImport).toHaveBeenCalledWith(importRow.id)
-    expect(api.commitImport).not.toHaveBeenCalled()
+    expect(api.cancel).toHaveBeenCalledWith(importRow.id)
+    expect(api.commit).not.toHaveBeenCalled()
 
     const other = new Upload(fakeImports(async () => ({ import: importRow, files: [] })) as never, [file('a.flac')], { maxFileBytes: 1000 })
     const started = other.start()

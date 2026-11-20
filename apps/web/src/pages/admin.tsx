@@ -369,11 +369,11 @@ export function AdminProvidersPage() {
   const roots = useRoots()
   const [params, setParams] = useSearchParams()
   const jobStatus = AcquisitionJobStatus.safeParse(params.get('status')).data ?? null
-  const providers = useQuery({ queryKey: providersKey, queryFn: () => api.acquisition.listAcquisitionProviders(), select: page => page.items })
-  const policy = useQuery({ queryKey: policyKey, queryFn: () => api.acquisition.getAcquisitionPolicy() })
+  const providers = useQuery({ queryKey: providersKey, queryFn: () => api.acquisition.providers(), select: page => page.items })
+  const policy = useQuery({ queryKey: policyKey, queryFn: () => api.acquisition.policy() })
   const jobs = useQuery({
     queryKey: [...acquisitionJobsKey, jobStatus],
-    queryFn: () => api.acquisition.listAcquisitionJobs({ status: jobStatus ?? undefined, limit: 100 }),
+    queryFn: () => api.acquisition.jobs({ status: jobStatus ?? undefined, limit: 100 }),
     select: page => page.items,
     placeholderData: keepPreviousData,
   })
@@ -382,7 +382,7 @@ export function AdminProvidersPage() {
   const replace = (provider: AcquisitionProvider) => queryClient.setQueryData<{ items: AcquisitionProvider[] }>(providersKey, page => page && { ...page, items: page.items.map(item => item.id === provider.id ? provider : item) })
 
   const create = useMutation({
-    mutationFn: api.acquisition.createAcquisitionProvider,
+    mutationFn: api.acquisition.createProvider,
     onSuccess: provider => {
       toast(provider.lastError ? { title: `Added ${provider.name}`, description: `It did not answer yet: ${provider.lastError}` } : { title: `Added ${provider.name}`, description: 'Missing music can now play on demand.' })
       return refresh()
@@ -390,7 +390,7 @@ export function AdminProvidersPage() {
     meta: { inline: true },
   })
   const providerUpdate = {
-    mutationFn: ({ id, patch }: { id: string; patch: UpdateAcquisitionProviderRequest }) => api.acquisition.updateAcquisitionProvider(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateAcquisitionProviderRequest }) => api.acquisition.updateProvider(id, patch),
     onSuccess: (provider: AcquisitionProvider) => {
       replace(provider)
       return refresh()
@@ -400,15 +400,15 @@ export function AdminProvidersPage() {
   const edit = useMutation({ ...providerUpdate, meta: { inline: true } })
   const toggle = useMutation(providerUpdate)
   const remove = useMutation({
-    mutationFn: api.acquisition.deleteAcquisitionProvider,
+    mutationFn: api.acquisition.deleteProvider,
     onSuccess: () => {
       toast({ title: 'Provider deleted' })
       return refresh()
     },
   })
-  const test = useMutation({ mutationFn: api.acquisition.testAcquisitionProvider, onSuccess: replace })
+  const test = useMutation({ mutationFn: api.acquisition.testProvider, onSuccess: replace })
   const policyUpdate = {
-    mutationFn: (patch: UpdateAcquisitionPolicy) => api.acquisition.updateAcquisitionPolicy(patch),
+    mutationFn: (patch: UpdateAcquisitionPolicy) => api.acquisition.updatePolicy(patch),
     onSuccess: (updated: AcquisitionPolicy) => queryClient.setQueryData(policyKey, updated),
   }
   const savePolicy = useMutation(policyUpdate)

@@ -34,7 +34,7 @@ export type UploadSnapshot = {
   error: string | null
 }
 
-type ImportsApi = Pick<ApiClient['imports'], 'createImport' | 'addImportFiles' | 'commitImport' | 'cancelImport'>
+type ImportsApi = Pick<ApiClient['imports'], 'create' | 'addFiles' | 'commit' | 'cancel'>
 
 /** One request carries files up to this size together, so an album of small files is a few requests. */
 const BATCH_BYTES = 16 * 1024 ** 2
@@ -141,10 +141,10 @@ export class Upload {
     try {
       let created = this.snapshot.import
       if (!created) {
-        created = await this.api.createImport({ label: this.label })
+        created = await this.api.create({ label: this.label })
         this.snapshot = { ...this.snapshot, import: created }
         // Cancelled while it was being created: it goes too.
-        if (this.snapshot.phase === 'cancelled') return void await this.api.cancelImport(created.id).catch(() => {})
+        if (this.snapshot.phase === 'cancelled') return void await this.api.cancel(created.id).catch(() => {})
         this.emit()
       }
       if (controller.signal.aborted) return
@@ -152,10 +152,10 @@ export class Upload {
         if (!await this.send(created.id, batch, controller.signal)) return
       }
       if (!this.files.some(file => file.status === 'accepted')) {
-        await this.api.cancelImport(created.id).catch(() => {})
+        await this.api.cancel(created.id).catch(() => {})
         return this.set('failed', { error: 'None of these files can be imported.' })
       }
-      this.set('committed', { import: await this.api.commitImport(created.id) })
+      this.set('committed', { import: await this.api.commit(created.id) })
     } catch (error) {
       if (!controller.signal.aborted) this.set('failed', { error: errorMessage(error) })
     }
@@ -173,7 +173,7 @@ export class Upload {
     this.controller?.abort()
     const created = this.snapshot.import
     this.set('cancelled')
-    if (created) await this.api.cancelImport(created.id).catch(() => {})
+    if (created) await this.api.cancel(created.id).catch(() => {})
   }
 
   private nextBatch(): number[] {
@@ -194,7 +194,7 @@ export class Upload {
     for (const index of batch) this.files[index] = { ...this.files[index], status: 'sending', sent: 0 }
     this.emit()
     try {
-      const response = await this.api.addImportFiles(importId, batch.map(index => ({ file: this.picked[index].file, name: this.picked[index].file.name, relativePath: this.picked[index].path })), {
+      const response = await this.api.addFiles(importId, batch.map(index => ({ data: this.picked[index].file, name: this.picked[index].file.name, relativePath: this.picked[index].path })), {
         signal,
         onProgress: ({ loaded }) => this.progress(batch, loaded),
       })

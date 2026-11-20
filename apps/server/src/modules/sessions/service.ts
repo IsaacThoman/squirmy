@@ -382,7 +382,10 @@ export function markRecordingReady(recordingId: string): Promise<void> {
   return setRecordingState(recordingId, 'ready')
 }
 
-/** Marks every entry of the recording failed in the loaded sessions; a failed current entry is skipped. */
+/**
+ * Marks every entry of the recording failed in the loaded sessions. A preparing current
+ * entry is skipped; a ready one keeps playing, and only its later plays fail.
+ */
 export function markRecordingFailed(recordingId: string): Promise<void> {
   return setRecordingState(recordingId, 'failed')
 }

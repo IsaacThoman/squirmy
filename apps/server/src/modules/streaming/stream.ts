@@ -1,7 +1,6 @@
 import path from 'node:path'
 import type { StreamProfile } from '@squirmy/contracts'
-import { notFound } from '../../lib/errors.js'
-import { libraryPath, markMissing, serveFile, type StreamRequest, type StreamResponse } from './files.js'
+import { serveFile, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
 import { mimeFor, profiles, type MediaFile } from './profiles.js'
 import { openTranscode } from './transcode.js'
 
@@ -26,14 +25,12 @@ function attachment(name: string): string {
 /**
  * Opens `file` for streaming as `profile`. Originals and cached transcodes honour Range,
  * If-Range and HEAD; a transcode that is not cached yet streams as it is encoded. With
- * `download` the response is marked as an attachment. Throws 404 `file_missing` (and marks
- * the file missing) when it is gone from disk.
+ * `download` the response is marked as an attachment. A file organize is moving is found at
+ * either end of the move. Throws 404 `file_missing` (and marks the file missing) when it is
+ * gone from disk.
  */
 export async function openStream(file: MediaFile, profile: StreamProfile, request: StreamRequest & { download?: boolean } = {}): Promise<StreamResponse> {
   const headers: Record<string, string> = request.download ? { 'content-disposition': attachment(downloadName(file, profile)) } : {}
   if (profile !== 'original') return openTranscode(file, profile, request, headers)
-  const response = await serveFile(await libraryPath(file), mimeFor(file), request, headers)
-  if (response) return response
-  await markMissing(file.id)
-  throw notFound('The file is missing from disk', 'file_missing')
+  return withLibraryFile(file, (absolutePath) => serveFile(absolutePath, mimeFor(file), request, headers))
 }

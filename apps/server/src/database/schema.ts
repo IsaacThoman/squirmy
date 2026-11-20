@@ -416,7 +416,6 @@ export const libraryRoots = pgTable('library_roots', {
   template: text('template'),
   enabled: boolean('enabled').notNull().default(true),
   watch: boolean('watch').notNull().default(true),
-  scanIntervalMinutes: integer('scan_interval_minutes').notNull().default(1440),
   lastScanStartedAt: at('last_scan_started_at'),
   lastScanFinishedAt: at('last_scan_finished_at'),
   lastScanStats: jsonb('last_scan_stats').$type<Record<string, number>>(),
