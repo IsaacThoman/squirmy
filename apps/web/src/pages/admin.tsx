@@ -1,4 +1,4 @@
-import { queryKeys, type UpdateUserRequest } from '@squirmy/contracts'
+import { queryKeys, type UpdateUserRequest, type User } from '@squirmy/contracts'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useApi } from '@/api/services'
@@ -50,15 +50,19 @@ export function AdminUsersPage() {
   const invites = useQuery({ queryKey: invitesKey, queryFn: () => api.admin.invites() })
   const refresh = (queryKey: readonly unknown[]) => () => queryClient.invalidateQueries({ queryKey })
   const createUser = useMutation({ mutationFn: api.admin.createUser, onSuccess: refresh(queryKeys.adminUsers()), meta: { inline: true } })
-  const updateUser = useMutation({
+  const userUpdate = {
     mutationFn: ({ id, patch }: { id: string; patch: UpdateUserRequest }) => api.admin.updateUser(id, patch),
-    onSuccess: (user, { patch }) => {
+    onSuccess: (user: User, { patch }: { patch: UpdateUserRequest }) => {
       if (patch.password) toast({ title: `Password changed for @${user.username}` })
       if (patch.disabled !== undefined) toast({ title: `${patch.disabled ? 'Disabled' : 'Enabled'} @${user.username}` })
       if (user.id === me.id) queryClient.setQueryData(queryKeys.me(), user)
       return refresh(queryKeys.adminUsers())()
     },
-  })
+  }
+  // The edit and password dialogs show failures (the last-admin rule, say) next to their fields;
+  // enabling and disabling come from the menu and a confirmation, so theirs become a toast.
+  const editUser = useMutation({ ...userUpdate, meta: { inline: true } })
+  const toggleUser = useMutation(userUpdate)
   const deleteUser = useMutation({ mutationFn: api.admin.deleteUser, onSuccess: refresh(queryKeys.adminUsers()) })
   const createInvite = useMutation({ mutationFn: api.admin.createInvite, onSuccess: refresh(invitesKey), meta: { inline: true } })
   const revokeInvite = useMutation({ mutationFn: api.admin.deleteInvite, onSuccess: refresh(invitesKey) })
@@ -69,7 +73,7 @@ export function AdminUsersPage() {
       currentUserId={me.id}
       inviteLink={invite => `${location.origin}/register?invite=${encodeURIComponent(invite.code)}`}
       onCreateUser={request => createUser.mutateAsync(request)}
-      onUpdateUser={(id, patch) => updateUser.mutateAsync({ id, patch })}
+      onUpdateUser={(id, patch) => (patch.disabled === undefined ? editUser : toggleUser).mutateAsync({ id, patch })}
       onDeleteUser={id => deleteUser.mutateAsync(id)}
       onCreateInvite={request => createInvite.mutateAsync(request)}
       onRevokeInvite={id => revokeInvite.mutateAsync(id)}
