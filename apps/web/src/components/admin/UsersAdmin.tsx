@@ -1,21 +1,21 @@
 import { CreateInviteRequest, CreateUserRequest, Password, UpdateUserRequest, type Invite, type User, type UserRole } from '@squirmy/contracts'
 import { Copy, MoreHorizontal, Plus, UserPlus } from 'lucide-react'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { z } from 'zod'
-import { useFormSubmit, type FormErrors } from '@/api/errors'
+import { useFormSubmit } from '@/api/errors'
 import { SettingRow, SettingsSection } from '@/components/layout/Settings'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
 import { ConfirmDialog, Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Badge, Skeleton } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
-import { Field, FormError, Input } from '@/components/ui/input'
+import { Field, Input } from '@/components/ui/input'
 import { DropdownMenu } from '@/components/ui/menu'
 import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { formatDate, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { AdminHeader } from './AdminLayout'
+import { AdminHeader, DialogForm } from './AdminLayout'
 
 type UsersAdminProps = {
   /** Undefined while loading. */
@@ -165,23 +165,6 @@ function AccessFields({ value, onChange, roleLocked }: { value: Access; onChange
       <SettingRow label="Can upload music"><Switch aria-label="Can upload music" checked={value.canUpload} onCheckedChange={canUpload => onChange({ ...value, canUpload })} /></SettingRow>
       <SettingRow label="Can fetch missing music" description="Through an acquisition provider."><Switch aria-label="Can fetch missing music" checked={value.canAcquire} onCheckedChange={canAcquire => onChange({ ...value, canAcquire })} /></SettingRow>
     </>
-  )
-}
-
-function DialogForm({ onSubmit, errors, pending, submitLabel, children }: { onSubmit: () => void; errors: FormErrors; pending: boolean; submitLabel: string; children: ReactNode }) {
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    onSubmit()
-  }
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
-      {children}
-      <FormError message={errors.form} />
-      <DialogFooter>
-        <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-        <Button type="submit" variant="primary" pending={pending}>{submitLabel}</Button>
-      </DialogFooter>
-    </form>
   )
 }
 

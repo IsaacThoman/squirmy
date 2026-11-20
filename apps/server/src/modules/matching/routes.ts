@@ -135,7 +135,7 @@ export async function matchingRoutes(app: FastifyInstance) {
     const { id } = IdParams.parse(request.params)
     const review = await loadReview(id)
     const files = await groupFiles(db, review.rootId, review.groupKey, false)
-    return { ...toReview(review), candidates: review.candidates as MatchCandidate[], files: files.map(toFile) }
+    return { ...toReview(review), candidates: review.candidates as MatchCandidate[], files: files.map(toFile).sort((a, b) => a.relPath.localeCompare(b.relPath)) }
   })
 
   app.post('/admin/reviews/:id/resolve', async (request): Promise<MatchActionResult> => {
@@ -181,7 +181,7 @@ export async function matchingRoutes(app: FastifyInstance) {
     const { album, files } = await ownedAlbum(id)
     const evidence = { ...groupEvidence(files, { artist: album.artistCredit, album: album.title }), mode: 'album' as const }
     const found = await albumCandidates(evidence, files, query)
-    return { items: found.map((entry) => toCandidate(entry.release, entry.evaluation)) }
+    return { items: found.map((entry) => toCandidate(entry.release, entry.evaluation)), files: files.map(toFile).sort((a, b) => a.relPath.localeCompare(b.relPath)) }
   })
 
   app.post('/admin/albums/:id/rematch', async (request): Promise<MatchActionResult> => {

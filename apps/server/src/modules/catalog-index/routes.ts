@@ -28,6 +28,13 @@ export async function catalogIndexRoutes(app: FastifyInstance) {
     return { ok: true }
   })
 
+  // Stops the running import only; the index in use stays, as after a failed import.
+  app.delete('/admin/catalog-index/import', async (): Promise<Ok> => {
+    if (!(await cancelImport())) throw conflict('No search index import is running', 'catalog_index_import_not_running')
+    await invalidate('admins', [queryKeys.admin()])
+    return { ok: true }
+  })
+
   app.delete('/admin/catalog-index', async (): Promise<Ok> => {
     await cancelImport()
     await dropCatalogIndex()

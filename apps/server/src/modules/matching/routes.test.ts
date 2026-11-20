@@ -129,6 +129,9 @@ describe('matching routes', () => {
       const fromTags = (await call({ url: `/api/v1/admin/albums/${albumId}/candidates`, headers: admin })).json() as MatchCandidateList
       expect(fromTags.items[0]).toMatchObject({ releaseGroupMbid: okComputerGroup, trackCount: 12 })
       expect(fromTags.items[0]!.score).toBeGreaterThan(0.95)
+      expect(fromTags.files).toHaveLength(12)
+      expect(fromTags.files[0]).toMatchObject({ title: 'Airbag', track: 1, status: 'matched', locked: false })
+      expect(fromTags.items[0]!.tracks.filter((track) => track.fileId).map((track) => track.fileId).sort()).toEqual(fromTags.files.map((file) => file.id).sort())
 
       const named = (await call({ url: `/api/v1/admin/albums/${albumId}/candidates?query=${encodeURIComponent('Radiohead - OK Computer')}`, headers: admin })).json() as MatchCandidateList
       expect(named.items.map((item) => item.releaseMbid)).toEqual(fromTags.items.map((item) => item.releaseMbid))

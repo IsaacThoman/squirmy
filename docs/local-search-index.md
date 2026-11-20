@@ -129,6 +129,7 @@ Everything is behind admin routes under `/api/v1`:
 |---|---|
 | `GET /admin/catalog-index` | `CatalogIndexStatus`: ready, dump date, row counts, size on disk, the active import and the newest other import with its phase and progress |
 | `POST /admin/catalog-index/import` | Queues the `catalog-index.import` job and answers 202. Body (all optional): `source`, a dump URL or a path on the server (default: the newest dump); `recordingsPerArtist` |
+| `DELETE /admin/catalog-index/import` | Cancels the running import; the index in use stays. 409 when none is running |
 | `DELETE /admin/catalog-index` | Cancels a running import and empties the index |
 
 ```sh
