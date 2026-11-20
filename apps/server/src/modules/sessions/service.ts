@@ -27,8 +27,15 @@ const AUTOPLAY_SEEDS = 10
 /** On-demand entries are requested while they are current or among this many next. */
 const PREPARE_AHEAD = 2
 
-const settings = { deviceGraceMs: 20_000, now: () => Date.now() }
-const graceTimers = new Map<string, ReturnType<typeof setTimeout>>()
+/** Schedules and cancels the grace timers. */
+export type SessionTimers = { set: (callback: () => void, ms: number) => unknown; clear: (handle: unknown) => void }
+
+const realTimers: SessionTimers = {
+  set: (callback, ms) => setTimeout(callback, ms),
+  clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+}
+const settings: { deviceGraceMs: number; now: () => number; timers: SessionTimers } = { deviceGraceMs: 20_000, now: () => Date.now(), timers: realTimers }
+const graceTimers = new Map<string, unknown>()
 /** Writes of closed plays still in flight, which shutdown waits for. */
 const savingPlays = new Set<Promise<void>>()
 let io: RealtimeServer | null = null
@@ -36,10 +43,14 @@ let io: RealtimeServer | null = null
 /**
  * Overrides timing for tests. `deviceGraceMs`: how long an active device may be gone
  * before `deviceLost`. `now`: the session clock (server epoch milliseconds), which
- * anchors positions, answers `serverTime` in hellos and times plays.
+ * anchors positions, answers `serverTime` in hellos and times plays. `timers`: what
+ * schedules the grace period, so a test can fire it instead of waiting; `null` restores
+ * the real ones.
  */
-export function configureSessions(options: Partial<typeof settings>): void {
-  Object.assign(settings, options)
+export function configureSessions(options: Partial<Omit<typeof settings, 'timers'>> & { timers?: SessionTimers | null }): void {
+  const { timers, ...rest } = options
+  Object.assign(settings, rest)
+  if (timers !== undefined) settings.timers = timers ?? realTimers
 }
 
 /** Sets the socket.io server that session updates are broadcast through. */
@@ -158,7 +169,7 @@ function refillAutoplay(record: SessionRecord): void {
 function startGrace(userId: string, deviceId: string): void {
   const key = `${userId}:${deviceId}`
   if (graceTimers.has(key)) return
-  graceTimers.set(key, setTimeout(() => {
+  graceTimers.set(key, settings.timers.set(() => {
     graceTimers.delete(key)
     serial(userId, () => {
       const record = loadedRecord(userId)
@@ -169,7 +180,7 @@ function startGrace(userId: string, deviceId: string): void {
 
 function cancelGrace(userId: string, deviceId: string): void {
   const key = `${userId}:${deviceId}`
-  clearTimeout(graceTimers.get(key))
+  if (graceTimers.has(key)) settings.timers.clear(graceTimers.get(key))
   graceTimers.delete(key)
 }
 
@@ -388,7 +399,7 @@ async function setRecordingState(recordingId: string, state: 'ready' | 'failed')
 
 /** Closes open plays, writes every session and play and forgets them, and cancels device timers. */
 export async function stopSessions(): Promise<void> {
-  for (const timer of graceTimers.values()) clearTimeout(timer)
+  for (const timer of graceTimers.values()) settings.timers.clear(timer)
   graceTimers.clear()
   await unloadAll(async record => {
     const { play } = record
