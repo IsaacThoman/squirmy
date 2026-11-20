@@ -9,6 +9,7 @@ import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { makeAlbum, makeTone } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { libraryModule } from './index.js'
+import { stopProgress } from './progress.js'
 import { insertRoot } from './roots.js'
 import { scanRoot } from './scan.js'
 import { refreshWatchers, startWatching, stopWatching } from './watch.js'
@@ -46,6 +47,8 @@ describe('library watcher', () => {
   afterAll(async () => {
     await stopWatching()
     await stopJobs()
+    // Its debounce timers would otherwise fire after the database is gone.
+    await stopProgress()
     await rm(library, { recursive: true, force: true })
     await rm(staging, { recursive: true, force: true })
   })

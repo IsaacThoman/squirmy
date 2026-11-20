@@ -10,6 +10,7 @@ import { makeAlbum, makeTone } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { ingestGroup } from './ingest.js'
 import { probeFile } from './probe.js'
+import { stopProgress } from './progress.js'
 import { insertRoot } from './roots.js'
 import { scanRoot } from './scan.js'
 
@@ -32,6 +33,8 @@ describe('ingesting a group that lost a file', () => {
   })
   afterAll(async () => {
     await stopJobs()
+    // Its debounce timers would otherwise fire after the database is gone.
+    await stopProgress()
     await rm(library, { recursive: true, force: true })
   })
 
