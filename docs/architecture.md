@@ -192,7 +192,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
-| `GET /admin/reviews`, `POST /admin/reviews/:id/resolve`, `POST /admin/albums/:id/rematch`, `GET /admin/albums/:id/candidates` | matching | |
+| `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files |
 | `POST /admin/organize/preview`, `GET /admin/organize/batches`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | |
 | `POST /imports`, `POST /imports/:id/files`, `POST /imports/:id/commit`, `GET /imports/:id` | imports | multipart upload |
 | `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
@@ -232,7 +232,7 @@ Jobs, in order. Each is idempotent and keyed by file or album group.
 2. `library.probe` reads tags and technical details with `music-metadata`, stores embedded art, and sets `probe_stage 1`. It then calls `library.ingest` for the file's album group.
 3. `library.ingest` creates or reuses local-only catalog rows (artist, album, release, recordings, release tracks) from the group's tags and links the files. After this step the music is browsable and playable.
 4. `library.analyze` (low priority) computes the audio hash and loudness, sets `probe_stage 2`, and reconnects moved files by hash.
-5. `matching.match-album` (milestone 4) upgrades local-only rows to MusicBrainz rows or opens a review.
+5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start.
 6. `enrichment.*` (milestone 4) fills in covers, images, bios and lyrics.
 
 Album grouping key: root id, parent directory (ignoring `CD1`/`Disc 2` subfolders), and `matchKey` of album artist and album.
