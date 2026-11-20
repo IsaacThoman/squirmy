@@ -52,8 +52,8 @@ export type StartJob = { jobId: string }
 export const DELIVERING: AcquisitionJobStatus[] = ['resolving', 'queued', 'downloading']
 
 const timing = {
-  /** How often `acquisition.finish` looks at the import. */
-  pollMs: 1000,
+  /** How often `acquisition.finish` looks at the import; a usable file is announced this soon. */
+  pollMs: 250,
   /** A job without uploads or completion for this long has its provider polled. */
   quietMs: 60_000,
   /** A job resolving this long without progress has its start job queued again. */
@@ -79,8 +79,7 @@ export async function loadJob(jobId: string): Promise<JobRow | null> {
 /** Sends `acquisition.updated` to whoever asked and to admins. */
 async function announce(job: JobRow) {
   const event = { type: 'acquisition.updated' as const, jobId: job.id, trackId: job.recordingId, status: job.status }
-  if (job.requestedBy) await publish({ user: job.requestedBy }, event)
-  await publish('admins', event)
+  await publish(job.requestedBy ? [{ user: job.requestedBy }, 'admins'] : 'admins', event)
 }
 
 /** Updates a job that is in one of `from`, announcing a status change. Null when it was not. */
@@ -434,12 +433,22 @@ export async function completeDelivery(jobId: string) {
 }
 
 /**
- * `acquisition.finish`: waits for the job's import to end, then checks the delivery and
- * ends the job: `completed` when it satisfied at least one requested recording (the rest
- * get misses), `failed` otherwise. Files that did not match stay where the import left
- * them, with their provider source, and are never linked to the request.
+ * `acquisition.finish`: follows the job's import. While it identifies, delivered files
+ * that are already usable are checked (verify.ts, `early`) and the recordings they satisfy
+ * are announced ready, so playback starts without waiting for matching and filing. Once the
+ * import ends, the delivery is checked again and the job ends: `completed` when it
+ * satisfied at least one requested recording (the rest get misses), `failed` otherwise.
+ * Files that did not match stay where the import left them, with their provider source,
+ * and are never linked to the request.
+ *
+ * A recording announced early that the final check no longer finds (matching linked its
+ * file to a recording with another MusicBrainz id) fails like any other: it gets a miss and
+ * its entries are marked failed, which skips them in future, but a current entry that is
+ * already playing keeps playing: the device holds a stream URL for the file, and the file
+ * stays in the library under the recording it really is.
  */
 export async function finishDelivery(jobId: string) {
+  const announced = new Set<string>()
   for (;;) {
     const job = await loadJob(jobId)
     if (job?.status !== 'importing') return
@@ -455,16 +464,25 @@ export async function finishDelivery(jobId: string) {
     if (done.status === 'completed') {
       const ready = await verifyDelivery(job)
       const unmatched = job.recordingIds.filter((id) => !ready.includes(id))
+      const revoked = unmatched.filter((id) => announced.has(id)).length
       if (ready.length === 0) {
-        const error = done.counts.filesLeftForReview > 0
-          ? 'The delivery was left for review and does not contain what was asked for'
-          : 'The delivered files are not what was asked for'
+        const error = revoked > 0
+          ? 'Identification found the delivery is a different recording after it had started playing'
+          : done.counts.filesLeftForReview > 0
+            ? 'The delivery was left for review and does not contain what was asked for'
+            : 'The delivered files are not what was asked for'
         await finishJob(jobId, { status: 'failed', error, missed: job.recordingIds })
       } else {
         const error = unmatched.length > 0 ? `${unmatched.length} of ${job.recordingIds.length} tracks were not in the delivery` : null
         await finishJob(jobId, { status: 'completed', error, ready, missed: unmatched })
       }
       return
+    }
+    const early = (await verifyDelivery(job, { early: true })).filter((id) => !announced.has(id))
+    if (early.length > 0) {
+      for (const id of early) announced.add(id)
+      await announceOutcome({ ready: early })
+      await invalidateRecordings(early)
     }
     await sleep(timing.pollMs)
   }

@@ -1,6 +1,7 @@
 import type { TrackSummary } from '@squirmy/contracts'
 import { describe, expect, it, vi } from 'vitest'
-import { ApiError, artworkUrl, createApiClient, type FetchLike, streamUrl } from './client.js'
+import { ApiError, artworkUrl, createApiClient, type FetchLike, type FormDataLike, streamUrl, type XhrLike } from './client.js'
+import { apiRoutes } from './routes.js'
 
 const id = '00000000-0000-4000-8000-000000000001'
 const track: TrackSummary = {
@@ -155,6 +156,107 @@ describe('artworkUrl', () => {
     expect(artworkUrl('', artwork, 96)).toBe(`/api/v1/art/${id}/96`)
     expect(artworkUrl('', artwork, 5000)).toBe(`/api/v1/art/${id}/1200`)
     expect(artworkUrl('', null, 96)).toBeNull()
+  })
+})
+
+describe('the route manifest', () => {
+  type Method = (...args: unknown[]) => Promise<unknown>
+  const methodsOf = (api: ReturnType<typeof createApiClient>) => Object.entries(api).flatMap(([group, methods]) =>
+    Object.entries(methods as Record<string, Method>).map(([name, method]) => [`${group}.${name}`, method] as const))
+
+  it('lists every method of the client, and nothing else', () => {
+    const names = methodsOf(createApiClient({ baseUrl: '' })).map(([name]) => name)
+    expect(names.sort()).toEqual(Object.keys(apiRoutes).sort())
+  })
+
+  it('names the route each method calls', async () => {
+    const calls: string[] = []
+    const fetch = vi.fn<FetchLike>(async (url, init) => {
+      calls.push(`${init.method} ${url.split('?')[0]}`)
+      return { ok: true, status: 200, statusText: 'OK', text: async () => '{}' }
+    })
+    const xhr = (): XhrLike => {
+      const request: XhrLike = {
+        open: (method, url) => calls.push(`${method} ${url}`), setRequestHeader: () => {}, withCredentials: false, upload: { onprogress: null },
+        onload: null, onerror: null, onabort: null, status: 200, statusText: 'OK', responseText: '{}', send: () => request.onload?.(), abort: () => {},
+      }
+      return request
+    }
+    const api = createApiClient({ baseUrl: '', fetch, validate: false, xhr, formData: () => ({ append: () => {} }) })
+    for (const [name, method] of methodsOf(api)) {
+      calls.length = 0
+      // Every path parameter becomes "p", and bodies and queries are left out.
+      await method('p', 'p')
+      const [verb, pattern] = apiRoutes[name as keyof typeof apiRoutes].split(' ') as [string, string]
+      expect(calls, name).toEqual([`${verb} /api/v1${pattern.replace(/:\w+/g, 'p')}`])
+    }
+  })
+})
+
+describe('uploads', () => {
+  function fakeXhr(answer: { status: number; body: unknown }) {
+    const sent: { url?: string; method?: string; headers: Record<string, string>; body?: unknown; withCredentials?: boolean } = { headers: {} }
+    const request: XhrLike = {
+      open: (method, url) => Object.assign(sent, { method, url }),
+      setRequestHeader: (name, value) => { sent.headers[name] = value },
+      withCredentials: false,
+      upload: { onprogress: null },
+      onload: null, onerror: null, onabort: null,
+      status: 0, statusText: '', responseText: '',
+      send: (body) => {
+        sent.body = body
+        sent.withCredentials = request.withCredentials
+        request.upload.onprogress?.({ loaded: 50, total: 100, lengthComputable: true })
+        request.upload.onprogress?.({ loaded: 100, total: 0, lengthComputable: false })
+        Object.assign(request, { status: answer.status, responseText: JSON.stringify(answer.body) })
+        request.onload?.()
+      },
+      abort: () => request.onabort?.(),
+    }
+    return { request, sent }
+  }
+  const form = () => {
+    const parts: [string, unknown, string | undefined][] = []
+    const data: FormDataLike = { append: (name, value, filename) => parts.push([name, value, filename]) }
+    return { data, parts }
+  }
+
+  it('posts each file after its relative path, with the token, and reports progress', async () => {
+    const response = { import: { id }, files: [{ path: 'Album/01.flac', status: 'accepted', reason: null, bytes: 3 }] }
+    const { request, sent } = fakeXhr({ status: 200, body: response })
+    const { data, parts } = form()
+    const api = createApiClient({ baseUrl: 'https://music.test', getToken: () => 'secret', validate: false, xhr: () => request, formData: () => data })
+    const progress: unknown[] = []
+    const result = await api.imports.addFiles(id, [{ data: 'bytes-1', name: '01.flac', relativePath: 'Album/01.flac' }, { data: 'bytes-2', name: 'cover.jpg' }], {
+      onProgress: (update) => progress.push(update),
+    })
+    expect(result).toEqual(response)
+    expect(sent).toMatchObject({ method: 'POST', url: `https://music.test/api/v1/imports/${id}/files`, body: data, withCredentials: false })
+    expect(sent.headers).toMatchObject({ Authorization: 'Bearer secret', 'X-Squirmy-Request': '1' })
+    expect(sent.headers['Content-Type']).toBeUndefined()
+    expect(parts).toEqual([['relativePath', 'Album/01.flac', undefined], ['file', 'bytes-1', '01.flac'], ['file', 'bytes-2', 'cover.jpg']])
+    expect(progress).toEqual([{ loaded: 50, total: 100 }, { loaded: 100, total: null }])
+  })
+
+  it('sends cookies without a token, and fails like any request', async () => {
+    const { request, sent } = fakeXhr({ status: 413, body: { error: { code: 'file_too_large', message: 'Too large', details: { files: [] } } } })
+    const api = createApiClient({ baseUrl: '', xhr: () => request, formData: () => form().data })
+    await expect(api.imports.addFiles(id, [{ data: 'x', name: 'big.flac' }])).rejects.toMatchObject({ status: 413, code: 'file_too_large', details: { files: [] } })
+    expect(sent.withCredentials).toBe(true)
+  })
+
+  it('cancels with the signal, and needs XMLHttpRequest', async () => {
+    const { request } = fakeXhr({ status: 200, body: {} })
+    request.send = () => {}
+    let abort = () => {}
+    const signal = { aborted: false, addEventListener: (_type: 'abort', listener: () => void) => { abort = listener } }
+    const api = createApiClient({ baseUrl: '', xhr: () => request, formData: () => form().data })
+    const pending = api.imports.addFiles(id, [{ data: 'x', name: 'a.flac' }], { signal })
+    await Promise.resolve()
+    await Promise.resolve()
+    abort()
+    await expect(pending).rejects.toMatchObject({ status: 0, code: 'aborted' })
+    await expect(createApiClient({ baseUrl: '' }).imports.addFiles(id, [])).rejects.toMatchObject({ code: 'upload_unavailable' })
   })
 })
 

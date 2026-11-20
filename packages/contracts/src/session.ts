@@ -168,7 +168,8 @@ export type SessionCommand = z.infer<typeof SessionCommand>
 export const ServerSessionCommand = z.discriminatedUnion('type', [
   /**
    * Updates every entry of the track. `ready` un-stalls a preparing current entry;
-   * `failed` on the current entry advances to the next playable one.
+   * `failed` on a preparing current entry advances to the next playable one, and leaves a
+   * ready current entry as it is.
    */
   z.object({ type: z.literal('setEntryState'), trackId: Id, state: QueueEntryState }),
   z.object({ type: z.literal('setAutoplayQueue'), tracks: z.array(QueueSeed) }),

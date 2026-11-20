@@ -6,13 +6,14 @@
 import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
 import { matchKey } from '../../../lib/text.js'
+import { albumTrackList } from '../../catalog/pages.js'
 import { resolveOne, type MergeableTable } from '../../catalog/redirects.js'
 import { similarArtists } from '../../radio/index.js'
 import { suggestAutoplay } from '../../radio/suggest.js'
 import { albumAsChild, albums } from '../albums.js'
 import { allLibraryArtists, artistID3, artistRows, artUrl, IGNORED_ARTICLES, indexArtist, indexByLetter } from '../artists.js'
 import { rootParam } from '../folders.js'
-import { albumId, artistId, expectId, type IdKind } from '../ids.js'
+import { albumId, artistId, expectId, trackId, type IdKind } from '../ids.js'
 import { notFound, type Context, type Handler, type Payload } from '../protocol.js'
 import { songs } from '../songs.js'
 import { hasPresentFile, presentFiles } from '../sql.js'
@@ -36,17 +37,31 @@ async function artistAlbumIds(artist: string, rootId?: string): Promise<string[]
   return rows.map((row) => row.id)
 }
 
-/** Owned songs of an album, in disc and track order. */
+/**
+ * Songs filed under an album, in the order of the catalog's track list. Songs the release does
+ * not number (bonus tracks) are numbered after the last track of their disc, so clients that
+ * sort by number put them last and no two songs share one.
+ */
 async function albumSongs(userId: string, album: string): Promise<Payload[]> {
-  const rows = await db.execute<{ id: string }>(sql`
-    select distinct f.recording_id as id from media_files f
-    where f.album_id = ${album} and f.recording_id is not null and ${presentFiles('f')}`)
-  const list = await songs(userId, rows.map((row) => ({ id: row.id, albumId: album })))
-  const order = (song: Payload) => [(song.discNumber as number | undefined) ?? 1, (song.track as number | undefined) ?? 0]
-  return list.sort((a, b) => {
-    const [discA, trackA] = order(a)
-    const [discB, trackB] = order(b)
-    return discA! - discB! || trackA! - trackB! || String(a.title).localeCompare(String(b.title))
+  const [listed, filed] = await Promise.all([
+    albumTrackList(album),
+    db.execute<{ id: string }>(sql`
+      select distinct f.recording_id as id from media_files f
+      where f.album_id = ${album} and f.recording_id is not null and ${presentFiles('f')}`),
+  ])
+  // The songs whose files are filed under this album.
+  const own = new Set(filed.map((row) => row.id))
+  const tracks = listed.filter((track) => own.has(track.recordingId))
+  const list = await songs(userId, tracks.map((track) => ({ id: track.recordingId, albumId: album })))
+  const byId = new Map(list.map((song) => [song.id, song]))
+  const last = new Map<number, number>()
+  for (const track of tracks) if (track.position !== null) last.set(track.disc, Math.max(last.get(track.disc) ?? 0, track.position))
+  return tracks.flatMap((track) => {
+    const song = byId.get(trackId(track.recordingId))
+    if (!song) return []
+    const position = track.position ?? (last.get(track.disc) ?? 0) + 1
+    last.set(track.disc, Math.max(last.get(track.disc) ?? 0, position))
+    return [{ ...song, discNumber: track.disc, track: position }]
   })
 }
 

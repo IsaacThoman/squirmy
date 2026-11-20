@@ -234,6 +234,10 @@ export type AcquisitionJobListQuery = z.infer<typeof AcquisitionJobListQuery>
 export const AcquisitionJobList = page(AcquisitionJob)
 export type AcquisitionJobList = z.infer<typeof AcquisitionJobList>
 
+/** Query of `POST /tracks/:id/acquire`: the album the track is played from, so the request names it. */
+export const AcquireQuery = z.object({ albumId: Id.optional() })
+export type AcquireQuery = z.infer<typeof AcquireQuery>
+
 /**
  * `POST /tracks/:id/acquire` and `POST /albums/:id/acquire` (202). The jobs now working on
  * the request: an existing job when one is already in flight, one job for an album the

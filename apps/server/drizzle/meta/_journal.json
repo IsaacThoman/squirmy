@@ -71,6 +71,13 @@
       "when": 1795206175947,
       "tag": "0009_import_duplicates",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795207462357,
+      "tag": "0010_drop_scan_interval",
+      "breakpoints": true
     }
   ]
 }

@@ -1,9 +1,9 @@
 import { open } from 'node:fs/promises'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { libraryRoots, mediaFiles } from '../../database/schema.js'
+import { fileMoves, libraryRoots, mediaFiles, organizeBatches } from '../../database/schema.js'
 import { forbidden, notFound } from '../../lib/errors.js'
 import type { MediaFile } from './profiles.js'
 
@@ -27,10 +27,49 @@ export async function libraryPath(file: Pick<MediaFile, 'rootId' | 'relPath'>): 
   return full
 }
 
-/** Records that a file has vanished from disk; the scanner clears it if the file returns. */
-export async function markMissing(fileId: string) {
+/**
+ * Records that a file has vanished from disk; the scanner clears it if the file returns.
+ * Only while its row still has the path that was tried: a row that moved on was not missing.
+ */
+export async function markMissing(fileId: string, relPath: string) {
   await db.update(mediaFiles).set({ missingSince: new Date(), updatedAt: new Date() })
-    .where(and(eq(mediaFiles.id, fileId), isNull(mediaFiles.missingSince)))
+    .where(and(eq(mediaFiles.id, fileId), eq(mediaFiles.relPath, relPath), isNull(mediaFiles.missingSince)))
+}
+
+/**
+ * Paths a file that is not at `file.relPath` may be at now. Organize moves a file on disk
+ * before it updates the row, and a revert does the same the other way, so a request that
+ * lands in between finds it at the other end of a move that is running; and the row may
+ * have changed since the caller read it.
+ */
+async function otherPaths(file: Pick<MediaFile, 'id' | 'relPath'>): Promise<string[]> {
+  const [row] = await db.select({ relPath: mediaFiles.relPath }).from(mediaFiles).where(eq(mediaFiles.id, file.id))
+  const moves = await db.select({ from: fileMoves.fromRelPath, to: fileMoves.toRelPath }).from(fileMoves)
+    .innerJoin(organizeBatches, eq(organizeBatches.id, fileMoves.batchId))
+    .where(and(
+      eq(fileMoves.fileId, file.id), inArray(organizeBatches.status, ['applying', 'reverting']),
+      or(eq(fileMoves.fromRelPath, file.relPath), eq(fileMoves.toRelPath, file.relPath)),
+    ))
+  const paths = [row?.relPath, ...moves.flatMap((move) => [move.from, move.to])]
+  return [...new Set(paths)].filter((relPath): relPath is string => Boolean(relPath) && relPath !== file.relPath)
+}
+
+/**
+ * Calls `attempt` with the file's absolute path, and again at the other paths it may have
+ * moved to while `attempt` answers null (not found). A stream URL handed out before
+ * organize filed the file keeps working through the move. Throws 404 `file_missing`, and
+ * marks the file missing, when it is nowhere.
+ */
+export async function withLibraryFile<T>(file: MediaFile, attempt: (absolutePath: string, file: MediaFile) => Promise<T | null>): Promise<T> {
+  const found = await attempt(await libraryPath(file), file)
+  if (found !== null) return found
+  for (const relPath of await otherPaths(file)) {
+    const moved = { ...file, relPath }
+    const result = await attempt(await libraryPath(moved), moved)
+    if (result !== null) return result
+  }
+  await markMissing(file.id, file.relPath)
+  throw notFound('The file is missing from disk', 'file_missing')
 }
 
 type ByteRange = { start: number; end: number }
