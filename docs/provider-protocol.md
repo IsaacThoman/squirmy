@@ -4,13 +4,13 @@ Version 1.
 
 An acquisition provider is a small HTTP service you run next to Squirmy that can supply audio files for music the server does not have yet. When one is connected, tracks it can supply stop being gray: playing one fetches the file in the background, files it into the library like any other import, and starts playback when it arrives.
 
-Squirmy ships no providers that fetch from third parties and names none. The protocol is generic; what you connect is your decision and your responsibility. The repository includes two reference adapters: one that serves files from a cold-storage folder you already own ([adapters/cold-storage](../adapters/cold-storage/README.md)), and a mock used in tests and demos ([adapters/mock](../adapters/mock/README.md)). Both are built on `@squirmy/provider-kit` (`adapters/kit`), which implements everything below except "what do you have" and "fetch it", so a new provider is mostly those two functions.
+Squirmy ships no providers that fetch from third parties and names none. The protocol is generic; what you connect is your decision and your responsibility. The repository includes two reference adapters: one that serves files from a cold-storage folder you already own ([adapters/cold-storage](https://github.com/IsaacThoman/squirmy/blob/dev/adapters/cold-storage/README.md)), and a mock used in tests and demos ([adapters/mock](https://github.com/IsaacThoman/squirmy/blob/dev/adapters/mock/README.md)). Both are built on `@squirmy/provider-kit` (`adapters/kit`), which implements everything below except "what do you have" and "fetch it", so a new provider is mostly those two functions.
 
 The schemas for every message are in `packages/contracts/src/acquisition.ts` (names start with `Provider`).
 
 ## Connecting a provider
 
-An admin adds a provider with its base URL and shared secret (`POST /api/v1/admin/acquisition/providers`); the server calls `GET /capabilities` right away and again on "Test". A provider counts only while it is enabled and has answered `capabilities` once. With several, they are tried in descending priority.
+An admin adds a provider with its base URL and shared secret (`POST /api/v1/admin/acquisition/providers`); the server calls `GET /capabilities` right away and again on `POST /api/v1/admin/acquisition/providers/:id/test` (there is no admin screen for providers yet). A provider counts only while it is enabled and has answered `capabilities` once. With several, they are tried in descending priority.
 
 The server tells a provider where to deliver with absolute URLs. Their origin is, in order: the policy's `deliveryBaseUrl` (`PATCH /api/v1/admin/acquisition/policy`), `PUBLIC_URL`, or `http://localhost:<PORT>`. A provider in another container needs one of the first two, for example `deliveryBaseUrl: "http://squirmy:4747"` on a shared Docker network.
 
@@ -18,7 +18,7 @@ The server tells a provider where to deliver with absolute URLs. Their origin is
 
 ```
 server                                   provider
-  │  GET  /capabilities                    │   once, and when you press "Test"
+  │  GET  /capabilities                    │   once, and again on each test call
   │  POST /resolve     { items }           │   what can you supply?
   │ ◄──── { items: [{ ref, offers }] }     │
   │  POST /acquire     { jobId, offerId,   │   fetch this one
