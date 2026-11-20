@@ -87,6 +87,7 @@ function DetailPage({ item, tint, title, artist, info, buttons, nav, status, des
     transform: [{ translateY: scrollOffset.value < 0 ? 1 - scrollOffset.value : 0 }],
   }));
   const artSize = Math.min(238, Math.floor(width * 0.60));
+  const artRadius = item.round ? artSize / 2 : 17;
   const headerColor = tint ? interpolateColor(colors.albumTint, [0, 1], [colors.background, tint], 'RGB', { gamma: 1 }) : colors.background;
 
   return <View style={styles.page}>
@@ -106,7 +107,8 @@ function DetailPage({ item, tint, title, artist, info, buttons, nav, status, des
       <View style={[styles.header, { paddingTop: top + albumNavSize + 12 }]}>
         {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
           locations={[0, 1]} style={StyleSheet.absoluteFill} />}
-        <ZoomTarget style={styles.art}><CollectionCover item={item} size={artSize} radius={item.round ? artSize / 2 : 17} /></ZoomTarget>
+        {/* The shadow needs the cover's shape and an opaque fill to be drawn efficiently. */}
+        <ZoomTarget style={StyleSheet.flatten([styles.art, { borderRadius: artRadius }])}><CollectionCover item={item} size={artSize} radius={artRadius} /></ZoomTarget>
         <AlbumMetadata title={title} artist={artist} info={info} />
         {buttons && buttons.length > 0 && <AlbumPlaybackButtons title={title} actions={buttons} />}
         {status}
@@ -425,7 +427,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   overscrollFill: { position: 'absolute', bottom: '100%', height: '100%', left: 0, right: 0 },
   status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
   header: { alignItems: 'center', paddingHorizontal: gutter },
-  art: { marginTop: 8, marginBottom: 21, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
+  art: { marginTop: 8, marginBottom: 21, backgroundColor: colors.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
   description: { marginHorizontal: gutter, color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
   trackListHeader: { marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 8 },
   trackListTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
