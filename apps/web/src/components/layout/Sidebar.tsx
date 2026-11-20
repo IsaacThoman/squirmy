@@ -1,12 +1,15 @@
-import type { PlaylistSummary, User } from '@squirmy/contracts'
+import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
 import { Bookmark, Disc3, House, ListMusic, MicVocal, Plus, Search, Shield } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type DragEvent, type ReactNode } from 'react'
 import { NavLink } from 'react-router'
 import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
 import { IconButton } from '@/components/ui/icon-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip } from '@/components/ui/tooltip'
+import { draggedTracks } from '@/lib/drag'
+import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useLibrary } from '@/player/library-context'
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -35,12 +38,13 @@ function SidebarLink({ to, icon, children, end }: { to: string; icon: ReactNode;
 type SidebarProps = {
   user: User
   playlists: PlaylistSummary[]
-  likedCount: number
-  onCreatePlaylist: () => void
+  /** "24 songs" under Liked Songs. */
+  likedCount: string
 }
 
-/** Full width from 1024px; icons only between 768 and 1024. */
-export function Sidebar({ user, playlists, likedCount, onCreatePlaylist }: SidebarProps) {
+/** Full width from 1024px; icons only between 768 and 1024. Songs dragged onto a playlist are added to it. */
+export function Sidebar({ user, playlists, likedCount }: SidebarProps) {
+  const library = useLibrary()
   return (
     <nav aria-label="Main" className="flex h-full w-[4.75rem] shrink-0 flex-col border-r border-stroke bg-sheet pb-(--player-height) lg:w-64">
       <div className="flex h-16 items-center px-5 max-lg:justify-center max-lg:px-0">
@@ -61,20 +65,27 @@ export function Sidebar({ user, playlists, likedCount, onCreatePlaylist }: Sideb
 
       <div className="mt-6 flex items-center justify-between pl-6 pr-3 max-lg:mt-4 max-lg:justify-center max-lg:border-t max-lg:border-stroke max-lg:px-0 max-lg:pt-4">
         <p className="text-xs font-bold uppercase tracking-[0.1em] text-quiet max-lg:hidden">Playlists</p>
-        <IconButton label="New playlist" size="sm" onClick={onCreatePlaylist}><Plus /></IconButton>
+        <IconButton label="New playlist" size="sm" onClick={() => library.newPlaylist()}><Plus /></IconButton>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <ul className="flex flex-col gap-0.5 px-3 py-1.5">
           <li>
-            <PlaylistLink to="/liked" title="Liked Songs" subtitle={`${likedCount} songs`} art={<LikedCover className="size-10 rounded-lg" />} />
+            <PlaylistLink
+              to="/liked"
+              title="Liked Songs"
+              subtitle={likedCount}
+              art={<LikedCover className="size-10 rounded-lg" />}
+              onDropTracks={tracks => tracks.filter(track => !track.liked).forEach(track => library.setLiked('track', track.id, true))}
+            />
           </li>
           {playlists.map(playlist => (
             <li key={playlist.id}>
               <PlaylistLink
                 to={`/playlist/${playlist.id}`}
                 title={playlist.name}
-                subtitle={`Playlist · ${playlist.trackCount} songs`}
+                subtitle={`Playlist · ${plural(playlist.trackCount, 'song')}`}
                 art={<PlaylistCover artworks={playlist.artworks} className="size-10 rounded-lg" />}
+                onDropTracks={playlist.ownerId === user.id ? tracks => library.addToPlaylist(playlist, tracks) : undefined}
               />
             </li>
           ))}
@@ -90,10 +101,34 @@ export function Sidebar({ user, playlists, likedCount, onCreatePlaylist }: Sideb
   )
 }
 
-function PlaylistLink({ to, title, subtitle, art }: { to: string; title: string; subtitle: string; art: ReactNode }) {
+type PlaylistLinkProps = { to: string; title: string; subtitle: string; art: ReactNode; onDropTracks?: (tracks: TrackSummary[]) => void }
+
+function PlaylistLink({ to, title, subtitle, art, onDropTracks }: PlaylistLinkProps) {
+  const [over, setOver] = useState(false)
+  const accepts = (event: DragEvent) => Boolean(onDropTracks && draggedTracks(event))
   return (
     <Tooltip label={title} side="right">
-      <NavLink to={to} className="flex items-center gap-3 rounded-xl p-1.5 transition-colors duration-150 hover:bg-overlay aria-[current=page]:bg-selection max-lg:justify-center">
+      <NavLink
+        to={to}
+        onDragOver={event => {
+          if (!accepts(event)) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'copy'
+          setOver(true)
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={event => {
+          const drag = draggedTracks(event)
+          setOver(false)
+          if (!onDropTracks || !drag) return
+          event.preventDefault()
+          onDropTracks(drag.tracks)
+        }}
+        className={cn(
+          'flex items-center gap-3 rounded-xl p-1.5 transition-colors duration-150 hover:bg-overlay aria-[current=page]:bg-selection max-lg:justify-center',
+          over && 'bg-selection ring-2 ring-accent',
+        )}
+      >
         {art}
         <span className="min-w-0 max-lg:sr-only">
           <span className="block truncate text-sm font-semibold">{title}</span>

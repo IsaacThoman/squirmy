@@ -94,6 +94,15 @@ describe('createApiClient', () => {
     await api.userdata.unlike('album', 'a/b').catch(() => undefined)
     expect(fetch.mock.calls[1]![0]).toBe('/api/v1/me/likes/album/a%2Fb')
   })
+
+  it('passes an abort signal through to fetch', async () => {
+    const fetch = respond(200, { artists: [], albums: [], tracks: [], provider: null })
+    const api = createApiClient({ baseUrl: '', fetch })
+    const signal = { aborted: false }
+    await api.search.library({ q: 'blue' }, { signal })
+    expect(fetch.mock.calls[0]![0]).toBe('/api/v1/search/library?q=blue')
+    expect(fetch.mock.calls[0]![1].signal).toBe(signal)
+  })
 })
 
 describe('artworkUrl', () => {

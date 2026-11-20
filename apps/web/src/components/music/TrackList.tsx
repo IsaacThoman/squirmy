@@ -1,28 +1,34 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
-  BookmarkCheck, BookmarkPlus, Clock3, CloudDownload, Disc3, Heart, ListEnd, ListStart, MicVocal, MoreHorizontal, Pause, Play, Trash2,
+  ArrowDown, ArrowUp, BookmarkCheck, BookmarkPlus, Clock3, CloudDownload, Disc3, Heart, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal,
+  Pause, Play, Plus, Radio, Trash2,
 } from 'lucide-react'
-import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { Tooltip } from '@/components/ui/tooltip'
+import { draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
+import { useEndReached } from './use-end-reached'
 
-export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'remove'
+/** `add-to:<playlist id>` adds the track to a playlist; `add-to:new` starts one with it. */
+export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}`
+
+export type PlaylistChoice = { id: string; name: string }
 
 /** What is playing, so the list can mark its row. */
 export type NowPlaying = { trackId: string; playing: boolean; preparing: boolean; onTogglePlay: () => void }
 
 /**
  * - `album`: track numbers, no artwork; for album pages.
- * - `playlist`: running numbers, artwork, album and date added columns.
+ * - `playlist`: running numbers, artwork, album and (when the rows have `addedAt`) date added columns.
  * - `compact`: artwork instead of numbers, album column on wide screens; search and top tracks.
  */
 export type TrackListVariant = 'album' | 'playlist' | 'compact'
@@ -30,10 +36,13 @@ export type TrackListVariant = 'album' | 'playlist' | 'compact'
 type SharedProps = {
   variant?: TrackListVariant
   nowPlaying?: NowPlaying | null
-  isLiked?: (track: TrackSummary) => boolean
   isWanted?: (track: TrackSummary) => boolean
   onPlay: (index: number) => void
   onAction?: (action: TrackAction, track: TrackSummary, index: number) => void
+  /** Playlists the track menu offers to add to. */
+  playlists?: PlaylistChoice[]
+  /** Makes the rows reorderable by dragging and from the menu (a playlist the user owns). */
+  onMove?: (from: number, to: number) => void
 }
 
 const columns: Record<TrackListVariant, string> = {
@@ -42,22 +51,31 @@ const columns: Record<TrackListVariant, string> = {
   compact: 'grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,6fr)_minmax(0,4fr)_auto]',
 }
 
-type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isLiked' | 'isWanted'> & {
+/** A playlist's rows have a date added column only when they know the date. */
+const columnsOf = (variant: TrackListVariant, dated: boolean) => (variant === 'playlist' && !dated ? undatedColumns : columns[variant])
+const undatedColumns = 'grid-cols-[2.25rem_minmax(0,1fr)_auto] md:grid-cols-[2.25rem_minmax(0,6fr)_minmax(0,4fr)_auto]'
+
+/** Where a row dragged within its list would land: before or after the row under the pointer. */
+type DropTarget = { index: number; side: 'before' | 'after' }
+type Reorder = { list: string; count: number; target: DropTarget | null; setTarget: (target: DropTarget | null) => void; onMove: (from: number, to: number) => void }
+
+type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
   track: TrackSummary
   index: number
   /** The number in the first column; defaults to the row's position. */
   number?: number
   addedAt?: string
-  liked?: boolean
   wanted?: boolean
   onPlay: () => void
   /** Owners such as the queue add their own entries to the menu. */
   extraMenu?: MenuEntry[]
+  reorder?: Reorder
   style?: CSSProperties
 }
 
-export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, liked = track.liked, wanted = false, onPlay, onAction, extraMenu, style }: TrackRowProps) {
+export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted = false, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
   const navigate = useNavigate()
+  const { liked } = track
   const unavailable = track.availability === 'none'
   const current = nowPlaying?.trackId === track.id
   const playing = current && nowPlaying.playing
@@ -68,6 +86,17 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const menu: MenuEntry[] = [
     { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), disabled: unavailable },
     { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), disabled: unavailable },
+    ...(playlists ? [{
+      kind: 'submenu' as const,
+      label: 'Add to playlist',
+      icon: <ListPlus />,
+      items: [
+        { label: 'New playlist…', icon: <Plus />, onSelect: () => act('add-to:new') },
+        ...(playlists.length ? [{ kind: 'separator' as const }] : []),
+        ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => act(`add-to:${playlist.id}`) })),
+      ],
+    }] : []),
+    { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
     { kind: 'separator' },
     { label: liked ? 'Remove from Liked Songs' : 'Save to Liked Songs', icon: <Heart />, onSelect: () => act('like') },
     ...(track.availability === 'server' ? [] : [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: () => act('want') }]),
@@ -75,8 +104,31 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
     ...(track.album ? [{ label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(`/album/${track.album!.id}`) }] : []),
     ...track.artists.map(artist => ({ label: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
     ...(extraMenu ?? []),
-    ...(variant === 'playlist' && onAction ? [{ kind: 'separator' as const }, { label: 'Remove from playlist', icon: <Trash2 />, danger: true, onSelect: () => act('remove') }] : []),
+    ...(reorder ? [
+      { kind: 'separator' as const },
+      { label: 'Move up', icon: <ArrowUp />, disabled: index === 0, onSelect: () => act('move-up') },
+      { label: 'Move down', icon: <ArrowDown />, disabled: index === reorder.count - 1, onSelect: () => act('move-down') },
+      { label: 'Remove from playlist', icon: <Trash2 />, danger: true, onSelect: () => act('remove') },
+    ] : []),
   ]
+
+  const onDragOver = (event: DragEvent) => {
+    const drag = draggedTracks(event)
+    if (!reorder || drag?.list !== reorder.list) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    const side = drag.index < index ? 'after' : 'before'
+    const target = drag.index === index ? null : { index, side } as const
+    if (target?.index !== reorder.target?.index || target?.side !== reorder.target?.side) reorder.setTarget(target)
+  }
+  const onDrop = (event: DragEvent) => {
+    const drag = draggedTracks(event)
+    if (!reorder || drag?.list !== reorder.list) return
+    event.preventDefault()
+    reorder.setTarget(null)
+    if (drag.index !== index) reorder.onMove(drag.index, index)
+  }
+  const dropSide = reorder?.target?.index === index ? reorder.target.side : undefined
 
   const playButton = !unavailable && (
     <button
@@ -100,10 +152,20 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
         aria-disabled={unavailable || undefined}
         title={unavailable ? 'Not in your library' : undefined}
         onDoubleClick={unavailable ? undefined : play}
+        draggable
+        onDragStart={event => startTrackDrag(event, { tracks: [track], list: reorder?.list ?? null, index })}
+        onDragEnd={() => {
+          endTrackDrag()
+          reorder?.setTarget(null)
+        }}
+        onDragOver={reorder && onDragOver}
+        onDrop={reorder && onDrop}
+        data-drop={dropSide}
         style={style}
         className={cn(
           'group/row grid h-14 select-none items-center gap-3 rounded-lg px-2 transition-colors duration-100',
-          columns[variant],
+          'data-[drop=after]:shadow-[inset_0_-2px_0_var(--accent)] data-[drop=before]:shadow-[inset_0_2px_0_var(--accent)]',
+          columnsOf(variant, addedAt !== undefined),
           unavailable ? 'text-quiet [&>*:not(:last-child)]:opacity-60' : 'hover:bg-overlay has-[[data-state=open]]:bg-overlay',
           current && 'bg-selection hover:bg-selection',
         )}
@@ -151,7 +213,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
             {track.album && <Link to={`/album/${track.album.id}`} className="hover:text-foreground hover:underline">{track.album.title}</Link>}
           </div>
         )}
-        {variant === 'playlist' && <div className="hidden truncate text-[13px] text-muted xl:block">{addedAt && formatRelative(addedAt)}</div>}
+        {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-[13px] text-muted xl:block">{formatRelative(addedAt)}</div>}
 
         <div className="flex items-center justify-end gap-1">
           {onAction && (
@@ -194,14 +256,14 @@ function ArtistLinks({ track, dimmed }: { track: TrackSummary; dimmed: boolean }
   )
 }
 
-function ListHeader({ variant }: { variant: TrackListVariant }) {
+function ListHeader({ variant, dated }: { variant: TrackListVariant; dated: boolean }) {
   if (variant === 'compact') return null
   return (
-    <div aria-hidden className={cn('mb-1 grid h-9 items-center gap-3 border-b border-stroke px-2 text-xs font-semibold uppercase tracking-wider text-quiet', columns[variant])}>
+    <div aria-hidden className={cn('mb-1 grid h-9 items-center gap-3 border-b border-stroke px-2 text-xs font-semibold uppercase tracking-wider text-quiet', columnsOf(variant, dated))}>
       <span className="text-center">#</span>
       <span>Title</span>
       {variant === 'playlist' && <span className="hidden md:block">Album</span>}
-      {variant === 'playlist' && <span className="hidden xl:block">Added</span>}
+      {variant === 'playlist' && dated && <span className="hidden xl:block">Added</span>}
       <span className="flex justify-end pr-11"><Clock3 className="hidden size-4 sm:block" /></span>
     </div>
   )
@@ -226,7 +288,15 @@ type TrackListProps = SharedProps & {
   label: string
 }
 
-export function TrackList({ tracks, discs, addedAt, header = true, label, variant = 'album', isLiked, isWanted, onPlay, ...rest }: TrackListProps) {
+/** Drag state for lists whose rows can be reordered. */
+function useReorder(count: number, onMove: SharedProps['onMove']): Reorder | undefined {
+  const list = useId()
+  const [target, setTarget] = useState<DropTarget | null>(null)
+  return onMove && { list, count, target, setTarget, onMove }
+}
+
+export function TrackList({ tracks, discs, addedAt, header = true, label, variant = 'album', isWanted, onPlay, onMove, ...rest }: TrackListProps) {
+  const reorder = useReorder(tracks.length, onMove)
   const showDiscs = discs && discs.length > 1
   const starts = discs?.map((_, index) => discs.slice(0, index).reduce((sum, disc) => sum + disc.tracks.length, 0)) ?? []
   const rows = (items: TrackSummary[], start: number) => items.map((track, i) => (
@@ -237,15 +307,15 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
       number={variant === 'album' ? track.position ?? start + i + 1 : undefined}
       addedAt={addedAt?.[start + i]}
       variant={variant}
-      liked={isLiked ? isLiked(track) : track.liked}
       wanted={isWanted?.(track)}
       onPlay={() => onPlay(start + i)}
+      reorder={reorder}
       {...rest}
     />
   ))
   return (
     <div>
-      {header && <ListHeader variant={variant} />}
+      {header && <ListHeader variant={variant} dated={addedAt !== undefined} />}
       <ol aria-label={label} className="flex flex-col">
         {showDiscs
           ? discs.map((disc, index) => (
@@ -263,7 +333,12 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
 const rowHeight = 56
 
 /** The same rows, rendered only near the viewport. For the whole library's songs. */
-export function VirtualTrackList({ tracks, label, variant = 'compact', isLiked, isWanted, onPlay, ...rest }: Omit<TrackListProps, 'discs' | 'addedAt' | 'header'>) {
+type VirtualTrackListProps = Omit<TrackListProps, 'discs' | 'addedAt' | 'header' | 'onMove'> & {
+  /** Called as the last rows come into view, to load the next page. */
+  onEndReached?: () => void
+}
+
+export function VirtualTrackList({ tracks, label, variant = 'compact', isWanted, onPlay, onEndReached, ...rest }: VirtualTrackListProps) {
   const scroller = useScrollContainer()
   const list = useRef<HTMLOListElement>(null)
   const [margin, setMargin] = useState(0)
@@ -282,10 +357,12 @@ export function VirtualTrackList({ tracks, label, variant = 'compact', isLiked, 
     scrollMargin: margin,
     initialRect: { width: 1024, height: 900 },
   })
+  const last = virtualizer.getVirtualItems().at(-1)?.index ?? -1
+  useEndReached(last, tracks.length, onEndReached)
 
   return (
     <div>
-      <ListHeader variant={variant} />
+      <ListHeader variant={variant} dated={false} />
       <ol ref={list} aria-label={label} className="relative" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map(item => {
           const track = tracks[item.index]
@@ -295,7 +372,6 @@ export function VirtualTrackList({ tracks, label, variant = 'compact', isLiked, 
               track={track}
               index={item.index}
               variant={variant}
-              liked={isLiked ? isLiked(track) : track.liked}
               wanted={isWanted?.(track)}
               onPlay={() => onPlay(item.index)}
               style={{ position: 'absolute', insetInline: 0, top: 0, transform: `translateY(${item.start - margin}px)` }}

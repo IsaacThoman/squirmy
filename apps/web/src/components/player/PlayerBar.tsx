@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { Cover } from '@/components/music/Cover'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
-import { usePosition, type Player } from '@/player/player-context'
+import { playingElsewhere, usePosition, type Player } from '@/player/player-context'
 import { DevicesPopover, PlayingElsewhere } from './Devices'
 import { SeekBar, TransportButtons, VolumeControl } from './Transport'
 
@@ -18,15 +18,11 @@ export type PlayerChromeProps = {
   onOpenNowPlaying: () => void
 }
 
-function activeElsewhere({ state }: Player) {
-  return state.activeDeviceId !== state.thisDeviceId ? state.devices.find(device => device.id === state.activeDeviceId) : undefined
-}
-
 /** The desktop player along the bottom of the window, over a blur of whatever scrolls behind it. */
 export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueue, lyricsOpen, onToggleLyrics, onOpenNowPlaying }: PlayerChromeProps) {
   const { state, controls } = player
   const item = state.current
-  const elsewhere = activeElsewhere(player)
+  const elsewhere = playingElsewhere(state)
   return (
     <div className="border-t border-stroke bg-floating backdrop-blur-2xl backdrop-saturate-150">
       <div className="grid h-[5.5rem] grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-4 px-4">
@@ -67,10 +63,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
           <IconButton label={lyricsOpen ? 'Hide lyrics' : 'Lyrics'} size="sm" pressed={lyricsOpen} disabled={!item} onClick={onToggleLyrics}><Quote /></IconButton>
           <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue}><ListMusic /></IconButton>
           <DevicesPopover
-            devices={state.devices}
-            activeDeviceId={state.activeDeviceId}
-            thisDeviceId={state.thisDeviceId}
-            onTransfer={controls.transfer}
+            player={player}
             trigger={<IconButton label="Devices" size="sm" className={cn(elsewhere && 'text-accent hover:text-accent')}><MonitorSpeaker /></IconButton>}
           />
           <VolumeControl volume={state.volume} onChange={controls.setVolume} className="hidden lg:flex" />
@@ -86,7 +79,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
 export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps, 'player' | 'onOpenNowPlaying'>) {
   const { state, controls } = player
   const item = state.current
-  const elsewhere = activeElsewhere(player)
+  const elsewhere = playingElsewhere(state)
   if (!item) return null
   return (
     <div className="relative mx-2 overflow-hidden rounded-2xl bg-floating shadow-float backdrop-blur-2xl backdrop-saturate-150">
@@ -101,10 +94,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
           </span>
         </button>
         <DevicesPopover
-          devices={state.devices}
-          activeDeviceId={state.activeDeviceId}
-          thisDeviceId={state.thisDeviceId}
-          onTransfer={controls.transfer}
+          player={player}
           trigger={<IconButton label="Devices" tooltip={false} className="text-accent hover:text-accent"><MonitorSpeaker /></IconButton>}
         />
         <IconButton label={state.playing ? 'Pause' : 'Play'} tooltip={false} onClick={controls.togglePlay} className="text-foreground">

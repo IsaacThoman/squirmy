@@ -3,17 +3,12 @@ import { AppWindow, Laptop, MonitorSpeaker, Smartphone, Speaker } from 'lucide-r
 import { useState, type ReactNode } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import type { Player } from '@/player/player-context'
+import { VolumeControl } from './Transport'
 
 export function DeviceIcon({ kind, className }: { kind: DeviceInfo['kind']; className?: string }) {
   const Icon = kind === 'web' ? AppWindow : kind === 'desktop' ? Laptop : kind === 'ios' || kind === 'android' ? Smartphone : Speaker
   return <Icon aria-hidden className={className} />
-}
-
-type DevicesProps = {
-  devices: DeviceInfo[]
-  activeDeviceId: string | null
-  thisDeviceId: string
-  onTransfer: (deviceId: string) => void
 }
 
 function deviceName(device: DeviceInfo, thisDeviceId: string) {
@@ -21,31 +16,48 @@ function deviceName(device: DeviceInfo, thisDeviceId: string) {
 }
 
 /** "Listening on …" and the other places this session can play. */
-export function DevicesPopover({ trigger, side = 'top', onTransfer, ...props }: DevicesProps & { trigger: ReactNode; side?: 'top' | 'bottom' }) {
+export function DevicesPopover({ player, trigger, side = 'top' }: { player: Player; trigger: ReactNode; side?: 'top' | 'bottom' }) {
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent side={side} align="end" aria-label="Playback devices">
-        <DeviceList {...props} onTransfer={deviceId => { onTransfer(deviceId); setOpen(false) }} />
+        <DeviceList player={player} onTransferred={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
   )
 }
 
-export function DeviceList({ devices, activeDeviceId, thisDeviceId, onTransfer }: DevicesProps) {
+/** The device that plays, with its volume, and the devices playback can move to. */
+export function DeviceList({ player, onTransferred }: { player: Player; onTransferred?: () => void }) {
+  const { devices, activeDeviceId, thisDeviceId, volumes } = player.state
   const active = devices.find(device => device.id === activeDeviceId)
   const others = devices.filter(device => device.id !== activeDeviceId)
+  const onTransfer = (deviceId: string) => {
+    player.controls.transfer(deviceId)
+    onTransferred?.()
+  }
   return (
     <div>
-      <div className="flex items-center gap-3.5 rounded-2xl bg-selection p-3.5">
-        <div className="flex size-11 items-center justify-center rounded-xl bg-accent text-on-accent">
-          {active ? <DeviceIcon kind={active.kind} className="size-5" /> : <MonitorSpeaker className="size-5" />}
+      <div className="rounded-2xl bg-selection p-3.5">
+        <div className="flex items-center gap-3.5">
+          <div className="flex size-11 items-center justify-center rounded-xl bg-accent text-on-accent">
+            {active ? <DeviceIcon kind={active.kind} className="size-5" /> : <MonitorSpeaker className="size-5" />}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-muted">Listening on</p>
+            <p className="truncate text-[15px] font-bold text-accent">{active ? deviceName(active, thisDeviceId) : 'Nothing right now'}</p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-muted">Listening on</p>
-          <p className="truncate text-[15px] font-bold text-accent">{active ? deviceName(active, thisDeviceId) : 'Nothing right now'}</p>
-        </div>
+        {active && (
+          <VolumeControl
+            label={`${deviceName(active, thisDeviceId)} volume`}
+            volume={volumes[active.id] ?? 1}
+            onChange={volume => player.controls.setVolume(volume, active.id)}
+            fill
+            className="-mb-1 -ml-1.5 mt-2.5 pr-1"
+          />
+        )}
       </div>
       {others.length > 0 && <p className="px-3 pb-1 pt-3.5 text-xs font-semibold text-quiet">Play on another device</p>}
       <ul className="flex flex-col">

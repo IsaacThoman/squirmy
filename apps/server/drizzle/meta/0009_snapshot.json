@@ -1,5 +1,5 @@
 {
-  "id": "f392e8ec-76d7-4040-b6fd-a85a4e012869",
+  "id": "050e9a98-e9f3-45c2-ae5f-0fc6ffed103f",
   "prevId": "52127673-f820-4408-872b-9b7f6b6dcc74",
   "version": "7",
   "dialect": "postgresql",
@@ -2115,6 +2115,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "duplicates_decided_at": {
+          "name": "duplicates_decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "label": {
           "name": "label",
           "type": "text",
@@ -2426,6 +2432,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "scan_interval_minutes": {
+          "name": "scan_interval_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1440
         },
         "last_scan_started_at": {
           "name": "last_scan_started_at",

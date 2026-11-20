@@ -4,10 +4,10 @@
  * and applies the best, opens a review, or leaves the files local-only.
  */
 import path from 'node:path'
-import { queryKeys, type MatchCandidate, type MatchGroupSummary, type ServerSettings } from '@squirmy/contracts'
+import { INCOMING_FOLDER, queryKeys, type MatchCandidate, type MatchGroupSummary, type ServerSettings } from '@squirmy/contracts'
 import { and, count, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
-import { libraryRoots, matchReviews, mediaFiles, type MatchSource } from '../../database/schema.js'
+import { imports, libraryRoots, matchReviews, mediaFiles, type MatchSource } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { getServerSettings } from '../../lib/settings.js'
@@ -34,6 +34,18 @@ const reviewCandidates = 5
 const voters = 5
 /** AcoustID matches below this are ignored. */
 const minFingerprintScore = 0.5
+
+/**
+ * True for a file an import has not finished deciding about: one in `_Incoming/<importId>/`
+ * of the import's root while the import is processing and has not yet removed its
+ * duplicates. Automatic matching leaves such files alone, so no provider is asked about
+ * copies that are about to be deleted, or about part of an album still arriving. Once the
+ * import has decided, it queues matching for its groups itself. See `decideDuplicates`
+ * and `queueMatches` in `imports/process.ts`.
+ */
+const heldByImport = sql`starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/`}) and exists (
+  select 1 from ${imports} where ${imports.status} = 'processing' and ${imports.duplicatesDecidedAt} is null
+    and ${imports.targetRootId} = ${mediaFiles.rootId} and starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/`} || ${imports.id} || '/'))`
 
 /** The singleton key of a group's match job; the library module uses the same one. */
 export function matchJobKey(rootId: string, groupKey: string): string {
@@ -292,13 +304,17 @@ async function publishProgress(rootId: string) {
 /**
  * Runs automatic matching for one album group. Does nothing unless an unlocked file of the
  * group is `pending`, so running it again is a no-op; leaves files `pending` while
- * MusicBrainz is switched off. Provider failures throw so the job retries.
+ * MusicBrainz is switched off or an import holds them (see `heldByImport`). Provider
+ * failures throw so the job retries.
  */
 export async function matchGroup(rootId: string, groupKey: string): Promise<void> {
   const settings = await getServerSettings()
   if (!settings.musicBrainzEnabled) return
   const files = await groupFiles(db, rootId, groupKey, true)
   if (!files.some((file) => file.matchStatus === 'pending')) return
+  const [held] = await db.select({ id: mediaFiles.id }).from(mediaFiles)
+    .where(and(inArray(mediaFiles.id, files.map((file) => file.id)), heldByImport)).limit(1)
+  if (held) return
 
   const evidence = groupEvidence(files)
   // Loose tracks share a group only because they share a folder; each is matched alone.
@@ -344,9 +360,9 @@ export async function matchGroup(rootId: string, groupKey: string): Promise<void
 }
 
 /**
- * Queues `matching.match-album` for up to `batch` groups that still have pending files,
- * oldest first. Groups already queued are skipped by their singleton key. Returns how many
- * jobs were queued.
+ * Queues `matching.match-album` for up to `batch` groups that still have pending files no
+ * import holds, oldest first. Groups already queued are skipped by their singleton key.
+ * Returns how many jobs were queued.
  */
 export async function sweep(batch = 100): Promise<number> {
   if (!(await getServerSettings()).musicBrainzEnabled) return 0
@@ -357,6 +373,7 @@ export async function sweep(batch = 100): Promise<number> {
       isNull(mediaFiles.missingSince),
       gte(mediaFiles.probeStage, 1),
       sql`${mediaFiles.groupKey} is not null and ${mediaFiles.recordingId} is not null`,
+      sql`not (${heldByImport})`,
     ))
     .groupBy(mediaFiles.rootId, mediaFiles.groupKey)
     .orderBy(sql`min(${mediaFiles.addedAt})`)

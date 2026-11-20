@@ -1,17 +1,62 @@
-import { ApiError, type ApiClient } from '@squirmy/client-core'
+import { ApiError, createInitialSession, queueChanged, reduceSession, splitSession, type ApiClient } from '@squirmy/client-core'
 import type { SquirmySocket } from '@squirmy/client-core/socket'
-import type { LibraryRoot, LibraryStats, SetupStatus, User } from '@squirmy/contracts'
+import type {
+  CommandEnvelope, DeviceInfo, LibraryRoot, LibraryStats, PlaylistSummary, ScrobblingStatus, SessionHello, SetupStatus, TrackSummariesRequest, User, WantItem,
+} from '@squirmy/contracts'
 import { vi } from 'vitest'
 import type { Services } from '@/api/services'
-import { appPasswords, currentUser, invites, jobs, serverSettings, users } from '@/fixtures/server'
+import {
+  albumDetail, allTracks, artistDetail, genres, home, libraryAlbums, libraryArtists, libraryTracks, likedTracks, lyricsFor, playlistDetail, playlistSummaries,
+  searchFixtures, wantlist,
+} from '@/fixtures/catalog'
+import { appPasswords, currentUser, invites, jobs, serverSettings, userSettings, users } from '@/fixtures/server'
 
 type Listener = (...args: never[]) => void
 
-/** Enough of a socket.io socket for the realtime provider: events can be fired at it with `serverEmit`. */
+type Ack = (error: Error | null, reply?: unknown) => void
+
+/**
+ * Enough of a socket.io socket for the realtime provider and the session client: events can
+ * be fired at it with `serverEmit`, and it answers the session protocol with the real
+ * reducer, as the server would for one device.
+ */
 export class FakeSocket {
   connected = false
   active = false
+  session = createInitialSession()
+  version = 1
+  private devices: DeviceInfo[] = []
+  private deviceId: string | undefined
   private readonly listeners = new Map<string, Set<Listener>>()
+
+  timeout() {
+    return { emit: (event: string, payload: unknown, ack: Ack) => queueMicrotask(() => this.answer(event, payload, ack)) }
+  }
+
+  /** Engine reports; nothing to answer. */
+  emit() {
+    return this
+  }
+
+  private answer(event: string, payload: unknown, ack: Ack) {
+    if (event === 'session:hello') {
+      const { device, canPlay } = payload as SessionHello
+      this.deviceId = device.id
+      this.devices = [{ ...device, canPlay, isActive: false }]
+      const { state, queue } = splitSession(this.session)
+      return ack(null, { serverTime: Date.now(), snapshot: { version: this.version, queueVersion: this.version, state, queue }, devices: this.devices })
+    }
+    if (event === 'time:sync') return ack(null, { clientTime: payload, serverTime: Date.now() })
+    const { command, commandId } = payload as CommandEnvelope
+    const previous = this.session
+    this.session = reduceSession(previous, { command, now: Date.now(), commandId, deviceId: this.deviceId })
+    if (this.session !== previous) this.version += 1
+    ack(null, { ok: true, version: this.version })
+    if (this.session === previous) return
+    const { state, queue } = splitSession(this.session)
+    if (queueChanged(previous, this.session)) this.serverEmit('session:queue', { version: this.version, queueVersion: this.version, queue })
+    this.serverEmit('session:state', { version: this.version, state })
+  }
 
   on(event: string, listener: Listener) {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set())
@@ -47,6 +92,22 @@ export class FakeSocket {
 }
 
 const list = <T>(items: T[]) => ({ items, nextCursor: null })
+const ok = { ok: true as const }
+const notFound = () => new ApiError(404, 'not_found', 'Not found')
+const found = <T>(value: T | null | undefined): T => {
+  if (value == null) throw notFound()
+  return value
+}
+const wants: WantItem[] = [
+  ...wantlist.albums.map(album => ({ type: 'album' as const, album, wantedAt: '2026-11-18T10:00:00.000Z', fulfilledAt: null })),
+  ...wantlist.tracks.map(track => ({ type: 'track' as const, track, wantedAt: '2026-11-18T10:00:00.000Z', fulfilledAt: null })),
+]
+const scrobbling: ScrobblingStatus = {
+  services: [
+    { target: 'listenbrainz', available: true, connected: true, account: 'alex', enabled: true, needsAttention: false, lastError: null, connectedAt: '2026-11-02T09:12:00.000Z', pending: 2, failed: 0 },
+    { target: 'lastfm', available: false, connected: false, account: null, enabled: false, needsAttention: false, lastError: null, connectedAt: null, pending: 0, failed: 0 },
+  ],
+}
 
 export const root: LibraryRoot = {
   id: '00000000-0000-4000-8900-000000000001', name: 'Music', path: '/srv/music', mode: 'read_only', enabled: true, watch: true, scanning: false,
@@ -106,13 +167,47 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
     organize: {
       batches: vi.fn(async () => list([])),
     },
-    search: {
-      library: vi.fn(async () => ({ artists: [], albums: [], tracks: [], provider: null })),
-    },
     catalogIndex: {
       status: vi.fn(async () => ({
         ready: false, dumpDate: null, importedAt: null, counts: { artists: 0, albums: 0, recordings: 0 }, sizeBytes: 0, active: null, latest: null,
       })),
+    },
+    catalog: {
+      home: vi.fn(async () => home),
+      albums: vi.fn(async () => list(libraryAlbums)),
+      artists: vi.fn(async () => list(libraryArtists)),
+      tracks: vi.fn(async () => list(libraryTracks)),
+      genres: vi.fn(async () => list(genres.map(genre => ({ name: genre.name, albumCount: 1 })))),
+      album: vi.fn(async (id: string) => found(albumDetail(id))),
+      artist: vi.fn(async (id: string) => found(artistDetail(id))),
+      track: vi.fn(async (id: string) => found(allTracks.find(track => track.id === id))),
+      lyrics: vi.fn(async (id: string) => found(lyricsFor(id))),
+      trackSummaries: vi.fn(async ({ tracks }: TrackSummariesRequest) => ({ tracks: tracks.flatMap(({ id }) => allTracks.filter(track => track.id === id).slice(0, 1)) })),
+    },
+    streaming: {
+      playback: vi.fn(async () => {
+        throw notFound()
+      }),
+    },
+    userdata: {
+      settings: vi.fn(async () => userSettings),
+      updateSettings: vi.fn(async (patch: object) => ({ ...userSettings, ...patch })),
+      likes: vi.fn(async () => list(likedTracks)),
+      like: vi.fn(async () => ok),
+      unlike: vi.fn(async () => ok),
+      playlists: vi.fn(async () => list(playlistSummaries.map(playlist => ({ ...playlist, ownerId: currentUser.id })))),
+      playlist: vi.fn(async (id: string) => ({ ...found(playlistDetail(id)), ownerId: currentUser.id })),
+      createPlaylist: vi.fn(async ({ name }: { name: string }): Promise<PlaylistSummary> => ({ ...playlistSummaries[0], id: '00000000-0000-4000-8400-0000000000ff', name, trackCount: 0 })),
+      wants: vi.fn(async () => list(wants)),
+      want: vi.fn(async () => ok),
+      unwant: vi.fn(async () => ok),
+    },
+    search: {
+      library: vi.fn(async ({ q }: { q: string }) => searchFixtures(q).library),
+      catalog: vi.fn(async ({ q }: { q: string }) => searchFixtures(q).catalog),
+    },
+    scrobble: {
+      status: vi.fn(async () => scrobbling),
     },
   }
   const services: Services = { api: api as unknown as ApiClient, createSocket: () => socket as unknown as SquirmySocket }

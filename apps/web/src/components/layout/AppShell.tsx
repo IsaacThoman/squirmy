@@ -1,4 +1,4 @@
-import type { CreatePlaylistRequest, PlaylistSummary, User } from '@squirmy/contracts'
+import type { PlaylistSummary, User } from '@squirmy/contracts'
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router'
 import { NowPlaying, type NowPlayingPane } from '@/components/player/NowPlaying'
@@ -6,8 +6,7 @@ import { MiniPlayer, PlayerBar } from '@/components/player/PlayerBar'
 import { QueuePanel } from '@/components/player/Queue'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import { usePlayer } from '@/player/player-context'
-import { CreatePlaylistDialog } from './CreatePlaylistDialog'
+import { playingElsewhere, usePlayer } from '@/player/player-context'
 import { ScrollContainerContext } from './scroll-context'
 import { ShellNotices } from './ShellNotices'
 import { Sidebar } from './Sidebar'
@@ -17,8 +16,8 @@ import { TopBar } from './TopBar'
 type AppShellProps = {
   user: User
   playlists: PlaylistSummary[]
-  likedCount: number
-  onCreatePlaylist: (request: CreatePlaylistRequest) => void
+  /** "24 songs" under Liked Songs. */
+  likedCount: string
   onLogout: () => void
 }
 
@@ -26,19 +25,17 @@ type AppShellProps = {
  * Sidebar, scrolling main view, queue panel and player bar on wide screens; tabs and a
  * mini-player below 768px, as on the phone.
  */
-export function AppShell({ user, playlists, likedCount, onCreatePlaylist, onLogout }: AppShellProps) {
+export function AppShell({ user, playlists, likedCount, onLogout }: AppShellProps) {
   const player = usePlayer()
   const library = useLibrary()
   const { pathname } = useLocation()
   const [scroller, setScroller] = useState<HTMLElement | null>(null)
   const [queueOpen, setQueueOpen] = useState(false)
   const [nowPlaying, setNowPlaying] = useState<{ open: boolean; pane: NowPlayingPane }>({ open: false, pane: 'art' })
-  const [creating, setCreating] = useState(false)
-
   const track = player.state.current?.track
-  const liked = track ? library.isLiked(track.id, track.liked) : false
+  const liked = track?.liked ?? false
   const toggleLike = () => { if (track) library.setLiked('track', track.id, !liked) }
-  const elsewhere = player.state.activeDeviceId !== player.state.thisDeviceId
+  const elsewhere = playingElsewhere(player.state)
 
   useEffect(() => { scroller?.scrollTo({ top: 0 }) }, [pathname, scroller])
 
@@ -50,7 +47,7 @@ export function AppShell({ user, playlists, likedCount, onCreatePlaylist, onLogo
       )}
     >
       <div className="hidden md:block">
-        <Sidebar user={user} playlists={playlists} likedCount={likedCount} onCreatePlaylist={() => setCreating(true)} />
+        <Sidebar user={user} playlists={playlists} likedCount={likedCount} />
       </div>
 
       <main
@@ -95,7 +92,6 @@ export function AppShell({ user, playlists, likedCount, onCreatePlaylist, onLogo
         liked={liked}
         onToggleLike={toggleLike}
       />
-      <CreatePlaylistDialog open={creating} onOpenChange={setCreating} onCreate={onCreatePlaylist} />
       <ShellNotices />
     </div>
   )
