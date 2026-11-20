@@ -1,10 +1,15 @@
-import { CreateImportRequest, Id, ImportListQuery, type Import, type ImportFileResult, type ImportFilesResponse, type ImportList } from '@squirmy/contracts'
+import {
+  CreateImportRequest, Id, ImportListQuery,
+  type Import, type ImportAlbumList, type ImportFileResult, type ImportFilesResponse, type ImportList, type ImportOptions,
+} from '@squirmy/contracts'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { requireUser, type AuthUser } from '../../lib/auth.js'
 import { AppError, badRequest, conflict, forbidden } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
-import { addImportFile, canImport, commitImport, createImport, failImport, getImport, importFor, listImports } from './service.js'
+import {
+  addImportFile, canImport, commitImport, createImport, failImport, getImport, importAlbums, importFor, importOptions, listImports,
+} from './service.js'
 
 const IdParams = z.object({ id: Id })
 /** Parts per upload request, counting the `relativePath` fields. */
@@ -27,10 +32,21 @@ export async function importsRoutes(app: FastifyInstance) {
 
   app.get('/imports', async (request): Promise<ImportList> => listImports(requireUploader(request), ImportListQuery.parse(request.query)))
 
+  app.get('/imports/options', async (request): Promise<ImportOptions> => {
+    requireUploader(request)
+    return importOptions()
+  })
+
   app.get('/imports/:id', async (request): Promise<Import> => {
     const user = requireUploader(request)
     const row = await importFor(user, IdParams.parse(request.params).id)
     return getImport(row.id)
+  })
+
+  app.get('/imports/:id/albums', async (request): Promise<ImportAlbumList> => {
+    const user = requireUploader(request)
+    const row = await importFor(user, IdParams.parse(request.params).id)
+    return { items: await importAlbums(row.id), nextCursor: null }
   })
 
   app.post('/imports/:id/files', async (request): Promise<ImportFilesResponse> => {

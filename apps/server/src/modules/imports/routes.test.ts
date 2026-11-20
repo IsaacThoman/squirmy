@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readdir, readFile, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { Import, ImportFilesResponse, ImportList } from '@squirmy/contracts'
+import { Import, ImportAlbumList, ImportFilesResponse, ImportList, ImportOptions } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -65,6 +65,9 @@ describe('imports API', () => {
   })
 
   it('needs a managed root, and says so with a stable code', async () => {
+    const options = async () => body(await app.inject({ method: 'GET', url: '/api/v1/imports/options', headers: uploader.headers }), ImportOptions)
+    expect(await options()).toEqual({ unavailable: 'no_managed_root', maxFileBytes: 4 * 1024 ** 3, maxBytes: 64 * 1024 ** 3 })
+    expect(errorCode(await app.inject({ method: 'GET', url: '/api/v1/imports/options', headers: member.headers }), 403)).toBe('upload_not_allowed')
     expect(errorCode(await app.inject({ method: 'POST', url: '/api/v1/imports', headers: uploader.headers, payload: {} }), 409)).toBe('no_managed_root')
     await insertRoot({ name: 'Read only', path: await mkdtemp(path.join(tmpdir(), 'squirmy-ro-')), mode: 'read_only', watch: false })
     expect(errorCode(await app.inject({ method: 'POST', url: '/api/v1/imports', headers: uploader.headers, payload: {} }), 409)).toBe('no_managed_root')
@@ -73,11 +76,16 @@ describe('imports API', () => {
 
     const second = await insertRoot({ name: 'Second', path: await mkdtemp(path.join(tmpdir(), 'squirmy-managed-')), mode: 'managed', watch: false })
     expect(errorCode(await app.inject({ method: 'POST', url: '/api/v1/imports', headers: uploader.headers, payload: {} }), 409)).toBe('import_root_not_set')
+    expect((await options()).unavailable).toBe('import_root_not_set')
     const patch = (payload: object) => app.inject({ method: 'PATCH', url: '/api/v1/admin/settings', headers: admin.headers, payload })
     const readOnly = (await db.query.libraryRoots.findFirst({ where: (roots, { eq }) => eq(roots.mode, 'read_only') }))!
     expect(errorCode(await patch({ importRootId: readOnly.id }), 400)).toBe('import_root_not_managed')
     expect((await patch({ importRootId: second.id })).statusCode).toBe(200)
     expect((await create()).targetRootId).toBe(second.id)
+    expect((await options()).unavailable).toBeNull()
+    const created = await create()
+    expect(body(await app.inject({ method: 'GET', url: `/api/v1/imports/${created.id}/albums`, headers: uploader.headers }), ImportAlbumList)).toEqual({ items: [], nextCursor: null })
+    expect(errorCode(await app.inject({ method: 'GET', url: `/api/v1/imports/${created.id}/albums`, headers: otherUploader.headers }), 404)).toBe('import_not_found')
     await updateServerSettings({ importRootId: first.id })
   })
 

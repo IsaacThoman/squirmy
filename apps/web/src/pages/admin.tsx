@@ -1,9 +1,15 @@
-import { MatchReviewStatus, queryKeys, type CatalogIndexStatus, type LibraryRoot, type MatchReview, type OrganizeBatchSummary, type ResolveReviewRequest, type UpdateLibraryRootRequest, type User, type UpdateUserRequest } from '@squirmy/contracts'
+import {
+  AcquisitionJobStatus, MatchReviewStatus, queryKeys,
+  type AcquisitionPolicy, type AcquisitionProvider, type CatalogIndexStatus, type LibraryRoot, type MatchReview, type OrganizeBatchSummary, type ResolveReviewRequest,
+  type ServerSettings, type UpdateAcquisitionPolicy, type UpdateAcquisitionProviderRequest, type UpdateLibraryRootRequest, type UpdateServerSettings, type User,
+  type UpdateUserRequest,
+} from '@squirmy/contracts'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { useFolderListing } from '@/api/folders'
+import { importsKey } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { setupStatusKey, useCurrentUser } from '@/auth/session'
 import { AdminLayout as AdminFrame } from '@/components/admin/AdminLayout'
@@ -16,12 +22,10 @@ import { ReviewAdmin } from '@/components/admin/ReviewAdmin'
 import { SearchIndexAdmin } from '@/components/admin/SearchIndexAdmin'
 import { ServerSettingsAdmin } from '@/components/admin/ServerSettingsAdmin'
 import { UsersAdmin } from '@/components/admin/UsersAdmin'
-import { providers as initialProviders } from '@/fixtures/server'
 import { plural } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { useServerEvent } from '@/realtime/realtime-context'
 
-const needsServer = (title: string) => () => toast({ title, description: 'This needs the server.' })
 const invitesKey = [...queryKeys.admin(), 'invites'] as const
 const settingsKey = [...queryKeys.admin(), 'settings'] as const
 // Under `library` so ingest and matching, which invalidate it, refresh the numbers too.
@@ -31,6 +35,10 @@ const reviewKey = (id: string | null) => [...queryKeys.adminReviews(), 'detail',
 const batchesKey = [...queryKeys.adminOrganize(), 'batches'] as const
 const batchKey = (id: string | null) => [...queryKeys.adminOrganize(), 'batch', id] as const
 const catalogIndexKey = [...queryKeys.admin(), 'catalog-index'] as const
+const acquisitionKey = [...queryKeys.admin(), 'acquisition'] as const
+const providersKey = [...acquisitionKey, 'providers'] as const
+const policyKey = [...acquisitionKey, 'policy'] as const
+const acquisitionJobsKey = [...acquisitionKey, 'jobs'] as const
 const JOBS_REFRESH_MS = 3000
 // Organize jobs and index imports report progress only in the database, so their screens poll while one runs.
 const RUNNING_REFRESH_MS = 1500
@@ -48,6 +56,8 @@ function useRoots() {
   const api = useApi()
   return useQuery({ queryKey: queryKeys.adminRoots(), queryFn: () => api.library.roots(), select: page => page.items })
 }
+
+const managedOnly = (roots: LibraryRoot[] | undefined) => roots?.filter(root => root.mode === 'managed' && root.enabled)
 
 export function AdminLayout() {
   return <AdminFrame counts={{ '/admin/reviews': useOpenReviewCount() }} />
@@ -354,12 +364,69 @@ export function AdminUsersPage() {
 }
 
 export function AdminProvidersPage() {
-  const [providers, setProviders] = useState(initialProviders)
+  const api = useApi()
+  const queryClient = useQueryClient()
+  const roots = useRoots()
+  const [params, setParams] = useSearchParams()
+  const jobStatus = AcquisitionJobStatus.safeParse(params.get('status')).data ?? null
+  const providers = useQuery({ queryKey: providersKey, queryFn: () => api.acquisition.providers(), select: page => page.items })
+  const policy = useQuery({ queryKey: policyKey, queryFn: () => api.acquisition.policy() })
+  const jobs = useQuery({
+    queryKey: [...acquisitionJobsKey, jobStatus],
+    queryFn: () => api.acquisition.jobs({ status: jobStatus ?? undefined, limit: 100 }),
+    select: page => page.items,
+    placeholderData: keepPreviousData,
+  })
+  useServerEvent('acquisition.updated', () => void queryClient.invalidateQueries({ queryKey: acquisitionJobsKey }))
+  const refresh = () => queryClient.invalidateQueries({ queryKey: providersKey })
+  const replace = (provider: AcquisitionProvider) => queryClient.setQueryData<{ items: AcquisitionProvider[] }>(providersKey, page => page && { ...page, items: page.items.map(item => item.id === provider.id ? provider : item) })
+
+  const create = useMutation({
+    mutationFn: api.acquisition.createProvider,
+    onSuccess: provider => {
+      toast(provider.lastError ? { title: `Added ${provider.name}`, description: `It did not answer yet: ${provider.lastError}` } : { title: `Added ${provider.name}`, description: 'Missing music can now play on demand.' })
+      return refresh()
+    },
+    meta: { inline: true },
+  })
+  const providerUpdate = {
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateAcquisitionProviderRequest }) => api.acquisition.updateProvider(id, patch),
+    onSuccess: (provider: AcquisitionProvider) => {
+      replace(provider)
+      return refresh()
+    },
+  }
+  // The edit dialog shows its failures next to its fields; the switch has only a toast.
+  const edit = useMutation({ ...providerUpdate, meta: { inline: true } })
+  const toggle = useMutation(providerUpdate)
+  const remove = useMutation({
+    mutationFn: api.acquisition.deleteProvider,
+    onSuccess: () => {
+      toast({ title: 'Provider deleted' })
+      return refresh()
+    },
+  })
+  const test = useMutation({ mutationFn: api.acquisition.testProvider, onSuccess: replace })
+  const policyUpdate = {
+    mutationFn: (patch: UpdateAcquisitionPolicy) => api.acquisition.updatePolicy(patch),
+    onSuccess: (updated: AcquisitionPolicy) => queryClient.setQueryData(policyKey, updated),
+  }
+  const savePolicy = useMutation(policyUpdate)
+  const savePolicyField = useMutation({ ...policyUpdate, meta: { inline: true } })
+
   return (
     <ProvidersAdmin
-      providers={providers}
-      onToggle={(id, enabled) => setProviders(current => current.map(provider => provider.id === id ? { ...provider, enabled, status: enabled ? 'healthy' : 'disabled' } : provider))}
-      onRegister={needsServer('Registering a provider')}
+      providers={providers.data}
+      policy={policy.data}
+      managedRoots={managedOnly(roots.data)}
+      jobs={jobs.data}
+      jobStatus={jobStatus}
+      onJobStatusChange={status => setParams(status ? { status } : {}, { replace: true })}
+      onCreate={request => create.mutateAsync(request)}
+      onUpdate={(id, patch) => (Object.keys(patch).length === 1 && patch.enabled !== undefined ? toggle : edit).mutateAsync({ id, patch })}
+      onDelete={id => remove.mutateAsync(id)}
+      onTest={id => test.mutateAsync(id)}
+      onSavePolicy={(patch, how) => (how?.inline ? savePolicyField : savePolicy).mutateAsync(patch)}
     />
   )
 }
@@ -368,19 +435,24 @@ export function AdminSettingsPage() {
   const api = useApi()
   const queryClient = useQueryClient()
   const settings = useQuery({ queryKey: settingsKey, queryFn: () => api.admin.settings() })
-  const save = useMutation({
-    mutationFn: api.admin.updateSettings,
-    onSuccess: updated => {
+  const roots = useRoots()
+  const settingsUpdate = {
+    mutationFn: (patch: UpdateServerSettings) => api.admin.updateSettings(patch),
+    onSuccess: (updated: ServerSettings) => {
       queryClient.setQueryData(settingsKey, updated)
-      // The server name and the registration rule show on the sign-in screens.
-      return queryClient.invalidateQueries({ queryKey: setupStatusKey })
+      // The server name and the registration rule show on the sign-in screens; the import folder and limits on Add music.
+      return Promise.all([setupStatusKey, importsKey].map(queryKey => queryClient.invalidateQueries({ queryKey })))
     },
-  })
+  }
+  // Text fields show what the server refused under themselves (an inbox that does not exist, say); switches toast.
+  const save = useMutation(settingsUpdate)
+  const saveField = useMutation({ ...settingsUpdate, meta: { inline: true } })
   return (
     <ServerSettingsAdmin
       settings={settings.data}
-      onSave={patch => save.mutateAsync(patch)}
-      status={save.isPending ? 'saving' : save.isSuccess ? 'saved' : 'idle'}
+      managedRoots={managedOnly(roots.data)}
+      onSave={(patch, how) => (how?.inline ? saveField : save).mutateAsync(patch)}
+      status={save.isPending || saveField.isPending ? 'saving' : save.isSuccess || saveField.isSuccess ? 'saved' : 'idle'}
     />
   )
 }

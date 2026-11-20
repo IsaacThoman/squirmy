@@ -6,6 +6,7 @@ import { SplashView, UnreachableView } from '@/components/auth/AuthViews'
 import { Page } from '@/components/layout/Page'
 import { EmptyState } from '@/components/ui/feedback'
 import { LibraryProvider } from '@/player/LibraryProvider'
+import { OnDemandProvider } from '@/player/OnDemandProvider'
 import { PlayerProvider } from '@/player/PlayerProvider'
 import { RealtimeProvider } from '@/realtime/RealtimeProvider'
 import { CurrentUserContext, safeNext, useCurrentUser, useMe, useSetupStatus } from './session'
@@ -48,7 +49,9 @@ export function SignedInOnly() {
       <RealtimeProvider>
         <Suspense fallback={<SplashView />}>
           <PlayerProvider>
-            <LibraryProvider><Outlet /></LibraryProvider>
+            <OnDemandProvider>
+              <LibraryProvider><Outlet /></LibraryProvider>
+            </OnDemandProvider>
           </PlayerProvider>
         </Suspense>
       </RealtimeProvider>

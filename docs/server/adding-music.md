@@ -3,14 +3,14 @@
 There are three ways to get new music into Squirmy:
 
 1. **Put it in a library folder.** Copy files into any library folder; a watched folder picks them up within seconds, others at the nightly scan or on **Scan now**. Nothing else on this page applies.
-2. **Upload it** through the API.
+2. **Upload it** from the web app's **Add music** page, or through the API.
 3. **Drop it in the inbox folder** on the server.
 
 Uploads and the inbox are *imports*: Squirmy takes the files, identifies them, and files them into a managed library folder for you.
 
 ## Before you start: a managed folder to file into
 
-Imports need a [managed folder](./organizing.md#make-a-folder-managed) to file music into. With exactly one enabled managed folder, that is the one. With several, set `importRootId` to the one you want ([Settings without a screen](./configuration.md#settings-without-a-screen)). Otherwise creating an import fails with `no_managed_root` or `import_root_not_set`.
+Imports need a [managed folder](./organizing.md#make-a-folder-managed) to file music into. With exactly one enabled managed folder, that is the one. With several, choose one in **Admin → Server settings → Imports → Import into**. Otherwise uploads cannot start: **Add music** says what is missing, and the API answers `no_managed_root` or `import_root_not_set`.
 
 ## What an import does
 
@@ -35,13 +35,27 @@ Albums that were not identified confidently stay in `<managed folder>/_Incoming/
 | `importMaxFileBytes` | 4 GiB | Largest single file, zip archives included. A larger file is refused with 413. |
 | `importMaxBytes` | 64 GiB | Largest import, counting what its archives extract to. |
 
-Change them with `PATCH /api/v1/admin/settings` ([how](./configuration.md#settings-without-a-screen)). A reverse proxy in front needs a matching body size limit; see [Reverse proxies](./reverse-proxy.md).
+Change them in **Admin → Server settings → Imports**. A reverse proxy in front needs a matching body size limit; see [Reverse proxies](./reverse-proxy.md).
 
 An import that receives no files for a day is failed and cleaned up.
 
 ## Uploading
 
-Admins can always upload; members need **Can upload music** (see [Users and access](./users.md)). There is no upload screen in the web app yet, so uploads go through the API. With `curl` and `jq`:
+Admins can always upload; members need **Can upload music** (see [Users and access](./users.md)).
+
+### In the web app
+
+**Add music** is in the sidebar and in the account menu for everyone who may upload.
+
+1. Drop album folders, files or zip archives on the page, or use **Choose a folder** or **Choose files**. Folders keep their structure. The list shows every file before anything is sent, and files over the size limit are marked and left out.
+2. Press **Upload**. Each file shows its progress, and the bar above shows all of it. **Pause** stops sending and **Resume** carries on where it stopped; **Cancel** throws away what was sent. Keep the tab open until the upload finishes; other pages of the app can be used meanwhile.
+3. Once everything is sent, the page follows the import through its steps to the result: files received, duplicates skipped, albums filed (each linking to its page), and what was left for review, with a link to the review queue for admins. Files the server refused are listed with the reason.
+
+Below, **Recent imports** lists your imports (an admin sees everyone's, inbox and provider imports included), updating as they move. Open one for its details, or cancel one that is still receiving.
+
+### Through the API
+
+With `curl` and `jq`:
 
 ```sh
 SERVER=https://music.example.com

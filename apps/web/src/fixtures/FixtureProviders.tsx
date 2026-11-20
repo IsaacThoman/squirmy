@@ -1,6 +1,7 @@
 import type { QueueEntry, TrackSummary } from '@squirmy/contracts'
 import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { LibraryContext, type LibraryActions } from '@/player/library-context'
+import { OnDemandContext, type OnDemand } from '@/player/on-demand-context'
 import { PlayerContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem } from '@/player/player-context'
 import { ArtUrlContext } from '@/lib/artwork'
 import { toast } from '@/lib/toast'
@@ -69,13 +70,18 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
   return (
     <ArtUrlContext value={fixtureArtUrl}>
       <LibraryContext value={library}>
-        <PlayerContext value={player}>
-          <PositionContext value={positionClock.shown}>{children}</PositionContext>
-        </PlayerContext>
+        <OnDemandContext value={onDemand}>
+          <PlayerContext value={player}>
+            <PositionContext value={positionClock.shown}>{children}</PositionContext>
+          </PlayerContext>
+        </OnDemandContext>
       </LibraryContext>
     </ArtUrlContext>
   )
 }
+
+/** Everyone may request; nothing is fetched apart from what the fake session prepares. */
+const onDemand: OnDemand = { canRequest: true, isPreparing: () => false, getAlbum: async () => {}, albumFetch: () => null }
 
 function useFixtureLibrary(): LibraryActions {
   const [wanted, setWanted] = useState(() => new Map<string, boolean>())

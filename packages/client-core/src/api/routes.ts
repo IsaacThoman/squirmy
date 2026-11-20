@@ -100,8 +100,10 @@ export const apiRoutes = {
   'radio.artist': 'POST /radio/artist/:id',
 
   'imports.list': 'GET /imports',
+  'imports.options': 'GET /imports/options',
   'imports.create': 'POST /imports',
   'imports.get': 'GET /imports/:id',
+  'imports.albums': 'GET /imports/:id/albums',
   'imports.addFiles': 'POST /imports/:id/files',
   'imports.commit': 'POST /imports/:id/commit',
   'imports.cancel': 'DELETE /imports/:id',

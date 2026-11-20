@@ -37,6 +37,10 @@ type SharedProps = {
   variant?: TrackListVariant
   nowPlaying?: NowPlaying | null
   isWanted?: (track: TrackSummary) => boolean
+  /** Tracks the server is fetching on demand show as preparing. */
+  isPreparing?: (track: TrackSummary) => boolean
+  /** Whether this user may have on-demand tracks fetched; without it they show as unavailable. */
+  canRequest?: boolean
   onPlay: (index: number) => void
   onAction?: (action: TrackAction, track: TrackSummary, index: number) => void
   /** Playlists the track menu offers to add to. */
@@ -73,17 +77,22 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
   style?: CSSProperties
 }
 
-export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted = false, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
+/** Why a track that a provider could supply does not play for this user. */
+export const REQUEST_NOT_ALLOWED = 'Not on the server yet. Ask an admin to let you fetch missing music.'
+
+export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted = false, isPreparing, canRequest = true, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
   const navigate = useNavigate()
   const { liked } = track
-  const unavailable = track.availability === 'none'
+  const notAllowed = track.availability === 'on_demand' && !canRequest
+  const unavailable = track.availability === 'none' || notAllowed
   const current = nowPlaying?.trackId === track.id
   const playing = current && nowPlaying.playing
-  const preparing = current && nowPlaying.preparing
+  const preparing = (current && nowPlaying.preparing) || (isPreparing?.(track) ?? false)
   const play = current ? nowPlaying.onTogglePlay : onPlay
   const act = (action: TrackAction) => onAction?.(action, track, index)
 
   const menu: MenuEntry[] = [
+    ...(notAllowed ? [{ kind: 'label' as const, label: REQUEST_NOT_ALLOWED }] : []),
     { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), disabled: unavailable },
     { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), disabled: unavailable },
     ...(playlists ? [{
@@ -150,7 +159,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
       <li
         aria-current={current ? 'true' : undefined}
         aria-disabled={unavailable || undefined}
-        title={unavailable ? 'Not in your library' : undefined}
+        title={notAllowed ? REQUEST_NOT_ALLOWED : unavailable ? 'Not in your library' : undefined}
         onDoubleClick={unavailable ? undefined : play}
         draggable
         onDragStart={event => startTrackDrag(event, { tracks: [track], list: reorder?.list ?? null, index })}
@@ -194,12 +203,12 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className={cn('truncate text-[15px] font-medium tracking-[-0.01em]', current && 'text-accent', unavailable && 'text-quiet')}>{track.title}</span>
-              {track.availability === 'on_demand' && (
+              {track.availability === 'on_demand' && !notAllowed && (
                 <Tooltip label="Plays on demand">
                   <CloudDownload tabIndex={0} aria-label="Plays on demand" className="size-3.5 shrink-0 text-quiet outline-none focus-visible:text-accent" />
                 </Tooltip>
               )}
-              {unavailable && <span className="sr-only">(not in your library)</span>}
+              {unavailable && <span className="sr-only">{notAllowed ? `(${REQUEST_NOT_ALLOWED})` : '(not in your library)'}</span>}
             </div>
             <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] text-muted">
               {track.explicit && <ExplicitBadge />}

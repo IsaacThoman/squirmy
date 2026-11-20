@@ -5,7 +5,9 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { use, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useUserSettings } from '@/api/queries'
 import { useApi } from '@/api/services'
+import { useCurrentUser } from '@/auth/session'
 import { apiArtUrl } from '@/lib/artwork'
+import { canRequestMusic, isPlayable } from '@/lib/catalog'
 import { playableCodecs } from '@/lib/codecs'
 import { browserName, claimTabDevice, saveBrowserName, tabDeviceName } from '@/lib/device'
 import { toast } from '@/lib/toast'
@@ -20,7 +22,6 @@ import { useShortcuts } from './shortcuts'
 /** The most tracks one `playTracks` or `enqueue` may carry. */
 const MAX_SEEDS = 5000
 
-const playable = (track: TrackSummary) => track.availability !== 'none'
 
 /**
  * The session client of this tab. Playback is resolved with the user's streaming quality,
@@ -66,6 +67,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const pageEngine = useEngine()
   const tab = use(claimTabDevice())
   const settings = useUserSettings().data
+  const canRequest = canRequestMusic(useCurrentUser())
   // The page's own engine; the dev page's instrumented replacement is not the session's.
   const [engine] = useState(() => {
     if (!pageEngine || !socket) throw new Error('PlayerProvider needs an engine and the realtime socket')
@@ -126,6 +128,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const dispatch = (command: SessionCommand) => client.dispatch(command)
     const latest = () => client.getSnapshot()
     const shown = (entries: readonly QueueEntry[]) => entries.filter(entry => store.get(entry.trackId, entry.albumId))
+    const playable = (track: TrackSummary) => isPlayable(track, canRequest)
     return {
       togglePlay: () => dispatch({ type: latest().session.playing ? 'pause' : 'play' }),
       next: () => dispatch({ type: 'next' }),
@@ -187,7 +190,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         client.rename(tabDeviceName(browserName(), tab.slot))
       },
     }
-  }, [client, store, tab, startRadio])
+  }, [client, store, tab, startRadio, canRequest])
 
   useEntryFailures(snapshot, store)
   useEngineErrors(engine, client, store)

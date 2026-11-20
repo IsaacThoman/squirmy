@@ -1,7 +1,7 @@
 import { ApiError, createInitialSession, queueChanged, reduceSession, splitSession, type ApiClient } from '@squirmy/client-core'
 import type { SquirmySocket } from '@squirmy/client-core/socket'
 import type {
-  CommandEnvelope, DeviceInfo, LibraryRoot, LibraryStats, PlaylistSummary, ScrobblingStatus, SessionHello, SetupStatus, TrackSummariesRequest, User, WantItem,
+  AcquisitionPolicy, CommandEnvelope, DeviceInfo, Import, LibraryRoot, LibraryStats, PlaylistSummary, ScrobblingStatus, SessionHello, SetupStatus, TrackSummariesRequest, User, WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
 import type { Services } from '@/api/services'
@@ -115,6 +115,18 @@ export const root: LibraryRoot = {
   lastScanStats: { filesSeen: 120, filesAdded: 120, filesChanged: 0, filesMissing: 0, errors: 0 },
 }
 
+export const upload: Import = {
+  id: '00000000-0000-4000-8a00-000000000001', kind: 'upload', status: 'completed', step: null, label: 'Blue Hour', userId: currentUser.id, acquisitionJobId: null,
+  targetRootId: root.id, timedOut: false, reviewFolder: null, error: null,
+  counts: {
+    filesReceived: 5, bytesReceived: 2e7, filesRejected: 0, filesExtracted: 0, archivesRejected: 0, audioFiles: 5, duplicatesSkipped: 0, unreadable: 0,
+    albumsIdentified: 1, albumsFiled: 1, filesFiled: 5, filesLeftForReview: 0,
+  },
+  createdAt: '2026-11-20T10:00:00.000Z', updatedAt: '2026-11-20T10:02:00.000Z', completedAt: '2026-11-20T10:02:00.000Z',
+}
+
+const policy: AcquisitionPolicy = { preferLossless: true, maxFileBytes: 5e8, storageQuotaBytes: 0, timeoutSeconds: 900, targetRootId: null, deliveryBaseUrl: null }
+
 const stats: LibraryStats = { artists: 9, albums: 12, tracks: 118, files: 120, bytes: 4e8, durationMs: 3e7, matched: 100, unmatched: 8, inReview: 12, pending: 0, missing: 0 }
 
 export type FakeOptions = { status?: Partial<SetupStatus>; user?: User | null }
@@ -208,6 +220,19 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
     },
     scrobble: {
       status: vi.fn(async () => scrobbling),
+    },
+    imports: {
+      options: vi.fn(async () => ({ unavailable: null, maxFileBytes: 4 * 1024 ** 3, maxBytes: 64 * 1024 ** 3 })),
+      list: vi.fn(async () => list([upload])),
+      get: vi.fn(async (id: string) => (id === upload.id ? upload : found(null))),
+      albums: vi.fn(async () => list([{ album: libraryAlbums[0], files: 5, filed: true }])),
+      cancel: vi.fn(async () => ({ ...upload, status: 'failed', error: 'Cancelled' })),
+    },
+    acquisition: {
+      providers: vi.fn(async () => list([])),
+      policy: vi.fn(async () => policy),
+      jobs: vi.fn(async () => list([])),
+      acquireAlbum: vi.fn(async () => list([])),
     },
   }
   const services: Services = { api: api as unknown as ApiClient, createSocket: () => socket as unknown as SquirmySocket }

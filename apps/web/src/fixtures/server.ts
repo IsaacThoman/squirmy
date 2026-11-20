@@ -73,12 +73,6 @@ export const jobs: JobQueueStats[] = [
   { name: 'enrichment.covers', queued: 0, active: 0, failed: 0 },
 ]
 
-/** The acquisition contracts are not written yet; this is the shape the providers shell assumes. */
-export const providers = [
-  { id: 'p1', name: 'Cold storage', url: 'http://cold-storage.lan:9300', enabled: true, status: 'healthy', formats: ['flac'], lastCheck: at('20T08:00') },
-  { id: 'p2', name: 'Mock provider', url: 'http://127.0.0.1:9400', enabled: false, status: 'disabled', formats: ['flac', 'mp3'], lastCheck: null },
-]
-
 export const thisDeviceId = 'web-this-browser'
 
 export const devices: DeviceInfo[] = [
