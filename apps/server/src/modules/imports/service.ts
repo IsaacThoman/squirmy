@@ -90,13 +90,13 @@ export async function loadImport(importId: string): Promise<ImportRow> {
 }
 
 /**
- * The managed root imports are filed into: the `importRootId` setting, else the only
+ * The managed root imports are filed into: `rootId` when given, else the `importRootId` setting, else the only
  * enabled managed root. Fails with `no_managed_root`, `import_root_not_set` (several
  * managed roots and no choice made) or `import_root_unavailable` (the chosen root is gone,
  * disabled or not managed).
  */
-export async function resolveImportRoot(): Promise<RootRow> {
-  const { importRootId } = await getServerSettings()
+export async function resolveImportRoot(rootId?: string | null): Promise<RootRow> {
+  const importRootId = rootId ?? (await getServerSettings()).importRootId
   const managed = await db.select().from(libraryRoots).where(and(eq(libraryRoots.mode, 'managed'), eq(libraryRoots.enabled, true)))
   if (importRootId) {
     const chosen = managed.find((root) => root.id === importRootId)
@@ -114,6 +114,8 @@ export type CreateImportInput = {
   /** Required for `acquisition` imports; their files get `source = provider:<provider id>`. */
   acquisitionJobId?: string
   label?: string
+  /** A managed root to file into instead of the one imports normally use. */
+  rootId?: string | null
 }
 
 /**
@@ -121,7 +123,7 @@ export type CreateImportInput = {
  * managed root to file into (see {@link resolveImportRoot}).
  */
 export async function createImport(input: CreateImportInput): Promise<Import> {
-  const root = await resolveImportRoot()
+  const root = await resolveImportRoot(input.rootId)
   let source: string = input.kind
   if (input.kind === 'acquisition') {
     const [job] = input.acquisitionJobId ? await db.select({ providerId: acquisitionJobs.providerId }).from(acquisitionJobs).where(eq(acquisitionJobs.id, input.acquisitionJobId)) : []
@@ -145,12 +147,14 @@ export type ImportFileInput = {
   /** Where the file goes inside the import, including its name: `Album/CD1/01 Song.flac`. */
   relativePath?: string
   stream: Readable
+  /** A per-file limit stricter than `importMaxFileBytes`, such as the acquisition policy's. */
+  maxFileBytes?: number
 }
 
 /**
  * Streams one file into the import's staging folder. Files are refused by name (see
  * `checkRelativePath`) or when the import already has one at that path; the stream is then
- * drained and the result says why. A file over `importMaxFileBytes`, or one that would take
+ * drained and the result says why. A file over `importMaxFileBytes` (or `maxFileBytes`), or one that would take
  * the import past `importMaxBytes`, throws 413 (`file_too_large`, `import_too_large`).
  *
  * The bytes land in a temporary file first. The import's counters are bumped and the file
@@ -173,7 +177,9 @@ export async function addImportFile(importId: string, input: ImportFileInput): P
     return reject(checked.reason, requested)
   }
 
-  const { importMaxFileBytes, importMaxBytes } = await getServerSettings()
+  const settings = await getServerSettings()
+  const importMaxBytes = settings.importMaxBytes
+  const importMaxFileBytes = Math.min(settings.importMaxFileBytes, input.maxFileBytes ?? Infinity)
   const temp = path.join(row.stagingPath, `${TEMP_PREFIX}upload-${newId()}.part`)
   await mkdir(row.stagingPath, { recursive: true })
   let bytes: number
