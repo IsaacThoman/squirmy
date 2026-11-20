@@ -30,6 +30,14 @@ export async function normalizationFor(file: FileLoudness, executor: Executor = 
   const [album] = file.releaseId
     ? await executor.select().from(releaseLoudness).where(eq(releaseLoudness.releaseId, file.releaseId))
     : []
+  return normalizationValues(file, album ?? null)
+}
+
+/** `normalizationFor` with the release's loudness row already loaded, for callers that batch. */
+export function normalizationValues(
+  file: Omit<FileLoudness, 'releaseId'>,
+  album: Pick<typeof releaseLoudness.$inferSelect, 'loudnessLufs' | 'truePeakDb'> | null,
+): Normalization | null {
   const track = measured(file.loudnessLufs) && file.truePeakDb !== null
     ? { gain: gainFor(file.loudnessLufs), peak: linearPeak(file.truePeakDb) }
     : { gain: file.tagTrackGainDb, peak: file.tagTrackPeak }

@@ -184,6 +184,8 @@ export const artists = pgTable('artists', {
   uniqueIndex('artists_mbid').on(t.mbid),
   index('artists_name_key_trgm').using('gin', t.nameKey.op('gin_trgm_ops')),
   index('artists_name_key').on(t.nameKey),
+  // Prefix search (modules/search): byte order, so a range scan finds every name starting with the query.
+  index('artists_name_key_prefix').on(sql`${t.nameKey} collate "C"`),
   index('artists_name_sort').on(sql`regexp_replace(${t.nameKey}, '^(the|a|an) ', '')`, t.id),
 ])
 
@@ -221,6 +223,9 @@ export const albums = pgTable('albums', {
   uniqueIndex('albums_mbid').on(t.mbid),
   index('albums_title_key_trgm').using('gin', t.titleKey.op('gin_trgm_ops')),
   index('albums_match_key').on(t.matchKey),
+  // Search (modules/search): fuzzy "artist title" queries, and title prefixes in byte order.
+  index('albums_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('albums_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('albums_primary_artist').on(t.primaryArtistId),
   // Library orderings (modules/catalog/library.ts). The expressions are `sortKey` over the
   // stored match keys and must stay identical to `sortKeys` in modules/catalog/sql.ts.
@@ -284,6 +289,11 @@ export const recordings = pgTable('recordings', {
   /** 0..1 relative popularity when a source provides it. */
   popularity: real('popularity'),
   explicit: boolean('explicit'),
+  /**
+   * An album the recording appears on, for a stub from a catalog search that has no
+   * release tracks yet. Summaries use it only when no file or release track gives one.
+   */
+  albumHintId: uuid('album_hint_id').references(() => albums.id, { onDelete: 'set null' }),
   mergedIntoId: uuid('merged_into_id'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -291,6 +301,9 @@ export const recordings = pgTable('recordings', {
   uniqueIndex('recordings_mbid').on(t.mbid),
   index('recordings_title_key_trgm').using('gin', t.titleKey.op('gin_trgm_ops')),
   index('recordings_match_key').on(t.matchKey),
+  index('recordings_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('recordings_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
+  index('recordings_album_hint').on(t.albumHintId),
   index('recordings_isrcs').using('gin', t.isrcs),
   index('recordings_primary_artist').on(t.primaryArtistId),
   index('recordings_title_sort').on(

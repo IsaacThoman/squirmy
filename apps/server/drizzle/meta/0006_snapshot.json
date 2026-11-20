@@ -1,5 +1,5 @@
 {
-  "id": "60b578d8-e02e-4f4b-9285-655f8d9a4ac0",
+  "id": "3aa7ac4a-d31e-4ffc-af09-f441771ef3e4",
   "prevId": "b7716408-3710-44de-b227-ae39db198808",
   "version": "7",
   "dialect": "postgresql",
@@ -651,6 +651,37 @@
           "method": "btree",
           "with": {}
         },
+        "albums_match_key_trgm": {
+          "name": "albums_match_key_trgm",
+          "columns": [
+            {
+              "expression": "match_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "albums_title_key_prefix": {
+          "name": "albums_title_key_prefix",
+          "columns": [
+            {
+              "expression": "\"title_key\" collate \"C\"",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "albums_primary_artist": {
           "name": "albums_primary_artist",
           "columns": [
@@ -1020,6 +1051,21 @@
               "expression": "name_key",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "artists_name_key_prefix": {
+          "name": "artists_name_key_prefix",
+          "columns": [
+            {
+              "expression": "\"name_key\" collate \"C\"",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -1914,12 +1960,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
@@ -1945,52 +1985,14 @@
           "notNull": true,
           "default": "'receiving'"
         },
-        "step": {
-          "name": "step",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "step_started_at": {
-          "name": "step_started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "staging_path": {
           "name": "staging_path",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "received_files": {
-          "name": "received_files",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "received_bytes": {
-          "name": "received_bytes",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
         "stats": {
           "name": "stats",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "work": {
-          "name": "work",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -2008,13 +2010,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
         "completed_at": {
           "name": "completed_at",
           "type": "timestamp with time zone",
@@ -2022,50 +2017,7 @@
           "notNull": false
         }
       },
-      "indexes": {
-        "imports_status": {
-          "name": "imports_status",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "imports_user": {
-          "name": "imports_user",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "imports_user_id_users_id_fk": {
           "name": "imports_user_id_users_id_fk",
@@ -3127,21 +3079,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "media_files_import": {
-          "name": "media_files_import",
-          "columns": [
-            {
-              "expression": "import_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -4000,6 +3937,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "album_hint_id": {
+          "name": "album_hint_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "merged_into_id": {
           "name": "merged_into_id",
           "type": "uuid",
@@ -4058,6 +4001,52 @@
           "columns": [
             {
               "expression": "match_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "recordings_match_key_trgm": {
+          "name": "recordings_match_key_trgm",
+          "columns": [
+            {
+              "expression": "match_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "recordings_title_key_prefix": {
+          "name": "recordings_title_key_prefix",
+          "columns": [
+            {
+              "expression": "\"title_key\" collate \"C\"",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "recordings_album_hint": {
+          "name": "recordings_album_hint",
+          "columns": [
+            {
+              "expression": "album_hint_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4160,6 +4149,19 @@
           "tableTo": "artists",
           "columnsFrom": [
             "primary_artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "recordings_album_hint_id_albums_id_fk": {
+          "name": "recordings_album_hint_id_albums_id_fk",
+          "tableFrom": "recordings",
+          "tableTo": "albums",
+          "columnsFrom": [
+            "album_hint_id"
           ],
           "columnsTo": [
             "id"

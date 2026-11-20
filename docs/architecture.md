@@ -219,10 +219,25 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 
 ### Catalog read side
 
-- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, Subsonic, userdata) use these rather than writing their own.
+- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, userdata) use these rather than writing their own. Subsonic builds its own, because its objects describe files (size, codec, path), but takes availability and redirects from the catalog.
 - Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
 - Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
 - A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
+
+### Search
+
+`modules/search/`. Both routes return `SearchResults` built with the catalog summary builders, so availability comes out the same as everywhere else. Queries whose `matchKey` is shorter than two characters answer nothing.
+
+- **`GET /search/library`** (`library.ts`): owned music only (artists credited on an owned track or an album with a present file, albums with a present file, owned tracks). Candidates per kind come from bounded index lookups: a byte-order prefix btree on `name_key`/`title_key`; every split of the query into "artist title" or "title artist", looked up from that artist's rows; albums and tracks whose primary artist's name starts with the query; and, from three characters, trigram word similarity on `name_key` or the whole `match_key` (artist and title, so typos and word order are tolerated). Ranking: exact, then prefix (title, name or artist), then similarity; ties go to the user's plays among their last 1,000, then likes. Each kind is one query run with `enable_seqscan` off, because the planner prices `word_similarity` too low. `performance.test.ts` measures it on 10,000 albums and 150,000 tracks.
+- **`GET /search/catalog`**: one provider per request (`providers.ts`), in this order: the local index when `isCatalogIndexReady()`, Deezer when enabled, MusicBrainz when enabled. A provider that throws falls through to the next; `provider` names the one that answered. Identical queries in flight share one provider call, and `cachedFetch` keeps search responses for a day. MusicBrainz free text matches titles only, so "artist title" queries are only understood by the other two.
+- **Stub rows** (`materialize.ts`): results are stored before they are returned, in one transaction per response under the advisory lock `squirmy:search-stubs`. Each result is matched to an existing row by its `external_ids` row (`deezer`, or `musicbrainz` for MusicBrainz and local-index ids), then by MBID, then by key: for artists the one artist with that `name_key`, if exactly one exists and it has no other id from the provider; for albums and tracks the same artist (credit text or primary artist) and the same title once edition suffixes are dropped, owned rows first. Album types must agree unless the row is owned; track lengths must be within 10 s. Only then is a stub inserted:
+  - artist: `name`, `name_key`, `detail_level` 0, `mbid` when known, an `external_ids` row, `image_asset_id` from `remoteImage`;
+  - album: `title`, `artist_credit`, `primary_artist_id` and `album_artists`, `type`, `year`/`release_date`, `title_key`, `match_key`, `detail_level` 0, `mbid` (release group) when known, an `external_ids` row, `artwork_asset_id` from `remoteImage`, no releases;
+  - recording: `title`, `artist_credit`, `primary_artist_id` and `recording_artists`, `duration_ms`, `title_key`, `match_key`, `explicit`, `popularity` (0..1), `isrcs`, `mbid` when known, an `external_ids` row, and `album_hint_id`, an album it appears on. Summaries use the hint only when no file or release track names an album.
+
+  Existing rows only gain a missing external id, image or album hint. Credits without any provider id (the local index names some artists only as text) reuse the artist with that name and otherwise become a stub without an external id.
+- **Edition suffixes** (`keys.ts`): a bracketed or dashed suffix is ignored for matching when all its words describe an edition (deluxe, expanded, remastered, anniversary, explicit, clean, bonus tracks, numbers…) and at least one is a strong word, so "OK Computer (Deluxe Edition)" and "Let It Be - Remastered 2009" find the plain titles while "(Live)", "(Remixes)", "(Radio Edit)" and "(Taylor's Version)" stay different albums and songs. Stored keys keep the full title.
+- **`search.cleanup`** (daily): deletes stubs older than 30 days that never gained detail (albums and artists at `detail_level` 0 with no MusicBrainz releases, recordings on no release) and that nothing keeps: files, likes, ratings, wants, playlist items, plays, ids in stored playback sessions, album hints of kept recordings, credits, merges. Their `external_ids` go too; `assets` stay. The library's orphan cleanup leaves stubs alone.
 
 ### Playback and streaming
 
@@ -263,6 +278,18 @@ The server holds one session per user in memory, loaded on first use and persist
 - Random sampling in SQL uses `uuid_hash_extended` with a salt drawn from the injected random source, so a seeded source repeats a result exactly.
 - `similarArtists(artistId)` merges Deezer related artists (Deezer id from `external_ids`, else an exact name search) and ListenBrainz similar artists (with a server token and an artist MBID), mapped to catalog artists by MBID, else `name_key`. A source that is off or fails is skipped; lookups during ranking give up after 2.5 seconds.
 - A radio is 50 tracks starting with the seed track (for an artist, its most played, liked or popular owned track) with context `{ type: 'radio', id: 'track:<id>' | 'artist:<id>' }`. Nothing is stored: when the radio runs out and autoplay is on, the session's history (the radio's last tracks) seeds the next batch, so it continues in the same direction.
+
+### Subsonic
+
+`modules/subsonic` serves OpenSubsonic under `/rest` over the same services; [subsonic.md](./subsonic.md) lists what it supports.
+
+- `router.ts` answers every method on GET and form POST, with or without `.view`. Handlers return plain objects that `serialize.ts` writes as XML or JSON(P). Failures are Subsonic error codes in a 200; service `AppError`s map to the closest code (404 is 70, 403 is 50).
+- Every request authenticates with an app password (token, password or `apiKey`); failures are limited per IP in the API process.
+- Ids carry their kind (`ar-`, `al-`, `tr-`, `pl-`, `ca-` for an artwork asset) and are checked on the way in. Music folders are library roots, numbered by a hash of the root id.
+- Only owned music appears. `songs.ts`, `albums.ts` and `artists.ts` build response objects in batches with a fixed number of queries; a song is shown through the present file `selectFile` would stream.
+- Sync clients page through everything with an empty `search3`. The page that starts where the user's previous one ended continues from its last key, so deep pages cost what the first does.
+- `stream` serves originals and the streaming profiles through `openStream`; a bitrate below every profile, or a `timeOffset`, is a live ffmpeg encode that is not cached.
+- The play queue is the session queue (`getSnapshot`, `replaceQueue`). The songs a client saved before its current one are remembered in memory while the session's current entry and queue are unchanged.
 
 ### Library pipeline
 
