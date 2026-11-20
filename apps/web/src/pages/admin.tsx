@@ -1,13 +1,21 @@
-import type { Invite, ServerSettings } from '@squirmy/contracts'
+import { queryKeys, type UpdateUserRequest } from '@squirmy/contracts'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { OrganizeAdmin, ReviewAdmin } from '@/components/admin/ReviewAdmin'
+import { useApi } from '@/api/services'
+import { setupStatusKey, useCurrentUser } from '@/auth/session'
 import { JobsAdmin, LibraryAdmin } from '@/components/admin/LibraryAdmin'
-import { ProvidersAdmin, ServerSettingsAdmin, UsersAdmin } from '@/components/admin/AccountsAdmin'
-import {
-  currentUser, invites, jobs, libraryRoots, libraryStats, organizeMoves, providers as initialProviders, reviews as initialReviews,
-  scanProgress, serverSettings, users,
-} from '@/fixtures/server'
+import { ProvidersAdmin } from '@/components/admin/ProvidersAdmin'
+import { OrganizeAdmin, ReviewAdmin } from '@/components/admin/ReviewAdmin'
+import { ServerSettingsAdmin } from '@/components/admin/ServerSettingsAdmin'
+import { UsersAdmin } from '@/components/admin/UsersAdmin'
+import { libraryRoots, libraryStats, organizeMoves, providers as initialProviders, reviews as initialReviews, scanProgress } from '@/fixtures/server'
 import { toast } from '@/lib/toast'
+
+const invitesKey = [...queryKeys.admin(), 'invites'] as const
+const settingsKey = [...queryKeys.admin(), 'settings'] as const
+const JOBS_REFRESH_MS = 3000
+
+export { AdminLayout } from '@/components/admin/AdminLayout'
 
 const needsServer = (title: string) => () => toast({ title, description: 'This needs the server.' })
 
@@ -35,18 +43,36 @@ export function AdminOrganizePage() {
 }
 
 export function AdminUsersPage() {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  const me = useCurrentUser()
+  const users = useQuery({ queryKey: queryKeys.adminUsers(), queryFn: () => api.admin.users() })
+  const invites = useQuery({ queryKey: invitesKey, queryFn: () => api.admin.invites() })
+  const refresh = (queryKey: readonly unknown[]) => () => queryClient.invalidateQueries({ queryKey })
+  const createUser = useMutation({ mutationFn: api.admin.createUser, onSuccess: refresh(queryKeys.adminUsers()), meta: { inline: true } })
+  const updateUser = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateUserRequest }) => api.admin.updateUser(id, patch),
+    onSuccess: (user, { patch }) => {
+      if (patch.password) toast({ title: `Password changed for @${user.username}` })
+      if (patch.disabled !== undefined) toast({ title: `${patch.disabled ? 'Disabled' : 'Enabled'} @${user.username}` })
+      if (user.id === me.id) queryClient.setQueryData(queryKeys.me(), user)
+      return refresh(queryKeys.adminUsers())()
+    },
+  })
+  const deleteUser = useMutation({ mutationFn: api.admin.deleteUser, onSuccess: refresh(queryKeys.adminUsers()) })
+  const createInvite = useMutation({ mutationFn: api.admin.createInvite, onSuccess: refresh(invitesKey), meta: { inline: true } })
+  const revokeInvite = useMutation({ mutationFn: api.admin.deleteInvite, onSuccess: refresh(invitesKey) })
   return (
     <UsersAdmin
-      users={users}
-      invites={invites}
-      currentUserId={currentUser.id}
-      onUserAction={needsServer('User updated')}
-      onCreateInvite={needsServer('Invite created')}
-      onRevokeInvite={needsServer('Invite revoked')}
-      onCopyInvite={(invite: Invite) => {
-        void navigator.clipboard?.writeText(`${location.origin}/register?invite=${invite.code}`)
-        toast({ title: 'Invite link copied' })
-      }}
+      users={users.data?.items}
+      invites={invites.data?.items}
+      currentUserId={me.id}
+      inviteLink={invite => `${location.origin}/register?invite=${encodeURIComponent(invite.code)}`}
+      onCreateUser={request => createUser.mutateAsync(request)}
+      onUpdateUser={(id, patch) => updateUser.mutateAsync({ id, patch })}
+      onDeleteUser={id => deleteUser.mutateAsync(id)}
+      onCreateInvite={request => createInvite.mutateAsync(request)}
+      onRevokeInvite={id => revokeInvite.mutateAsync(id)}
     />
   )
 }
@@ -63,10 +89,28 @@ export function AdminProvidersPage() {
 }
 
 export function AdminSettingsPage() {
-  const [settings, setSettings] = useState<ServerSettings>(serverSettings)
-  return <ServerSettingsAdmin settings={settings} onChange={patch => setSettings(current => ({ ...current, ...patch }))} onSetSecret={needsServer('Saving a key')} />
+  const api = useApi()
+  const queryClient = useQueryClient()
+  const settings = useQuery({ queryKey: settingsKey, queryFn: () => api.admin.settings() })
+  const save = useMutation({
+    mutationFn: api.admin.updateSettings,
+    onSuccess: updated => {
+      queryClient.setQueryData(settingsKey, updated)
+      // The server name and the registration rule show on the sign-in screens.
+      return queryClient.invalidateQueries({ queryKey: setupStatusKey })
+    },
+  })
+  return (
+    <ServerSettingsAdmin
+      settings={settings.data}
+      onSave={patch => save.mutateAsync(patch)}
+      status={save.isPending ? 'saving' : save.isSuccess ? 'saved' : 'idle'}
+    />
+  )
 }
 
 export function AdminJobsPage() {
-  return <JobsAdmin jobs={jobs} onRefresh={needsServer('Refreshed')} />
+  const api = useApi()
+  const jobs = useQuery({ queryKey: queryKeys.adminJobs(), queryFn: () => api.admin.jobs(), refetchInterval: JOBS_REFRESH_MS })
+  return <JobsAdmin jobs={jobs.data} updatedAt={jobs.dataUpdatedAt} onRefresh={() => void jobs.refetch()} />
 }
