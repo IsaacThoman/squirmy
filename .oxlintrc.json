@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "ignorePatterns": ["**/dist/**", "**/drizzle/**", "apps/mobile/ios/**", "apps/mobile/android/**", "docs/.vitepress/**"],
+  "rules": {
+    "oxc/no-accumulating-spread": "warn",
+    "preserve-caught-error": "warn",
+    "react/exhaustive-deps": "warn",
+    "react/no-object-type-as-default-prop": "warn",
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  },
+  "overrides": [
+    {
+      "files": ["apps/mobile/**"],
+      "rules": {
+        "react/immutability": "off",
+        "react/refs": "off",
+        "react/set-state-in-effect": "off",
+        "react/only-export-components": "off",
+        "react/exhaustive-deps": "off"
+      }
+    }
+  ]
+}

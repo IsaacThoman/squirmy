@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, usePreventZoomTransitionDismissal, type Href } from 'expo-router';
 import Animated, { Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album, type Track } from './catalog';
+import { albums, featuredAlbumIds, libraryAlbumIds, tracks, type Album } from './catalog';
 import { usePlaybackState } from './playback';
 import { Cover, Icon } from './ui';
 import { AlbumNavButton, AlbumPlaybackButtons } from './library/AlbumButtons';
