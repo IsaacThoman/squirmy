@@ -67,8 +67,8 @@ export async function ingestGroup({ rootId, groupKey }: IngestJob) {
 
   await attachFileExtras(root.path, outcome.albumId, outcome.files, outcome.recordings)
   invalidateSoon([queryKeys.library(), queryKeys.home(), queryKeys.album(outcome.albumId), ...outcome.artistIds.map((id) => queryKeys.artist(id))])
-  // Handled by the matching module; until it exists the job simply waits in its queue.
-  await enqueue('matching.match-album', { rootId, groupKey }, { singletonKey: groupKey })
+  // Owned by the matching module, which keys the job by `<rootId>:<groupKey>`.
+  await enqueue('matching.match-album', { rootId, groupKey }, { singletonKey: `${rootId}:${groupKey}` })
 }
 
 /** Album and artist art from the folder and the files, and lyrics for every track. */
