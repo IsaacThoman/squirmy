@@ -110,7 +110,7 @@ Modules reach each other in three ways, in this order of preference:
 
 ### Configuration
 
-Environment variables are parsed in `config.ts`; see that file for the full list. The ones a self-hoster sets: `DATABASE_URL` (required), `SQUIRMY_DATA_DIR`, `SQUIRMY_LIBRARY_PATHS`, `PORT`, `PUBLIC_URL`, `TRUST_PROXY`, `SQUIRMY_ROLE`. `SQUIRMY_SECRET` is generated into the data directory on first boot when unset.
+Environment variables are parsed in `config.ts`; see that file for the full list. The ones a self-hoster sets: `DATABASE_URL` (required), `SQUIRMY_DATA_DIR`, `SQUIRMY_LIBRARY_PATHS`, `SQUIRMY_INBOX_PATH`, `PORT`, `PUBLIC_URL`, `TRUST_PROXY`, `SQUIRMY_ROLE`. `SQUIRMY_SECRET` is generated into the data directory on first boot when unset.
 
 Operator settings that change at runtime (provider toggles, API keys, thresholds) live in the `server_settings` table and are edited in the admin UI. Shape: `ServerSettings` in contracts. Secrets are stored encrypted under separate keys and never returned.
 
@@ -201,7 +201,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
 | `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files |
 | `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
-| `POST /imports`, `POST /imports/:id/files`, `POST /imports/:id/commit`, `GET /imports/:id` | imports | multipart upload |
+| `GET/POST /imports`, `GET/DELETE /imports/:id`, `POST /imports/:id/files`, `POST /imports/:id/commit` | imports | admins and members with `canUpload`; multipart upload; `DELETE` cancels while receiving; a list shows your own imports, or all for an admin |
 | `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request; play does it implicitly |
 | `GET/DELETE /admin/catalog-index`, `POST /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
@@ -253,12 +253,31 @@ Jobs, in order. Each is idempotent and keyed by file or album group.
 2. `library.probe` reads tags and technical details with `music-metadata` (ffprobe fills gaps and takes over when it cannot parse), normalizes them into `FileTags`, reads ReplayGain (and Opus R128) into the `tag_*` columns, stores the embedded picture, sets `probe_stage 1` and the group key, then queues ingest for the group. A file nothing can read gets `probe_error` and is left alone until it changes.
 3. `library.ingest` `{ rootId, groupKey }` creates or reuses local-only catalog rows (artists, album, release, recordings, release tracks) from the group's tags and links the files, in one transaction. Rows the files already use are reused unless another group uses them; rows with a MusicBrainz id in the tags are found by it or created with it, and are never renamed from tags afterwards. A group with a matched or locked file is only relinked. Rows that end up unused (no files, no user data, no MusicBrainz id) are removed. Then album and artist art from the folder and files, lyrics (embedded or a `.lrc` sidecar), and `matching.match-album`. After this step the music is browsable and playable.
 4. `library.analyze` (low priority) computes the audio hash and sets `probe_stage 2`. A new file whose hash matches a row whose file is gone is that row moved: the old row takes the new path and keeps its id, links and match state. Then `loudness.measure`.
-5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start.
+5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. It applies under the catalog lock, like ingest. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start.
 6. `enrichment.*` (milestone 4) fills in covers, images, bios and lyrics.
 
 `library.purge-missing` runs daily and deletes files missing longer than `missingFileGraceDays`. The grouping and album artist rules are written out at the top of `modules/library/grouping.ts`. In short, the album grouping key is root id, parent directory (ignoring `CD1`/`Disc 2` subfolders), and `matchKey` of album artist and album.
 
 Watching: roots with `watch` on are watched while a worker runs, and changed paths are scanned after two quiet seconds. macOS and Windows use one recursive watch per root; Linux uses one inotify watch per folder. Network mounts and exhausted inotify limits fall back to the nightly scan.
+
+Scans skip `_Incoming/<importId>` folders while that import is extracting or moving files into them, and organize leaves `_Incoming` out of its plans unless `includeIncoming` is set.
+
+### Imports
+
+`modules/imports` brings music in through the server: web uploads, the inbox folder, and acquisition deliveries (which call `createImport`, `addImportFile`, `commitImport` and `failImport` from `modules/imports/index.ts`). Whatever the origin, an import is a row in `imports` and goes through the same steps:
+
+```
+receiving ──commit──▶ processing: extracting → moving → identifying → filing ──▶ completed
+    │                                                                       └──▶ failed
+    └── cancel, provider failure, or a day without files ──▶ failed
+```
+
+- **Receiving.** Files stream into `<data>/staging/<importId>/` through a byte counter, as a temporary dot file, and are linked into place in the same transaction that bumps the import's counters, so a concurrent commit or cancel sees all of a file or none of it. Names are checked first (`imports/paths.ts`): audio by the scanner's extension list, `cover.*` and `folder.*` images, `.lrc`, `.cue`, `.log` and `.zip`; relative paths are normalized and must not be absolute or contain `..` or control characters, at most 8 levels and 1024 bytes. `importMaxFileBytes` and `importMaxBytes` bound files and imports (413). Nothing follows or creates a symbolic link.
+- **Target root.** `importRootId`, else the only enabled managed root; otherwise creating an import fails with `no_managed_root` or `import_root_not_set`.
+- **`imports.process`** runs the steps; each is idempotent and records its outcome before the import moves on, so a retried job carries on after a crash. *Extracting* reads each zip in two passes with yauzl (check every entry, then extract into a temporary folder renamed into place); an archive with an unsafe path, a symbolic link, encryption, more than 10,000 entries or more bytes than the import may hold is refused whole, and nested zips are skipped. *Moving* uses organize's mover (rename, or copy, verify and delete) into `<root>/_Incoming/<importId>/`. *Identifying* queues a scan of that folder and watches `media_files`: it marks rows with `source` and `import_id`, deletes files whose audio hash a present library file already has, and waits until every file is hashed, ingested and matched, or for an hour, after which the rest is left for review. *Filing* plans and applies one organize batch for the albums matched with confidence, removes the folder when no audio is left in it, refreshes wants and records the counts.
+- **Completion** is read from the row; every status and step change publishes `import.updated` to the owner and admins.
+- **Inbox.** One worker (an advisory lock) polls the inbox (`inboxPath`, else `SQUIRMY_INBOX_PATH`) and takes each top-level item once it has been unchanged and readable for five seconds, moving it into staging. What an import does not take, and failed inbox imports, go to `Not imported/<importId>/` in the inbox. The inbox may not overlap a library root or the data folder.
+- **`imports.sweep`** (every 15 minutes and at worker start) expires imports stuck receiving, re-queues processing ones and removes orphaned staging folders.
 
 ### External metadata
 
