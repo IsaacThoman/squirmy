@@ -10,7 +10,7 @@ import { StyleSheet, View } from 'react-native';
 import { IconButton, Symbol, hitShape, plainButton } from '../native/Controls';
 import type {
   AlbumMetadataProps, BrowseButtonProps, CollectionButtonProps, CollectionGridProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
-  LinkedButtonProps, SearchFieldProps,
+  LinkedButtonProps, SearchFieldProps, TopResultProps,
 } from './BrowseControls';
 import { unavailableOpacity, useColors } from '../theme';
 import { ZoomLink, ZoomSource } from './ZoomLink';
@@ -197,6 +197,40 @@ export function HeroActions({ title, artist, onOpen, onPlay }: HeroActionsProps)
       </VStack>
     </ZStack>
   </Host>;
+}
+
+export function TopResult({ href, onPlay, ...props }: TopResultProps) {
+  const colors = useColors();
+  return <Host matchContents={{ vertical: true }}>
+    <ZStack alignment="trailing" modifiers={[background(colors.surface), clipShape('roundedRectangle', 18)]}>
+      {href ? <ZoomLink href={href}><TopResultButton {...props} zoom /></ZoomLink> : <TopResultButton {...props} />}
+      {onPlay && <VStack modifiers={[padding({ trailing: 16 })]}>
+        <Button modifiers={[
+          buttonStyle(isLiquidGlassAvailable() ? 'glassProminent' : 'borderedProminent'), buttonBorderShape('circle'),
+          tint(colors.accent), accessibilityLabel(`Play ${props.title}`),
+        ]} onPress={onPlay}>
+          <HStack modifiers={[frame({ width: 30, height: 30 })]}><Symbol name="play.fill" size={17} color={colors.onAccent} /></HStack>
+        </Button>
+      </VStack>}
+    </ZStack>
+  </Host>;
+}
+
+function TopResultButton({ title, subtitle, cover, size, dim, zoom, onPress }: Omit<TopResultProps, 'href' | 'onPlay'> & { zoom?: boolean }) {
+  const colors = useColors();
+  return <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
+    <HStack spacing={14} modifiers={[
+      padding({ vertical: 14, leading: 14, trailing: 76 }), frame({ maxWidth: Infinity, alignment: 'leading' }), hitShape,
+      ...(dim ? [opacity(unavailableOpacity)] : []),
+    ]}>
+      <HostedCover cover={cover} size={size} zoom={zoom} />
+      <VStack alignment="leading" spacing={3}>
+        <Text modifiers={[font({ textStyle: 'title3', weight: 'bold' }), lineLimit(2)]}>{title}</Text>
+        <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
+      </VStack>
+      <Spacer minLength={0} />
+    </HStack>
+  </Button>;
 }
 
 export function AlbumMetadata({ title, info, artist }: AlbumMetadataProps) {

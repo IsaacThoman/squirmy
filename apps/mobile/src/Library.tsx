@@ -11,10 +11,12 @@ import {
   useGenreCovers, useGenres, useHome, useLibraryAlbums, useLibraryArtists, useLibraryTracks, usePlaylists, useSearch,
 } from './data/queries';
 import { useTrackStore } from './data/library';
+import { useAvailability } from './downloads/DownloadsProvider';
 import {
-  BrowseButton, CollectionGrid, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField,
+  BrowseButton, CollectionGrid, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField, TopResult,
   type SearchHandle,
 } from './library/BrowseControls';
+import { isEmptyGroup, searchSections, type SearchGroup, type SearchSections } from './library/search';
 import type { Page } from './library/links';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
@@ -227,35 +229,78 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   </View>;
 }
 
+const topCoverSize = 76;
+
+/** The best match: an artist or album opens its page (an album can also play); a song plays. */
+function TopResultView({ top, groups, link, onTrackMenu }: SearchSections & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
+  const playAlbum = useAlbumPlayer();
+  const { actions } = usePlaybackState();
+  const { canPlay } = useAvailability();
+  if (!top) return null;
+  if (top.type === 'track') {
+    const { track } = top;
+    const tracks = groups[top.group].tracks;
+    const playable = canPlay(track);
+    const play = () => {
+      tapFeedback();
+      actions.playTracks(tracks, { start: tracks.indexOf(track), context: { type: 'search', id: null, title: null } });
+    };
+    return <TopResult title={track.title} subtitle={`Song · ${track.artistCredit}`} size={topCoverSize} dim={!playable}
+      cover={<Cover artwork={track.album?.artwork} size={topCoverSize} radius={10} />}
+      onPress={playable ? play : () => onTrackMenu(track)} onPlay={playable ? play : undefined} />;
+  }
+  const item = top.type === 'album' ? albumCollection(top.album, link, `Album · ${top.album.artistCredit}`) : artistCollection(top.artist, link);
+  const play = top.type === 'album' && !item.dim ? () => { tapFeedback(); playAlbum(top.album.id); } : undefined;
+  return <TopResult title={item.title} subtitle={item.subtitle} size={topCoverSize} dim={item.dim} href={item.href}
+    cover={<CollectionCover item={item} size={topCoverSize} radius={10} />} onPlay={play} />;
+}
+
+/** One group of results: artists, then albums, then songs. */
+function SearchGroupView({ title, note, group, link, onTrackMenu }: {
+  title: string; note?: string; group: SearchGroup;
+} & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
+  const styles = useStyles();
+  const { actions } = usePlaybackState();
+  if (isEmptyGroup(group)) return null;
+  return <View style={styles.resultGroup}>
+    <View style={styles.groupTitle}>
+      <Text accessibilityRole="header" style={styles.groupText}>{title}</Text>
+      {note && <Text style={styles.groupNote}>{note}</Text>}
+    </View>
+    {group.artists.length > 0 && <View style={styles.resultSection}>
+      <SectionTitle title="Artists" />
+      <CollectionRail items={group.artists.map(artist => artistCollection(artist, link))} size={92} />
+    </View>}
+    {group.albums.length > 0 && <View style={styles.resultSection}>
+      <SectionTitle title="Albums" />
+      <CollectionRail items={group.albums.map(album => albumCollection(album, link))} size={115} />
+    </View>}
+    {group.tracks.length > 0 && <View style={styles.resultSection}>
+      <SectionTitle title="Songs" />
+      <View style={styles.trackList}>
+        <SongList tracks={group.tracks} onTrackMenu={track => onTrackMenu(track)}
+          onPlay={start => actions.playTracks(group.tracks, { start, context: { type: 'search', id: null, title: null } })} />
+      </View>
+    </View>}
+  </View>;
+}
+
 function SearchResultsView({ library, catalog, link, onTrackMenu }: {
   library: SearchResults | undefined; catalog: SearchResults | undefined;
 } & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
   const styles = useStyles();
-  const { actions } = usePlaybackState();
-  const known = new Set([...(library?.artists ?? []), ...(library?.albums ?? []), ...(library?.tracks ?? [])].map(item => item.id));
-  const fresh = <T extends { id: string }>(items: readonly T[] | undefined) => (items ?? []).filter(item => !known.has(item.id));
-  const artists = [...(library?.artists ?? []), ...fresh(catalog?.artists)].map(artist => artistCollection(artist, link));
-  const albums = [...(library?.albums ?? []), ...fresh(catalog?.albums)].map(album => albumCollection(album, link));
-  const tracks = [...(library?.tracks ?? []), ...fresh(catalog?.tracks)];
-  if (!artists.length && !albums.length && !tracks.length) {
+  const sections = searchSections(library, catalog);
+  const { groups } = sections;
+  if (isEmptyGroup(groups.library) && isEmptyGroup(groups.catalog)) {
     return <EmptyState icon="magnifyingglass" title="No results" description="Try a different song, album, or artist." />;
   }
   return <>
-    {artists.length > 0 && <View style={styles.resultSection}>
-      <SectionTitle title="Artists" />
-      <CollectionRail items={artists} size={92} />
+    {sections.top && <View style={styles.resultSection}>
+      <SectionTitle title="Top result" />
+      <View style={styles.topResult}><TopResultView {...sections} link={link} onTrackMenu={onTrackMenu} /></View>
     </View>}
-    {albums.length > 0 && <View style={styles.resultSection}>
-      <SectionTitle title="Albums" />
-      <CollectionRail items={albums} size={115} />
-    </View>}
-    {tracks.length > 0 && <View style={styles.resultSection}>
-      <SectionTitle title="Songs" />
-      <View style={styles.trackList}>
-        <SongList tracks={tracks} onTrackMenu={track => onTrackMenu(track)}
-          onPlay={start => actions.playTracks(tracks, { start, context: { type: 'search', id: null, title: null } })} />
-      </View>
-    </View>}
+    <SearchGroupView title="In your library" group={groups.library} link={link} onTrackMenu={onTrackMenu} />
+    <SearchGroupView title="More to discover" note="Not in your library" group={groups.catalog} link={link} onTrackMenu={onTrackMenu} />
   </>;
 }
 
@@ -333,5 +378,11 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   searchHeader: { marginHorizontal: gutter, marginTop: 13, marginBottom: 25 },
   genres: { paddingHorizontal: gutter },
   resultSection: { marginBottom: 23 },
+  resultGroup: { marginTop: 6 },
+  groupTitle: { marginHorizontal: gutter, marginBottom: 17, paddingBottom: 9, flexDirection: 'row', alignItems: 'baseline', gap: 9,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
+  groupText: { color: colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1 },
+  groupNote: { color: colors.quiet, fontSize: 13, fontWeight: '500', flexShrink: 1 },
+  topResult: { marginHorizontal: gutter },
   trackList: { marginHorizontal: gutter - 4 },
 }));
