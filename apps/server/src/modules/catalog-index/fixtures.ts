@@ -69,7 +69,7 @@ function csvField(value: string | number): string {
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
-export function csvLine(values: (string | number)[]): string {
+function csvLine(values: (string | number)[]): string {
   return `${values.map(csvField).join(',')}\n`
 }
 
@@ -78,9 +78,9 @@ function combinedLookup(artist: string, title: string): string {
   return (artist + title).normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}_]+/gu, '').toLowerCase()
 }
 
-export const canonicalHeader = 'id,artist_credit_id,artist_mbids,artist_credit_name,release_mbid,release_name,recording_mbid,recording_name,combined_lookup,score\n'
+const canonicalHeader = 'id,artist_credit_id,artist_mbids,artist_credit_name,release_mbid,release_name,recording_mbid,recording_name,combined_lookup,score\n'
 
-export function canonicalRow(row: DumpRecording, id: number): string {
+function canonicalRow(row: DumpRecording, id: number): string {
   return csvLine([
     id, id, row.artistMbids.join(','), row.artistCredit, row.releaseMbid, row.releaseName,
     row.recordingMbid, row.recordingName, combinedLookup(row.artistCredit, row.recordingName), row.score,
@@ -88,15 +88,15 @@ export function canonicalRow(row: DumpRecording, id: number): string {
 }
 
 /** A complete `.tar.zst` dump. */
-export function buildDump(input: { recordings: DumpRecording[]; releases: DumpRelease[]; timestamp?: string; folder?: string }): Buffer {
-  const folder = input.folder ?? 'musicbrainz-canonical-dump-20261117-080003'
+export function buildDump(input: { recordings: DumpRecording[]; releases: DumpRelease[] }): Buffer {
+  const folder = 'musicbrainz-canonical-dump-20261117-080003'
   const data = canonicalHeader + input.recordings.map((row, index) => canonicalRow(row, index + 1)).join('')
   const recordingRedirect = 'recording_mbid,canonical_recording_mbid,canonical_release_mbid\n'
     + input.recordings.flatMap((row) => Array.from({ length: row.versions ?? 0 }, () => csvLine([randomUUID(), row.recordingMbid, row.releaseMbid]))).join('')
   const releaseRedirect = 'release_mbid,canonical_release_mbid,release_group_mbid\n'
     + input.releases.map((row) => csvLine([row.releaseMbid, row.releaseMbid, row.releaseGroupMbid])).join('')
   const tar = Buffer.concat([
-    tarFile(`${folder}/TIMESTAMP`, Buffer.from(input.timestamp ?? '2026-11-17 08:00:03.201155')),
+    tarFile(`${folder}/TIMESTAMP`, Buffer.from('2026-11-17 08:00:03.201155')),
     tarFile(`${folder}/COPYING`, Buffer.from('Creative Commons Legal Code\n\nCC0 1.0 Universal\n')),
     tarFile(`${folder}/canonical/canonical_musicbrainz_data.csv`, Buffer.from(data)),
     tarFile(`${folder}/canonical/canonical_recording_redirect.csv`, Buffer.from(recordingRedirect)),

@@ -124,7 +124,7 @@ async function* mbidCopyText(batches: AsyncIterable<string[][]>, file: string, n
  * How many of the most popular rows of each kind go into the small `head` trigram
  * index that answers fuzzy queries. Its size, not the dump's, sets search latency.
  */
-export const headSize = { artist: 250_000, album: 250_000, recording: 1_000_000 }
+const headSize = { artist: 250_000, album: 250_000, recording: 1_000_000 }
 
 /**
  * The SQL that derives the searchable rows from the raw dump rows.

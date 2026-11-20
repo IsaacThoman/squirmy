@@ -7,7 +7,7 @@ import zlib from 'node:zlib'
 import { userAgent } from '../../lib/http.js'
 
 /** Where MetaBrainz publishes the canonical data dumps, one folder per dump. */
-export const DUMP_INDEX_URL = 'https://data.metabrainz.org/pub/musicbrainz/canonical_data/'
+const DUMP_INDEX_URL = 'https://data.metabrainz.org/pub/musicbrainz/canonical_data/'
 
 const dumpName = /musicbrainz-canonical-dump-(\d{8})-(\d{6})/
 
