@@ -32,3 +32,15 @@ export type ApiErrorBody = z.infer<typeof ApiErrorBody>
 
 export const Ok = z.object({ ok: z.literal(true) })
 export type Ok = z.infer<typeof Ok>
+
+type PatchShape<T extends z.ZodRawShape> = { [K in keyof T]: z.ZodOptional<T[K] extends z.ZodDefault<infer Inner> ? Inner : T[K]> }
+
+/**
+ * The body of a partial update of `schema`: every field optional. Unlike `.partial()`, a
+ * field left out stays out instead of taking its default, so the update cannot reset it.
+ */
+export function patchOf<T extends z.ZodRawShape>(schema: z.ZodObject<T>): z.ZodObject<PatchShape<T>> {
+  const shape = Object.fromEntries(Object.entries(schema.shape).map(([key, field]) =>
+    [key, ((field instanceof z.ZodDefault ? field.unwrap() : field) as z.ZodType).optional()]))
+  return z.object(shape) as unknown as z.ZodObject<PatchShape<T>>
+}

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { patchOf } from './common.js'
 import { NormalizationMode, StreamQuality } from './playback.js'
 
 /** Per-user preferences, stored on the user row. */
@@ -12,7 +13,7 @@ export const UserSettings = z.object({
   scrobbleLastFm: z.boolean().default(false),
 })
 export type UserSettings = z.infer<typeof UserSettings>
-export const UpdateUserSettings = UserSettings.partial()
+export const UpdateUserSettings = patchOf(UserSettings)
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 
 /**
@@ -40,9 +41,9 @@ export const ServerSettings = z.object({
 })
 export type ServerSettings = z.infer<typeof ServerSettings>
 
-export const UpdateServerSettings = ServerSettings.omit({
+export const UpdateServerSettings = patchOf(ServerSettings.omit({
   listenBrainzTokenSet: true, acoustIdKeySet: true, fanartKeySet: true, lastFmKeySet: true,
-}).partial().extend({
+})).extend({
   listenBrainzToken: z.string().nullable().optional(),
   acoustIdKey: z.string().nullable().optional(),
   fanartKey: z.string().nullable().optional(),
