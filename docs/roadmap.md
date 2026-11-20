@@ -15,8 +15,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 ## 2. Your files, playing
 
 - [x] Server core: auth, users, invites, settings, jobs, realtime transport
-- [ ] Library scan, tag reading, local-only catalog rows
-- [ ] Artwork store and renditions
+- [x] Library scan, tag reading, local-only catalog rows
+- [x] Artwork store and renditions
 - [x] Library and catalog read API, home
 - [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
 - [x] Loudness measurement and normalization values

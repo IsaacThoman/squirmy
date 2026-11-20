@@ -442,13 +442,21 @@ export const mediaFiles = pgTable('media_files', {
   importId: uuid('import_id'),
   /** 0 discovered, 1 tags read (playable), 2 audio hash and loudness done. */
   probeStage: smallint('probe_stage').notNull().default(0),
+  /**
+   * Why the last probe or analysis of this file failed. Set instead of retrying; a scan
+   * clears it when the file's size or mtime changes.
+   */
+  probeError: text('probe_error'),
   /** Set when a scan no longer finds the file. Cleared if it returns. */
   missingSince: at('missing_since'),
   addedAt: at('added_at').notNull().defaultNow(),
   updatedAt: updatedAt(),
 }, (t) => [
   uniqueIndex('media_files_path').on(t.rootId, t.relPath),
+  // Byte order, so a scan can merge a sorted directory walk with the rows page by page.
+  index('media_files_scan_order').on(t.rootId, sql`${t.relPath} collate "C"`),
   index('media_files_audio_hash').on(t.audioHash),
+  index('media_files_release_track').on(t.releaseTrackId),
   index('media_files_recording').on(t.recordingId),
   index('media_files_album').on(t.albumId),
   index('media_files_release').on(t.releaseId),

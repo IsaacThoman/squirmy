@@ -150,6 +150,9 @@ await schedule('library.scan-all', '0 4 * * *')
 - Handlers are idempotent: running one twice leaves the same result.
 - `enqueue` accepts a transaction (`{ tx }`) so a row and its job commit together. It goes through pg-boss's Drizzle adapter, so the job insert runs on the caller's transaction; there is no outbox.
 - `singletonKey` makes a duplicate a no-op while a job with that key is queued, retrying or active. Queues use pg-boss's `exclusive` policy and keyless jobs get a unique key, so only keyed jobs are deduplicated.
+- A definition can choose `policy: 'stately'` instead: one queued and one active job per key, so a request made while a job runs is kept as a single follow-up (`library.ingest` uses it). The policy is fixed when the queue is created.
+- `enqueueMany(name, items)` inserts many jobs in one statement with the same deduplication.
+- Each concurrency slot is its own pg-boss worker and is woken as soon as its job finishes, so a backlog drains continuously rather than waiting out pg-boss's 30 second notify backstop between jobs.
 - Failures retry with exponential backoff (default 3 retries). `timeoutSeconds` fails a job that runs too long.
 - Every process starts pg-boss: `index.ts` calls `startJobs({ work })` with `work` true for worker roles. Modules' `jobs` hooks run only in worker roles; a process that enqueues a job it has no definition for creates the queue on first use.
 - `getQueueStats()` counts jobs live; `GET /admin/jobs` returns it.
@@ -242,14 +245,16 @@ The server holds one session per user in memory, loaded on first use and persist
 
 Jobs, in order. Each is idempotent and keyed by file or album group.
 
-1. `library.scan` walks a root, compares `(rel_path, size, mtime)`, inserts or updates `media_files` at `probe_stage 0`, marks vanished files `missing_since`, and enqueues probes.
-2. `library.probe` reads tags and technical details with `music-metadata`, stores embedded art, and sets `probe_stage 1`. It then calls `library.ingest` for the file's album group.
-3. `library.ingest` creates or reuses local-only catalog rows (artist, album, release, recordings, release tracks) from the group's tags and links the files. After this step the music is browsable and playable.
-4. `library.analyze` (low priority) computes the audio hash and loudness, sets `probe_stage 2`, and reconnects moved files by hash.
+1. `library.scan` `{ rootId, paths? }` walks a root, or just the given paths, and compares `(rel_path, size, mtime)` with `media_files`: new files are inserted at `probe_stage 0`, changed ones reset to it, vanished ones get `missing_since` and returning ones lose it. Probes are queued in bulk. The walk (sorted by UTF-8 bytes) and the rows (read in pages, `collate "C"`) are merged like two sorted lists, so memory and queries stay flat whatever the library size. Hidden entries, `@eaDir`, recycle bins and partial downloads are skipped; symlinks are followed only to files inside the root. A root that cannot be read is skipped rather than marked missing. One scan per root at a time; `library.scan-all` runs nightly.
+2. `library.probe` reads tags and technical details with `music-metadata` (ffprobe fills gaps and takes over when it cannot parse), normalizes them into `FileTags`, reads ReplayGain (and Opus R128) into the `tag_*` columns, stores the embedded picture, sets `probe_stage 1` and the group key, then queues ingest for the group. A file nothing can read gets `probe_error` and is left alone until it changes.
+3. `library.ingest` `{ rootId, groupKey }` creates or reuses local-only catalog rows (artists, album, release, recordings, release tracks) from the group's tags and links the files, in one transaction. Rows the files already use are reused unless another group uses them; rows with a MusicBrainz id in the tags are found by it or created with it, and are never renamed from tags afterwards. A group with a matched or locked file is only relinked. Rows that end up unused (no files, no user data, no MusicBrainz id) are removed. Then album and artist art from the folder and files, lyrics (embedded or a `.lrc` sidecar), and `matching.match-album`. After this step the music is browsable and playable.
+4. `library.analyze` (low priority) computes the audio hash and sets `probe_stage 2`. A new file whose hash matches a row whose file is gone is that row moved: the old row takes the new path and keeps its id, links and match state. Then `loudness.measure`.
 5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start.
 6. `enrichment.*` (milestone 4) fills in covers, images, bios and lyrics.
 
-Album grouping key: root id, parent directory (ignoring `CD1`/`Disc 2` subfolders), and `matchKey` of album artist and album.
+`library.purge-missing` runs daily and deletes files missing longer than `missingFileGraceDays`. The grouping and album artist rules are written out at the top of `modules/library/grouping.ts`. In short, the album grouping key is root id, parent directory (ignoring `CD1`/`Disc 2` subfolders), and `matchKey` of album artist and album.
+
+Watching: roots with `watch` on are watched while a worker runs, and changed paths are scanned after two quiet seconds. macOS and Windows use one recursive watch per root; Linux uses one inotify watch per folder. Network mounts and exhausted inotify limits fall back to the nightly scan.
 
 ### External metadata
 

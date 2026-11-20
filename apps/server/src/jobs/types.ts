@@ -7,6 +7,11 @@ export type JobDefinition = {
   retryLimit?: number
   /** A job running longer than this is failed and retried. Default 15 minutes. */
   timeoutSeconds?: number
+  /**
+   * `exclusive` (default): one job per singleton key, queued or active. `stately`: one queued
+   * and one active per key, so a request made while a job runs is kept as one follow-up.
+   */
+  policy?: 'exclusive' | 'stately'
 }
 
 export type EnqueueOptions = {
