@@ -202,12 +202,12 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/scrobbling`, `PUT/DELETE /me/scrobbling/listenbrainz`, `POST /me/scrobbling/lastfm/start`, `DELETE /me/scrobbling/lastfm` | scrobble | every mutation returns `ScrobblingStatus` |
 | `GET /scrobbling/lastfm/callback` | scrobble | no session needed: the signed `state` names the user; redirects to `/settings?lastfm=…` |
 | `POST /radio/track/:id`, `POST /radio/artist/:id` | radio | `RadioResponse`, played with `playTracks` |
-| `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files |
+| `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files; candidates come with the album's files |
 | `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
 | `POST /imports`, `POST /imports/:id/files`, `POST /imports/:id/commit`, `GET /imports/:id` | imports | multipart upload |
 | `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request; play does it implicitly |
-| `GET/DELETE /admin/catalog-index`, `POST /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
+| `GET/DELETE /admin/catalog-index`, `POST/DELETE /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
 | `/rest/*` | subsonic | OpenSubsonic, XML and JSON |
 
 ### Availability
