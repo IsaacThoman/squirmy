@@ -217,8 +217,8 @@ await step('search', async () => {
   page.off('request', listen)
   check('library results come from the server', true)
   check('typing sends only the settled query, to both searches', asked.length === 2 && asked.includes('library:blue hour') && asked.includes('catalog:blue hour'), asked.join(', '))
-  const order = await page.getByRole('region').evaluateAll(regions => regions.map(region => region.getAttribute('aria-label')))
-  check('your library comes first', order[0] === 'In your library', order.join(' / '))
+  const order = await page.getByRole('region').evaluateAll(regions => regions.map(region => region.getAttribute('aria-label') ?? document.getElementById(region.getAttribute('aria-labelledby'))?.textContent))
+  check('the top result leads, then your library', order[0] === 'Top result' && order[1] === 'In your library', order.join(' / '))
 })
 
 await step('playlists', async () => {

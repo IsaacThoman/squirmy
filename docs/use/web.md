@@ -17,8 +17,11 @@ The menu under your name, top right, has **Settings**, **Add music** (for people
 
 Type in **Search** (or the search field at the top). Two searches run at once:
 
-- **Your library** comes first, at full brightness, and tolerates typos and word order.
+- **Top result** leads when an artist, album or song is named the way you typed it (or starts with it): click it to open it, or play it with its play button when it is on your server. Your library's best match comes before the catalog's.
+- **Your library** comes next, at full brightness, and tolerates typos and word order.
 - **Everything else** comes below, in gray, from the server's catalog search (Deezer by default, or the [local search index](../server/metadata-and-privacy.md#the-local-search-index)). Gray albums and songs are not on your server; bookmark them to your [wantlist](./wantlist.md).
+
+Each group lists artists, then albums, then songs.
 
 Browse-by-genre tiles open your library filtered to that genre.
 
