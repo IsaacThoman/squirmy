@@ -170,9 +170,11 @@ export async function drainJobs({ timeoutMs = 20_000 } = {}) {
   const deadline = Date.now() + timeoutMs
   for (;;) {
     await db.execute(sql`update pgboss.job set start_after = now() where name in ${names} and state = 'retry' and start_after > now()`)
+    // Every retry counts as pending, whatever its start_after: a job can fail between the
+    // update above and this count, and its retry is not done just because it waits.
     const [row] = await db.execute<{ pending: number }>(sql`
       select count(*)::int as pending from pgboss.job
-      where name in ${names} and (state = 'active' or (state in ('created', 'retry') and start_after <= now()))`)
+      where name in ${names} and (state in ('active', 'retry') or (state = 'created' and start_after <= now()))`)
     if (!row?.pending) return
     if (Date.now() > deadline) throw new Error(`${row.pending} jobs still pending after ${timeoutMs} ms`)
     for (const id of workerIds) instance.notifyWorker(id)

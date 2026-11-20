@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../database/client.js'
-import { httpCache } from '../database/schema.js'
+import { httpCache, rateLimits } from '../database/schema.js'
 import { useTestDatabase } from '../test/database.js'
 import { cachedFetch, ProviderError, rateLimit, userAgent } from './http.js'
 
@@ -136,17 +136,15 @@ describe('lib/http', () => {
     const finished: number[] = []
     await Promise.all(Array.from({ length: 5 }, () => rateLimit('test:queue', interval).then(() => finished.push(Date.now()))))
     finished.sort((a, b) => a - b)
-    // Each caller sleeps from the moment its reservation comes back, so a slow round trip
-    // can close the gap to the next caller. The slots themselves never move: the last of
-    // five callers cannot finish before four intervals have passed.
-    for (let index = 1; index < finished.length; index++) {
-      expect(finished[index]! - finished[index - 1]!).toBeGreaterThanOrEqual(interval / 2)
-    }
-    expect(finished.at(-1)! - started).toBeGreaterThanOrEqual(interval * 4 - 5)
+    // The gap between two callers finishing is not bounded below: each sleeps from the
+    // moment its reservation comes back, and a slow round trip for one delays only that
+    // one. The slots are: the database hands out one per interval from the first, so the
+    // k-th caller to finish cannot finish before k intervals have passed. The few
+    // milliseconds of slack cover Date.now() rounding and timers that fire a little early.
+    for (const [index, at] of finished.entries()) expect(at - started).toBeGreaterThanOrEqual(interval * index - 5)
 
-    const other = Date.now()
-    await rateLimit('test:other', interval)
-    expect(Date.now() - other).toBeLessThan(interval)
+    // A key of its own has no queue to wait behind.
+    expect(await rateLimit('test:other', interval)).toBe(0)
   })
 
   it('rate-limits each network attempt of cachedFetch but not cache hits', async () => {
@@ -159,8 +157,10 @@ describe('lib/http', () => {
       cachedFetch('test', 'https://example.test/limited-3', options),
     ])
     expect(Date.now() - started).toBeGreaterThanOrEqual(385)
-    const hit = Date.now()
-    await cachedFetch('test', 'https://example.test/limited-1', options)
-    expect(Date.now() - hit).toBeLessThan(150)
+    // A cache hit takes no slot: the next reservation stays where the misses left it.
+    const nextSlot = async () => (await db.select({ nextAt: rateLimits.nextAt }).from(rateLimits).where(eq(rateLimits.key, 'test:fetch')))[0]!.nextAt
+    const reserved = await nextSlot()
+    expect((await cachedFetch('test', 'https://example.test/limited-1', options)).cached).toBe(true)
+    expect(await nextSlot()).toEqual(reserved)
   })
 })

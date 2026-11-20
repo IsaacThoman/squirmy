@@ -2,10 +2,11 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { Button, Host, HStack, List, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, buttonStyle, environment, font, foregroundStyle, frame, labelStyle, lineLimit,
-  listRowBackground, listRowInsets, listRowSeparatorTint, listStyle, scrollContentBackground, scrollDisabled, tint,
+  listRowBackground, listRowInsets, listRowSeparatorTint, listStyle, opacity, scrollContentBackground, scrollDisabled, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { tracks } from '../catalog';
+import type { TrackSummary } from '@squirmy/contracts';
+import { useLibraryActions, useLiked, useTrack, useTrackStore } from '../data/library';
 import { IconButton, Symbol, TrackCover, TrackMenu, hitShape, plainButton } from '../native/Controls';
 import { usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
@@ -24,8 +25,9 @@ const iconOnly = labelStyle('iconOnly');
 
 export default function QueuePage(_props: QueueProps) {
   const colors = useColors();
-  const { state, actions } = usePlaybackState();
-  const historyHeight = state.history.length ? headingHeight + rowHeight * state.history.length : 0;
+  const { session, queue, actions } = usePlaybackState();
+  const { history } = queue;
+  const historyHeight = history.length ? headingHeight + rowHeight * history.length : 0;
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const initialOffset = useRef({ x: 0, y: historyHeight });
   const historyOffset = useRef(historyHeight);
@@ -33,7 +35,7 @@ export default function QueuePage(_props: QueueProps) {
   const [viewport, setViewport] = useState(0);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [editing, setEditing] = useState(false);
-  const canEdit = state.queue.length > 1 || (state.autoplay && state.autoplayQueue.length > 1);
+  const canEdit = queue.queue.length > 1 || (session.autoplay && queue.autoplayQueue.length > 1);
 
   useLayoutEffect(() => {
     const shift = historyHeight - historyOffset.current;
@@ -56,7 +58,7 @@ export default function QueuePage(_props: QueueProps) {
       <HStack spacing={11}>
         <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Play queue</Text>
         <Spacer minLength={4} />
-        {state.history.length > 0 && <Button label={historyVisible ? 'Now playing' : 'History'}
+        {history.length > 0 && <Button label={historyVisible ? 'Now playing' : 'History'}
           modifiers={[buttonStyle('plain'), tint(colors.accent), foregroundStyle(colors.accent)]}
           onPress={() => scroll.current?.scrollTo({
             y: historyVisible ? historyHeight : Math.max(0, historyHeight - viewport * 0.8), animated: true,
@@ -75,7 +77,7 @@ export default function QueuePage(_props: QueueProps) {
         scrollY.current = y;
         setHistoryVisible(y < historyHeight - 16);
       }}>
-      {state.history.length > 0 && <>
+      {history.length > 0 && <>
         <QueueBand height={headingHeight}>
           <HStack>
             <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Listening history</Text>
@@ -83,20 +85,20 @@ export default function QueuePage(_props: QueueProps) {
             <Button label="Clear" onPress={clearHistory} modifiers={[plainButton, foregroundStyle(colors.muted)]} />
           </HStack>
         </QueueBand>
-        <Host style={[styles.list, { height: rowHeight * state.history.length }]}>
+        <Host style={[styles.list, { height: rowHeight * history.length }]}>
           <List modifiers={listModifiers}>
-            {state.history.map(entry => <VStack key={entry.id} modifiers={[...rowModifiers, listRowSeparatorTint(colors.stroke)]}>
-              <QueueTrack trackId={entry.trackId} onPlay={() => actions.playTrack(entry.trackId)} />
+            {history.map(entry => <VStack key={entry.id} modifiers={[...rowModifiers, listRowSeparatorTint(colors.stroke)]}>
+              <QueueTrack entry={entry} onPlay={track => actions.playNow(track)} />
             </VStack>)}
           </List>
         </Host>
       </>}
       <QueueBand height={49}>
         <HStack spacing={12}>
-          <QueueMode symbol="shuffle" label="Shuffle" active={state.shuffle} onPress={actions.toggleShuffle} />
-          <QueueMode symbol={state.repeat === 'one' ? 'repeat.1' : 'repeat'} label={`Repeat ${state.repeat}`}
-            active={state.repeat !== 'off'} onPress={actions.cycleRepeat} />
-          <QueueMode symbol="infinity" label="Autoplay" active={state.autoplay} onPress={actions.toggleAutoplay} />
+          <QueueMode symbol="shuffle" label="Shuffle" active={session.shuffle} onPress={actions.toggleShuffle} />
+          <QueueMode symbol={session.repeat === 'one' ? 'repeat.1' : 'repeat'} label={`Repeat ${session.repeat}`}
+            active={session.repeat !== 'off'} onPress={actions.cycleRepeat} />
+          <QueueMode symbol="infinity" label="Autoplay" active={session.autoplay} onPress={actions.toggleAutoplay} />
           <Spacer />
         </HStack>
       </QueueBand>
@@ -104,24 +106,24 @@ export default function QueuePage(_props: QueueProps) {
         <HStack>
           <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Up next</Text>
           <Spacer />
-          <Text modifiers={[detailFont, foregroundStyle(colors.quiet)]}>{state.queue.length} {state.queue.length === 1 ? 'track' : 'tracks'}</Text>
+          <Text modifiers={[detailFont, foregroundStyle(colors.quiet)]}>{queue.queue.length} {queue.queue.length === 1 ? 'track' : 'tracks'}</Text>
         </HStack>
       </QueueBand>
-      {state.queue.length ? <QueueRows entries={state.queue} editing={editing} /> : (
+      {queue.queue.length ? <QueueRows entries={queue.queue} editing={editing} /> : (
         <QueueBand height={34}><Text modifiers={[detailFont, foregroundStyle(colors.muted)]}>Songs you queue appear here.</Text></QueueBand>
       )}
       <QueueBand height={58}>
         <VStack alignment="leading" spacing={4}>
           <HStack spacing={6}>
-            <Symbol name="infinity" size={16} color={state.autoplay ? colors.accent : colors.quiet} />
+            <Symbol name="infinity" size={16} color={session.autoplay ? colors.accent : colors.quiet} />
             <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Autoplay</Text>
           </HStack>
           <Text modifiers={[detailFont, foregroundStyle(colors.muted)]}>
-            {state.autoplay ? 'Similar tracks continue when your queue ends.' : 'Turn on Autoplay to keep listening.'}
+            {session.autoplay ? 'Similar tracks continue when your queue ends.' : 'Turn on Autoplay to keep listening.'}
           </Text>
         </VStack>
       </QueueBand>
-      {state.autoplay && <QueueRows entries={state.autoplayQueue} editing={editing} autoplay />}
+      {session.autoplay && <QueueRows entries={queue.autoplayQueue} editing={editing} autoplay />}
     </ScrollView>
   </View>;
 }
@@ -150,6 +152,7 @@ function QueueRows({ entries, editing, autoplay = false }: {
 }) {
   const colors = useColors();
   const { actions } = usePlaybackState();
+  const tracks = useTrackStore();
   if (!entries.length) return null;
 
   const onMove = ([source]: number[], destination: number) => {
@@ -164,15 +167,10 @@ function QueueRows({ entries, editing, autoplay = false }: {
       <List.ForEach data={entries} keyExtractor={entry => entry.id} recycling={false}
         onMove={entries.length > 1 ? onMove : undefined}>
         {({ item, index }) => {
-          const promote = () => {
-            if (autoplay) {
-              actions.addToQueue(item.trackId, 'next');
-              actions.removeFromQueue(item.id);
-            } else actions.moveInQueue(item.id, 0);
-          };
+          const promote = () => actions.promote(item, tracks.get(item.trackId, item.albumId), autoplay);
           const remove = () => actions.removeFromQueue(item.id);
           return <SwipeActions modifiers={[...rowModifiers, listRowSeparatorTint(colors.stroke)]}>
-            <QueueTrack trackId={item.trackId} onPlay={() => actions.playQueueEntry(item.id)}>
+            <QueueTrack entry={item} onPlay={() => actions.playQueueEntry(item.id)}>
               {index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => actions.moveInQueue(item.id, index - 1)} />}
               {index + 1 < entries.length && <Button label="Move down" systemImage="chevron.down" onPress={() => actions.moveInQueue(item.id, index + 1)} />}
               <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={remove} />
@@ -192,28 +190,32 @@ function QueueRows({ entries, editing, autoplay = false }: {
   </Host>;
 }
 
-function QueueTrack({ trackId, onPlay, children }: {
-  trackId: string; onPlay: () => void; children?: React.ReactNode;
+/** A queue row. A failed entry is gray and will be skipped; a preparing one says so. */
+function QueueTrack({ entry, onPlay, children }: {
+  entry: QueueEntry; onPlay: (track: TrackSummary) => void; children?: React.ReactNode;
 }) {
   const colors = useColors();
-  const track = tracks[trackId];
-  const { state, actions } = usePlaybackState();
-  const favorite = state.favorites.includes(trackId);
-  return <HStack spacing={0} modifiers={[frame({ height: rowHeight })]}>
-    <Button onPress={onPlay} modifiers={[plainButton, accessibilityLabel(`${track.title}, ${track.artist}`)]}>
+  const track = useTrack(entry.trackId, entry.albumId);
+  const favorite = useLiked('track', track?.id, track?.liked);
+  const { setLiked } = useLibraryActions();
+  const failed = entry.state === 'failed';
+  const detail = failed ? 'Couldn’t be fetched' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
+  const title = track?.title ?? '';
+  return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
+    <Button onPress={() => { if (track && !failed) onPlay(track); }} modifiers={[plainButton, accessibilityLabel(`${title}, ${detail}`)]}>
       <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape]}>
-        <TrackCover trackId={trackId} size={38} />
+        <TrackCover track={track} size={38} />
         <VStack alignment="leading" spacing={3}>
-          <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
-          <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), lineLimit(1)]}>{track.artist}</Text>
+          <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1)]}>{title}</Text>
+          <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), lineLimit(1)]}>{detail}</Text>
         </VStack>
         <Spacer minLength={4} />
       </HStack>
     </Button>
     <IconButton symbol={favorite ? 'heart.fill' : 'heart'} size={17}
-      label={favorite ? `Remove ${track.title} from favorites` : `Favorite ${track.title}`}
-      color={favorite ? colors.accent : colors.muted} selected={favorite} onPress={() => actions.toggleFavorite(trackId)} />
-    <TrackMenu trackId={trackId}>{children}</TrackMenu>
+      label={favorite ? `Remove ${title} from favorites` : `Favorite ${title}`}
+      color={favorite ? colors.accent : colors.muted} selected={favorite} onPress={() => track && setLiked('track', track.id, !favorite)} />
+    <TrackMenu track={track}>{children}</TrackMenu>
   </HStack>;
 }
 

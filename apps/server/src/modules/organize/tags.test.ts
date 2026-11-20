@@ -1,9 +1,9 @@
-import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { eq } from 'drizzle-orm'
 import { parseFile } from 'music-metadata'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { db } from '../../database/client.js'
 import { albums, artists, mediaFiles, recordings, releaseLoudness, releases } from '../../database/schema.js'
 import { audioHash } from '../../lib/ffmpeg.js'
@@ -41,7 +41,11 @@ describe('organize: tags', () => {
     replayGain: { trackGain: -6.5, trackPeak: 0.912345, albumGain: -7.25, albumPeak: 0.98 },
   }
 
-  const scratch = () => mkdtemp(path.join(tmpdir(), 'squirmy-tags-'))
+  const scratch = async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'squirmy-tags-'))
+    onTestFinished(() => rm(dir, { recursive: true, force: true }))
+    return dir
+  }
   const formats: ToneFormat[] = ['flac', 'mp3', 'm4a', 'ogg', 'opus']
 
   describe('writeTags', () => {

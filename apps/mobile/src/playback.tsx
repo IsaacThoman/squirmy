@@ -1,451 +1,291 @@
-import 'expo-sqlite/localStorage/install'
-
 import {
-  createContext, type PropsWithChildren, useContext, useEffect, useMemo, useReducer, useState,
-} from 'react'
-import { AppState } from 'react-native'
+  artworkUrl, createInitialSession, randomSeed, SessionClient, splitSession, type SessionClientSnapshot,
+} from '@squirmy/client-core';
+import { createSocketTransport } from '@squirmy/client-core/socket';
+import type {
+  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, TrackSummary, UserSettings,
+} from '@squirmy/contracts';
+import * as Network from 'expo-network';
+import {
+  createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
+} from 'react';
+import { AppState, Platform } from 'react-native';
+import { useServerUrl, useSignedInApi } from './account/AccountProvider';
+import { clientDevice } from './account/storage';
+import { useTrack, useTrackStore } from './data/library';
+import { useUserSettings } from './data/queries';
+import { useRealtime } from './data/realtime';
+import { useNotice } from './Notice';
+import { connectNowPlaying, createPlayerEngine } from './player/engine';
+import {
+  codecsFor, deviceRows, findEntry, isRemote, newlyFailed, nextRepeat, outputDevice, playableSeeds, qualityFor, seedOf,
+} from './player/session';
 
-import { albums, autoplayTrackIds, devices, tracks } from './catalog'
+export type { QueueEntry };
 
-export type QueueEntry = { id: string; trackId: string }
-type Repeat = 'off' | 'all' | 'one'
-type Placement = 'next' | 'last'
-type PlayOptions = { shuffled?: boolean; trackId?: string }
+type Runtime = { client: SessionClient; device: ClientDevice };
+type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
 
-type Session = {
-  trackId: string
-  playing: boolean
-  positionAtAnchor: number
-  anchorTime: number
-  queue: QueueEntry[]
-  history: QueueEntry[]
-  autoplayQueue: QueueEntry[]
-  autoplay: boolean
-  shuffle: boolean
-  repeat: Repeat
-  volume: number
-  deviceId: string
-  favorites: string[]
-  playOrder: string[]
-  playedInCycle: string[]
-  serial: number
-}
+const defaultQuality: Pick<UserSettings, 'qualityWifi' | 'qualityCellular'> = { qualityWifi: 'original', qualityCellular: 'high' };
+/** Two failures this close together mean the server, not the file, is the problem. */
+const errorSkipWindowMs = 8000;
+const lockScreenArtSize = 600;
 
-type Command =
-  | { type: 'togglePlayback' | 'next' | 'previous' | 'tick' | 'toggleAutoplay' | 'cycleRepeat' | 'clearHistory' | 'clearQueue' }
-  | { type: 'toggleShuffle'; seed: number }
-  | { type: 'seek' | 'volume'; value: number }
-  | { type: 'device' | 'favorite' | 'playTrack' | 'playQueueEntry' | 'removeFromQueue'; id: string }
-  | { type: 'playCollection'; ids: readonly string[]; options?: PlayOptions; seed: number }
-  | { type: 'queue'; id: string; placement: Placement }
-  | { type: 'moveInQueue'; id: string; toIndex: number }
+const idle: SessionClientSnapshot = (() => {
+  const { state, queue } = splitSession(createInitialSession());
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false };
+})();
+const idleSnapshot = () => idle;
+const noSubscription = () => () => undefined;
 
-type TimedCommand = { command: Command; now: number }
+const RuntimeContext = createContext<Runtime | null>(null);
 
-// Keep the original key so existing installs retain their playback state.
-const storageKey = 'tone.playback.v1'
-const initialHistory = ['tail-lights', 'fern-line', 'paper-flowers', 'after-the-rain']
-const historyLimit = 50
-const initialTrack = 'night-swimming'
-
-function initialSession(): Session {
-  return {
-    trackId: initialTrack,
-    playing: false,
-    positionAtAnchor: 48,
-    anchorTime: 0,
-    queue: albums['blue-hour'].trackIds.slice(1).map((trackId, index) => ({ id: `initial-${index}`, trackId })),
-    history: initialHistory.map((trackId, index) => ({ id: `history-${index}`, trackId })),
-    autoplayQueue: autoplayTrackIds.map((trackId, index) => ({ id: `autoplay-${index}`, trackId })),
-    autoplay: true,
-    shuffle: false,
-    repeat: 'off',
-    volume: 0.65,
-    deviceId: devices[0].id,
-    favorites: [initialTrack, 'static-bloom', 'amber', 'paper-flowers'],
-    playOrder: [],
-    playedInCycle: [],
-    serial: 1,
-  }
-}
-
-function hasTrack(id: string): boolean {
-  return Object.hasOwn(tracks, id)
-}
-
-function clamp(value: number, max: number): number {
-  return Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : 0
-}
-
-function positionAt(session: Session, now: number): number {
-  const elapsed = session.playing ? Math.max(0, now - session.anchorTime) / 1000 : 0
-  return Math.min(tracks[session.trackId].duration, session.positionAtAnchor + elapsed)
-}
-
-function loadSession(): Session {
-  const fallback = initialSession()
-
-  try {
-    const json = globalThis.localStorage?.getItem(storageKey)
-    if (!json) return fallback
-    const saved = JSON.parse(json) as Partial<Session>
-    if (typeof saved.trackId !== 'string' || !hasTrack(saved.trackId)) return fallback
-
-    return {
-      ...fallback,
-      ...saved,
-      playing: false,
-      positionAtAnchor: clamp(saved.positionAtAnchor ?? 0, tracks[saved.trackId].duration),
-      anchorTime: 0,
-    }
-  } catch {
-    return fallback
-  }
-}
-
-function saveSession(session: Session, now: number) {
-  try {
-    globalThis.localStorage?.setItem(storageKey, JSON.stringify({
-      ...session,
-      positionAtAnchor: positionAt(session, now),
-      anchorTime: now,
-    }))
-  } catch {
-    // Playback still works when local storage is unavailable.
-  }
-}
-
-function allocate(session: Session, ids: readonly string[]) {
-  return {
-    entries: ids.map((trackId, index) => ({ id: `entry-${session.serial + index}`, trackId })),
-    serial: session.serial + ids.length,
-  }
-}
-
-function shuffleEntries<T>(entries: readonly T[], seed: number): T[] {
-  const result = [...entries]
-  for (let end = result.length - 1; end > 0; end -= 1) {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
-    const index = Math.floor(seed / 4294967296 * (end + 1))
-    const entry = result[end]
-    result[end] = result[index]
-    result[index] = entry
-  }
-  if (result.length > 1 && result.every((value, index) => value === entries[index])) {
-    return [...result.slice(1), result[0]]
-  }
-  return result
-}
-
-function startTrack(session: Session, id: string, now: number): Session {
-  const { entries, serial } = allocate(session, [session.trackId])
-  return {
-    ...session,
-    trackId: id,
-    playing: true,
-    positionAtAnchor: 0,
-    anchorTime: now,
-    history: [...session.history, ...entries].slice(-historyLimit),
-    playedInCycle: [...session.playedInCycle, session.trackId].slice(-historyLimit),
-    serial,
-  }
-}
-
-function refreshAutoplay(session: Session): Session {
-  const recent = new Set(session.history.slice(-4).map(entry => entry.trackId))
-  const ids = autoplayTrackIds.filter(id => id !== session.trackId)
-  const { entries, serial } = allocate(session, [
-    ...ids.filter(id => !recent.has(id)),
-    ...ids.filter(id => recent.has(id)),
-  ])
-  return { ...session, autoplayQueue: entries, serial }
-}
-
-function playEntry(session: Session, entry: QueueEntry, now: number): Session {
-  const next = startTrack(session, entry.trackId, now)
-  return {
-    ...next,
-    queue: next.queue.filter(item => item.id !== entry.id),
-    playOrder: next.playOrder.filter(id => id !== entry.id),
-    autoplayQueue: next.autoplayQueue.filter(item => item.id !== entry.id),
-  }
-}
-
-function advance(session: Session, now: number, automatic: boolean): Session {
-  if (automatic && session.repeat === 'one') {
-    return { ...session, positionAtAnchor: 0, anchorTime: now }
-  }
-
-  if (session.queue.length) return playEntry(session, session.queue[0], now)
-
-  if (session.repeat === 'all') {
-    const cycle = [...session.playedInCycle, session.trackId]
-    const next = startTrack(session, cycle[0], now)
-    const { entries, serial } = allocate(next, cycle.slice(1))
-    return { ...next, queue: entries, serial, playedInCycle: [] }
-  }
-
-  if (session.autoplay) {
-    const next = session.autoplayQueue.length ? session : refreshAutoplay(session)
-    return playEntry(next, next.autoplayQueue[0], now)
-  }
-
-  return {
-    ...session,
-    playing: false,
-    positionAtAnchor: tracks[session.trackId].duration,
-    anchorTime: now,
-  }
-}
-
-function moveEntry(entries: QueueEntry[], id: string, toIndex: number): QueueEntry[] {
-  const from = entries.findIndex(entry => entry.id === id)
-  if (from < 0) return entries
-  const destination = Math.trunc(clamp(toIndex, entries.length - 1))
-  if (from === destination) return entries
-  const result = [...entries]
-  const [entry] = result.splice(from, 1)
-  result.splice(destination, 0, entry)
-  return result
-}
-
-function reduceSession(session: Session, { command, now }: TimedCommand): Session {
-  switch (command.type) {
-    case 'togglePlayback': {
-      const position = positionAt(session, now)
-      const ended = position >= tracks[session.trackId].duration
-      return {
-        ...session,
-        playing: !session.playing,
-        positionAtAnchor: !session.playing && ended ? 0 : position,
-        anchorTime: now,
-      }
-    }
-    case 'tick': {
-      let next = session
-      // The timestamp keeps the demo clock advancing while a client surface is suspended.
-      for (let i = 0; i < 50 && next.playing; i += 1) {
-        const endTime = next.anchorTime + (tracks[next.trackId].duration - next.positionAtAnchor) * 1000
-        if (endTime > now) return next
-        next = advance(next, endTime, true)
-      }
-      return next
-    }
-    case 'seek':
-      return {
-        ...session,
-        positionAtAnchor: clamp(command.value, tracks[session.trackId].duration),
-        anchorTime: now,
-      }
-    case 'volume':
-      return { ...session, volume: clamp(command.value, 1) }
-    case 'device':
-      return devices.some(device => device.id === command.id)
-        ? { ...session, deviceId: command.id }
-        : session
-    case 'favorite':
-      if (!hasTrack(command.id)) return session
-      return {
-        ...session,
-        favorites: session.favorites.includes(command.id)
-          ? session.favorites.filter(id => id !== command.id)
-          : [command.id, ...session.favorites],
-      }
-    case 'next':
-      return advance(session, now, false)
-    case 'previous': {
-      const entry = session.history.at(-1)
-      if (positionAt(session, now) >= 3 || !entry) {
-        return { ...session, positionAtAnchor: 0, anchorTime: now }
-      }
-      const { entries, serial } = allocate(session, [session.trackId])
-      return {
-        ...session,
-        trackId: entry.trackId,
-        queue: [...entries, ...session.queue],
-        playOrder: session.shuffle ? [...entries.map(item => item.id), ...session.playOrder] : [],
-        history: session.history.slice(0, -1),
-        playedInCycle: session.playedInCycle.slice(0, -1),
-        serial,
-        positionAtAnchor: 0,
-        anchorTime: now,
-      }
-    }
-    case 'playTrack':
-      if (!hasTrack(command.id)) return session
-      if (command.id !== session.trackId) return startTrack(session, command.id, now)
-      return session.playing ? session : reduceSession(session, { command: { type: 'togglePlayback' }, now })
-    case 'playCollection': {
-      const ids = command.ids.filter(hasTrack)
-      if (!ids.length) return session
-      const shuffle = command.options?.shuffled ?? session.shuffle
-      const ordered = shuffle ? shuffleEntries(ids, command.seed) : ids
-      const requested = command.options?.trackId
-      const startIndex = requested ? Math.max(0, ordered.indexOf(requested)) : 0
-      const trackId = ordered[startIndex]
-      const upcoming = ordered.slice(startIndex + 1)
-      if (shuffle) upcoming.push(...ordered.slice(0, startIndex))
-      const next = trackId === session.trackId
-        ? { ...session, playing: true, positionAtAnchor: 0, anchorTime: now }
-        : startTrack(session, trackId, now)
-      const { entries, serial } = allocate(next, upcoming)
-      const inCollectionOrder = [...entries].sort((a, b) => ids.indexOf(a.trackId) - ids.indexOf(b.trackId))
-      return {
-        ...next,
-        queue: entries,
-        shuffle,
-        playOrder: shuffle ? inCollectionOrder.map(item => item.id) : [],
-        playedInCycle: [],
-        serial,
-      }
-    }
-    case 'queue': {
-      if (!hasTrack(command.id)) return session
-      const { entries, serial } = allocate(session, [command.id])
-      const entry = entries[0]
-      const queue = command.placement === 'next' ? [entry, ...session.queue] : [...session.queue, entry]
-      const playOrder = command.placement === 'next'
-        ? [entry.id, ...session.playOrder]
-        : [...session.playOrder, entry.id]
-      return { ...session, queue, serial, playOrder: session.shuffle ? playOrder : [] }
-    }
-    case 'playQueueEntry': {
-      const entry = [...session.queue, ...session.autoplayQueue].find(item => item.id === command.id)
-      return entry ? playEntry(session, entry, now) : session
-    }
-    case 'moveInQueue': {
-      const queue = moveEntry(session.queue, command.id, command.toIndex)
-      const autoplayQueue = moveEntry(session.autoplayQueue, command.id, command.toIndex)
-      const playOrder = session.shuffle && queue !== session.queue ? queue.map(item => item.id) : session.playOrder
-      return { ...session, queue, autoplayQueue, playOrder }
-    }
-    case 'removeFromQueue':
-      return {
-        ...session,
-        queue: session.queue.filter(item => item.id !== command.id),
-        playOrder: session.playOrder.filter(id => id !== command.id),
-        autoplayQueue: session.autoplayQueue.filter(item => item.id !== command.id),
-      }
-    case 'toggleAutoplay':
-      return { ...session, autoplay: !session.autoplay }
-    case 'toggleShuffle':
-      if (session.shuffle) {
-        return {
-          ...session,
-          shuffle: false,
-          queue: [...session.queue].sort((a, b) => session.playOrder.indexOf(a.id) - session.playOrder.indexOf(b.id)),
-          playOrder: [],
-        }
-      }
-      return {
-        ...session,
-        shuffle: true,
-        playOrder: session.queue.map(item => item.id),
-        queue: shuffleEntries(session.queue, command.seed),
-      }
-    case 'cycleRepeat': {
-      const repeat = { off: 'all', all: 'one', one: 'off' } as const
-      return { ...session, repeat: repeat[session.repeat] }
-    }
-    case 'clearQueue':
-      return { ...session, queue: [], playOrder: [] }
-    case 'clearHistory':
-      return { ...session, history: [] }
-  }
-}
-
-function useSession() {
-  const [state, dispatch] = useReducer(reduceSession, undefined, loadSession)
-  const [now, setNow] = useState(Date.now)
-
-  const actions = useMemo(() => {
-    const send = (command: Command) => dispatch({ command, now: Date.now() })
-    const seed = () => Math.floor(Math.random() * 4294967296)
-
-    return {
-      playPause: () => send({ type: 'togglePlayback' }),
-      seek: (value: number) => send({ type: 'seek', value }),
-      next: () => send({ type: 'next' }),
-      previous: () => send({ type: 'previous' }),
-      setVolume: (value: number) => send({ type: 'volume', value }),
-      setDevice: (id: string) => send({ type: 'device', id }),
-      toggleFavorite: (id: string) => send({ type: 'favorite', id }),
-      toggleAutoplay: () => send({ type: 'toggleAutoplay' }),
-      toggleShuffle: () => send({ type: 'toggleShuffle', seed: seed() }),
-      cycleRepeat: () => send({ type: 'cycleRepeat' }),
-      playTrack: (id: string) => send({ type: 'playTrack', id }),
-      playCollection: (ids: readonly string[], options?: PlayOptions) =>
-        send({ type: 'playCollection', ids, options, seed: seed() }),
-      playAlbum: (id: string, options?: PlayOptions) => {
-        if (Object.hasOwn(albums, id)) {
-          send({ type: 'playCollection', ids: albums[id].trackIds, options, seed: seed() })
-        }
-      },
-      addToQueue: (id: string, placement: Placement = 'last') => send({ type: 'queue', id, placement }),
-      removeFromQueue: (id: string) => send({ type: 'removeFromQueue', id }),
-      moveInQueue: (id: string, toIndex: number) => send({ type: 'moveInQueue', id, toIndex }),
-      playQueueEntry: (id: string) => send({ type: 'playQueueEntry', id }),
-      clearHistory: () => send({ type: 'clearHistory' }),
-      clearQueue: () => send({ type: 'clearQueue' }),
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!state.playing) return
-    const tick = () => {
-      const now = Date.now()
-      dispatch({ command: { type: 'tick' }, now })
-      setNow(now)
-    }
-    const timer = setInterval(tick, 500)
-    tick()
-    return () => clearInterval(timer)
-  }, [state.playing])
-
-  useEffect(() => {
-    saveSession(state, Date.now())
-    const listener = AppState.addEventListener('change', status => {
-      const now = Date.now()
-      if (status === 'active') {
-        dispatch({ command: { type: 'tick' }, now })
-        setNow(now)
-      } else {
-        saveSession(state, now)
-      }
-    })
-    return () => listener.remove()
-  }, [state])
-
-  const playback = useMemo(() => {
-    const track = tracks[state.trackId]
-    const album = albums[track.albumId]
-    const device = devices.find(item => item.id === state.deviceId) ?? devices[0]
-    return { state, track, album, device, actions }
-  }, [state, actions])
-
-  return { playback, position: positionAt(state, now) }
-}
-
-const PlaybackContext = createContext<ReturnType<typeof useSession>['playback'] | null>(null)
-const PositionContext = createContext(0)
-
+/**
+ * The user's playback session, shared with their other devices through the server. A
+ * `SessionClient` on the realtime socket applies commands optimistically and drives the
+ * phone's audio engine while this phone is the active device; otherwise the phone is a
+ * remote and stays silent. Lock screen and Control Center buttons become session
+ * commands too.
+ */
 export function PlaybackProvider({ children }: PropsWithChildren) {
-  const { playback, position } = useSession()
-  return (
-    <PlaybackContext.Provider value={playback}>
-      <PositionContext.Provider value={position}>{children}</PositionContext.Provider>
-    </PlaybackContext.Provider>
-  )
+  const api = useSignedInApi();
+  const serverUrl = useServerUrl();
+  const { socket } = useRealtime();
+  const tracks = useTrackStore();
+  const notify = useNotice();
+  const settings = useUserSettings().data;
+  const network = Network.useNetworkState();
+  const [runtime, setRuntime] = useState<Runtime | null>(null);
+  // Read when a track is resolved, so a change applies from the next track on.
+  const stream = useRef({ settings, network: network.type });
+  stream.current = { settings, network: network.type };
+
+  useEffect(() => {
+    if (!socket || !api) return;
+    let cancelled = false;
+    let teardown: (() => void) | undefined;
+    void clientDevice().then(device => {
+      if (cancelled) return;
+      const send = (command: SessionCommand) => client.dispatch(command);
+      const engine = createPlayerEngine({ onInterrupted: () => send({ type: 'pause' }) });
+      const client: SessionClient = new SessionClient({
+        transport: createSocketTransport(socket),
+        device,
+        player: {
+          engine,
+          baseUrl: serverUrl,
+          canBoost: false,
+          normalization: stream.current.settings?.normalization,
+          resolvePlayback: entry => {
+            const { settings: current, network: type } = stream.current;
+            const kind = type === Network.NetworkStateType.CELLULAR ? 'cellular' : type === Network.NetworkStateType.WIFI ? 'wifi' : 'other';
+            return api.streaming.playback(entry.trackId, {
+              albumId: entry.albumId ?? undefined,
+              quality: qualityFor(current ?? defaultQuality, kind),
+              codecs: codecsFor(Platform.OS),
+            });
+          },
+        },
+      });
+
+      // The lock screen shows the loaded entry; its summary may arrive after it starts.
+      let waitingForItem = false;
+      const nowPlaying = connectNowPlaying(engine, entryId => {
+        const { session, queue } = client.getSnapshot();
+        const entry = findEntry({ ...session, ...queue }, entryId);
+        const track = entry && tracks.get(entry.trackId, entry.albumId);
+        waitingForItem = !track;
+        if (!track) return null;
+        return {
+          title: track.title,
+          artist: track.artistCredit,
+          album: track.album?.title,
+          artworkUrl: artworkUrl(serverUrl, track.album?.artwork, lockScreenArtSize) ?? undefined,
+          durationMs: entry.durationMs || track.durationMs,
+        };
+      }, {
+        onPlay: () => send({ type: 'play' }),
+        onPause: () => send({ type: 'pause' }),
+        onNext: () => send({ type: 'next' }),
+        onPrevious: () => send({ type: 'previous' }),
+        onSeek: positionMs => send({ type: 'seek', positionMs }),
+      });
+      const stopWaiting = tracks.subscribe(() => {
+        if (waitingForItem) nowPlaying.refresh();
+      });
+
+      // On-demand tracks the server could not fetch are skipped by the session; say so.
+      let previous = client.getSnapshot();
+      const stopWatching = client.subscribe(() => {
+        const next = client.getSnapshot();
+        for (const entry of newlyFailed({ ...previous.session, ...previous.queue }, { ...next.session, ...next.queue })) {
+          const title = tracks.get(entry.trackId, entry.albumId)?.title;
+          notify(title ? `Couldn’t get “${title}”. Skipped it.` : 'Couldn’t get a track. Skipped it.');
+        }
+        previous = next;
+      });
+
+      // A file that will not play is skipped. When the next one fails as well, the
+      // connection is the likelier cause, so playback pauses instead.
+      let lastSkip = -Infinity;
+      const stopErrors = engine.subscribe(event => {
+        if (event.type !== 'error') return;
+        const { session, connection } = client.getSnapshot();
+        if (session.current?.id !== event.entryId) return;
+        const title = tracks.get(session.current.trackId, session.current.albumId)?.title;
+        if (connection === 'online' && Date.now() - lastSkip > errorSkipWindowMs) {
+          lastSkip = Date.now();
+          notify(title ? `Couldn’t play “${title}”. ${event.message}` : event.message);
+          send({ type: 'next' });
+        } else {
+          notify(event.message);
+          send({ type: 'pause' });
+        }
+      });
+
+      client.start();
+      setRuntime({ client, device });
+      teardown = () => {
+        stopErrors();
+        stopWatching();
+        stopWaiting();
+        nowPlaying.disconnect();
+        client.dispose();
+      };
+    });
+    return () => {
+      cancelled = true;
+      teardown?.();
+      setRuntime(null);
+    };
+  }, [api, notify, serverUrl, socket, tracks]);
+
+  const normalization = settings?.normalization;
+  useEffect(() => {
+    if (runtime && normalization) runtime.client.setNormalization(normalization);
+  }, [normalization, runtime]);
+
+  return <RuntimeContext.Provider value={runtime}>{children}</RuntimeContext.Provider>;
 }
 
+function useSnapshot(): SessionClientSnapshot {
+  const runtime = useContext(RuntimeContext);
+  return useSyncExternalStore(runtime?.client.subscribe ?? noSubscription, runtime?.client.getSnapshot ?? idleSnapshot);
+}
+
+function createActions(runtime: Runtime | null) {
+  const send = (command: SessionCommand) => runtime?.client.dispatch(command);
+  const session = () => (runtime?.client.getSnapshot() ?? idle).session;
+  const enqueue = (tracks: readonly TrackSummary[], placement: 'next' | 'last') => {
+    const { seeds } = playableSeeds(tracks);
+    if (seeds.length) send({ type: 'enqueue', tracks: seeds, placement });
+  };
+  return {
+    playPause: () => send({ type: session().playing ? 'pause' : 'play' }),
+    play: () => send({ type: 'play' }),
+    seek: (positionMs: number) => send({ type: 'seek', positionMs: Math.max(0, positionMs) }),
+    next: () => send({ type: 'next' }),
+    previous: () => send({ type: 'previous' }),
+    setVolume: (deviceId: string, value: number) => send({ type: 'setVolume', deviceId, value: Math.min(1, Math.max(0, value)) }),
+    /** Moves playback to `deviceId`, which carries on from the current position. */
+    transfer: (deviceId: string) => send({ type: 'transfer', deviceId }),
+    toggleShuffle: () => send({ type: 'setShuffle', value: !session().shuffle, seed: randomSeed() }),
+    cycleRepeat: () => send({ type: 'setRepeat', value: nextRepeat(session().repeat) }),
+    toggleAutoplay: () => send({ type: 'setAutoplay', value: !session().autoplay }),
+    /**
+     * Replaces the queue with the playable tracks of a list, starting at `start` (an
+     * index into `tracks`). `shuffle` left out keeps the session's shuffle setting.
+     */
+    playTracks: (tracks: readonly TrackSummary[], { start, shuffle, context }: PlayOptions = {}) => {
+      const { seeds, startIndex } = playableSeeds(tracks, start);
+      if (!seeds.length) return;
+      send({
+        type: 'playTracks', tracks: seeds, seed: randomSeed(), shuffle, context: context ?? null,
+        startIndex: shuffle && start === undefined ? undefined : startIndex,
+      });
+    },
+    playRadio: ({ tracks, context }: RadioResponse) => send({ type: 'playTracks', tracks, context, startIndex: 0, seed: randomSeed() }),
+    /** Plays one track now and keeps the queue: it goes to the front, then playback moves to it. */
+    playNow: (track: TrackSummary) => {
+      enqueue([track], 'next');
+      send({ type: 'next' });
+    },
+    enqueue,
+    playQueueEntry: (entryId: string) => send({ type: 'playQueueEntry', entryId }),
+    removeFromQueue: (entryId: string) => send({ type: 'removeFromQueue', entryId }),
+    moveInQueue: (entryId: string, toIndex: number) => send({ type: 'moveInQueue', entryId, toIndex: Math.max(0, toIndex) }),
+    /** Up next for a queued entry; an autoplay suggestion is copied into the queue first. */
+    promote: (entry: QueueEntry, track: TrackSummary | undefined, autoplay: boolean) => {
+      if (!autoplay) return send({ type: 'moveInQueue', entryId: entry.id, toIndex: 0 });
+      send({ type: 'enqueue', tracks: [track ? seedOf(track) : { trackId: entry.trackId, albumId: entry.albumId, durationMs: entry.durationMs }], placement: 'next' });
+      send({ type: 'removeFromQueue', entryId: entry.id });
+    },
+    clearHistory: () => send({ type: 'clearHistory' }),
+  };
+}
+
+export type PlaybackActions = ReturnType<typeof createActions>;
+
+/**
+ * The session as the screens show it: the current entry and its track, the queue, the
+ * devices, and the commands. Position is not included; `usePosition` reads it.
+ */
 export function usePlaybackState() {
-  const playback = useContext(PlaybackContext)
-  if (!playback) throw new Error('Playback hooks must be used inside PlaybackProvider')
-  return playback
+  const runtime = useContext(RuntimeContext);
+  const snapshot = useSnapshot();
+  const { session, queue, devices } = snapshot;
+  const current = session.current;
+  const track = useTrack(current?.trackId, current?.albumId);
+  const actions = useMemo(() => createActions(runtime), [runtime]);
+  const device = runtime?.device;
+  const rows = useMemo(() => {
+    const self: DeviceInfo = { id: device?.id ?? '', name: device?.name ?? 'iPhone', kind: device?.kind ?? 'ios', canPlay: true, isActive: false };
+    return deviceRows(devices, self, session.activeDeviceId);
+  }, [device, devices, session.activeDeviceId]);
+  const output = outputDevice(rows);
+  return {
+    session,
+    queue,
+    current,
+    track,
+    /** The current entry's length, from the session or, while it is unknown there, the track. */
+    durationMs: current?.durationMs || track?.durationMs || 0,
+    preparing: current?.state === 'preparing',
+    connection: snapshot.connection,
+    devices: rows,
+    output,
+    volume: session.volumes[output.id] ?? 1,
+    /** Another device plays; this phone only controls it. */
+    remote: isRemote(session, device?.id ?? ''),
+    actions,
+  };
 }
 
-export function usePlayback() {
-  const playback = usePlaybackState()
-  const position = useContext(PositionContext)
-  return { ...playback, position }
+function useAppActive(): boolean {
+  const [active, setActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', status => setActive(status === 'active'));
+    return () => subscription.remove();
+  }, []);
+  return active;
+}
+
+/**
+ * The current entry's position in milliseconds, read from the session client four times
+ * a second while it moves, the app is on screen and `enabled`. Only the component calling
+ * this re-renders as it ticks.
+ */
+export function usePosition(enabled = true): number {
+  const runtime = useContext(RuntimeContext);
+  const { session } = useSnapshot();
+  const active = useAppActive();
+  const [position, setPosition] = useState(() => runtime?.client.getPositionMs() ?? 0);
+  useEffect(() => {
+    const read = () => setPosition(runtime?.client.getPositionMs() ?? 0);
+    read();
+    if (!runtime || !enabled || !active || !session.playing || session.stalled) return;
+    const timer = setInterval(read, 250);
+    return () => clearInterval(timer);
+  }, [active, enabled, runtime, session]);
+  return position;
 }

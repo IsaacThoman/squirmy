@@ -1,7 +1,9 @@
-import { Image, type ImageSource } from 'expo-image';
+import type { Artwork } from '@squirmy/contracts';
+import { Image } from 'expo-image';
 import { SymbolView, type AndroidSymbol } from 'expo-symbols';
 import type { ComponentProps } from 'react';
-import { type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
+import { useArtworkImage } from './data/artwork';
 import { useColors } from './theme';
 
 type AppleSymbol = Extract<ComponentProps<typeof SymbolView>['name'], string>;
@@ -25,6 +27,9 @@ const material: Record<string, AndroidSymbol> = {
   'square.grid.2x2': 'grid_view', 'person.crop.circle': 'account_circle', 'person.crop.circle.fill': 'account_circle',
   'person.crop.circle.badge.plus': 'person_add', 'server.rack': 'dns', 'arrow.left.arrow.right': 'swap_horiz',
   'rectangle.portrait.and.arrow.right': 'logout', 'safari': 'open_in_browser', 'ticket': 'confirmation_number', 'music.note.list': 'library_music', 'music.note.house': 'home',
+  'heart.slash': 'heart_broken', 'dot.radiowaves.left.and.right': 'radio', 'star': 'star_border', 'star.fill': 'star',
+  'square.stack': 'album', 'music.mic': 'mic', 'minus.circle': 'remove_circle_outline', 'gearshape': 'settings',
+  'wifi': 'wifi', 'wifi.exclamationmark': 'wifi_off', 'antenna.radiowaves.left.and.right': 'signal_cellular_alt',
 };
 
 export function Icon({ name, size = 22, color, style }: {
@@ -47,17 +52,32 @@ export function Icon({ name, size = 22, color, style }: {
   />;
 }
 
-export function Cover({ source, size, style, radius = 10 }: {
-  source: ImageSource | number | string;
-  size?: number;
+/** Artwork from the server, its placeholder while it loads, or a note on the surface color without any. */
+export function Cover({ artwork, size, style, radius = 10, icon = 'music.note' }: {
+  artwork: Artwork | null | undefined;
+  size: number;
   style?: ComponentProps<typeof Image>['style'];
   radius?: number;
+  icon?: string;
 }) {
   const colors = useColors();
+  const image = useArtworkImage(artwork, size);
+  const frame = { width: size, height: size, borderRadius: radius, backgroundColor: colors.surface };
+  if (!image) {
+    return <View style={[frame, styles.empty, style as StyleProp<ViewStyle>]}>
+      <Icon name={icon} size={Math.max(14, size * 0.34)} color={colors.quiet} />
+    </View>;
+  }
   return <Image
-    source={source}
+    source={image.source}
+    placeholder={image.placeholder}
+    placeholderContentFit="cover"
     contentFit="cover"
     cachePolicy="memory-disk"
-    style={[{ width: size, height: size, borderRadius: radius, backgroundColor: colors.surface }, style]}
+    recyclingKey={artwork?.id}
+    transition={120}
+    style={[frame, style]}
   />;
 }
+
+const styles = StyleSheet.create({ empty: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' } });

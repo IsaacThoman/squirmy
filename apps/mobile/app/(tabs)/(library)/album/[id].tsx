@@ -1,2 +1,2 @@
-import { AlbumRoute } from '../../../../src/BrowseRoutes';
-export default function Screen() { return <AlbumRoute tab="library" />; }
+import { PageRoute } from '../../../../src/BrowseRoutes';
+export default function Screen() { return <PageRoute tab="library" page="album" />; }

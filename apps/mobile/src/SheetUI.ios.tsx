@@ -1,11 +1,10 @@
-import { Button, Divider, Host, HStack, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Divider, Host, HStack, Slider, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, font, foregroundStyle, frame, lineLimit, padding,
+  accessibilityAddTraits, accessibilityLabel, font, foregroundStyle, frame, lineLimit, padding, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { tracks } from './catalog';
 import { IconButton, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
-import type { SheetFrameProps, SheetInfoProps, SheetRowProps } from './SheetUI';
+import type { SheetFrameProps, SheetInfoProps, SheetRowProps, SheetSliderProps, TrackSummaryProps } from './SheetUI';
 import { useColors } from './theme';
 
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
@@ -50,14 +49,13 @@ export function SheetRow({ title, subtitle, icon, selected, onPress }: SheetRowP
   </>;
 }
 
-export function TrackSummary({ id }: { id: string }) {
+export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
   const colors = useColors();
-  const track = tracks[id];
   return <HStack spacing={12} modifiers={[padding({ bottom: 4 })]}>
-    <TrackCover trackId={id} size={53} radius={9} />
+    <TrackCover track={track} size={53} radius={9} />
     <VStack alignment="leading" spacing={3}>
-      <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{track.title}</Text>
-      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1)]}>{track.artist}</Text>
+      <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{track?.title ?? 'Not Playing'}</Text>
+      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle ?? track?.artistCredit ?? ''}</Text>
     </VStack>
     <Spacer minLength={0} />
   </HStack>;
@@ -73,4 +71,16 @@ export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
     </VStack>
     <Spacer minLength={0} />
   </HStack>;
+}
+
+export function SheetSlider({ label, value, onChange }: SheetSliderProps) {
+  const colors = useColors();
+  return <VStack alignment="leading" spacing={6} modifiers={[padding({ top: 6 })]}>
+    <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.muted)]}>{label}</Text>
+    <HStack spacing={10}>
+      <Symbol name="speaker.fill" size={13} color={colors.muted} />
+      <Slider value={value} min={0} max={1} onValueChange={onChange} modifiers={[tint(colors.accent), accessibilityLabel(label)]} />
+      <Symbol name="speaker.wave.3.fill" size={15} color={colors.muted} />
+    </HStack>
+  </VStack>;
 }

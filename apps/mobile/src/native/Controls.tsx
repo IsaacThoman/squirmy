@@ -4,8 +4,8 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
 import type { ComponentProps } from 'react';
-import { albums, tracks } from '../catalog';
-import { usePlaybackState } from '../playback';
+import type { Artwork, TrackSummary } from '@squirmy/contracts';
+import { useRunTrackAction, useTrackActions, type TrackActionOptions } from '../library/trackActions';
 import { Cover } from '../ui';
 import { useColors } from '../theme';
 
@@ -40,38 +40,33 @@ export function IconButton({ symbol, label, size = 20, color, width = 44, height
   );
 }
 
-export function NativeCover({ source, size, radius }: ComponentProps<typeof Cover> & { size: number }) {
+export function NativeCover({ artwork, size, radius }: { artwork: Artwork | null | undefined; size: number; radius?: number }) {
   return <RNHostView matchContents>
-    <View style={{ width: size, height: size }}><Cover source={source} size={size} radius={radius} /></View>
+    <View style={{ width: size, height: size }}><Cover artwork={artwork} size={size} radius={radius} /></View>
   </RNHostView>;
 }
 
-export function TrackCover({ trackId, size = 42, radius = 8 }: { trackId: string; size?: number; radius?: number }) {
-  return <NativeCover source={albums[tracks[trackId].albumId].artwork} size={size} radius={radius} />;
+export function TrackCover({ track, size = 42, radius = 8 }: { track: TrackSummary | undefined; size?: number; radius?: number }) {
+  return <NativeCover artwork={track?.album?.artwork} size={size} radius={radius} />;
 }
 
-export function TrackActions({ trackId }: { trackId: string }) {
-  const { state, actions } = usePlaybackState();
-  const liked = state.favorites.includes(trackId);
+/** The track's actions as menu buttons. */
+export function TrackActions({ track, options }: { track: TrackSummary | undefined; options?: TrackActionOptions }) {
+  const actions = useTrackActions(track, options);
+  const run = useRunTrackAction(false);
   return <>
-    <Button label="Play now" systemImage="play.fill" onPress={() => {
-      if (state.trackId !== trackId || !state.playing) actions.playTrack(trackId);
-    }} />
-    <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward"
-      onPress={() => actions.addToQueue(trackId, 'next')} />
-    <Button label="Play last" systemImage="text.badge.plus" onPress={() => actions.addToQueue(trackId, 'last')} />
-    <Button label={liked ? 'Remove from Liked Songs' : 'Add to Liked Songs'} systemImage={liked ? 'heart.slash' : 'heart'}
-      onPress={() => actions.toggleFavorite(trackId)} />
+    {actions.map(action => <Button key={action.id} label={action.title} systemImage={action.icon as SymbolName}
+      role={action.destructive ? 'destructive' : undefined} onPress={() => run(action)} />)}
   </>;
 }
 
-export function TrackMenu({ trackId, label, color, children }: {
-  trackId: string; label?: string; color?: string; children?: React.ReactNode;
+export function TrackMenu({ track, options, label, color, children }: {
+  track: TrackSummary | undefined; options?: TrackActionOptions; label?: string; color?: string; children?: React.ReactNode;
 }) {
   const colors = useColors();
   return <Menu label={<Image systemName="ellipsis" size={19} color={color ?? colors.muted} modifiers={[iconFrame, hitShape]} />}
-    modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(label ?? `More options for ${tracks[trackId].title}`)]}>
-    <TrackActions trackId={trackId} />
+    modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(label ?? `More options for ${track?.title ?? 'this song'}`)]}>
+    <TrackActions track={track} options={options} />
     {children}
   </Menu>;
 }

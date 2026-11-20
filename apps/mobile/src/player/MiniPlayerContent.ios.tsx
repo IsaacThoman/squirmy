@@ -3,7 +3,7 @@ import { accessibilityHidden, accessibilityLabel, font, foregroundStyle, frame, 
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { IconButton, hitShape, plainButton } from '../native/Controls';
-import { usePlayback, usePlaybackState } from '../playback';
+import { usePlaybackState, usePosition } from '../playback';
 import { Cover } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
@@ -11,7 +11,9 @@ import { useColors } from '../theme';
 
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
   const colors = useColors();
-  const { track, album, device, state, actions } = usePlaybackState();
+  const { track, output, session, actions, preparing, remote } = usePlaybackState();
+  const title = track?.title ?? 'Not Playing';
+  const subtitle = preparing ? 'Preparing…' : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
   // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
@@ -26,25 +28,25 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
       <Host ignoreSafeArea="container" style={styles.container}>
         <ZStack alignment="bottom">
           <HStack spacing={0} modifiers={[padding({ horizontal: compact ? 10 : 12 }), frame({ maxHeight: Infinity })]}>
-            <Button onPress={onOpen} modifiers={[plainButton, accessibilityLabel(`Open Now Playing, ${track.title}`)]}>
+            <Button onPress={onOpen} modifiers={[plainButton, accessibilityLabel(`Open Now Playing, ${title}`)]}>
               <HStack spacing={9} modifiers={[frame({ minHeight: 44 }), hitShape]}>
                 {preview ? <Spacer minLength={0} modifiers={[frame({ width: size, height: size })]} /> : (
                   <RNHostView matchContents>
                     <View style={{ width: size, height: size }}>
-                      <Cover source={album.artwork} size={size} radius={8} />
+                      <Cover artwork={track?.album?.artwork} size={size} radius={8} />
                     </View>
                   </RNHostView>
                 )}
                 <VStack alignment="leading" spacing={1}>
-                  <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{track.title}</Text>
-                  {!compact && <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), lineLimit(1)]}>{track.artist}</Text>}
+                  <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>
+                  {!compact && <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>}
                 </VStack>
                 <Spacer minLength={4} />
               </HStack>
             </Button>
-            {!compact && <IconButton symbol="airplay.audio" label={`Playback device, ${device.name}`}
+            {!compact && <IconButton symbol="airplay.audio" label={`Playback device, ${output.name}`}
               size={20} color={colors.accent} onPress={onDevices} />}
-            <IconButton symbol={state.playing ? 'pause.fill' : 'play.fill'} label={state.playing ? 'Pause' : 'Play'}
+            <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={session.playing ? 'Pause' : 'Play'}
               size={22} onPress={preview ? undefined : actions.playPause} />
           </HStack>
           {!compact && <Progress />}
@@ -57,8 +59,10 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
 /** The only part of the bubble that follows the playback clock, so each tick redraws just this. */
 function Progress() {
   const colors = useColors();
-  const { track, position } = usePlayback();
-  return <ProgressView value={Math.min(1, position / track.duration)}
+  const { durationMs } = usePlaybackState();
+  const position = usePosition();
+  const fraction = durationMs > 0 ? Math.min(1, position / durationMs) : 0;
+  return <ProgressView value={fraction}
     modifiers={[tint(colors.accent), padding({ horizontal: 26, bottom: 1 }), accessibilityHidden(true)]} />;
 }
 
