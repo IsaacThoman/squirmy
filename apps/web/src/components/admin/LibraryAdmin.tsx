@@ -1,17 +1,17 @@
 import type { JobQueueStats, LibraryRoot, LibraryStats, ServerEvent } from '@squirmy/contracts'
-import { Eye, FolderOpen, FolderPlus, MoreHorizontal, RefreshCw, ScanLine } from 'lucide-react'
+import { Briefcase, Eye, FolderOpen, FolderPlus, MoreHorizontal, RefreshCw, ScanLine } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
-import { Badge, Spinner } from '@/components/ui/feedback'
+import { Badge, EmptyState, Skeleton, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { Field, Input } from '@/components/ui/input'
 import { DropdownMenu } from '@/components/ui/menu'
-import { Switch } from '@/components/ui/switch'
 import { formatBytes, formatRelative, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AdminHeader, ProgressBar, Stat } from './AdminLayout'
+import { ManagedSwitch } from './ManagedSwitch'
 
 type ScanProgress = Extract<ServerEvent, { type: 'scan.progress' }>
 
@@ -125,49 +125,55 @@ function AddRootDialog({ open, onOpenChange, onAdd }: { open: boolean; onOpenCha
   )
 }
 
-export function ManagedSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
-  return (
-    <label className="flex items-center justify-between gap-4 rounded-xl bg-surface px-3.5 py-3">
-      <span>
-        <span className="block text-sm font-semibold">Let Squirmy organize this folder</span>
-        <span className="block text-xs text-muted">Identified music is renamed into Artist/Album folders. Every move can be previewed and undone.</span>
-      </span>
-      <Switch checked={checked} onCheckedChange={onChange} />
-    </label>
-  )
+type JobsAdminProps = {
+  /** Undefined while loading. */
+  jobs: JobQueueStats[] | undefined
+  /** When the numbers were fetched; they refresh on their own every few seconds. */
+  updatedAt: number
+  onRefresh: () => void
 }
 
-export function JobsAdmin({ jobs, onRefresh }: { jobs: JobQueueStats[]; onRefresh: () => void }) {
+export function JobsAdmin({ jobs, updatedAt, onRefresh }: JobsAdminProps) {
   return (
     <div>
       <AdminHeader title="Jobs" description="Background work. Heavy jobs such as loudness run at low priority so new music is browsable first.">
         <Button onClick={onRefresh}><RefreshCw />Refresh</Button>
       </AdminHeader>
-      <div className="overflow-x-auto rounded-2xl bg-sheet ring-1 ring-stroke">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-stroke text-left text-xs font-semibold uppercase tracking-wider text-quiet">
-              <th className="px-4 py-3 font-semibold">Queue</th>
-              <th className="px-4 py-3 text-right font-semibold">Queued</th>
-              <th className="px-4 py-3 text-right font-semibold">Active</th>
-              <th className="px-4 py-3 text-right font-semibold">Failed</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stroke">
-            {jobs.map(job => (
-              <tr key={job.name} className="transition-colors hover:bg-overlay">
-                <td className="px-4 py-3 font-mono text-[13px]">
-                  <span className={cn('mr-2.5 inline-block size-2 rounded-full', job.active ? 'bg-accent' : 'bg-stroke')} aria-hidden />
-                  {job.name}
-                </td>
-                <td className="px-4 py-3 text-right tabular">{job.queued.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right tabular">{job.active}</td>
-                <td className={cn('px-4 py-3 text-right tabular', job.failed ? 'font-semibold text-danger' : 'text-quiet')}>{job.failed}</td>
+      {jobs && (
+        <p className="-mt-3 mb-4 flex items-center gap-2 px-1 text-xs font-medium text-quiet">
+          <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-accent" />
+          Live · updated {formatRelative(new Date(updatedAt).toISOString())}
+        </p>
+      )}
+      {jobs?.length === 0 && <EmptyState icon={<Briefcase />} title="No queues yet" description="Queues appear once the server has work of that kind." />}
+      {!jobs && <Skeleton className="h-48 rounded-2xl" />}
+      {jobs && jobs.length > 0 && (
+        <div className="overflow-x-auto rounded-2xl bg-sheet ring-1 ring-stroke">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-stroke text-left text-xs font-semibold uppercase tracking-wider text-quiet">
+                <th className="px-4 py-3 font-semibold">Queue</th>
+                <th className="px-4 py-3 text-right font-semibold">Queued</th>
+                <th className="px-4 py-3 text-right font-semibold">Active</th>
+                <th className="px-4 py-3 text-right font-semibold">Failed</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-stroke">
+              {jobs.map(job => (
+                <tr key={job.name} className="transition-colors hover:bg-overlay">
+                  <td className="px-4 py-3 font-mono text-[13px]">
+                    <span className={cn('mr-2.5 inline-block size-2 rounded-full', job.active ? 'bg-accent' : 'bg-stroke')} aria-hidden />
+                    {job.name}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular">{job.queued.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right tabular">{job.active}</td>
+                  <td className={cn('px-4 py-3 text-right tabular', job.failed ? 'font-semibold text-danger' : 'text-quiet')}>{job.failed}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

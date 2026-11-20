@@ -8,8 +8,9 @@ function emit() {
   for (const listener of listeners) listener()
 }
 
-/** Shows a short confirmation at the bottom of the screen. */
+/** Shows a short confirmation at the bottom of the screen. A message already showing is not repeated. */
 export function toast(message: Omit<ToastMessage, 'id'>) {
+  if (toasts.some(item => item.title === message.title && item.description === message.description)) return
   toasts = [...toasts, { ...message, id: nextId++ }]
   emit()
 }

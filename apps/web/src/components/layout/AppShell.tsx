@@ -9,6 +9,7 @@ import { useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
 import { CreatePlaylistDialog } from './CreatePlaylistDialog'
 import { ScrollContainerContext } from './scroll-context'
+import { ShellNotices } from './ShellNotices'
 import { Sidebar } from './Sidebar'
 import { TabBar } from './TabBar'
 import { TopBar } from './TopBar'
@@ -18,13 +19,14 @@ type AppShellProps = {
   playlists: PlaylistSummary[]
   likedCount: number
   onCreatePlaylist: (request: CreatePlaylistRequest) => void
+  onLogout: () => void
 }
 
 /**
  * Sidebar, scrolling main view, queue panel and player bar on wide screens; tabs and a
  * mini-player below 768px, as on the phone.
  */
-export function AppShell({ user, playlists, likedCount, onCreatePlaylist }: AppShellProps) {
+export function AppShell({ user, playlists, likedCount, onCreatePlaylist, onLogout }: AppShellProps) {
   const player = usePlayer()
   const library = useLibrary()
   const { pathname } = useLocation()
@@ -56,7 +58,7 @@ export function AppShell({ user, playlists, likedCount, onCreatePlaylist }: AppS
         className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain pb-(--player-height) [--gutter:1rem] md:[--gutter:1.5rem] lg:[--gutter:2rem]"
       >
         <ScrollContainerContext value={scroller}>
-          <TopBar user={user} />
+          <TopBar user={user} onLogout={onLogout} />
           <Outlet />
         </ScrollContainerContext>
       </main>
@@ -94,6 +96,7 @@ export function AppShell({ user, playlists, likedCount, onCreatePlaylist }: AppS
         onToggleLike={toggleLike}
       />
       <CreatePlaylistDialog open={creating} onOpenChange={setCreating} onCreate={onCreatePlaylist} />
+      <ShellNotices />
     </div>
   )
 }

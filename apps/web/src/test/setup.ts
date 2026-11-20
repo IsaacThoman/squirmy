@@ -28,3 +28,7 @@ globalThis.PointerEvent ??= class PointerEvent extends MouseEvent {
     this.pointerId = init.pointerId ?? 0
   }
 } as unknown as typeof globalThis.PointerEvent
+// jsdom has no media playback; these would otherwise log "not implemented".
+HTMLMediaElement.prototype.load = function load() {}
+HTMLMediaElement.prototype.pause = function pause() {}
+HTMLMediaElement.prototype.play = function play() { return Promise.resolve() }
