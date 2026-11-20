@@ -4,9 +4,15 @@ Version 1.
 
 An acquisition provider is a small HTTP service you run next to Squirmy that can supply audio files for music the server does not have yet. When one is connected, tracks it can supply stop being gray: playing one fetches the file in the background, files it into the library like any other import, and starts playback when it arrives.
 
-Squirmy ships no providers that fetch from third parties and names none. The protocol is generic; what you connect is your decision and your responsibility. The repository includes two reference adapters: one that serves files from a cold-storage folder you already own, and a mock used in tests.
+Squirmy ships no providers that fetch from third parties and names none. The protocol is generic; what you connect is your decision and your responsibility. The repository includes two reference adapters: one that serves files from a cold-storage folder you already own ([adapters/cold-storage](../adapters/cold-storage/README.md)), and a mock used in tests and demos ([adapters/mock](../adapters/mock/README.md)). Both are built on `@squirmy/provider-kit` (`adapters/kit`), which implements everything below except "what do you have" and "fetch it", so a new provider is mostly those two functions.
 
 The schemas for every message are in `packages/contracts/src/acquisition.ts` (names start with `Provider`).
+
+## Connecting a provider
+
+An admin adds a provider with its base URL and shared secret (`POST /api/v1/admin/acquisition/providers`); the server calls `GET /capabilities` right away and again on "Test". A provider counts only while it is enabled and has answered `capabilities` once. With several, they are tried in descending priority.
+
+The server tells a provider where to deliver with absolute URLs. Their origin is, in order: the policy's `deliveryBaseUrl` (`PATCH /api/v1/admin/acquisition/policy`), `PUBLIC_URL`, or `http://localhost:<PORT>`. A provider in another container needs one of the first two, for example `deliveryBaseUrl: "http://squirmy:4747"` on a shared Docker network.
 
 ## Overview
 
@@ -48,8 +54,8 @@ Describes the provider.
 
 `coverage` decides how tracks appear before anyone asks for them:
 
-- `must_resolve`: a track is playable on demand only after a `resolve` call returned an offer for it. Use this when the provider knows exactly what it has.
-- `assume_available`: every track shows as playable on demand. If a later request finds nothing, that track turns gray and is not asked for again for a while.
+- `must_resolve`: a track is playable on demand only after a `resolve` call returned an offer for it. Use this when the provider knows exactly what it has. The server asks about tracks as lists show them, in batches of up to 100, and remembers the answers: offers for 30 days, "nothing" for a day.
+- `assume_available`: every track shows as playable on demand. If a later request finds nothing, or the delivery fails, that track turns gray for a day and is not asked for again until then.
 
 ## `POST /resolve`
 
@@ -91,7 +97,11 @@ Any identifying field may be null or empty; match on what is present, most speci
 
 An item with an empty `offers` array cannot be supplied. `offerId` is opaque to the server. Respond within 15 seconds.
 
-The `price` field on an offer is reserved for purchasing. This version of the server ignores any offer that has one.
+An `album` item asks for a whole release group (`ProviderAlbumQuery`: title, artist, MusicBrainz id, barcode and the track list). The server sends album items only to providers whose `kinds` include `album`; otherwise an album request becomes one recording request per missing track.
+
+When several offers come back, the server takes lossless ones first (or lossy first when the operator turns `preferLossless` off), then the highest quality: sample rate × bit depth for lossless, bitrate for lossy. Expired offers (`expiresAt` in the past) are skipped.
+
+The `price` field on an offer is reserved for purchasing. This version of the server ignores any offer that has one: it is never chosen, and a track with only priced offers stays gray.
 
 ## `POST /acquire`
 
@@ -109,14 +119,23 @@ Starts fetching one offer.
 }
 ```
 
-Respond quickly with `{ "accepted": true, "providerJobId": "…" }` and do the work in the background, or `{ "accepted": false, "error": "…" }`. The server may send the same `jobId` twice; treat it as an idempotency key and do not fetch twice.
+Respond quickly with `{ "accepted": true, "providerJobId": "…" }` and do the work in the background, or `{ "accepted": false, "error": "…" }` (the job then ends as `rejected`). The server may send the same `jobId` twice, after a restart; treat it as an idempotency key and do not fetch twice, but use the `delivery` from the latest request: it carries a new token, and the old one no longer works.
+
+The server sends at most `maxConcurrent` jobs to a provider at once; others wait their turn.
 
 ## Delivering files
 
-1. `POST delivery.uploadUrl` as `multipart/form-data` with one or more `file` parts. Keep the original filename and extension. An album may be sent in one request or several.
+1. `POST delivery.uploadUrl` as `multipart/form-data` with one or more `file` parts. Keep the original filename and extension. A text field `relativePath` sent just before a file part names its path inside the delivery (`Album/01 Song.flac`), which keeps an album's files together. An album may be sent in one request or several. The answer is `ProviderUploadResponse`: each file `accepted`, or `rejected` with a reason (not audio, an unsafe name). A file larger than the operator's per-file limit (`maxFileBytes`) ends the request with 413 and fails the job.
 2. `POST delivery.completeUrl` with `{ "status": "completed" }`, or `{ "status": "failed", "error": "…" }`.
 
-The server then runs its normal import: read tags, identify, file into the library. Before a delivered file is linked to the requested track it is checked against the request (duration, and fingerprint when available). A file that does not match is quarantined and the job fails.
+Both URLs answer 401 `invalid_delivery_token` for a missing or wrong token (including another job's), 409 `job_not_active` once the job has ended, and 429 past 120 requests a minute per job and address.
+
+The server then runs its normal import: read tags, identify, file into the library. Then it checks the delivery against the request. A requested track is delivered when, after the import:
+
+- the pipeline linked a delivered file to it (for example by the MusicBrainz id in its tags); or
+- a delivered file is plainly the same recording: it shares an ISRC with it, or has the same title and artist ("Artist feat. Other" counts as "Artist") with a length within 5 seconds. With an AcoustID key configured and a MusicBrainz id requested, AcoustID must not name only other recordings for the file. Two different MusicBrainz ids are never the same recording.
+
+In the second case the two catalog rows are merged, so the id that queues and playlists hold plays: a row with a MusicBrainz id wins over one without, otherwise the requested row wins. A file that does not match stays where the import left it, marked as coming from the provider (`media_files.source = provider:<id>`), is never linked to the requested track, and the job fails.
 
 ## `GET /jobs/{providerJobId}`
 
@@ -126,11 +145,17 @@ Polled only when a job has had no upload or completion for a while.
 { "status": "running", "progress": 0.4 }
 ```
 
-`status` is `queued`, `running`, `completed` or `failed`. A job that is still not complete after the operator's timeout is marked failed on the server.
+`status` is `queued`, `running`, `completed` or `failed`. The server polls a job that has had no upload or completion for a minute. `failed` fails the job; `completed` is treated as a completion. A job that has not delivered within the operator's timeout (`timeoutSeconds`, 15 minutes by default) is marked failed on the server, and later uploads for it are refused.
+
+## On the server
+
+A job goes `resolving → queued → downloading → importing → completed`, or ends `failed` or `rejected`. Each change is published to the requesting user as `acquisition.updated`. A playback session waiting on the track (`preparing`) becomes `ready` when the job completes, and `failed` (and is skipped) when it fails. A failed job records a miss, so the track is gray for a day. `GET /api/v1/admin/acquisition/jobs` lists every job with who asked, the provider, the status and the error.
 
 ## What the server enforces
 
-- Only users the operator has allowed may trigger a fetch.
-- Per-file size limit, optional total storage quota, concurrency per provider.
+- Only users the operator has allowed may trigger a fetch (admins, and members with "can acquire").
+- One job in flight per track or album: requests from several devices or users join it.
+- Per-file size limit, optional total storage quota (requests are refused once acquired files fill it), concurrency per provider.
 - Every job is recorded with who asked, what for, which provider, and the outcome.
 - Files that arrive this way are marked with their source, so they can be listed and removed.
+- Every call to a provider has a timeout, sends the shared secret, follows redirects only within the provider's own address, reads at most 4 MiB, and is validated against the schemas. A provider that misbehaves fails its own jobs and nothing else.
