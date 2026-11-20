@@ -1,0 +1,106 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=barcode%3A644110033499+OR+barcode%3A0644110033499&limit=25&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T17:53:20.829Z",
+      "count": 1,
+      "offset": 0,
+      "releases": [
+        {
+          "id": "49a79669-60fe-4563-a508-d3158b91b014",
+          "score": 100,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "artist-credit-id": "fbf852ba-68c8-397c-a424-97264a039a3e",
+          "count": 1,
+          "title": "Antisocialites",
+          "status": "Official",
+          "packaging": "None",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "artist-credit": [
+            {
+              "name": "Alvvays",
+              "artist": {
+                "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                "name": "Alvvays",
+                "sort-name": "Alvvays"
+              }
+            }
+          ],
+          "release-group": {
+            "id": "1f0a3090-ae8c-4fbd-9b70-b4371961ef11",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Antisocialites",
+            "primary-type": "Album"
+          },
+          "date": "2017-09-08",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "2017-09-08",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "barcode": "644110033499",
+          "label-info": [
+            {
+              "label": {
+                "id": "2ad60482-164f-4e5c-ac78-1f5267d4fdc0",
+                "name": "Polyvinyl"
+              }
+            }
+          ],
+          "track-count": 10,
+          "media": [
+            {
+              "id": "c18203d0-d3ee-3221-8607-1c136b9a7f3b",
+              "format": "Digital Media",
+              "disc-count": 0,
+              "track-count": 10
+            }
+          ],
+          "tags": [
+            {
+              "count": 2,
+              "name": "pop"
+            },
+            {
+              "count": 1,
+              "name": "indie rock"
+            },
+            {
+              "count": 1,
+              "name": "alternative"
+            },
+            {
+              "count": 1,
+              "name": "jangle pop"
+            },
+            {
+              "count": 1,
+              "name": "toronto"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

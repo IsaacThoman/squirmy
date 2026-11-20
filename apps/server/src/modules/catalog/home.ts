@@ -1,6 +1,7 @@
 import type { HomeResponse, HomeSection } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
+import { newReleaseAlbumIds } from '../enrichment/releases.js'
 import { listLikes } from '../userdata/likes.js'
 import { listPlaylists } from '../userdata/playlists.js'
 import { refreshWants, wantedAlbumIds } from '../userdata/wants.js'
@@ -20,10 +21,11 @@ const RECENT_PLAYS = 500
  * - `playlists`: the user's own playlists, recently updated first.
  * - `liked-albums`: albums the user liked, newest first.
  * - `wantlist`: albums on the user's wantlist, newest first.
+ * - `new-releases`: recent albums by library artists that the library lacks, newest first.
  */
 export async function home(userId: string): Promise<HomeResponse> {
   await refreshWants(userId)
-  const [recentlyAdded, recentlyPlayed, mostPlayed, playlists, liked, wanted] = await Promise.all([
+  const [recentlyAdded, recentlyPlayed, mostPlayed, playlists, liked, wanted, newReleases] = await Promise.all([
     listLibraryAlbums({ sort: 'recent', limit: RAIL }),
     db.execute<{ id: string }>(sql`
       select recent.album_id as id from (
@@ -38,6 +40,7 @@ export async function home(userId: string): Promise<HomeResponse> {
     listPlaylists(userId, { limit: RAIL }, { ownOnly: true }),
     listLikes(userId, 'album', { limit: RAIL }),
     wantedAlbumIds(userId, RAIL).then(albumSummaries),
+    newReleaseAlbumIds(RAIL).then(albumSummaries),
   ])
   const sections: HomeSection[] = [
     { kind: 'albums', id: 'recently-added', title: 'Recently added', albums: recentlyAdded.items },
@@ -46,6 +49,7 @@ export async function home(userId: string): Promise<HomeResponse> {
     { kind: 'playlists', id: 'playlists', title: 'Your playlists', playlists: playlists.items },
     { kind: 'albums', id: 'liked-albums', title: 'Liked albums', albums: liked.items },
     { kind: 'albums', id: 'wantlist', title: 'Wantlist', albums: wanted },
+    { kind: 'albums', id: 'new-releases', title: 'New releases', albums: newReleases },
   ]
   return { sections: sections.filter((section) => sectionItems(section).length > 0) }
 }

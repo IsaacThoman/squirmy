@@ -58,6 +58,14 @@ describe('deezer', () => {
     expect(new Set(albums.map((album) => album.type))).toContain('single')
   })
 
+  it('looks albums up by UPC and tracks by ISRC', async () => {
+    const album = await deezer.getAlbumByUpc('634904078164')
+    expect(album).toMatchObject({ id: okComputer, title: 'OK Computer', upc: '634904078164' })
+    expect(album!.tracks).toHaveLength(12)
+    expect(await deezer.getTrackByIsrc('GBAYE9701274')).toMatchObject({ title: 'Airbag', isrc: 'GBAYE9701274' })
+    expect(await deezer.getAlbumByUpc('999999999999')).toBeNull()
+  })
+
   it('returns null for Deezer "no data" errors', async () => {
     expect(await deezer.getAlbum(999999999999)).toBeNull()
     expect(await deezer.getTrack(999999999999)).toBeNull()

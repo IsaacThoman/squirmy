@@ -1,0 +1,267 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/369493327/tracks?limit=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 1982378377,
+          "readable": true,
+          "title": "In Undertow",
+          "title_short": "In Undertow",
+          "title_version": "",
+          "isrc": "US3R41733401",
+          "link": "https://www.deezer.com/track/1982378377",
+          "duration": 197,
+          "track_position": 1,
+          "disk_number": 1,
+          "rank": 178273,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/0/9/d/0/09d252b5b7adae538e66519b8abbcba6.mp3?hdnea=exp=1795198098~acl=/api/1/1/0/9/d/0/09d252b5b7adae538e66519b8abbcba6.mp3*~data=user_id=0,application_id=42~hmac=ae7ea67c476488ab8df397b0dda07843faf9c672c9775f46493ff60d4754b2d1",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1982378387,
+          "readable": true,
+          "title": "Dreams Tonite",
+          "title_short": "Dreams Tonite",
+          "title_version": "",
+          "isrc": "US3R41733402",
+          "link": "https://www.deezer.com/track/1982378387",
+          "duration": 196,
+          "track_position": 2,
+          "disk_number": 1,
+          "rank": 321590,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/f/4/b/0/f4bc6032be3a252b5138cac2e627603b.mp3?hdnea=exp=1795198098~acl=/api/1/1/f/4/b/0/f4bc6032be3a252b5138cac2e627603b.mp3*~data=user_id=0,application_id=42~hmac=1a02db9c334fb686c23a61a43b1095f87c7b729dc321697c7fefee73434e593c",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1982378397,
+          "readable": true,
+          "title": "Plimsoll Punks",
+          "title_short": "Plimsoll Punks",
+          "title_version": "",
+          "isrc": "US3R41733403",
+          "link": "https://www.deezer.com/track/1982378397",
+          "duration": 289,
+          "track_position": 3,
+          "disk_number": 1,
+          "rank": 178099,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/9/6/6/0/966e4de8068073c5bb9a5ba520f5c614.mp3?hdnea=exp=1795198098~acl=/api/1/1/9/6/6/0/966e4de8068073c5bb9a5ba520f5c614.mp3*~data=user_id=0,application_id=42~hmac=a5362a1e9374617dfbf08bf233fe91f5986c5bb4d6e52224af153188bd358868",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1982378417,
+          "readable": true,
+          "title": "Your Type",
+          "title_short": "Your Type",
+          "title_version": "",
+          "isrc": "US3R41733404",
+          "link": "https://www.deezer.com/track/1982378417",
+          "duration": 123,
+          "track_position": 4,
+          "disk_number": 1,
+          "rank": 109628,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/1/2/4/0/124ee47adf08557f1a76fa582ff8c43c.mp3?hdnea=exp=1795198098~acl=/api/1/1/1/2/4/0/124ee47adf08557f1a76fa582ff8c43c.mp3*~data=user_id=0,application_id=42~hmac=b0b069279b9a90050bc2edfbba047a11a65eeb123b002a0ad26aac57be0b3827",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1982378427,
+          "readable": true,
+          "title": "Not My Baby",
+          "title_short": "Not My Baby",
+          "title_version": "",
+          "isrc": "US3R41733405",
+          "link": "https://www.deezer.com/track/1982378427",
+          "duration": 256,
+          "track_position": 5,
+          "disk_number": 1,
+          "rank": 283018,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/8/b/f/0/8bf4b6db19fbe2a41a5eabaf4c17e5c7.mp3?hdnea=exp=1795198098~acl=/api/1/1/8/b/f/0/8bf4b6db19fbe2a41a5eabaf4c17e5c7.mp3*~data=user_id=0,application_id=42~hmac=98f6ddf59361df2cb027416150d432b076f8759ca0225db406245d0f59533a65",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1982378447,
+          "readable": true,
+          "title": "Hey",
+          "title_short": "Hey",
+          "title_version": "",
+          "isrc": "US3R41733406",
+          "link": "https://www.deezer.com/track/1982378447",
+          "duration": 168,
+          "track_position": 6,
+          "disk_number": 1,
+          "rank": 164237,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/8/7/c/0/87c0b2c9cea45e96a9781092ca776fe4.mp3?hdnea=exp=1795198098~acl=/api/1/1/8/7/c/0/87c0b2c9cea45e96a9781092ca776fe4.mp3*~data=user_id=0,application_id=42~hmac=7f1bd8cb6b9e9cd5e0ec97ce0192d4e53cde695be7a511bc3528d15ed341c6f5",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1982378467,
+          "readable": true,
+          "title": "Lollipop (Ode To Jim)",
+          "title_short": "Lollipop (Ode To Jim)",
+          "title_version": "",
+          "isrc": "US3R41733407",
+          "link": "https://www.deezer.com/track/1982378467",
+          "duration": 197,
+          "track_position": 7,
+          "disk_number": 1,
+          "rank": 149981,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/7/2/9/0/729c013a59046fd61630626b86008639.mp3?hdnea=exp=1795198098~acl=/api/1/1/7/2/9/0/729c013a59046fd61630626b86008639.mp3*~data=user_id=0,application_id=42~hmac=da0547a1adefeb09e0f8bf152a70fd2987b4704c321e841516d4e902dfde586f",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1982378477,
+          "readable": true,
+          "title": "Already Gone",
+          "title_short": "Already Gone",
+          "title_version": "",
+          "isrc": "US3R41733408",
+          "link": "https://www.deezer.com/track/1982378477",
+          "duration": 183,
+          "track_position": 8,
+          "disk_number": 1,
+          "rank": 91948,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/4/5/c/0/45c0e56f9d7ef6c098216c9231810815.mp3?hdnea=exp=1795198098~acl=/api/1/1/4/5/c/0/45c0e56f9d7ef6c098216c9231810815.mp3*~data=user_id=0,application_id=42~hmac=154e56471ccbf94df829e2ea8c3ab5c9ecfd082a4787df46871c1668691e129c",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1982378497,
+          "readable": true,
+          "title": "Saved By A Waif",
+          "title_short": "Saved By A Waif",
+          "title_version": "",
+          "isrc": "US3R41733409",
+          "link": "https://www.deezer.com/track/1982378497",
+          "duration": 179,
+          "track_position": 9,
+          "disk_number": 1,
+          "rank": 174328,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/0/b/8/0/0b858a82bb67f2ac4302830b4122de94.mp3?hdnea=exp=1795198098~acl=/api/1/1/0/b/8/0/0b858a82bb67f2ac4302830b4122de94.mp3*~data=user_id=0,application_id=42~hmac=3e885db3e64a25f67e4012b3643b6c74bdb165f016e8655d6d473af279c35b5f",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1982378507,
+          "readable": true,
+          "title": "Forget About Life",
+          "title_short": "Forget About Life",
+          "title_version": "",
+          "isrc": "US3R41733410",
+          "link": "https://www.deezer.com/track/1982378507",
+          "duration": 162,
+          "track_position": 10,
+          "disk_number": 1,
+          "rank": 138786,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/b/8/1/0/b8193e6dd8ad649698302da6c0eeecd2.mp3?hdnea=exp=1795198098~acl=/api/1/1/b/8/1/0/b8193e6dd8ad649698302da6c0eeecd2.mp3*~data=user_id=0,application_id=42~hmac=a5af5dfdf189c8377cbe967556ac71dfdd2e951952a17134470265674b917906",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "track"
+        }
+      ],
+      "total": 10
+    }
+  }
+}

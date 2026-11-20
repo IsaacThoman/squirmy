@@ -1,0 +1,217 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group/1f0a3090-ae8c-4fbd-9b70-b4371961ef11?inc=artist-credits+genres+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "title": "Antisocialites",
+      "primary-type": "Album",
+      "id": "1f0a3090-ae8c-4fbd-9b70-b4371961ef11",
+      "genres": [
+        {
+          "count": 2,
+          "id": "f390be72-360b-41bb-a310-6a2e638779d2",
+          "disambiguation": "",
+          "name": "indie pop"
+        }
+      ],
+      "relations": [
+        {
+          "url": {
+            "id": "3a97cf3d-716c-4ac4-8028-5e30c3a5eb46",
+            "resource": "https://www.allmusic.com/album/mw0003057897"
+          },
+          "direction": "forward",
+          "attribute-values": {},
+          "type": "allmusic",
+          "type-id": "a50a1d20-2b20-4d2c-9a29-eb771dd78386",
+          "target-credit": "",
+          "end": null,
+          "source-credit": "",
+          "begin": null,
+          "attributes": [],
+          "target-type": "url",
+          "ended": false,
+          "attribute-ids": {}
+        },
+        {
+          "begin": null,
+          "attributes": [],
+          "ended": false,
+          "target-type": "url",
+          "attribute-ids": {},
+          "end": null,
+          "source-credit": "",
+          "target-credit": "",
+          "direction": "forward",
+          "url": {
+            "id": "2ba325b9-0d96-47bd-b25a-5ab25ccc8aa1",
+            "resource": "https://www.last.fm/music/Alvvays/Antisocialites"
+          },
+          "type": "discography entry",
+          "attribute-values": {},
+          "type-id": "5849de4a-78ae-4876-975d-2181107e70b7"
+        },
+        {
+          "source-credit": "",
+          "end": null,
+          "attribute-ids": {},
+          "target-type": "url",
+          "ended": false,
+          "attributes": [],
+          "begin": null,
+          "type-id": "99e550f3-5ab4-3110-b5b9-fe01d970b126",
+          "attribute-values": {},
+          "type": "discogs",
+          "url": {
+            "resource": "https://www.discogs.com/master/1233695",
+            "id": "2d1558cb-8a6b-45e3-84f7-06dde30fbe2c"
+          },
+          "direction": "forward",
+          "target-credit": ""
+        },
+        {
+          "type": "other databases",
+          "attribute-values": {},
+          "type-id": "38320e40-9f4a-3ae7-8cb2-3f3c9c5d856d",
+          "url": {
+            "id": "0708c05e-3c4e-481c-80e7-af06ab6b07ac",
+            "resource": "https://rateyourmusic.com/release/album/alvvays/antisocialites/"
+          },
+          "direction": "forward",
+          "target-credit": "",
+          "source-credit": "",
+          "end": null,
+          "target-type": "url",
+          "ended": false,
+          "attribute-ids": {},
+          "begin": null,
+          "attributes": []
+        },
+        {
+          "target-credit": "",
+          "type-id": "c3ac9c3b-f546-4d15-873f-b294d2c1b708",
+          "type": "review",
+          "attribute-values": {},
+          "url": {
+            "resource": "https://pitchfork.com/reviews/albums/alvvays-antisocialites/",
+            "id": "c1eb50a2-392a-42e0-91ee-908218cb3eb6"
+          },
+          "direction": "forward",
+          "attribute-ids": {},
+          "ended": false,
+          "target-type": "url",
+          "attributes": [],
+          "begin": null,
+          "source-credit": "",
+          "end": null
+        },
+        {
+          "url": {
+            "resource": "https://www.wikidata.org/wiki/Q37951848",
+            "id": "4fd3240f-8001-4bc8-b9d5-c743ee33e1a5"
+          },
+          "direction": "forward",
+          "type-id": "b988d08c-5d86-4a57-9557-c83b399e3580",
+          "type": "wikidata",
+          "attribute-values": {},
+          "target-credit": "",
+          "end": null,
+          "source-credit": "",
+          "attributes": [],
+          "begin": null,
+          "attribute-ids": {},
+          "ended": false,
+          "target-type": "url"
+        }
+      ],
+      "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "artist": {
+            "genres": [
+              {
+                "count": 3,
+                "name": "alternative rock",
+                "disambiguation": "",
+                "id": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18"
+              },
+              {
+                "count": 1,
+                "name": "chamber pop",
+                "disambiguation": "",
+                "id": "f0843e91-c025-4dd7-8aef-6fe3d35470d9"
+              },
+              {
+                "count": 5,
+                "id": "6242615b-5620-465b-b6fb-2e593e90cbad",
+                "name": "dream pop",
+                "disambiguation": ""
+              },
+              {
+                "disambiguation": "",
+                "name": "indie pop",
+                "id": "f390be72-360b-41bb-a310-6a2e638779d2",
+                "count": 5
+              },
+              {
+                "id": "ccd19ebf-052c-4afe-8ad9-fbb0a73f94a7",
+                "name": "indie rock",
+                "disambiguation": "",
+                "count": 5
+              },
+              {
+                "name": "jangle pop",
+                "disambiguation": "",
+                "id": "6c207307-cac0-43cf-be8f-e2dde68a92f1",
+                "count": 1
+              },
+              {
+                "count": 1,
+                "disambiguation": "",
+                "name": "power pop",
+                "id": "618704fc-daac-44a2-92c9-89e3b1a2fc8c"
+              },
+              {
+                "id": "0e3fc579-2d24-4f20-9dae-736e1ec78798",
+                "disambiguation": "",
+                "name": "rock",
+                "count": 1
+              },
+              {
+                "id": "a4012b2e-5c27-4f81-8781-9ae5998d882c",
+                "name": "shoegaze",
+                "disambiguation": "",
+                "count": 4
+              },
+              {
+                "id": "35709b28-c4d0-4019-b6ca-2eca017344b5",
+                "name": "twee pop",
+                "disambiguation": "",
+                "count": 1
+              }
+            ],
+            "sort-name": "Alvvays",
+            "name": "Alvvays",
+            "disambiguation": "",
+            "country": "CA",
+            "type": "Group",
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "id": "99450990-b24e-4132-bb68-235f8c3e2564"
+          },
+          "name": "Alvvays"
+        }
+      ],
+      "secondary-types": [],
+      "first-release-date": "2017-09-08",
+      "secondary-type-ids": [],
+      "disambiguation": ""
+    }
+  }
+}

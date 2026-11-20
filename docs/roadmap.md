@@ -35,7 +35,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [ ] Metadata clients with cache and rate limits
 - [x] Album matching tiers, review queue, fix match, merges
-- [ ] Enrichment: covers, artist images, bios, lyrics, external ids
+- [x] Enrichment: covers, artist images, bios, lyrics, external ids, new-release feed (server)
 - [x] Managed roots: preview, apply, journal, undo (server and API)
 - [ ] Organize screens in the admin UI
 - [x] Tag writing with verification
