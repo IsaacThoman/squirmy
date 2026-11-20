@@ -49,8 +49,9 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 6. Search everything
 
-- [ ] Library search
-- [ ] Deezer and MusicBrainz search providers, stub rows, resolve on open
+- [x] Library search
+- [x] Local index, Deezer and MusicBrainz search providers, stub rows, stub cleanup
+- [ ] Resolve stubs on open (enrichment)
 - [ ] Artist and album pages for music you do not own
 - [ ] Wantlist and new-release feed
 - [ ] Gray-out on web and mobile
@@ -67,7 +68,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Reference adapters: cold storage and mock
 - [ ] Scrobbling to ListenBrainz and Last.fm
 - [ ] Radio and autoplay
-- [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)); the search module still has to offer it as a provider
+- [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider
 - [ ] Documentation site
 
 ## Deferred
