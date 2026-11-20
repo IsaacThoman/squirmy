@@ -1,4 +1,10 @@
 import {
+  AcquireResponse,
+  AcquisitionJobList,
+  type AcquisitionJobListQuery,
+  AcquisitionPolicy,
+  AcquisitionProvider,
+  AcquisitionProviderList,
   AlbumDetail,
   AlbumSummary,
   API_PREFIX,
@@ -15,6 +21,8 @@ import {
   type ChangePasswordRequest,
   type ConnectListenBrainzRequest,
   type CreateAppPasswordRequest,
+  CreateAcquisitionProviderRequest,
+  type CreateImportRequest,
   CreateInviteRequest,
   CreateLibraryRootRequest,
   type CreatePlaylistRequest,
@@ -25,6 +33,12 @@ import {
   GenreSummary,
   HistoryItem,
   HomeResponse,
+  Import,
+  ImportAlbumList,
+  ImportFilesResponse,
+  ImportList,
+  type ImportListQuery,
+  ImportOptions,
   Invite,
   InviteList,
   JobQueueStats,
@@ -71,6 +85,8 @@ import {
   TrackSummariesResponse,
   type TrackSummariesRequest,
   TrackSummary,
+  type UpdateAcquisitionPolicy,
+  type UpdateAcquisitionProviderRequest,
   type UpdateLibraryRootRequest,
   type UpdatePlaylistRequest,
   type UpdateServerSettings,
@@ -85,7 +101,12 @@ import {
 import { z } from 'zod'
 
 /** An `AbortSignal`; client-core is built without the DOM and Node types that declare it. */
-export type AbortSignalLike = { readonly aborted: boolean }
+export type AbortSignalLike = {
+  readonly aborted: boolean
+  addEventListener?: (type: 'abort', listener: () => void) => void
+}
+
+type ResponseLike = { ok: boolean; status: number; statusText: string; text(): Promise<string> }
 
 /** The subset of `fetch` the client uses. The platform's `fetch` satisfies it. */
 export type FetchLike = (url: string, init: {
@@ -94,7 +115,34 @@ export type FetchLike = (url: string, init: {
   body?: string
   credentials: 'include' | 'omit'
   signal?: AbortSignalLike
-}) => Promise<{ ok: boolean; status: number; statusText: string; text(): Promise<string> }>
+}) => Promise<ResponseLike>
+
+/** Bytes of a request sent so far. `total` is 0 while the platform does not know it. */
+export type UploadProgress = { loaded: number; total: number }
+
+/**
+ * Sends a multipart body and reports its progress, which `fetch` cannot. The default uses
+ * the platform's `XMLHttpRequest`, which reads `File` and `Blob` parts from disk as it sends.
+ */
+export type UploadLike = (url: string, init: {
+  method: string
+  headers: Record<string, string>
+  /** A platform `FormData`. */
+  body: unknown
+  credentials: 'include' | 'omit'
+  signal?: AbortSignalLike
+  onProgress?: (progress: UploadProgress) => void
+}) => Promise<ResponseLike>
+
+/**
+ * One file of an upload. `file` is what the platform's `FormData` takes: a browser `File` or
+ * `Blob`, or React Native's `{ uri, name, type }`. `relativePath` places it inside the import
+ * (`Album/CD1/01 Song.flac`); without one the server uses `name`.
+ */
+export type UploadFile = { file: unknown; name: string; relativePath?: string }
+
+/** Per-call options of uploads. `onProgress` covers the whole request, every file of it. */
+export type UploadOptions = CallOptions & { onProgress?: (progress: UploadProgress) => void }
 
 export type ApiClientOptions = {
   /**
@@ -110,6 +158,8 @@ export type ApiClientOptions = {
   getToken?: () => string | null | undefined | Promise<string | null | undefined>
   /** Defaults to `globalThis.fetch`. */
   fetch?: FetchLike
+  /** Defaults to an `XMLHttpRequest`. */
+  upload?: UploadLike
   /** Called on every 401 before the `ApiError` is thrown, e.g. to sign out. */
   onUnauthorized?: () => void
   /**
@@ -170,8 +220,7 @@ export function createApiClient(options: ApiClientOptions) {
   const base = `${trimSlash(options.baseUrl)}${API_PREFIX}`
   const validate = options.validate ?? true
 
-  async function request<T>(method: string, path: string, { query, body, schema, signal }: RequestOptions<T>): Promise<T> {
-    const doFetch = options.fetch ?? (globalThis as unknown as { fetch: FetchLike }).fetch
+  async function prepare(json: boolean) {
     const token = await options.getToken?.()
     const headers: Record<string, string> = {
       Accept: 'application/json',
@@ -179,18 +228,16 @@ export function createApiClient(options: ApiClientOptions) {
       'X-Squirmy-Client': options.client ?? 'client-core',
     }
     if (token) headers.Authorization = `Bearer ${token}`
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    if (json) headers['Content-Type'] = 'application/json'
+    return { headers, credentials: token ? 'omit' as const : 'include' as const }
+  }
 
-    let response: Awaited<ReturnType<FetchLike>>
+  /** Sends one request and turns its answer into the contract type or an `ApiError`. */
+  async function call<T>(schema: z.ZodType<T>, perform: () => Promise<ResponseLike>): Promise<T> {
+    let response: ResponseLike
     let text: string
     try {
-      response = await doFetch(`${base}${path}${queryString(query)}`, {
-        method,
-        headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
-        credentials: token ? 'omit' : 'include',
-        signal,
-      })
+      response = await perform()
       text = await response.text()
     } catch (error) {
       throw new ApiError(0, 'network_error', error instanceof Error ? error.message : 'Network request failed')
@@ -204,6 +251,29 @@ export function createApiClient(options: ApiClientOptions) {
       throw new ApiError(response.status, `http_${response.status}`, response.statusText || `HTTP ${response.status}`)
     }
     return validate ? schema.parse(json) : json as T
+  }
+
+  async function request<T>(method: string, path: string, { query, body, schema, signal }: RequestOptions<T>): Promise<T> {
+    const doFetch = options.fetch ?? (globalThis as unknown as { fetch: FetchLike }).fetch
+    const { headers, credentials } = await prepare(body !== undefined)
+    return call(schema, () => doFetch(`${base}${path}${queryString(query)}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials,
+      signal,
+    }))
+  }
+
+  /** `multipart/form-data` with a `relativePath` field before each file that has one. */
+  async function upload<T>(path: string, schema: z.ZodType<T>, files: readonly UploadFile[], { signal, onProgress }: UploadOptions): Promise<T> {
+    const form = createFormData()
+    for (const part of files) {
+      if (part.relativePath !== undefined) form.append('relativePath', part.relativePath)
+      form.append('file', part.file, part.name)
+    }
+    const { headers, credentials } = await prepare(false)
+    return call(schema, () => (options.upload ?? xhrUpload)(`${base}${path}`, { method: 'POST', headers, body: form, credentials, signal, onProgress }))
   }
 
   const get = <T>(path: string, schema: z.ZodType<T>, query?: Query, options: CallOptions = {}) => request('GET', path, { schema, query, ...options })
@@ -327,6 +397,44 @@ export function createApiClient(options: ApiClientOptions) {
       startLastFm: () => send('POST', '/me/scrobbling/lastfm/start', LastFmConnectStart),
       disconnectLastFm: () => send('DELETE', '/me/scrobbling/lastfm', ScrobblingStatus),
     },
+    imports: {
+      /** Whether uploads can start, and their size limits. */
+      importOptions: () => get('/imports/options', ImportOptions),
+      /** Starts an upload import in `receiving`; fails with `no_managed_root` or `import_root_not_set` without a root to file into. */
+      createImport: (body: CreateImportRequest = {}) => send('POST', '/imports', Import, body),
+      /**
+       * Streams files into a receiving import. A file over the limits ends the request with 413
+       * (`file_too_large`, `import_too_large`); the files before it are kept and listed in the
+       * error's `details.files`.
+       */
+      addImportFiles: (importId: string, files: readonly UploadFile[], options: UploadOptions = {}) =>
+        upload(`/imports/${id(importId)}/files`, ImportFilesResponse, files, options),
+      /** Ends receiving and starts processing; follow it with `getImport` or `import.updated`. */
+      commitImport: (importId: string) => send('POST', `/imports/${id(importId)}/commit`, Import),
+      getImport: (importId: string) => get(`/imports/${id(importId)}`, Import),
+      /** Your own imports, newest first; every import for an admin. */
+      listImports: (query: Partial<ImportListQuery> = {}) => get('/imports', ImportList, query),
+      importAlbums: (importId: string) => get(`/imports/${id(importId)}/albums`, ImportAlbumList),
+      /** Cancels an import that is still receiving. */
+      cancelImport: (importId: string) => send('DELETE', `/imports/${id(importId)}`, Import),
+    },
+    acquisition: {
+      listAcquisitionProviders: () => get('/admin/acquisition/providers', AcquisitionProviderList),
+      /** Asks the provider for its capabilities right away; an unreachable one is saved with `lastError`. */
+      createAcquisitionProvider: (body: Input<typeof CreateAcquisitionProviderRequest>) => send('POST', '/admin/acquisition/providers', AcquisitionProvider, body),
+      updateAcquisitionProvider: (providerId: string, body: UpdateAcquisitionProviderRequest) =>
+        send('PATCH', `/admin/acquisition/providers/${id(providerId)}`, AcquisitionProvider, body),
+      deleteAcquisitionProvider: (providerId: string) => send('DELETE', `/admin/acquisition/providers/${id(providerId)}`, Ok),
+      /** Calls the provider's `capabilities`; the answer, or the failure in `lastError`, is on the provider returned. */
+      testAcquisitionProvider: (providerId: string) => send('POST', `/admin/acquisition/providers/${id(providerId)}/test`, AcquisitionProvider),
+      getAcquisitionPolicy: () => get('/admin/acquisition/policy', AcquisitionPolicy),
+      updateAcquisitionPolicy: (body: UpdateAcquisitionPolicy) => send('PATCH', '/admin/acquisition/policy', AcquisitionPolicy, body),
+      listAcquisitionJobs: (query: Partial<AcquisitionJobListQuery> = {}) => get('/admin/acquisition/jobs', AcquisitionJobList, query),
+      /** Fetches a track on demand; `albumId` names the album it was asked for on. */
+      acquireTrack: (trackId: string, query: { albumId?: string } = {}) => request('POST', `/tracks/${id(trackId)}/acquire`, { schema: AcquireResponse, query }),
+      /** Fetches an album's missing tracks. */
+      acquireAlbum: (albumId: string) => send('POST', `/albums/${id(albumId)}/acquire`, AcquireResponse),
+    },
     radio: {
       track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
       artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
@@ -353,6 +461,45 @@ export function streamUrl(baseUrl: string, descriptor: Pick<PlaybackDescriptor, 
   if (/^[a-z][a-z0-9+.-]*:/i.test(descriptor.url)) return descriptor.url
   return `${trimSlash(baseUrl)}${descriptor.url.startsWith('/') ? '' : '/'}${descriptor.url}`
 }
+
+type FormDataLike = { append(name: string, value: unknown, filename?: string): void }
+
+function createFormData(): FormDataLike {
+  const FormData = (globalThis as { FormData?: new () => FormDataLike }).FormData
+  if (!FormData) throw new Error('Uploads need FormData')
+  return new FormData()
+}
+
+type XhrLike = {
+  open(method: string, url: string): void
+  setRequestHeader(name: string, value: string): void
+  withCredentials: boolean
+  upload: { onprogress: ((event: { loaded: number; total: number; lengthComputable: boolean }) => void) | null }
+  onload: (() => void) | null
+  onerror: (() => void) | null
+  onabort: (() => void) | null
+  status: number
+  statusText: string
+  responseText: string
+  send(body: unknown): void
+  abort(): void
+}
+
+const xhrUpload: UploadLike = (url, { method, headers, body, credentials, signal, onProgress }) => new Promise((resolve, reject) => {
+  const Xhr = (globalThis as { XMLHttpRequest?: new () => XhrLike }).XMLHttpRequest
+  if (!Xhr) return reject(new Error('Uploads need XMLHttpRequest'))
+  const xhr = new Xhr()
+  xhr.open(method, url)
+  for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value)
+  xhr.withCredentials = credentials === 'include'
+  xhr.upload.onprogress = event => onProgress?.({ loaded: event.loaded, total: event.lengthComputable ? event.total : 0 })
+  xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, statusText: xhr.statusText, text: async () => xhr.responseText })
+  xhr.onerror = () => reject(new Error('Network request failed'))
+  xhr.onabort = () => reject(new Error('The upload was stopped'))
+  if (signal?.aborted) return reject(new Error('The upload was stopped'))
+  signal?.addEventListener?.('abort', () => xhr.abort())
+  xhr.send(body)
+})
 
 function trimSlash(url: string): string {
   return url.endsWith('/') ? url.slice(0, -1) : url
