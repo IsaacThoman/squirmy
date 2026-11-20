@@ -21,6 +21,8 @@ Squirmy is a self-hosted music server with a web app and an iOS app. Read these 
 npm run build:packages && npm run typecheck && npm run lint && npm test
 ```
 
+Documentation changes also need `npm run docs:build` to pass (it fails on dead links). Operator and user guides are in `docs/server/` and `docs/use/`; update the page a change affects.
+
 Server tests need a Postgres they can create databases on: set `SQUIRMY_TEST_DATABASE_URL` (default `postgres://localhost:54329/postgres`). They also need `ffmpeg` and `fpcalc` on the PATH.
 
 ## Test audio
