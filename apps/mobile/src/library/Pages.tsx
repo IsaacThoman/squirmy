@@ -145,6 +145,7 @@ function songCount(tracks: readonly TrackSummary[], durationMs = tracks.reduce((
 }
 
 function share(message: string) {
+  tapFeedback();
   void Share.share({ message }).catch(() => Alert.alert('Sharing unavailable'));
 }
 
@@ -180,7 +181,11 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
   const wantable = data.availability !== 'full' && !data.wanted && !offline;
   const buttons = playButtons(tracks, canPlay, play);
   const wantButton = offline ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
-    onPress: () => { if (!data.wanted) want('album', data.id, data.title); } }];
+    onPress: () => {
+      if (data.wanted) return;
+      tapFeedback();
+      want('album', data.id, data.title);
+    } }];
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title} artist={data.artistCredit}
     info={[typeNames[data.type], data.genres[0], data.year, owned].filter(Boolean).join('  ·  ')}
@@ -189,7 +194,8 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
       { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.title}` : `Like ${data.title}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked); } },
       control.nav,
-      buttons.length > 0 && wantable && { icon: 'star', label: `Add ${data.title} to your wantlist`, onPress: () => want('album', data.id, data.title) },
+      buttons.length > 0 && wantable && { icon: 'star', label: `Add ${data.title} to your wantlist`,
+        onPress: () => { tapFeedback(); want('album', data.id, data.title); } },
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
     description={data.description} onBack={onBack} bottomInset={bottomInset}>
