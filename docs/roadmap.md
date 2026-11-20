@@ -58,8 +58,9 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 7. Add and take
 
-- [ ] Web upload and inbox folder
-- [ ] Fingerprinting for untagged files
+- [x] Imports: upload API, inbox folder, staging, zip extraction, duplicates, filing into a managed root (server)
+- [ ] Upload screen in the web app
+- [x] Fingerprinting for untagged files
 - [ ] Offline downloads on mobile
 
 ## 8. Providers and extras

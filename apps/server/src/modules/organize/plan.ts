@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { DEFAULT_ORGANIZE_TEMPLATE } from '@squirmy/contracts'
+import { DEFAULT_ORGANIZE_TEMPLATE, INCOMING_FOLDER } from '@squirmy/contracts'
 import { and, eq, inArray, isNull, max, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import {
@@ -23,6 +23,8 @@ export type PlanOptions = {
   includeUnmatched?: boolean
   /** Write catalog tags while applying. Files already in place are then planned as tag-only moves. */
   writeTags?: boolean
+  /** Also plan files in the root's `_Incoming` folder, where imports wait until they are filed. */
+  includeIncoming?: boolean
   userId: string | null
 }
 
@@ -86,6 +88,7 @@ export async function planOrganize(options: PlanOptions): Promise<string> {
       eq(mediaFiles.rootId, root.id),
       isNull(mediaFiles.missingSince),
       options.albumIds ? inArray(mediaFiles.albumId, options.albumIds) : undefined,
+      options.includeIncoming ? undefined : sql`not starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/`})`,
     ))
     .orderBy(mediaFiles.relPath)
 

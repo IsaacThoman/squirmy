@@ -59,6 +59,10 @@ export const serverSettings: ServerSettings = {
   missingFileGraceDays: 14,
   transcodeCacheMaxBytes: 10 * 1024 ** 3,
   registrationRequiresInvite: true,
+  importRootId: null,
+  inboxPath: null,
+  importMaxFileBytes: 4 * 1024 ** 3,
+  importMaxBytes: 64 * 1024 ** 3,
 }
 
 export const libraryRoots: LibraryRoot[] = [

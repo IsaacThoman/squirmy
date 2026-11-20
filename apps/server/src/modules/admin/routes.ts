@@ -19,6 +19,7 @@ import { getServerSettings, updateServerSettings } from '../../lib/settings.js'
 import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
 import { hashPassword, insertUser, revokeUserSessions, toUser } from '../auth/service.js'
+import { checkImportSettings } from '../imports/settings.js'
 
 const IdParams = z.object({ id: Id })
 
@@ -172,7 +173,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/admin/settings', async (): Promise<ServerSettings> => getServerSettings())
 
   app.patch('/admin/settings', async (request): Promise<ServerSettings> => {
-    const settings = await updateServerSettings(UpdateServerSettings.parse(request.body))
+    const settings = await updateServerSettings(await checkImportSettings(UpdateServerSettings.parse(request.body)))
     await invalidate('admins', [queryKeys.admin()])
     return settings
   })
