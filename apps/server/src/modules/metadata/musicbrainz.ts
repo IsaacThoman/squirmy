@@ -424,9 +424,14 @@ async function browseAll<T>(path: string, params: Record<string, string>, listKe
   }
 }
 
-/** The artist's whole discography: every release group credited to them, across all pages. */
-export async function browseReleaseGroups(artistMbid: string): Promise<MbReleaseGroupSummary[]> {
-  const raw = await browseAll<RawReleaseGroup>('release-group', { artist: artistMbid, inc: 'artist-credits' }, 'release-groups', 'release-group-count')
+/**
+ * The artist's discography: every release group credited to them, across all pages. With
+ * `officialOnly`, only groups with an official release, as the MusicBrainz website lists
+ * them by default; bootleg-only groups can outnumber the rest many times over.
+ */
+export async function browseReleaseGroups(artistMbid: string, options: { officialOnly?: boolean } = {}): Promise<MbReleaseGroupSummary[]> {
+  const params = { artist: artistMbid, inc: 'artist-credits', ...(options.officialOnly ? { 'release-group-status': 'website-default' } : {}) }
+  const raw = await browseAll<RawReleaseGroup>('release-group', params, 'release-groups', 'release-group-count')
   return (raw ?? []).map(releaseGroupSummary)
 }
 

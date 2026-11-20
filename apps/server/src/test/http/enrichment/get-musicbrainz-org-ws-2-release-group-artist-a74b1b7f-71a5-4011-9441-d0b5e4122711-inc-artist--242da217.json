@@ -1,0 +1,243 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group?artist=a74b1b7f-71a5-4011-9441-d0b5e4122711&inc=artist-credits&release-group-status=website-default&limit=100&offset=100&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-groups": [
+        {
+          "first-release-date": "",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "artist": {
+                "sort-name": "Radiohead",
+                "name": "Radiohead",
+                "country": "GB",
+                "disambiguation": "",
+                "type": "Group",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "secondary-types": [],
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "secondary-type-ids": [],
+          "id": "20e1fc39-3849-4fb3-aa00-5c1f8d1dc189",
+          "primary-type": "Other",
+          "title": "Menage A Trois: The Real Ultra Rare Tracks, Vol 3"
+        },
+        {
+          "title": "The Most Gigantic Lying Mouth of All Time",
+          "id": "2915136e-7174-4527-a51e-6d5573be2d12",
+          "secondary-type-ids": [
+            "22a628ad-c082-3c4f-b1b6-d41665107b88"
+          ],
+          "primary-type": "Other",
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "first-release-date": "2004-12-01",
+          "secondary-types": [
+            "Soundtrack"
+          ],
+          "artist-credit": [
+            {
+              "name": "Radiohead",
+              "artist": {
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group"
+              },
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": ""
+        },
+        {
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "id": "40e459f4-b86a-4e59-8abc-8c4032947842",
+          "primary-type": "Other",
+          "title": "Live in Praha",
+          "first-release-date": "2010-08-23",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "sort-name": "Radiohead",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group"
+              }
+            }
+          ],
+          "secondary-types": [
+            "Live"
+          ],
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22"
+        },
+        {
+          "first-release-date": "2025-03-17",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            }
+          ],
+          "secondary-types": [
+            "Compilation"
+          ],
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "secondary-type-ids": [
+            "dd2a21e1-0c00-3729-a7a0-de60b84eb5d1"
+          ],
+          "id": "96a87d03-c9cc-4db7-ad93-44311ef0c3a8",
+          "primary-type": "Other",
+          "title": "The Bends B-Sides"
+        },
+        {
+          "title": "Meeting People Is Easy",
+          "primary-type": "Other",
+          "secondary-type-ids": [
+            "22a628ad-c082-3c4f-b1b6-d41665107b88"
+          ],
+          "id": "9c351cd2-980e-4e7a-b0b9-e98ba5d1433c",
+          "primary-type-id": "4fc3be2b-de1e-396b-a933-beb8f1607a22",
+          "secondary-types": [
+            "Soundtrack"
+          ],
+          "artist-credit": [
+            {
+              "joinphrase": "",
+              "name": "Radiohead",
+              "artist": {
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type": "Group",
+                "sort-name": "Radiohead",
+                "disambiguation": "",
+                "country": "GB",
+                "name": "Radiohead"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "first-release-date": "2000-09-04"
+        },
+        {
+          "first-release-date": "2017-09-27",
+          "disambiguation": "",
+          "artist-credit": [
+            {
+              "joinphrase": " featuring ",
+              "name": "Radiohead",
+              "artist": {
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "type": "Group",
+                "country": "GB",
+                "disambiguation": "",
+                "name": "Radiohead",
+                "sort-name": "Radiohead"
+              }
+            },
+            {
+              "name": "BBC Concert Orchestra",
+              "artist": {
+                "disambiguation": "",
+                "country": "GB",
+                "name": "BBC Concert Orchestra",
+                "sort-name": "BBC Concert Orchestra",
+                "id": "dfeba5ea-c967-4ad2-9cdd-3cffb4320143",
+                "type-id": "a0b36c92-3eb1-3839-a4f9-4799823f54a5",
+                "type": "Orchestra"
+              },
+              "joinphrase": " & "
+            },
+            {
+              "joinphrase": "",
+              "artist": {
+                "disambiguation": "German score composer",
+                "country": "US",
+                "name": "Hans Zimmer",
+                "sort-name": "Zimmer, Hans",
+                "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+                "type": "Person"
+              },
+              "name": "Hans Zimmer"
+            }
+          ],
+          "secondary-types": [
+            "Remix"
+          ],
+          "primary-type-id": "3b2e49e1-2875-37b8-9fa9-1f7cf3f49900",
+          "id": "a304ba97-14fc-49b4-bafd-1ba84cbca22b",
+          "secondary-type-ids": [
+            "0c60f497-ff81-3818-befd-abfc84a4858b"
+          ],
+          "primary-type": "Broadcast",
+          "title": "(Ocean) Bloom"
+        },
+        {
+          "title": "Live in São Paulo (April 2018) At Home #WithMe",
+          "id": "dbd234a2-e558-4f0d-ba19-88a2cca7e200",
+          "secondary-type-ids": [
+            "6fd474e2-6b58-3102-9d17-d6f7eb7da0a0"
+          ],
+          "primary-type": "Broadcast",
+          "primary-type-id": "3b2e49e1-2875-37b8-9fa9-1f7cf3f49900",
+          "first-release-date": "2020-06-11",
+          "artist-credit": [
+            {
+              "artist": {
+                "type": "Group",
+                "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                "name": "Radiohead",
+                "country": "GB",
+                "disambiguation": "",
+                "sort-name": "Radiohead"
+              },
+              "name": "Radiohead",
+              "joinphrase": ""
+            }
+          ],
+          "disambiguation": "",
+          "secondary-types": [
+            "Live"
+          ]
+        }
+      ],
+      "release-group-count": 107,
+      "release-group-offset": 100
+    }
+  }
+}

@@ -1,0 +1,656 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/1f2f93b4-7b9b-4fef-85fb-20f7439d9fbd?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "packaging-id": "8f931351-d2e2-310f-afc6-37b89ddba246",
+      "date": "2017-09-08",
+      "packaging": "Digipak",
+      "status": "Official",
+      "country": "US",
+      "label-info": [
+        {
+          "label": {
+            "type": "Original Production",
+            "sort-name": "Polyvinyl",
+            "id": "2ad60482-164f-4e5c-ac78-1f5267d4fdc0",
+            "label-code": null,
+            "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+            "disambiguation": "",
+            "name": "Polyvinyl"
+          },
+          "catalog-number": "PRC-334"
+        }
+      ],
+      "cover-art-archive": {
+        "darkened": false,
+        "artwork": true,
+        "front": true,
+        "back": false,
+        "count": 1
+      },
+      "disambiguation": "",
+      "release-group": {
+        "id": "1f0a3090-ae8c-4fbd-9b70-b4371961ef11",
+        "secondary-type-ids": [],
+        "artist-credit": [
+          {
+            "joinphrase": "",
+            "artist": {
+              "country": "CA",
+              "type": "Group",
+              "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+              "sort-name": "Alvvays",
+              "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+              "name": "Alvvays",
+              "disambiguation": ""
+            },
+            "name": "Alvvays"
+          }
+        ],
+        "title": "Antisocialites",
+        "primary-type": "Album",
+        "first-release-date": "2017-09-08",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "disambiguation": "",
+        "secondary-types": []
+      },
+      "relations": [
+        {
+          "target-type": "url",
+          "direction": "forward",
+          "end": null,
+          "attribute-values": {},
+          "source-credit": "",
+          "type-id": "90ff18ad-3e9d-4472-a3d1-71d4df7e8484",
+          "ended": false,
+          "attribute-ids": {},
+          "type": "allmusic",
+          "url": {
+            "resource": "https://www.allmusic.com/album/release/mr0004768877",
+            "id": "7660cf77-0c67-4270-90db-7114daff3320"
+          },
+          "target-credit": "",
+          "begin": null,
+          "attributes": []
+        },
+        {
+          "direction": "forward",
+          "target-type": "url",
+          "end": null,
+          "source-credit": "",
+          "attribute-values": {},
+          "type-id": "4f2e710d-166c-480c-a293-2e2c8d658d87",
+          "attribute-ids": {},
+          "ended": false,
+          "type": "amazon asin",
+          "begin": null,
+          "url": {
+            "id": "c6c70210-e04f-4628-8503-f957f829a134",
+            "resource": "https://www.amazon.com/gp/product/B071WQD5YS"
+          },
+          "target-credit": "",
+          "attributes": []
+        },
+        {
+          "attribute-ids": {},
+          "ended": false,
+          "type": "discogs",
+          "begin": null,
+          "url": {
+            "resource": "https://www.discogs.com/release/10818735",
+            "id": "e0785ee5-01ac-4189-934c-ce8a2cd602cf"
+          },
+          "target-credit": "",
+          "attributes": [],
+          "direction": "forward",
+          "target-type": "url",
+          "end": null,
+          "source-credit": "",
+          "attribute-values": {},
+          "type-id": "4a78823c-1c53-4176-a5f3-58026c76f2bc"
+        }
+      ],
+      "id": "1f2f93b4-7b9b-4fef-85fb-20f7439d9fbd",
+      "title": "Antisocialites",
+      "quality": "normal",
+      "asin": "B071WQD5YS",
+      "release-events": [
+        {
+          "date": "2017-09-08",
+          "area": {
+            "id": "489ce91b-6658-3307-9877-795b68554c98",
+            "iso-3166-1-codes": [
+              "US"
+            ],
+            "sort-name": "United States",
+            "type": null,
+            "name": "United States",
+            "disambiguation": "",
+            "type-id": null
+          }
+        }
+      ],
+      "barcode": "644110033420",
+      "text-representation": {
+        "language": "eng",
+        "script": "Latn"
+      },
+      "media": [
+        {
+          "id": "456cfb3f-7325-3391-968c-a9b7d4043307",
+          "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+          "track-offset": 0,
+          "tracks": [
+            {
+              "recording": {
+                "id": "9357f0fc-25a1-4521-af88-18f7a7aa7c47",
+                "isrcs": [
+                  "US3R41733401"
+                ],
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Alvvays",
+                      "disambiguation": "",
+                      "type": "Group",
+                      "country": "CA",
+                      "sort-name": "Alvvays",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564"
+                    },
+                    "joinphrase": "",
+                    "name": "Alvvays"
+                  }
+                ],
+                "title": "In Undertow",
+                "first-release-date": "2017-08",
+                "disambiguation": "",
+                "length": 197173,
+                "video": false
+              },
+              "id": "81030180-d3bd-4ac6-a4b9-a4b9613201c2",
+              "position": 1,
+              "title": "In Undertow",
+              "number": "1",
+              "length": 197173,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Group",
+                    "country": "CA",
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "sort-name": "Alvvays",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Alvvays"
+                  },
+                  "name": "Alvvays"
+                }
+              ]
+            },
+            {
+              "recording": {
+                "first-release-date": "2017-09-08",
+                "disambiguation": "",
+                "length": 196026,
+                "video": false,
+                "id": "62d151f7-7639-470b-909b-7cb2c2b603d4",
+                "isrcs": [
+                  "US3R41733402"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Group",
+                      "country": "CA",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                      "sort-name": "Alvvays",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Alvvays",
+                      "disambiguation": ""
+                    },
+                    "name": "Alvvays"
+                  }
+                ],
+                "title": "Dreams Tonite"
+              },
+              "id": "4bd2c1d7-9ef5-47cf-886a-9adc07180975",
+              "position": 2,
+              "length": 196026,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "sort-name": "Alvvays",
+                    "country": "CA",
+                    "type": "Group",
+                    "name": "Alvvays",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "name": "Alvvays"
+                }
+              ],
+              "number": "2",
+              "title": "Dreams Tonite"
+            },
+            {
+              "number": "3",
+              "title": "Plimsoll Punks",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Alvvays",
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "country": "CA",
+                    "type": "Group",
+                    "name": "Alvvays",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "Alvvays"
+                }
+              ],
+              "length": 289586,
+              "id": "e84e7a72-e01a-4a79-a4e9-cd74f30e65d2",
+              "position": 3,
+              "recording": {
+                "first-release-date": "2017-09-08",
+                "disambiguation": "",
+                "length": 289586,
+                "video": false,
+                "id": "365a445b-e463-41f7-9e4a-d5fb10076cd9",
+                "isrcs": [
+                  "US3R41733403"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Alvvays",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                      "sort-name": "Alvvays",
+                      "type": "Group",
+                      "country": "CA"
+                    },
+                    "name": "Alvvays"
+                  }
+                ],
+                "title": "Plimsoll Punks"
+              }
+            },
+            {
+              "length": 123546,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "name": "Alvvays",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Alvvays",
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "country": "CA",
+                    "type": "Group"
+                  },
+                  "joinphrase": "",
+                  "name": "Alvvays"
+                }
+              ],
+              "number": "4",
+              "title": "Your Type",
+              "recording": {
+                "first-release-date": "2017-09-08",
+                "disambiguation": "",
+                "length": 123546,
+                "video": false,
+                "id": "87f1f245-7f84-4977-a4f2-8e698baa559a",
+                "isrcs": [
+                  "US3R41733404"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Alvvays",
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Alvvays",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                      "sort-name": "Alvvays",
+                      "type": "Group",
+                      "country": "CA"
+                    }
+                  }
+                ],
+                "title": "Your Type"
+              },
+              "position": 4,
+              "id": "2b883745-701f-4064-873e-3c1054624331"
+            },
+            {
+              "recording": {
+                "title": "Not My Baby",
+                "artist-credit": [
+                  {
+                    "name": "Alvvays",
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Alvvays",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                      "sort-name": "Alvvays",
+                      "type": "Group",
+                      "country": "CA"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "US3R41733405"
+                ],
+                "id": "d4cedd62-318b-4c94-85c4-5df1bdc08e0a",
+                "video": false,
+                "length": 256000,
+                "disambiguation": "",
+                "first-release-date": "2017-09-08"
+              },
+              "position": 5,
+              "id": "a18199b6-f072-4b3b-8385-1013c1241066",
+              "length": 256413,
+              "artist-credit": [
+                {
+                  "name": "Alvvays",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Alvvays",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Alvvays",
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "country": "CA",
+                    "type": "Group"
+                  }
+                }
+              ],
+              "title": "Not My Baby",
+              "number": "5"
+            },
+            {
+              "number": "6",
+              "title": "Hey",
+              "length": 168746,
+              "artist-credit": [
+                {
+                  "name": "Alvvays",
+                  "artist": {
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "sort-name": "Alvvays",
+                    "country": "CA",
+                    "type": "Group",
+                    "name": "Alvvays",
+                    "disambiguation": "",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "video": false,
+                "length": 168746,
+                "disambiguation": "",
+                "first-release-date": "2017-09-08",
+                "title": "Hey",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "CA",
+                      "type": "Group",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                      "sort-name": "Alvvays",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Alvvays"
+                    },
+                    "joinphrase": "",
+                    "name": "Alvvays"
+                  }
+                ],
+                "id": "33766568-20c3-4c0a-bb60-d79a6b91b0d8",
+                "isrcs": [
+                  "US3R41733406"
+                ]
+              },
+              "id": "be0569a4-7a8f-489b-b472-35116db9346b",
+              "position": 6
+            },
+            {
+              "length": 197706,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "sort-name": "Alvvays",
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "type": "Group",
+                    "country": "CA",
+                    "disambiguation": "",
+                    "name": "Alvvays",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": "",
+                  "name": "Alvvays"
+                }
+              ],
+              "number": "7",
+              "title": "Lollipop (Ode to Jim)",
+              "recording": {
+                "isrcs": [
+                  "US3R41733407"
+                ],
+                "id": "3d80485b-455b-4d02-9cb9-ab7c80198501",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "disambiguation": "",
+                      "name": "Alvvays",
+                      "type": "Group",
+                      "country": "CA",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                      "sort-name": "Alvvays"
+                    },
+                    "joinphrase": "",
+                    "name": "Alvvays"
+                  }
+                ],
+                "title": "Lollipop (Ode to Jim)",
+                "first-release-date": "2017-09-08",
+                "disambiguation": "",
+                "length": 197706,
+                "video": false
+              },
+              "id": "26acc02e-d62a-4d75-9cd8-cda39abb1b8e",
+              "position": 7
+            },
+            {
+              "id": "6aff7d93-e348-477c-a0c2-65e39ab4149f",
+              "position": 8,
+              "recording": {
+                "title": "Already Gone",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Alvvays",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                      "sort-name": "Alvvays",
+                      "country": "CA",
+                      "type": "Group"
+                    },
+                    "joinphrase": "",
+                    "name": "Alvvays"
+                  }
+                ],
+                "isrcs": [
+                  "US3R41733408"
+                ],
+                "id": "68873ad7-3249-4018-980e-263ce1295035",
+                "video": false,
+                "length": 183653,
+                "disambiguation": "",
+                "first-release-date": "2017-09-08"
+              },
+              "title": "Already Gone",
+              "number": "8",
+              "artist-credit": [
+                {
+                  "name": "Alvvays",
+                  "artist": {
+                    "country": "CA",
+                    "type": "Group",
+                    "sort-name": "Alvvays",
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "disambiguation": "",
+                    "name": "Alvvays"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 183653
+            },
+            {
+              "number": "9",
+              "title": "Saved by a Waif",
+              "length": 179480,
+              "artist-credit": [
+                {
+                  "name": "Alvvays",
+                  "artist": {
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "sort-name": "Alvvays",
+                    "type": "Group",
+                    "country": "CA",
+                    "disambiguation": "",
+                    "name": "Alvvays",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "Alvvays",
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "name": "Alvvays",
+                      "disambiguation": "",
+                      "type": "Group",
+                      "country": "CA",
+                      "sort-name": "Alvvays",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564"
+                    }
+                  }
+                ],
+                "title": "Saved by a Waif",
+                "isrcs": [
+                  "US3R41733409"
+                ],
+                "id": "0a668d99-cad4-4af3-b02f-f7ae11fb53d7",
+                "length": 179480,
+                "video": false,
+                "first-release-date": "2017-09-08",
+                "disambiguation": ""
+              },
+              "position": 9,
+              "id": "a55849b5-786a-4fab-9355-4d6a0c1909dd"
+            },
+            {
+              "number": "10",
+              "title": "Forget About Life",
+              "artist-credit": [
+                {
+                  "name": "Alvvays",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Alvvays",
+                    "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                    "sort-name": "Alvvays",
+                    "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                    "type": "Group",
+                    "country": "CA"
+                  }
+                }
+              ],
+              "length": 162906,
+              "position": 10,
+              "id": "4d7f0e23-fa0a-4890-818f-831f859292fd",
+              "recording": {
+                "first-release-date": "2017-09-08",
+                "disambiguation": "",
+                "length": 162906,
+                "video": false,
+                "isrcs": [
+                  "US3R41733410"
+                ],
+                "id": "6ac065e4-0f0a-4f0b-b8f3-d76a1989a08e",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Alvvays",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "sort-name": "Alvvays",
+                      "id": "99450990-b24e-4132-bb68-235f8c3e2564",
+                      "type": "Group",
+                      "country": "CA"
+                    },
+                    "name": "Alvvays"
+                  }
+                ],
+                "title": "Forget About Life"
+              }
+            }
+          ],
+          "title": "",
+          "format": "CD",
+          "position": 1,
+          "track-count": 10
+        }
+      ],
+      "artist-credit": [
+        {
+          "artist": {
+            "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+            "name": "Alvvays",
+            "disambiguation": "",
+            "country": "CA",
+            "type": "Group",
+            "sort-name": "Alvvays",
+            "id": "99450990-b24e-4132-bb68-235f8c3e2564"
+          },
+          "joinphrase": "",
+          "name": "Alvvays"
+        }
+      ]
+    }
+  }
+}

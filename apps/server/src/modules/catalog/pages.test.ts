@@ -15,6 +15,7 @@ import { ensureAlbumDetail, ensureArtistDetail } from '../enrichment/detail.js'
 vi.mock('../enrichment/detail.js', () => ({
   ensureAlbumDetail: vi.fn(async () => {}),
   ensureArtistDetail: vi.fn(async () => {}),
+  ensureLyrics: vi.fn(async () => {}),
 }))
 
 describe('catalog pages', () => {

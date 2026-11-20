@@ -1,0 +1,1 @@
+ALTER TABLE "albums" ADD COLUMN "enriched_at" timestamp with time zone;

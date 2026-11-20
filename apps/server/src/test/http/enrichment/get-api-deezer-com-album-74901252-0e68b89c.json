@@ -1,0 +1,89 @@
+{
+  "note": "Trimmed: the embedded track list (16 entries) is left out; the client reads tracks from album/<id>/tracks.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/74901252"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 74901252,
+      "title": "Discovery",
+      "upc": "4680960607615",
+      "link": "https://www.deezer.com/album/74901252",
+      "share": "https://www.deezer.com/album/74901252?utm_source=deezer&utm_content=album-74901252&utm_term=0_1795197207&utm_medium=web",
+      "cover": "https://api.deezer.com/album/74901252/image",
+      "cover_small": "https://cdn-images.dzcdn.net/images/cover/4ff21b23662026086ec6145e406b6b0e/56x56-000000-80-0-0.jpg",
+      "cover_medium": "https://cdn-images.dzcdn.net/images/cover/4ff21b23662026086ec6145e406b6b0e/250x250-000000-80-0-0.jpg",
+      "cover_big": "https://cdn-images.dzcdn.net/images/cover/4ff21b23662026086ec6145e406b6b0e/500x500-000000-80-0-0.jpg",
+      "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4ff21b23662026086ec6145e406b6b0e/1000x1000-000000-80-0-0.jpg",
+      "md5_image": "4ff21b23662026086ec6145e406b6b0e",
+      "genre_id": 106,
+      "genres": {
+        "data": [
+          {
+            "id": 106,
+            "name": "Electro",
+            "picture": "https://api.deezer.com/genre/106/image",
+            "type": "genre"
+          },
+          {
+            "id": 111,
+            "name": "Techno/House",
+            "picture": "https://api.deezer.com/genre/111/image",
+            "type": "genre"
+          },
+          {
+            "id": 113,
+            "name": "Dance",
+            "picture": "https://api.deezer.com/genre/113/image",
+            "type": "genre"
+          }
+        ]
+      },
+      "label": "Speedsound Music",
+      "nb_tracks": 16,
+      "duration": 2133,
+      "fans": 6,
+      "release_date": "2018-10-12",
+      "record_type": "album",
+      "available": true,
+      "tracklist": "https://api.deezer.com/album/74901252/tracks",
+      "explicit_lyrics": false,
+      "explicit_content_lyrics": 2,
+      "explicit_content_cover": 2,
+      "contributors": [
+        {
+          "id": 2198571,
+          "name": "Data Punk",
+          "link": "https://www.deezer.com/artist/2198571",
+          "share": "https://www.deezer.com/artist/2198571?utm_source=deezer&utm_content=artist-2198571&utm_term=0_1795197207&utm_medium=web",
+          "picture": "https://api.deezer.com/artist/2198571/image",
+          "picture_small": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/56x56-000000-80-0-0.jpg",
+          "picture_medium": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/250x250-000000-80-0-0.jpg",
+          "picture_big": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/500x500-000000-80-0-0.jpg",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/1000x1000-000000-80-0-0.jpg",
+          "radio": true,
+          "tracklist": "https://api.deezer.com/artist/2198571/top?limit=50",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 2198571,
+        "name": "Data Punk",
+        "picture": "https://api.deezer.com/artist/2198571/image",
+        "picture_small": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/56x56-000000-80-0-0.jpg",
+        "picture_medium": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/250x250-000000-80-0-0.jpg",
+        "picture_big": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/500x500-000000-80-0-0.jpg",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/1000x1000-000000-80-0-0.jpg",
+        "tracklist": "https://api.deezer.com/artist/2198571/top?limit=50",
+        "type": "artist"
+      },
+      "type": "album"
+    }
+  }
+}
