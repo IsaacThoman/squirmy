@@ -1,0 +1,83 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?release-group=a6ccb4c7-5d38-4140-8482-14fc4db43480&inc=media+labels&limit=100&offset=0&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-count": 1,
+      "releases": [
+        {
+          "title": "Miraculé",
+          "packaging": "None",
+          "id": "01fe375e-6d9f-4328-b870-010288d84863",
+          "release-events": [
+            {
+              "date": "2014-06-09",
+              "area": {
+                "name": "France",
+                "id": "08310658-51eb-3801-80de-5a0739207115",
+                "type-id": null,
+                "sort-name": "France",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "FR"
+                ],
+                "disambiguation": ""
+              }
+            }
+          ],
+          "asin": null,
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "date": "2014-06-09",
+          "status": "Official",
+          "quality": "normal",
+          "text-representation": {
+            "language": "fra",
+            "script": "Latn"
+          },
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "label-code": null,
+                "disambiguation": "",
+                "type": null,
+                "id": "e1934827-eee2-44e6-9500-6827179bb889",
+                "name": "Classic Publishing",
+                "sort-name": "Classic Publishing",
+                "type-id": null
+              }
+            }
+          ],
+          "country": "FR",
+          "media": [
+            {
+              "format": "Digital Media",
+              "position": 1,
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "id": "0a923ac1-e33e-3eae-a363-3bb7099b664d",
+              "title": "",
+              "track-count": 17
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "darkened": false,
+            "count": 1,
+            "back": false,
+            "front": true,
+            "artwork": true
+          },
+          "disambiguation": "",
+          "barcode": null
+        }
+      ],
+      "release-offset": 0
+    }
+  }
+}

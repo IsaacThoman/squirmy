@@ -3,7 +3,7 @@ import type { AlbumDetail, AlbumDisc, ArtistDetail, Lyrics, TrackSummary } from 
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { notFound } from '../../lib/errors.js'
-import { ensureAlbumDetail, ensureArtistDetail } from '../enrichment/detail.js'
+import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
 import { canonicalRelease } from './availability.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
@@ -21,8 +21,9 @@ async function resolveOrThrow(table: 'artists' | 'albums' | 'recordings', id: st
  * every track with its own availability. Fetches missing detail first.
  */
 export async function albumDetail(userId: string, id: string): Promise<AlbumDetail> {
+  await ensureAlbumDetail(await resolveOrThrow('albums', id, 'album'))
+  // Completing a stub may merge it into the album's existing row.
   const albumId = await resolveOrThrow('albums', id, 'album')
-  await ensureAlbumDetail(albumId)
   const [[summary], [extra], tracks] = await Promise.all([
     albumSummaries([albumId]),
     db.execute<{ releaseDate: string | null; genres: string[]; description: string | null; label: string | null; liked: boolean; wanted: boolean }>(sql`
@@ -63,8 +64,8 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
  * detail first. `similar` stays empty until the radio module supplies it.
  */
 export async function artistDetail(userId: string, id: string): Promise<ArtistDetail> {
+  await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
   const artistId = await resolveOrThrow('artists', id, 'artist')
-  await ensureArtistDetail(artistId)
   const [[summary], [profile], albums, top] = await Promise.all([
     artistSummaries([artistId]),
     db.execute<{ sortName: string | null; disambiguation: string | null; bio: string | null; bioUrl: string | null; genres: string[]; liked: boolean }>(sql`
@@ -102,9 +103,10 @@ export async function trackDetail(userId: string, id: string, albumId?: string):
   return track
 }
 
-/** Stored lyrics. 404 `lyrics_not_found` when none are stored or the lookup found none. */
+/** Stored lyrics, looked up first when the track has none yet. 404 `lyrics_not_found` when none are stored or the lookup found none. */
 export async function trackLyrics(id: string): Promise<Lyrics> {
   const recordingId = await resolveOrThrow('recordings', id, 'track')
+  await ensureLyrics(recordingId)
   const [row] = await db.execute<Lyrics>(sql`
     select recording_id as "trackId", synced, plain, instrumental, source from lyrics
     where recording_id = ${recordingId} and (synced is not null or plain is not null or instrumental)`)

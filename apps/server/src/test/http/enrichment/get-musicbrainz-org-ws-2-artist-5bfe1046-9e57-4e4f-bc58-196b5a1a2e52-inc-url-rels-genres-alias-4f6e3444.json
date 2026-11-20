@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/artist/5bfe1046-9e57-4e4f-bc58-196b5a1a2e52?inc=url-rels+genres+aliases&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "aliases": [],
+      "begin-area": null,
+      "gender-id": null,
+      "country": null,
+      "disambiguation": "",
+      "life-span": {
+        "ended": false,
+        "end": null,
+        "begin": null
+      },
+      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+      "type": "Person",
+      "isnis": [],
+      "sort-name": "Valentin, Mira",
+      "genres": [],
+      "relations": [],
+      "name": "Mira Valentin",
+      "gender": null,
+      "area": null,
+      "ipis": [],
+      "end-area": null,
+      "id": "5bfe1046-9e57-4e4f-bc58-196b5a1a2e52"
+    }
+  }
+}
