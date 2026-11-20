@@ -185,7 +185,7 @@ export function LibraryScreen({ albumHref, bottomInset = 155 }: BrowseProps) {
 
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
-      <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Your library</Text>
+      <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Library</Text>
       <BrowseButton glass icon={showFilter ? 'xmark' : 'magnifyingglass'} label={showFilter ? 'Close library search' : 'Search library'} onPress={() => {
         tapFeedback();
         if (showFilter) setQuery('');
