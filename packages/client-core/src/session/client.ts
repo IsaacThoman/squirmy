@@ -49,11 +49,30 @@ export type SessionPlayer = {
   canBoost?: boolean
 }
 
+/**
+ * What `save()` returns and `restore` takes: the last server state this client saw and
+ * its own commands that state does not include yet, so a relaunch shows the same session
+ * and still sends what was done offline.
+ */
+export type SavedSession = {
+  version: number
+  state: SessionState
+  queue: SessionQueue
+  pending: { commandId: string; command: SessionCommand; at: number; ackVersion: number | null }[]
+  /** Estimated server time of the save. */
+  savedAt: number
+}
+
 export type SessionClientOptions = {
   transport: SessionTransport
   device: ClientDevice
   /** Omit on a device that only controls other devices. */
   player?: SessionPlayer
+  /**
+   * A session saved by an earlier run, shown until the server answers. If this device was
+   * playing it, it comes back paused at the saved position: the audio stopped with the app.
+   */
+  restore?: SavedSession
   /** Local clock. Defaults to `Date.now`. */
   now?: () => number
   /** After the session's position moves, the engine is re-seeked only when it is further off than this. Defaults to 1000. */
@@ -108,7 +127,10 @@ type Pending = {
  * command id). If the hello reply shows another device active, pending playback commands
  * are dropped and the local engine stops; queue edits and settings are still sent. If no
  * device is active and this one was playing when it lost the connection, it reclaims the
- * session at the engine's position.
+ * session at the engine's position. It does the same when it ended tracks by itself while
+ * offline, placing the transfer before the first of them so the server accepts them. When
+ * it is still the active device, commands made offline are followed by the engine's
+ * position, so the music does not jump back to where they were replayed.
  *
  * **Engine.** While active, the client loads the current entry, preloads the one that
  * would follow it, follows play/pause/seek, applies `volumes[device] × normalization`,
@@ -160,8 +182,9 @@ export class SessionClient {
     this.driftThresholdMs = options.driftThresholdMs ?? 1000
     this.reportIntervalMs = options.reportIntervalMs ?? 10_000
     this.normalization = options.player?.normalization ?? 'auto'
+    if (options.restore) this.restore(options.restore)
     const { state, queue } = splitSession(this.local)
-    this.snapshot = { session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: false }
+    this.snapshot = { session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive() }
   }
 
   /** Subscribes to the transport and the engine, and says hello if already connected. Call once. */
@@ -180,6 +203,8 @@ export class SessionClient {
       this.cleanup.push(player.engine.subscribe(event => this.onEngineEvent(event)))
       const timer = setRepeating(() => this.report(player.engine.getStatus(), true), this.reportIntervalMs)
       this.cleanup.push(() => clearRepeating(timer))
+      // A restored session this device was playing loads paused, ready to resume offline.
+      this.syncEngine(this.local, false)
     }
     if (transport.isConnected()) this.connect()
   }
@@ -229,6 +254,28 @@ export class SessionClient {
     return this.now() + this.offset
   }
 
+  /** The session as `restore` takes it. */
+  save(): SavedSession {
+    const { state, queue } = splitSession(this.server?.session ?? createInitialSession())
+    return {
+      version: this.server?.version ?? 0,
+      state,
+      queue,
+      pending: this.pending.map(({ commandId, command, at, ackVersion }) => ({ commandId, command, at, ackVersion })),
+      savedAt: this.serverNow(),
+    }
+  }
+
+  /**
+   * Forgets resolved playback descriptors, so each entry is resolved again when it next
+   * loads. For when the place an entry plays from has changed: a download finished or was removed.
+   */
+  forgetPlayback(): void {
+    this.descriptors.clear()
+    this.preloadTarget = null
+    if (this.isActive()) this.preloadNext()
+  }
+
   /** Changes the normalization mode (the user's setting) and applies it at once. */
   setNormalization(mode: NormalizationMode): void {
     this.normalization = mode
@@ -236,6 +283,19 @@ export class SessionClient {
   }
 
   // Sync
+
+  private restore(saved: SavedSession): void {
+    this.server = { version: saved.version, session: joinSession(saved.state, saved.queue) }
+    this.pending = saved.pending.map(pending => ({ ...pending, sentEpoch: null }))
+    const session = this.rebase()
+    if (session.playing && session.activeDeviceId === this.device.id) {
+      this.pending.push(
+        { commandId: this.newCommandId(), command: { type: 'pause' }, at: saved.savedAt, ackVersion: null, sentEpoch: null },
+        { commandId: this.newCommandId(), command: { type: 'seek', positionMs: positionAt(session, saved.savedAt) }, at: saved.savedAt, ackVersion: null, sentEpoch: null },
+      )
+    }
+    this.local = this.rebase()
+  }
 
   private connect(): void {
     const attempt = ++this.attempt
@@ -266,17 +326,44 @@ export class SessionClient {
       this.pending = this.pending.filter(pending => !PLAYBACK_COMMANDS.has(pending.command.type))
     }
     this.prune()
-    if (active === null && wasPlayingHere) this.reclaim()
+    if (active === null) this.reclaim(wasPlayingHere)
+    else if (active === this.device.id && wasPlayingHere && this.pending.some(pending => PLAYBACK_COMMANDS.has(pending.command.type))) {
+      this.sendEnginePosition()
+    }
     this.recompute()
     this.flush()
     this.syncClock(attempt, CLOCK_SAMPLES - 1)
   }
 
-  /** Takes the session back after the server gave up on this device while it kept playing offline. */
-  private reclaim(): void {
-    const status = this.player!.engine.getStatus()
-    this.enqueue({ type: 'transfer', deviceId: this.device.id, play: true }, this.newCommandId())
-    if (status.entryId === this.rebase().current?.id) {
+  /**
+   * Takes the session back after the server gave up on this device while it kept playing
+   * offline, or ended tracks there: the server only accepts `trackEnded` from the active
+   * device, so the transfer goes in just before the first one.
+   */
+  private reclaim(wasPlaying: boolean): void {
+    if (!this.player) return
+    const ended = this.pending.findIndex(pending => pending.command.type === 'trackEnded')
+    if (!wasPlaying && ended < 0) return
+    if (ended >= 0) {
+      this.pending.splice(ended, 0, {
+        commandId: this.newCommandId(),
+        command: { type: 'transfer', deviceId: this.device.id, play: true },
+        at: this.pending[ended]!.at,
+        ackVersion: null,
+        sentEpoch: null,
+      })
+    }
+    if (wasPlaying) this.enqueue({ type: 'transfer', deviceId: this.device.id, play: true }, this.newCommandId())
+    this.sendEnginePosition()
+  }
+
+  /**
+   * The server replays commands made offline as they arrive, so positions they anchored
+   * there would lag behind the audio that kept playing here; the engine's position follows them.
+   */
+  private sendEnginePosition(): void {
+    const status = this.player?.engine.getStatus()
+    if (status && status.entryId === this.rebase().current?.id && status.state !== 'idle') {
       this.enqueue({ type: 'seek', positionMs: status.positionMs }, this.newCommandId())
     }
   }

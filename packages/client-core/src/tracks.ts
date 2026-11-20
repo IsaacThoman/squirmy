@@ -49,6 +49,11 @@ export class TrackStore {
     return undefined
   }
 
+  /** The cached summary, without fetching a missing one. */
+  peek(trackId: string, albumId: string | null = null): TrackSummary | undefined {
+    return this.cache.get(keyOf(trackId, albumId))
+  }
+
   /** Adds summaries the caller already has (album pages, search results), keyed by their album. */
   prime(tracks: readonly TrackSummary[]): void {
     for (const track of tracks) this.cache.set(keyOf(track.id, track.album?.id ?? null), track)

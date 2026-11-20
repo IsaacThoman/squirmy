@@ -75,6 +75,16 @@ describe('TrackStore', () => {
     expect(api).toHaveBeenCalledOnce()
   })
 
+  it('peeks at the cache without fetching', async () => {
+    const api = fakeApi(() => [summary(2)])
+    const store = new TrackStore(api)
+    store.prime([summary(1)])
+    expect(store.peek(uuid(1))?.title).toBe('Track 1')
+    expect(store.peek(uuid(2))).toBeUndefined()
+    await vi.runAllTimersAsync()
+    expect(api).not.toHaveBeenCalled()
+  })
+
   it('does not re-request missing tracks but retries failures', async () => {
     const api = vi.fn(async () => ({ tracks: [] as TrackSummary[] }))
     const store = new TrackStore(api)
