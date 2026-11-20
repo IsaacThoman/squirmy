@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Id } from './common.js'
 import { NormalizationMode, StreamQuality } from './playback.js'
 
 /** Per-user preferences, stored on the user row. */
@@ -46,6 +47,17 @@ export const ServerSettings = z.object({
   missingFileGraceDays: z.number().int().min(0).max(365).default(14),
   transcodeCacheMaxBytes: z.number().int().min(0).default(10 * 1024 ** 3),
   registrationRequiresInvite: z.boolean().default(true),
+  /** Managed root imports are filed into. Null means the only managed root, when there is exactly one. */
+  importRootId: Id.nullable().default(null),
+  /**
+   * Folder the server watches for music to import. Items dropped here are moved into the
+   * library. It may not be inside a library root. Null falls back to SQUIRMY_INBOX_PATH.
+   */
+  inboxPath: z.string().nullable().default(null),
+  /** Largest single file an import accepts, archives included. */
+  importMaxFileBytes: z.number().int().min(1).default(4 * 1024 ** 3),
+  /** Largest import, counting what its archives extract to. */
+  importMaxBytes: z.number().int().min(1).default(64 * 1024 ** 3),
 })
 export type ServerSettings = z.infer<typeof ServerSettings>
 
@@ -65,6 +77,10 @@ export const UpdateServerSettings = z.object({
   missingFileGraceDays: z.number().int().min(0).max(365),
   transcodeCacheMaxBytes: z.number().int().min(0),
   registrationRequiresInvite: z.boolean(),
+  importRootId: Id.nullable(),
+  inboxPath: z.string().nullable(),
+  importMaxFileBytes: z.number().int().min(1),
+  importMaxBytes: z.number().int().min(1),
   listenBrainzToken: z.string().nullable(),
   acoustIdKey: z.string().nullable(),
   fanartKey: z.string().nullable(),

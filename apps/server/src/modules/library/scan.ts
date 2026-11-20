@@ -1,9 +1,9 @@
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { queryKeys, type ScanStats } from '@squirmy/contracts'
+import { INCOMING_FOLDER, queryKeys, type ScanStats } from '@squirmy/contracts'
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { libraryRoots, mediaFiles } from '../../database/schema.js'
+import { imports, libraryRoots, mediaFiles } from '../../database/schema.js'
 import { enqueueMany } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { getServerSettings } from '../../lib/settings.js'
@@ -117,6 +117,18 @@ class ScanWriter {
   }
 }
 
+/**
+ * A test for paths inside `_Incoming/<importId>` folders an import is still extracting or
+ * moving files into. The scan leaves them alone, neither adding their files nor marking
+ * them missing, and the import scans the folder itself once it is done.
+ */
+async function heldByImports(rootId: string): Promise<(relPath: string) => boolean> {
+  const held = (await db.select({ id: imports.id }).from(imports).where(and(
+    eq(imports.targetRootId, rootId), eq(imports.status, 'processing'), inArray(imports.step, ['extracting', 'moving']),
+  ))).map((row) => `${INCOMING_FOLDER}/${row.id}`)
+  return (relPath) => held.some((folder) => relPath === folder || relPath.startsWith(`${folder}/`))
+}
+
 /** Root-relative scopes with descendants of other scopes removed. '' covers everything. */
 function normalizeScopes(paths: readonly string[]): string[] {
   const cleaned = [...new Set(paths.map((value) => value.replace(/^\/+|\/+$/g, '')))]
@@ -157,6 +169,7 @@ export async function scanRoot({ rootId, paths }: ScanJob): Promise<ScanStats | 
   await invalidate('admins', [queryKeys.adminRoots()])
 
   const writer = new ScanWriter(rootId)
+  const held = await heldByImports(rootId)
   let lastProgress = 0
   const onError = (relPath: string, error: unknown) => {
     writer.stats.errors += 1
@@ -166,9 +179,10 @@ export async function scanRoot({ rootId, paths }: ScanJob): Promise<ScanStats | 
     const rows = rowsUnder(rootId, scope)
     let row = (await rows.next()).value as Row | undefined
     for await (const entry of walk(scope, { root: rootPath, onError })) {
+      if (held(entry.relPath)) continue
       writer.stats.filesSeen += 1
       while (row && compareBytes(row.relPath, entry.relPath) < 0) {
-        await writer.unseen(row)
+        if (!held(row.relPath)) await writer.unseen(row)
         row = (await rows.next()).value as Row | undefined
       }
       if (row && row.relPath === entry.relPath) {
@@ -183,7 +197,7 @@ export async function scanRoot({ rootId, paths }: ScanJob): Promise<ScanStats | 
       }
     }
     while (row) {
-      await writer.unseen(row)
+      if (!held(row.relPath)) await writer.unseen(row)
       row = (await rows.next()).value as Row | undefined
     }
   }

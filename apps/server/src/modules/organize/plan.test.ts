@@ -43,6 +43,14 @@ describe('organize: planning', () => {
       await expect(planOrganize({ rootId: broken.id, userId: null })).rejects.toMatchObject({ code: 'invalid_template' })
     })
 
+    it('leaves files waiting in _Incoming alone unless asked', async () => {
+      const root = await makeRoot()
+      const artist = await createArtist({ name: 'Imported' })
+      await addAlbum(root, { artist, title: 'Waiting', tracks: [{ title: 'T' }] }, ['_Incoming/0190aaaa-0000-7000-8000-000000000000/t.flac'])
+      expect((await plan(root.id)).moves).toEqual([])
+      expect((await plan(root.id, { includeIncoming: true })).moves.map((move) => move.toRelPath)).toEqual(['Imported/Waiting (2024)/01 T.flac'])
+    })
+
     it('uses the root template', async () => {
       const root = await makeRoot('managed', '{albumartist} - {album}/{track}. {title}.{ext}')
       const artist = await createArtist({ name: 'X' })
