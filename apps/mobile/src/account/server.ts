@@ -1,7 +1,8 @@
 import { ApiError, createApiClient, type FetchLike } from '@squirmy/client-core';
 import { displayAddress, parseServerAddress } from './address';
 
-export type Server = { url: string; name: string; version: string };
+/** `registrationRequiresInvite` is false when anyone may create an account. */
+export type Server = { url: string; name: string; version: string; registrationRequiresInvite: boolean };
 
 export type ConnectProblem = 'invalid' | 'unreachable' | 'notSquirmy' | 'serverError' | 'needsSetup';
 
@@ -49,7 +50,7 @@ export async function findServer(input: string, fetchImpl: FetchLike = fetchWith
       if (status.needsSetup) {
         throw new ConnectError('needsSetup', `${status.serverName} isn’t set up yet. Create the first account in a browser, then come back.`, url);
       }
-      return { url, name: status.serverName, version: status.version };
+      return { url, name: status.serverName, version: status.version, registrationRequiresInvite: status.registrationRequiresInvite };
     } catch (error) {
       if (error instanceof ConnectError) throw error;
       const problem = describe(error, url);

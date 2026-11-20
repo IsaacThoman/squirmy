@@ -46,7 +46,11 @@ function readSaved(): Saved | null {
   try {
     const json = globalThis.localStorage?.getItem(savedKey);
     const saved = json ? JSON.parse(json) as Partial<Saved> : null;
-    return saved?.server?.url ? { server: saved.server, user: saved.user ?? null } : null;
+    // Servers saved before the invite setting was known are assumed to require one.
+    return saved?.server?.url ? {
+      server: { ...saved.server, registrationRequiresInvite: saved.server.registrationRequiresInvite ?? true },
+      user: saved.user ?? null,
+    } : null;
   } catch {
     return null;
   }

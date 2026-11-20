@@ -62,7 +62,8 @@ export function SignInScreen() {
 
   const { server, notice } = state;
   const registering = mode === 'register';
-  const ready = Boolean(username.trim() && password && (!registering || inviteCode.trim()));
+  const inviteRequired = server.registrationRequiresInvite;
+  const ready = Boolean(username.trim() && password && (!registering || !inviteRequired || inviteCode.trim()));
   // Shown until the next attempt: on iOS, changing a section's footer rebuilds its fields,
   // which would cut off typing in the password field.
   const error = attempt.error ? signInErrorMessage(attempt.error, server.name) : null;
@@ -73,10 +74,14 @@ export function SignInScreen() {
 
   return <AuthPage icon={registering ? 'person.crop.circle.badge.plus' : 'person.crop.circle'}
     title={registering ? 'Create an account' : 'Sign in'}
-    message={notice ?? (registering ? `Use the invite code you were given to join ${server.name}.` : `Sign in to listen to ${server.name}.`)}>
+    message={notice ?? (registering
+      ? inviteRequired ? `Use the invite code you were given to join ${server.name}.` : `Create an account on ${server.name}.`
+      : `Sign in to listen to ${server.name}.`)}>
     <AuthServer server={server} onChange={switchServer} />
-    {registering && <AuthSection footer="Ask the person who runs this server for an invite code.">
-      <AuthField kind="code" placeholder="Invite code" value={inviteCode} onChange={setInviteCode} autoFocus
+    {registering && <AuthSection footer={inviteRequired
+      ? 'Ask the person who runs this server for an invite code.'
+      : 'An invite code can give your account more permissions. You can leave it empty.'}>
+      <AuthField kind="code" placeholder={inviteRequired ? 'Invite code' : 'Invite code (optional)'} value={inviteCode} onChange={setInviteCode} autoFocus
         onSubmit={() => usernameField.current?.focus()} />
     </AuthSection>}
     <AuthSection footer={error ?? warning} tone={error ? 'error' : 'note'}>
@@ -87,7 +92,7 @@ export function SignInScreen() {
     </AuthSection>
     <AuthSubmit title={registering ? 'Create Account' : 'Sign In'} busy={attempt.isPending} disabled={!ready} onPress={submit} />
     <AuthSection>
-      <AuthLink title={registering ? 'I already have an account' : 'Join with an invite code'}
+      <AuthLink title={registering ? 'I already have an account' : inviteRequired ? 'Join with an invite code' : 'Create an account'}
         icon={registering ? 'person.crop.circle' : 'ticket'} onPress={() => {
           attempt.reset();
           setMode(registering ? 'signIn' : 'register');

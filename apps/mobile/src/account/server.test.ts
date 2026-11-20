@@ -22,7 +22,7 @@ function serve(answers: Record<string, Answer>) {
   return { asked, fetch };
 }
 
-const status = { needsSetup: false, version: '1.4.0', serverName: 'Home' };
+const status = { needsSetup: false, version: '1.4.0', serverName: 'Home', registrationRequiresInvite: true };
 
 async function failure(promise: Promise<unknown>): Promise<ConnectError> {
   const error = await promise.then(() => null, (reason: unknown) => reason);
@@ -33,7 +33,9 @@ async function failure(promise: Promise<unknown>): Promise<ConnectError> {
 describe('findServer', () => {
   it('returns the server name and version', async () => {
     const { asked, fetch } = serve({ 'https://music.example.com': { status: 200, body: status } });
-    await expect(findServer('music.example.com/', fetch)).resolves.toEqual({ url: 'https://music.example.com', name: 'Home', version: '1.4.0' });
+    await expect(findServer('music.example.com/', fetch)).resolves.toEqual({
+      url: 'https://music.example.com', name: 'Home', version: '1.4.0', registrationRequiresInvite: true,
+    });
     expect(asked).toEqual(['https://music.example.com']);
   });
 
