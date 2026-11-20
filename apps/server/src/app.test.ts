@@ -74,11 +74,15 @@ describe('server kernel', () => {
         expect(page.headers['cache-control']).toBe('no-cache')
       }
 
-      for (const url of ['/api/v1/nothing', '/rest/ping.view', '/socket.io/x', '/api']) {
+      for (const url of ['/api/v1/nothing', '/socket.io/x', '/api']) {
         const response = await app.inject({ url })
         expect(response.statusCode, url).toBe(404)
         expect(response.json().error.code).toBe('not_found')
       }
+      // /rest belongs to the Subsonic module, which answers even unknown methods itself.
+      const subsonic = await app.inject({ url: '/rest/nothing.view' })
+      expect(subsonic.headers['content-type']).toMatch(/^text\/xml/)
+      expect(subsonic.body).toContain('<subsonic-response')
       expect((await app.inject({ method: 'POST', url: '/somewhere' })).statusCode).toBe(404)
       expect((await app.inject({ url: '/health' })).json().status).toBe('ok')
       await app.close()

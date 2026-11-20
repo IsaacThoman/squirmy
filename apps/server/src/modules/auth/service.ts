@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import type { AppPassword, ClientDevice, User } from '@squirmy/contracts'
 import argon2 from 'argon2'
-import { and, desc, eq, getTableColumns, gt, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, type Executor } from '../../database/client.js'
 import { appPasswords, authSessions, devices, users } from '../../database/schema.js'
 import type { AuthUser } from '../../lib/auth.js'
@@ -147,8 +147,13 @@ export async function deleteAppPassword(userId: string, id: string): Promise<boo
   return deleted.length > 0
 }
 
+/** Subsonic clients authenticate every request, cover art included, so this writes at most once a minute. */
 async function touchAppPassword(id: string) {
-  await db.update(appPasswords).set({ lastUsedAt: new Date() }).where(eq(appPasswords.id, id))
+  const now = new Date()
+  await db.update(appPasswords).set({ lastUsedAt: now }).where(and(
+    eq(appPasswords.id, id),
+    or(isNull(appPasswords.lastUsedAt), lt(appPasswords.lastUsedAt, new Date(now.getTime() - lastSeenIntervalMs))),
+  ))
 }
 
 /** OpenSubsonic `apiKey` auth: the key is an app password's secret. */

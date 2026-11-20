@@ -110,7 +110,7 @@ Modules reach each other in three ways, in this order of preference:
 
 ### Configuration
 
-Environment variables are parsed in `config.ts`; see that file for the full list. The ones a self-hoster sets: `DATABASE_URL` (required), `SQUIRMY_DATA_DIR`, `SQUIRMY_LIBRARY_PATHS`, `PORT`, `PUBLIC_URL`, `TRUST_PROXY`, `SQUIRMY_ROLE`. `SQUIRMY_SECRET` is generated into the data directory on first boot when unset.
+Environment variables are parsed in `config.ts`; see that file for the full list. The ones a self-hoster sets: `DATABASE_URL` (required), `SQUIRMY_DATA_DIR`, `SQUIRMY_LIBRARY_PATHS`, `SQUIRMY_INBOX_PATH`, `PORT`, `PUBLIC_URL`, `TRUST_PROXY`, `SQUIRMY_ROLE`. `SQUIRMY_SECRET` is generated into the data directory on first boot when unset.
 
 Operator settings that change at runtime (provider toggles, API keys, thresholds) live in the `server_settings` table and are edited in the admin UI. Shape: `ServerSettings` in contracts. Secrets are stored encrypted under separate keys and never returned.
 
@@ -202,12 +202,12 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/scrobbling`, `PUT/DELETE /me/scrobbling/listenbrainz`, `POST /me/scrobbling/lastfm/start`, `DELETE /me/scrobbling/lastfm` | scrobble | every mutation returns `ScrobblingStatus` |
 | `GET /scrobbling/lastfm/callback` | scrobble | no session needed: the signed `state` names the user; redirects to `/settings?lastfm=…` |
 | `POST /radio/track/:id`, `POST /radio/artist/:id` | radio | `RadioResponse`, played with `playTracks` |
-| `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files |
+| `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files; candidates come with the album's files |
 | `POST /admin/organize/preview`, `GET /admin/organize/batches`, `GET /admin/organize/batches/:id`, `POST /admin/organize/batches/:id/apply`, `/revert` | organize | apply and revert run as jobs and answer 202 |
-| `POST /imports`, `POST /imports/:id/files`, `POST /imports/:id/commit`, `GET /imports/:id` | imports | multipart upload |
+| `GET/POST /imports`, `GET/DELETE /imports/:id`, `POST /imports/:id/files`, `POST /imports/:id/commit` | imports | admins and members with `canUpload`; multipart upload; `DELETE` cancels while receiving; a list shows your own imports, or all for an admin |
 | `GET/POST/PATCH/DELETE /admin/acquisition/providers`, `GET /admin/acquisition/jobs` | acquisition | |
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request; play does it implicitly |
-| `GET/DELETE /admin/catalog-index`, `POST /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
+| `GET/DELETE /admin/catalog-index`, `POST/DELETE /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
 | `/rest/*` | subsonic | OpenSubsonic, XML and JSON |
 
 ### Availability
@@ -219,10 +219,25 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 
 ### Catalog read side
 
-- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, Subsonic, userdata) use these rather than writing their own.
+- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, userdata) use these rather than writing their own. Subsonic builds its own, because its objects describe files (size, codec, path), but takes availability and redirects from the catalog.
 - Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
 - Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
 - A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
+
+### Search
+
+`modules/search/`. Both routes return `SearchResults` built with the catalog summary builders, so availability comes out the same as everywhere else. Queries whose `matchKey` is shorter than two characters answer nothing.
+
+- **`GET /search/library`** (`library.ts`): owned music only (artists credited on an owned track or an album with a present file, albums with a present file, owned tracks). Candidates per kind come from bounded index lookups: a byte-order prefix btree on `name_key`/`title_key`; every split of the query into "artist title" or "title artist", looked up from that artist's rows; albums and tracks whose primary artist's name starts with the query; and, from three characters, trigram word similarity on `name_key` or the whole `match_key` (artist and title, so typos and word order are tolerated). Ranking: exact, then prefix (title, name or artist), then similarity; ties go to the user's plays among their last 1,000, then likes. Each kind is one query run with `enable_seqscan` off, because the planner prices `word_similarity` too low. `performance.test.ts` measures it on 10,000 albums and 150,000 tracks.
+- **`GET /search/catalog`**: one provider per request (`providers.ts`), in this order: the local index when `isCatalogIndexReady()`, Deezer when enabled, MusicBrainz when enabled. A provider that throws falls through to the next; `provider` names the one that answered. Identical queries in flight share one provider call, and `cachedFetch` keeps search responses for a day. MusicBrainz free text matches titles only, so "artist title" queries are only understood by the other two.
+- **Stub rows** (`materialize.ts`): results are stored before they are returned, in one transaction per response under the advisory lock `squirmy:search-stubs`. Each result is matched to an existing row by its `external_ids` row (`deezer`, or `musicbrainz` for MusicBrainz and local-index ids), then by MBID, then by key: for artists the one artist with that `name_key`, if exactly one exists and it has no other id from the provider; for albums and tracks the same artist (credit text or primary artist) and the same title once edition suffixes are dropped, owned rows first. Album types must agree unless the row is owned; track lengths must be within 10 s. Only then is a stub inserted:
+  - artist: `name`, `name_key`, `detail_level` 0, `mbid` when known, an `external_ids` row, `image_asset_id` from `remoteImage`;
+  - album: `title`, `artist_credit`, `primary_artist_id` and `album_artists`, `type`, `year`/`release_date`, `title_key`, `match_key`, `detail_level` 0, `mbid` (release group) when known, an `external_ids` row, `artwork_asset_id` from `remoteImage`, no releases;
+  - recording: `title`, `artist_credit`, `primary_artist_id` and `recording_artists`, `duration_ms`, `title_key`, `match_key`, `explicit`, `popularity` (0..1), `isrcs`, `mbid` when known, an `external_ids` row, and `album_hint_id`, an album it appears on. Summaries use the hint only when no file or release track names an album.
+
+  Existing rows only gain a missing external id, image or album hint. Credits without any provider id (the local index names some artists only as text) reuse the artist with that name and otherwise become a stub without an external id.
+- **Edition suffixes** (`keys.ts`): a bracketed or dashed suffix is ignored for matching when all its words describe an edition (deluxe, expanded, remastered, anniversary, explicit, clean, bonus tracks, numbers…) and at least one is a strong word, so "OK Computer (Deluxe Edition)" and "Let It Be - Remastered 2009" find the plain titles while "(Live)", "(Remixes)", "(Radio Edit)" and "(Taylor's Version)" stay different albums and songs. Stored keys keep the full title.
+- **`search.cleanup`** (daily): deletes stubs older than 30 days that never gained detail (albums and artists at `detail_level` 0 with no MusicBrainz releases, recordings on no release) and that nothing keeps: files, likes, ratings, wants, playlist items, plays, ids in stored playback sessions, album hints of kept recordings, credits, merges. Their `external_ids` go too; `assets` stay. The library's orphan cleanup leaves stubs alone.
 
 ### Playback and streaming
 
@@ -264,6 +279,18 @@ The server holds one session per user in memory, loaded on first use and persist
 - `similarArtists(artistId)` merges Deezer related artists (Deezer id from `external_ids`, else an exact name search) and ListenBrainz similar artists (with a server token and an artist MBID), mapped to catalog artists by MBID, else `name_key`. A source that is off or fails is skipped; lookups during ranking give up after 2.5 seconds.
 - A radio is 50 tracks starting with the seed track (for an artist, its most played, liked or popular owned track) with context `{ type: 'radio', id: 'track:<id>' | 'artist:<id>' }`. Nothing is stored: when the radio runs out and autoplay is on, the session's history (the radio's last tracks) seeds the next batch, so it continues in the same direction.
 
+### Subsonic
+
+`modules/subsonic` serves OpenSubsonic under `/rest` over the same services; [subsonic.md](./subsonic.md) lists what it supports.
+
+- `router.ts` answers every method on GET and form POST, with or without `.view`. Handlers return plain objects that `serialize.ts` writes as XML or JSON(P). Failures are Subsonic error codes in a 200; service `AppError`s map to the closest code (404 is 70, 403 is 50).
+- Every request authenticates with an app password (token, password or `apiKey`); failures are limited per IP in the API process.
+- Ids carry their kind (`ar-`, `al-`, `tr-`, `pl-`, `ca-` for an artwork asset) and are checked on the way in. Music folders are library roots, numbered by a hash of the root id.
+- Only owned music appears. `songs.ts`, `albums.ts` and `artists.ts` build response objects in batches with a fixed number of queries; a song is shown through the present file `selectFile` would stream.
+- Sync clients page through everything with an empty `search3`. The page that starts where the user's previous one ended continues from its last key, so deep pages cost what the first does.
+- `stream` serves originals and the streaming profiles through `openStream`; a bitrate below every profile, or a `timeOffset`, is a live ffmpeg encode that is not cached.
+- The play queue is the session queue (`getSnapshot`, `replaceQueue`). The songs a client saved before its current one are remembered in memory while the session's current entry and queue are unchanged.
+
 ### Library pipeline
 
 Jobs, in order. Each is idempotent and keyed by file or album group.
@@ -272,12 +299,31 @@ Jobs, in order. Each is idempotent and keyed by file or album group.
 2. `library.probe` reads tags and technical details with `music-metadata` (ffprobe fills gaps and takes over when it cannot parse), normalizes them into `FileTags`, reads ReplayGain (and Opus R128) into the `tag_*` columns, stores the embedded picture, sets `probe_stage 1` and the group key, then queues ingest for the group. A file nothing can read gets `probe_error` and is left alone until it changes.
 3. `library.ingest` `{ rootId, groupKey }` creates or reuses local-only catalog rows (artists, album, release, recordings, release tracks) from the group's tags and links the files, in one transaction. Rows the files already use are reused unless another group uses them; rows with a MusicBrainz id in the tags are found by it or created with it, and are never renamed from tags afterwards. A group with a matched or locked file is only relinked. Rows that end up unused (no files, no user data, no MusicBrainz id) are removed. Then album and artist art from the folder and files, lyrics (embedded or a `.lrc` sidecar), and `matching.match-album`. After this step the music is browsable and playable.
 4. `library.analyze` (low priority) computes the audio hash and sets `probe_stage 2`. A new file whose hash matches a row whose file is gone is that row moved: the old row takes the new path and keeps its id, links and match state. Then `loudness.measure`.
-5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start.
-6. `enrichment.*` (milestone 4) fills in covers, images, bios and lyrics.
+5. `matching.match-album` `{ rootId, groupKey }` (singleton key `<rootId>:<groupKey>`) upgrades local-only rows to MusicBrainz rows, opens a review, or leaves the files `unmatched`. It applies under the catalog lock, like ingest. `matching.sweep` re-queues groups still `pending` every ten minutes and at worker start.
+6. `enrichment.album` and `enrichment.artist` (queued by the match) fill in covers, images, bios, Deezer ids and lyrics; see "Enrichment".
 
 `library.purge-missing` runs daily and deletes files missing longer than `missingFileGraceDays`. The grouping and album artist rules are written out at the top of `modules/library/grouping.ts`. In short, the album grouping key is root id, parent directory (ignoring `CD1`/`Disc 2` subfolders), and `matchKey` of album artist and album.
 
 Watching: roots with `watch` on are watched while a worker runs, and changed paths are scanned after two quiet seconds. macOS and Windows use one recursive watch per root; Linux uses one inotify watch per folder. Network mounts and exhausted inotify limits fall back to the nightly scan.
+
+Scans skip `_Incoming/<importId>` folders while that import is extracting or moving files into them, and organize leaves `_Incoming` out of its plans unless `includeIncoming` is set.
+
+### Imports
+
+`modules/imports` brings music in through the server: web uploads, the inbox folder, and acquisition deliveries (which call `createImport`, `addImportFile`, `commitImport` and `failImport` from `modules/imports/index.ts`). Whatever the origin, an import is a row in `imports` and goes through the same steps:
+
+```
+receiving ──commit──▶ processing: extracting → moving → identifying → filing ──▶ completed
+    │                                                                       └──▶ failed
+    └── cancel, provider failure, or a day without files ──▶ failed
+```
+
+- **Receiving.** Files stream into `<data>/staging/<importId>/` through a byte counter, as a temporary dot file, and are linked into place in the same transaction that bumps the import's counters, so a concurrent commit or cancel sees all of a file or none of it. Names are checked first (`imports/paths.ts`): audio by the scanner's extension list, `cover.*` and `folder.*` images, `.lrc`, `.cue`, `.log` and `.zip`; relative paths are normalized and must not be absolute or contain `..` or control characters, at most 8 levels and 1024 bytes. `importMaxFileBytes` and `importMaxBytes` bound files and imports (413). Nothing follows or creates a symbolic link.
+- **Target root.** `importRootId`, else the only enabled managed root; otherwise creating an import fails with `no_managed_root` or `import_root_not_set`.
+- **`imports.process`** runs the steps; each is idempotent and records its outcome before the import moves on, so a retried job carries on after a crash. *Extracting* reads each zip in two passes with yauzl (check every entry, then extract into a temporary folder renamed into place); an archive with an unsafe path, a symbolic link, encryption, more than 10,000 entries or more bytes than the import may hold is refused whole, and nested zips are skipped. *Moving* uses organize's mover (rename, or copy, verify and delete) into `<root>/_Incoming/<importId>/`. *Identifying* queues a scan of that folder and watches `media_files`: it marks rows with `source` and `import_id`, deletes files whose audio hash a present library file already has, and waits until every file is hashed, ingested and matched, or for an hour, after which the rest is left for review. *Filing* plans and applies one organize batch for the albums matched with confidence, removes the folder when no audio is left in it, refreshes wants and records the counts.
+- **Completion** is read from the row; every status and step change publishes `import.updated` to the owner and admins.
+- **Inbox.** One worker (an advisory lock) polls the inbox (`inboxPath`, else `SQUIRMY_INBOX_PATH`) and takes each top-level item once it has been unchanged and readable for five seconds, moving it into staging. What an import does not take, and failed inbox imports, go to `Not imported/<importId>/` in the inbox. The inbox may not overlap a library root or the data folder.
+- **`imports.sweep`** (every 15 minutes and at worker start) expires imports stuck receiving, re-queues processing ones and removes orphaned staging folders.
 
 ### External metadata
 
@@ -289,6 +335,17 @@ All clients live in `modules/metadata/` and go through `lib/http.ts`:
 - Every provider checks its toggle or key in `ServerSettings` and returns null or an empty list rather than throwing when it is off. "Not found" is null too; a provider failure (network, timeout, 5xx, bad key) throws `ProviderError`.
 - Other modules import the clients from `modules/metadata/index.ts`, e.g. `musicbrainz.getRelease(mbid)`.
 - Tests never touch the network. `useHttpFixtures(provider)` from `src/test/http.ts` serves recorded responses from `src/test/http/<provider>/` and fails on any unrecorded request. `SQUIRMY_RECORD_HTTP=1` records missing fixtures from the real service.
+
+### Enrichment
+
+The catalog is a lazy cache of MusicBrainz. `enrichment/detail.ts` completes a row when a page opens it; jobs decorate owned music in the background.
+
+- **Album detail** (`ensureAlbumDetail`). An album at `detail_level` 2 fetched in the last 30 days is left alone. With a release-group MBID the group is fetched, the canonical release chosen (`canonical.ts`: best status present, then the most common track count, then CD or digital media, then the earliest date) and written through matching's `upsertRelease`. An album with present files keeps its canonical release. Without an MBID a Deezer id is bridged, most reliable first: the MusicBrainz URL relation of the Deezer page, the UPC as a barcode (accepted when its releases share one group), then a release-group search accepted only for one hit scoring 90 or more with the same title and artist. The stub adopts the MBID, or is merged into the row that has it. With no match the track list comes from Deezer (provider-only rows with ISRCs); the album stays at level 1 and the bridge is retried after a day. Stubs that share an ISRC with a recording on the written release are merged into it, and Deezer track ids are linked by ISRC.
+- **Artist detail** (`ensureArtistDetail`). With an MBID: profile and genres, every Deezer page MusicBrainz links, the official discography (`release-group-status=website-default`) as level-1 album rows with a lazy Cover Art Archive cover (`/release-group/<mbid>/front-500`), an image (the one the artist has, else Deezer, fanart.tv, Wikidata, all lazy), the English Wikipedia summary as bio, and a 0..1 `popularity` from ListenBrainz (with a token) or Deezer's top tracks, with stubs for tracks the catalog lacks. A Deezer artist is bridged by URL relation, else an unambiguous exact-name search; otherwise its Deezer albums become stubs.
+- **Bounds.** One run per row is in flight per process and concurrent callers share it. A page waits at most four seconds, then renders what is known; the run carries on, and `enrichment.album`/`enrichment.artist` is queued a minute later as a safety net. The seam never throws: a `ProviderError` leaves what was written, and an optional source failing (image, bio, top tracks) only keeps the row below level 2 so the next visit retries.
+- **Owned albums** (`enrichment.album`). After detail: a stored cover unless the album has one at least 500 px on its short side (Cover Art Archive release front, then release-group front, then Deezer), Deezer ids by UPC and ISRC, a Wikipedia description, and `enrichment.lyrics` for owned recordings without lyrics. `albums.enriched_at` records success.
+- **Lyrics** (`enrichment.lyrics`, and `GET /tracks/:id/lyrics` on demand): LRCLIB by title, artist, album and duration; no match stores a `none` row that is retried after 30 days. Lyrics from files are never replaced.
+- `enrichment.sweep` (every 30 minutes and at worker start) queues owned albums without `enriched_at`, their artists below level 2, and owned recordings without lyrics, 200 of each per run. `enrichment.new-releases` (weekly) refreshes library artists' discographies; Home's `new-releases` section lists albums from the last 120 days by library artists that have no present file.
 
 ## Clients
 
@@ -322,7 +379,9 @@ apps/web/src/
 - **Bootstrap.** One API client (same origin, `client: 'web'`) and one `QueryClient`. Before any route renders, `GET /setup/status` and `GET /auth/me` load. Guards: a server without an admin shows the setup wizard on every route; signed-out visitors go to `/login?next=…`; admin routes need the admin role. Signing in or out only changes the cached `me`, and the guards navigate. A 401 from any request signs out; other failures become a toast with the server's message, unless the query or mutation says it shows them itself (`meta: { silent }`, `meta: { inline }`).
 - **Forms** validate with the contract schemas (`useFormSubmit`), show issues under their fields, and map known error codes onto fields.
 - **Realtime.** `RealtimeProvider` opens one socket per signed-in user. `invalidate` refreshes the named queries, every reconnect refreshes all of them, and the shell shows a notice when the socket has been down for three seconds. The socket is in the context for `SessionClient`.
-- **Audio.** `WebPlayerEngine` alternates two `<audio>` elements, each through its own `GainNode`, so normalization can boost. When the browser refuses to start audio the entry goes to `error` and the shell offers "Enable audio", which calls `unlock()` from the click. `/dev/engine` drives it with tones from `scripts/dev-audio.mjs`; `scripts/e2e-engine.mjs` checks it against the contract in Chromium, and `scripts/e2e-auth.mjs` walks the account flows against a fresh server.
+- **Audio.** `WebPlayerEngine` alternates two `<audio>` elements, each through its own `GainNode`, so normalization can boost. When the browser refuses to start audio the entry goes to `error` and the shell offers "Enable audio", which calls `unlock()` from the click. `/dev/engine` drives it with tones from `scripts/dev-audio.mjs`; `scripts/e2e-engine.mjs` checks it against the contract in Chromium, `scripts/e2e-auth.mjs` walks the account flows against a fresh server, and `scripts/e2e-admin.mjs` the admin flows (setup with a real folder, scans, reviews, Fix match, Organize on disk, the search index).
+
+- **Admin.** Pages in `pages/admin.tsx` (lazy) feed views in `components/admin/`. Scan progress comes from `scan.progress` events and invalidations; Organize and index imports report progress only in the database, so those screens poll while one runs. `components/admin/FixMatch.tsx` is the entry point other screens use for Fix match; it loads its dialog on demand.
 
 Catalog data reaches views through props typed with the contracts; session state and user actions come from `PlayerContext` and `LibraryContext`, whose providers are the only code that talks to `SessionClient` and the API. `/dev/kitchen-sink` shows every component state.
 

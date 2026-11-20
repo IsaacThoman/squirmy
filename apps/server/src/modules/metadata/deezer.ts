@@ -235,6 +235,18 @@ export async function getAlbum(id: number): Promise<DeezerAlbum | null> {
   }
 }
 
+/** The album with this UPC (barcode), with its track list as `getAlbum` returns it. */
+export async function getAlbumByUpc(upc: string): Promise<DeezerAlbum | null> {
+  const raw = await get<RawAlbum>(`album/upc:${encodeURIComponent(upc.trim())}`)
+  return raw ? getAlbum(raw.id) : null
+}
+
+/** The track with this ISRC, as `getTrack` returns it. */
+export async function getTrackByIsrc(isrc: string): Promise<DeezerTrack | null> {
+  const raw = await get<RawTrack>(`track/isrc:${encodeURIComponent(isrc.trim().toUpperCase())}`)
+  return raw ? track(raw) : null
+}
+
 /** One track with ISRC, album and every contributing artist. */
 export async function getTrack(id: number): Promise<DeezerTrack | null> {
   const raw = await get<RawTrack>(`track/${id}`)

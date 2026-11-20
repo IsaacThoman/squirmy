@@ -149,7 +149,8 @@ export type ResolveReviewRequest = z.infer<typeof ResolveReviewRequest>
 export const MatchCandidatesQuery = z.object({ query: z.string().trim().min(1).max(200).optional() })
 export type MatchCandidatesQuery = z.infer<typeof MatchCandidatesQuery>
 
-export const MatchCandidateList = z.object({ items: z.array(MatchCandidate) })
+/** The candidates, and the album's files as their tags describe them, to compare with. */
+export const MatchCandidateList = z.object({ items: z.array(MatchCandidate), files: z.array(MatchFile) })
 export type MatchCandidateList = z.infer<typeof MatchCandidateList>
 
 /**

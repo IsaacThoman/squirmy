@@ -1,0 +1,297 @@
+{
+  "note": "Trimmed: each recording keeps its first two releases, without media.",
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/recording?query=ok+computer&limit=3&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "created": "2026-11-20T18:06:12.313Z",
+      "count": 41125,
+      "offset": 0,
+      "recordings": [
+        {
+          "id": "c73665a4-3a9c-477b-b825-9eaa30929e99",
+          "score": 100,
+          "artist-credit-id": "6b70c186-7493-3434-8ea8-3a312f9ff718",
+          "title": "O.K. Computer",
+          "length": 487040,
+          "video": null,
+          "artist-credit": [
+            {
+              "name": "Prometheus",
+              "artist": {
+                "id": "4035d149-2331-42aa-a2d7-b796ed57e61c",
+                "name": "Prometheus",
+                "sort-name": "Prometheus",
+                "disambiguation": "Benji Vaughan"
+              }
+            }
+          ],
+          "first-release-date": "2004-03-10",
+          "releases": [
+            {
+              "id": "18e8a508-9a6b-4bee-a2f3-1945a42e1179",
+              "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+              "count": 1,
+              "title": "Robot.O.Chan",
+              "status": "Official",
+              "release-group": {
+                "id": "50461e39-4c52-332e-9bec-9ea0983dff98",
+                "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "title": "Robot.O.Chan",
+                "primary-type": "Album"
+              },
+              "date": "2004-03-10",
+              "country": "GB",
+              "release-events": [
+                {
+                  "date": "2004-03-10",
+                  "area": {
+                    "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                    "name": "United Kingdom",
+                    "sort-name": "United Kingdom",
+                    "iso-3166-1-codes": [
+                      "GB"
+                    ]
+                  }
+                }
+              ],
+              "track-count": 9
+            }
+          ]
+        },
+        {
+          "id": "696971eb-60fa-461a-9c5f-64f6077bce5d",
+          "score": 100,
+          "artist-credit-id": "722f6cbe-d360-347e-987e-14716f10c7ec",
+          "title": "OK Computer",
+          "length": 225227,
+          "video": null,
+          "artist-credit": [
+            {
+              "joinphrase": " feat. ",
+              "name": "Kool A.D.",
+              "artist": {
+                "id": "4947690a-5cbf-484f-bdcf-32b19130679a",
+                "name": "Kool A.D.",
+                "sort-name": "Kool A.D.",
+                "disambiguation": "US hip‐hop rapper and producer",
+                "aliases": [
+                  {
+                    "sort-name": "Astral Cunt",
+                    "name": "Astral Cunt",
+                    "locale": null,
+                    "type": null,
+                    "primary": null,
+                    "begin-date": null,
+                    "end-date": null
+                  },
+                  {
+                    "sort-name": "Too Shirts",
+                    "name": "Too Shirts",
+                    "locale": null,
+                    "type": null,
+                    "primary": null,
+                    "begin-date": null,
+                    "end-date": null
+                  },
+                  {
+                    "sort-name": "Kool AD",
+                    "type-id": "1937e404-b981-3cb7-8151-4c86ebfc8d8e",
+                    "name": "Kool AD",
+                    "locale": null,
+                    "type": "Search hint",
+                    "primary": null,
+                    "begin-date": null,
+                    "end-date": null
+                  }
+                ]
+              }
+            },
+            {
+              "joinphrase": " & ",
+              "name": "Verbs",
+              "artist": {
+                "id": "c39376d0-1441-416e-91e1-7380b8367acc",
+                "name": "Verbs",
+                "sort-name": "Verbs",
+                "disambiguation": "Hip-hop artist, formerly known as Knowdaverbs"
+              }
+            },
+            {
+              "name": "Maffew Ragazino",
+              "artist": {
+                "id": "16b57fb6-eb3d-4ee3-a53d-ac8eb26f0d57",
+                "name": "Maffew Ragazino",
+                "sort-name": "Ragazino, Maffew"
+              }
+            }
+          ],
+          "first-release-date": "2013-02-07",
+          "releases": [
+            {
+              "id": "08a77a22-aa5c-45ec-830f-238fb3788545",
+              "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+              "artist-credit-id": "20c35bc7-4293-30f6-9814-89a6b340db71",
+              "count": 1,
+              "title": "63",
+              "status": "Official",
+              "artist-credit": [
+                {
+                  "name": "Kool A.D.",
+                  "artist": {
+                    "id": "4947690a-5cbf-484f-bdcf-32b19130679a",
+                    "name": "Kool A.D.",
+                    "sort-name": "Kool A.D.",
+                    "disambiguation": "US hip‐hop rapper and producer"
+                  }
+                }
+              ],
+              "release-group": {
+                "id": "8651f212-cc6a-4ed7-9236-fbbdfd22ac8d",
+                "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "title": "63",
+                "primary-type": "Album",
+                "secondary-types": [
+                  "Mixtape/Street"
+                ],
+                "secondary-type-ids": [
+                  "15c1b1f5-d893-3375-a1db-e180c5ae15ed"
+                ]
+              },
+              "date": "2016-04-01",
+              "country": "XW",
+              "release-events": [
+                {
+                  "date": "2016-04-01",
+                  "area": {
+                    "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                    "name": "[Worldwide]",
+                    "sort-name": "[Worldwide]",
+                    "iso-3166-1-codes": [
+                      "XW"
+                    ]
+                  }
+                }
+              ],
+              "track-count": 21
+            },
+            {
+              "id": "15cbc862-d292-4ecd-a31e-596770cd471a",
+              "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+              "artist-credit-id": "20c35bc7-4293-30f6-9814-89a6b340db71",
+              "count": 1,
+              "title": "63",
+              "status": "Official",
+              "artist-credit": [
+                {
+                  "name": "Kool A.D.",
+                  "artist": {
+                    "id": "4947690a-5cbf-484f-bdcf-32b19130679a",
+                    "name": "Kool A.D.",
+                    "sort-name": "Kool A.D.",
+                    "disambiguation": "US hip‐hop rapper and producer"
+                  }
+                }
+              ],
+              "release-group": {
+                "id": "8651f212-cc6a-4ed7-9236-fbbdfd22ac8d",
+                "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "title": "63",
+                "primary-type": "Album",
+                "secondary-types": [
+                  "Mixtape/Street"
+                ],
+                "secondary-type-ids": [
+                  "15c1b1f5-d893-3375-a1db-e180c5ae15ed"
+                ]
+              },
+              "date": "2013-02-07",
+              "country": "XW",
+              "release-events": [
+                {
+                  "date": "2013-02-07",
+                  "area": {
+                    "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                    "name": "[Worldwide]",
+                    "sort-name": "[Worldwide]",
+                    "iso-3166-1-codes": [
+                      "XW"
+                    ]
+                  }
+                }
+              ],
+              "track-count": 21
+            }
+          ],
+          "isrcs": [
+            "QM4DW1623614"
+          ]
+        },
+        {
+          "id": "866a93d7-5173-407b-b629-a5cc9ba09fd0",
+          "score": 100,
+          "artist-credit-id": "40f60a34-8e39-3a87-a828-a0d3ef1085ac",
+          "title": "O.K. Computer",
+          "length": 486876,
+          "video": null,
+          "artist-credit": [
+            {
+              "name": "Prometheus",
+              "artist": {
+                "id": "c4c1ba81-fcd5-4726-9485-74ffc7efa924",
+                "name": "Prometheus",
+                "sort-name": "Prometheus",
+                "disambiguation": "Black Metal band from Greece"
+              }
+            }
+          ],
+          "first-release-date": "2004-01-19",
+          "releases": [
+            {
+              "id": "06d97b41-291a-4a98-952e-78d7197b077f",
+              "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+              "count": 1,
+              "title": "Robot.O.Chan",
+              "status": "Official",
+              "release-group": {
+                "id": "cf03c171-b665-4e68-ba04-ade77c1b6f0a",
+                "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "title": "Robot.O.Chan",
+                "primary-type": "Album"
+              },
+              "date": "2004-01-19",
+              "country": "XW",
+              "release-events": [
+                {
+                  "date": "2004-01-19",
+                  "area": {
+                    "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                    "name": "[Worldwide]",
+                    "sort-name": "[Worldwide]",
+                    "iso-3166-1-codes": [
+                      "XW"
+                    ]
+                  }
+                }
+              ],
+              "track-count": 9
+            }
+          ],
+          "isrcs": [
+            "USA2P0501243"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,488 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/upc:634904078164"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 14879699,
+      "title": "OK Computer",
+      "upc": "634904078164",
+      "link": "https://www.deezer.com/album/14879699",
+      "share": "https://www.deezer.com/album/14879699?utm_source=deezer&utm_content=album-14879699&utm_term=0_1795196143&utm_medium=web",
+      "cover": "https://api.deezer.com/album/14879699/image",
+      "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+      "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+      "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+      "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+      "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+      "genre_id": 85,
+      "genres": {
+        "data": [
+          {
+            "id": 85,
+            "name": "Alternative",
+            "picture": "https://api.deezer.com/genre/85/image",
+            "type": "genre"
+          }
+        ]
+      },
+      "label": "XL Recordings",
+      "nb_tracks": 12,
+      "duration": 3216,
+      "fans": 186724,
+      "release_date": "1997-06-17",
+      "record_type": "album",
+      "available": true,
+      "tracklist": "https://api.deezer.com/album/14879699/tracks",
+      "explicit_lyrics": false,
+      "explicit_content_lyrics": 0,
+      "explicit_content_cover": 0,
+      "contributors": [
+        {
+          "id": 399,
+          "name": "Radiohead",
+          "link": "https://www.deezer.com/artist/399",
+          "share": "https://www.deezer.com/artist/399?utm_source=deezer&utm_content=artist-399&utm_term=0_1795196143&utm_medium=web",
+          "picture": "https://api.deezer.com/artist/399/image",
+          "picture_small": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/56x56-000000-80-0-0.jpg",
+          "picture_medium": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/250x250-000000-80-0-0.jpg",
+          "picture_big": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/500x500-000000-80-0-0.jpg",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/1000x1000-000000-80-0-0.jpg",
+          "radio": true,
+          "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 399,
+        "name": "Radiohead",
+        "picture": "https://api.deezer.com/artist/399/image",
+        "picture_small": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/56x56-000000-80-0-0.jpg",
+        "picture_medium": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/250x250-000000-80-0-0.jpg",
+        "picture_big": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/500x500-000000-80-0-0.jpg",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/1000x1000-000000-80-0-0.jpg",
+        "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+        "type": "artist"
+      },
+      "type": "album",
+      "tracks": {
+        "data": [
+          {
+            "id": 138539971,
+            "readable": true,
+            "title": "Airbag",
+            "title_short": "Airbag",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539971",
+            "duration": 287,
+            "rank": 597984,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/0/3/e/0/03e8e4bba953f552380f0e8476e9394c.mp3?hdnea=exp=1795197043~acl=/api/1/1/0/3/e/0/03e8e4bba953f552380f0e8476e9394c.mp3*~data=user_id=0,application_id=42~hmac=89be1ab482d4eed3a73bed10a8f70c821db5b5d37495319fceeb9968d89f366f",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539973,
+            "readable": true,
+            "title": "Paranoid Android",
+            "title_short": "Paranoid Android",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539973",
+            "duration": 387,
+            "rank": 785691,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/e/9/0/0/e906ec366652d0fe7af06d993e959f78.mp3?hdnea=exp=1795197043~acl=/api/1/1/e/9/0/0/e906ec366652d0fe7af06d993e959f78.mp3*~data=user_id=0,application_id=42~hmac=4a003d5b25098c8e4dfcec4307f165a424b044762c6533af943ea80fed9d9200",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539975,
+            "readable": true,
+            "title": "Subterranean Homesick Alien",
+            "title_short": "Subterranean Homesick Alien",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539975",
+            "duration": 267,
+            "rank": 609398,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/0/e/9/0/0e9ed75adeb0794ce2c32ef29dd3a096.mp3?hdnea=exp=1795197043~acl=/api/1/1/0/e/9/0/0e9ed75adeb0794ce2c32ef29dd3a096.mp3*~data=user_id=0,application_id=42~hmac=d7e8430cf76c79215f1553b2360dca1842a559857b9eede1a6a9d1dd60987e7f",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539977,
+            "readable": true,
+            "title": "Exit Music (For A Film)",
+            "title_short": "Exit Music (For A Film)",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539977",
+            "duration": 267,
+            "rank": 878594,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/4/1/9/0/4190e7b3593fe2674b48d06955a46fb1.mp3?hdnea=exp=1795197043~acl=/api/1/1/4/1/9/0/4190e7b3593fe2674b48d06955a46fb1.mp3*~data=user_id=0,application_id=42~hmac=727b277dd252f62a85d968a6058bbd0bb061c67784c157ae2f8a3fffddaad903",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539979,
+            "readable": true,
+            "title": "Let Down",
+            "title_short": "Let Down",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539979",
+            "duration": 299,
+            "rank": 928986,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/9/9/1/0/991f911408c85213268ebf001476d6b6.mp3?hdnea=exp=1795197043~acl=/api/1/1/9/9/1/0/991f911408c85213268ebf001476d6b6.mp3*~data=user_id=0,application_id=42~hmac=6a4b5f76a8cc91514b368836940144492d8bd643199ecc729de1bc9bceb4a199",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539981,
+            "readable": true,
+            "title": "Karma Police",
+            "title_short": "Karma Police",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539981",
+            "duration": 264,
+            "rank": 898957,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/4/1/d/0/41dd34fd7d334b1c55b6970ef6db0d2f.mp3?hdnea=exp=1795197043~acl=/api/1/1/4/1/d/0/41dd34fd7d334b1c55b6970ef6db0d2f.mp3*~data=user_id=0,application_id=42~hmac=3f0b756196472ed537b25d8b271cd025f5e3489d7ed8c319c83f2f9168e08d06",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539983,
+            "readable": true,
+            "title": "Fitter Happier",
+            "title_short": "Fitter Happier",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539983",
+            "duration": 117,
+            "rank": 535786,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/8/a/7/0/8a7a8e9d290669365160640d72a199b8.mp3?hdnea=exp=1795197043~acl=/api/1/1/8/a/7/0/8a7a8e9d290669365160640d72a199b8.mp3*~data=user_id=0,application_id=42~hmac=69796cf87138e967e517f587a4ae3f161cba8790105c83069c798a498c794243",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539985,
+            "readable": true,
+            "title": "Electioneering",
+            "title_short": "Electioneering",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539985",
+            "duration": 230,
+            "rank": 576369,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/4/7/7/0/47730331b132d1841622d090723886a0.mp3?hdnea=exp=1795197043~acl=/api/1/1/4/7/7/0/47730331b132d1841622d090723886a0.mp3*~data=user_id=0,application_id=42~hmac=5ca2cfebaf343833560df441157782618d7d29eddbebe9778a8245f1deacf668",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539987,
+            "readable": true,
+            "title": "Climbing Up the Walls",
+            "title_short": "Climbing Up the Walls",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539987",
+            "duration": 285,
+            "rank": 611025,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/8/1/6/0/8163f604a588bcc202370a2b1c6339c2.mp3?hdnea=exp=1795197043~acl=/api/1/1/8/1/6/0/8163f604a588bcc202370a2b1c6339c2.mp3*~data=user_id=0,application_id=42~hmac=052cef402a31172072a9a22f14b2069841f7b07969f39126f471ab775b0b5e74",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539989,
+            "readable": true,
+            "title": "No Surprises",
+            "title_short": "No Surprises",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539989",
+            "duration": 229,
+            "rank": 688226,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/8/a/b/0/8ab9535dab371b9546c6839a4838ab6a.mp3?hdnea=exp=1795197043~acl=/api/1/1/8/a/b/0/8ab9535dab371b9546c6839a4838ab6a.mp3*~data=user_id=0,application_id=42~hmac=763412b64f5e1982dec842c0bdd6adf505ab4604936647bbb09968a4350a5892",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539991,
+            "readable": true,
+            "title": "Lucky",
+            "title_short": "Lucky",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539991",
+            "duration": 258,
+            "rank": 615223,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/f/c/9/0/fc9b82fb77c1301d1669afb38dd7fe4d.mp3?hdnea=exp=1795197043~acl=/api/1/1/f/c/9/0/fc9b82fb77c1301d1669afb38dd7fe4d.mp3*~data=user_id=0,application_id=42~hmac=1551ede29b7cef5020f951de775d65c36dbbb1fddd8bd6bd77e9dab515a5ffb2",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 138539993,
+            "readable": true,
+            "title": "The Tourist",
+            "title_short": "The Tourist",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/138539993",
+            "duration": 326,
+            "rank": 559740,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/f/6/e/0/f6e0d3a706058af667f53d230d6b9c97.mp3?hdnea=exp=1795197043~acl=/api/1/1/f/6/e/0/f6e0d3a706058af667f53d230d6b9c97.mp3*~data=user_id=0,application_id=42~hmac=07b2bd66b5fff80088eb3a1e94cf26e19bdd4ca385c4a30abaa15ca2525041ec",
+            "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+            "artist": {
+              "id": 399,
+              "name": "Radiohead",
+              "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 14879699,
+              "title": "OK Computer",
+              "cover": "https://api.deezer.com/album/14879699/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "05a186e0a859a36f9cd51cdae2158fe1",
+              "tracklist": "https://api.deezer.com/album/14879699/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          }
+        ]
+      }
+    }
+  }
+}
