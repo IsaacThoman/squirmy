@@ -18,15 +18,15 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Library scan, tag reading, local-only catalog rows
 - [ ] Artwork store and renditions
 - [ ] Library and catalog read API, home
-- [ ] Streaming: playback descriptor, signed URLs, Range, transcode cache
-- [ ] Loudness measurement and normalization values
+- [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
+- [x] Loudness measurement and normalization values
 - [ ] Likes, playlists, history, user settings
 - [ ] Web app: setup, login, library, album and artist pages, player, queue
 - [ ] Mobile app: connect, login, real data, real audio, lock-screen controls
 
 ## 3. Connect
 
-- [ ] Server-held session with command log and versions
+- [x] Server-held session with command log and versions
 - [ ] Device list, transfer, remote control
 - [ ] Reconnect rule and device-lost handling
 - [ ] Live invalidations on web and mobile
