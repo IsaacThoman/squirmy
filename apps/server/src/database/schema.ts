@@ -368,11 +368,12 @@ export const assets = pgTable('assets', {
   /**
    * ready: the image is stored locally. remote: it lives at `remote_url` and is fetched
    * the first time someone asks for it. failed: the last fetch did not produce an image.
+   * missing: the stored file is gone and could not be rebuilt from its source.
    * The columns that describe stored bytes are null until an asset is ready.
    */
-  status: text('status').$type<'ready' | 'remote' | 'failed'>().notNull().default('ready'),
+  status: text('status').$type<'ready' | 'remote' | 'failed' | 'missing'>().notNull().default('ready'),
   remoteUrl: text('remote_url'),
-  /** When a remote image was last fetched or last failed. */
+  /** When a remote image was last fetched or last failed, or the asset was last found missing or rebuilt. */
   checkedAt: at('checked_at'),
   sha256: text('sha256'),
   mime: text('mime'),

@@ -121,7 +121,7 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 
 ```
 <data>/secret.key                     generated root secret (0600)
-<data>/assets/ab/cd/<sha256>.<ext>    original images, content addressed
+<data>/assets/ab/cd/<sha256>.<ext>    original images, content addressed; rebuilt from their source when lost
 <data>/art/<assetId>/<size>.webp      derived renditions, safe to delete
 <data>/transcodes/<fileId>/<profile>.<ext>
 <data>/staging/<importId>/            files being imported
@@ -130,6 +130,8 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 ### Artwork
 
 Images are rows in `assets`. `storeImage(bytes)` stores an image now and de-duplicates by content. `remoteImage(url)` only records where an image lives; it is downloaded the first time `GET /art/:id/:size` asks for it, so search results for music you do not own can show covers without downloading every one. A failed download answers 404, is not cached, and is retried after an hour.
+
+Lost originals rebuild themselves (`artwork/recover.ts`). When a file under `assets/` is gone, `readOriginal` (used by renditions and Subsonic's `getCoverArt`) reads it back from disk while the request waits: the folder image of a `folder:` source, or the pictures of the source file and of any present file whose `embedded_art_asset_id` it is. Only bytes with the stored SHA-256 are accepted, so an id never shows a different picture. A URL source is queued as `artwork.recover` and the request answers 404 without cache headers; the job downloads it again (a `remote_url` asset goes back to `remote` and is fetched as on its first request; any other must match its hash). An asset nothing rebuilds is `missing`, answers 404 at once, and is left alone. `artwork.sweep` (daily, 04:40) queues assets whose file is gone, `missing` assets whose file is back, and `missing` assets last tried a week ago.
 
 ### Authentication
 

@@ -188,7 +188,7 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 ## Packaging
 
 - Two containers: `postgres`, and one `app` image with API, worker, built web, ffmpeg and `fpcalc`, for amd64 and arm64. An env var splits API and worker for bigger installs.
-- Two volumes: the music, and a data folder for artwork, transcodes, staging and the generated secret. Transcodes and resized artwork rebuild themselves; original artwork and the secret do not.
+- Two volumes: the music, and a data folder for artwork, transcodes, staging and the generated secret. Transcodes and resized artwork rebuild themselves, and original artwork is rebuilt from the files and URLs it came from when it can be; the secret is not.
 - Backup is a database dump, the music, and the data folder's `secret.key` and `assets/` ([backup guide](./server/backup.md)).
 
 ## Milestones

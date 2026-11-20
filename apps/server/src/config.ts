@@ -7,7 +7,7 @@ const Env = z.object({
   HOST: z.string().default('0.0.0.0'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4747),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
-  /** Artwork, transcodes, staging and the generated secret live here. Only `art/` and `transcodes/` are rebuilt on their own. */
+  /** Artwork, transcodes, staging and the generated secret live here. `art/`, `transcodes/` and most of `assets/` are rebuilt on their own. */
   SQUIRMY_DATA_DIR: z.string().default('./data'),
   /**
    * Root secret for signing URLs and encrypting stored credentials. When unset, one is

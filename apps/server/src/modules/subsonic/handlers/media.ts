@@ -1,12 +1,11 @@
 /** Media retrieval: stream, download, cover art and lyrics. */
-import { readFile } from 'node:fs/promises'
 import { ART_SIZES, type ArtSize } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
 import { AppError } from '../../../lib/errors.js'
 import { matchKey } from '../../../lib/text.js'
+import { readOriginal } from '../../artwork/recover.js'
 import { rendition } from '../../artwork/renditions.js'
-import { dataPath, ensureStored } from '../../artwork/store.js'
 import { trackLyrics } from '../../catalog/pages.js'
 import { openStream, selectFile } from '../../streaming/index.js'
 import { profiles } from '../../streaming/profiles.js'
@@ -110,16 +109,17 @@ async function getCoverArt({ params, reply }: Context): Promise<typeof sent> {
   const assetId = await artworkAsset(value)
   if (!assetId) throw notFound('Cover art')
   const size = params.int('size', 0, { min: 0 })
-  // A `ca-` id names immutable bytes; other ids may lead to a new picture later.
-  reply.header('cache-control', value.startsWith('ca-') ? 'public, max-age=31536000, immutable' : 'public, max-age=3600')
+  // A `ca-` id names immutable bytes; other ids may lead to a new picture later. Only an
+  // image is cacheable: a missing original may be rebuilt soon.
+  const cacheControl = value.startsWith('ca-') ? 'public, max-age=31536000, immutable' : 'public, max-age=3600'
   try {
     if (size === 0) {
-      const asset = await ensureStored(assetId)
-      const bytes = await readFile(dataPath(asset.storagePath))
-      await reply.type(asset.mime ?? 'application/octet-stream').send(bytes)
+      const { asset, bytes } = await readOriginal(assetId)
+      await reply.header('cache-control', cacheControl).type(asset.mime ?? 'application/octet-stream').send(bytes)
     } else {
       const rendered: ArtSize = ART_SIZES.find((candidate) => candidate >= size) ?? ART_SIZES.at(-1)!
-      await reply.type('image/webp').send(await rendition(assetId, rendered))
+      const image = await rendition(assetId, rendered)
+      await reply.header('cache-control', cacheControl).type('image/webp').send(image)
     }
   } catch (error) {
     if (error instanceof AppError && error.status === 404) throw notFound('Cover art')
