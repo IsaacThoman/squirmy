@@ -1,0 +1,45 @@
+# Squirmy with its database. Copy this file, set MUSIC_DIR, and run `docker compose up -d`.
+# Then open http://localhost:4747 and create the admin account.
+name: squirmy
+
+services:
+  app:
+    image: ghcr.io/isaacthoman/squirmy:latest
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://squirmy:${POSTGRES_PASSWORD:-squirmy}@postgres:5432/squirmy
+      # Added as a library on first start. More folders can be added in the admin pages.
+      SQUIRMY_LIBRARY_PATHS: /music
+      # Set to true when a reverse proxy sits in front and sends X-Forwarded-* headers.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    volumes:
+      # Your music. Append ":ro" to guarantee the server can never change it; leave it
+      # writable if you want Squirmy to organize files or accept uploads.
+      - ${MUSIC_DIR:-./music}:/music
+      # Artwork, transcodes and staging. Safe to delete; it is rebuilt.
+      - squirmy_data:/data
+    ports:
+      - "${SQUIRMY_PORT:-4747}:4747"
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: squirmy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-squirmy}
+      POSTGRES_DB: squirmy
+    volumes:
+      - squirmy_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U squirmy -d squirmy"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  squirmy_data:
+  squirmy_db:
