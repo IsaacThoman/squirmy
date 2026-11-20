@@ -127,14 +127,10 @@ export function HomeScreen({ onOpenAlbum, albumHref, onOpenDevices, bottomInset 
       locations={[0, top / (top + 14), 1]} style={[styles.detailStatus, { height: top + 14 }]} />
     <ScrollView contentInsetAdjustmentBehavior="never"
       contentContainerStyle={{ paddingTop: top + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
-      <View style={styles.homeHeader}>
-        <View style={styles.brand}>
-          <View style={styles.brandMark}><Icon name="waveform" size={16} color={colors.onAccent} /></View>
-          <Text style={styles.wordmark}>Squirmy</Text>
-        </View>
+      <View style={[styles.pageHeader, styles.homeHeader]}>
+        <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Listen now</Text>
         {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
       </View>
-      <Text accessibilityRole="header" style={[styles.pageTitle, styles.homeTitle]}>Listen now</Text>
       <ZoomLink href={albumHref(hero.id)}><HeroCard album={hero} size={heroSize} /></ZoomLink>
       <View style={styles.homeSection}>
         <SectionTitle title="Recently played" onPress={() => onOpenAlbum('recent')} />
@@ -378,11 +374,7 @@ export function AlbumScreen({ albumId, onBack, onTrackMenu, bottomInset = 155 }:
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  homeHeader: { paddingHorizontal: gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 41 },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  brandMark: { width: 27, height: 27, borderRadius: 9, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  wordmark: { color: colors.text, fontWeight: '800', letterSpacing: 3.8, fontSize: 12 },
-  homeTitle: { marginHorizontal: gutter, marginTop: 13, marginBottom: 19 },
+  homeHeader: { marginBottom: 19 },
   pageTitle: { color: colors.text, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
   hero: { marginHorizontal: gutter, borderRadius: 26, overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: '#322940' },
