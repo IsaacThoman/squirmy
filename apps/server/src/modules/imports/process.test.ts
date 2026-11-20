@@ -3,14 +3,15 @@ import { createReadStream } from 'node:fs'
 import { link, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { INCOMING_FOLDER } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import sharp from 'sharp'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albums, imports, mediaFiles, organizeBatches, recordings, wants } from '../../database/schema.js'
-import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
+import { drainJobs, jobs, startJobs, stopJobs, type JobRegistry } from '../../jobs/index.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { signIn } from '../../test/api.js'
 import { makeAlbum, makeTone } from '../../test/audio.js'
@@ -48,6 +49,65 @@ async function okComputer(dir: string, folder: string, pitch = 0): Promise<strin
   })))
 }
 
+/** Polls until `check` holds. */
+async function until(check: () => Promise<boolean>, what: string, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs
+  while (!await check()) {
+    if (Date.now() > deadline) throw new Error(`Timed out waiting until ${what}`)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
+
+type JobData = Record<string, string>
+type Hold = { name: string; match: (data: JobData) => Promise<boolean>; reach: () => void; release: () => void; gate: Promise<void> }
+
+/**
+ * Job handlers registered through it can be held, so a test decides the order in which the
+ * pipeline's jobs run instead of leaving it to load. A held job keeps its worker slot.
+ */
+function orderedJobs(registry: JobRegistry) {
+  const holds: Hold[] = []
+  const finished: { name: string; data: JobData }[] = []
+  return {
+    finished,
+    /** Lets every held job go, so a failed test does not hold up the next. */
+    releaseAll: () => {
+      for (const held of holds.splice(0)) held.release()
+    },
+    registry: {
+      define(name, options, handler) {
+        registry.define<JobData>(name, options, async (data, context) => {
+          for (const held of [...holds]) {
+            if (held.name !== name || !await held.match(data)) continue
+            held.reach()
+            await held.gate
+          }
+          try {
+            await handler(data as never, context)
+          } finally {
+            finished.push({ name, data })
+          }
+        })
+      },
+    } satisfies JobRegistry,
+    /** Holds jobs of `name` whose data matches until `release`; `reached` resolves when one is held. */
+    hold(name: string, match: (data: JobData) => Promise<boolean>) {
+      let release = () => {}
+      let reach = () => {}
+      const reached = new Promise<void>((resolve) => { reach = resolve })
+      const held: Hold = { name, match, reach, release: () => release(), gate: new Promise<void>((resolve) => { release = resolve }) }
+      holds.push(held)
+      return {
+        reached,
+        release: () => {
+          if (holds.includes(held)) holds.splice(holds.indexOf(held), 1)
+          held.release()
+        },
+      }
+    },
+  }
+}
+
 const tree = async (dir: string) => (await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => []))
   .filter((entry) => entry.isFile()).map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)).split(path.sep).join('/')).sort()
 const exists = (file: string) => readFile(file).then(() => true, () => false)
@@ -60,6 +120,12 @@ describe('import processing', () => {
   let okOther: string[] = []
   let cover: Buffer
   let uploader: Awaited<ReturnType<typeof createUser>>
+  const pipeline = orderedJobs(jobs)
+  /** Matches jobs about the file at `relPath` (in any import), by `fileId`. */
+  const fileAt = (relPath: string) => async ({ fileId }: JobData) => {
+    const [row] = await db.select({ relPath: mediaFiles.relPath }).from(mediaFiles).where(eq(mediaFiles.id, fileId!))
+    return Boolean(row?.relPath.endsWith(`/${relPath}`))
+  }
 
   const managedRoot = async () => {
     const dir = await realpath(await mkdtemp(path.join(tmpdir(), 'squirmy-import-root-')))
@@ -82,11 +148,14 @@ describe('import processing', () => {
     return getImport(importId)
   }
   const rowsOf = (importId: string) => db.select().from(mediaFiles).where(eq(mediaFiles.importId, importId)).orderBy(mediaFiles.relPath)
+  /** Rows in the import's folder, whether or not identification has marked them yet. */
+  const inIncoming = (importId: string) => db.select().from(mediaFiles)
+    .where(sql`starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/${importId}/`})`).orderBy(mediaFiles.relPath)
   const inFolder = (files: string[], folder: string) => files.map((file) => ({ from: file, to: `${folder}/${path.basename(file)}` }))
 
   beforeAll(async () => {
-    await libraryModule.jobs!(jobs)
-    await matchingModule.jobs!(jobs)
+    await libraryModule.jobs!(pipeline.registry)
+    await matchingModule.jobs!(pipeline.registry)
     await startJobs({ work: true })
     fixtures = await mkdtemp(path.join(tmpdir(), 'squirmy-import-fixtures-'))
     okFlac = await okComputer(fixtures, 'ok')
@@ -94,6 +163,8 @@ describe('import processing', () => {
     cover = await sharp({ create: { width: 64, height: 64, channels: 3, background: '#335577' } }).jpeg().toBuffer()
     uploader = await createUser({ canUpload: true })
   }, 120_000)
+
+  afterEach(() => pipeline.releaseAll())
 
   afterAll(async () => {
     await stopJobs()
@@ -115,6 +186,8 @@ describe('import processing', () => {
     const id = await receive([{ from: archive, to: 'OK Computer.zip' }])
     const done = await run(id)
 
+    // One search, for the whole album.
+    expect(http.requests.filter((request) => request.includes('/ws/2/release?query='))).toEqual([expect.stringContaining('tracks%3A12')])
     expect(done).toMatchObject({
       status: 'completed', step: null, timedOut: false, reviewFolder: null, error: null,
       counts: { filesReceived: 1, filesExtracted: 13, filesRejected: 1, archivesRejected: 0, audioFiles: 12, duplicatesSkipped: 0, albumsIdentified: 1, albumsFiled: 1, filesFiled: 12, filesLeftForReview: 0 },
@@ -143,13 +216,91 @@ describe('import processing', () => {
   it('removes audio the library already has, and repeats within one import', async () => {
     const root = await managedRoot()
     const before = await db.select({ count: sql<number>`count(*)::int` }).from(mediaFiles)
+    // The copy is hashed last, after identification has seen every other file hashed.
+    const copy = pipeline.hold('library.analyze', fileAt('Again/copy of the first.flac'))
+    const analyzed = pipeline.finished.length
     const id = await receive([...inFolder(okFlac, 'Again'), { from: okFlac[0]!, to: 'Again/copy of the first.flac' }])
-    const done = await run(id)
+    const done = run(id)
+    await copy.reached
+    await until(async () => pipeline.finished.slice(analyzed).filter((job) => job.name === 'library.analyze').length === 12, 'the other twelve are hashed')
+    await sleep(10 * fast.pollMs!)
+    // Nothing is removed while a hash is missing, and nothing is matched before the removal.
+    expect((await inIncoming(id)).map((row) => row.matchStatus)).toEqual(Array(13).fill('pending'))
+    copy.release()
+    const counts = (await done).counts
     // Whatever is left says why: a file that could not be analyzed keeps no hash to compare.
     const left = await db.select({ relPath: mediaFiles.relPath, probeStage: mediaFiles.probeStage, probeError: mediaFiles.probeError }).from(mediaFiles).where(eq(mediaFiles.importId, id))
-    expect({ ...done.counts, left }).toMatchObject({ audioFiles: 13, duplicatesSkipped: 13, filesFiled: 0, filesLeftForReview: 0, left: [] })
+    expect({ ...counts, left }).toMatchObject({ audioFiles: 13, duplicatesSkipped: 13, filesFiled: 0, filesLeftForReview: 0, left: [] })
     expect(await tree(root.path)).toEqual([])
     expect(await db.select({ count: sql<number>`count(*)::int` }).from(mediaFiles)).toEqual(before)
+    expect(http.requests, 'no provider is asked about duplicates').toEqual([])
+  })
+
+  it('asks no provider about part of an album before its duplicates are decided', async () => {
+    await managedRoot()
+    const late = okFlac.slice(9).map((file) => pipeline.hold('library.probe', fileAt(`Again/${path.basename(file)}`)))
+    const matched = pipeline.finished.length
+    const id = await receive(inFolder(okFlac, 'Again'))
+    const done = run(id)
+    await Promise.all(late.map((held) => held.reached))
+    const early = async () => (await inIncoming(id)).filter((row) => row.probeStage >= 1)
+    await until(async () => (await early()).filter((row) => row.recordingId).length === 9, 'the first nine are ingested')
+    await until(async () => (await db.execute(sql`select 1 from pgboss.job where name = 'matching.match-album' and state in ('created', 'retry', 'active')`)).length === 0, 'their matching has run')
+    expect(pipeline.finished.slice(matched).some((job) => job.name === 'matching.match-album')).toBe(true)
+    // Playable from their tags meanwhile, and left pending.
+    expect((await early()).map((row) => row.matchStatus)).toEqual(Array(9).fill('pending'))
+    for (const held of late) held.release()
+    expect((await done).counts).toMatchObject({ audioFiles: 12, duplicatesSkipped: 12, filesLeftForReview: 0 })
+    expect(http.requests).toEqual([])
+  })
+
+  describe('keeps the first of two copies within an import', () => {
+    const orders = { 'first copy hashed first': ['a', 'b'], 'second copy hashed first': ['b', 'a'], 'both hashed together': ['a+b'] }
+    let frequency = 300
+    it.each(Object.entries(orders))('%s', async (_, order) => {
+      const root = await managedRoot()
+      frequency += 50
+      const tone = await makeTone(fixtures, { path: `twins/${frequency}.flac`, durationSec: 1, frequency })
+      const other = await makeTone(fixtures, { path: `twins/${frequency}-other.flac`, durationSec: 1, frequency: frequency + 25 })
+      const copies = { a: pipeline.hold('library.analyze', fileAt('Twins/a.flac')), b: pipeline.hold('library.analyze', fileAt('Twins/b.flac')) }
+      const id = await receive([{ from: tone, to: 'Twins/a.flac' }, { from: tone, to: 'Twins/b.flac' }, { from: other, to: 'Twins/c.flac' }])
+      const done = run(id)
+      await Promise.all([copies.a.reached, copies.b.reached])
+      const fileIds = Object.fromEntries((await inIncoming(id)).map((row) => [path.basename(row.relPath, '.flac'), row.id]))
+      for (const step of order) {
+        const names = step.split('+') as ('a' | 'b')[]
+        for (const name of names) copies[name].release()
+        await until(async () => names.every((name) => pipeline.finished.some((job) => job.name === 'library.analyze' && job.data.fileId === fileIds[name])), `${step} hashed`)
+      }
+      expect((await done).counts).toMatchObject({ audioFiles: 3, duplicatesSkipped: 1, filesLeftForReview: 2 })
+      expect(await tree(root.path)).toEqual([`${INCOMING_FOLDER}/${id}/Twins/a.flac`, `${INCOMING_FOLDER}/${id}/Twins/c.flac`])
+      expect((await rowsOf(id)).map((row) => row.relPath)).toEqual([`${INCOMING_FOLDER}/${id}/Twins/a.flac`, `${INCOMING_FOLDER}/${id}/Twins/c.flac`])
+    })
+  })
+
+  it('finishes removing duplicates after a crash between deciding and deleting the files', async () => {
+    const root = await managedRoot()
+    const tone = await makeTone(fixtures, { path: 'crash/tone.flac', durationSec: 1, frequency: 610 })
+    const id = await receive([{ from: tone, to: 'Twins/a.flac' }, { from: tone, to: 'Twins/b.flac' }])
+    await commitImport(id)
+    for (const step of ['extracting', 'moving', 'identifying']) {
+      expect((await getImport(id)).step).toBe(step)
+      await runStep(id, fast)
+    }
+    // The process died after the decision was recorded: the file is still there, and a scan
+    // brought its row back before the import ran again.
+    const second = `${INCOMING_FOLDER}/${id}/Twins/b.flac`
+    await link(tone, path.join(root.path, second))
+    await scanRoot({ rootId: root.id, paths: [`${INCOMING_FOLDER}/${id}`] })
+    await drainJobs({ timeoutMs: 60_000 })
+    expect((await inIncoming(id)).map((row) => row.relPath)).toContain(second)
+    await db.update(imports).set({ step: 'identifying' }).where(eq(imports.id, id))
+    await runStep(id, fast)
+    await runStep(id, fast)
+
+    expect((await getImport(id)).counts).toMatchObject({ audioFiles: 2, duplicatesSkipped: 1, filesLeftForReview: 1 })
+    expect(await tree(root.path)).toEqual([`${INCOMING_FOLDER}/${id}/Twins/a.flac`])
+    expect((await inIncoming(id)).map((row) => row.relPath)).toEqual([`${INCOMING_FOLDER}/${id}/Twins/a.flac`])
   })
 
   it('leaves an unidentified album in _Incoming, playable, after copying it across file systems', async () => {
