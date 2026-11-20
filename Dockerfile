@@ -2,7 +2,10 @@
 
 # One image: API, worker and the built web app. SQUIRMY_ROLE picks what a container runs.
 
-FROM node:24-trixie-slim AS build
+# The build stage produces only JavaScript and static files, so it runs on the builder's
+# own platform. A multi-platform build then compiles once, natively, instead of running
+# tsc and Vite under emulation for each foreign platform.
+FROM --platform=$BUILDPLATFORM node:24-trixie-slim AS build
 WORKDIR /app
 # Native modules (argon2) compile here when no prebuilt binary matches the platform.
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
