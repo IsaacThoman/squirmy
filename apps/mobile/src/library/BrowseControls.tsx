@@ -148,20 +148,23 @@ export function HeroActions({ title, artist, onOpen, onPlay }: HeroActionsProps)
 export function TopResult({ href, onPlay, ...props }: TopResultProps) {
   const styles = useStyles();
   return <View style={styles.topResult}>
-    {href ? <ZoomLink href={href}><TopResultButton {...props} /></ZoomLink> : <TopResultButton {...props} />}
+    {href ? <ZoomLink href={href}><TopResultButton {...props} playable={Boolean(onPlay)} /></ZoomLink>
+      : <TopResultButton {...props} playable={Boolean(onPlay)} />}
     {onPlay && <View style={styles.topPlay}><BrowseButton icon="play.fill" label={`Play ${props.title}`} onPress={onPlay} glass /></View>}
   </View>;
 }
 
-function TopResultButton({ title, subtitle, cover, dim, onPress }: Omit<TopResultProps, 'href' | 'onPlay'>) {
+function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay'> & { playable: boolean }) {
+  const colors = useColors();
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
-    style={({ pressed }) => [styles.topButton, dim && styles.dim, pressed && styles.pressed]}>
+    style={({ pressed }) => [styles.topButton, playable && styles.topPlayable, dim && styles.dim, pressed && styles.pressed]}>
     {cover}
     <View style={styles.flex}>
       <Text numberOfLines={2} style={styles.topTitle}>{title}</Text>
       <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
     </View>
+    {!playable && <Icon name="chevron.right" size={12} color={colors.muted} />}
   </Pressable>;
 }
 
@@ -200,7 +203,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   heroSubtitle: { color: '#F0E6FA' },
   heroPlay: { position: 'absolute', right: 19, bottom: 19 },
   topResult: { borderRadius: 18, backgroundColor: colors.surface, justifyContent: 'center' },
-  topButton: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, paddingRight: 72 },
+  topButton: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, paddingRight: 18 },
+  topPlayable: { paddingRight: 72 },
   topTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   topPlay: { position: 'absolute', right: 14 },
   metadata: { alignItems: 'center', gap: 3 },

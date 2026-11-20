@@ -203,7 +203,8 @@ export function TopResult({ href, onPlay, ...props }: TopResultProps) {
   const colors = useColors();
   return <Host matchContents={{ vertical: true }}>
     <ZStack alignment="trailing" modifiers={[background(colors.surface), clipShape('roundedRectangle', 18)]}>
-      {href ? <ZoomLink href={href}><TopResultButton {...props} zoom /></ZoomLink> : <TopResultButton {...props} />}
+      {href ? <ZoomLink href={href}><TopResultButton {...props} playable={Boolean(onPlay)} zoom /></ZoomLink>
+        : <TopResultButton {...props} playable={Boolean(onPlay)} />}
       {onPlay && <VStack modifiers={[padding({ trailing: 16 })]}>
         <Button modifiers={[
           buttonStyle(isLiquidGlassAvailable() ? 'glassProminent' : 'borderedProminent'), buttonBorderShape('circle'),
@@ -216,11 +217,13 @@ export function TopResult({ href, onPlay, ...props }: TopResultProps) {
   </Host>;
 }
 
-function TopResultButton({ title, subtitle, cover, size, dim, zoom, onPress }: Omit<TopResultProps, 'href' | 'onPlay'> & { zoom?: boolean }) {
+function TopResultButton({ title, subtitle, cover, size, dim, zoom, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay'> & {
+  zoom?: boolean; playable: boolean;
+}) {
   const colors = useColors();
   return <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
     <HStack spacing={14} modifiers={[
-      padding({ vertical: 14, leading: 14, trailing: 76 }), frame({ maxWidth: Infinity, alignment: 'leading' }), hitShape,
+      padding({ vertical: 14, leading: 14, trailing: playable ? 76 : 18 }), frame({ maxWidth: Infinity, alignment: 'leading' }), hitShape,
       ...(dim ? [opacity(unavailableOpacity)] : []),
     ]}>
       <HostedCover cover={cover} size={size} zoom={zoom} />
@@ -228,7 +231,8 @@ function TopResultButton({ title, subtitle, cover, size, dim, zoom, onPress }: O
         <Text modifiers={[font({ textStyle: 'title3', weight: 'bold' }), lineLimit(2)]}>{title}</Text>
         <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
       </VStack>
-      <Spacer minLength={0} />
+      <Spacer minLength={4} />
+      {!playable && <Symbol name="chevron.right" size={12} color={colors.muted} />}
     </HStack>
   </Button>;
 }
