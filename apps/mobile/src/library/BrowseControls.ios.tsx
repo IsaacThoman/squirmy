@@ -1,6 +1,6 @@
-import { Fragment, useImperativeHandle, useRef } from 'react';
+import { Fragment, useImperativeHandle, useRef, type ComponentProps } from 'react';
 import {
-  Button, Divider, Grid, Host, HStack, Menu, Picker, ProgressView, RNHostView, Spacer, Text, TextField, VStack, ZStack, useNativeState,
+  Button, ContextMenu, Divider, Grid, Host, HStack, Menu, Picker, ProgressView, RNHostView, Spacer, Text, TextField, VStack, ZStack, useNativeState,
   type TextFieldRef,
 } from '@expo/ui/swift-ui';
 import {
@@ -13,10 +13,12 @@ import { StyleSheet, View } from 'react-native';
 import { IconButton, Symbol, hitShape, plainButton } from '../native/Controls';
 import type {
   BrowseButtonProps, CollectionButtonProps, CollectionGridRowProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
-  LinkedButtonProps, SearchFieldProps, TopResultProps,
+  LinkedButtonProps, SearchFieldProps,
 } from './BrowseControls';
 import { unavailableOpacity, useColors } from '../theme';
 import { ZoomLink, ZoomSource } from './ZoomLink';
+
+type ButtonSymbol = ComponentProps<typeof Button>['systemImage'];
 
 const footnote = font({ textStyle: 'footnote' });
 const labelFont = font({ textStyle: 'subheadline', weight: 'semibold' });
@@ -136,20 +138,32 @@ export function CollectionRow({ href, ...props }: CollectionButtonProps) {
   </Host>;
 }
 
-function RowButton({ title, subtitle, cover, size, dim, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+function RowButton({ title, subtitle, cover, size, dim, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
+  const menu = actions?.length ? actions.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as ButtonSymbol}
+    onPress={action.onPress} />) : null;
+  const button = <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={() => { onSelect?.(); onPress?.(); }}>
+    <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
+      <HostedCover cover={cover} size={size} zoom />
+      <VStack alignment="leading" spacing={3}>
+        <Text modifiers={[labelFont, lineLimit(1)]}>{title}</Text>
+        <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
+      </VStack>
+      <Spacer minLength={4} />
+      {!menu && <Symbol name="chevron.right" size={12} color={colors.muted} />}
+    </HStack>
+  </Button>;
   return <VStack spacing={0}>
-    <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
-      <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
-        <HostedCover cover={cover} size={size} zoom />
-        <VStack alignment="leading" spacing={3}>
-          <Text modifiers={[labelFont, lineLimit(1)]}>{title}</Text>
-          <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
-        </VStack>
-        <Spacer minLength={4} />
-        <Symbol name="chevron.right" size={12} color={colors.muted} />
-      </HStack>
-    </Button>
+    {menu ? <HStack spacing={0}>
+      <ContextMenu>
+        <ContextMenu.Trigger>{button}</ContextMenu.Trigger>
+        <ContextMenu.Items>{menu}</ContextMenu.Items>
+      </ContextMenu>
+      <Menu label={<Symbol name="ellipsis" size={19} color={colors.muted} />}
+        modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(`More options for ${title}`), frame({ width: 44, height: 44 }), hitShape]}>
+        {menu}
+      </Menu>
+    </HStack> : button}
     <Divider modifiers={[padding({ leading: size + 12 })]} />
   </VStack>;
 }
@@ -218,39 +232,6 @@ export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActions
       </VStack>
     </ZStack>
   </Host>;
-}
-
-export function TopResult({ href, onPlay, busy, ...props }: TopResultProps) {
-  const colors = useColors();
-  return <Host matchContents={{ vertical: true }}>
-    <ZStack alignment="trailing" modifiers={[background(colors.surface), clipShape('roundedRectangle', 18)]}>
-      {href ? <ZoomLink href={href}><TopResultButton {...props} playable={Boolean(onPlay)} zoom /></ZoomLink>
-        : <TopResultButton {...props} playable={Boolean(onPlay)} />}
-      {onPlay && <VStack modifiers={[padding({ trailing: 16 })]}>
-        <CardPlayButton title={props.title} size={30} symbolSize={17} busy={busy} onPress={onPlay} />
-      </VStack>}
-    </ZStack>
-  </Host>;
-}
-
-function TopResultButton({ title, subtitle, cover, size, dim, zoom, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay' | 'busy'> & {
-  zoom?: boolean; playable: boolean;
-}) {
-  const colors = useColors();
-  return <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
-    <HStack spacing={14} modifiers={[
-      padding({ vertical: 14, leading: 14, trailing: playable ? 76 : 18 }), frame({ maxWidth: Infinity, alignment: 'leading' }), hitShape,
-      ...(dim ? [opacity(unavailableOpacity)] : []),
-    ]}>
-      <HostedCover cover={cover} size={size} zoom={zoom} />
-      <VStack alignment="leading" spacing={3}>
-        <Text modifiers={[font({ textStyle: 'title3', weight: 'bold' }), lineLimit(2)]}>{title}</Text>
-        <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
-      </VStack>
-      <Spacer minLength={4} />
-      {!playable && <Symbol name="chevron.right" size={12} color={colors.muted} />}
-    </HStack>
-  </Button>;
 }
 
 const styles = StyleSheet.create({

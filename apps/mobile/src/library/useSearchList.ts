@@ -1,0 +1,148 @@
+import { filterKind, playlistScore, searchItemKey, type SearchFilter, type SearchItem } from '@squirmy/client-core';
+import {
+  addRecentSearch, parseRecentSearches, recentSearchesStorageKey, removeRecentSearch, type RecentSearch,
+} from '@squirmy/client-core';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useAccountKey } from '../account/AccountProvider';
+import { usePlaylists, useSearch, useSearchPages } from '../data/queries';
+import { useViewer } from '../downloads/DownloadsProvider';
+import { catalogWaitMs, keepOrder, searchItems, searchStage } from './search';
+
+/** The results for what is typed and the filter chosen, however they were found. */
+export type SearchList = {
+  /** Null until an answer that may be shown has arrived. */
+  items: SearchItem[] | null;
+  /** The items answer an earlier query or filter and stay while the new answer loads. */
+  stale: boolean;
+  /** More results for what is typed are on their way (the catalog's, or the next page). */
+  pending: boolean;
+  failed: boolean;
+  /** The catalog could not be searched; what is listed is the server's own music. */
+  catalogFailed: boolean;
+  refetch: () => Promise<unknown>;
+  loadMore?: () => void;
+};
+
+/**
+ * The Search tab's list. All mixes every kind as the server ranks them: it waits for the
+ * catalog's answer, or `catalogWaitMs` after the library's, keeping the last results on
+ * screen meanwhile, so rows do not reshuffle with every key. A kind pages further as the
+ * list ends. Playlists are the viewer's own whose names match.
+ */
+export function useSearchList(text: string, filter: SearchFilter): SearchList {
+  const viewer = useViewer();
+  const term = text.trim();
+  const search = useSearch(filter === 'all' ? text : '');
+  const pages = useSearchPages(text, filterKind(filter));
+  const playlists = usePlaylists();
+
+  const answered = search.query === term && term.length > 0;
+  const library = answered && !search.library.isPlaceholderData ? search.library.data : undefined;
+  const catalog = answered && !search.catalog.isPlaceholderData ? search.catalog.data : undefined;
+  const catalogFailed = answered && search.catalog.isError && !search.catalog.isFetching;
+  const libraryFailed = answered && search.library.isError && !search.library.isFetching;
+
+  const [waited, setWaited] = useState<string | null>(null);
+  useEffect(() => {
+    if (!library || catalog) return;
+    const timer = setTimeout(() => setWaited(term), catalogWaitMs);
+    return () => clearTimeout(timer);
+  }, [library, catalog, term]);
+  const stage = searchStage({ library: library !== undefined || libraryFailed, catalog: catalog !== undefined, catalogFailed, waited: waited === term });
+
+  // The order rows were shown in for this query once both answers were in, so a refreshed answer does not move them.
+  const shownOrder = useRef<{ term: string; order: string[] } | null>(null);
+  const all = useMemo(() => {
+    if (stage === 'wait') return null;
+    const items = searchItems(library, catalog, viewer, term, playlists.items);
+    if (stage !== 'full') return { term, items, full: false };
+    const kept = keepOrder(items, shownOrder.current?.term === term ? shownOrder.current.order : null);
+    shownOrder.current = { term, order: kept.order };
+    return { term, items: kept.items, full: true };
+  }, [stage, library, catalog, viewer, term, playlists.items]);
+
+  const paged = useMemo(() => {
+    const kind = filterKind(filter);
+    if (!kind || !pages.data) return null;
+    const seen = new Set<string>();
+    const items: SearchItem[] = [];
+    for (const page of pages.data.pages) {
+      for (const item of searchItems(page.library ?? undefined, page.catalog ?? undefined, viewer, term)) {
+        // An older server ignores `type` and answers every kind.
+        if (item.type === kind && !seen.has(searchItemKey(item))) {
+          seen.add(searchItemKey(item));
+          items.push(item);
+        }
+      }
+    }
+    return items;
+  }, [filter, pages.data, viewer, term]);
+
+  const current = useMemo((): SearchList | null => {
+    if (!term) return null;
+    if (filter === 'playlist') {
+      const items = playlists.items.map(playlist => ({ playlist, score: playlistScore(term, playlist.name) }))
+        .filter(({ score }) => score > 0).sort((a, b) => b.score - a.score)
+        .map(({ playlist }): SearchItem => ({ type: 'playlist', playlist }));
+      return { items, stale: false, pending: false, failed: false, catalogFailed: false, refetch: playlists.refetch };
+    }
+    if (filter === 'all') {
+      if (libraryFailed && (catalogFailed || search.catalog.isError)) {
+        return { items: null, stale: false, pending: false, failed: true, catalogFailed: false, refetch: () => Promise.all([search.library.refetch(), search.catalog.refetch()]) };
+      }
+      if (!all) return null;
+      return {
+        items: all.items, stale: false, pending: !all.full, failed: false, catalogFailed,
+        refetch: () => Promise.all([search.library.refetch(), search.catalog.refetch()]),
+      };
+    }
+    if (pages.isError && !pages.data) return { items: null, stale: false, pending: false, failed: true, catalogFailed: false, refetch: pages.refetch };
+    if (!paged || pages.isPlaceholderData) return null;
+    return {
+      items: paged, stale: false, pending: pages.isFetchingNextPage, failed: false,
+      catalogFailed: pages.data?.pages.some(page => page.catalogFailed) ?? false, refetch: pages.refetch,
+      loadMore: pages.hasNextPage && !pages.isFetchingNextPage ? () => void pages.fetchNextPage() : undefined,
+    };
+  }, [term, filter, all, paged, pages, playlists, search.library, search.catalog, libraryFailed, catalogFailed]);
+
+  // The last results shown stand in while the next query's or filter's are on their way.
+  const [shown, setShown] = useState<SearchList | null>(null);
+  if (current && current !== shown) setShown(current);
+  if (!term) return { items: null, stale: false, pending: false, failed: false, catalogFailed: false, refetch: async () => {} };
+  if (current) return current;
+  return shown?.items
+    ? { ...shown, stale: true, pending: true, loadMore: undefined }
+    : { items: null, stale: false, pending: true, failed: false, catalogFailed: false, refetch: async () => {} };
+}
+
+/** A listener per subscriber, told when this device's recent searches change. */
+const listeners = new Set<() => void>();
+const storage = () => (globalThis as { localStorage?: Storage }).localStorage;
+
+/**
+ * Recent searches and results opened from Search, kept on this device per server and
+ * account (the app's local storage), newest first.
+ */
+export function useRecentSearches() {
+  const account = useAccountKey();
+  const key = account ? recentSearchesStorageKey(account) : null;
+  const subscribe = useCallback((listener: () => void) => {
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+  }, []);
+  const json = useSyncExternalStore(subscribe, () => (key ? storage()?.getItem(key) ?? null : null));
+  const list = useMemo(() => parseRecentSearches(json), [json]);
+  const write = useCallback((next: (list: RecentSearch[]) => RecentSearch[] | null) => {
+    if (!key) return;
+    const value = next(parseRecentSearches(storage()?.getItem(key)));
+    if (value === null) storage()?.removeItem(key);
+    else storage()?.setItem(key, JSON.stringify(value));
+    for (const listener of listeners) listener();
+  }, [key]);
+  return {
+    list,
+    add: useCallback((entry: RecentSearch) => write(current => addRecentSearch(current, entry)), [write]),
+    remove: useCallback((entryKey: string) => write(current => removeRecentSearch(current, entryKey)), [write]),
+    clear: useCallback(() => write(() => null), [write]),
+  };
+}
