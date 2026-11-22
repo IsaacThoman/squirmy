@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { BackHandler, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, Extrapolation, interpolate, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay,
@@ -16,6 +16,7 @@ import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
 import { useLibraryActions, useLiked } from './data/library';
 import { heartButton } from './library/heart';
+import { loadFailure } from './data/errors';
 import { useLyrics } from './data/queries';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
@@ -460,9 +461,14 @@ function LyricsPage({ visible }: { visible: boolean }) {
     }
   }, [active, visible, viewport, placed]);
 
-  const empty = lyrics.data?.instrumental
+  // Loading, none and failed look different: a failed request is not a song without lyrics.
+  // A request waiting for the connection (paused) has failed for now, too.
+  const failure = lyrics.isError || (lyrics.isPending && lyrics.fetchStatus === 'paused') ? loadFailure(lyrics.error) : null;
+  const empty: { icon: string; title: string; detail?: string; retry?: boolean } | null = lyrics.data?.instrumental
     ? { icon: 'music.note', title: 'Instrumental' }
-    : lyrics.isLoading ? null : { icon: 'quote.bubble', title: 'No lyrics available' };
+    : failure ? { icon: failure.connection ? 'wifi.exclamationmark' : 'exclamationmark.circle', title: 'Couldn’t load lyrics',
+      detail: failure.description, retry: failure.retry }
+      : lyrics.isLoading ? null : { icon: 'quote.bubble', title: 'No lyrics available' };
 
   return (
     <View style={styles.lyricPage}>
@@ -485,10 +491,19 @@ function LyricsPage({ visible }: { visible: boolean }) {
             </View>
           ))}
         </ScrollView>
-      ) : empty && (
+      ) : empty ? (
         <View style={styles.noLyrics}>
           <Icon name={empty.icon} size={29} color={colors.quiet} />
           <Text style={styles.noLyricsTitle}>{empty.title}</Text>
+          {empty.detail && <Text style={styles.noLyricsDetail}>{empty.detail}</Text>}
+          {empty.retry && <Pressable accessibilityRole="button" hitSlop={10} onPress={() => { selectionFeedback(); void lyrics.refetch(); }}
+            style={({ pressed }) => [styles.retry, pressed && styles.pressed]}>
+            <Text style={styles.retryText}>Try again</Text>
+          </Pressable>}
+        </View>
+      ) : (
+        <View style={styles.noLyrics} accessible accessibilityLabel="Loading lyrics">
+          <ActivityIndicator color={colors.muted} />
         </View>
       )}
     </View>
@@ -621,7 +636,11 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
   lyricPage: { flex: 1, paddingHorizontal: 25 },
   noLyrics: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  noLyricsTitle: { color: colors.muted, fontSize: 16, fontWeight: '600' },
+  noLyricsTitle: { color: colors.muted, fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  noLyricsDetail: { color: colors.quiet, fontSize: 14, textAlign: 'center', marginTop: -6 },
+  retry: { minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
+  retryText: { color: colors.accent, fontSize: 16, fontWeight: '700' },
+  pressed: { opacity: 0.65 },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: 25, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -1, paddingHorizontal: 1 },
