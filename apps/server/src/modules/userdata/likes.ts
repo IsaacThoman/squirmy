@@ -77,7 +77,7 @@ export async function listLikes(userId: string, type: LikeEntityType, query: Pag
   const ids = rows.slice(0, query.limit).map((row) => row.id)
   const items: (TrackSummary | AlbumSummary | ArtistSummary)[] = type === 'track'
     ? await trackSummaries(userId, ids.map((id) => ({ id })))
-    : type === 'album' ? await albumSummaries(ids) : await artistSummaries(ids)
+    : type === 'album' ? await albumSummaries(ids) : await artistSummaries(ids, userId)
   return toPage(ordering, rows, query.limit, items)
 }
 

@@ -17,7 +17,7 @@ The sidebar changes shape, and this browser remembers how you left it:
 Most pages have a bar across the top with the page's name and, on some, links to its sections and controls such as sorting. The bar stays in place while the page scrolls. Album, artist and playlist pages and Liked Songs start with their artwork instead.
 
 - **Home** shows a featured album (what you played last, else what was added last) and rows of recently added and recently played albums, most played songs, your playlists, liked albums, your [wantlist](./wantlist.md) (when it is turned on) and new releases by artists in your library. On a server with no music yet it says so; admins get **Add a music folder**, which opens **Admin → Library**.
-- **Albums**, **Artists** and **Songs** are sections of the **Library** page, with **Playlists** beside them in its bar. They load as you scroll and can be sorted and filtered by genre. Counts read "60+" until the last page arrives.
+- **Library** is the music on your server (scanned, uploaded or dropped in the inbox) plus what you added to it. Songs the server fetched only because you played them are not added, so sampling something never fills your library. **Albums**, **Artists** and **Songs** are sections of the **Library** page, with **Playlists** beside them in its bar. They load as you scroll and can be sorted and filtered by genre. Counts read "60+" until the last page arrives.
 - **Album, artist and playlist pages** play from the header. Artist pages can start a radio. The first open of an artist the server knows little about can take a few seconds while it fetches the details.
 - **Playlists** you own can be renamed, made public or private, reordered by dragging or with **Move up** and **Move down**, and deleted.
 
