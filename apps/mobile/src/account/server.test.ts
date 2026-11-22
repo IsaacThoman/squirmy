@@ -1,6 +1,7 @@
 import type { FetchLike } from '@squirmy/client-core';
+import type { SetupStatus } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { ConnectError, findServer } from './server';
+import { ConnectError, findServer, serverFrom } from './server';
 
 type Answer = { status: number; body: unknown } | 'unreachable';
 
@@ -34,9 +35,16 @@ describe('findServer', () => {
   it('returns the server name and version', async () => {
     const { asked, fetch } = serve({ 'https://music.example.com': { status: 200, body: status } });
     await expect(findServer('music.example.com/', fetch)).resolves.toEqual({
-      url: 'https://music.example.com', name: 'Home', version: '1.4.0', registrationRequiresInvite: true,
+      url: 'https://music.example.com', name: 'Home', version: '1.4.0', registrationRequiresInvite: true, wantlistEnabled: false,
     });
     expect(asked).toEqual(['https://music.example.com']);
+  });
+
+  it('shows the wantlist only when the server says it is on', async () => {
+    const { fetch } = serve({ 'https://music.example.com': { status: 200, body: { ...status, wantlistEnabled: true } } });
+    await expect(findServer('music.example.com', fetch)).resolves.toMatchObject({ wantlistEnabled: true });
+    // Servers from before the setting leave it out.
+    expect(serverFrom('https://old.example.com', status as SetupStatus).wantlistEnabled).toBe(false);
   });
 
   it('falls back to http when https is unreachable', async () => {

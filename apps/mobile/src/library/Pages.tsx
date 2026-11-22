@@ -8,7 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { useAccount, useSignedInApi } from '../account/AccountProvider';
+import { useAccount, useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
 import { fallbackTint } from '../data/color';
 import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
 import { useAlbum, useArtist, useGenreAlbums, useHistory, useLikedTracks, usePlaylist } from '../data/queries';
@@ -169,6 +169,7 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
   const download = useDownloadActions();
   const liked = useLiked('album', id, data?.liked);
   const { setLiked, want } = useLibraryActions();
+  const wantlist = useWantlistEnabled();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
     album.data?.discs.some(disc => disc.tracks.some(track => track.availability === 'server')) ? () => download.album(album.data!) : null);
   useBackSwipeOnly();
@@ -180,9 +181,9 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
     actions.playTracks(tracks, { start, shuffle, context });
   };
   const owned = data.availability === 'partial' ? `${data.ownedTrackCount} of ${data.trackCount} in your library` : null;
-  const wantable = data.availability !== 'full' && !data.wanted && !offline;
+  const wantable = wantlist && data.availability !== 'full' && !data.wanted && !offline;
   const buttons = playButtons(tracks, canPlay, play);
-  const wantButton = offline ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
+  const wantButton = offline || !wantlist ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
     onPress: () => {
       if (data.wanted) return;
       tapFeedback();
