@@ -1,4 +1,4 @@
-import { queryKeys, type AlbumSummary, type HomeSection, type LibrarySort as SortKey, type SearchResults, type TrackSummary } from '@squirmy/contracts';
+import { queryKeys, type AlbumSummary, type HomeSection, type SearchResults, type TrackSummary } from '@squirmy/contracts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, type Href } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -17,6 +17,7 @@ import {
   type SearchHandle,
 } from './library/BrowseControls';
 import { isEmptyGroup, searchSections, type SearchGroup, type SearchSections } from './library/search';
+import { sortFor, sortOptions, sortsFor, type SortName } from './library/sorting';
 import type { Page } from './library/links';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
@@ -138,9 +139,7 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
 }
 
 const filters = ['All', 'Playlists', 'Albums', 'Artists', 'Songs'] as const;
-const sortOptions = { 'Recently added': 'recent', Title: 'title', Artist: 'artist', Year: 'year' } as const satisfies Record<string, SortKey>;
 type LibraryFilter = (typeof filters)[number];
-type SortName = keyof typeof sortOptions;
 
 export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bottomInset = 155 }: BrowseProps) {
   const styles = useStyles();
@@ -154,13 +153,15 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const [grid, setGrid] = useState(true);
   const [showFilter, setShowFilter] = useState(false);
   const [query, setQuery] = useState('');
+  const sorts = sortsFor(filter);
   const sort = sortOptions[sortName];
   const columns = width >= 650 ? 4 : 3;
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   const showsPlaylists = filter === 'All' || filter === 'Playlists';
   const albums = useLibraryAlbums(sort);
-  const artists = useLibraryArtists(sort);
-  const songs = useLibraryTracks(sort);
+  // The server lists artists by name whatever the order asked for.
+  const artists = useLibraryArtists('title');
+  const songs = useLibraryTracks(sortOptions[sortFor('Songs', sortName)]);
   const playlists = usePlaylists();
   const active = filter === 'Artists' ? artists : filter === 'Songs' ? songs : filter === 'Playlists' ? playlists : albums;
 
@@ -172,10 +173,12 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const items = useMemo(() => {
     const collections: Collection[] = [];
     if (showsPlaylists) collections.push(likedCollection(link), ...playlists.items.map(playlist => playlistCollection(playlist, link)));
-    if (filter === 'All' || filter === 'Albums') collections.push(...albums.items.map(album => albumCollection(album, link)));
+    // Sorted by year, the year says why an album is where it is.
+    const subtitle = (album: AlbumSummary) => sort === 'year' && album.year ? `${album.artistCredit} · ${album.year}` : album.artistCredit;
+    if (filter === 'All' || filter === 'Albums') collections.push(...albums.items.map(album => albumCollection(album, link, subtitle(album))));
     if (filter === 'Artists') collections.push(...artists.items.map(artist => artistCollection(artist, link)));
     return collections.filter(item => matches(query, item.title, item.subtitle)).map(offlineDim);
-  }, [albums.items, artists.items, filter, link, offlineDim, playlists.items, query, showsPlaylists]);
+  }, [albums.items, artists.items, filter, link, offlineDim, playlists.items, query, showsPlaylists, sort]);
   const tracks = useMemo(() => songs.items.filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? '')),
     [query, songs.items]);
   const empty = filter === 'Songs' ? !tracks.length : !items.length;
@@ -207,7 +210,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       <View style={styles.sortRow}>
         {filter === 'Playlists'
           ? !offline && <BrowseButton label="New playlist" title="New playlist" icon="plus" onPress={newPlaylist} />
-          : <LibrarySort options={Object.keys(sortOptions) as SortName[]} value={sortName} onChange={setSortName} />}
+          : sorts.length > 0 ? <LibrarySort options={sorts} value={sortFor(filter, sortName)} onChange={setSortName} /> : <View />}
         {filter !== 'Songs' && <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
           onPress={() => { tapFeedback(); setGrid(!grid); }} />}
       </View>
