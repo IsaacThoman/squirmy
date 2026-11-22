@@ -69,12 +69,15 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
     credentials: true,
   })
   // Opt-in per route (login, setup, register). Counters are per process.
-  await app.register(rateLimit, { global: false })
+  // A larger store than the default 5000 keys, so a flood of new keys cannot evict the
+  // counters of the addresses it is attacking.
+  await app.register(rateLimit, { global: false, cache: 50_000 })
   await app.register(multipart, { limits: { fileSize: 16 * 1024 ** 3 } })
 
   if (config.CLIENT_IP_HEADER) {
     const header = config.CLIENT_IP_HEADER
-    // First hook, so every limiter, log line and session record sees the same address.
+    // First hook, so every limiter and session record sees the same address. (Fastify's
+    // "incoming request" line is written before hooks run and shows the proxy's.)
     // Fastify defines `ip` as a getter on the prototype; an own property shadows it.
     app.addHook('onRequest', async (request) => {
       const address = headerAddress(request.headers[header], request.raw.socket?.remoteAddress, trust)

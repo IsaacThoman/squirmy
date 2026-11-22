@@ -5,7 +5,7 @@ import { and, count, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } fr
 import { db, type Executor } from '../../database/client.js'
 import { appPasswords, authSessions, devices, users } from '../../database/schema.js'
 import type { AuthUser } from '../../lib/auth.js'
-import { conflict } from '../../lib/errors.js'
+import { AppError, conflict } from '../../lib/errors.js'
 import { decrypt, encrypt, hashToken, randomToken } from '../../lib/crypto.js'
 import { newId } from '../../lib/ids.js'
 
@@ -33,8 +33,32 @@ export function toUser(row: AuthUser): User {
   }
 }
 
+/**
+ * Each argon2 run takes 64 MiB and one of libuv's four threads, which also serve file
+ * reads for streaming and artwork. At most two run at once and a bounded number wait, so
+ * a flood of sign-ins slows sign-ins rather than playback for everyone.
+ */
+const hashSlots = 2
+const hashQueueLimit = 64
+let hashing = 0
+const waiting: (() => void)[] = []
+
+async function withHashSlot<T>(work: () => Promise<T>): Promise<T> {
+  if (hashing < hashSlots) hashing += 1
+  else if (waiting.length >= hashQueueLimit) throw new AppError(503, 'busy', 'The server is busy. Try again in a moment.')
+  else await new Promise<void>((resolve) => waiting.push(resolve))
+  try {
+    return await work()
+  } finally {
+    // A waiter takes over this slot; otherwise it is free again.
+    const next = waiting.shift()
+    if (next) next()
+    else hashing -= 1
+  }
+}
+
 export function hashPassword(password: string) {
-  return argon2.hash(password, { type: argon2.argon2id })
+  return withHashSlot(() => argon2.hash(password, { type: argon2.argon2id }))
 }
 
 let dummyHash: Promise<string> | undefined
@@ -45,8 +69,15 @@ let dummyHash: Promise<string> | undefined
  */
 export async function verifyCredentials(username: string, password: string): Promise<(AuthUser & { passwordHash: string }) | null> {
   const [row] = await db.select().from(users).where(eq(users.usernameKey, usernameKey(username)))
-  dummyHash ??= hashPassword(randomToken())
-  const valid = await argon2.verify(row?.passwordHash ?? await dummyHash, password).catch(() => false)
+  dummyHash ??= hashPassword(randomToken()).catch((error: unknown) => {
+    dummyHash = undefined
+    throw error
+  })
+  const hash = row?.passwordHash ?? await dummyHash
+  const valid = await withHashSlot(() => argon2.verify(hash, password)).catch((error: unknown) => {
+    if (error instanceof AppError) throw error
+    return false
+  })
   return row && valid ? row : null
 }
 

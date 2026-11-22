@@ -128,6 +128,16 @@ export function addressKey(address: string): string {
   return `${expandIpv6(plain).slice(0, 4).join(':')}::/64`
 }
 
+/**
+ * A wider key than `addressKey` for IPv6: the /48, which a home line or a free tunnel can
+ * hand out as many /64s. IPv4 addresses are scarce enough to count alone.
+ */
+export function networkKey(address: string): string {
+  const plain = unmapped(address)
+  if (isIP(plain) !== 6) return addressKey(address)
+  return `${expandIpv6(plain).slice(0, 3).join(':')}::/48`
+}
+
 function expandIpv6(address: string): string[] {
   const withoutZone = address.split('%')[0]!
   // A trailing dotted quad (::ffff:1.2.3.4 and friends) is two groups.

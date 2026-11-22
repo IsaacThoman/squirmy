@@ -10,7 +10,7 @@ import { appPasswords, authSessions, devices, invites, users } from '../../datab
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
-import { findAppPasswordByKey, rememberDevice, verifyAppPassword } from './service.js'
+import { findAppPasswordByKey, insertUser, rememberDevice, verifyAppPassword } from './service.js'
 
 const device = { id: 'device-0001', name: 'Test phone', kind: 'ios' as const }
 
@@ -107,6 +107,7 @@ describe('auth', () => {
     try {
       expect((await cookieFor({ host: 'music.example.com' })).secure).toBe(true)
       expect((await cookieFor({ host: 'music.example.com:443' })).secure).toBe(true)
+      expect((await cookieFor({ host: 'music.example.com.' })).secure).toBe(true)
       // Plain HTTP on the LAN keeps working: browsers drop Secure cookies there.
       expect((await cookieFor({ host: '192.168.1.20:4747' })).secure).toBeUndefined()
     } finally {
@@ -117,6 +118,7 @@ describe('auth', () => {
 
   it('rate limits login per username and per address', async () => {
     const limited = await buildApp()
+    await insertUser(db, { username: 'spread', password: 'spread password', role: 'member', canUpload: false, canAcquire: false })
     try {
       const attempt = (username: string, ip: string, password = 'nope') =>
         limited.inject({ method: 'POST', url: '/api/v1/auth/login', remoteAddress: ip, payload: { username, password } })
@@ -135,11 +137,24 @@ describe('auth', () => {
       for (let index = 0; index < 5; index++) await attempt('admin', `2001:db8:1:1::${index + 10}`)
       expect((await attempt('admin', '2001:db8:1:1::99', 'correct horse')).statusCode).toBe(429)
 
-      // A looser ceiling across every address.
+      // Concurrent guesses cannot all slip past the count while the first is checked.
+      const burst = await Promise.all(Array.from({ length: 12 }, () => attempt('admin', '10.0.6.1')))
+      expect(burst.filter((response) => response.statusCode === 401)).toHaveLength(5)
+      expect(burst.filter((response) => response.statusCode === 429)).toHaveLength(7)
+
+      // Many /64s of one /48 count together too.
+      for (let net = 0; net < 2; net++) for (let index = 0; index < 5; index++) await attempt('admin', `2001:db8:7:${net}::${index + 1}`)
+      expect((await attempt('admin', '2001:db8:7:9::1', 'correct horse')).statusCode).toBe(429)
+      expect((await attempt('admin', '2001:db8:8::1', 'correct horse')).statusCode).toBe(200)
+
+      // A looser ceiling across every address, which spares addresses that signed in lately.
+      await attempt('spread', '10.0.4.200', 'spread password')
       const spread = []
       for (let index = 0; index < 31; index++) spread.push((await attempt('spread', `10.0.4.${index}`)).statusCode)
       expect(spread.slice(0, 30).every((status) => status === 401)).toBe(true)
       expect(spread[30]).toBe(429)
+      expect((await attempt('spread', '10.0.4.99', 'spread password')).statusCode).toBe(429)
+      expect((await attempt('spread', '10.0.4.200', 'spread password')).statusCode).toBe(200)
 
       const perIp = []
       for (let index = 0; index < 20; index++) perIp.push((await attempt(`someone${index}`, '10.0.1.1')).statusCode)
