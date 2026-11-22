@@ -108,6 +108,12 @@ curl -X PATCH https://music.example.com/api/v1/admin/settings \
 
 Sizes are in bytes, and `importRootId` takes a folder id from `GET /api/v1/admin/library/roots`.
 
+Settings with no screen yet:
+
+| Key | Default | What it does |
+|---|---|---|
+| `wantlistEnabled` | `false` | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
+
 `GET /api/v1/admin/settings` returns every setting; secrets come back only as `listenBrainzTokenSet`, `acoustIdKeySet`, `fanartKeySet` and `lastFmKeySet`. A secret set to `null` or `""` is removed.
 
 Acquisition has its own policy settings; see [Acquisition providers](./acquisition.md#policy).

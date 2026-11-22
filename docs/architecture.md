@@ -115,7 +115,7 @@ Modules reach each other in three ways, in this order of preference:
 
 Environment variables are parsed in `config.ts`; see that file for the full list. The ones a self-hoster sets: `DATABASE_URL` (required), `SQUIRMY_DATA_DIR`, `SQUIRMY_LIBRARY_PATHS` (read-only roots) and `SQUIRMY_MANAGED_LIBRARY_PATHS` (managed roots), `SQUIRMY_INBOX_PATH`, `PORT`, `PUBLIC_URL`, `TRUST_PROXY`, `SQUIRMY_ROLE`. `SQUIRMY_SECRET` is generated into the data directory on first boot when unset.
 
-Operator settings that change at runtime (provider toggles, API keys, thresholds) live in the `server_settings` table and are edited in the admin UI. Shape: `ServerSettings` in contracts. Secrets are stored encrypted under separate keys and never returned.
+Operator settings that change at runtime (provider toggles, API keys, thresholds) live in the `server_settings` table and are edited in the admin UI. Shape: `ServerSettings` in contracts. Secrets are stored encrypted under separate keys and never returned. Feature switches clients need before signing in, such as `wantlistEnabled` (default off), are also reported by `GET /setup/status`; changing one invalidates `queryKeys.setupStatus()` and what it changes for every client.
 
 ### Data directory
 
@@ -185,7 +185,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 
 | Route | Module | Notes |
 |---|---|---|
-| `GET /setup/status`, `POST /setup` | auth | create the first admin |
+| `GET /setup/status`, `POST /setup` | auth | create the first admin; the status carries `wantlistEnabled` |
 | `POST /auth/login`, `/auth/logout`, `/auth/register`, `/auth/password`; `GET /auth/me` | auth | |
 | `GET/POST /auth/app-passwords`, `DELETE /auth/app-passwords/:id` | auth | the secret is returned once, on create |
 | `GET/PATCH /me/settings` | userdata | `UserSettings` |
@@ -193,7 +193,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists directories only, symlinks resolved; home directory by default |
 | `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | a folder that is already a root is 409 `duplicate_root` with `details.rootId`; `template` is checked with organize's `validateTemplate`; a bad one is `invalid_request` with an issue on `template` |
 | `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` |
-| `GET /home` | catalog | `HomeResponse` |
+| `GET /home` | catalog | `HomeResponse`; no `wantlist` section while the wantlist is off |
 | `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
 | `POST /tracks/summaries` | catalog | hydrate queue entries |
 | `GET /tracks/:id/playback` | streaming | `PlaybackDescriptor` |
@@ -201,7 +201,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /art/:assetId/:size` | artwork | no auth; immutable cache headers |
 | `PUT/DELETE /me/likes/:type/:id`, `GET /me/likes/:type` | userdata | |
 | `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/:id`, `POST /playlists/:id/items`, `POST /playlists/:id/items/move`, `DELETE /playlists/:id/items/:itemId` | userdata | |
-| `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | |
+| `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | while `wantlistEnabled` is off, `GET /me/wants` is empty and `PUT`/`DELETE` are 409 `wantlist_disabled`; stored wants are kept |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
 | `GET /me/scrobbling`, `PUT/DELETE /me/scrobbling/listenbrainz`, `POST /me/scrobbling/lastfm/start`, `DELETE /me/scrobbling/lastfm` | scrobble | every mutation returns `ScrobblingStatus` |
@@ -433,7 +433,7 @@ apps/mobile/
   modules/now-playing/   local Expo module: Now Playing info and remote commands as JS events
 ```
 
-- **Accounts.** `AccountProvider` owns the auth state: it restores the stored session (holding the splash until the server confirms it, or for at most three seconds offline), creates the API client with the bearer token, and returns to sign-in on a 401. The token and device id go through `Keychain` (`src/account/keychain.ts`), which never rejects: what the keychain refuses is kept in memory for the launch, and the app says once that the next launch will need a sign-in. The server's name, version and invite rule are read again from `GET /setup/status` whenever a server is chosen, so they stay current.
+- **Accounts.** `AccountProvider` owns the auth state: it restores the stored session (holding the splash until the server confirms it, or for at most three seconds offline), creates the API client with the bearer token, and returns to sign-in on a 401. The token and device id go through `Keychain` (`src/account/keychain.ts`), which never rejects: what the keychain refuses is kept in memory for the launch, and the app says once that the next launch will need a sign-in. The server's name, version, invite rule and wantlist switch are read again from `GET /setup/status` whenever a server is chosen, and when the server invalidates it, so they stay current. While the wantlist is off (`useWantlistEnabled`), no screen, menu or Home row mentions it.
 - **Data.** Query keys come from `queryKeys`; lists are infinite queries over the cursor pages. The cache is saved to app storage (expo-sqlite `localStorage`) per server and user, restored before the splash hides, and removed on sign-out. Every response that carries track summaries primes one `TrackStore`, which hydrates queue entries and the lock screen. Likes apply at once through a queue kept in app storage (`LikeQueue`): one that cannot reach the server waits for the next connection, only the last change to an item is sent, and one the server refuses rolls back with a notice.
 - **Realtime.** `RealtimeProvider` opens one socket per signed-in session with `auth.token`. `invalidate` refreshes the named queries (and refetches a changed track's like); every reconnect refreshes all of them. The socket is renewed when the app returns after being suspended (no server ping for 30 seconds) and when the network type changes. A refused handshake rechecks `me`, so a revoked session signs out. The app is *offline* once the socket has been down for 2.5 seconds, or at once when launch could not reach the server.
 - **Playback.** `PlaybackProvider` runs a `SessionClient` on that socket with `ExpoAudioEngine` (`canBoost: false`) and the user's normalization mode. `resolvePlayback` asks for the entry's album, the quality setting for the current network (Wi-Fi or cellular) and the codecs AVPlayer decodes. Components read the session through `usePlaybackState`; the position is polled with `usePosition` by the few components that show it. While another device is active the engine is stopped and the lock screen cleared. An engine error skips the track with a notice, or pauses when the next one fails too.
