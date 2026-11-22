@@ -319,6 +319,16 @@ export async function getRelatedArtists(id: number, options: { limit?: number } 
   return (raw?.data ?? []).map(artist)
 }
 
+/**
+ * Deezer's radio for an artist: a few of its own tracks mixed with popular tracks of
+ * artists like it, in play order. Deezer draws a new mix per request; the cache keeps one
+ * for a day.
+ */
+export async function getArtistRadio(id: number, options: { limit?: number } = {}): Promise<DeezerTrack[]> {
+  const raw = await get<RawList<RawTrack>>(`artist/${id}/radio`, { limit: String(options.limit ?? 25) })
+  return (raw?.data ?? []).map((one) => track(one))
+}
+
 /** Every album, EP, single and compilation Deezer lists for the artist, across all pages. */
 export async function getArtistAlbums(id: number): Promise<DeezerAlbumSummary[]> {
   // The album list leaves out the artist, so it is fetched alongside.

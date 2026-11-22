@@ -289,7 +289,7 @@ describe('acquisition end to end', () => {
     }
     await settle(wanted)
     const [job] = await jobsFor(wanted)
-    expect(job).toMatchObject({ status: 'failed', error: 'Identification found the delivery is a different recording after it had started playing' })
+    expect(job).toMatchObject({ status: 'failed', error: 'Identification found the delivery is a different recording after it was reported ready' })
     // Another song under the requested track's name is not kept for anyone to play.
     expect(await db.select().from(mediaFiles).where(eq(mediaFiles.recordingId, other!.id))).toEqual([])
     expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, wanted))).toHaveLength(1)

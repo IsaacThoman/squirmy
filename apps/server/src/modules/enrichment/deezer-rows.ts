@@ -343,6 +343,20 @@ export async function deezerTopTrackRow(artistId: string, deezerArtistId: string
   })
 }
 
+/**
+ * Finds or creates the row for a track of an artist's Deezer radio, which is mostly other
+ * artists' tracks: the row of its own artist (as `deezerArtistRow` decides), then the track
+ * as one of that artist's popular tracks, so the same Deezer track maps to the same row
+ * whichever page or radio wrote it first.
+ */
+export async function deezerRadioTrackRow(track: DeezerTrack): Promise<string> {
+  const artistId = await db.transaction(async (tx) => {
+    await lockUpserts(tx)
+    return deezerArtistRow(tx, track.artist)
+  })
+  return deezerTopTrackRow(artistId, String(track.artist.id), track)
+}
+
 async function topTrackRecording(tx: Transaction, artistId: string, track: DeezerTrack, artistRow: (artist: DeezerArtistRef) => Promise<string>): Promise<string> {
   const existing = await linked(tx, 'recording', track.id)
   if (existing) return existing

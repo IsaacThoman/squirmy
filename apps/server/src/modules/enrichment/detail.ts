@@ -15,6 +15,7 @@ import { hydrateAlbum } from './album.js'
 import { hydrateArtist } from './artist.js'
 import { fitStrayFilesNow } from './fit.js'
 import { fetchLyrics } from './lyrics.js'
+import { artistRadioRows } from './radio.js'
 import { changed } from './rows.js'
 import { onBudget, shared, warn } from './runner.js'
 
@@ -103,4 +104,20 @@ export function lyricsRun(recordingId: string): Promise<void> {
 /** Look a track's lyrics up once when it has no lyrics row yet. */
 export async function ensureLyrics(recordingId: string): Promise<void> {
   await onPage(`lyrics:${recordingId}`, () => fetchLyrics(recordingId), 'enrichment.lyrics', recordingId, { recordingId })
+}
+
+/**
+ * The recordings Deezer's radio of the artist plays (a few of its own tracks and popular
+ * ones by artists like it), in that order, as catalog rows: rows the catalog has, else
+ * provider-only stubs (radio.ts). For the radio module's suggestions. Empty when Deezer
+ * is off, does not know the artist, or fails; never throws. With `waitMs`, answers by then
+ * with the rows written so far while the rest are written in the background.
+ */
+export async function artistRadioTracks(artistId: string, options: { waitMs?: number } = {}): Promise<string[]> {
+  try {
+    return await artistRadioRows(artistId, options)
+  } catch (error) {
+    warn(`Deezer radio of artist ${artistId} failed`, error)
+    return []
+  }
 }
