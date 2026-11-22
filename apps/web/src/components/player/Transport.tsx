@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { Slider } from '@/components/ui/slider'
-import { formatDuration } from '@/lib/format'
+import { formatDuration, formatRemaining } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { isLoading, usePosition, type Player } from '@/player/player-context'
 
@@ -85,7 +85,7 @@ export function SeekBar({ durationMs, onSeek, disabled, stacked, className }: Se
   const shown = Math.min(draft ?? position, durationMs)
   const elapsed = formatDuration(shown)
   // Nothing loaded shows as 0:00 at both ends, not as "−0:00" left.
-  const left = durationMs ? `−${formatDuration(durationMs - shown)}` : formatDuration(0)
+  const left = durationMs ? formatRemaining(shown, durationMs) : formatDuration(0)
   const slider = (
     <Slider
       label="Seek"
