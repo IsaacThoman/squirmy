@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { usePreventZoomTransitionDismissal, type Href } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { loadFailure } from '../data/errors';
 import { useRealtime } from '../data/realtime';
 import { useKeptCollections } from '../downloads/DownloadsProvider';
 import { Cover, Icon } from '../ui';
@@ -160,13 +161,16 @@ export function EmptyState({ icon, title, description, action }: {
 }
 
 /** A query's first load, or its failure with a way to try again. Null once there is data to show. */
-export function QueryState({ query, what }: { query: { isPending: boolean; isError: boolean; refetch: () => unknown }; what: string }) {
+export function QueryState({ query, what }: {
+  query: { isPending: boolean; isError: boolean; error?: unknown; refetch: () => unknown }; what: string;
+}) {
   const colors = useColors();
   const styles = useStyles();
   if (query.isPending) return <View style={styles.loading}><ActivityIndicator color={colors.muted} /></View>;
   if (query.isError) {
-    return <EmptyState icon="wifi.exclamationmark" title={`Couldn’t load ${what}`}
-      description="Check your connection to the server." action={{ title: 'Try again', onPress: () => void query.refetch() }} />;
+    const failure = loadFailure(query.error);
+    return <EmptyState icon={failure.connection ? 'wifi.exclamationmark' : 'exclamationmark.circle'} title={`Couldn’t load ${what}`}
+      description={failure.description} action={failure.retry ? { title: 'Try again', onPress: () => void query.refetch() } : undefined} />;
   }
   return null;
 }
