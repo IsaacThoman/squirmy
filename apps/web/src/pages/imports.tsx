@@ -17,6 +17,7 @@ import { NotTaken, UploadPanel } from '@/components/imports/UploadPanel'
 import { Page, PageHeader } from '@/components/layout/Page'
 import { Button } from '@/components/ui/button'
 import { EmptyState, Skeleton } from '@/components/ui/feedback'
+import { LoadError, QueryState } from '@/components/ui/query-state'
 import { canUploadMusic } from '@/lib/catalog'
 import { toast } from '@/lib/toast'
 import { byPath, droppedFiles, pickedFiles, Upload, type PickedFile } from '@/lib/upload'
@@ -110,8 +111,9 @@ function AddMusic() {
   const user = useCurrentUser()
   const isAdmin = user.role === 'admin'
   useImportEvents()
-  const options = useQuery({ queryKey: optionsKey, queryFn: () => api.imports.options() })
-  const recent = useQuery({ queryKey: listKey, queryFn: () => api.imports.list({ limit: 30 }), select: page => page.items })
+  // Silent: a failure is said in place of the panel it leaves empty, with a retry.
+  const options = useQuery({ queryKey: optionsKey, queryFn: () => api.imports.options(), meta: { silent: true } })
+  const recent = useQuery({ queryKey: listKey, queryFn: () => api.imports.list({ limit: 30 }), select: page => page.items, meta: { silent: true } })
   const ownerOf = useOwners()
   const cancelImport = useCancelImport()
   const { upload, snapshot } = useActiveUpload()
@@ -150,6 +152,8 @@ function AddMusic() {
             </ImportDetail>
             <div><Button variant="primary" onClick={() => setActive(null)}><UploadIcon />Upload more</Button></div>
           </section>
+        ) : options.error && !options.data ? (
+          <LoadError title="Uploading did not load" error={options.error} retrying={options.isFetching} onRetry={() => void options.refetch()} />
         ) : (
           <UploadPanel
             options={options.data}
@@ -174,7 +178,9 @@ function AddMusic() {
 
         <section aria-labelledby="recent-imports">
           <h2 id="recent-imports" className="mb-3 text-base font-semibold">{isAdmin ? 'Recent imports' : 'Your imports'}</h2>
-          <ImportsList imports={recent.data} ownerOf={ownerOf} onCancel={item => cancelImport.mutate(item)} />
+          <QueryState query={recent} loading={<ImportsList imports={undefined} ownerOf={ownerOf} onCancel={() => {}} />} errorTitle="Your imports did not load">
+            {imports => <ImportsList imports={imports} ownerOf={ownerOf} onCancel={item => cancelImport.mutate(item)} />}
+          </QueryState>
         </section>
       </Page>
     </>
@@ -188,12 +194,12 @@ export function ImportPage() {
   const { item, albums } = useImport(id)
   const ownerOf = useOwners()
   const cancelImport = useCancelImport()
-  if (item.error) {
+  if (item.error && !item.data) {
     if (isNotFound(item.error) || (item.error instanceof ApiError && item.error.code === 'invalid_request')) return <NotFoundPage />
     return (
       <>
         <PageHeader title="Import" />
-        <Page><EmptyState icon={<UploadIcon />} title="This import did not load" description={item.error.message} className="pt-24" /></Page>
+        <Page><LoadError variant="page" title="This import did not load" headingLevel={2} error={item.error} retrying={item.isFetching} onRetry={() => void item.refetch()} className="pt-24" /></Page>
       </>
     )
   }

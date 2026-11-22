@@ -30,7 +30,7 @@ export function SearchField({ value, onValueChange, size = 'md', className, plac
         autoComplete="off"
         spellCheck={false}
         className={cn(
-          'w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/30 [&::-webkit-search-cancel-button]:hidden',
+          'w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/15 [&::-webkit-search-cancel-button]:hidden',
           // 16px on phones: iOS zooms into any smaller field that gets focus.
           size === 'lg' ? 'h-11 rounded-lg pl-10 pr-10 text-base' : 'h-9 pl-9 pr-9 text-base md:text-sm',
         )}

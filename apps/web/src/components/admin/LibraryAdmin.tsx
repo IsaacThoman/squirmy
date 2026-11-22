@@ -3,7 +3,7 @@ import {
   type AcquisitionUsage, type DirectoryListing, type JobQueueStats, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type ServerEvent,
 } from '@squirmy/contracts'
 import { Briefcase, ChevronRight, Eye, FolderOpen, FolderPlus, MoreHorizontal, Pencil, Power, RefreshCw, ScanLine, Trash2, Wand2 } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { z } from 'zod'
 import { useFormSubmit } from '@/api/errors'
@@ -53,11 +53,13 @@ type LibraryAdminProps = {
   onUpdate: (rootId: string, patch: UpdateLibraryRootRequest) => Promise<unknown>
   onRemove: (rootId: string) => Promise<unknown>
   onFixMatch: () => void
+  /** Said in place of each part whose first read failed; the parts that loaded stay usable. */
+  failures?: Partial<Record<'roots' | 'stats', ReactNode>>
 }
 
 type RootDialog = { kind: 'add' } | { kind: 'edit' | 'remove'; root: LibraryRoot }
 
-export function LibraryAdmin({ roots, stats, cache, openReviews, progress, templateInfo, editRootId, onEditorClosed, folders, onScan, onAdd, onUpdate, onRemove, onFixMatch }: LibraryAdminProps) {
+export function LibraryAdmin({ roots, stats, cache, openReviews, progress, templateInfo, editRootId, onEditorClosed, folders, onScan, onAdd, onUpdate, onRemove, onFixMatch, failures }: LibraryAdminProps) {
   const [opened, setDialog] = useState<RootDialog | null>(null)
   const linked = editRootId ? roots?.find(root => root.id === editRootId) : undefined
   const dialog: RootDialog | null = opened ?? (linked ? { kind: 'edit', root: linked } : null)
@@ -74,10 +76,11 @@ export function LibraryAdmin({ roots, stats, cache, openReviews, progress, templ
       </AdminHeader>
 
       <div className="flex flex-col gap-7">
-        <LibraryStatistics stats={stats} cache={cache} openReviews={openReviews} />
+        <LibraryStatistics stats={stats} cache={cache} openReviews={openReviews} failure={failures?.stats} />
 
         <Panel title="Folders">
-          {!roots && (
+          {!roots && failures?.roots}
+          {!roots && !failures?.roots && (
             <div className={cn(cardClass, 'divide-y')}>
               {[0, 1].map(index => (
                 <div key={index} className="flex items-center gap-3 px-4 py-3">
@@ -132,7 +135,8 @@ export function LibraryAdmin({ roots, stats, cache, openReviews, progress, templ
  * The collection's numbers. Fetched music is cache, not collection (product decision 20),
  * so it is left out here and only pointed to, which is why a folder can list more files.
  */
-function LibraryStatistics({ stats, cache, openReviews }: { stats: LibraryStats | undefined; cache: AcquisitionUsage | undefined; openReviews: number | undefined }) {
+function LibraryStatistics({ stats, cache, openReviews, failure }: { stats: LibraryStats | undefined; cache: AcquisitionUsage | undefined; openReviews: number | undefined; failure?: ReactNode }) {
+  if (!stats && failure) return failure
   if (!stats) return <div className="@container"><div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">{[0, 1, 2, 3].map(index => <Skeleton key={index} className="h-24 rounded-xl" />)}</div></div>
   const states = [
     { label: 'Identified', count: stats.matched, className: 'bg-primary' },
@@ -393,9 +397,11 @@ type JobsAdminProps = {
   /** When the numbers were fetched; they refresh on their own every few seconds. */
   updatedAt: number
   onRefresh: () => void
+  /** Said in place of the table when the first read failed. */
+  failure?: ReactNode
 }
 
-export function JobsAdmin({ jobs, updatedAt, onRefresh }: JobsAdminProps) {
+export function JobsAdmin({ jobs, updatedAt, onRefresh, failure }: JobsAdminProps) {
   return (
     <div>
       <AdminHeader title="Jobs" description="Background work. Heavy jobs such as loudness run at low priority so new music is browsable first.">
@@ -408,7 +414,7 @@ export function JobsAdmin({ jobs, updatedAt, onRefresh }: JobsAdminProps) {
         </p>
       )}
       {jobs?.length === 0 && <EmptyState className={cardClass} icon={<Briefcase />} title="No queues yet" description="Queues appear once the server has work of that kind." />}
-      {!jobs && <Skeleton className="h-48 rounded-xl" />}
+      {!jobs && (failure ?? <Skeleton className="h-48 rounded-xl" />)}
       {jobs && jobs.length > 0 && (
         <DataTable>
           <thead>

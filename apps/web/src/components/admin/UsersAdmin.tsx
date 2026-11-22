@@ -28,13 +28,15 @@ type UsersAdminProps = {
   onDeleteUser: (userId: string) => Promise<unknown>
   onCreateInvite: (request: CreateInviteRequest) => Promise<Invite>
   onRevokeInvite: (inviteId: string) => Promise<unknown>
+  /** Said in place of each table's rows when its first read failed; the other table stays usable. */
+  failures?: Partial<Record<'users' | 'invites', ReactNode>>
 }
 
 type UserDialog = { kind: 'edit' | 'password' | 'disable' | 'delete'; user: User } | { kind: 'create' | 'invite' } | { kind: 'revoke'; invite: Invite }
 
 const roleOptions = [{ value: 'member', label: 'Member' }, { value: 'admin', label: 'Admin' }] as const
 
-export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreateUser, onUpdateUser, onDeleteUser, onCreateInvite, onRevokeInvite }: UsersAdminProps) {
+export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreateUser, onUpdateUser, onDeleteUser, onCreateInvite, onRevokeInvite, failures }: UsersAdminProps) {
   const [dialog, setDialog] = useState<UserDialog | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   const name = (user: User) => user.displayName ?? user.username
@@ -57,7 +59,7 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
               </tr>
             </thead>
             <tbody>
-              {!users && <LoadingRows columns={4} />}
+              {!users && <LoadingRows columns={4} failure={failures?.users} />}
               {users?.map(user => {
                 const access = (
                   <>
@@ -123,7 +125,7 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
                 </tr>
               </thead>
               <tbody>
-                {!invites && <LoadingRows columns={4} />}
+                {!invites && <LoadingRows columns={4} failure={failures?.invites} />}
                 {invites?.map(invite => {
                   const state = inviteState(invite)
                   const status = state === 'used' ? `Used by @${invite.usedBy}` : invite.expiresAt ? `${state === 'expired' ? 'Expired' : 'Expires'} ${formatRelative(invite.expiresAt)}` : 'Never expires'
@@ -194,7 +196,8 @@ function inviteState(invite: Invite, now = Date.now()): 'open' | 'used' | 'expir
   return invite.expiresAt && Date.parse(invite.expiresAt) <= now ? 'expired' : 'open'
 }
 
-function LoadingRows({ columns }: { columns: number }) {
+function LoadingRows({ columns, failure }: { columns: number; failure?: ReactNode }) {
+  if (failure) return <tr><td colSpan={columns} className="p-3">{failure}</td></tr>
   return [0, 1].map(index => (
     <tr key={index} className="border-b last:border-0">
       <td colSpan={columns} className="px-4 py-2.5"><Skeleton className="h-4 w-40" /><Skeleton className="mt-1.5 h-3 w-56 max-w-full" /></td>

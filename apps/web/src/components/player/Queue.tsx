@@ -2,6 +2,7 @@ import { GripVertical, Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } f
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
+import { SaveHeart } from '@/components/music/LibrarySave'
 import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -9,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { dropIndex } from '@/lib/reorder'
 import { UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
+import { useLibrary } from '@/player/library-context'
 import type { Player, QueueItem } from '@/player/player-context'
 import { touchTarget } from './Transport'
 
@@ -117,6 +119,7 @@ type QueueRowProps = {
  */
 function QueueRow({ item, current, playing = false, waiting = false, faded, onPlay: play, children }: QueueRowProps) {
   const { track, entry } = item
+  const library = useLibrary()
   const failed = entry.state === 'failed'
   const loading = current && (waiting || entry.state === 'preparing')
   const onPlay = failed ? undefined : play
@@ -141,6 +144,18 @@ function QueueRow({ item, current, playing = false, waiting = false, faded, onPl
       {onPlay
         ? <button type="button" aria-label={`Play ${track.title}`} onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">{body}</button>
         : <div className="flex min-w-0 flex-1 items-center gap-3 px-2">{body}</div>}
+      {/*
+        * Every song row has its heart, here as anywhere, and it never gives way to a narrow panel:
+        * the title is what truncates. Unsaved, it waits for the row's hover where a pointer hovers.
+        */}
+      <SaveHeart
+        liked={track.liked}
+        onToggle={() => library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)}
+        title={track.title}
+        tooltip={false}
+        size="sm"
+        className={cn('pointer-coarse:size-11', !track.liked && 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/queue:opacity-100 md:pointer-fine:group-focus-within/queue:opacity-100')}
+      />
       {children}
     </div>
   )

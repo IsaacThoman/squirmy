@@ -1,6 +1,6 @@
 import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
 import { Bookmark, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
-import { memo, useCallback, useMemo, useState, type DragEvent, type ReactNode } from 'react'
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
 import { Equalizer } from '@/components/music/Equalizer'
@@ -88,7 +88,10 @@ const SidebarView = memo(function SidebarView({
         onClick={onNavigate}
         aria-label={label}
         className={cn(
-          'flex h-8 items-center overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
+          'relative flex h-8 items-center overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
+          // The selected fill is close to the hover fill and to the sidebar itself, so the page you
+          // are on also gets a bar and an icon in the action color, which stand 3:1 off it.
+          'before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary before:opacity-0 aria-[current=page]:before:opacity-100 aria-[current=page]:[&_svg]:text-primary',
           // Square on the rail, centred under the logo.
           collapsed ? 'mx-0.5 w-8' : 'w-full',
         )}
@@ -99,6 +102,23 @@ const SidebarView = memo(function SidebarView({
       </NavLink>
     </Tooltip>
   )
+
+  /*
+   * Folding swaps the toggle for another button (the logo opens the rail again), and the one that
+   * had focus leaves the page with it. When the toggle had focus, its replacement takes it, so a
+   * keyboard user is not sent back to the top of the page.
+   */
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const refocus = useRef(false)
+  const toggle = (event: MouseEvent<HTMLButtonElement>) => {
+    refocus.current = document.activeElement === event.currentTarget
+    onToggle()
+  }
+  useLayoutEffect(() => {
+    if (!refocus.current) return
+    refocus.current = false
+    toggleRef.current?.focus()
+  }, [collapsed])
 
   const accountEntries: MenuEntry[] = [
     { kind: 'label', label: `${name} · ${user.role === 'admin' ? 'Admin' : 'Member'}` },
@@ -116,14 +136,15 @@ const SidebarView = memo(function SidebarView({
       className={cn(
         'flex h-full shrink-0 select-none flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground motion-reduce:transition-none',
         mobile
-          ? cn('fixed inset-y-0 left-0 z-40 w-[min(82vw,320px)] shadow-2xl', transitions && 'transition-transform duration-200 ease-out', !mobileOpen && '-translate-x-full')
+          // The drawer reaches the screen's edges; its controls stay clear of the notch, the rounded corners and the home indicator.
+          ? cn('fixed inset-y-0 left-0 z-40 w-[min(82vw,320px)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] shadow-2xl', transitions && 'transition-transform duration-200 ease-out', !mobileOpen && '-translate-x-full')
           : cn('relative z-20', transitions && 'transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]', collapsed ? 'w-[52px]' : 'w-(--sidebar-width)'),
       )}
     >
       <div className="flex items-center gap-1 p-2">
         <Tooltip label={collapsed ? 'Open sidebar' : null} side="right">
           {collapsed ? (
-            <button type="button" onClick={onToggle} aria-label="Open sidebar" className="group/logo flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
+            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Open sidebar" className="group/logo flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
               <LogoMark size={30} className="group-hover/logo:hidden" />
               <PanelLeftOpen aria-hidden className="hidden size-4 group-hover/logo:block" />
             </button>
@@ -136,7 +157,7 @@ const SidebarView = memo(function SidebarView({
         <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold', textTransition)}>Squirmy</span>
         {!collapsed && (
           <Tooltip label={mobile ? null : 'Close sidebar'} side="right">
-            <button type="button" onClick={onToggle} aria-label="Close sidebar" className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Close sidebar" className="relative flex size-8 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
               <PanelLeftClose aria-hidden className="size-4" />
             </button>
           </Tooltip>
@@ -160,7 +181,7 @@ const SidebarView = memo(function SidebarView({
               <Link to="/library?filter=playlists" onClick={onNavigate} className="rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline">Playlists</Link>
               {/* In the drawer the tooltip would only take the first Escape. */}
               <Tooltip label={mobile ? null : 'New playlist'} side="right">
-                <button type="button" onClick={() => library.newPlaylist()} aria-label="New playlist" className="-my-0.5 ml-auto flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+                <button type="button" onClick={() => library.newPlaylist()} aria-label="New playlist" className="relative -my-0.5 ml-auto flex size-6 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                   <Plus aria-hidden className="size-3.5" />
                 </button>
               </Tooltip>
@@ -194,7 +215,7 @@ const SidebarView = memo(function SidebarView({
           contentClassName="w-56"
           entries={accountEntries}
           trigger={(
-            <button type="button" aria-label={`Account, ${name}`} className="flex h-10 w-full items-center gap-2 overflow-hidden rounded-lg text-left outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-sidebar-accent">
+            <button type="button" aria-label={`Account, ${name}`} className="flex h-10 w-full items-center gap-2 overflow-hidden rounded-lg text-left outline-none pointer-coarse:h-11 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-sidebar-accent">
               <span className="flex size-9 shrink-0 items-center justify-center">
                 <span aria-hidden className="flex size-7 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">{initial(name)}</span>
               </span>
