@@ -38,7 +38,7 @@ Confirm with `docker compose ps` and `docker compose logs app`.
 - **`DATABASE_URL is required`**, or a connection error: the `postgres` service is not healthy or the URL is wrong. `docker compose logs postgres` tells you which.
 - **Password authentication failed** after changing `POSTGRES_PASSWORD`: the password only applies when the database volume is first created. Put the old one back, or change it inside the database with `ALTER USER squirmy PASSWORD '…'`.
 - **`[squirmy] failed to start`** followed by a migration error: restore the dump you took before upgrading (see [Backup](./backup.md#upgrading)) and report the error.
-- **A `PUBLIC_URL` error**: it must be a full URL such as `https://music.example.com`, or not set at all. An empty value is invalid.
+- **A `PUBLIC_URL` error**: it must be a full URL such as `https://music.example.com`, or empty or not set at all.
 
 ## Nothing appears after adding a folder
 

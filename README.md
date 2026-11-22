@@ -23,7 +23,7 @@ curl -fsSLO https://raw.githubusercontent.com/IsaacThoman/squirmy/main/compose.y
 MUSIC_DIR=/path/to/your/music docker compose up -d
 ```
 
-Open http://localhost:4747 and create the admin account. At the folder step your music folder is already listed: it is mounted at `/music`, added read-only and scanning, so choose **Continue**. The image contains the API, the worker, the web app, ffmpeg and fpcalc; `compose.yaml` adds PostgreSQL. Append `:ro` to the music volume in `compose.yaml` if the server must never change your files.
+Open http://localhost:4747 and create the admin account. At the folder step your music folder is already listed: it is mounted at `/music`, added read-only and scanning, so choose **Continue**. The image contains the API, the worker, the web app, ffmpeg and fpcalc; `compose.yaml` adds PostgreSQL. Set `read_only: true` on the music volume in `compose.yaml` if the server must never change your files.
 
 To build the image from the source instead, clone this repository and run `docker compose up -d --build` in it.
 

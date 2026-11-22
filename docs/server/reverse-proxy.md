@@ -15,7 +15,7 @@ Squirmy serves everything from one port (4747): the web app, the API under `/api
 
 ## 1. Configure Squirmy
 
-Add these to the `app` service in `compose.yaml`, or `TRUST_PROXY=true` to `.env`:
+Add these to the `app` service in `compose.yaml`, or `PUBLIC_URL=https://music.example.com` and `TRUST_PROXY=true` to `.env`:
 
 ```yaml
 services:
@@ -40,7 +40,7 @@ Apply with `docker compose up -d`.
 
 ### Coolify with Traefik
 
-Import the repository using the Docker Compose build strategy and select `/compose.yaml`. Set `MUSIC_DIR` to the absolute path of your music folder on the Coolify server. Set `POSTGRES_PASSWORD`, `TRUST_PROXY=true`, and `PUBLIC_URL` to the browser-facing origin. Set `SQUIRMY_PORT=127.0.0.1:4747` to keep the host port on loopback.
+Import the repository using the Docker Compose build strategy and select `/compose.yaml`. Set `MUSIC_DIR` to the absolute path of your music folder on the Coolify server. Set `POSTGRES_PASSWORD`, `TRUST_PROXY=true`, and `PUBLIC_URL` to the browser-facing origin; `compose.yaml` passes all three to the app. Set `SQUIRMY_PORT=127.0.0.1:4747` to keep the host port on loopback.
 
 Assign the domain to the `app` service and set its internal port to `4747`. Coolify creates the Traefik route. If an upstream proxy terminates TLS and connects to Traefik over HTTP, set the Coolify route to HTTP and keep `PUBLIC_URL` set to the public HTTPS origin.
 

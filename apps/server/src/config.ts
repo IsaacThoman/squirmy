@@ -25,8 +25,12 @@ const Env = z.object({
   SQUIRMY_MANAGED_LIBRARY_PATHS: z.string().optional(),
   /** Folder watched for music to import, used while the `inboxPath` server setting is unset. */
   SQUIRMY_INBOX_PATH: z.string().optional(),
-  /** Public origin, e.g. https://music.example.com. Used for absolute links only. */
-  PUBLIC_URL: z.string().url().optional(),
+  /**
+   * Public origin, e.g. https://music.example.com, for absolute links and the delivery
+   * addresses given to acquisition providers. Empty counts as unset, because compose.yaml
+   * passes it through as `${PUBLIC_URL:-}`.
+   */
+  PUBLIC_URL: z.preprocess((value) => (value === '' ? undefined : value), z.string().url().optional()),
   TRUST_PROXY: boolean.default(false),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   FFMPEG_PATH: z.string().default('ffmpeg'),
