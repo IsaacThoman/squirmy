@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tarEnd, tarFile } from './fixtures.js'
+import { tarEnd, tarFile } from '../../test/catalog-index-dump.js'
 import { readTar } from './tar.js'
 
 async function* chunked(data: Buffer, size: number) {

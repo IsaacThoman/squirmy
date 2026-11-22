@@ -83,6 +83,19 @@ describe('Upload', () => {
     expect(api.create).toHaveBeenCalledOnce()
   })
 
+  it('stops with a clear message when something in front of Squirmy refuses the request as too large', async () => {
+    // A reverse proxy answers with its own HTML page, which the client reports as http_413.
+    const api = fakeImports(async () => { throw new ApiError(413, 'http_413', 'Request Entity Too Large') })
+    const upload = new Upload(api as never, [file('a.flac'), file('b.flac'), file('c.flac')], { maxFileBytes: 1000 })
+    await upload.start()
+    const snapshot = upload.getSnapshot()
+    expect(api.addFiles).toHaveBeenCalledTimes(1)
+    expect(snapshot.phase).toBe('failed')
+    expect(snapshot.error).toMatch(/before it reached Squirmy/)
+    expect(snapshot.files.map(state => [state.status, state.reason])).toEqual([['waiting', null], ['waiting', null], ['waiting', null]])
+    expect(api.commit).not.toHaveBeenCalled()
+  })
+
   it('cancels the import, and gives up when nothing could be taken', async () => {
     const api = fakeImports(async (_id: string, parts: { relativePath: string }[]) => ({ import: importRow, files: parts.map(part => ({ path: part.relativePath, status: 'rejected', reason: 'unsupported_type', bytes: 0 })) }))
     const upload = new Upload(api as never, [file('notes.txt')], { maxFileBytes: 1000 })

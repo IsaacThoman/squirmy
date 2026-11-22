@@ -96,11 +96,3 @@ export async function setRating(userId: string, type: LikeEntityType, id: string
   await db.insert(ratings).values({ userId, entityType: storedType[type], entityId, rating })
     .onConflictDoUpdate({ target: [ratings.userId, ratings.entityType, ratings.entityId], set: { rating, updatedAt: new Date() } })
 }
-
-/** The user's ratings of the given entities, keyed by id; unrated ids are absent. Ids are not redirect-resolved. */
-export async function getRatings(userId: string, type: LikeEntityType, ids: readonly string[]): Promise<Map<string, number>> {
-  if (ids.length === 0) return new Map()
-  const rows = await db.select({ id: ratings.entityId, rating: ratings.rating }).from(ratings)
-    .where(and(eq(ratings.userId, userId), eq(ratings.entityType, storedType[type]), inArray(ratings.entityId, [...ids])))
-  return new Map(rows.map((row) => [row.id, row.rating]))
-}

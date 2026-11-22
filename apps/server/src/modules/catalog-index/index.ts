@@ -1,7 +1,7 @@
 import { queryKeys } from '@squirmy/contracts'
 import { invalidate } from '../../realtime/index.js'
 import type { ServerModule } from '../types.js'
-import { ImportCancelledError, importCanonicalDump } from './import.js'
+import { ImportCancelledError, importCanonicalDump, markInterruptedImports } from './import.js'
 import { catalogIndexRoutes, importJob, type ImportJob } from './routes.js'
 
 // The import running in this process, so shutting down can stop it cleanly.
@@ -23,6 +23,10 @@ export const catalogIndexModule: ServerModule = {
         await invalidate('admins', [queryKeys.admin()])
       }
     })
+  },
+  async start({ role }) {
+    // So the admin screen does not report an import a crash ended as still running.
+    if (role !== 'api') await markInterruptedImports()
   },
   stop() {
     running?.abort()

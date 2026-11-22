@@ -60,12 +60,12 @@ Run steps 1 and 2 from cron for regular backups. For scale, the dump of the 12-a
 
 On the new machine:
 
-1. Clone the repository and copy your `.env` (with the **same** `POSTGRES_PASSWORD`) and any changes you made to `compose.yaml`.
+1. Download `compose.yaml` as in the [quick start](./quick-start.md#_1-get-the-compose-file) (or clone the repository if you [build from the source](./quick-start.md#building-from-the-source)), and copy your `.env` (with the **same** `POSTGRES_PASSWORD`) and any changes you made to `compose.yaml`. Use the release the dump came from, or a newer one.
 2. Make the music available. Keep it mounted at the same path inside the container (`/music` in the standard `compose.yaml`); only `MUSIC_DIR`, the path on the host, may change.
-3. Build the image and start only the database, which creates an empty one:
+3. Pull the image and start only the database, which creates an empty one (run `docker compose build` instead of `pull` when you build from the source):
 
    ```sh
-   docker compose build
+   docker compose pull
    docker compose up -d postgres
    ```
 

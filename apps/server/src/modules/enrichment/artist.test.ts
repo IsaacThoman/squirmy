@@ -10,7 +10,7 @@ import { artistDetail } from '../catalog/pages.js'
 import { hydrateArtist } from './artist.js'
 import { ensureArtistDetail } from './detail.js'
 import { setDetailBudget } from './runner.js'
-import { artistRow, artistStub } from './test-stubs.js'
+import { artistRow, artistStub } from '../../test/enrichment-stubs.js'
 
 const radiohead = 'a74b1b7f-71a5-4011-9441-d0b5e4122711'
 const okComputer = 'b1392450-e666-3926-a536-22c65f834433'

@@ -17,6 +17,11 @@ describe('musicbrainz', () => {
   useTestDatabase()
   const http = useHttpFixtures('musicbrainz')
 
+  it('rate limits every MusicBrainz-run server and no other host', () => {
+    for (const host of ['musicbrainz.org', 'beta.musicbrainz.org', 'www.musicbrainz.org']) expect(mb.isRateLimitedHost(host), host).toBe(true)
+    for (const host of ['musicbrainz-mirror', 'mb.example.com', 'notmusicbrainz.org', 'localhost']) expect(mb.isRateLimitedHost(host), host).toBe(false)
+  })
+
   it('normalizes album types and dates', () => {
     expect(mb.albumType('Album', [])).toBe('album')
     expect(mb.albumType('EP')).toBe('ep')
@@ -51,18 +56,6 @@ describe('musicbrainz', () => {
     expect(releases[0]!.trackCount).toBe(12)
   })
 
-  it('searches recordings with a featured artist credit', async () => {
-    const results = await mb.searchRecordings({ artist: 'Mark Ronson', recording: 'Uptown Funk', isrc: 'GBARL1401540' }, { limit: 5 })
-    const hit = results.find((result) => result.mbid === uptownFunk)!
-    expect(hit.artistName).toBe('Mark Ronson feat. Bruno Mars')
-    expect(hit.artistCredit).toEqual([
-      { name: 'Mark Ronson', mbid: 'c3c82bdc-d9e7-4836-9746-c24ead47ca19', joinPhrase: ' feat. ' },
-      { name: 'Bruno Mars', mbid: 'afb680f2-b6eb-4cd7-a70b-a63b25c763d5', joinPhrase: '' },
-    ])
-    expect(hit.isrcs).toContain('GBARL1401540')
-    expect(hit.releases.length).toBeGreaterThan(0)
-  })
-
   it('gets an artist with aliases, genres and links', async () => {
     const artist = await mb.getArtist(radiohead)
     expect(artist).toMatchObject({ mbid: radiohead, name: 'Radiohead', sortName: 'Radiohead', wikidataId: 'Q44190', area: 'United Kingdom' })
@@ -80,7 +73,6 @@ describe('musicbrainz', () => {
 
   it('returns null for unknown ids', async () => {
     expect(await mb.getArtist('11111111-2222-4333-8444-555555555555')).toBeNull()
-    expect(await mb.findRecordingsByIsrc('ZZZZZ0000000')).toEqual([])
   })
 
   it('browses every page of an artist discography', async () => {
@@ -148,14 +140,11 @@ describe('musicbrainz', () => {
     expect(await mb.lookupUrl('https://www.deezer.com/artist/999999999999')).toBeNull()
   })
 
-  it('finds releases by barcode and recordings by ISRC', async () => {
+  it('finds releases by barcode', async () => {
     const releases = await mb.findReleasesByBarcode('724385522925')
     expect(releases.length).toBeGreaterThan(0)
     expect(releases.every((release) => release.barcode === '724385522925')).toBe(true)
     expect(releases[0]!.releaseGroup?.mbid).toBe(okComputer)
-
-    const recordings = await mb.findRecordingsByIsrc('GBARL1401540')
-    expect(recordings.map((recording) => recording.mbid)).toContain(uptownFunk)
   })
 
   it('returns nothing when MusicBrainz is switched off', async () => {

@@ -6,7 +6,7 @@ import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createArtist } from '../../test/factories.js'
 import { organizeModule } from './index.js'
-import { addAlbum, makeRoot, manifest } from './test-library.js'
+import { addAlbum, makeRoot, manifest } from '../../test/organize-library.js'
 
 describe('organize routes', () => {
   useTestDatabase()

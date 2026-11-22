@@ -23,7 +23,7 @@ export type DeliverJob = { userId: string; target: ScrobbleTarget }
 const batchSize: Record<ScrobbleTarget, number> = { listenbrainz: 1000, lastfm: 50 }
 /** Last.fm drops scrobbles older than two weeks, so older plays are not swept. */
 const LOOKBACK = sql`interval '14 days'`
-/** A row that failed this many times is given up on. With the backoff below that spans about a day. */
+/** A row that failed this many times is given up on. With the backoff below that spans about eight and a half hours. */
 export const MAX_ATTEMPTS = 10
 
 /** A pending row may be tried again 1, 2, 4… minutes after its last failure, at most 6 hours. */

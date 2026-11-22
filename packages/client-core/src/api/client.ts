@@ -8,6 +8,7 @@ import {
   AcquisitionProviderList,
   AcquisitionUsage,
   AlbumDetail,
+  AlbumPage,
   AlbumSummary,
   API_PREFIX,
   ApiErrorBody,
@@ -15,6 +16,7 @@ import {
   AppPasswordList,
   ART_SIZES,
   ArtistDetail,
+  ArtistPage,
   ArtistSummary,
   type Artwork,
   AuthResponse,
@@ -32,8 +34,8 @@ import {
   DeviceInfo,
   DirectoryListing,
   type DirectoryQuery,
-  GenreSummary,
-  HistoryItem,
+  GenrePage,
+  HistoryPage,
   HomeResponse,
   Import,
   ImportAlbumList,
@@ -47,6 +49,7 @@ import {
   LastFmConnectStart,
   type LibraryQuery,
   LibraryRoot,
+  LibraryRootList,
   LibraryStats,
   type LibraryEntityType,
   type LikeEntityType,
@@ -72,6 +75,7 @@ import {
   PlaybackDescriptor,
   type PlaybackQuery,
   PlaylistDetail,
+  PlaylistPage,
   PlaylistSummary,
   type RegisterRequest,
   RadioResponse,
@@ -90,6 +94,7 @@ import {
   type UpdateAcquisitionProviderRequest,
   TrackSummariesResponse,
   type TrackSummariesRequest,
+  TrackPage,
   TrackSummary,
   type UpdateLibraryRootRequest,
   type UpdatePlaylistRequest,
@@ -100,7 +105,7 @@ import {
   UserList,
   UserSettings,
   type WantEntityType,
-  WantItem,
+  WantPage,
 } from '@squirmy/contracts'
 import { z } from 'zod'
 
@@ -208,14 +213,6 @@ export type CallOptions = { signal?: AbortSignalLike }
 /** Request bodies accept the schema's input type, so fields with defaults are optional. */
 type Input<T extends z.ZodType> = z.input<T>
 
-const AlbumPage = page(AlbumSummary)
-const ArtistPage = page(ArtistSummary)
-const TrackPage = page(TrackSummary)
-const GenrePage = page(GenreSummary)
-const PlaylistPage = page(PlaylistSummary)
-const HistoryPage = page(HistoryItem)
-const WantPage = page(WantItem)
-const RootList = page(LibraryRoot)
 const DeviceList = page(DeviceInfo)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
@@ -344,7 +341,7 @@ export function createApiClient(options: ApiClientOptions) {
       acquisitionUsage: () => get('/admin/acquisition/usage', AcquisitionUsage),
     },
     library: {
-      roots: () => get('/admin/library/roots', RootList),
+      roots: () => get('/admin/library/roots', LibraryRootList),
       createRoot: (body: Input<typeof CreateLibraryRootRequest>) => send('POST', '/admin/library/roots', LibraryRoot, body),
       updateRoot: (rootId: string, body: UpdateLibraryRootRequest) => send('PATCH', `/admin/library/roots/${id(rootId)}`, LibraryRoot, body),
       deleteRoot: (rootId: string) => send('DELETE', `/admin/library/roots/${id(rootId)}`, Ok),

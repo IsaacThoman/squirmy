@@ -17,7 +17,7 @@ export type JobDefinition = {
 export type EnqueueOptions = {
   /** At most one queued or active job per key; a duplicate enqueue is a no-op. */
   singletonKey?: string
-  /** Higher runs first. Use negative values for heavy background work. */
+  /** Higher runs first within this queue; queues do not wait for each other. Use negative values for background work. */
   priority?: number
   /** Delay in seconds, or the time to run at. */
   startAfter?: number | Date
