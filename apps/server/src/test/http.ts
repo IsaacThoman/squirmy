@@ -133,8 +133,29 @@ async function fromResponse(request: HttpFixture['request'], response: Response)
   return { request, response: result }
 }
 
-async function save(provider: string, fixture: HttpFixture) {
-  const { method, url, body } = fixture.request
+/** Query and form fields that carry an operator's or user's credentials. */
+const secretFields = ['api_key', 'client', 'sk', 'token', 'api_sig']
+
+/**
+ * Replaces credential values in a URL's query or a form body with `REDACTED`, so recording
+ * with a real key never writes the key to disk. Tests replay with fake keys, so a fixture
+ * recorded this way needs the test's key put back in by hand.
+ */
+export function redactSecrets(text: string): string {
+  const pattern = new RegExp(`([?&]|^)(${secretFields.join('|')})=[^&]*`, 'g')
+  return text.replace(pattern, '$1$2=REDACTED')
+}
+
+async function save(provider: string, recorded: HttpFixture) {
+  const url = redactSecrets(recorded.request.url)
+  const body = recorded.request.body === undefined ? undefined : redactSecrets(recorded.request.body)
+  const redacted = url !== recorded.request.url || body !== recorded.request.body
+  const fixture: HttpFixture = {
+    ...(redacted && { note: 'Credentials were redacted when recording; put the test\'s fake key in place of REDACTED.' }),
+    ...recorded,
+    request: { ...recorded.request, url, ...(body === undefined ? {} : { body }) },
+  }
+  const { method } = fixture.request
   const parsed = new URL(url)
   const slug = `${parsed.hostname}${parsed.pathname}${parsed.search}`
     .replace(/[^a-zA-Z0-9]+/g, '-')

@@ -125,6 +125,7 @@ describe('admin', () => {
     expect((await call({ url: '/api/v1/admin/settings', headers: admin })).body).not.toContain('very-secret-key')
     expect(await getServerSecret('acoustIdKey')).toBe('very-secret-key')
     expect((await call({ method: 'PATCH', url: '/api/v1/admin/settings', headers: admin, payload: { matchAutoAcceptScore: 2 } })).statusCode).toBe(400)
+    expect((await call({ method: 'PATCH', url: '/api/v1/admin/settings', headers: admin, payload: { musicBrainzBaseUrl: 'musicbrainz-mirror:5000' } })).statusCode).toBe(400)
     expect((await call({ method: 'PATCH', url: '/api/v1/admin/settings', headers: member, payload: { serverName: 'Mine' } })).statusCode).toBe(403)
     expect((await call({ url: '/api/v1/setup/status' })).json().serverName).toBe('Home')
   })

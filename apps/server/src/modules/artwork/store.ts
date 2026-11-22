@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { queryKeys } from '@squirmy/contracts'
 import { and, eq, isNull } from 'drizzle-orm'
 import sharp, { type Metadata } from 'sharp'
 import { rgbaToThumbHash } from 'thumbhash'
@@ -10,7 +11,8 @@ import { albums, artists, assets } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { AppError, notFound } from '../../lib/errors.js'
 import { newPublicId } from '../../lib/ids.js'
-import { downloadImage } from '../metadata/coverart.js'
+import { invalidate } from '../../realtime/index.js'
+import { downloadImage, imageSourceEnabled } from '../metadata/index.js'
 
 export type Asset = typeof assets.$inferSelect
 
@@ -146,6 +148,8 @@ export async function ensureStored(assetId: string): Promise<StoredAsset> {
   if (asset.status === 'failed' && asset.checkedAt && Date.now() - asset.checkedAt.getTime() < retryFailedAfterMs) {
     throw notFound('The artwork could not be fetched')
   }
+  // Not marked failed: it downloads as soon as its source is switched back on.
+  if (!(await imageSourceEnabled(asset.remoteUrl))) throw notFound('The artwork comes from a source that is switched off')
   let pending = fetching.get(assetId)
   if (!pending) {
     pending = download(asset.id, asset.remoteUrl).finally(() => fetching.delete(assetId))
@@ -179,10 +183,22 @@ async function download(assetId: string, url: string): Promise<StoredAsset> {
   return updated as StoredAsset
 }
 
-/** Unassigns an asset from every album and artist that shows it. */
+/**
+ * Unassigns an asset from every album and artist that shows it, and says so: pages,
+ * lists and playlist mosaics that showed it (and the API's cached reads of them) are
+ * refetched. It runs in whichever process asked for the image, the worker included.
+ */
 async function detach(assetId: string) {
-  await db.update(albums).set({ artworkAssetId: null, updatedAt: new Date() }).where(eq(albums.artworkAssetId, assetId))
-  await db.update(artists).set({ imageAssetId: null, updatedAt: new Date() }).where(eq(artists.imageAssetId, assetId))
+  const now = new Date()
+  const unassigned = await db.update(albums).set({ artworkAssetId: null, updatedAt: now })
+    .where(eq(albums.artworkAssetId, assetId)).returning({ id: albums.id })
+  const unimaged = await db.update(artists).set({ imageAssetId: null, updatedAt: now })
+    .where(eq(artists.imageAssetId, assetId)).returning({ id: artists.id })
+  const keys = [...unassigned.map((row) => queryKeys.album(row.id)), ...unimaged.map((row) => queryKeys.artist(row.id))]
+  if (keys.length === 0) return
+  await invalidate('all', keys).catch((error: unknown) => {
+    if (getConfig().LOG_LEVEL !== 'silent') console.warn('[artwork] Could not send invalidations', error)
+  })
 }
 
 /** Decodes a small copy once for both the placeholder and the color. */

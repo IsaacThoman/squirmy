@@ -4,7 +4,7 @@ import { enqueue } from '../../jobs/index.js'
 import { requireAdmin } from '../../lib/auth.js'
 import { conflict } from '../../lib/errors.js'
 import { invalidate } from '../../realtime/index.js'
-import { cancelImport } from './import.js'
+import { cancelImport, markInterruptedImports } from './import.js'
 import { dropCatalogIndex, getCatalogIndexStatus } from './status.js'
 
 /** Name and payload of the import job; the payload is the parsed request body. */
@@ -20,6 +20,8 @@ export async function catalogIndexRoutes(app: FastifyInstance) {
 
   app.post('/admin/catalog-index/import', async (request, reply): Promise<Ok> => {
     const body: ImportJob = StartCatalogIndexImport.parse(request.body ?? {})
+    // A row left running by a killed worker would otherwise refuse every import from now on.
+    await markInterruptedImports()
     if ((await getCatalogIndexStatus()).latest?.state === 'running') throw conflict('A search index import is already running', 'catalog_index_import_running')
     const id = await enqueue(importJob, body, { singletonKey: 'catalog-index', priority: -10 })
     if (!id) throw conflict('A search index import is already queued', 'catalog_index_import_running')

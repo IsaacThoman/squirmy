@@ -5,7 +5,7 @@ import { recordingArtists, recordings } from '../../database/schema.js'
 import { useTestDatabase } from '../../test/database.js'
 import type { DeezerTrack } from '../metadata/deezer.js'
 import { deezerTopTrackRow } from './deezer-rows.js'
-import { artistStub } from './test-stubs.js'
+import { artistStub } from '../../test/enrichment-stubs.js'
 
 function deezerTrack(input: Partial<DeezerTrack> & Pick<DeezerTrack, 'id' | 'title' | 'artist' | 'artists'>): DeezerTrack {
   return {

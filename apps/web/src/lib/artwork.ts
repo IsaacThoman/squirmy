@@ -1,4 +1,4 @@
-import { API_PREFIX, type ArtSize, type Artwork } from '@squirmy/contracts'
+import { API_PREFIX, ART_SIZES, type ArtSize, type Artwork } from '@squirmy/contracts'
 import { createContext, useContext } from 'react'
 import { thumbHashToDataURL } from 'thumbhash'
 
@@ -32,7 +32,7 @@ export function thumbhashUrl(hash: string): string | undefined {
 
 /** The next size up, for high-density screens. */
 export function doubleSize(size: ArtSize): ArtSize {
-  return size === 96 ? 300 : size === 300 ? 600 : 1200
+  return ART_SIZES[Math.min(ART_SIZES.indexOf(size) + 1, ART_SIZES.length - 1)]!
 }
 
 const loaded = new Map<string, string>()

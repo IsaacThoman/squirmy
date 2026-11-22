@@ -22,6 +22,9 @@ services:
       # SQUIRMY_MANAGED_LIBRARY_PATHS: /music
       # Set to true when a reverse proxy sits in front and sends X-Forwarded-* headers.
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      # The browser-facing origin, e.g. https://music.example.com, for links Squirmy builds
+      # (Last.fm sign-in, Subsonic cover links, provider deliveries). Empty means unset.
+      PUBLIC_URL: ${PUBLIC_URL:-}
     volumes:
       # Use long syntax so Coolify honors the MUSIC_DIR override. Set read_only: true
       # to protect an existing collection at the filesystem level.

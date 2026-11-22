@@ -23,7 +23,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `DATABASE_URL` | none, required | PostgreSQL connection string. Compose sets `postgres://squirmy:<POSTGRES_PASSWORD>@postgres:5432/squirmy`. PostgreSQL 15 or newer with the `pg_trgm` extension available; the migrations create the extension. |
 | `PORT` | `4747` | Port the HTTP server listens on inside the container. Change the host side with `SQUIRMY_PORT` in `.env` instead. |
 | `HOST` | `0.0.0.0` | Address to listen on. |
-| `PUBLIC_URL` | unset | The public origin, for example `https://music.example.com`, without a trailing path. Must be a valid URL when set; do not set it to an empty string. |
+| `PUBLIC_URL` | unset | The public origin, for example `https://music.example.com`, without a trailing path. Must be a valid URL when set; an empty value counts as unset. |
 | `TRUST_PROXY` | `false` (compose: `${TRUST_PROXY:-false}`) | `true` or `1` trusts `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`. |
 | `SQUIRMY_DATA_DIR` | `./data` (image: `/data`) | The data folder. |
 | `SQUIRMY_SECRET` | unset | The root secret for signing stream URLs and encrypting stored credentials, at least 16 characters. When unset, a random one is generated on first start and kept in `<data>/secret.key`. Do not set or change it on a server that already has data: everything encrypted under the old secret (app passwords, API keys, provider secrets, scrobbling connections) becomes unreadable. |
@@ -49,14 +49,14 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `POSTGRES_PASSWORD` | `squirmy` | The database password. It takes effect only when the database volume is first created. |
 | `SQUIRMY_PORT` | `4747` | The host port. |
 | `TRUST_PROXY` | `false` | Passed through to the app. |
+| `PUBLIC_URL` | unset | Passed through to the app. Empty counts as unset. |
 
-To set a variable that `compose.yaml` does not pass through, such as `PUBLIC_URL` or `LOG_LEVEL`, add it under `environment:` of the `app` service:
+To set a variable that `compose.yaml` does not pass through, such as `LOG_LEVEL`, add it under `environment:` of the `app` service:
 
 ```yaml
 services:
   app:
     environment:
-      PUBLIC_URL: https://music.example.com
       LOG_LEVEL: debug
 ```
 
@@ -68,11 +68,11 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 
 | Section | Setting (as on screen) | Key | Default | What it does |
 |---|---|---|---|---|
-| General | Server name | `serverName` | `Squirmy` | Shown on the sign-in page and to Subsonic apps. |
+| General | Server name | `serverName` | `Squirmy` | Shown on the web app's sign-in page and in the iOS app's connect and sign-in screens. |
 | | Wantlist | `wantlistEnabled` | off | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
 | Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
 | Metadata sources | MusicBrainz | `musicBrainzEnabled` | on | Identifies albums and fills in discographies. Off means nothing new is identified. |
-| | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service. Only `musicbrainz.org` is rate limited, so a mirror lifts the limit. |
+| | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service, a full `http://` or `https://` address. Only `musicbrainz.org` and its subdomains are rate limited, so a mirror lifts the limit. |
 | | Cover Art Archive | `coverArtArchiveEnabled` | on | Album covers. |
 | | Deezer | `deezerEnabled` | on | Catalog search, artist images, top songs and cover fallback. |
 | | Wikidata and Wikipedia | `wikidataEnabled` | on | Artist images and biographies. |
@@ -117,15 +117,15 @@ Acquisition has its own policy settings; see [Acquisition providers](./acquisiti
 
 ### Per-user settings
 
-Each user has their own, in **Settings** in the web app and in the iOS app's account sheet: volume normalization (default Automatic), streaming quality on Wi-Fi (default Original) and on cellular (default High), and scrobbling switches. See [Playback](./playback.md).
+Each user has their own, in **Settings** in the web app and in the iOS app's account sheet: volume normalization (default Automatic), streaming quality on Wi-Fi (default Original) and on cellular (default High), scrobbling switches, and for the iOS app's downloads, the download quality (default Original) and Wi-Fi only (default on). The iOS storage limit for downloads is kept on the phone, not on the server. See [Playback](./playback.md).
 
 ## Splitting the API and the worker
 
-By default one process serves HTTP and runs the background jobs (scans, identification, enrichment, loudness, transcodes ahead of time, imports). On a busy server you can run them separately:
+By default one process serves HTTP and runs the background jobs (scans, identification, enrichment, loudness, imports). On a busy server you can run them separately:
 
 - Run **exactly one** `api` process. Playback sessions are held in that process's memory, so two API processes would disagree about what is playing.
 - Run one or more `worker` processes. A worker opens no HTTP port. File watching and the inbox run in workers.
-- Every process needs the **same** `DATABASE_URL`, the **same data folder** (artwork written by the worker is served by the API; uploads land in the API's staging folder and are processed by a worker), the **same music paths**, and the **same secret** (a shared data folder gives them the same `secret.key`, or set `SQUIRMY_SECRET` on all of them).
+- Every process needs the **same** `DATABASE_URL`, the **same data folder** (artwork written by the worker is served by the API; uploads land in the API's staging folder and are processed by a worker), the **same music paths**, the **same secret** (a shared data folder gives them the same `secret.key`, or set `SQUIRMY_SECRET` on all of them), and the **same `PUBLIC_URL`**: a worker builds the delivery addresses handed to [acquisition providers](./acquisition.md), and without it they would point at `http://localhost:4747`, the worker itself.
 
 A Compose sketch, added to the existing `compose.yaml`:
 
@@ -145,8 +145,14 @@ services:
     environment:
       DATABASE_URL: postgres://squirmy:${POSTGRES_PASSWORD:-squirmy}@postgres:5432/squirmy
       SQUIRMY_ROLE: worker
+      PUBLIC_URL: ${PUBLIC_URL:-}
     volumes:
-      - ${MUSIC_DIR:-./music}:/music
+      # The same mount as the app's.
+      - type: bind
+        source: ${MUSIC_DIR:-./music}
+        target: /music
+        bind:
+          create_host_path: true
       - squirmy_data:/data
     # The image's health check calls /ready, which a worker does not serve.
     healthcheck:
