@@ -179,7 +179,7 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
   if (!data) return <PageFallback query={album} what="this album" onBack={onBack} />;
   const tracks = data.discs.flatMap(disc => disc.tracks);
   // Not "0 songs · 1 min" with a wantlist button that turns into Play under the finger.
-  const expanding = albumExpanding(album.data, queryClient.getQueryState(queryKeys.album(id))?.dataUpdateCount ?? 0);
+  const expanding = album.isPlaceholderData || albumExpanding(album.data, queryClient.getQueryState(queryKeys.album(id))?.dataUpdateCount ?? 0);
   const context: PlaybackContext = { type: 'album', id: data.id, title: data.title };
   const play = (shuffle?: boolean, start?: number) => {
     tapFeedback();
@@ -199,7 +199,8 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
     info={[typeNames[data.type], data.genres[0], data.year, owned].filter(Boolean).join('  ·  ')}
     buttons={buttons.length || expanding ? buttons : wantButton} status={control.status}
     nav={[
-      { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.title}` : `Like ${data.title}`, selected: liked,
+      // The placeholder does not know whether the album is liked.
+      !album.isPlaceholderData && { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.title}` : `Like ${data.title}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked); } },
       control.nav,
       buttons.length > 0 && wantable && { icon: 'star', label: `Add ${data.title} to your wantlist`,
