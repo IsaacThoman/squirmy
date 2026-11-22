@@ -205,7 +205,8 @@ function PageFallback({ query, what, onBack }: { query: Parameters<typeof QueryS
 function TrackSection({ title, detail, onSeeAll, children }: { title: string; detail?: string; onSeeAll?: () => void; children?: ReactNode }) {
   const styles = useStyles();
   return <>
-    <View style={styles.trackListHeader}>
+    {/* A native button has no text baseline to line up with, so a row with one is centred instead. */}
+    <View style={[styles.trackListHeader, onSeeAll && styles.trackListHeaderButton]}>
       <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.trackListTitle}>{title}</Text>
       {detail && <Text style={styles.trackCount}>{detail}</Text>}
       {onSeeAll && <BrowseButton label={`See all ${title.toLowerCase()}`} title="See all" icon="chevron.right" onPress={onSeeAll} />}
@@ -698,6 +699,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   moreLabel: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 4 },
   measure: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
   trackListHeader: { marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 8 },
+  trackListHeaderButton: { alignItems: 'center', paddingBottom: 2 },
   trackListTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   trackCount: { color: colors.quiet, fontSize: 12, fontWeight: '600' },
   trackList: { marginHorizontal: gutter - 4 },
