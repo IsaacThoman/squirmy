@@ -48,7 +48,7 @@ export async function ingestGroup({ rootId, groupKey }: IngestJob) {
     if (files.length === 0) return null
     const plan = planGroup(files)
     const identified = files.some((file) => file.matchLocked || file.matchStatus === 'matched')
-    const writer = new GroupWriter(tx, rootId, groupKey, files)
+    const writer = new GroupWriter(tx, rootId, groupKey, files, await requestedArtists(tx, files))
     const result = identified ? await writer.relink(plan) : await writer.build(plan)
 
     const after = await tx.select({ id: mediaFiles.id, recordingId: mediaFiles.recordingId, releaseId: mediaFiles.releaseId })
@@ -104,6 +104,79 @@ function majority(values: readonly (string | null)[]): string | undefined {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
 }
 
+type ResolvedCredit = { artistId: string; creditedName: string; joinPhrase: string }
+
+/**
+ * The artists a provider delivery was requested under: by name, and as whole credits keyed
+ * by their credit text. A delivered file's tags name the artists as the store does ("Grimes,
+ * VADAKIN" as one artist), and building rows from them put a second "Mira Vale" beside the
+ * catalog artist the track was asked for, or an artist named after a whole credit, which
+ * outlived the placement of the file on the requested rows. Tags only fill gaps.
+ */
+type RequestedArtists = {
+  byName: Map<string, string>
+  byCredit: Map<string, ResolvedCredit[]>
+  /**
+   * For a delivery of one requested recording (a played or prefetched track): its credits,
+   * and the requested album's (else the recording's), which every file of the group takes
+   * whatever its tags say.
+   */
+  sole: { track: ResolvedCredit[]; album: ResolvedCredit[] } | null
+}
+
+/** The requested recordings' and album's credits of the acquisition jobs that delivered these files, or null for files from elsewhere. */
+async function requestedArtists(tx: Transaction, files: readonly File[]): Promise<RequestedArtists | null> {
+  const importIds = [...new Set(files.flatMap((file) => (file.importId ? [file.importId] : [])))]
+  if (importIds.length === 0) return null
+  // Owned by the acquisition module: the job's requested recordings and album, after merges.
+  const rows = await tx.execute<{ owner: string; credit: string; position: number; artistId: string; creditedName: string; joinPhrase: string; nameKey: string }>(sql`
+    with jobs as (
+      select j.id, j.recording_ids, j.album_id from acquisition_jobs j
+      where j.import_id in (${sql.join(importIds.map((id) => sql`${id}::uuid`), sql`, `)})
+    ), owners as (
+      select 'recording:' || r.id as owner, r.artist_credit as credit, r.id as id, 'recording' as kind
+      from jobs join recordings requested on requested.id = any(jobs.recording_ids)
+      join recordings r on r.id = coalesce(requested.merged_into_id, requested.id)
+      union
+      select 'album:' || a.id, a.artist_credit, a.id, 'album'
+      from jobs join albums requested on requested.id = jobs.album_id
+      join albums a on a.id = coalesce(requested.merged_into_id, requested.id)
+    )
+    select o.owner, o.credit, c.position, c.artist_id as "artistId", c.credited_name as "creditedName", c.join_phrase as "joinPhrase", ar.name_key as "nameKey"
+    from owners o
+    join lateral (
+      select ra.position, ra.artist_id, ra.credited_name, ra.join_phrase from recording_artists ra where o.kind = 'recording' and ra.recording_id = o.id
+      union all
+      select aa.position, aa.artist_id, aa.credited_name, aa.join_phrase from album_artists aa where o.kind = 'album' and aa.album_id = o.id
+    ) c on true
+    join artists ar on ar.id = c.artist_id
+    order by o.owner, c.position`)
+  if (rows.length === 0) return null
+  const byName = new Map<string, string>()
+  const owners = new Map<string, { credit: string; credits: ResolvedCredit[] }>()
+  for (const row of rows) {
+    for (const key of [row.nameKey, matchKey(row.creditedName)]) if (key && !byName.has(key)) byName.set(key, row.artistId)
+    const owner = owners.get(row.owner) ?? { credit: row.credit, credits: [] }
+    owner.credits.push({ artistId: row.artistId, creditedName: row.creditedName, joinPhrase: row.joinPhrase })
+    owners.set(row.owner, owner)
+  }
+  const byCredit = new Map<string, ResolvedCredit[]>()
+  for (const owner of owners.values()) {
+    const key = matchKey(owner.credit)
+    if (key && !byCredit.has(key)) byCredit.set(key, owner.credits)
+  }
+  // One job asking for one recording: everything delivered is that recording.
+  const [job] = await tx.execute<{ jobs: number; recordings: number }>(sql`
+    select count(*)::int as jobs, coalesce(max(cardinality(j.recording_ids)), 0)::int as recordings from acquisition_jobs j
+    where j.import_id in (${sql.join(importIds.map((id) => sql`${id}::uuid`), sql`, `)})`)
+  const recordingOwners = [...owners].filter(([key]) => key.startsWith('recording:'))
+  const albumOwner = [...owners].find(([key]) => key.startsWith('album:'))
+  const sole = job?.jobs === 1 && job.recordings === 1 && recordingOwners.length === 1
+    ? { track: recordingOwners[0]![1].credits, album: albumOwner?.[1].credits ?? recordingOwners[0]![1].credits }
+    : null
+  return { byName, byCredit, sole }
+}
+
 class GroupWriter {
   /** Artists whose credits this run replaced, for orphan cleanup. */
   readonly formerArtists: string[] = []
@@ -117,6 +190,7 @@ class GroupWriter {
     private readonly rootId: string,
     private readonly groupKey: string,
     private readonly files: File[],
+    private readonly requested: RequestedArtists | null = null,
   ) {
     this.filesById = new Map(files.map((file) => [file.id, file]))
   }
@@ -158,6 +232,11 @@ class GroupWriter {
   /** Finds or creates the artist for one credit: by MusicBrainz id, else by name (preferring rows with an id). */
   private async artist(credit: Credit): Promise<string> {
     const nameKey = matchKey(credit.name)
+    const requested = this.requested?.byName.get(nameKey)
+    if (requested) {
+      this.touchedArtists.add(requested)
+      return requested
+    }
     const cacheKey = credit.mbid ? `mbid:${credit.mbid}` : `name:${nameKey}`
     const cached = this.artistIds.get(cacheKey)
     if (cached) return cached
@@ -178,7 +257,29 @@ class GroupWriter {
     return id
   }
 
-  private async credits(credits: Credit[]) {
+  private async credits(credits: Credit[], role: 'album' | 'track' = 'track') {
+    const sole = this.requested?.sole?.[role]
+    if (sole?.length) {
+      for (const credit of sole) this.touchedArtists.add(credit.artistId)
+      return sole.map((credit, position) => ({ position, ...credit }))
+    }
+    // A delivery tagged with the whole credit of what was requested ("Grimes, VADAKIN") is
+    // credited as the request is.
+    const whole = this.requested?.byCredit.get(matchKey(creditText(credits)))
+    if (whole) {
+      for (const credit of whole) this.touchedArtists.add(credit.artistId)
+      return whole.map((credit, position) => ({ position, ...credit }))
+    }
+    // Or with the requested artists joined another way ("Grimes, VADAKIN" for "Grimes &
+    // VADAKIN"): split only when every part is one of them, so "Earth, Wind & Fire" stays whole.
+    if (this.requested && credits.length === 1) {
+      const parts = credits[0]!.name.split(/\s*,\s*|\s+(?:&|and|x|with|feat\.?|ft\.?|featuring)\s+/i).map((part) => part.trim()).filter(Boolean)
+      const ids = parts.map((part) => this.requested!.byName.get(matchKey(part)))
+      if (parts.length > 1 && ids.every(Boolean)) {
+        for (const id of ids) this.touchedArtists.add(id!)
+        return parts.map((name, position) => ({ position, artistId: ids[position]!, creditedName: name, joinPhrase: position < parts.length - 1 ? ', ' : '' }))
+      }
+    }
     const resolved = []
     for (const [position, credit] of credits.entries()) resolved.push({ position, artistId: await this.artist(credit), creditedName: credit.name, joinPhrase: credit.joinPhrase })
     return resolved
@@ -226,7 +327,7 @@ class GroupWriter {
     }
     // Only local albums are written: one created now, or the files' own album when it has no id.
     if (!album) {
-      const albumCredits = await this.credits(plan.album.credits)
+      const albumCredits = await this.credits(plan.album.credits, 'album')
       const values = { mbid: plan.album.mbReleaseGroupId, ...this.albumValues(plan, albumCredits[0]!.artistId) }
       const [linked] = await tx.select({ id: albums.id }).from(albums)
         .where(and(inArray(albums.id, await this.reusable(mediaFiles.albumId, (file) => file.albumId)), isNull(albums.mbid)))

@@ -1,12 +1,11 @@
-import type { MergedSearch } from '@squirmy/client-core'
+import { searchItemKey, tooShortToSearch, type MergedSearch, type SearchItem } from '@squirmy/client-core'
 import type { AlbumSummary, ArtistSummary, TrackSummary } from '@squirmy/contracts'
 import { ArrowRight, CornerDownLeft, Play, Search, type LucideIcon } from 'lucide-react'
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
-import { Monogram } from '@/components/music/Cards'
-import { Cover } from '@/components/music/Cover'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { searchItemText, searchRowClass } from '@/components/music/search-row'
+import { SearchItemArt, SearchRowBody } from '@/components/music/SearchRow'
 import { Dialog, DialogFrame, DialogTitle } from '@/components/ui/dialog'
 import { Kbd, Spinner } from '@/components/ui/feedback'
-import { albumTypeLabel } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 
 const MAX_QUERY_LENGTH = 200
@@ -15,9 +14,7 @@ const MAX_QUERY_LENGTH = 200
 export type SearchDestination = { label: string; to: string; icon: LucideIcon }
 
 export type SearchChoice =
-  | { kind: 'artist'; artist: ArtistSummary }
-  | { kind: 'album'; album: AlbumSummary }
-  | { kind: 'track'; track: TrackSummary }
+  | { kind: 'result'; item: SearchItem }
   | { kind: 'destination'; destination: SearchDestination }
   /** Every result for the query, on the search page. */
   | { kind: 'all'; query: string }
@@ -32,43 +29,37 @@ type SearchDialogProps = {
   /** The results answer the start of what is typed; the answer for all of it is on its way. */
   stale?: boolean
   loading: boolean
+  /** Neither search could be made: the dialog says so and offers to try again. */
+  failed?: boolean
+  onRetry?: () => void
   destinations: SearchDestination[]
   /** Whether a song plays when chosen (otherwise its album opens); and which artists and albums show dimmed. */
   canPlay: (track: TrackSummary) => boolean
-  isDimmed: (choice: { kind: 'artist'; artist: ArtistSummary } | { kind: 'album'; album: AlbumSummary }) => boolean
+  isDimmed: (item: { type: 'artist'; artist: ArtistSummary } | { type: 'album'; album: AlbumSummary }) => boolean
   onChoose: (choice: SearchChoice) => void
   /** The row the highlight rests on, chosen on purpose or as the best match: its page can start loading. */
   onIntent?: (choice: SearchChoice) => void
 }
 
 const choiceKey = (choice: SearchChoice) => (
-  choice.kind === 'artist' ? `artist:${choice.artist.id}`
-    : choice.kind === 'album' ? `album:${choice.album.id}`
-      : choice.kind === 'track' ? `track:${choice.track.id}`
-        : choice.kind === 'destination' ? `to:${choice.destination.to}`
-          : 'all'
+  choice.kind === 'result' ? searchItemKey(choice.item)
+    : choice.kind === 'destination' ? `to:${choice.destination.to}`
+      : 'all'
 )
 
-/** The results as one list, the best match first. Each kind keeps its order, so rows the catalog adds come after those shown. */
+/** How many results the dialog lists; the search page has the rest. */
+export const DIALOG_RESULTS = 10
+
+/** The results as the search page ranks them, all kinds mixed, best first. */
 function choicesOf(results: MergedSearch | null): SearchChoice[] {
-  if (!results) return []
-  const choices: SearchChoice[] = [
-    ...results.artists.slice(0, 3).map(artist => ({ kind: 'artist' as const, artist })),
-    ...results.albums.slice(0, 4).map(album => ({ kind: 'album' as const, album })),
-    ...results.tracks.slice(0, 5).map(track => ({ kind: 'track' as const, track })),
-  ]
-  const { top } = results
-  if (!top) return choices
-  // The best match leads even when its own kind ranks it below what the dialog shows of that kind.
-  const first: SearchChoice = top.type === 'artist' ? { kind: 'artist', artist: top.artist } : top.type === 'album' ? { kind: 'album', album: top.album } : { kind: 'track', track: top.track }
-  return [first, ...choices.filter(choice => choiceKey(choice) !== choiceKey(first))]
+  return (results?.items ?? []).slice(0, DIALOG_RESULTS).map(item => ({ kind: 'result', item }))
 }
 
 /**
  * Quick search from anywhere: type, move with the arrow keys, Enter opens an artist or an album
  * and plays a song. With nothing typed it lists places to go. The search page has everything else.
  */
-export function SearchDialog({ open, onOpenChange, query, onQueryChange, results, stale = false, loading, destinations, canPlay, isDimmed, onChoose, onIntent }: SearchDialogProps) {
+export function SearchDialog({ open, onOpenChange, query, onQueryChange, results, stale = false, loading, failed = false, onRetry, destinations, canPlay, isDimmed, onChoose, onIntent }: SearchDialogProps) {
   const listboxId = useId()
   // The row the arrow keys or the pointer picked since the last change, by key: rows the catalog
   // adds later must not move the highlight off it. Until one is picked, Enter takes the best match.
@@ -148,7 +139,14 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
         </div>
         <div className="min-h-0 overflow-y-auto p-1.5">
           {!term && <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Go to</p>}
-          {settledEmpty && <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">No results for “{term}”.</p>}
+          {/* A long unbroken query wraps rather than widening the dialog. */}
+          {settledEmpty && !failed && <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">{tooShortToSearch(term) ? 'Keep typing to search.' : `No results for “${term}”.`}</p>}
+          {term && failed && (
+            <p role="alert" className="flex items-center gap-2 px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">
+              Search didn’t work. Check your connection.
+              {onRetry && <button type="button" onClick={onRetry} className="font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:underline">Try again</button>}
+            </p>
+          )}
           <div id={listboxId} role="listbox" aria-label={term ? 'Results' : 'Go to'}>
             {choices.map((choice, index) => (
               <Option
@@ -157,8 +155,9 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
                 choice={choice}
                 active={index === active}
                 stale={stale && choice.kind !== 'all'}
-                plays={choice.kind === 'track' && canPlay(choice.track)}
-                dimmed={choice.kind === 'track' ? !canPlay(choice.track) : choice.kind === 'artist' || choice.kind === 'album' ? isDimmed(choice) : false}
+                plays={choice.kind === 'result' && choice.item.type === 'track' && canPlay(choice.item.track)}
+                dimmed={choice.kind === 'result' && (choice.item.type === 'track' ? !canPlay(choice.item.track)
+                  : choice.item.type === 'artist' || choice.item.type === 'album' ? isDimmed(choice.item) : false)}
                 onHover={() => pick(index)}
                 onChoose={() => choose(index)}
               />
@@ -173,34 +172,12 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
 type OptionProps = { id: string; choice: SearchChoice; active: boolean; stale: boolean; plays: boolean; dimmed: boolean; onHover: () => void; onChoose: () => void }
 
 function Option({ id, choice, active, stale, plays, dimmed, onHover, onChoose }: OptionProps) {
-  const { art, title, detail }: { art: ReactNode; title: string; detail?: string } = (() => {
-    switch (choice.kind) {
-      case 'artist':
-        return {
-          art: choice.artist.image ? <Cover artwork={choice.artist.image} round size={96} className="size-9" /> : <Monogram name={choice.artist.name} className="size-9 text-sm" />,
-          title: choice.artist.name,
-          detail: 'Artist',
-        }
-      case 'album':
-        return {
-          art: <Cover artwork={choice.album.artwork} size={96} className="size-9 rounded-[5px]" />,
-          title: choice.album.title,
-          detail: `${albumTypeLabel(choice.album.type)} · ${choice.album.artistCredit}`,
-        }
-      case 'track':
-        return {
-          art: <Cover artwork={choice.track.album?.artwork ?? null} size={96} className="size-9 rounded-[5px]" />,
-          title: choice.track.title,
-          detail: `Song · ${choice.track.artistCredit}`,
-        }
-      case 'destination': {
-        const Icon = choice.destination.icon
-        return { art: <span className="flex size-9 items-center justify-center text-muted-foreground"><Icon aria-hidden className="size-4" /></span>, title: choice.destination.label }
-      }
-      case 'all':
-        return { art: <span className="flex size-9 items-center justify-center text-muted-foreground"><Search aria-hidden className="size-4" /></span>, title: `See all results for “${choice.query}”` }
-    }
-  })()
+  const icon = (Icon: LucideIcon) => <span className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"><Icon aria-hidden className="size-4" /></span>
+  const body = choice.kind === 'result'
+    ? <SearchRowBody art={<SearchItemArt item={choice.item} dimmed={dimmed} className="size-9" />} {...searchItemText(choice.item)} dimmed={dimmed} />
+    : choice.kind === 'destination'
+      ? <SearchRowBody strong={false} art={icon(choice.destination.icon)} title={choice.destination.label} />
+      : <SearchRowBody strong={false} art={icon(Search)} title={`See all results for “${choice.query}”`} />
   return (
     <button
       id={id}
@@ -210,13 +187,9 @@ function Option({ id, choice, active, stale, plays, dimmed, onHover, onChoose }:
       tabIndex={-1}
       onMouseMove={onHover}
       onClick={onChoose}
-      className={cn('flex w-full items-center gap-3 rounded-md px-2.5 py-1.5 text-left text-sm outline-none transition-opacity', active ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60', stale && 'opacity-60')}
+      className={cn(searchRowClass(active, stale), 'py-1.5')}
     >
-      {art}
-      <span className="min-w-0 flex-1">
-        <span dir="auto" className={cn('block truncate', choice.kind !== 'destination' && choice.kind !== 'all' && 'font-medium', dimmed && 'text-muted-foreground')}>{title}</span>
-        {detail && <span className="block truncate text-xs text-muted-foreground">{detail}</span>}
-      </span>
+      {body}
       {active && (
         <span aria-hidden className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
           {plays ? <><Play className="size-3" fill="currentColor" />Play</> : choice.kind === 'all' ? <ArrowRight className="size-3.5" /> : 'Open'}

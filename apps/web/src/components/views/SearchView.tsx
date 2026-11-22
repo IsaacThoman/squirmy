@@ -1,200 +1,455 @@
-import { searchContext, type SearchTop } from '@squirmy/client-core'
-import type { AlbumSummary, TrackSummary } from '@squirmy/contracts'
-import { Pause, Play, Search } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
-import { useNavigate } from 'react-router'
-import type { SearchState } from '@/api/use-search'
+import { recentSearchKey, searchItemKey, tooShortToSearch, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core'
+import type { TrackSummary } from '@squirmy/contracts'
+import { Clock3, MoreHorizontal, Play, RotateCw, Search, X } from 'lucide-react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router'
 import { Page, PageHeader } from '@/components/layout/Page'
-import { AlbumCard, ArtistCard, GenreTile, Monogram } from '@/components/music/Cards'
+import { GenreTile } from '@/components/music/Cards'
+import { Equalizer } from '@/components/music/Equalizer'
+import { SaveHeart } from '@/components/music/LibrarySave'
 import { PrefetchLink } from '@/components/music/PrefetchLink'
-import { Cover } from '@/components/music/Cover'
-import { Rail, RailItem } from '@/components/music/Rail'
+import { useResultMenus } from '@/components/music/result-menus'
+import { searchItemText, searchRowClass } from '@/components/music/search-row'
+import { SearchItemArt, SearchRowBody } from '@/components/music/SearchRow'
 import { SectionHeader } from '@/components/music/SectionHeader'
-import { RailSkeleton, TrackRowsSkeleton } from '@/components/music/Skeletons'
-import { TrackList } from '@/components/music/TrackList'
-import { Badge, EmptyState, Skeleton } from '@/components/ui/feedback'
+import { trackMenuEntries } from '@/components/music/track-menu'
+import { Button } from '@/components/ui/button'
+import { EmptyState, Skeleton, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
+import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { SearchField } from '@/components/ui/search-field'
-import { albumPresentation, albumTypeLabel, canFetch, genreColor, isPlayable } from '@/lib/catalog'
+import { pillClass } from '@/components/ui/tabs'
+import { albumPresentation, canFetch, genreColor, isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
+import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
-import { usePlayer, usePlayerControls } from '@/player/player-context'
-import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
+import { isLoading, usePlayer } from '@/player/player-context'
+import { useTrackActions } from '@/player/use-track-actions'
+
+/** The results for what is typed and the filter chosen, however they were found. */
+export type SearchList = {
+  /** Null until an answer that may be shown has arrived. */
+  items: SearchItem[] | null
+  /** The items answer an earlier query or filter and stay, faded, while the new answer loads. */
+  stale: boolean
+  /** More results for what is typed are on their way (the catalog's, or the next page). */
+  pending: boolean
+  failed: boolean
+  /** The catalog could not be searched; what is listed is the server's own music. */
+  catalogFailed: boolean
+  unavailable: boolean
+  retry: () => void
+  /** A filter's list goes on: called as its end comes into view. */
+  loadMore?: () => void
+  hasMore?: boolean
+}
+
+const filterLabels: Record<SearchFilter, string> = { all: 'All', track: 'Songs', album: 'Albums', artist: 'Artists', playlist: 'Playlists' }
 
 type SearchViewProps = {
   query: string
   onQueryChange: (query: string) => void
-  search: SearchState
+  filter: SearchFilter
+  onFilterChange: (filter: SearchFilter) => void
+  list: SearchList
+  recents: RecentSearch[]
+  onRemoveRecent: (key: string) => void
+  onClearRecents: () => void
   genres: string[]
   onBrowseGenre: (genre: string) => void
-  onPlayAlbum: (album: AlbumSummary) => void
+  /** Opens an artist, album or playlist; plays a song (with the songs listed after it), or opens the album of one that does not play. */
+  onChoose: (item: SearchItem, list: readonly SearchItem[]) => void
+  onSearchRecent: (query: string) => void
 }
 
-/** How many songs the page lists. */
-const SONGS = 10
+/** How many recent searches and recently viewed results the page offers. */
+const RECENT_QUERIES = 6
+const RECENT_ITEMS = 10
+
+type Choice = { key: string; choose: () => void }
 
 /**
- * One set of results for what is typed: the top result, then artists, albums and songs. Music
- * on the server and music it can fetch are listed together, the user's own first, and look
- * the same; what does not play is gray and comes last. Enter plays or opens the top result.
+ * One list of results for what is typed, every kind mixed and ranked by the server, with
+ * chips that narrow it to one kind and page further. Music on the server and music it can
+ * fetch look the same; what does not play is gray. The arrow keys move through the rows
+ * from the field and Enter opens or plays the one highlighted, else the best match. With
+ * nothing typed it offers recent searches, recently viewed results and genres.
  */
-export function SearchView({ query, onQueryChange, search, genres, onBrowseGenre, onPlayAlbum }: SearchViewProps) {
-  const active = query.trim().length > 0
-  const { results, stale, catalogPending, unavailable } = search
-  const openTop = useOpenTop(onPlayAlbum, query, results?.tracks ?? [])
-  const count = results ? results.artists.length + results.albums.length + results.tracks.length : 0
+export function SearchView(props: SearchViewProps) {
+  const { query, onQueryChange, filter, onFilterChange, list, recents, onRemoveRecent, onClearRecents, genres, onBrowseGenre, onChoose, onSearchRecent } = props
+  const term = query.trim()
+  const listboxId = useId()
+  const recentQueries = useMemo(() => recents.filter(entry => entry.type === 'query').slice(0, RECENT_QUERIES), [recents])
+  const recentItems = useMemo(() => recents.filter((entry): entry is Exclude<RecentSearch, { type: 'query' }> => entry.type !== 'query').slice(0, RECENT_ITEMS), [recents])
+
+  // What the arrow keys move through: the results, or with nothing typed the recent searches and results.
+  const choices = useMemo<Choice[]>(() => {
+    if (term) return (list.items ?? []).map(item => ({ key: searchItemKey(item), choose: () => onChoose(item, list.items ?? []) }))
+    return [
+      ...recentQueries.map(entry => ({ key: recentSearchKey(entry), choose: () => onSearchRecent(entry.type === 'query' ? entry.query : '') })),
+      ...recentItems.map(entry => ({ key: recentSearchKey(entry), choose: () => onChoose(entry, [entry]) })),
+    ]
+  }, [term, list.items, recentQueries, recentItems, onChoose, onSearchRecent])
+  // The row picked with the arrow keys, by key, so rows that arrive later do not move it.
+  const [picked, setPicked] = useState<string | null>(null)
+  const pickedIndex = picked === null ? -1 : choices.findIndex(choice => choice.key === picked)
+  const optionId = (key: string) => `${listboxId}-${key}`
+  useEffect(() => {
+    if (picked) document.getElementById(optionId(picked))?.scrollIntoView({ block: 'nearest' })
+    // The id is derived from the key.
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [picked])
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Enter' || !results?.top || stale) return
-    event.preventDefault()
-    openTop(results.top)
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (!choices.length) return
+      event.preventDefault()
+      const next = event.key === 'ArrowDown' ? Math.min(pickedIndex + 1, choices.length - 1) : Math.max(pickedIndex - 1, 0)
+      setPicked(choices[next]!.key)
+    } else if (event.key === 'Enter') {
+      // Results of an earlier query are not what Enter should open.
+      const choice = pickedIndex >= 0 ? choices[pickedIndex] : term && !list.stale ? choices[0] : undefined
+      if (!choice) return
+      event.preventDefault()
+      choice.choose()
+    }
   }
+  const changeQuery = (next: string) => {
+    setPicked(null)
+    onQueryChange(next)
+  }
+
   return (
     <>
       {/* The field follows the title and takes the room there is, instead of sitting at the far end like a page's controls. */}
       <PageHeader title="Search" controls="fill">
-        <SearchField value={query} onValueChange={onQueryChange} onKeyDown={onKeyDown} aria-label="Search" placeholder="Songs, albums, artists" autoFocus className="w-full max-w-md" />
+        <SearchField
+          value={query}
+          onValueChange={changeQuery}
+          onKeyDown={onKeyDown}
+          aria-label="Search"
+          placeholder="Songs, albums, artists, playlists"
+          autoFocus
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={choices.length > 0}
+          aria-controls={choices.length > 0 ? listboxId : undefined}
+          aria-activedescendant={picked && pickedIndex >= 0 ? optionId(picked) : undefined}
+          className="w-full max-w-md"
+        />
       </PageHeader>
-      <Page className="flex flex-col gap-8">
-        {!active && genres.length > 0 && (
-          <section>
-            <SectionHeader title="Browse by genre" />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-              {genres.map(genre => <GenreTile key={genre} name={genre} color={genreColor(genre)} onClick={() => onBrowseGenre(genre)} />)}
-            </div>
-          </section>
-        )}
-
-        {active && unavailable && (
-          <EmptyState icon={<Search />} title="Search is not available yet" description="This server does not answer searches yet. Browse your library in the meantime." />
-        )}
-        {active && !unavailable && !results && <ResultsSkeleton />}
-        {active && !unavailable && results && (
-          count === 0 && !catalogPending && !stale
-            ? <EmptyState icon={<Search />} title={`No results for “${query.trim()}”`} description="Check the spelling, or try an artist, album or song name." />
-            : (
-              <div aria-busy={stale || catalogPending || undefined} className={cn('flex flex-col gap-8 transition-opacity', stale && 'opacity-60')}>
-                {results.top
-                  ? <TopResult top={results.top} onOpen={openTop} />
-                  : catalogPending && !stale && <TopSkeleton />}
-                {results.artists.length > 0
-                  ? <Rail title="Artists">{results.artists.map(artist => <RailItem key={artist.id}><ArtistCard artist={artist} /></RailItem>)}</Rail>
-                  : catalogPending && <RailSkeleton />}
-                {results.albums.length > 0
-                  ? <AlbumResults albums={results.albums} onPlayAlbum={onPlayAlbum} />
-                  : catalogPending && <RailSkeleton />}
-                <SongResults tracks={results.tracks} pending={catalogPending} query={query} />
-              </div>
-            )
+      <Page className="flex flex-col gap-6">
+        {term ? (
+          <>
+            <Filters value={filter} onChange={next => { setPicked(null); onFilterChange(next) }} />
+            <Results term={term} filter={filter} list={list} listboxId={listboxId} optionId={optionId} picked={picked} onChoose={onChoose} />
+          </>
+        ) : (
+          <>
+            {(recentQueries.length > 0 || recentItems.length > 0) && (
+              <Recents
+                queries={recentQueries}
+                items={recentItems}
+                listboxId={listboxId}
+                optionId={optionId}
+                picked={picked}
+                onSearch={onSearchRecent}
+                onChoose={item => onChoose(item, [item])}
+                onRemove={onRemoveRecent}
+                onClear={onClearRecents}
+              />
+            )}
+            {genres.length > 0 && (
+              <section>
+                <SectionHeader title="Browse by genre" />
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                  {genres.map(genre => <GenreTile key={genre} name={genre} color={genreColor(genre)} onClick={() => onBrowseGenre(genre)} />)}
+                </div>
+              </section>
+            )}
+          </>
         )}
       </Page>
     </>
   )
 }
 
-function AlbumResults({ albums, onPlayAlbum }: { albums: AlbumSummary[]; onPlayAlbum: (album: AlbumSummary) => void }) {
-  const wants = useAlbumWants()
-  return <Rail title="Albums">{albums.map(album => <RailItem key={album.id}><AlbumCard album={album} onPlay={() => onPlayAlbum(album)} {...wants(album)} /></RailItem>)}</Rail>
-}
-
-/** The songs, and while the catalog's answer is on its way, room for the songs it adds below them. */
-function SongResults({ tracks, pending, query }: { tracks: TrackSummary[]; pending: boolean; query: string }) {
-  const shown = tracks.slice(0, SONGS)
-  const actions = useTrackActions(shown, searchContext(query))
-  if (!shown.length && !pending) return null
+function Filters({ value, onChange }: { value: SearchFilter; onChange: (filter: SearchFilter) => void }) {
   return (
-    <section aria-labelledby="search-songs">
-      <SectionHeader id="search-songs" title="Songs" className="mb-1" />
-      {shown.length > 0 && <div className="-mx-2"><TrackList label="Songs" tracks={shown} variant="compact" header={false} {...actions} /></div>}
-      {pending && shown.length < SONGS && <TrackRowsSkeleton rows={Math.min(4, SONGS - shown.length)} art />}
-    </section>
-  )
-}
-
-/** Plays a top result that plays (a song, an album), and opens the rest: an artist, or the album of a song that does not. */
-function useOpenTop(onPlayAlbum: (album: AlbumSummary) => void, query: string, tracks: readonly TrackSummary[]) {
-  const navigate = useNavigate()
-  const controls = usePlayerControls()
-  const viewer = useViewer()
-  return (top: SearchTop) => {
-    if (top.type === 'artist') return void navigate(`/artist/${top.artist.id}`)
-    if (top.type === 'album') {
-      if (albumPresentation(top.album, viewer) === 'normal') onPlayAlbum(top.album)
-      else void navigate(`/album/${top.album.id}`)
-      return
-    }
-    // The song plays with the other songs found after it, as one from the list does.
-    const list = tracks.some(track => track.id === top.track.id) ? [...tracks] : [top.track, ...tracks]
-    if (isPlayable(top.track, viewer)) controls.playTracks(list, list.findIndex(track => track.id === top.track.id), searchContext(query))
-    else if (top.track.album) void navigate(`/album/${top.track.album.id}`)
-  }
-}
-
-/** The best match, large: opens its page, and plays it when it plays. */
-function TopResult({ top, onOpen }: { top: SearchTop; onOpen: (top: SearchTop) => void }) {
-  const { state, controls } = usePlayer()
-  const viewer = useViewer()
-  // A song that is already the current track pauses and resumes, as its track row does.
-  const current = top.type === 'track' && state.current?.track.id === top.track.id
-  const playing = current && state.playing
-  const plays = top.type === 'album' ? albumPresentation(top.album, viewer) === 'normal' : top.type === 'track' && isPlayable(top.track, viewer)
-  const dimmed = top.type === 'artist' ? !top.artist.inLibrary && !canFetch(viewer) : !plays
-  const item = top.type === 'artist'
-    ? { title: top.artist.name, kind: 'Artist', by: null, to: `/artist/${top.artist.id}` }
-    : top.type === 'album'
-      ? { title: top.album.title, kind: albumTypeLabel(top.album.type), by: top.album.artistCredit, to: `/album/${top.album.id}` }
-      : { title: top.track.title, kind: 'Song', by: top.track.artistCredit, to: top.track.album ? `/album/${top.track.album.id}` : null }
-  const play = current ? controls.togglePlay : plays ? () => onOpen(top) : null
-  const art = top.type === 'artist'
-    ? top.artist.image ? <Cover artwork={top.artist.image} round dimmed={dimmed} size={300} /> : <Monogram name={top.artist.name} className="text-3xl" />
-    : <Cover artwork={top.type === 'album' ? top.album.artwork : top.track.album?.artwork ?? null} dimmed={dimmed} size={300} />
-  // What the title opens: the artist, the album, or the song's album.
-  const target = top.type === 'artist'
-    ? { kind: 'artist' as const, id: top.artist.id }
-    : { kind: 'album' as const, id: top.type === 'album' ? top.album.id : top.track.album?.id ?? '' }
-  const titleClass = 'block truncate text-xl font-semibold tracking-tight'
-  return (
-    <section aria-labelledby="search-top">
-      <SectionHeader id="search-top" title="Top result" />
-      <div className="relative flex max-w-lg items-center gap-4 rounded-xl border bg-card p-3 transition-colors has-[a:hover]:bg-accent/60">
-        <div className="w-20 shrink-0">{art}</div>
-        <div className="min-w-0 flex-1">
-          {item.to
-            ? <PrefetchLink {...target} to={item.to} title={item.title} className={cn(titleClass, 'outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-ring', dimmed && 'text-muted-foreground')}>{item.title}</PrefetchLink>
-            : <p title={item.title} className={titleClass}>{item.title}</p>}
-          <p className="mt-1.5 flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-            <Badge>{item.kind}</Badge>
-            {item.by && <span className="truncate" title={item.by}>{item.by}</span>}
-          </p>
-        </div>
-        {play && (
-          <IconButton label={`${playing ? 'Pause' : 'Play'} ${item.title}`} tooltip={false} variant="primary" size="lg" shape="round" onClick={play} className="z-10 mr-1">
-            {playing ? <Pause fill="currentColor" /> : <Play className="translate-x-px" fill="currentColor" />}
-          </IconButton>
-        )}
-      </div>
-    </section>
-  )
-}
-
-/** The top result's card while the catalog may still name one. */
-function TopSkeleton() {
-  return (
-    <div aria-hidden>
-      <div className="mb-3 flex h-8 items-center"><Skeleton className="h-4 w-28" /></div>
-      <div className="flex max-w-lg items-center gap-4 rounded-xl border p-3">
-        <Skeleton className="size-20 shrink-0 rounded-cover" />
-        <div className="flex flex-1 flex-col gap-2.5"><Skeleton className="h-5 w-44" /><Skeleton className="h-3 w-24" /></div>
-      </div>
+    <div role="group" aria-label="Show" className="scrollbar-none -mx-1 -my-1 flex gap-1.5 overflow-x-auto px-1 py-1">
+      {(Object.keys(filterLabels) as SearchFilter[]).map(filter => (
+        <button
+          key={filter}
+          type="button"
+          aria-pressed={filter === value}
+          data-state={filter === value ? 'active' : undefined}
+          onClick={() => onChange(filter)}
+          className={cn(pillClass, 'rounded-full border px-3.5 data-[state=active]:border-transparent')}
+        >
+          {filterLabels[filter]}
+        </button>
+      ))}
     </div>
+  )
+}
+
+type ResultsProps = {
+  term: string
+  filter: SearchFilter
+  list: SearchList
+  listboxId: string
+  optionId: (key: string) => string
+  picked: string | null
+  onChoose: (item: SearchItem, list: readonly SearchItem[]) => void
+}
+
+function Results({ term, filter, list, listboxId, optionId, picked, onChoose }: ResultsProps) {
+  const { items, stale, pending, failed, catalogFailed, unavailable, retry, loadMore, hasMore } = list
+  const tracks = useMemo(() => (items ?? []).flatMap(item => (item.type === 'track' ? [item.track] : [])), [items])
+  const actions = useTrackActions(tracks)
+  const resultMenu = useResultMenus()
+  const viewer = useViewer()
+  const navigate = useNavigate()
+
+  if (unavailable) return <EmptyState icon={<Search />} title="Search is not available yet" description="This server does not answer searches yet. Browse your library in the meantime." />
+  if (failed) {
+    return (
+      <EmptyState
+        icon={<Search />}
+        title="Search didn’t work"
+        description="The server could not be reached. Check your connection and try again."
+        action={<Button variant="secondary" onClick={retry}><RotateCw />Try again</Button>}
+      />
+    )
+  }
+  if (tooShortToSearch(term) && filter !== 'playlist') return <p className="text-sm text-muted-foreground">Keep typing: search needs at least two letters or digits.</p>
+  if (!items) return <ResultsSkeleton />
+  if (!items.length && !pending && !stale) {
+    return (
+      <EmptyState
+        icon={<Search />}
+        title={`No ${filter === 'all' ? 'results' : filterLabels[filter].toLowerCase()} for “${term}”`}
+        description={filter === 'all' ? 'Check the spelling, or try an artist, album or song name.' : 'Try All, or another spelling.'}
+      />
+    )
+  }
+  return (
+    // A row reads across: past this width its duration and menu drift away from its title.
+    <div aria-busy={stale || pending || undefined} className="max-w-4xl">
+      {catalogFailed && (
+        <p role="status" className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+          Only music on this server is listed: the catalog could not be searched.
+          <button type="button" onClick={retry} className="font-medium text-foreground underline-offset-4 hover:underline">Try again</button>
+        </p>
+      )}
+      <ol id={listboxId} role="listbox" aria-label={`Results for ${term}`} className="-mx-2.5 flex flex-col">
+        {items.map(item => {
+          const key = searchItemKey(item)
+          return (
+            <ResultRow
+              key={key}
+              id={optionId(key)}
+              item={item}
+              active={picked === key}
+              stale={stale}
+              onChoose={() => onChoose(item, items)}
+              trackMenu={item.type === 'track' ? track => trackMenuEntries(track, {
+                unavailable: !isPlayable(track, viewer),
+                wanted: actions.isWanted?.(track),
+                playlists: actions.playlists,
+                act: action => actions.onAction(action, track, tracks.indexOf(track)),
+                navigate: to => void navigate(to),
+              }) : undefined}
+              resultMenu={resultMenu}
+              onLike={item.type === 'track' ? () => actions.onAction('like', item.track, tracks.indexOf(item.track)) : undefined}
+            />
+          )
+        })}
+      </ol>
+      {(pending || hasMore) && <MoreResults loading={pending} onEndReached={hasMore ? loadMore : undefined} />}
+    </div>
+  )
+}
+
+type ResultRowProps = {
+  id: string
+  item: SearchItem
+  active: boolean
+  stale: boolean
+  onChoose: () => void
+  trackMenu?: (track: TrackSummary) => MenuEntry[]
+  resultMenu: ReturnType<typeof useResultMenus>
+  onLike?: () => void
+}
+
+/**
+ * One result: its artwork, its name and "Kind · Artist". The row opens an artist, album or
+ * playlist and plays a song; a song that does not play is gray and opens its album. Its
+ * menu (the overflow button, or a right click) is the one the same kind has everywhere.
+ */
+function ResultRow({ id, item, active, stale, onChoose, trackMenu, resultMenu, onLike }: ResultRowProps) {
+  const viewer = useViewer()
+  const { state, controls } = usePlayer()
+  const { title, detail } = searchItemText(item)
+  const track = item.type === 'track' ? item.track : null
+  const unavailable = track ? !isPlayable(track, viewer) : false
+  const dimmed = item.type === 'album' ? albumPresentation(item.album, viewer) === 'dimmed'
+    : item.type === 'artist' ? !item.artist.inLibrary && !canFetch(viewer) : unavailable
+  const current = track !== null && state.current?.track.id === track.id
+  const playing = current && state.playing
+  const loading = current && isLoading(state)
+  const menu = track ? trackMenu!(track) : resultMenu(item as Exclude<SearchItem, { type: 'track' }>)
+
+  const overlay = 'absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  // A plain click goes through `onChoose`, which records the result as recently viewed and
+  // navigates; one that opens a new tab is left to the browser.
+  const onLinkClick = (event: MouseEvent) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+    event.preventDefault()
+    onChoose()
+  }
+  const primary = item.type === 'track'
+    ? (
+      <button
+        type="button"
+        aria-label={unavailable ? `${title}, ${UNAVAILABLE_LABEL}` : playing ? `Pause ${title}` : `Play ${title}`}
+        onClick={current && !unavailable ? controls.togglePlay : onChoose}
+        className={overlay}
+      />
+    )
+    : item.type === 'playlist'
+      ? <Link to={`/playlist/${item.playlist.id}`} aria-label={`${title}, ${detail}`} onClick={onLinkClick} className={overlay} />
+      : (
+        <PrefetchLink
+          kind={item.type}
+          id={item.type === 'artist' ? item.artist.id : item.album.id}
+          to={item.type === 'artist' ? `/artist/${item.artist.id}` : `/album/${item.album.id}`}
+          aria-label={`${title}, ${detail}`}
+          onClick={onLinkClick}
+          className={overlay}
+        />
+      )
+
+  return (
+    <ContextMenu entries={menu}>
+      <li
+        id={id}
+        role="option"
+        aria-selected={active}
+        aria-disabled={unavailable || undefined}
+        title={unavailable ? UNAVAILABLE_LABEL : undefined}
+        className={cn('group/row relative h-14', searchRowClass(active, stale))}
+      >
+        <div className="relative size-10 shrink-0">
+          <SearchItemArt item={item} dimmed={dimmed} className="size-10" />
+          {track && !unavailable && (
+            // Over a song's cover: the playing marker, the buffering spinner, or a play button on hover.
+            <div aria-hidden className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] text-white transition-colors', current ? 'bg-black/50' : 'opacity-0 group-hover/row:bg-black/50 group-hover/row:opacity-100')}>
+              {loading ? <Spinner label={null} className="size-4 text-white" />
+                : current ? (playing ? <Equalizer playing className="text-white" /> : <Play className="size-3.5" fill="currentColor" />)
+                  : <Play className="size-3.5" fill="currentColor" />}
+            </div>
+          )}
+        </div>
+        <SearchRowBody art={null} title={title} detail={detail} dimmed={dimmed} current={current} explicit={track?.explicit ?? false} note={unavailable ? UNAVAILABLE_LABEL : undefined} />
+        {primary}
+        <div className="relative z-10 flex shrink-0 items-center gap-1">
+          {track && onLike && (
+            <SaveHeart liked={track.liked} onToggle={onLike} title={title} tooltip={false} size="sm" className={cn(!track.liked && revealed)} />
+          )}
+          {track && <span className={cn('hidden w-10 text-right text-xs tabular text-muted-foreground sm:block', unavailable && 'opacity-60')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>}
+          <DropdownMenu
+            entries={menu}
+            trigger={<IconButton label={`More options for ${title}`} tooltip={false} size="sm" className={revealed}><MoreHorizontal /></IconButton>}
+          />
+        </div>
+      </li>
+    </ContextMenu>
+  )
+}
+
+/** Controls that show when their row is hovered, holds the keyboard's focus or has its menu open; always on touch screens. */
+const revealed = 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opacity-100 md:pointer-fine:group-has-[:focus-visible]/row:opacity-100 md:pointer-fine:group-has-[[data-state=open]]/row:opacity-100 md:pointer-fine:group-aria-selected/row:opacity-100'
+
+/** The end of a list: a spinner while more is on its way, and the next page loading as it comes into view. */
+function MoreResults({ loading, onEndReached }: { loading: boolean; onEndReached?: () => void }) {
+  const sentinel = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const element = sentinel.current
+    // Without an observer (an old browser) the button below loads the next page.
+    if (!element || !onEndReached || loading || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) onEndReached()
+    }, { rootMargin: '400px 0px' })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [onEndReached, loading])
+  return (
+    <div ref={sentinel} className="flex h-14 items-center justify-center gap-2 text-sm text-muted-foreground">
+      {loading ? <><Spinner label={null} className="size-4" />Searching for more…</>
+        : onEndReached && <Button variant="ghost" size="sm" onClick={onEndReached}>Show more</Button>}
+    </div>
+  )
+}
+
+type RecentsProps = {
+  queries: Extract<RecentSearch, { type: 'query' }>[]
+  items: Exclude<RecentSearch, { type: 'query' }>[]
+  listboxId: string
+  optionId: (key: string) => string
+  picked: string | null
+  onSearch: (query: string) => void
+  onChoose: (item: SearchItem) => void
+  onRemove: (key: string) => void
+  onClear: () => void
+}
+
+/** Recent searches and recently viewed results, each removable, with one button that clears them all. */
+function Recents({ queries, items, listboxId, optionId, picked, onSearch, onChoose, onRemove, onClear }: RecentsProps) {
+  const viewer = useViewer()
+  const row = (entry: RecentSearch, body: ReactNode, onSelect: () => void, label: string) => {
+    const key = recentSearchKey(entry)
+    return (
+      <li key={key} id={optionId(key)} role="option" aria-selected={picked === key} className={cn('group/row relative h-12', searchRowClass(picked === key, false))}>
+        {body}
+        <button type="button" aria-label={label} onClick={onSelect} className="absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+        <IconButton label={`Remove ${label} from recent searches`} tooltip={false} size="sm" onClick={() => onRemove(key)} className={cn('relative z-10', revealed)}>
+          <X />
+        </IconButton>
+      </li>
+    )
+  }
+  return (
+    <section aria-labelledby="search-recent" className="max-w-4xl">
+      <SectionHeader id="search-recent" title="Recent searches" action={<Button variant="ghost" size="sm" onClick={onClear}>Clear all</Button>} />
+      <ol id={listboxId} role="listbox" aria-label="Recent searches" className="-mx-2.5 flex flex-col">
+        {queries.map(entry => row(
+          entry,
+          <SearchRowBody strong={false} art={<span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"><Clock3 aria-hidden className="size-4" /></span>} title={entry.query} />,
+          () => onSearch(entry.query),
+          entry.query,
+        ))}
+        {items.length > 0 && <li role="presentation" className="px-2.5 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Recently viewed</li>}
+        {items.map(entry => {
+          const { title, detail } = searchItemText(entry)
+          const dimmed = entry.type === 'track' ? !isPlayable(entry.track, viewer) : entry.type === 'album' ? albumPresentation(entry.album, viewer) === 'dimmed' : false
+          return row(entry, <SearchRowBody art={<SearchItemArt item={entry} dimmed={dimmed} className="size-9" />} title={title} detail={detail} dimmed={dimmed} />, () => onChoose(entry), title)
+        })}
+      </ol>
+    </section>
   )
 }
 
 function ResultsSkeleton() {
   return (
-    <div role="status" aria-label="Searching" className="flex flex-col gap-8">
-      <TopSkeleton />
-      <RailSkeleton />
-      <TrackRowsSkeleton rows={4} art />
+    <div role="status" aria-label="Searching" className="flex flex-col">
+      {Array.from({ length: 8 }, (_, row) => (
+        <div key={row} aria-hidden className="flex h-14 items-center gap-3">
+          <Skeleton className={cn('size-10 shrink-0', row === 0 ? 'rounded-full' : 'rounded-[5px]')} />
+          <div className="flex flex-col gap-2"><Skeleton className="h-3 w-40" /><Skeleton className="h-2.5 w-24" /></div>
+        </div>
+      ))}
     </div>
   )
 }
+

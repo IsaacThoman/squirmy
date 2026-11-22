@@ -253,9 +253,10 @@ function track(raw: RawTrack, album?: RawAlbum): DeezerTrack {
  * Catalog search for typeahead: the requested types are fetched in parallel, each
  * ranked by Deezer. Empty lists when Deezer is off.
  */
-export async function search(query: string, options: { types?: DeezerSearchType[]; limit?: number } = {}): Promise<DeezerSearchResults> {
+export async function search(query: string, options: { types?: DeezerSearchType[]; limit?: number; offset?: number } = {}): Promise<DeezerSearchResults> {
   const types = options.types ?? ['artist', 'album', 'track']
-  const params = { q: query, limit: String(options.limit ?? 10) }
+  // `index` only past the first page, so the first page's URL (and its cache entry) stays the same.
+  const params = { q: query, limit: String(options.limit ?? 10), ...(options.offset ? { index: String(options.offset) } : {}) }
   const [artists, albums, tracks] = await Promise.all([
     types.includes('artist') ? get<RawList<RawArtist>>('search/artist', params) : null,
     types.includes('album') ? get<RawList<RawAlbum>>('search/album', params) : null,

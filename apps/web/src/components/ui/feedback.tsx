@@ -46,8 +46,9 @@ export function EmptyState({ icon, title, description, action, className }: { ic
   return (
     <div className={cn('flex flex-col items-center px-6 py-14 text-center', className)}>
       <div className="mb-4 flex size-11 items-center justify-center rounded-xl border bg-card text-muted-foreground shadow-xs [&_svg]:size-5">{icon}</div>
-      <h3 className="text-base font-semibold">{title}</h3>
-      {description && <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>}
+      {/* Titles can echo what was typed: a long unbroken word wraps instead of widening the page. */}
+      <h3 className="max-w-full text-base font-semibold [overflow-wrap:anywhere]">{title}</h3>
+      {description && <p className="mt-1 max-w-sm text-sm text-muted-foreground [overflow-wrap:anywhere]">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   )

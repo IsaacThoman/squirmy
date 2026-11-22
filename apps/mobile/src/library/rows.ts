@@ -16,6 +16,8 @@ export type SongRowItem = {
   showArtist: boolean;
   /** The album whose page the row is on. */
   album?: string;
+  /** Said before the artist, where songs are listed among other kinds ("Song · MGMT"). */
+  kind?: string;
 };
 
 /** What a row does when pressed. One object per list, which never changes, so no row redraws for it. */
@@ -33,7 +35,7 @@ export type SongListItems = {
   rowHeight: number;
 };
 
-export function songRows({ tracks, numbered, playlist, album }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album'>): SongRowItem[] {
+export function songRows({ tracks, numbered, playlist, album, kind }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'kind'>): SongRowItem[] {
   return tracks.map((track, index) => {
     const itemId = playlist?.itemIds[index];
     return {
@@ -45,6 +47,7 @@ export function songRows({ tracks, numbered, playlist, album }: Pick<SongListPro
       // On an album page only a song by someone else (a feature, a various-artists album) says who.
       showArtist: !album || track.artistCredit !== album.artistCredit,
       album: album?.id,
+      kind,
     };
   });
 }
@@ -72,5 +75,5 @@ export function chunk<T>(items: readonly T[], size: number): T[][] {
 /** Whether two rows show the same thing. */
 export function sameRow(a: SongRowItem, b: SongRowItem) {
   return a === b || (a.key === b.key && a.track === b.track && a.index === b.index && a.number === b.number
-    && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id && a.showArtist === b.showArtist && a.album === b.album);
+    && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id && a.showArtist === b.showArtist && a.album === b.album && a.kind === b.kind);
 }

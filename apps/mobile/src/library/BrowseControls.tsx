@@ -17,8 +17,17 @@ export type SearchFieldProps = {
 
 export type BrowseButtonProps = { label: string; icon?: string; title?: string; glass?: boolean; onPress: () => void };
 export type FilterProps<T extends string> = { options: readonly T[]; value: T; onChange: (option: T) => void };
-/** A collection that opens `href` when pressed. On iOS the page zooms out of its cover. `dim` grays it, cover and title alike. */
-export type CollectionButtonProps = { title: string; subtitle: string; cover: ReactElement; size: number; href: Href; dim?: boolean };
+/** An entry of a row's menu. `icon` is an SF Symbol name. */
+export type RowAction = { title: string; icon: string; onPress: () => void };
+/**
+ * A collection that opens `href` when pressed. On iOS the page zooms out of its cover. `dim`
+ * grays it, cover and title alike. `onSelect` runs as it opens. `actions` give the row a
+ * menu: a long press, and the ellipsis that replaces its chevron.
+ */
+export type CollectionButtonProps = {
+  title: string; subtitle: string; cover: ReactElement; size: number; href: Href; dim?: boolean;
+  onSelect?: () => void; actions?: readonly RowAction[];
+};
 /** The button a `ZoomLink` wraps. The link supplies `onPress`. */
 export type LinkedButtonProps<T> = Omit<T, 'href'> & { onPress?: () => void };
 export type GenreCardProps = { title: string; color: string; width: number; cover: ReactElement; onPress: () => void };
@@ -27,15 +36,6 @@ export type HeroActionsProps = { title: string; artist: string; onOpen: () => vo
 /** One row of a grid of collections; a long grid is a virtualized list of these. */
 export type CollectionGridRowProps = { items: readonly (CollectionButtonProps & { id: string })[] };
 export type GenreGridProps = { items: readonly (GenreCardProps & { id: string })[] };
-/**
- * The search result to lead with. With `href` it opens that page, which zooms out of its
- * cover; without, pressing it runs `onPress`. `onPlay` adds a play button.
- */
-export type TopResultProps = {
-  title: string; subtitle: string; cover: ReactElement; size: number; href?: Href; dim?: boolean;
-  onPress?: () => void; onPlay?: () => void; busy?: boolean;
-};
-
 export function SearchField({ value, onChange, placeholder, autoFocus, inputRef }: SearchFieldProps) {
   const colors = useColors();
   const styles = useStyles();
@@ -107,17 +107,24 @@ export function CollectionRow({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><RowButton {...props} /></ZoomLink>;
 }
 
-function RowButton({ title, subtitle, cover, dim, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+function RowButton({ title, subtitle, cover, dim, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   const styles = useStyles();
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
+  const menu = actions?.length ? () => Alert.alert(title, undefined, [
+    ...actions.map(action => ({ text: action.title, onPress: action.onPress })),
+    { text: 'Cancel', style: 'cancel' as const },
+  ], { cancelable: true }) : undefined;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`}
+    onPress={() => { onSelect?.(); onPress?.(); }} onLongPress={menu}
     style={({ pressed }) => [styles.collectionRow, dim && styles.dim, pressed && styles.pressed]}>
     {cover}
     <View style={styles.flex}>
       <Text numberOfLines={1} style={styles.collectionTitle}>{title}</Text>
       <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
     </View>
-    <Icon name="chevron.right" size={12} color={colors.muted} />
+    {menu
+      ? <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${title}`} onPress={menu} hitSlop={10}><Icon name="ellipsis" size={18} color={colors.muted} /></Pressable>
+      : <Icon name="chevron.right" size={12} color={colors.muted} />}
   </Pressable>;
 }
 
@@ -151,32 +158,6 @@ export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActions
   </View>;
 }
 
-export function TopResult({ href, onPlay, busy, ...props }: TopResultProps) {
-  const styles = useStyles();
-  const colors = useColors();
-  return <View style={styles.topResult}>
-    {href ? <ZoomLink href={href}><TopResultButton {...props} playable={Boolean(onPlay)} /></ZoomLink>
-      : <TopResultButton {...props} playable={Boolean(onPlay)} />}
-    {onPlay && <View style={styles.topPlay}>{busy
-      ? <ActivityIndicator accessibilityLabel={`Starting ${props.title}`} color={colors.text} style={styles.busy} />
-      : <BrowseButton icon="play.fill" label={`Play ${props.title}`} onPress={onPlay} glass />}</View>}
-  </View>;
-}
-
-function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay' | 'busy'> & { playable: boolean }) {
-  const colors = useColors();
-  const styles = useStyles();
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
-    style={({ pressed }) => [styles.topButton, playable && styles.topPlayable, dim && styles.dim, pressed && styles.pressed]}>
-    {cover}
-    <View style={styles.flex}>
-      <Text numberOfLines={2} style={styles.topTitle}>{title}</Text>
-      <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
-    </View>
-    {!playable && <Icon name="chevron.right" size={12} color={colors.muted} />}
-  </Pressable>;
-}
-
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   dim: { opacity: unavailableOpacity },
   flex: { flex: 1 },
@@ -202,10 +183,5 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   heroTitle: { color: '#F5F2FF', fontSize: 36, fontWeight: '800', letterSpacing: -1.4 },
   heroSubtitle: { color: '#F0E6FA' },
   heroPlay: { position: 'absolute', right: 19, bottom: 19 },
-  topResult: { borderRadius: 18, backgroundColor: colors.surface, justifyContent: 'center' },
-  topButton: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, paddingRight: 18 },
-  topPlayable: { paddingRight: 72 },
-  topTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
-  topPlay: { position: 'absolute', right: 14 },
   busy: { width: 44, height: 44 },
 }));

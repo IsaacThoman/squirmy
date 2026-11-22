@@ -1,0 +1,106 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/search/album?q=radiohead&limit=3&index=3"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 14880741,
+          "title": "Kid A",
+          "link": "https://www.deezer.com/album/14880741",
+          "cover": "https://api.deezer.com/album/14880741/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/e5925065cdb1cefbc3bd75af4a1f1801/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/e5925065cdb1cefbc3bd75af4a1f1801/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/e5925065cdb1cefbc3bd75af4a1f1801/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/e5925065cdb1cefbc3bd75af4a1f1801/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "e5925065cdb1cefbc3bd75af4a1f1801",
+          "genre_id": 85,
+          "nb_tracks": 11,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/14880741/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 399,
+            "name": "Radiohead",
+            "link": "https://www.deezer.com/artist/399",
+            "picture": "https://api.deezer.com/artist/399/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 14880711,
+          "title": "Pablo Honey",
+          "link": "https://www.deezer.com/album/14880711",
+          "cover": "https://api.deezer.com/album/14880711/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/1dd56fd8824492e1a5106c99a00a85ec/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/1dd56fd8824492e1a5106c99a00a85ec/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/1dd56fd8824492e1a5106c99a00a85ec/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/1dd56fd8824492e1a5106c99a00a85ec/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "1dd56fd8824492e1a5106c99a00a85ec",
+          "genre_id": 85,
+          "nb_tracks": 12,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/14880711/tracks",
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 399,
+            "name": "Radiohead",
+            "link": "https://www.deezer.com/artist/399",
+            "picture": "https://api.deezer.com/artist/399/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 14879739,
+          "title": "Hail To the Thief",
+          "link": "https://www.deezer.com/album/14879739",
+          "cover": "https://api.deezer.com/album/14879739/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/d3d9e1f53d60c5d2c764b20870aab69e/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/d3d9e1f53d60c5d2c764b20870aab69e/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/d3d9e1f53d60c5d2c764b20870aab69e/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d3d9e1f53d60c5d2c764b20870aab69e/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "d3d9e1f53d60c5d2c764b20870aab69e",
+          "genre_id": 85,
+          "nb_tracks": 14,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/14879739/tracks",
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 399,
+            "name": "Radiohead",
+            "link": "https://www.deezer.com/artist/399",
+            "picture": "https://api.deezer.com/artist/399/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/0d58cfbc90f2e776608bcdc0c45a4711/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/399/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        }
+      ],
+      "total": 98,
+      "prev": "https://api.deezer.com/search/album?q=radiohead&limit=3&index=0",
+      "next": "https://api.deezer.com/search/album?q=radiohead&limit=3&index=6"
+    }
+  }
+}

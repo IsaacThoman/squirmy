@@ -27,4 +27,14 @@ describe('Toaster', () => {
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(toastStore.getSnapshot()).toHaveLength(0))
   })
+
+  it('replaces a toast with the same key in place', async () => {
+    render(<Toaster />)
+    act(() => toast({ key: 'run', title: 'Skipped “Intro” — not available' }))
+    act(() => toast({ title: 'Added to queue' }))
+    act(() => toast({ key: 'run', title: 'Skipped 2 songs — not available' }))
+    expect(await screen.findByText('Skipped 2 songs — not available')).toBeInTheDocument()
+    expect(screen.queryByText('Skipped “Intro” — not available')).toBeNull()
+    expect(toastStore.getSnapshot().map(item => [item.title, item.revision ?? 0])).toEqual([['Skipped 2 songs — not available', 1], ['Added to queue', 0]])
+  })
 })

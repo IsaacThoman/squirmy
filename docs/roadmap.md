@@ -74,6 +74,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Acquisition provider protocol, on-demand playback, policy ([provider-protocol.md](./provider-protocol.md)), and on the web the Providers admin screen, "Get this album" and preparing tracks
 - [x] Reference adapters: cold storage and mock (`adapters/`)
+- [x] A song the provider doesn't have is skipped with a light notice and playback goes on; only an outage, or nothing left that is available, stops it (server, web and iOS)
+- [ ] Gray out songs a provider lacks before they are played: resolve ahead of the queue, or on album pages, for `assume_available` providers
 - [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
 - [ ] Detached playback: one device plays its own queue apart from the shared session. Protocol, server and shared client code are done; the web and iOS controls are next ([detached-playback-ui.md](./detached-playback-ui.md))

@@ -2,7 +2,8 @@
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
-import type { HomeSection, Page as ListPage, PlaylistDetail } from '@squirmy/contracts'
+import { filterKind, searchContext, searchFilters, searchQueue, type SearchFilter, type SearchItem } from '@squirmy/client-core'
+import type { HomeSection, Page as ListPage, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
 import { queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
 import { CloudOff, Compass } from 'lucide-react'
@@ -16,7 +17,7 @@ import {
   useLikedTracks, usePlaylist, usePlaylists, useWants,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
-import { useMergedSearch } from '@/api/use-search'
+import { matchingPlaylists, useMergedSearch, useSearchPages } from '@/api/use-search'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { Page } from '@/components/layout/Page'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
@@ -34,13 +35,15 @@ import {
 } from '@/components/views/library-state'
 import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
 import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
-import { SearchView } from '@/components/views/SearchView'
+import { SearchView, type SearchList } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
-import { canFetch, isArtistSectionKey } from '@/lib/catalog'
+import { canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
+import { useRecentSearches } from '@/lib/recent-searches'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
+import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
 import { usePlayCollections } from '@/player/use-play-collections'
 import { useServerEvent } from '@/realtime/realtime-context'
@@ -267,25 +270,88 @@ export function WantlistPage() {
   )
 }
 
+const filterOf = (value: string | null): SearchFilter => (searchFilters as readonly string[]).includes(value ?? '') ? value as SearchFilter : 'all'
+
+/**
+ * `/search?q=…&type=…`: what is typed and the filter live in the URL, so Back returns to the
+ * same results (the answers are cached) at the same place (the shell restores the scroll).
+ */
 export function SearchPage() {
   const navigate = useNavigate()
+  const user = useCurrentUser()
+  const library = useLibrary()
+  const viewer = useViewer()
+  const controls = usePlayerControls()
   const [params, setParams] = useSearchParams()
-  const { playAlbum } = usePlayCollections()
   const genres = useGenres().data?.items.map(genre => genre.name) ?? []
   const query = params.get('q') ?? ''
+  const filter = filterOf(params.get('type'))
   const [typed, setTyped] = useUrlDraft(query)
-  const search = useMergedSearch(typed)
+  const term = typed.trim()
+  const all = useMergedSearch(typed, { playlists: library.playlists })
+  const pages = useSearchPages(typed, filterKind(filter))
+  const recents = useRecentSearches(user.id)
+  const show = (q: string, next: SearchFilter) => setParams({ ...(q ? { q } : {}), ...(next !== 'all' ? { type: next } : {}) }, { replace: true })
+
+  const list = useMemo<SearchList>(() => {
+    const allItems = all.results?.items ?? null
+    if (filter === 'all') {
+      return {
+        items: allItems, stale: all.stale, pending: Boolean(allItems) && !all.stale && all.catalogPending,
+        failed: all.failed, catalogFailed: all.catalogFailed, unavailable: all.unavailable, retry: all.retry,
+      }
+    }
+    if (filter === 'playlist') {
+      return { items: term ? matchingPlaylists(term, library.playlists) : [], stale: false, pending: false, failed: false, catalogFailed: false, unavailable: false, retry: () => {} }
+    }
+    // Until the filter's own first page arrives, the mixed list's rows of that kind stand in.
+    const standIn = pages.items === null && allItems && !all.stale ? allItems.filter(item => item.type === filter) : null
+    return {
+      items: pages.items ?? standIn, stale: pages.items !== null && pages.stale, pending: pages.loadingMore || (standIn !== null && pages.loading),
+      failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry,
+      hasMore: pages.hasMore, loadMore: pages.loadMore,
+    }
+  }, [all, pages, filter, term, library.playlists])
+
+  const choose = (item: SearchItem, items: readonly SearchItem[]) => {
+    if (term) recents.add({ type: 'query', query: term })
+    recents.add(item)
+    switch (item.type) {
+      case 'artist': return void navigate(`/artist/${item.artist.id}`)
+      case 'album': return void navigate(`/album/${item.album.id}`)
+      case 'playlist': return void navigate(`/playlist/${item.playlist.id}`)
+      case 'track': {
+        const playable = (track: TrackSummary) => isPlayable(track, viewer)
+        if (playable(item.track)) {
+          // The song, then the songs listed after it: playing on continues through what was found.
+          const { tracks, start } = searchQueue(items, item.track, playable)
+          return controls.playTracks(tracks, start, searchContext(term))
+        }
+        if (item.track.album) void navigate(`/album/${item.track.album.id}`)
+      }
+    }
+  }
+
   return (
     <SearchView
       query={typed}
       onQueryChange={q => {
         setTyped(q)
-        setParams(q ? { q } : {}, { replace: true })
+        show(q, filter)
       }}
-      search={search}
+      filter={filter}
+      onFilterChange={next => show(typed, next)}
+      list={list}
+      recents={recents.list}
+      onRemoveRecent={recents.remove}
+      onClearRecents={recents.clear}
       genres={genres}
       onBrowseGenre={genre => void navigate(`/library?${new URLSearchParams({ filter: 'albums', genre })}`)}
-      onPlayAlbum={album => void playAlbum(album)}
+      onChoose={choose}
+      onSearchRecent={q => {
+        setTyped(q)
+        show(q, filter)
+      }}
     />
   )
 }

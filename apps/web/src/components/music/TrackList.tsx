@@ -1,9 +1,6 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  ArrowDown, ArrowUp, BookmarkCheck, BookmarkPlus, Clock3, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal,
-  Pause, Play, Plus, Radio, Trash2,
-} from 'lucide-react'
+import { Clock3, Disc3, MoreHorizontal, Pause, Play } from 'lucide-react'
 import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
@@ -18,9 +15,9 @@ import { useViewer } from '@/player/on-demand-context'
 import { ArtistLinks } from './ArtistLinks'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
-import { librarySaveEntry } from './library-save-entry'
 import { SaveHeart } from './LibrarySave'
 import { PrefetchLink } from './PrefetchLink'
+import { trackMenuEntries } from './track-menu'
 import { useEndReached } from './use-end-reached'
 
 /**
@@ -117,35 +114,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const play = current ? nowPlaying.onTogglePlay : onPlay
   const act = (action: TrackAction) => onAction?.(action, track, index)
 
-  const menu: MenuEntry[] = [
-    { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), disabled: unavailable },
-    { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), disabled: unavailable },
-    ...(playlists ? [{
-      kind: 'submenu' as const,
-      label: 'Add to playlist',
-      icon: <ListPlus />,
-      items: [
-        { label: 'New playlist…', icon: <Plus />, onSelect: () => act('add-to:new') },
-        ...(playlists.length ? [{ kind: 'separator' as const }] : []),
-        ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => act(`add-to:${playlist.id}`) })),
-      ],
-    }] : []),
-    { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
-    { kind: 'separator' },
-    librarySaveEntry(track, () => act('like')),
-    // Undefined `wanted` means the server has the wantlist off. It is for music that does not play.
-    ...(!unavailable || wanted === undefined ? [] : [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: () => act('want') }]),
-    { kind: 'separator' },
-    ...(track.album ? [{ label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(`/album/${track.album!.id}`) }] : []),
-    ...track.artists.map(artist => ({ label: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
-    ...(extraMenu ?? []),
-    ...(reorder ? [
-      { kind: 'separator' as const },
-      { label: 'Move up', icon: <ArrowUp />, disabled: index === 0, onSelect: () => act('move-up') },
-      { label: 'Move down', icon: <ArrowDown />, disabled: index === reorder.count - 1, onSelect: () => act('move-down') },
-      { label: 'Remove from playlist', icon: <Trash2 />, danger: true, onSelect: () => act('remove') },
-    ] : []),
-  ]
+  const menu = trackMenuEntries(track, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count } })
 
   const onDragOver = (event: DragEvent) => {
     const drag = draggedTracks(event)

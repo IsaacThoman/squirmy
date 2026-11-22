@@ -366,9 +366,14 @@ function releaseSummary(raw: RawRelease): MbReleaseSummary {
   }
 }
 
+type SearchPage = { limit?: number; offset?: number }
+
+/** `offset` only past the first page, so the first page's URL (and its cache entry) stays the same. */
+const page = ({ limit = 10, offset = 0 }: SearchPage) => ({ limit: String(limit), ...(offset ? { offset: String(offset) } : {}) })
+
 /** Artists by name, best first. Empty when MusicBrainz is off. */
-export async function searchArtists(name: string, options: { limit?: number } = {}): Promise<MbArtistSummary[]> {
-  const data = await get<{ artists: RawArtist[] }>('artist', { query: escapeQuery(name), limit: String(options.limit ?? 10) }, searchTtl)
+export async function searchArtists(name: string, options: SearchPage = {}): Promise<MbArtistSummary[]> {
+  const data = await get<{ artists: RawArtist[] }>('artist', { query: escapeQuery(name), ...page(options) }, searchTtl)
   return (data?.artists ?? []).map(artistSummary)
 }
 
@@ -376,14 +381,14 @@ export async function searchArtists(name: string, options: { limit?: number } = 
  * Release groups and recordings for free text, best first, as the plain search on
  * musicbrainz.org does it: the text is matched against titles only.
  */
-export async function searchReleaseGroupsByText(text: string, options: { limit?: number } = {}): Promise<MbReleaseGroupSummary[]> {
-  const data = await get<{ 'release-groups': RawReleaseGroup[] }>('release-group', { query: escapeQuery(text), limit: String(options.limit ?? 10) }, searchTtl)
+export async function searchReleaseGroupsByText(text: string, options: SearchPage = {}): Promise<MbReleaseGroupSummary[]> {
+  const data = await get<{ 'release-groups': RawReleaseGroup[] }>('release-group', { query: escapeQuery(text), ...page(options) }, searchTtl)
   return (data?.['release-groups'] ?? []).map(releaseGroupSummary)
 }
 
 /** See `searchReleaseGroupsByText`. Each recording lists the releases it appears on. */
-export async function searchRecordingsByText(text: string, options: { limit?: number } = {}): Promise<MbRecording[]> {
-  const data = await get<{ recordings: RawRecording[] }>('recording', { query: escapeQuery(text), limit: String(options.limit ?? 10) }, searchTtl)
+export async function searchRecordingsByText(text: string, options: SearchPage = {}): Promise<MbRecording[]> {
+  const data = await get<{ recordings: RawRecording[] }>('recording', { query: escapeQuery(text), ...page(options) }, searchTtl)
   return (data?.recordings ?? []).map(recording)
 }
 

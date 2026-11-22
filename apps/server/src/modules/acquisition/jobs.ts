@@ -27,7 +27,7 @@
  * forever after a restart.
  */
 import { setTimeout as sleep } from 'node:timers/promises'
-import { ProviderOffer, type AcquisitionJobStatus, type AcquisitionOrigin, type ProviderAlbumQuery } from '@squirmy/contracts'
+import { ProviderOffer, type AcquisitionJobStatus, type AcquisitionOrigin, type EntryFailure, type ProviderAlbumQuery } from '@squirmy/contracts'
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
@@ -129,6 +129,12 @@ type Ending = {
   missed?: string[]
   /** The provider is failing (health.ts): sessions waiting on the job pause with a reason. */
   outage?: boolean
+  /**
+   * Why the recordings that are not ready failed, for the sessions waiting on them. Left
+   * out: `outage` with `outage`, else `unavailable` for the missed ones (the provider does
+   * not have them) and `error` for the rest.
+   */
+  cause?: EntryFailure
 }
 
 /**
@@ -156,7 +162,13 @@ export async function finishJob(jobId: string, ending: Ending): Promise<JobRow |
   const notReady = row.recordingIds.filter((id) => !ready.includes(id))
   const working = await stillWorking(notReady, row.id)
   if (ending.status === 'completed' && ready.length > 0) await noteProviderDelivered(row.providerId)
-  await announceOutcome({ ready, failed: notReady.filter((id) => !working.has(id)), outage: ending.outage })
+  const failed = notReady.filter((id) => !working.has(id))
+  const cause = ending.cause ?? (ending.outage ? 'outage' : null)
+  if (cause) await announceOutcome({ ready, failed, cause })
+  else {
+    await announceOutcome({ ready, failed: failed.filter((id) => missed.includes(id)), cause: 'unavailable' })
+    await announceOutcome({ failed: failed.filter((id) => !missed.includes(id)), cause: 'error' })
+  }
   await invalidateRecordings([...ready, ...missed])
   await announce(row)
   // Its slot is free: the job first in line takes it now rather than at its next poll.
@@ -356,6 +368,8 @@ async function albumQuery(albumId: string, recordingIds: readonly string[]): Pro
 type NoChoice = {
   reason: string
   outage?: boolean
+  /** `unavailable`: every provider asked answered without an offer; `outage`: one could not be asked. */
+  cause?: EntryFailure
   /** A provider was too busy to answer and none had an offer: ask again later. */
   busy?: { retryAfterSeconds: number | null }
 }
@@ -372,6 +386,7 @@ async function chooseProvider(job: JobRow): Promise<{ provider: ActiveProvider; 
     .filter((provider) => !isAlbum || provider.capabilities.kinds.includes('album'))
   let reason = 'No provider has a free offer for it'
   let outage = false
+  let unreachable = false
   let busy: NoChoice['busy']
   for (const provider of providers) {
     let offers: ProviderOffer[]
@@ -392,6 +407,7 @@ async function chooseProvider(job: JobRow): Promise<{ provider: ActiveProvider; 
         continue
       }
       outage = await noteProviderFailure(provider.id, error.message, job.recordingIds)
+      unreachable = true
       reason = `${provider.name}: ${error.message}`
       continue
     }
@@ -399,7 +415,9 @@ async function chooseProvider(job: JobRow): Promise<{ provider: ActiveProvider; 
     if (offer) return { provider, offer }
     outage = false
   }
-  return { reason, outage, busy }
+  // A provider that could not be asked may have it: the listener is told fetching is down
+  // rather than that the song is missing.
+  return { reason, outage, busy, cause: outage || unreachable ? 'outage' : 'unavailable' }
 }
 
 /**
@@ -422,7 +440,7 @@ export async function startJob(jobId: string, attempt = 0) {
     }
     if ('reason' in choice) {
       if (job.recordingId === null) await fetchTracksInstead(job, choice.reason)
-      else await finishJob(jobId, { status: 'failed', error: choice.reason, outage: choice.outage })
+      else await finishJob(jobId, { status: 'failed', error: choice.reason, outage: choice.outage, cause: choice.cause })
       return
     }
     ;({ provider, offer } = choice)
@@ -448,7 +466,8 @@ export async function startJob(jobId: string, attempt = 0) {
       return
     }
     const outage = await noteProviderFailure(provider.id, error.message, job.recordingIds)
-    await finishJob(jobId, { status: 'failed', error: `The provider could not start: ${error.message}`, missed: outage ? [] : job.recordingIds, outage })
+    // It could not be reached or refused the call: the tracks are not what is known to be wrong.
+    await finishJob(jobId, { status: 'failed', error: `The provider could not start: ${error.message}`, missed: outage ? [] : job.recordingIds, outage, cause: 'outage' })
     return
   }
   if (!response.accepted) {
@@ -676,11 +695,12 @@ export async function finishDelivery(jobId: string) {
     if (job?.status !== 'importing') return
     const done = job.importId ? await getImport(job.importId).catch(() => null) : null
     if (!done) {
-      await finishJob(jobId, { status: 'failed', error: 'The import of the delivery is gone', missed: job.recordingIds })
+      await finishJob(jobId, { status: 'failed', error: 'The import of the delivery is gone', missed: job.recordingIds, cause: 'error' })
       return
     }
     if (done.status === 'failed') {
-      await finishJob(jobId, { status: 'failed', error: `The import failed: ${done.error ?? 'no reason given'}`, missed: job.recordingIds })
+      // This server's import, not the provider, failed.
+      await finishJob(jobId, { status: 'failed', error: `The import failed: ${done.error ?? 'no reason given'}`, missed: job.recordingIds, cause: 'error' })
       await discardUnrequested(job).catch(report)
       return
     }
@@ -769,7 +789,8 @@ export async function sweepJobs(now = Date.now()) {
         const error = `Nothing was delivered within ${timeoutSeconds} seconds`
         const outage = status !== 'resolving' && await noteProviderFailure(job.providerId, error, job.recordingIds)
         const missed = status === 'resolving' || outage ? [] : job.recordingIds
-        await finishJob(job.id, { status: 'failed', error, missed, outage })
+        // Nothing came, for no reason anyone gave: unknown, unless the provider is failing.
+        await finishJob(job.id, { status: 'failed', error, missed, outage, cause: outage ? 'outage' : 'error' })
       } else if (status === 'importing') {
         await enqueue<StartJob>('acquisition.finish', { jobId: job.id }, { singletonKey: job.id })
       } else if (status === 'resolving') {

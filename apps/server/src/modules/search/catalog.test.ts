@@ -115,6 +115,20 @@ describe('GET /search/catalog', () => {
     expect(mergeSearch(library, results, { role: 'member', canAcquire: false }).top).toMatchObject({ type: 'album', album: { id: owned.albumId } })
   })
 
+  it('ranks the library answer\'s page with its own results, on one scale', async () => {
+    const results = await search('Radiohead OK Computer', 5)
+    const library = body(await app.inject({ url: '/api/v1/search/library?q=Radiohead+OK+Computer&limit=5', headers: user.headers }), SearchResults)
+    const ranked = results.ranked!
+    // The user's own album, named by artist and title, leads both lists.
+    expect(ranked[0]).toMatchObject({ type: 'album', id: owned.albumId })
+    expect(library.ranked![0]).toMatchObject({ type: 'album', id: owned.albumId })
+    const named = new Set([...results.albums, ...results.tracks, ...library.albums, ...library.tracks].map((item) => item.id))
+    expect(ranked.every((item) => named.has(item.id))).toBe(true)
+    // What the provider found for the user's own album is ranked by the catalog answer, but listed by the library's.
+    expect(results.albums.some((album) => album.id === owned.albumId)).toBe(false)
+    expect(mergeSearch(library, results, { role: 'member', canAcquire: false }).items[0]).toMatchObject({ type: 'album', album: { id: owned.albumId } })
+  })
+
   it('writes stubs with the whole contract', async () => {
     const results = await search('Radiohead OK Computer', 5)
     const [stub] = await db.select().from(albums).where(eq(albums.id, results.albums[0]!.id))
@@ -239,7 +253,7 @@ describe('GET /search/catalog', () => {
     const stubs = await materialize('deezer', results)
     const copy = await createAlbum({ title: 'Arrived Later', artist: await createArtist({ name: 'Late Band' }), owned: true, tracks: [{ title: 'First Song', durationMs: 181_000 }] })
     const ids = await materialize('deezer', results)
-    expect(ids).toEqual({ artists: [], albums: [copy.albumId], tracks: [copy.tracks[0]!.recordingId] })
+    expect(ids).toMatchObject({ artists: [], albums: [copy.albumId], tracks: [copy.tracks[0]!.recordingId] })
     expect(await externalIdOf('album', copy.albumId)).toEqual([{ provider: 'deezer', externalId: 'late-album' }])
     expect(await externalIdOf('album', stubs.albums[0]!)).toEqual([])
     expect(await externalIdOf('recording', copy.tracks[0]!.recordingId)).toEqual([{ provider: 'deezer', externalId: 'late-track' }])
@@ -316,10 +330,35 @@ describe('GET /search/catalog', () => {
   })
 
   it('answers nothing for queries under two characters or with every provider off', async () => {
-    expect(await search('a', 3)).toEqual({ artists: [], albums: [], tracks: [], provider: null, top: null })
+    expect(await search('a', 3)).toEqual({ artists: [], albums: [], tracks: [], provider: null, top: null, ranked: [] })
     await updateServerSettings({ deezerEnabled: false, musicBrainzEnabled: false })
-    expect(await search('radiohead', 3)).toEqual({ artists: [], albums: [], tracks: [], provider: null, top: null })
+    expect(await search('radiohead', 3)).toEqual({ artists: [], albums: [], tracks: [], provider: null, top: null, ranked: [] })
     expect(http.requests).toEqual([])
+  })
+
+  it('searches only the kind a filter asks for, page by page', async () => {
+    const page = async (offset: number) =>
+      body(await app.inject({ url: `/api/v1/search/catalog?q=radiohead&type=album&limit=3&offset=${offset}`, headers: user.headers }), SearchResults)
+    const first = await page(0)
+    expect(first.artists).toEqual([])
+    expect(first.tracks).toEqual([])
+    // Deezer's three, less the user's own OK Computer, which the library answer lists.
+    expect(first.albums).toHaveLength(2)
+    const second = await page(3)
+    expect(second.albums.length).toBeGreaterThan(0)
+    expect(second.albums.some((album) => first.albums.some((one) => one.id === album.id))).toBe(false)
+    // Only the album search was asked (background detail of earlier tests may search too);
+    // the first page may have been answered from the cache.
+    expect(http.requests.some((request) => /search\/(artist|track)\?q=radiohead&limit=3/.test(request))).toBe(false)
+    expect(http.requests).toContain('GET https://api.deezer.com/search/album?q=radiohead&limit=3&index=3')
+  })
+
+  it('searches a name of symbols alone with the provider, though the library cannot', async () => {
+    const results = await search('!!!', 3)
+    expect(results.artists[0]?.name).toBe('!!!')
+    expect(results.top).toEqual({ type: 'artist', id: results.artists[0]!.id, score: 3 })
+    const library = body(await app.inject({ url: '/api/v1/search/library?q=!!!', headers: user.headers }), SearchResults)
+    expect(library.artists).toEqual([])
   })
 
   it('needs a session', async () => {

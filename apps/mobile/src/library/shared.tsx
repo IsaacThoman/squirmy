@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePreventZoomTransitionDismissal, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, PixelRatio, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { loadFailure } from '../data/errors';
 import { useRealtime } from '../data/realtime';
 import { useKeptCollections, useViewer } from '../downloads/DownloadsProvider';
@@ -16,6 +16,11 @@ import { displayFontScale } from '../fontScale';
 import { createThemedStyles, useColors } from '../theme';
 
 export const gutter = 22;
+
+/** What an album's type is called in a subtitle ("Single · Tate McRae"). */
+export const albumTypeLabels: Record<AlbumSummary['type'], string> = {
+  album: 'Album', ep: 'EP', single: 'Single', compilation: 'Compilation', live: 'Live', soundtrack: 'Soundtrack', other: 'Release',
+};
 /** How far in from the left edge a swipe can start and still close a zoomed collection. */
 const backSwipeEdge = 40;
 /** Start loading the next page this far before the end of the list. */
@@ -134,29 +139,6 @@ export function useCollectionDim() {
   }, [kept, offline, viewer]);
 }
 
-/** A rail of empty tiles the height of a `CollectionRail`, holding its place while results load. */
-export function RailPlaceholder({ size, round = false }: { size: number; round?: boolean }) {
-  const styles = useStyles();
-  const fontScale = Math.min(PixelRatio.getFontScale(), 1.6);
-  return <View style={styles.placeholderContent} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-    <View style={styles.placeholderRow}>
-      {[0, 1, 2, 3].map(index => <View key={index} style={{ width: size, gap: 8 }}>
-        <View style={[styles.placeholder, { width: size, height: size, borderRadius: round ? size / 2 : 13 }]} />
-        <View style={[styles.placeholder, { width: size * 0.7, height: 12 * fontScale, borderRadius: 6 }]} />
-        <View style={[styles.placeholder, { width: size * 0.45, height: 10 * fontScale, borderRadius: 5, marginBottom: 6 * fontScale }]} />
-      </View>)}
-    </View>
-  </View>;
-}
-
-/** An empty top result card of the real one's height. */
-export function TopResultPlaceholder({ size }: { size: number }) {
-  const styles = useStyles();
-  return <View style={[styles.topPlaceholder, { height: size + 28 }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-    <View style={[styles.placeholder, { width: size, height: size, borderRadius: 10 }]} />
-  </View>;
-}
-
 /** Says the server cannot be reached, next to (or under) a page's title. */
 export function OfflineBadge({ style }: { style?: StyleProp<ViewStyle> }) {
   const colors = useColors();
@@ -260,7 +242,6 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   sectionTitle: { marginHorizontal: gutter, marginBottom: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   sectionText: { color: colors.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.65 },
   railContent: { paddingHorizontal: gutter },
-  placeholderContent: { paddingHorizontal: gutter, gap: 12 },
   specialCover: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   coverRing: { position: 'absolute', borderColor: '#FFF8FF50', borderWidth: StyleSheet.hairlineWidth },
   mosaic: { flexDirection: 'row', flexWrap: 'wrap', overflow: 'hidden', backgroundColor: colors.surface },
@@ -271,7 +252,4 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   loading: { paddingVertical: 60, alignItems: 'center' },
   offline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, height: 28, borderRadius: 14, backgroundColor: colors.surface },
   offlineText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
-  placeholderRow: { flexDirection: 'row', gap: 12 },
-  placeholder: { backgroundColor: colors.surface, opacity: 0.7 },
-  topPlaceholder: { borderRadius: 18, backgroundColor: colors.surface, padding: 14, justifyContent: 'center', opacity: 0.6 },
 }));

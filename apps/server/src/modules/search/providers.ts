@@ -4,7 +4,7 @@
  * the local index when it is ready, Deezer when it is enabled, MusicBrainz otherwise, and
  * falls through to the next when one fails.
  */
-import type { AlbumType } from '@squirmy/contracts'
+import type { AlbumType, SearchKind } from '@squirmy/contracts'
 import { getSql } from '../../database/client.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { matchKey } from '../../lib/text.js'
@@ -20,7 +20,14 @@ export type IdSource = 'deezer' | 'musicbrainz'
 /** An artist as credited on an album or track. `id` is null when the provider gives none. */
 export type ProviderCredit = { id: string | null; mbid: string | null; name: string; joinPhrase: string }
 
-export type ProviderArtist = { id: string; mbid: string | null; name: string; imageUrl: string | null }
+export type ProviderArtist = {
+  id: string
+  mbid: string | null
+  name: string
+  imageUrl: string | null
+  /** 0..1, how widely known, when the provider says (Deezer's fans, the local index's popularity). */
+  popularity?: number | null
+}
 
 /** `id` is null for an album known only by name (the local index's album of a recording). */
 export type ProviderAlbum = {
@@ -35,6 +42,8 @@ export type ProviderAlbum = {
   year: number | null
   releaseDate: string | null
   artworkUrl: string | null
+  /** 0..1, how widely known, when the provider says. */
+  popularity?: number | null
 }
 
 export type ProviderTrack = {
@@ -60,9 +69,16 @@ export type SearchProvider = {
   idSource: IdSource
   /** Whether the provider may be asked right now. */
   available: () => Promise<boolean>
-  /** At most `limit` results of each kind, best first. Throws when the service fails. */
-  search: (query: string, options: { limit: number }) => Promise<ProviderResults>
+  /**
+   * At most `limit` results of each kind in `types`, best first, after skipping `offset` of
+   * each. Throws when the service fails.
+   */
+  search: (query: string, options: SearchOptions) => Promise<ProviderResults>
 }
+
+export type SearchOptions = { limit: number; offset: number; types: readonly SearchKind[] }
+
+export const allKinds: readonly SearchKind[] = ['artist', 'album', 'track']
 
 /** Cover Art Archive's front cover of a release group, fetched only when a client shows it. */
 async function releaseGroupCover(mbid: string | null): Promise<string | null> {
@@ -76,6 +92,15 @@ async function releaseGroupCover(mbid: string | null): Promise<string | null> {
 
 /** Deezer's track rank reaches about a million for the most played songs. */
 const deezerTopRank = 1_000_000
+
+/**
+ * Deezer's fan count as 0..1 on a log scale: 100 fans or fewer is 0, ten million is 1. Fans
+ * span five orders of magnitude, and a hundred thousand is already a well known act.
+ */
+export function fansPopularity(fans: number | null): number | null {
+  if (fans === null) return null
+  return Math.min(1, Math.max(0, (Math.log10(Math.max(fans, 1)) - 2) / 5))
+}
 
 function deezerCredit(artist: { id: number; name: string }): ProviderCredit {
   return { id: String(artist.id), mbid: null, name: artist.name, joinPhrase: '' }
@@ -129,14 +154,25 @@ function deezerTrack(track: DeezerTrack): ProviderTrack {
   }
 }
 
+/**
+ * Deezer lists some credit lines as artists of their own ("Performed by Beyoncé Knowles,",
+ * "Tech N9ne feat. Kendrick Lamar"): no page of music behind them, and named after a real
+ * artist, so they crowd the real one out of an artist search.
+ */
+export function isCreditLine(name: string): boolean {
+  return /\s(feat\.|ft\.|featuring)\s/i.test(` ${name} `) || /^performed by\s/i.test(name.trim()) || /,\s*$/.test(name)
+}
+
 export const deezerProvider: SearchProvider = {
   name: 'deezer',
   idSource: 'deezer',
   available: async () => (await getServerSettings()).deezerEnabled,
-  async search(query, { limit }) {
-    const results = await deezer.search(query, { limit })
+  async search(query, { limit, offset, types }) {
+    const results = await deezer.search(query, { limit, offset, types: [...types] })
     return {
-      artists: results.artists.map((artist) => ({ id: String(artist.id), mbid: null, name: artist.name, imageUrl: artist.imageUrl })),
+      artists: results.artists.filter((artist) => !isCreditLine(artist.name)).map((artist) => ({
+        id: String(artist.id), mbid: null, name: artist.name, imageUrl: artist.imageUrl, popularity: fansPopularity(artist.fans),
+      })),
       albums: results.albums.map(deezerAlbum),
       tracks: results.tracks.map(deezerTrack),
     }
@@ -186,11 +222,11 @@ export const musicBrainzProvider: SearchProvider = {
   name: 'musicbrainz',
   idSource: 'musicbrainz',
   available: async () => (await getServerSettings()).musicBrainzEnabled,
-  async search(query, { limit }) {
+  async search(query, { limit, offset, types }) {
     // Sequential: the client spaces requests a second apart anyway.
-    const artists = await musicbrainz.searchArtists(query, { limit })
-    const groups = await musicbrainz.searchReleaseGroupsByText(query, { limit })
-    const recordings = await musicbrainz.searchRecordingsByText(query, { limit })
+    const artists = types.includes('artist') ? await musicbrainz.searchArtists(query, { limit, offset }) : []
+    const groups = types.includes('album') ? await musicbrainz.searchReleaseGroupsByText(query, { limit, offset }) : []
+    const recordings = types.includes('track') ? await musicbrainz.searchRecordingsByText(query, { limit, offset }) : []
     return {
       artists: artists.map((artist) => ({ id: artist.mbid, mbid: artist.mbid, name: artist.name, imageUrl: null })),
       albums: await Promise.all(groups.map((group) => mbAlbum(group))),
@@ -219,9 +255,11 @@ export const localIndexProvider: SearchProvider = {
   name: 'local-index',
   idSource: 'musicbrainz',
   available: isCatalogIndexReady,
-  async search(query, { limit }) {
-    const results = await searchCatalogIndex(query, { limit })
-    const of = (kind: CatalogIndexResult['kind']) => results.filter((result) => result.kind === kind)
+  async search(query, { limit, offset, types }) {
+    const kinds = types.map((type) => (type === 'track' ? 'recording' as const : type))
+    // The index ranks in one query and cannot skip, so a later page reads the ones before it too.
+    const results = await searchCatalogIndex(query, { limit: limit + offset, kinds })
+    const of = (kind: CatalogIndexResult['kind']) => results.filter((result) => result.kind === kind).slice(offset)
     const credited = results.flatMap((result) => (result.artistName ? [matchKey(result.artistName)] : []))
     const albumNames = of('recording').flatMap((result) => (result.albumName ? [matchKey(result.albumName)] : []))
     const [artistRows, albumRows] = await Promise.all([indexMbids('artist', [...new Set(credited)]), indexMbids('album', [...new Set(albumNames)])])
@@ -232,7 +270,7 @@ export const localIndexProvider: SearchProvider = {
       const mbid = artistMbid.get(matchKey(name)) ?? null
       return [{ id: mbid, mbid, name, joinPhrase: '' }]
     }
-    const album = async (mbid: string | null, title: string, artistName: string): Promise<ProviderAlbum> => ({
+    const album = async (mbid: string | null, title: string, artistName: string, popularity: number | null = null): Promise<ProviderAlbum> => ({
       id: mbid,
       mbid,
       title,
@@ -243,13 +281,14 @@ export const localIndexProvider: SearchProvider = {
       year: null,
       releaseDate: null,
       artworkUrl: await releaseGroupCover(mbid),
+      popularity,
     })
     const albumOf = (title: string, artistName: string) =>
       albumRows.find((row) => row.nameKey === matchKey(title) && matchKey(row.artistName ?? '') === matchKey(artistName))?.mbid ?? null
 
     return {
-      artists: of('artist').map((artist) => ({ id: artist.mbid, mbid: artist.mbid, name: artist.name, imageUrl: null })),
-      albums: await Promise.all(of('album').map((result) => album(result.mbid, result.name, result.artistName ?? ''))),
+      artists: of('artist').map((artist) => ({ id: artist.mbid, mbid: artist.mbid, name: artist.name, imageUrl: null, popularity: artist.popularity })),
+      albums: await Promise.all(of('album').map((result) => album(result.mbid, result.name, result.artistName ?? '', result.popularity))),
       tracks: await Promise.all(of('recording').map(async (result): Promise<ProviderTrack> => {
         const artistName = result.artistName ?? ''
         return {
@@ -260,7 +299,7 @@ export const localIndexProvider: SearchProvider = {
           artists: credit(artistName),
           durationMs: null,
           explicit: null,
-          popularity: null,
+          popularity: result.popularity,
           isrcs: [],
           album: result.albumName ? await album(albumOf(result.albumName, artistName), result.albumName, artistName) : null,
         }
@@ -291,11 +330,11 @@ function mergeResults(first: ProviderResults, second: ProviderResults, limit: nu
 /** Provider calls in progress, so identical queries arriving together share one. */
 const inFlight = new Map<string, Promise<ProviderResults>>()
 
-function shared(provider: SearchProvider, query: string, limit: number): Promise<ProviderResults> {
-  const key = `${provider.name}\n${limit}\n${query}`
+function shared(provider: SearchProvider, query: string, options: SearchOptions): Promise<ProviderResults> {
+  const key = `${provider.name}\n${options.limit}\n${options.offset}\n${options.types.join()}\n${query}`
   let call = inFlight.get(key)
   if (!call) {
-    call = provider.search(query, { limit }).finally(() => inFlight.delete(key))
+    call = provider.search(query, options).finally(() => inFlight.delete(key))
     inFlight.set(key, call)
   }
   return call
@@ -306,8 +345,10 @@ function shared(provider: SearchProvider, query: string, limit: number): Promise
  * through to the next one when it throws. `provider` is null when none is available; when
  * every available provider fails, the last error is thrown.
  */
-export async function searchCatalog(query: string, limit: number, providers: readonly SearchProvider[] = searchProviders):
-  Promise<{ provider: SearchProvider | null; results: ProviderResults }> {
+export async function searchCatalog(
+  query: string, limit: number, providers: readonly SearchProvider[] = searchProviders, page: { offset?: number; types?: readonly SearchKind[] } = {},
+): Promise<{ provider: SearchProvider | null; results: ProviderResults }> {
+  const options: SearchOptions = { limit, offset: page.offset ?? 0, types: page.types ?? allKinds }
   // Providers ignore case and spacing, so variants share a call and a cache entry.
   const normalized = query.trim().replace(/\s+/g, ' ').toLowerCase()
   const key = matchKey(normalized)
@@ -317,8 +358,8 @@ export async function searchCatalog(query: string, limit: number, providers: rea
   for (const provider of providers) {
     if (!(await provider.available())) continue
     try {
-      if (plain === normalized) return { provider, results: await shared(provider, normalized, limit) }
-      const [whole, withoutEdition] = await Promise.all([shared(provider, normalized, limit), shared(provider, plain, limit)])
+      if (plain === normalized) return { provider, results: await shared(provider, normalized, options) }
+      const [whole, withoutEdition] = await Promise.all([shared(provider, normalized, options), shared(provider, plain, options)])
       return { provider, results: mergeResults(whole, withoutEdition, limit) }
     } catch (error) {
       failure = error

@@ -91,7 +91,7 @@ export function artistOwned(alias: string): SQL {
 export const seqScanOff = sql`select set_config('enable_seqscan', 'off', true)`
 
 /** The query for one kind; exported for the performance test's EXPLAIN. */
-export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number): SQL {
+export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number, offset = 0): SQL {
   const end = prefixEnd(key)
   const recent = sql`select recording_id, album_id from plays where user_id = ${userId} order by started_at desc limit ${recentPlays}`
 
@@ -119,7 +119,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
         word_similarity(${key}, a.name_key) desc, coalesce(played.plays, 0) desc,
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'artist' and l.entity_id = a.id) desc,
         a.name_key, a.id
-      limit ${limit}`
+      limit ${limit} offset ${offset}`
   }
 
   const table = sql.raw(kind === 'album' ? 'albums' : 'recordings')
@@ -164,15 +164,23 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
       word_similarity(${key}, t.match_key) desc, coalesce(played.plays, 0) desc,
       exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = ${likeType} and l.entity_id = t.id) desc,
       t.title_key, t.id
-    limit ${limit}`
+    limit ${limit} offset ${offset}`
 }
 
-/** Ids of the best owned artists, albums and tracks for a `matchKey` query, at most `limit` of each. */
-export async function searchLibrary(userId: string, key: string, limit: number): Promise<{ artists: string[]; albums: string[]; tracks: string[] }> {
-  const ids = (kind: LibraryKind) => db.transaction(async (tx) => {
-    await tx.execute(seqScanOff)
-    return (await tx.execute<{ id: string }>(libraryQuery(kind, userId, key, limit))).map((row) => row.id)
-  })
+/**
+ * Ids of the best owned artists, albums and tracks for a `matchKey` query, at most `limit`
+ * of each after skipping `offset`; only the `types` asked for (the others are empty).
+ */
+export async function searchLibrary(userId: string, key: string, limit: number, page: { offset?: number; types?: readonly LibraryKind[] } = {}):
+  Promise<{ artists: string[]; albums: string[]; tracks: string[] }> {
+  const offset = page.offset ?? 0
+  const ids = async (kind: LibraryKind) => {
+    if (page.types && !page.types.includes(kind)) return []
+    return db.transaction(async (tx) => {
+      await tx.execute(seqScanOff)
+      return (await tx.execute<{ id: string }>(libraryQuery(kind, userId, key, limit, offset))).map((row) => row.id)
+    })
+  }
   const [artists, albums, tracks] = await Promise.all([ids('artist'), ids('album'), ids('track')])
   return { artists, albums, tracks }
 }

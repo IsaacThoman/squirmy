@@ -2,13 +2,14 @@ import { readFileSync } from 'node:fs'
 import { eq, sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, externalIds, likes, mediaFiles, playlistItems, playlists, plays, recordings } from '../../database/schema.js'
+import { albumArtists, albums, artists, externalIds, likes, mediaFiles, playlistItems, playlists, plays, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { createFile } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
-import { createArtist, createLibraryRoot, createUser } from '../../test/factories.js'
-import { planReleaseMerges, reconcileAllArtists, reconcileArtistAlbums, type ReleaseRow } from './reconcile.js'
+import { createAlbum, createArtist, createLibraryRoot, createUser } from '../../test/factories.js'
+import { mergeAlbum, mergeRecording } from '../matching/merge.js'
+import { foldTagBuiltArtists, planReleaseMerges, reconcileAllArtists, reconcileArtistAlbums, type ReleaseRow } from './reconcile.js'
 
 type Recorded = ReleaseRow & { deezerIds: string | null }
 
@@ -156,5 +157,39 @@ describe('reconcileArtistAlbums', () => {
     const [left] = await db.execute<{ count: number }>(sql`
       select count(*)::int as count from albums where primary_artist_id = ${grimes.id} and merged_into_id is null`)
     expect(left!.count).toBe(1)
+  })
+})
+
+describe('foldTagBuiltArtists', () => {
+  useTestDatabase()
+
+  it('folds artists built from delivery tags that only merged rows credit, and leaves real ones', async () => {
+    const mira = await createArtist({ name: 'Mira Vale' })
+    const harbor = await createAlbum({ artist: mira, title: 'Glass Harbor', tracks: [{ title: 'Low Tide' }] })
+    // What ingest built from two deliveries' tags, then placement merged into the catalog rows.
+    const copy = await createArtist({ name: 'Mira Vale' })
+    const built = await createAlbum({ artist: copy, title: 'Glass Harbor', tracks: [{ title: 'Low Tide' }] })
+    const joined = await createArtist({ name: 'Grimes, VADAKIN' })
+    const joinedAlbum = await createAlbum({ artist: joined, title: 'ACCELERANDO', tracks: [{ title: 'ACCELERANDO' }] })
+    const grimes = await createArtist({ name: 'Grimes' })
+    const accelerando = await createAlbum({ artist: grimes, title: 'ACCELERANDO', tracks: [{ title: 'ACCELERANDO' }] })
+    const user = await createUser()
+    await db.insert(likes).values({ userId: user.id, entityType: 'artist', entityId: copy.id })
+    await mergeAlbum(built.albumId, harbor.albumId)
+    await mergeRecording(built.tracks[0]!.recordingId, harbor.tracks[0]!.recordingId)
+    await mergeAlbum(joinedAlbum.albumId, accelerando.albumId)
+    await mergeRecording(joinedAlbum.tracks[0]!.recordingId, accelerando.tracks[0]!.recordingId)
+    // A local artist of the user's own files, with no MBID either.
+    const local = await createArtist({ name: 'Bedroom Project' })
+    await createAlbum({ artist: local, title: 'Demos', owned: true })
+
+    expect(await foldTagBuiltArtists()).toBe(2)
+    const row = async (id: string) => (await db.select({ id: artists.id, mergedIntoId: artists.mergedIntoId }).from(artists).where(eq(artists.id, id)))[0]
+    expect(await row(copy.id)).toEqual({ id: copy.id, mergedIntoId: mira.id })
+    expect(await row(joined.id)).toBeUndefined()
+    expect(await row(local.id)).toMatchObject({ mergedIntoId: null })
+    // The like moved with the merge.
+    expect(await db.select({ entityId: likes.entityId }).from(likes).where(eq(likes.userId, user.id))).toEqual([{ entityId: mira.id }])
+    expect(await foldTagBuiltArtists()).toBe(0)
   })
 })
