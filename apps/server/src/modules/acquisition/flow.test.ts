@@ -6,7 +6,7 @@ import { createMockProvider, type MockProvider } from '@squirmy/adapter-mock'
 import { FakeEngine, SessionClient } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import {
-  AcquireResponse, AcquisitionUsage, ImportList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent,
+  AcquireResponse, AcquisitionProviderList, AcquisitionUsage, ImportList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent,
 } from '@squirmy/contracts'
 import { deliver } from '@squirmy/provider-kit'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
@@ -660,5 +660,39 @@ describe('acquisition end to end', () => {
     expect(errorCode(refused, 403)).toBe('acquire_not_allowed')
     expect(refused.body).not.toContain(fan.username)
     await settle(wanted)
+  })
+
+  it('marks a provider that fails different tracks as failing instead of graying each track, until it delivers again', async () => {
+    const admin = await signIn({ role: 'admin' })
+    const health = async () => body(await app.inject({ url: '/api/v1/admin/acquisition/providers', headers: admin.headers }), AcquisitionProviderList).items.find((item) => item.id === providerId)!
+    const missesOf = (ids: string[]) => db.select().from(acquisitionMisses).where(and(eq(acquisitionMisses.providerId, providerId), inArray(acquisitionMisses.entityId, ids)))
+    const album = await createAlbum({ title: 'Signed Out', tracks: ['One', 'Two', 'Three', 'Four'].map((title) => ({ title, durationMs: 3000 })) })
+    const ids = album.tracks.map((track) => track.recordingId)
+    mock.settings.fail = true
+    // Two tracks fail: each could just be missing at the source, so each gets a miss.
+    for (const id of ids.slice(0, 2)) {
+      body(await acquire(fan, id), AcquireResponse, 202)
+      await settle(id)
+    }
+    expect(await missesOf(ids)).toHaveLength(2)
+    const before = await health()
+    expect(before.failingSince).toBeNull()
+    expect(before.lastError).toBe('The provider failed: The mock provider was told to fail')
+
+    // A third different track: the provider is what fails. The misses go, the tracks stay playable.
+    body(await acquire(fan, ids[2]!), AcquireResponse, 202)
+    await settle(ids[2]!)
+    expect(await missesOf(ids)).toEqual([])
+    expect((await trackAvailability(ids)).get(ids[0]!)).toBe('on_demand')
+    const failing = await health()
+    expect(failing.failingSince).not.toBeNull()
+    expect(failing.lastError).toBe('The provider failed: The mock provider was told to fail')
+
+    // Once it delivers again, it is healthy.
+    mock.settings.fail = false
+    body(await acquire(fan, ids[3]!), AcquireResponse, 202)
+    await settle(ids[3]!)
+    expect(await health()).toMatchObject({ failingSince: null, lastError: null })
+    expect((await jobsFor(ids[3]!))[0]?.status).toBe('completed')
   })
 })

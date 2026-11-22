@@ -1,0 +1,2 @@
+ALTER TABLE "acquisition_providers" ADD COLUMN "failing_since" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "acquisition_providers" ADD COLUMN "failing_recordings" uuid[] DEFAULT '{}'::uuid[] NOT NULL;
