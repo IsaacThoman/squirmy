@@ -109,7 +109,9 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   // A Home saved before the wantlist was switched off, or from an older server, may still have it.
   const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
   const albums = (id: string) => sections.find((section): section is Extract<HomeSection, { kind: 'albums' }> => section.kind === 'albums' && section.id === id)?.albums;
-  const hero = albums('recently-played')?.[0] ?? albums('recently-added')?.[0];
+  // The first thing on Home: something that plays, never a gray card of an album nobody can play.
+  const playable = (album: AlbumSummary) => album.availability !== 'none';
+  const hero = albums('recently-played')?.find(playable) ?? albums('recently-added')?.find(playable);
   const heroSize = width - gutter * 2;
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
 
