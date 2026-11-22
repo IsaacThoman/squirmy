@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../database/client.js'
 import { detachedSessions, playbackSessions } from '../../database/schema.js'
-import type { OpenPlay } from './plays.js'
+import { OpenPlay } from './plays.js'
 
 /**
  * In-memory sessions, loaded lazily and written back about a second after each change:
@@ -22,6 +22,12 @@ import type { OpenPlay } from './plays.js'
 const PERSIST_DELAY_MS = 1000
 /** Command ids remembered per session for de-duplication. */
 const COMMAND_MEMORY = 1000
+/**
+ * The most recent command ids written with the session. A client re-sends the commands it
+ * has seen no state for after every reconnect, a restart included; stored with the state
+ * they produced, they are recognized exactly when their effect survived.
+ */
+const STORED_COMMANDS = 100
 
 export type SessionRecord = {
   /** `sessionKey(userId, deviceId)`. */
@@ -54,7 +60,8 @@ export function sessionKey(userId: string, deviceId: string | null = null): stri
   return deviceId === null ? userId : `${userId}/${deviceId}`
 }
 
-const StoredSession = z.object({ state: SessionState, queue: SessionQueue })
+type StoredSession = z.infer<typeof StoredSession>
+const StoredSession = z.object({ state: SessionState, queue: SessionQueue, play: OpenPlay.nullish(), commandIds: z.array(z.string()).optional() })
 
 const records = new Map<string, SessionRecord>()
 const chains = new Map<string, Promise<unknown>>()
@@ -94,6 +101,13 @@ export function loadedRecords(): IterableIterator<SessionRecord> {
   return records.values()
 }
 
+/** The session, open play and command ids of a stored session; the play only while its entry is still current. */
+function restored(stored: StoredSession): Pick<SessionRecord, 'session' | 'play' | 'commandIds'> {
+  const session = joinSession(stored.state, stored.queue)
+  const play = stored.play && stored.play.entryId === session.current?.id ? stored.play : null
+  return { session, play, commandIds: new Set(stored.commandIds ?? []) }
+}
+
 function newRecord(userId: string, deviceId: string | null, fields: Pick<SessionRecord, 'session' | 'version' | 'queueVersion'> & Partial<SessionRecord>): SessionRecord {
   return {
     key: sessionKey(userId, deviceId),
@@ -122,7 +136,7 @@ export async function loadRecord(userId: string, onLoad: (record: SessionRecord)
   const [row] = await db.select().from(playbackSessions).where(eq(playbackSessions.userId, userId))
   const stored = row ? StoredSession.safeParse(row.state) : null
   const record = newRecord(userId, null, {
-    session: stored?.success ? joinSession(stored.data.state, stored.data.queue) : createInitialSession(),
+    ...(stored?.success ? restored(stored.data) : { session: createInitialSession() }),
     version: row?.version ?? 0,
     queueVersion: row?.queueVersion ?? 0,
   })
@@ -146,7 +160,7 @@ export async function readOwn(userId: string, deviceId: string): Promise<Session
     return undefined
   }
   const record = newRecord(userId, deviceId, {
-    session: joinSession(stored.data.state, stored.data.queue),
+    ...restored(stored.data),
     version: row.version,
     queueVersion: row.queueVersion,
     lastSeenAt: row.lastSeenAt.getTime(),
@@ -229,7 +243,8 @@ export function schedulePersist(record: SessionRecord, onError: (error: unknown)
 export function persist(record: SessionRecord): Promise<void> {
   if (record.discarded) return record.writing
   const { state, queue } = splitSession(record.session)
-  const values = { state: { state, queue }, version: record.version, queueVersion: record.queueVersion, updatedAt: new Date() }
+  const commandIds = [...record.commandIds].slice(-STORED_COMMANDS)
+  const values = { state: { state, queue, play: record.play, commandIds }, version: record.version, queueVersion: record.queueVersion, updatedAt: new Date() }
   const { userId, deviceId } = record
   const lastSeenAt = new Date(record.lastSeenAt)
   record.writing = record.writing.catch(() => undefined).then(async () => {
@@ -246,20 +261,21 @@ export function persist(record: SessionRecord): Promise<void> {
 }
 
 /**
- * Waits for queued tasks, writes every session with unsaved changes, and forgets them all.
+ * Waits for queued tasks, runs `beforeUnload`, writes every session with unsaved changes
+ * or an open play, and forgets them all.
  * The next use loads from the database again.
  */
 export async function unloadAll(beforeUnload: (record: SessionRecord) => Promise<void>): Promise<void> {
   await Promise.all(chains.values())
   for (const record of records.values()) {
-    if (record.persistTimer) {
-      clearTimeout(record.persistTimer)
-      record.persistTimer = null
-      await persist(record)
-    }
+    const unsaved = Boolean(record.persistTimer) || record.play !== null
+    if (record.persistTimer) clearTimeout(record.persistTimer)
+    record.persistTimer = null
+    await beforeUnload(record)
+    // The open play's count moved on in `beforeUnload`, so it is stored as it is now.
+    if (unsaved) await persist(record)
     // A failed scheduled write was already reported.
     await record.writing.catch(() => undefined)
-    await beforeUnload(record)
   }
   records.clear()
 }

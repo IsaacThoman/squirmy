@@ -12,6 +12,7 @@ import { isCatalogIndexReady, searchCatalogIndex, type CatalogIndexResult } from
 import { deezer, musicbrainz } from '../metadata/index.js'
 import type { DeezerAlbumSummary, DeezerTrack } from '../metadata/deezer.js'
 import type { MbArtistCredit, MbRecording, MbReleaseGroupSummary } from '../metadata/musicbrainz.js'
+import { editionFreeQuery } from './keys.js'
 
 /** Whose ids a result carries; also the `external_ids.provider` they are stored under. */
 export type IdSource = 'deezer' | 'musicbrainz'
@@ -266,6 +267,19 @@ export const localIndexProvider: SearchProvider = {
 
 export const searchProviders: readonly SearchProvider[] = [localIndexProvider, deezerProvider, musicBrainzProvider]
 
+/** `first`'s results, then those of `second` it lacks, at most `limit` of each kind. */
+function mergeResults(first: ProviderResults, second: ProviderResults, limit: number): ProviderResults {
+  const merge = <T>(a: T[], b: T[], key: (item: T) => string) => {
+    const seen = new Set(a.map(key))
+    return [...a, ...b.filter((item) => !seen.has(key(item)))].slice(0, limit)
+  }
+  return {
+    artists: merge(first.artists, second.artists, (artist) => artist.id),
+    albums: merge(first.albums, second.albums, (album) => album.id ?? `${matchKey(album.artistCredit)}|${matchKey(album.title)}`),
+    tracks: merge(first.tracks, second.tracks, (track) => track.id),
+  }
+}
+
 /** Provider calls in progress, so identical queries arriving together share one. */
 const inFlight = new Map<string, Promise<ProviderResults>>()
 
@@ -288,11 +302,16 @@ export async function searchCatalog(query: string, limit: number, providers: rea
   Promise<{ provider: SearchProvider | null; results: ProviderResults }> {
   // Providers ignore case and spacing, so variants share a call and a cache entry.
   const normalized = query.trim().replace(/\s+/g, ' ').toLowerCase()
+  const key = matchKey(normalized)
+  const plainKey = editionFreeQuery(key)
+  const plain = plainKey === key ? normalized : plainKey
   let failure: unknown
   for (const provider of providers) {
     if (!(await provider.available())) continue
     try {
-      return { provider, results: await shared(provider, normalized, limit) }
+      if (plain === normalized) return { provider, results: await shared(provider, normalized, limit) }
+      const [whole, withoutEdition] = await Promise.all([shared(provider, normalized, limit), shared(provider, plain, limit)])
+      return { provider, results: mergeResults(whole, withoutEdition, limit) }
     } catch (error) {
       failure = error
     }

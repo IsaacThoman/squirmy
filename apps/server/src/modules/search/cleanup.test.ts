@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albums, assets, externalIds, likes, playbackSessions, playlistItems, playlists, releases, wants } from '../../database/schema.js'
+import { acquisitionJobs, acquisitionProviders, albums, assets, externalIds, likes, playbackSessions, playlistItems, playlists, releases, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { createFile, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -95,5 +95,27 @@ describe('search.cleanup', () => {
     await db.execute(sql`delete from likes where entity_type = 'artist'`)
     expect((await cleanupStubs()).artists).toBe(1)
     expect(await exists('artists', 'artist:liked')).toBe(false)
+  })
+
+  it('keeps what an acquisition in progress is fetching', async () => {
+    const stored = await materialize('deezer', {
+      artists: [],
+      albums: [album('fetching album')],
+      tracks: [track('fetching'), track('fetching too')],
+    })
+    await db.execute(sql`update albums set created_at = now() - interval '${sql.raw(String(stubMaxAgeDays + 1))} days'`)
+    await db.execute(sql`update recordings set created_at = now() - interval '${sql.raw(String(stubMaxAgeDays + 1))} days'`)
+    const [provider] = await db.insert(acquisitionProviders).values({ id: newId(), name: 'Provider', baseUrl: 'http://provider.test', secretEncrypted: 'x' }).returning()
+    await db.insert(acquisitionJobs).values([
+      { id: newId(), providerId: provider!.id, recordingId: stored.tracks[0]!, recordingIds: [stored.tracks[0]!], status: 'downloading', idempotencyKey: 'recording:one' },
+      { id: newId(), providerId: provider!.id, albumId: stored.albums[0]!, recordingIds: [stored.tracks[1]!], status: 'importing', idempotencyKey: 'album:one' },
+    ])
+    await cleanupStubs()
+    expect((await db.execute(sql`select id from recordings where id = any(${`{${stored.tracks.join(',')}}`}::uuid[])`)).length).toBe(2)
+    expect((await db.execute(sql`select id from albums where id = ${stored.albums[0]!}`)).length).toBe(1)
+
+    // Once the jobs end, the stubs are fair game again.
+    await db.execute(sql`update acquisition_jobs set status = 'failed'`)
+    expect(await cleanupStubs()).toMatchObject({ recordings: 2, albums: 1 })
   })
 })

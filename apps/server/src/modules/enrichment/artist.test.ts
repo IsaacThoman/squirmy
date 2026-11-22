@@ -149,7 +149,7 @@ describe('artist detail', () => {
     vi.stubGlobal('fetch', async () => {
       throw new TypeError('fetch failed')
     })
-    await expect(ensureArtistDetail(id)).resolves.toBeUndefined()
+    await expect(ensureArtistDetail(id)).resolves.toBe(true)
     expect((await artistDetail(userId, id)).albums).toEqual([])
     vi.stubGlobal('fetch', fixtures)
 
