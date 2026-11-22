@@ -1,8 +1,8 @@
 // Checks the release polish in real Chromium against a server that has not been set up yet
 // and was started the way the Docker image starts it, with the music folder in its
 // configuration: the setup wizard starting from that folder, the version, a managed
-// folder's naming template and Organize's mention of it, search leading with its top
-// result (typing into the search page's field), the server's ListenBrainz key described as a lookup
+// folder's naming template and Organize's mention of it, search leading with its best
+// match (typing into the search page's field), the server's ListenBrainz key described as a lookup
 // key, and the queue showing a fetch as loading on the current song only. Identification and
 // catalog search talk to MusicBrainz and Deezer, so a run takes a few minutes.
 //
@@ -210,15 +210,13 @@ await step('Organize names the template a preview used', async () => {
   check('closing the editor leaves the link', true)
 })
 
-/** The headings of a results group, in order. */
-
-await step('search leads with the top result', async () => {
+await step('search leads with the best match', async () => {
   // The scan must have read the album's tags before the library can find it.
   await until(() => get('/search/library?q=OK%20Computer&limit=20'), results => results.top?.type === 'album', minutes(2), 1000)
   const expected = await get('/search/library?q=OK%20Computer&limit=20')
   await page.goto(`${base}/search`)
   await heading('Search').waitFor()
-  const search = page.getByRole('searchbox', { name: 'Search' })
+  const search = page.getByRole('combobox', { name: 'Search' })
   check('the search page\'s field takes focus', await search.evaluate(element => element === document.activeElement))
   // Fast typing, a mistake and its correction: nothing may be dropped or arrive out of order.
   await search.pressSequentially('OK Computr', { delay: 15 })
@@ -226,24 +224,32 @@ await step('search leads with the top result', async () => {
   await search.pressSequentially('er', { delay: 15 })
   await page.waitForFunction(() => new URL(location.href).searchParams.get('q') === 'OK Computer')
   check('the search field keeps every letter', await search.inputValue() === 'OK Computer', page.url())
-  const top = page.getByRole('region', { name: 'Top result' })
-  await top.waitFor()
-  check('the top result is the server\'s', await top.getByRole('link', { name: 'OK Computer' }).getAttribute('href') === `/album/${expected.top.id}` && await top.getByText('Album').isVisible())
-  check('an owned album can be played from it', await top.getByRole('button', { name: 'Play OK Computer' }).isVisible())
-  // One set of results, the library's and the catalog's merged: no section says where music is.
+  // One ranked list, the library's and the catalog's merged, once both have answered.
+  const results = page.getByRole('listbox', { name: /^Results for / })
+  await results.waitFor()
   await page.waitForFunction(() => !document.querySelector('main [aria-busy]'), null, { timeout: 30_000 })
+  const first = results.getByRole('option').first()
+  check('the best match leads, the server\'s top result', await first.getByRole('link', { name: /^OK Computer, Album · / }).getAttribute('href') === `/album/${expected.top.id}`, await first.textContent())
+  await first.hover()
+  await first.getByRole('button', { name: 'More options for OK Computer' }).click()
+  check('an owned album can be played from its menu', await page.getByRole('menuitem', { name: 'Play', exact: true }).isEnabled())
+  await page.keyboard.press('Escape')
   const headings = await page.getByRole('main').getByRole('heading', { level: 2 }).allTextContents()
-  const order = ['Top result', 'Artists', 'Albums', 'Songs']
-  check('the top result leads, then artists, albums and songs', headings[0] === 'Top result' && headings.filter(name => order.includes(name)).join(' · ') === order.filter(name => headings.includes(name)).join(' · '), headings.join(' · '))
-  check('no section is named for the library or the catalog', !headings.some(name => /library|discover/i.test(name)), headings.join(' · '))
+  check('no sections, none named for the library or the catalog', headings.length === 0, headings.join(' · '))
   await shoot('search-top')
 
-  await page.goto(`${base}/search?q=${encodeURIComponent('Radiohead')}`)
-  await top.waitFor()
-  check('an artist leads when it is named', await top.getByText('Artist', { exact: true }).isVisible() && await top.getByRole('link', { name: 'Radiohead' }).isVisible())
-  await page.goto(`${base}/search?q=${encodeURIComponent('Airbag')}`)
-  await top.waitFor()
-  check('and a song, with play for an owned one', await top.getByText('Song', { exact: true }).isVisible() && await top.getByRole('button', { name: 'Play Airbag' }).isVisible())
+  /** Opens the search page for `q` and waits for its list to settle: the catalog's answer ranks it too. */
+  const settled = async q => {
+    await page.goto(`${base}/search?q=${encodeURIComponent(q)}`)
+    await results.getByRole('option').first().waitFor()
+    await page.waitForFunction(() => !document.querySelector('main [aria-busy]'), null, { timeout: 30_000 })
+    return results.getByRole('option').first()
+  }
+  const artist = await settled('Radiohead')
+  // By its link's name: an artist without a picture yet shows its initial, which the text would include.
+  check('an artist leads when it is named', await artist.getByRole('link', { name: 'Radiohead, Artist', exact: true }).count() === 1, await artist.textContent())
+  const song = await settled('Airbag')
+  check('and a song, with play for an owned one', (await song.textContent()).startsWith('AirbagSong · ') && await song.getByRole('button', { name: 'Play Airbag' }).count() === 1, await song.textContent())
 })
 
 await step('ListenBrainz setting', async () => {
