@@ -15,6 +15,11 @@ export const HISTORY_LIMIT = 50
 export const CYCLE_LIMIT = 5000
 /** `previous` restarts the current entry when at least this far in. */
 export const PREVIOUS_RESTART_MS = 3000
+/**
+ * Ids of entries that left the session may linger in `playOrder` (see the contract); once
+ * it holds this many more than the session has entries, it is pruned.
+ */
+const PLAY_ORDER_SLACK = 200
 
 /** The whole session as the reducer sees it: both halves of the wire format, flattened. */
 export type Session = SessionState & SessionQueue
@@ -121,10 +126,10 @@ export function reduceParsedSession(session: Session, input: SessionInput): Sess
   if (!Number.isFinite(input.now)) return session
   let serial = 0
   const context: Context = { now: input.now, deviceId: input.deviceId, nextId: () => `${input.commandId}.${(serial++).toString(36)}` }
-  const next = apply(session, input.command, context)
-  if (next !== session && next.playing && next.activeDeviceId === null && input.deviceId) {
-    return { ...next, activeDeviceId: input.deviceId }
-  }
+  let next = apply(session, input.command, context)
+  if (next === session) return session
+  if (next.playOrder.length > next.queue.length + next.playedInCycle.length + 1 + PLAY_ORDER_SLACK) next = prunePlayOrder(next)
+  if (next.playing && next.activeDeviceId === null && input.deviceId) return { ...next, activeDeviceId: input.deviceId }
   return next
 }
 
@@ -148,15 +153,9 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
     case 'seek':
       if (!s.current || s.current.state === 'preparing') return s
       return { ...s, positionMs: capPosition(s.current, command.positionMs), anchorAt: now }
-    case 'setShuffle': {
+    case 'setShuffle':
       if (command.value === s.shuffle) return s
-      if (command.value) {
-        return { ...s, shuffle: true, playOrder: s.queue.map(entry => entry.id), queue: shuffleEntries(s.queue, command.seed) }
-      }
-      const order = new Map(s.playOrder.map((id, index) => [id, index]))
-      const rank = (entry: QueueEntry) => order.get(entry.id) ?? order.size
-      return { ...s, shuffle: false, playOrder: [], queue: [...s.queue].sort((a, b) => rank(a) - rank(b)) }
-    }
+      return command.value ? shuffleOn(s, command.seed) : shuffleOff(s, context)
     case 'setRepeat':
       return command.value === s.repeat ? s : { ...s, repeat: command.value }
     case 'setAutoplay':
@@ -168,13 +167,14 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
       const start = command.startIndex === undefined ? order[0]! : entries[Math.min(command.startIndex, entries.length - 1)]!
       const at = order.indexOf(start)
       const upcoming = shuffle ? [...order.slice(at + 1), ...order.slice(0, at)] : order.slice(at + 1)
-      const upcomingIds = new Set(upcoming.map(entry => entry.id))
       return {
         ...startEntry(s, start, now, true),
         queue: upcoming,
         shuffle,
-        playOrder: shuffle ? entries.filter(entry => upcomingIds.has(entry.id)).map(entry => entry.id) : [],
-        playedInCycle: [],
+        playOrder: shuffle ? entries.map(entry => entry.id) : [],
+        // Started from the middle of a collection, the tracks before the start lie behind
+        // it as if skipped: previous steps back to them and repeat all comes round to them.
+        playedInCycle: shuffle ? [] : order.slice(0, at),
         // Suggestions follow what plays: those made for the old queue would come back
         // after the new one, often repeating its tracks. The server suggests afresh.
         autoplayQueue: s.autoplayQueue.length ? [] : s.autoplayQueue,
@@ -184,7 +184,7 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
     case 'enqueue': {
       // Refused whole rather than cut short, so the client and the server agree on it.
       if (s.queue.length + command.tracks.length > QUEUE_LIMIT) return s
-      const entries = command.tracks.map(seed => toEntry(seed, context.nextId()))
+      const entries = command.tracks.map(seed => ({ ...toEntry(seed, context.nextId()), queued: true }))
       const ids = entries.map(entry => entry.id)
       const first = command.placement === 'next'
       return {
@@ -193,18 +193,8 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
         playOrder: !s.shuffle ? s.playOrder : first ? [...ids, ...s.playOrder] : [...s.playOrder, ...ids],
       }
     }
-    case 'playQueueEntry': {
-      const entry = s.queue.find(item => item.id === command.entryId)
-        ?? s.autoplayQueue.find(item => item.id === command.entryId)
-      if (!entry || entry.state === 'failed') return s
-      const matches = (id: string) => id === entry.id
-      return {
-        ...startEntry(s, entry, now, true),
-        queue: remove(s.queue, item => matches(item.id)),
-        playOrder: remove(s.playOrder, matches),
-        autoplayQueue: remove(s.autoplayQueue, item => matches(item.id)),
-      }
-    }
+    case 'playQueueEntry':
+      return jump(s, command.entryId, now)
     case 'removeFromQueue': {
       const queue = remove(s.queue, item => item.id === command.entryId)
       const autoplayQueue = remove(s.autoplayQueue, item => item.id === command.entryId)
@@ -215,7 +205,10 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
       const queue = moveEntry(s.queue, command.entryId, command.toIndex)
       const autoplayQueue = moveEntry(s.autoplayQueue, command.entryId, command.toIndex)
       if (queue === s.queue && autoplayQueue === s.autoplayQueue) return s
-      return { ...s, queue, autoplayQueue, playOrder: s.shuffle && queue !== s.queue ? queue.map(entry => entry.id) : s.playOrder }
+      if (!s.shuffle || queue === s.queue) return { ...s, queue, autoplayQueue }
+      // The queue's new order is the one shuffle-off restores, all of it after the current entry.
+      const queued = new Set(queue.map(entry => entry.id))
+      return { ...s, queue, autoplayQueue, playOrder: [...s.playOrder.filter(id => !queued.has(id)), ...queue.map(entry => entry.id)] }
     }
     case 'clearQueue':
       return s.queue.length || s.playOrder.length ? { ...s, queue: [], playOrder: [] } : s
@@ -235,6 +228,8 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
       return advance(s, context, 'ended')
     case 'setEntryState':
       return setEntryState(s, command.trackId, command.state, context)
+    case 'updateTracks':
+      return updateTracks(s, command)
     case 'setAutoplayQueue': {
       if (!command.tracks.length && !s.autoplayQueue.length) return s
       return { ...s, autoplayQueue: command.tracks.slice(0, QUEUE_LIMIT).map(seed => toEntry(seed, context.nextId())) }
@@ -272,27 +267,26 @@ function advance(s: Session, context: Context, reason: AdvanceReason): Session {
   }
 
   // Failed entries at the front of a list are dropped on the way past.
+  // Ids stay in playOrder as the entries go behind the current one: shuffle-off needs to
+  // know where the current entry is in the collection.
   const queued = s.queue.findIndex(isPlayable)
-  if (queued >= 0) {
-    const passed = new Set(s.queue.slice(0, queued + 1).map(entry => entry.id))
-    return {
-      ...startEntry(s, s.queue[queued]!, now, playing),
-      queue: s.queue.slice(queued + 1),
-      playOrder: remove(s.playOrder, id => passed.has(id)),
-    }
-  }
+  if (queued >= 0) return { ...startEntry(s, s.queue[queued]!, now, playing), queue: s.queue.slice(queued + 1) }
   const queue = s.queue.length ? [] : s.queue
   const playOrder = s.playOrder.length ? [] : s.playOrder
 
   if (s.repeat === 'all') {
+    // The collection comes round again; what was added with Play next is not part of it.
     const played = s.current && isPlayable(s.current) ? [...s.playedInCycle, s.current] : s.playedInCycle
-    const cycle = played.filter(isPlayable).map(entry => ({ ...entry, id: nextId() }))
+    const again = played.filter(entry => isPlayable(entry) && !entry.queued)
+    const cycle = again.map(entry => ({ ...entry, id: nextId() }))
     const [first, ...rest] = cycle
     if (first) {
+      const rank = ranks(s.playOrder)
+      const order = again.map((entry, index) => ({ id: cycle[index]!.id, rank: rank.get(entry.id) ?? rank.size }))
       return {
         ...startEntry(s, first, now, playing),
         queue: rest,
-        playOrder: s.shuffle ? rest.map(entry => entry.id) : [],
+        playOrder: s.shuffle ? order.sort((a, b) => a.rank - b.rank).map(item => item.id) : [],
         playedInCycle: [],
       }
     }
@@ -316,25 +310,162 @@ function advance(s: Session, context: Context, reason: AdvanceReason): Session {
   return { ...s, queue, playOrder, playing: false, positionMs, anchorAt: now, stalled: false }
 }
 
+/**
+ * Steps back through what lies behind the current entry in this cycle. `history` reaches
+ * further, into whatever played before the collection started, which is not where back
+ * should go; it is only the record of what was heard.
+ */
 function previous(s: Session, now: number): Session {
-  const index = s.history.findLastIndex(isPlayable)
+  const index = s.playedInCycle.findLastIndex(isPlayable)
   if (!s.current && index < 0) return s
   if (s.current && (index < 0 || positionAt(s, now) >= PREVIOUS_RESTART_MS)) {
     return s.current.state === 'preparing' ? s : { ...s, positionMs: 0, anchorAt: now }
   }
-  const entry = s.history[index]!
-  const back = s.current && isPlayable(s.current) ? [s.current] : []
+  const entry = s.playedInCycle[index]!
+  const back = s.current && isPlayable(s.current) ? s.current : null
   return {
     ...s,
     current: entry,
     positionMs: 0,
     anchorAt: now,
     stalled: isPreparing(entry),
-    queue: [...back, ...s.queue],
-    playOrder: s.shuffle ? [...back.map(item => item.id), ...s.playOrder] : s.playOrder,
-    history: s.history.slice(0, index),
-    playedInCycle: remove(s.playedInCycle, item => item.id === entry.id),
+    queue: back ? [back, ...s.queue] : s.queue,
+    playOrder: s.shuffle && back && !s.playOrder.includes(back.id) ? [back.id, ...s.playOrder] : s.playOrder,
+    playedInCycle: s.playedInCycle.slice(0, index),
+    // Entry ids are unique outside playedInCycle: one heard before is current again.
+    history: remove(s.history, item => item.id === entry.id),
   }
+}
+
+/**
+ * Plays an entry of the queue or the autoplay queue now, skipping what lies between: the
+ * queue's entries go behind the current one, unplayed, so previous and repeat all still
+ * reach them, except those added with Play next, which stay queued. Suggestions skipped
+ * past are dropped.
+ */
+function jump(s: Session, entryId: string, now: number): Session {
+  const inQueue = s.queue.findIndex(item => item.id === entryId)
+  const inAutoplay = inQueue < 0 ? s.autoplayQueue.findIndex(item => item.id === entryId) : -1
+  const entry = inQueue >= 0 ? s.queue[inQueue] : s.autoplayQueue[inAutoplay]
+  if (!entry || entry.state === 'failed') return s
+  const skipped = inQueue >= 0 ? s.queue.slice(0, inQueue) : s.queue
+  const kept = skipped.filter(item => item.queued)
+  const passed = skipped.filter(item => !item.queued && isPlayable(item))
+  const started = startEntry(s, entry, now, true)
+  return {
+    ...started,
+    queue: inQueue >= 0 ? [...kept, ...s.queue.slice(inQueue + 1)] : kept.length === s.queue.length ? s.queue : kept,
+    playedInCycle: passed.length ? [...started.playedInCycle, ...passed].slice(-CYCLE_LIMIT) : started.playedInCycle,
+    autoplayQueue: inAutoplay >= 0 ? s.autoplayQueue.slice(inAutoplay + 1) : s.autoplayQueue,
+  }
+}
+
+/**
+ * Shuffles what is still to come of the collection: the queue's entries, and those behind
+ * the current one that were skipped rather than heard (started after, or jumped past).
+ * Entries added with Play next keep their places. `playOrder` takes the collection order:
+ * what lies behind, the current entry, then the queue.
+ */
+function shuffleOn(s: Session, seed: number): Session {
+  const heard = new Set(s.history.map(entry => entry.id))
+  const unheard = s.playedInCycle.filter(entry => !entry.queued && isPlayable(entry) && !heard.has(entry.id))
+  const pulled = new Set(unheard.map(entry => entry.id))
+  const behind = s.playedInCycle.filter(entry => !entry.queued)
+  const order = [...behind, ...(s.current && !s.current.queued ? [s.current] : []), ...s.queue].map(entry => entry.id)
+  return {
+    ...s,
+    shuffle: true,
+    playOrder: [...new Set(order)],
+    queue: fillSlots(s.queue, shuffleEntries([...unheard, ...s.queue.filter(entry => !entry.queued)], seed)),
+    playedInCycle: pulled.size ? remove(s.playedInCycle, entry => pulled.has(entry.id)) : s.playedInCycle,
+  }
+}
+
+/**
+ * Puts the collection back in order around the current entry, as streaming apps do: what
+ * comes before it lies behind it, unplayed, and what comes after is queued, including
+ * entries heard while shuffled. Entries added with Play next keep their places. When the
+ * current entry is not one of the collection's, only the queue is put back in order.
+ */
+function shuffleOff(s: Session, context: Context): Session {
+  const rank = ranks(s.playOrder)
+  const at = s.current ? rank.get(s.current.id) : undefined
+  const sorted = (entries: QueueEntry[]) => [...entries].sort((a, b) => (rank.get(a.id) ?? rank.size) - (rank.get(b.id) ?? rank.size))
+  const queueEntries = s.queue.filter(entry => !entry.queued)
+  if (at === undefined) return { ...s, shuffle: false, playOrder: [], queue: fillSlots(s.queue, sorted(queueEntries)) }
+  const ranked = (entry: QueueEntry) => !entry.queued && rank.has(entry.id) && isPlayable(entry)
+  const behindRanked = s.playedInCycle.filter(ranked)
+  const fromBehind = new Set(behindRanked.map(entry => entry.id))
+  const collection = sorted([...behindRanked, ...queueEntries])
+  const isBefore = (entry: QueueEntry) => (rank.get(entry.id) ?? rank.size) < at
+  // An entry coming back from behind may be in history, so it is queued under a fresh id.
+  const after = collection.filter(entry => !isBefore(entry)).map(entry => (fromBehind.has(entry.id) ? { ...entry, id: context.nextId() } : entry))
+  return {
+    ...s,
+    shuffle: false,
+    playOrder: [],
+    queue: fillSlots(s.queue, after),
+    playedInCycle: [...s.playedInCycle.filter(entry => !ranked(entry)), ...collection.filter(isBefore)].slice(-CYCLE_LIMIT),
+  }
+}
+
+/**
+ * The queue with its collection entries replaced by `entries`, in order, and those added
+ * with Play next left where they are. Entries beyond the collection's places follow its
+ * last one (the end, when it has none); places beyond `entries` close up.
+ */
+function fillSlots(queue: QueueEntry[], entries: QueueEntry[]): QueueEntry[] {
+  const result: QueueEntry[] = []
+  let used = 0
+  let lastPlace = -1
+  for (const entry of queue) {
+    if (entry.queued) result.push(entry)
+    else if (used < entries.length) {
+      result.push(entries[used++]!)
+      lastPlace = result.length - 1
+    }
+  }
+  if (used < entries.length) {
+    const at = lastPlace >= 0 ? lastPlace + 1 : result.length
+    result.splice(at, 0, ...entries.slice(used))
+  }
+  return result
+}
+
+function ranks(order: readonly string[]): Map<string, number> {
+  return new Map(order.map((id, index) => [id, index]))
+}
+
+/** `playOrder` without the ids of entries no longer behind, current or queued. */
+function prunePlayOrder(s: Session): Session {
+  const live = new Set([...s.playedInCycle, ...s.queue, ...(s.current ? [s.current] : [])].map(entry => entry.id))
+  return { ...s, playOrder: s.playOrder.filter(id => live.has(id)) }
+}
+
+/** Follows catalog changes of tracks and albums into every entry. */
+function updateTracks(s: Session, command: Extract<ServerSessionCommand, { type: 'updateTracks' }>): Session {
+  const tracks = new Map(command.tracks.map(item => [item.trackId, item]))
+  const albums = new Map((command.albums ?? []).map(item => [item.albumId, item.id]))
+  const update = (entry: QueueEntry): QueueEntry => {
+    const track = tracks.get(entry.trackId)
+    const trackId = track?.id ?? entry.trackId
+    const durationMs = track?.durationMs ?? entry.durationMs
+    const albumId = entry.albumId === null ? null : albums.get(entry.albumId) ?? entry.albumId
+    if (trackId === entry.trackId && durationMs === entry.durationMs && albumId === entry.albumId) return entry
+    return { ...entry, trackId, durationMs, albumId }
+  }
+  const current = s.current && update(s.current)
+  const next: Session = {
+    ...s,
+    current,
+    queue: mapEntries(s.queue, update),
+    history: mapEntries(s.history, update),
+    autoplayQueue: mapEntries(s.autoplayQueue, update),
+    playedInCycle: mapEntries(s.playedInCycle, update),
+  }
+  if (current === s.current) return queueChanged(s, next) ? next : s
+  // A shorter length than the position the session holds is the end.
+  return { ...next, positionMs: current ? capPosition(current, s.positionMs) : s.positionMs }
 }
 
 function setEntryState(s: Session, trackId: string, state: QueueEntry['state'], context: Context): Session {
