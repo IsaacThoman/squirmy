@@ -266,9 +266,12 @@ export function normalizeDate(raw: string | null | undefined): MbDate {
 /**
  * Squirmy's album type from MusicBrainz release-group types. Secondary types win over
  * the primary one in the order soundtrack, live, compilation; spoken word, audiobooks
- * and the like are "other".
+ * and the like are "other". A single or EP stays one whatever its secondary types: a song
+ * from a film or a live single is listed with the artist's singles, as stores list it.
  */
 export function albumType(primary: string | null | undefined, secondary: string[] = []): AlbumType {
+  const short = primary?.toLowerCase()
+  if (short === 'single' || short === 'ep') return short
   const types = new Set(secondary.map((type) => type.toLowerCase()))
   if (types.has('soundtrack')) return 'soundtrack'
   if (types.has('live')) return 'live'

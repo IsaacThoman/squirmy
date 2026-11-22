@@ -74,3 +74,41 @@ export function textArray(values: readonly (string | null)[]): SQL {
   const items = values.map((value) => (value === null ? 'NULL' : `"${value.replace(/["\\]/g, '\\$&')}"`))
   return sql`${`{${items.join(',')}}`}::text[]`
 }
+
+/**
+ * The type a stub takes when the provider names none: a single when the album is titled
+ * like one of its tracks (that is how stores name singles), else an album. Either way it
+ * is marked as a guess (`albums.type_guessed`).
+ */
+export function guessAlbumType(albumTitle: string, trackTitles: readonly string[]): 'single' | 'album' {
+  const key = editionFreeKey(albumTitle)
+  return key && trackTitles.some((title) => editionFreeKey(title) === key) ? 'single' : 'album'
+}
+
+// How stores and MusicBrainz label what a release is or where it comes from, which the other
+// side's title may leave out: "Just Keep Watching (From F1® The Movie)", "TRON: Legacy
+// (Original Motion Picture Soundtrack)", "Stereotype E.P.", "Spectre - Single".
+const releaseLabels = [
+  /\s*[([]\s*(?:from|music from|as heard in)\s[^()[\]]*[)\]]\s*$/i,
+  /\s*[([][^()[\]]*\bsoundtrack\b[^()[\]]*[)\]]\s*$/i,
+  // MusicBrainz writes "Dune: Original Motion Picture Soundtrack" where stores bracket it.
+  /\s*[:–—-]\s+[^:–—()[\]]*\bsoundtrack\b[^:–—()[\]]*$/i,
+  /\s*[:–—-]\s+(?:original\s+)?(?:music|songs)\s+from\s[^:–—()[\]]*$/i,
+  /\s+[-–—]\s+(?:single|ep|e\.p\.)\s*$/i,
+  /\s+(?:ep|e\.p\.?)\s*$/i,
+]
+
+/**
+ * The key two catalog rows of one release share: `editionFreeKey` once store labels of the
+ * release's kind or origin are dropped too. For telling whether two rows of an artist are
+ * the same release, not for search, where those words may be what the user typed.
+ */
+export function releaseKey(title: string): string {
+  let current = editionFreeTitle(title)
+  for (;;) {
+    const match = releaseLabels.map((pattern) => pattern.exec(current)).find(Boolean)
+    const stripped = match ? editionFreeTitle(current.slice(0, match.index)) : ''
+    if (!matchKey(stripped)) return matchKey(current)
+    current = stripped
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editionFreeKey, editionFreeTitle, prefixEnd } from './keys.js'
+import { editionFreeKey, editionFreeTitle, guessAlbumType, prefixEnd, releaseKey } from './keys.js'
 
 describe('editionFreeTitle', () => {
   it('drops edition suffixes in brackets or after a dash', () => {
@@ -44,5 +44,35 @@ describe('prefixEnd', () => {
     expect(prefixEnd('abc')).toBe('abd')
     expect('abc zzz' < prefixEnd('abc') && 'abd' >= prefixEnd('abc')).toBe(true)
     expect(prefixEnd('東京')).toBe('東亭')
+  })
+})
+
+describe('releaseKey', () => {
+  it('drops store labels of what a release is or where it comes from', () => {
+    expect(releaseKey('Just Keep Watching (From F1® The Movie)')).toBe(releaseKey('Just Keep Watching'))
+    expect(releaseKey('TRON: Legacy (Original Motion Picture Soundtrack)')).toBe(releaseKey('TRON: Legacy'))
+    expect(releaseKey('Dune: Part Two: Original Motion Picture Soundtrack')).toBe(releaseKey('Dune: Part Two (Original Motion Picture Soundtrack)'))
+    expect(releaseKey('Dune: Original Motion Picture Soundtrack')).toBe('dune')
+    expect(releaseKey('Inception: Music From the Motion Picture')).toBe(releaseKey('Inception (Music from the Motion Picture)'))
+    expect(releaseKey('Stereotype E.P.')).toBe('stereotype')
+    expect(releaseKey('Spectre - Single')).toBe('spectre')
+    expect(releaseKey('Miss Anthropocene (Deluxe Edition)')).toBe('miss anthropocene')
+  })
+
+  it('keeps what names different music', () => {
+    expect(releaseKey('Miss Anthropocene (rave edition)')).not.toBe(releaseKey('Miss Anthropocene'))
+    expect(releaseKey('Sports car (remixes)')).not.toBe(releaseKey('Sports car'))
+    expect(releaseKey('Realiti (Demo)')).not.toBe(releaseKey('Realiti'))
+    // Nothing is left of a title that is only a label.
+    expect(releaseKey('EP')).toBe('ep')
+  })
+})
+
+describe('guessAlbumType', () => {
+  it('calls an album titled like its track a single', () => {
+    expect(guessAlbumType('exes', ['exes'])).toBe('single')
+    expect(guessAlbumType('Just Keep Watching (From F1® The Movie)', ['Just Keep Watching (From F1® The Movie)'])).toBe('single')
+    expect(guessAlbumType('THINK LATER', ['exes'])).toBe('album')
+    expect(guessAlbumType('Sports car', [])).toBe('album')
   })
 })

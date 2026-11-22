@@ -11,6 +11,7 @@ import { creditKey, matchKey } from '../../lib/text.js'
 import { remoteImage } from '../artwork/index.js'
 import { canonicalRelease } from '../catalog/availability.js'
 import { lockUpserts } from '../matching/apply.js'
+import { guessAlbumType, releaseKey } from '../search/keys.js'
 import { resolveMerged } from '../matching/merge.js'
 import { deezer } from '../metadata/index.js'
 import type { DeezerAlbum, DeezerTrack } from '../metadata/deezer.js'
@@ -26,10 +27,23 @@ async function linked(tx: Transaction, type: 'artist' | 'album' | 'recording', i
   return resolveMerged(tx, table, row.id)
 }
 
-/** The artist row for a Deezer artist: the one carrying its id, else a new stub. */
+/**
+ * The artist row for a Deezer artist: the one carrying its id, else the only artist of that
+ * name when it has no Deezer id yet (as search decides, materialize.ts), else a new stub. A
+ * featured artist on a top track used to become a second row beside the MusicBrainz row
+ * the discography had just credited.
+ */
 async function deezerArtistRow(tx: Transaction, artist: DeezerArtistRef): Promise<string> {
   const existing = await linked(tx, 'artist', artist.id)
   if (existing) return existing
+  const named = await tx.execute<{ id: string; hasDeezerId: boolean }>(sql`
+    select a.id, exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'artist' and e.entity_id = a.id) as "hasDeezerId"
+    from artists a where a.name_key = ${matchKey(artist.name)} and a.merged_into_id is null
+    limit 2`)
+  if (named.length === 1 && !named[0]!.hasDeezerId) {
+    await tx.insert(externalIds).values({ provider: 'deezer', entityType: 'artist', externalId: String(artist.id), entityId: named[0]!.id }).onConflictDoNothing()
+    return named[0]!.id
+  }
   const id = newId()
   await tx.insert(artists).values({ id, name: artist.name, sortName: artist.name, nameKey: matchKey(artist.name), detailLevel: 0 })
   await tx.insert(externalIds).values({ provider: 'deezer', entityType: 'artist', externalId: String(artist.id), entityId: id })
@@ -117,8 +131,14 @@ export async function buildFromDeezer(albumId: string, album: DeezerAlbum): Prom
     }
     if (kept.length > 0) await tx.delete(releaseTracks).where(and(eq(releaseTracks.releaseId, releaseId), notInArray(releaseTracks.id, kept)))
 
+    // A row known only from a track's album reference takes the type and date Deezer states.
+    const guessed = sql`(${albums.typeGuessed} and ${albums.mbid} is null)`
     await tx.update(albums).set({
       canonicalReleaseId: sql`coalesce(${albums.canonicalReleaseId}, ${releaseId}::uuid)`,
+      type: sql`case when ${guessed} then ${album.type} else ${albums.type} end`,
+      typeGuessed: sql`${albums.typeGuessed} and not ${guessed}`,
+      releaseDate: sql`coalesce(${albums.releaseDate}, ${album.releaseDate}::text)`,
+      year: sql`coalesce(${albums.year}, ${album.releaseDate ? Number(album.releaseDate.slice(0, 4)) : null}::int)`,
       genres: row.genres.length > 0 ? row.genres : album.genres,
       detailLevel: sql`greatest(${albums.detailLevel}, 1)`,
       fetchedAt: now,
@@ -180,31 +200,88 @@ export async function deezerDiscography(artistId: string, deezerArtistId: string
 }
 
 /**
- * Finds or creates the row for one of an artist's popular Deezer tracks. `deezerArtistId`
- * is the page artist's Deezer id: a top track may be another artist's with this one
- * featured, and only this artist's own credit is `artistId`.
+ * The album row for the album a Deezer track names (no type, no date): the row carrying its
+ * Deezer id, else the album artist's row of the same release (`releaseKey`), owned and
+ * MusicBrainz-backed first, else a stub with the track's cover and a guessed type. Without
+ * it a popular track that MusicBrainz has no release for showed no artwork.
+ */
+async function deezerTrackAlbumRow(tx: Transaction, albumArtistId: string, credit: string, track: DeezerTrack, coverId: string | null): Promise<string | null> {
+  const album = track.album
+  if (!album) return null
+  const existing = await linked(tx, 'album', album.id)
+  if (existing) return existing
+  const key = releaseKey(album.title)
+  const type = guessAlbumType(album.title, [track.title])
+  const rows = await tx.execute<{ id: string; title: string; type: string }>(sql`
+    select a.id, a.title, a.type from albums a
+    where a.primary_artist_id = ${albumArtistId} and a.merged_into_id is null
+    order by exists (select 1 from media_files f where f.album_id = a.id and f.missing_since is null) desc,
+      a.mbid is not null desc, (a.type = ${type}) desc, a.detail_level desc, a.id`)
+  const same = rows.find((row) => releaseKey(row.title) === key)
+  const id = same?.id ?? newId()
+  if (!same) {
+    await tx.insert(albums).values({
+      id,
+      title: album.title,
+      artistCredit: credit,
+      primaryArtistId: albumArtistId,
+      type,
+      typeGuessed: true,
+      titleKey: matchKey(album.title),
+      matchKey: creditKey(credit, album.title),
+      artworkAssetId: coverId,
+      detailLevel: 0,
+    })
+    await tx.insert(albumArtists).values({ albumId: id, position: 0, artistId: albumArtistId, creditedName: credit })
+  } else if (coverId) {
+    await tx.update(albums).set({ artworkAssetId: coverId }).where(and(eq(albums.id, id), isNull(albums.artworkAssetId)))
+  }
+  await tx.insert(externalIds).values({ provider: 'deezer', entityType: 'album', externalId: String(album.id), entityId: id }).onConflictDoNothing()
+  return id
+}
+
+/**
+ * Finds or creates the row for one of an artist's popular Deezer tracks, with the album
+ * Deezer names for it as its album hint (when it is on no release yet), so it has artwork.
+ * `deezerArtistId` is the page artist's Deezer id: a top track may be another artist's with
+ * this one featured, and only this artist's own credit is `artistId`.
  */
 export async function deezerTopTrackRow(artistId: string, deezerArtistId: string, track: DeezerTrack): Promise<string> {
+  // Registered before the transaction, like search does: no network while holding the lock.
+  const cover = track.album?.coverUrl ? await remoteImage(track.album.coverUrl, { kind: 'cover' }) : null
   return db.transaction(async (tx) => {
     await lockUpserts(tx)
-    const existing = await linked(tx, 'recording', track.id)
-    if (existing) return existing
-    const isrc = track.isrc?.toUpperCase()
-    // A catalog recording with the ISRC, else one of the artist's with the same credit and
-    // title: owned first, then MusicBrainz-backed, so the copy the page shows gets ranked.
-    const hasIsrc = isrc ? sql`r.isrcs @> array[${isrc}]::text[]` : null
-    const [known] = await tx.execute<{ id: string }>(sql`
-      select r.id from recordings r
-      where r.merged_into_id is null
-        and (${hasIsrc ?? sql`false`} or (r.primary_artist_id = ${artistId} and r.match_key = ${creditKey(track.artist.name, track.title)}))
-      order by ${hasIsrc ? sql`${hasIsrc} desc,` : sql``}
-        exists (select 1 from media_files f where f.recording_id = r.id and f.missing_since is null) desc,
-        r.mbid is not null desc, r.id
-      limit 1`)
-    if (known) {
-      await tx.insert(externalIds).values({ provider: 'deezer', entityType: 'recording', externalId: String(track.id), entityId: known.id }).onConflictDoNothing()
-      return known.id
+    const artistRow = async (artist: DeezerArtistRef) => (String(artist.id) === deezerArtistId ? artistId : deezerArtistRow(tx, artist))
+    const recordingId = await topTrackRecording(tx, artistId, track, artistRow)
+    const albumId = await deezerTrackAlbumRow(tx, await artistRow(track.artist), track.artist.name, track, cover?.id ?? null)
+    if (albumId) {
+      await tx.execute(sql`
+        update recordings r set album_hint_id = ${albumId}
+        where r.id = ${recordingId} and r.album_hint_id is null
+          and not exists (select 1 from release_tracks rt where rt.recording_id = r.id)`)
     }
-    return deezerRecordingRow(tx, track, async (artist) => (String(artist.id) === deezerArtistId ? artistId : deezerArtistRow(tx, artist)))
+    return recordingId
   })
+}
+
+async function topTrackRecording(tx: Transaction, artistId: string, track: DeezerTrack, artistRow: (artist: DeezerArtistRef) => Promise<string>): Promise<string> {
+  const existing = await linked(tx, 'recording', track.id)
+  if (existing) return existing
+  const isrc = track.isrc?.toUpperCase()
+  // A catalog recording with the ISRC, else one of the artist's with the same credit and
+  // title: owned first, then MusicBrainz-backed, so the copy the page shows gets ranked.
+  const hasIsrc = isrc ? sql`r.isrcs @> array[${isrc}]::text[]` : null
+  const [known] = await tx.execute<{ id: string }>(sql`
+    select r.id from recordings r
+    where r.merged_into_id is null
+      and (${hasIsrc ?? sql`false`} or (r.primary_artist_id = ${artistId} and r.match_key = ${creditKey(track.artist.name, track.title)}))
+    order by ${hasIsrc ? sql`${hasIsrc} desc,` : sql``}
+      exists (select 1 from media_files f where f.recording_id = r.id and f.missing_since is null) desc,
+      r.mbid is not null desc, r.id
+    limit 1`)
+  if (known) {
+    await tx.insert(externalIds).values({ provider: 'deezer', entityType: 'recording', externalId: String(track.id), entityId: known.id }).onConflictDoNothing()
+    return known.id
+  }
+  return deezerRecordingRow(tx, track, artistRow)
 }

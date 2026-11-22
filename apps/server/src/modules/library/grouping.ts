@@ -121,7 +121,9 @@ export type TrackPlan = {
 export type GroupPlan = {
   album: {
     title: string
-    type: 'album' | 'single' | 'compilation'
+    type: NonNullable<FileTags['releaseType']>
+    /** No tag states the type: a release-type tag, a compilation flag, or no album name on a lone file. */
+    typeGuessed: boolean
     credits: Credit[]
     year?: number
     date?: string
@@ -189,6 +191,7 @@ export function planGroup(files: readonly GroupFile[]): GroupPlan {
   const folder = path.posix.basename(albumFolder(files[0]!.relPath).dir)
   const title = albumTitle ?? (single ? files[0]!.tags.title ?? titleFromPath(files[0]!.relPath) : folder || UNKNOWN_ALBUM)
   const compilation = credits[0]?.mbid === VARIOUS_ARTISTS_MBID || files.some((file) => file.tags.compilation)
+  const tagged = mostCommon(files.map((file) => file.tags.releaseType))
   const year = mostCommon(files.map((file) => file.tags.year))
   const dates = files.map((file) => file.tags.date).filter((date) => date && (!year || date.startsWith(String(year))))
   const date = mostCommon(dates.sort((a, b) => b!.length - a!.length)) ?? (year ? String(year) : undefined)
@@ -213,7 +216,8 @@ export function planGroup(files: readonly GroupFile[]): GroupPlan {
   return {
     album: {
       title,
-      type: single ? 'single' : compilation ? 'compilation' : 'album',
+      type: tagged ?? (single ? 'single' : compilation ? 'compilation' : 'album'),
+      typeGuessed: !tagged && !single && !compilation,
       credits,
       year,
       date,
