@@ -21,9 +21,14 @@ import { libraryAlbumsQuery, libraryArtistsQuery, libraryGenresQuery, librarySha
 const ALBUMS = 10_000
 const TRACKS_PER_ALBUM = 15
 
+/** Execution time, the faster of two runs: a freshly seeded database starts with a cold buffer cache. */
 async function explain(query: SQL) {
-  const [row] = await db.execute<{ 'QUERY PLAN': [{ 'Execution Time': number }] }>(sql`explain (analyze, format json) ${query}`)
-  return row!['QUERY PLAN'][0]['Execution Time']
+  const times: number[] = []
+  for (let run = 0; run < 2; run++) {
+    const [row] = await db.execute<{ 'QUERY PLAN': [{ 'Execution Time': number }] }>(sql`explain (analyze, format json) ${query}`)
+    times.push(row!['QUERY PLAN'][0]['Execution Time'])
+  }
+  return Math.min(...times)
 }
 
 describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {

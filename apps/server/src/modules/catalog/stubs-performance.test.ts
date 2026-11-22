@@ -22,9 +22,14 @@ import { libraryAlbumsQuery, libraryArtistsQuery, libraryGenresQuery, librarySha
 
 const TRACKS_PER_ALBUM = 12
 
+/** Execution time, the faster of two runs: a freshly seeded database starts with a cold buffer cache. */
 async function explain(query: SQL) {
-  const [row] = await db.execute<{ 'QUERY PLAN': [{ 'Execution Time': number }] }>(sql`explain (analyze, format json) ${query}`)
-  return row!['QUERY PLAN'][0]['Execution Time']
+  const times: number[] = []
+  for (let run = 0; run < 2; run++) {
+    const [row] = await db.execute<{ 'QUERY PLAN': [{ 'Execution Time': number }] }>(sql`explain (analyze, format json) ${query}`)
+    times.push(row!['QUERY PLAN'][0]['Execution Time'])
+  }
+  return Math.min(...times)
 }
 
 describe.skipIf(!process.env.SQUIRMY_PERF)('library lists in a catalog of stubs', () => {
@@ -68,8 +73,14 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('library lists in a catalog of stubs'
       const albums = body(await app.inject({ url: `/api/v1/library/albums?sort=${sort}&limit=200`, headers: user.headers }), AlbumPage)
       expect(albums.items, sort).toHaveLength(50)
     }
-    const tracks = body(await app.inject({ url: '/api/v1/library/tracks?sort=title&limit=500', headers: user.headers }), TrackPage)
-    expect(tracks.items).toHaveLength((30 + 10) * TRACKS_PER_ALBUM)
+    let tracks = 0
+    let cursor: string | null = null
+    do {
+      const page: TrackPage = body(await app.inject({ url: `/api/v1/library/tracks?sort=title&limit=200${cursor ? `&cursor=${cursor}` : ''}`, headers: user.headers }), TrackPage)
+      tracks += page.items.length
+      cursor = page.nextCursor
+    } while (cursor)
+    expect(tracks).toBe((30 + 10) * TRACKS_PER_ALBUM)
     const artists = body(await app.inject({ url: '/api/v1/library/artists?limit=200', headers: user.headers }), ArtistPage)
     expect(artists.items).toHaveLength(50)
   }, 120_000)
