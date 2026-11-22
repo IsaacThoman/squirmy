@@ -1,5 +1,6 @@
 import { Heart, ListMusic, Maximize2, MessageSquareQuote, MonitorSpeaker, Music2 } from 'lucide-react'
 import { Link } from 'react-router'
+import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { Cover } from '@/components/music/Cover'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
@@ -57,9 +58,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                 <p className="truncate text-xs text-muted-foreground">
                   {late
                     ? STILL_LOADING_LABEL
-                    : item.track.artists[0]
-                      ? <Link to={`/artist/${item.track.artists[0].id}`} className="hover:text-foreground hover:underline">{item.track.artistCredit}</Link>
-                      : item.track.artistCredit}
+                    : <ArtistLinks track={item.track} />}
                 </p>
               </div>
               <IconButton label={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'} size="sm" onClick={onToggleLike} className={cn('ml-1 hidden @[44rem]:inline-flex', liked && 'text-primary hover:text-primary')}>
