@@ -3,6 +3,7 @@ import { Toast as ToastPrimitive } from 'radix-ui'
 import { useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { dismissToast, toastStore } from '@/lib/toast'
+import { closeTopDialog } from './dialog-stack'
 
 /**
  * Rendered beside the app rather than in it: an open dialog hides everything else from screen
@@ -21,6 +22,13 @@ function Toasts() {
         <ToastPrimitive.Root
           key={item.id}
           onOpenChange={open => { if (!open) dismissToast(item.id) }}
+          // A toast is the newest layer, so it hears Escape before an open dialog would. Unless
+          // focus is in the toast, Escape is the dialog's: it closes that, and the toast stays.
+          onEscapeKeyDown={event => {
+            if (event.target instanceof Element && event.target.closest('[data-toast]')) return
+            if (closeTopDialog(event)) event.preventDefault()
+          }}
+          data-toast=""
           className="flex w-full items-center gap-3 rounded-lg border bg-popover py-2.5 pl-4 pr-2 text-popover-foreground shadow-lg animate-slide-in data-[state=closed]:animate-exit data-[swipe=move]:translate-y-(--radix-toast-swipe-move-y) data-[swipe=end]:animate-exit"
         >
           <div className="min-w-0 flex-1">

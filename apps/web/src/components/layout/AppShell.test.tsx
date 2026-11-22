@@ -369,6 +369,18 @@ describe('AppShell', () => {
         expect(edge()).toHaveAttribute('aria-valuenow', '320')
       })
 
+      it('has its saved width before anything is laid out, so it does not animate to it on load', async () => {
+        localStorage.setItem(WIDTH_KEY, '320')
+        document.documentElement.style.removeProperty('--sidebar-width')
+        const seen: string[] = []
+        vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => {
+          seen.push(width())
+          return 1440
+        })
+        await renderShell()
+        expect(seen[0]).toBe('320px')
+      })
+
       it('resizes the sidebar as it is dragged and remembers the width', async () => {
         await renderShell()
         drag(DEFAULT_SIDEBAR_WIDTH, 300, 330)

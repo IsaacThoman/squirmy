@@ -2,6 +2,7 @@ import { ChevronDown, Heart, ListMusic, MessageSquareQuote, MonitorSpeaker } fro
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { Link } from 'react-router'
 import { Cover } from '@/components/music/Cover'
+import { Dialog } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
@@ -36,7 +37,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Content
           aria-describedby={undefined}
@@ -123,6 +124,6 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    </Dialog>
   )
 }

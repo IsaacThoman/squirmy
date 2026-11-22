@@ -21,6 +21,12 @@ describe('TrackRow', () => {
     expect(row).not.toHaveAttribute('aria-disabled')
   })
 
+  it('lets a pointer reach the play button through the number it covers', () => {
+    const { row } = renderRow('soft-signal')
+    // jsdom does no hit testing: the faded number is a layer above the button, so it must let clicks through.
+    expect(within(row).getByText('1')).toHaveClass('pointer-events-none')
+  })
+
   it('grays out a track that is not in the library and cannot be played', async () => {
     const { onPlay, row } = renderRow('soft-signal-live')
     // Not the whole row: its heart and More options still work.
