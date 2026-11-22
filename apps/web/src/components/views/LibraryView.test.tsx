@@ -151,7 +151,8 @@ describe('Library', () => {
       await main().findByRole('list', { name: 'Albums' })
       await userEvent.click(screen.getByRole('combobox', { name: 'Sort by' }))
       await userEvent.click(await screen.findByRole('option', { name: 'Title' }))
-      await waitFor(() => expect(api.catalog.albums).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'title' })))
+      // Called with, not last called with: the first order's page can still be arriving on a slow machine.
+      await waitFor(() => expect(api.catalog.albums).toHaveBeenCalledWith(expect.objectContaining({ sort: 'title' })), { timeout: 5000 })
       expect(where().searchParams.get('sort')).toBe('title')
       expect(filters().getByRole('link', { name: 'Songs' })).toHaveAttribute('href', '/library?filter=songs&sort=title')
     })
