@@ -487,6 +487,23 @@ describe('subsonic', () => {
       // Seconds mistaken for milliseconds, times 1000 again: tens of thousands of years ahead.
       expect(await kai.client.error('scrobble', { id: song(blueHour, 1), time: at * 1000 })).toBe(0)
     })
+
+    it('shows what others are playing with the stars, ratings and play counts of whoever asks', async () => {
+      const ren = await person('ren4')
+      const ash = await person('ash4')
+      await ren.client.call('star', { id: song(blueHour, 2) })
+      await ren.client.call('setRating', { id: song(blueHour, 2), rating: 5 })
+      await ren.client.json('scrobble', { id: song(blueHour, 2), time: Date.parse('2026-03-01T12:00:00Z') })
+      await ren.client.call('scrobble', { id: song(blueHour, 2), submission: false })
+
+      const seen = (await ash.client.call('getNowPlaying')).nowPlaying.entry.find((entry: { username: string }) => entry.username === 'ren4')
+      expect(seen).toMatchObject({ id: song(blueHour, 2), playCount: 0 })
+      expect(seen).not.toHaveProperty('starred')
+      expect(seen).not.toHaveProperty('userRating')
+      expect(seen).not.toHaveProperty('played')
+      const own = (await ren.client.call('getNowPlaying')).nowPlaying.entry.find((entry: { username: string }) => entry.username === 'ren4')
+      expect(own).toMatchObject({ id: song(blueHour, 2), playCount: 1, userRating: 5, starred: expect.any(String) })
+    })
   })
 
   describe('playlists', () => {
