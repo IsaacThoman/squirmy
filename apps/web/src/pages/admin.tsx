@@ -424,6 +424,16 @@ export function AdminProvidersPage() {
     },
   })
   const test = useMutation({ mutationFn: api.acquisition.testProvider, onSuccess: replace })
+  const clearMisses = useMutation({
+    mutationFn: api.acquisition.clearProviderMisses,
+    onSuccess: ({ cleared, provider }) => {
+      replace(provider)
+      toast({
+        title: `Retrying ${cleared === 1 ? '1 track' : `${cleared} tracks`}`,
+        description: `They play on demand again, and ${provider.name} is asked for them the next time they are played.`,
+      })
+    },
+  })
   const policyUpdate = {
     mutationFn: (patch: UpdateAcquisitionPolicy) => api.acquisition.updatePolicy(patch),
     onSuccess: (updated: AcquisitionPolicy) => queryClient.setQueryData(policyKey, updated),
@@ -443,6 +453,7 @@ export function AdminProvidersPage() {
       onUpdate={(id, patch) => (Object.keys(patch).length === 1 && patch.enabled !== undefined ? toggle : edit).mutateAsync({ id, patch })}
       onDelete={id => remove.mutateAsync(id)}
       onTest={id => test.mutateAsync(id)}
+      onClearMisses={id => clearMisses.mutateAsync(id)}
       onSavePolicy={(patch, how) => (how?.inline ? savePolicyField : savePolicy).mutateAsync(patch)}
     />
   )

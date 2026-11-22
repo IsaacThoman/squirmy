@@ -13,7 +13,7 @@ const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')
 const provider: AcquisitionProvider = {
   id: id(1), name: 'Shelf', baseUrl: 'http://shelf.lan:4801', enabled: true, coverage: 'assume_available', priority: 0,
   capabilities: { protocol: 1, name: 'Shelf service', coverage: 'assume_available', kinds: ['recording', 'album'], formats: ['flac'], maxConcurrent: 2 },
-  lastOkAt: '2026-11-20T10:00:00.000Z', lastError: null, failingSince: null,
+  lastOkAt: '2026-11-20T10:00:00.000Z', lastError: null, failingSince: null, unavailableTracks: 0,
 }
 const policy: AcquisitionPolicy = { preferLossless: true, maxFileBytes: 500 * 1024 ** 2, storageQuotaBytes: 0, timeoutSeconds: 900, targetRootId: null, deliveryBaseUrl: null }
 const job: AcquisitionJob = {
@@ -26,7 +26,7 @@ function renderProviders(overrides: Partial<Parameters<typeof ProvidersAdmin>[0]
   const props = {
     providers: [provider], policy, managedRoots: [managed], jobs: [job], jobStatus: null, onJobStatusChange: vi.fn(),
     onCreate: vi.fn(async () => provider), onUpdate: vi.fn(async () => provider), onDelete: vi.fn(async () => ({ ok: true })),
-    onTest: vi.fn(async () => provider), onSavePolicy: vi.fn(async () => policy),
+    onTest: vi.fn(async () => provider), onClearMisses: vi.fn(async () => ({ cleared: 0, provider })), onSavePolicy: vi.fn(async () => policy),
     ...overrides,
   }
   renderWithApp(<ProvidersAdmin {...props} />)
@@ -73,6 +73,20 @@ describe('providers admin', () => {
     onTest.mockResolvedValueOnce({ ...provider, lastError: 'connect ECONNREFUSED' })
     await userEvent.click(within(card).getByRole('button', { name: 'Test connection' }))
     expect(await within(card).findByText('Could not connect: connect ECONNREFUSED')).toBeInTheDocument()
+  })
+
+  it('offers to retry the tracks a provider could not supply, with how many', async () => {
+    const props = renderProviders({ providers: [{ ...provider, unavailableTracks: 146, capabilities: { ...provider.capabilities!, version: '2.4.1' } }] })
+    const card = screen.getByRole('listitem', { name: 'Shelf' })
+    expect(within(card).getByText(/146 tracks are unavailable because it could not supply them/)).toBeInTheDocument()
+    expect(within(card).getByText('Shelf service 2.4.1')).toBeInTheDocument()
+    await userEvent.click(within(card).getByRole('button', { name: 'Retry unavailable tracks (146)' }))
+    expect(props.onClearMisses).toHaveBeenCalledWith(provider.id)
+  })
+
+  it('shows no retry while nothing is unavailable', () => {
+    renderProviders()
+    expect(screen.queryByRole('button', { name: /Retry unavailable tracks/ })).not.toBeInTheDocument()
   })
 
   it('says when a provider is failing, since when and why', () => {
