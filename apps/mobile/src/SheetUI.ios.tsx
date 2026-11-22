@@ -133,13 +133,23 @@ export function SheetPickerRow<T extends string | number>({ label, value, option
   </Menu>;
 }
 
+/**
+ * One line for a summary's title and subtitle, except at accessibility sizes: there one line
+ * holds a word or two, and the sheet scrolls, so they wrap instead.
+ */
+function useSummaryLines() {
+  const { fontScale } = useWindowDimensions();
+  return isAccessibilitySize(fontScale) ? [] : [lineLimit(1)];
+}
+
 export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
   const colors = useColors();
+  const lines = useSummaryLines();
   return <HStack spacing={12} modifiers={[padding({ bottom: 4 })]}>
     <TrackCover track={track} size={53} radius={9} />
     <VStack alignment="leading" spacing={3}>
-      <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{track?.title ?? 'Not Playing'}</Text>
-      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle ?? track?.artistCredit ?? ''}</Text>
+      <Text modifiers={[font({ textStyle: 'headline' }), ...lines]}>{track?.title ?? 'Not Playing'}</Text>
+      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), ...lines]}>{subtitle ?? track?.artistCredit ?? ''}</Text>
     </VStack>
     <Spacer minLength={0} />
   </HStack>;
@@ -147,11 +157,12 @@ export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
 
 export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
   const colors = useColors();
+  const lines = useSummaryLines();
   return <HStack spacing={12} modifiers={[padding({ vertical: 4 })]}>
     <HStack modifiers={[frame({ width: 27 })]}><Symbol name={icon} size={22} color={colors.accent} /></HStack>
     <VStack alignment="leading" spacing={2}>
-      <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{title}</Text>
-      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
+      <Text modifiers={[font({ textStyle: 'headline' }), ...lines]}>{title}</Text>
+      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), ...lines]}>{subtitle}</Text>
     </VStack>
     <Spacer minLength={0} />
   </HStack>;
