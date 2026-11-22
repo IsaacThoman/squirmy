@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { AppState, Platform } from 'react-native';
 import { removeAccountItems } from '../data/accountStorage';
-import { cacheBuster, cacheMaxAgeMs, removeCache, restoreCache, saveCache } from '../data/cache';
+import { cacheBuster, cacheMaxAgeMs, detailMaxAgeMs, removeCache, restoreCache, saveCache } from '../data/cache';
 import { useNotice } from '../Notice';
 import { reduceAuth, type AuthEvent, type AuthState } from './auth';
 import { clientName, fetchWithTimeout, serverFrom, type Server } from './server';
@@ -24,7 +24,11 @@ focusManager.setEventListener(setFocused => {
 });
 
 export function createQueryClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000, gcTime: cacheMaxAgeMs } } });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000, gcTime: cacheMaxAgeMs } } });
+  // Pages of one item pile up as the user browses; they are kept for a shorter time than the lists.
+  for (const root of ['album', 'artist', 'track', 'playlists']) queryClient.setQueryDefaults([root], { gcTime: detailMaxAgeMs });
+  queryClient.setQueryDefaults(['playlists', 'list'], { gcTime: cacheMaxAgeMs });
+  return queryClient;
 }
 
 function apiFor(server: Server, token: string | null, timeoutMs: number, onUnauthorized?: () => void): Api {
