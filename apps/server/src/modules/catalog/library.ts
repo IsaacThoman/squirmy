@@ -13,12 +13,12 @@
  * so a catalog full of search stubs costs nothing (performance.test.ts measures both a
  * large collection and a small library in a large catalog). `recent` merges the newest
  * collection file of each item with the user's saves, each walked newest first on its own
- * index. Each query returns ids and cursor keys; the summary builders hydrate them.
+ * index. Tracks by year sort the library's files and so read all of them. Each query
+ * returns ids and cursor keys; the summary builders hydrate them.
  */
 import type { AlbumPage, ArtistPage, GenrePage, GenreSummary, LibraryQuery, LibrarySort, PageQuery, TrackPage } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { badRequest } from '../../lib/errors.js'
 import { collectionFile } from './availability.js'
 import { after, cursorKeys, leadingBound, orderBy, toPage, type Ordering } from './pagination.js'
 import { sortKeys } from './sql.js'
@@ -214,8 +214,19 @@ export async function listLibraryAlbums(userId: string, query: LibraryQuery): Pr
 // Renamed from `tracks:recent` for the same reason as `albums:recent2`.
 const tracksRecent = byRecency('tracks:recent2', 'm.at', 'm.id')
 
-const trackOrderings: Record<Exclude<LibrarySort, 'year'>, Ordering> = {
+const trackOrderings: Record<LibrarySort, Ordering> = {
   recent: tracksRecent,
+  // Recordings carry no year: tracks follow their album in the album list's year order,
+  // and its files in path order (the track order of every naming template).
+  year: {
+    name: 'tracks:year',
+    keys: [
+      ...albumOrderings.year.keys.slice(0, 2),
+      { expression: sql.raw('a.id'), type: 'uuid' },
+      { expression: sql.raw('f.rel_path'), type: 'text' },
+      { expression: sql.raw('f.id'), type: 'uuid' },
+    ],
+  },
   title: {
     name: 'tracks:title',
     keys: [
@@ -232,12 +243,6 @@ const trackOrderings: Record<Exclude<LibrarySort, 'year'>, Ordering> = {
       { expression: sql.raw('r.id'), type: 'uuid' },
     ],
   },
-}
-
-/** Recordings carry no year, so tracks reject that order with `unsupported_sort`. */
-function trackOrdering(sort: LibrarySort): Ordering {
-  if (sort === 'year') throw badRequest('Tracks cannot be sorted by year', 'unsupported_sort')
-  return trackOrderings[sort]
 }
 
 /** Condition: a present file of the recording (expression) is on an album with the genre; `true` without one. */
@@ -257,10 +262,26 @@ function recordingHasGenre(recording: string, genre: string | undefined): SQL {
  * per way in, each keep the tracks whose time they hold (on a tie the collection, then
  * the track's own save), so every track appears once. A track is shown in the album of
  * the branch that placed it: the file's, the saved album, or (saved alone) the summary's choice.
+ *
+ * `year` places each library track by its newest present file (any source), so a saved
+ * track whose file has not arrived yet has no album to sort by and waits for it.
  */
 export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: LibraryShape): SQL {
-  const ordering = trackOrdering(query.sort)
+  const ordering = trackOrderings[query.sort]
   const limit = query.limit + 1
+  if (query.sort === 'year') {
+    const member = shape === 'small' ? sql`f.recording_id = any(array(${libraryRecordingIds(userId)}))` : recordingIsMember('f.recording_id', userId)
+    return sql`
+      select f.recording_id as id, f.album_id as "albumId", ${cursorKeys(ordering)}
+      from media_files f join albums a on a.id = f.album_id
+      where f.missing_since is null and f.recording_id is not null and ${hasGenre('a', query.genre)}
+        and not exists (
+          select 1 from media_files newer
+          where newer.recording_id = f.recording_id and newer.missing_since is null and (newer.added_at, newer.id) > (f.added_at, f.id)
+        )
+        and ${member} and ${after(ordering, query.cursor)}
+      order by ${orderBy(ordering)} limit ${limit}`
+  }
   if (query.sort === 'recent') {
     const collection = byRecency(ordering.name, 'f.added_at', 'f.recording_id')
     const ownSaves = byRecency(ordering.name, 's.created_at', 's.entity_id')
@@ -339,11 +360,11 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
 }
 
 /**
- * One page of the user's library tracks. Sorted by `recent`, each track is shown in the
- * album that put it there (see `libraryTracksQuery`); otherwise the summary builder picks the album.
+ * One page of the user's library tracks. Sorted by `recent` or `year`, each track is shown
+ * in the album that placed it (see `libraryTracksQuery`); otherwise the summary builder picks the album.
  */
 export async function listLibraryTracks(userId: string, query: LibraryQuery): Promise<TrackPage> {
-  const ordering = trackOrdering(query.sort)
+  const ordering = trackOrderings[query.sort]
   const shape = query.sort === 'recent' ? 'large' : await libraryShape(userId, 'tracks')
   const rows = await db.execute<IdRow & { albumId: string | null }>(libraryTracksQuery(userId, query, shape))
   const refs = rows.slice(0, query.limit).map((row) => ({ id: row.id, albumId: row.albumId }))

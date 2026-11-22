@@ -119,6 +119,8 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
       await route(`${url}${separator}limit=50&cursor=${cursor}`)
     }
     report.push(`query genres: ${(await explain(libraryGenresQuery(user.id, { limit: 50 }, albums))).toFixed(2)} ms`)
+    // Tracks by year sort the library's files, so they are timed but have no index to keep.
+    report.push(`query tracks year: ${(await explain(libraryTracksQuery(user.id, { sort: 'year', limit: 50 }, tracks))).toFixed(2)} ms`)
   }, 300_000)
 
   it('serves pages and home quickly', async () => {

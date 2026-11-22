@@ -2,7 +2,7 @@ import { AlbumSummary, ArtistSummary, TrackSummary } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albums, artists, likes, lyrics, mediaFiles, recordingArtists, recordings } from '../../database/schema.js'
+import { albums, artists, assets, likes, lyrics, mediaFiles, recordingArtists, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { createAsset } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -73,6 +73,36 @@ describe('summaries', () => {
     expect(track).toMatchObject({ id: winner.tracks[0]!.recordingId, album: { id: winner.albumId }, availability: 'server' })
     expect((await albumSummaries([loser.albumId])).map((album) => album.id)).toEqual([winner.albumId])
     expect((await artistSummaries([loserArtist.id])).map((artist) => artist.id)).toEqual([winner.artist.id])
+  })
+
+  it('shows a catalog stub in the album its hint was merged into', async () => {
+    const user = await createUser()
+    const winner = await createAlbum({ title: 'Kept' })
+    const loser = await createAlbum({ title: 'Stub' })
+    await db.update(albums).set({ mergedIntoId: winner.albumId }).where(eq(albums.id, loser.albumId))
+    const stub = newId()
+    await db.insert(recordings).values({ id: stub, title: 'Lone', artistCredit: 'x', titleKey: 'lone', matchKey: 'x|lone', albumHintId: loser.albumId })
+    const [summary] = await trackSummaries(user.id, [{ id: stub }])
+    expect(summary!.album).toMatchObject({ id: winner.albumId, title: 'Kept' })
+  })
+
+  it('leaves out artwork the art route cannot serve', async () => {
+    const user = await createUser()
+    const album = await createAlbum({ owned: true })
+    const failed = await createAsset()
+    await db.update(assets).set({ status: 'failed', checkedAt: new Date() }).where(eq(assets.id, failed.id))
+    const missing = await createAsset()
+    await db.update(assets).set({ status: 'missing' }).where(eq(assets.id, missing.id))
+    await db.update(albums).set({ artworkAssetId: failed.id }).where(eq(albums.id, album.albumId))
+    await db.update(artists).set({ imageAssetId: missing.id }).where(eq(artists.id, album.artist.id))
+
+    expect((await albumSummaries([album.albumId]))[0]!.artwork).toBeNull()
+    expect((await trackSummaries(user.id, [{ id: album.tracks[0]!.recordingId }]))[0]!.album!.artwork).toBeNull()
+    expect((await artistSummaries([album.artist.id]))[0]!.image).toBeNull()
+
+    // A failed download is tried again an hour later, so it is offered again then.
+    await db.update(assets).set({ checkedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) }).where(eq(assets.id, failed.id))
+    expect((await albumSummaries([album.albumId]))[0]!.artwork?.id).toBe(failed.id)
   })
 
   it('summarizes albums and artists with availability and library membership', async () => {

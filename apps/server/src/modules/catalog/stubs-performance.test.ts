@@ -60,7 +60,7 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('library lists in a catalog of stubs'
       ['tracks shape', libraryShapeQuery(user.id, 'tracks')],
     ]
     for (const sort of ['recent', 'title', 'artist', 'year'] as const) cases.push([`albums ${sort}`, libraryAlbumsQuery(user.id, { sort, limit: 50 }, 'small')])
-    for (const sort of ['recent', 'title', 'artist'] as const) cases.push([`tracks ${sort}`, libraryTracksQuery(user.id, { sort, limit: 50 }, 'small')])
+    for (const sort of ['recent', 'title', 'artist', 'year'] as const) cases.push([`tracks ${sort}`, libraryTracksQuery(user.id, { sort, limit: 50 }, 'small')])
     cases.push(['artists', libraryArtistsQuery(user.id, { limit: 50 }, 'small')], ['genres', libraryGenresQuery(user.id, { limit: 50 }, 'small')])
     for (const [name, query] of cases) {
       const time = await explain(query)

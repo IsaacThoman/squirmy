@@ -1,3 +1,4 @@
+import { mergeSearch } from '@squirmy/client-core'
 import { SearchResults } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -10,8 +11,9 @@ import { body, errorCode, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
+import { albumSummaries } from '../catalog/summaries.js'
 import { materialize } from './materialize.js'
-import type { ProviderAlbum, ProviderResults } from './providers.js'
+import { searchCatalog, type ProviderAlbum, type ProviderResults } from './providers.js'
 
 const radioheadMbid = 'a74b1b7f-71a5-4011-9441-d0b5e4122711'
 const okComputerGroup = 'b1392450-e666-3926-a536-22c65f834433'
@@ -47,6 +49,11 @@ describe('GET /search/catalog', () => {
 
   const search = async (q: string, limit: number) =>
     body(await app.inject({ url: `/api/v1/search/catalog?q=${encodeURIComponent(q)}&limit=${limit}`, headers: user.headers }), SearchResults)
+  /** Every row a provider's answer was stored as, including those the route leaves out because the library shows them. */
+  const stored = async (q: string, limit: number) => {
+    const { provider, results } = await searchCatalog(q, limit)
+    return materialize(provider!.idSource, results)
+  }
 
   beforeAll(async () => {
     app = await buildApp()
@@ -62,28 +69,13 @@ describe('GET /search/catalog', () => {
     await app.close()
   })
 
-  it('stores Deezer results as stubs and shows owned music as owned', async () => {
-    const results = await search('Radiohead OK Computer', 5)
-    expect(results.provider).toBe('deezer')
-    expect(results.artists).toEqual([])
-    expect(results.albums.map((one) => [one.title, one.availability])).toEqual([
-      ['OK Computer', 'full'],
-      ['OK Computer OKNOTOK 1997 2017', 'none'],
-      ["MF Computer (Radiohead's OK Computer Reimagined)", 'none'],
-      ['Strung Out On OK Computer: VSQ Performs Radiohead', 'none'],
-      ['MCP Performs Radiohead: OK Computer (Instrumental Version)', 'none'],
-    ])
-    expect(results.albums[0]!.id).toBe(owned.albumId)
-    // "Artist title" matches the album exactly, ahead of its popular tracks.
-    expect(results.top).toEqual({ type: 'album', id: owned.albumId })
-    expect(results.tracks.map((one) => [one.title, one.availability, one.album?.id])).toEqual([
-      ['Lucky', 'server', owned.albumId],
-      ['Airbag', 'server', owned.albumId],
-      ['Electioneering', 'none', owned.albumId],
-      ['The Tourist', 'none', owned.albumId],
-      ['Fitter Happier', 'none', owned.albumId],
-    ])
-    expect(results.tracks.slice(0, 2).map((one) => one.id)).toEqual([owned.tracks[1]!.recordingId, owned.tracks[0]!.recordingId])
+  it('stores Deezer results as stubs, matched to owned music', async () => {
+    const ids = await stored('Radiohead OK Computer', 5)
+    expect(ids.artists).toEqual([])
+    expect(ids.albums).toHaveLength(5)
+    expect(ids.albums[0]).toBe(owned.albumId)
+    expect(ids.tracks).toHaveLength(5)
+    expect(ids.tracks.slice(0, 2)).toEqual([owned.tracks[1]!.recordingId, owned.tracks[0]!.recordingId])
 
     // The owned rows gained their Deezer ids and a cover, and nothing else changed.
     expect(await externalIdOf('album', owned.albumId)).toEqual([{ provider: 'deezer', externalId: '14879699' }])
@@ -95,9 +87,37 @@ describe('GET /search/catalog', () => {
     expect(cover).toMatchObject({ status: 'remote', kind: 'cover', remoteUrl: expect.stringMatching(/^https:\/\/cdn-images\.dzcdn\.net\/images\/cover\/.+1000x1000/) })
   })
 
+  it('leaves out what the library answer for the same query already shows', async () => {
+    const results = await search('Radiohead OK Computer', 5)
+    expect(results.provider).toBe('deezer')
+    expect(results.albums.map((one) => [one.title, one.availability])).toEqual([
+      ['OK Computer OKNOTOK 1997 2017', 'none'],
+      ["MF Computer (Radiohead's OK Computer Reimagined)", 'none'],
+      ['Strung Out On OK Computer: VSQ Performs Radiohead', 'none'],
+      ['MCP Performs Radiohead: OK Computer (Instrumental Version)', 'none'],
+    ])
+    // Only what the library answer lists goes: it has the album but not these two songs,
+    // so they stay, as owned. Tracks of the album the user does not have point at it too.
+    const library = body(await app.inject({ url: '/api/v1/search/library?q=Radiohead+OK+Computer&limit=5', headers: user.headers }), SearchResults)
+    expect(library.albums.map((one) => one.id)).toEqual([owned.albumId])
+    expect(library.tracks).toEqual([])
+    expect(results.tracks.map((one) => [one.title, one.availability, one.album?.id])).toEqual([
+      ['Lucky', 'server', owned.albumId],
+      ['Airbag', 'server', owned.albumId],
+      ['Electioneering', 'none', owned.albumId],
+      ['The Tourist', 'none', owned.albumId],
+      ['Fitter Happier', 'none', owned.albumId],
+    ])
+    expect(results.top).toEqual({ type: 'album', id: results.albums[0]!.id, score: 1 })
+    // Both hints are scored alike, so the merged list leads with the user's exact match
+    // rather than the catalog's prefix one.
+    expect(library.top).toEqual({ type: 'album', id: owned.albumId, score: 3 })
+    expect(mergeSearch(library, results, { role: 'member', canAcquire: false }).top).toMatchObject({ type: 'album', album: { id: owned.albumId } })
+  })
+
   it('writes stubs with the whole contract', async () => {
     const results = await search('Radiohead OK Computer', 5)
-    const [stub] = await db.select().from(albums).where(eq(albums.id, results.albums[1]!.id))
+    const [stub] = await db.select().from(albums).where(eq(albums.id, results.albums[0]!.id))
     expect(stub).toMatchObject({
       title: 'OK Computer OKNOTOK 1997 2017', artistCredit: 'Radiohead', primaryArtistId: owned.artist.id, type: 'album',
       year: null, releaseDate: null, titleKey: 'ok computer oknotok 1997 2017', matchKey: 'radiohead|ok computer oknotok 1997 2017',
@@ -110,7 +130,7 @@ describe('GET /search/catalog', () => {
     const [cover] = await db.select().from(assets).where(eq(assets.id, stub!.artworkAssetId!))
     expect(cover).toMatchObject({ status: 'remote', storagePath: null })
 
-    const falcon = results.albums[2]!
+    const falcon = results.albums[1]!
     expect(falcon.artists).toHaveLength(1)
     const [artist] = await db.select().from(artists).where(eq(artists.id, falcon.artists[0]!.id))
     expect(artist).toMatchObject({ name: 'Mother Falcon', nameKey: 'mother falcon', detailLevel: 0, mbid: null, imageAssetId: null })
@@ -141,11 +161,11 @@ describe('GET /search/catalog', () => {
     const responses = await Promise.all(Array.from({ length: 4 }, () => search('radiohead', 3)))
     expect(http.requests.filter((request) => request.includes('api.deezer.com/search'))).toHaveLength(3)
     for (const response of responses) expect(response).toEqual(responses[0])
-    const results = responses[0]!
-    expect(results.artists.map((artist) => artist.name)[0]).toBe('Radiohead')
-    // Found by name and given the Deezer image.
-    expect(results.artists[0]!.id).toBe(owned.artist.id)
-    expect(results.artists[0]!.image).not.toBeNull()
+    // Found by name and given the Deezer image; the library answer has it, so the catalog answer does not.
+    expect((await stored('radiohead', 3)).artists[0]).toBe(owned.artist.id)
+    expect(responses[0]!.artists.map((artist) => artist.id)).not.toContain(owned.artist.id)
+    const [radiohead] = await db.select().from(artists).where(eq(artists.id, owned.artist.id))
+    expect(radiohead!.imageAssetId).not.toBeNull()
     const duplicates = await db.execute(sql`select match_key from albums group by match_key, type having count(*) > 1
       union all select match_key from recordings group by match_key, duration_ms having count(*) > 1`)
     expect(duplicates).toEqual([])
@@ -247,15 +267,19 @@ describe('GET /search/catalog', () => {
   it('uses MusicBrainz when Deezer is off, and reuses rows by MBID', async () => {
     await updateServerSettings({ deezerEnabled: false })
     await db.update(albums).set({ mbid: okComputerGroup }).where(eq(albums.id, owned.albumId))
-    const results = await search('ok computer', 3)
-    expect(results.provider).toBe('musicbrainz')
+    const ids = await stored('ok computer', 3)
     expect(http.requests.every((request) => request.includes('musicbrainz.org'))).toBe(true)
-    expect(results.albums.find((one) => one.mbid === okComputerGroup)?.id).toBe(owned.albumId)
+    expect(ids.albums).toContain(owned.albumId)
     // The owned artist had no MBID; it is the only Radiohead, so the name finds it.
-    expect(results.albums.find((one) => one.mbid === okComputerGroup)!.artists[0]!.id).toBe(owned.artist.id)
+    const [ownedSummary] = await albumSummaries([owned.albumId])
+    expect(ownedSummary!.artists[0]!.id).toBe(owned.artist.id)
     expect(await externalIdOf('artist', owned.artist.id)).toContainEqual({ provider: 'musicbrainz', externalId: radioheadMbid })
 
-    const stub = results.albums.find((one) => one.id !== owned.albumId)!
+    const results = await search('ok computer', 3)
+    expect(results.provider).toBe('musicbrainz')
+    // The owned album is the library answer's; the catalog answer has the rest.
+    expect(results.albums.map((one) => one.id)).toEqual(ids.albums.filter((id) => id !== owned.albumId))
+    const stub = results.albums[0]!
     const [row] = await db.select().from(albums).where(eq(albums.id, stub.id))
     expect(row).toMatchObject({ mbid: stub.mbid, detailLevel: 0 })
     expect(await externalIdOf('album', stub.id)).toEqual([{ provider: 'musicbrainz', externalId: stub.mbid }])

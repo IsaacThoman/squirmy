@@ -80,7 +80,7 @@ describe('library membership', () => {
     for (const user of [owner, other]) {
       expect(await albumIds(user)).toEqual([])
       for (const sort of ['title', 'artist', 'year']) expect(await albumIds(user, sort)).toEqual([])
-      for (const sort of ['recent', 'title', 'artist']) expect(await trackIds(user, sort)).toEqual([])
+      for (const sort of ['recent', 'title', 'artist', 'year']) expect(await trackIds(user, sort)).toEqual([])
       expect(await artistNames(user)).toEqual([])
       expect(body(await get(user, '/library/genres'), GenrePage).items).toEqual([])
       const home = body(await get(user, '/home'), HomeResponse)
@@ -163,6 +163,10 @@ describe('library membership', () => {
     await save(owner, 'track', track!.recordingId)
     expect(await trackIds(owner)).toEqual([track!.recordingId])
     for (const sort of ['title', 'artist']) expect(await trackIds(owner, sort)).toEqual([track!.recordingId])
+    // By year a track is placed by its file's album, so a saved one waits for its file.
+    expect(await trackIds(owner, 'year')).toEqual([])
+    await createFile({ rootId: (await createLibraryRoot()).id, recordingId: track!.recordingId, albumId: album.albumId, source: fetched })
+    expect(await trackIds(owner, 'year')).toEqual([track!.recordingId])
     expect(await albumIds(owner)).toEqual([])
     expect(await artistNames(owner)).toEqual([])
     expect(await trackIds(other)).toEqual([])
@@ -266,6 +270,9 @@ describe('library membership', () => {
       expect(await run((shape) => libraryAlbumsQuery(owner.id, { sort, genre: 'jazz', limit: 50 }, shape))).toHaveLength(4)
       expect(await run((shape) => libraryAlbumsQuery(other.id, { sort, limit: 50 }, shape))).toHaveLength(2)
     }
+    // By year, only tracks with a present file: all but The Beta's saved track without one.
+    expect(await run((shape) => libraryTracksQuery(owner.id, { sort: 'year', limit: 50 }, shape))).toHaveLength(8)
+    expect(await run((shape) => libraryTracksQuery(other.id, { sort: 'year', limit: 50 }, shape))).toHaveLength(4)
     for (const sort of ['title', 'artist'] as const) {
       // Same's 3, The Beta's file and its saved track, Alpha's fetched one, Cached's 3.
       expect(await run((shape) => libraryTracksQuery(owner.id, { sort, limit: 50 }, shape))).toHaveLength(9)

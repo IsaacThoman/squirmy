@@ -11,17 +11,20 @@ export type SearchQuery = z.infer<typeof SearchQuery>
 /**
  * The single result a client can lead with, one of the items in `artists`, `albums` or
  * `tracks`. Chosen by how exactly its name matches the query (the whole name, or artist
- * and title together; then the same with edition suffixes such as "(Deluxe Edition)"
- * dropped; then the name starting with the query), ties broken by popularity, then artist
- * before album before track, then the order of the lists.
+ * and title together, also with edition suffixes such as "(Deluxe Edition)" or a leading
+ * article dropped; then the name starting with the query; then a name one typo away),
+ * ties broken by the article as typed, popularity, the order of the lists, then artist
+ * before album before track.
  */
 export const SearchTopResult = z.object({
   type: z.enum(['artist', 'album', 'track']),
   id: Id,
   /**
-   * How exactly it matched: 3 the whole name, 2 the name without edition suffixes, 1 a
-   * prefix. Lets a client pick between the library's and the catalog's top results, which
-   * are ranked separately. Optional for older servers.
+   * How exactly it matched: 3 the whole name as typed (edition suffixes ignored), 2 the
+   * whole name only once a leading article is ignored, 1 a prefix or one typo. A higher
+   * score is a match the ranking above puts first. Lets a client pick between the
+   * library's and the catalog's top results, which are ranked separately. Optional for
+   * older servers.
    */
   score: z.number().int().min(1).max(3).optional(),
 })

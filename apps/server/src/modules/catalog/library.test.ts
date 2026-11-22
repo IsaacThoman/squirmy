@@ -146,7 +146,7 @@ describe('library lists', () => {
 
   it('lists owned tracks in each order', async () => {
     const all = owned.flatMap((album) => album.tracks.filter((track) => track.fileId).map((track) => ({ ...track, albumId: album.albumId })))
-    for (const sort of ['recent', 'title', 'artist']) {
+    for (const sort of ['recent', 'title', 'artist', 'year']) {
       const tracks = await walk(`/api/v1/library/tracks?sort=${sort}`, TrackPage, 3)
       expect(tracks.length, sort).toBe(all.length)
       expect(new Set(ids(tracks)).size).toBe(all.length)
@@ -162,6 +162,14 @@ describe('library lists', () => {
     const byArtist = await walk('/api/v1/library/tracks?sort=artist', TrackPage, 4)
     expect(byArtist[0]!.artistCredit).toBe('The Abc')
     expect(byArtist.at(-1)!.artistCredit).toBe('Zed')
+
+    // By year: albums newest first as in the album list, each album's tracks in order.
+    const [zedSame, abcSame1, beta, alpha, delta, abcSame2] = owned
+    const albumOrder = [delta!, ...[zedSame!, abcSame1!, abcSame2!].sort((a, b) => (a.albumId < b.albumId ? -1 : 1)), beta!, alpha!]
+    const byYear = await walk('/api/v1/library/tracks?sort=year', TrackPage, 2)
+    expect(byYear.map((track) => [track.id, track.album?.id])).toEqual(albumOrder.flatMap((album) =>
+      album.tracks.filter((track) => track.fileId).map((track) => [track.recordingId, album.albumId])))
+    expect(await walk('/api/v1/library/tracks?sort=year&genre=rock', TrackPage, 2)).toEqual(byYear.filter((track) => [zedSame!.albumId, beta!.albumId].includes(track.album!.id)))
   })
 
   it('rejects cursors that are malformed or belong to another list', async () => {
@@ -170,7 +178,6 @@ describe('library lists', () => {
     expect(errorCode(await app.inject({ url: '/api/v1/library/albums?cursor=nonsense', headers }), 400)).toBe('invalid_cursor')
     const forged = Buffer.from(JSON.stringify({ o: 'albums:recent', k: ["'; drop table albums; --", 'x'] })).toString('base64url')
     expect(errorCode(await app.inject({ url: `/api/v1/library/albums?cursor=${forged}`, headers }), 400)).toBe('invalid_cursor')
-    expect(errorCode(await app.inject({ url: '/api/v1/library/tracks?sort=year', headers }), 400)).toBe('unsupported_sort')
     expect(errorCode(await app.inject({ url: '/api/v1/library/albums?sort=newest', headers }), 400)).toBe('invalid_request')
   })
 })
