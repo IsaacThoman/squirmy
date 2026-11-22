@@ -251,7 +251,8 @@ describe('detached sessions', () => {
     expect(a.events('session:moved')).toEqual([])
     await tab.send({ type: 'pause' })
     await eventually(() => a.lastState(), (state) => expect(state?.playing).toBe(false))
-    expect(b.lastState()?.playing).toBe(false)
+    // B's pause came from the detach, on another socket, so it is not ordered with A's events.
+    await eventually(() => b.lastState(), (state) => expect(state?.playing).toBe(false))
     // A further socket joins the session the device is in.
     const late = await open('device-a-7')
     expect((await late.hello({ detached: false })).snapshot.scope).toEqual({ type: 'device', deviceId: 'device-a-7' })
