@@ -17,14 +17,15 @@ function decodedKey(raw: string): string {
 
 /** The URL with the values of credential parameters replaced, for logs. */
 export function redactUrl(url: string): string {
-  const mark = url.indexOf('?')
+  // The router ends the path at the first `?` or `#` and parses the rest as the query.
+  const mark = url.search(/[?#]/)
   if (mark < 0) return url
   const query = url.slice(mark + 1).split('&').map((pair) => {
     const equals = pair.indexOf('=')
     const key = equals < 0 ? pair : pair.slice(0, equals)
     return secretParams.has(decodedKey(key)) ? `${key}=[redacted]` : pair
   })
-  return `${url.slice(0, mark)}?${query.join('&')}`
+  return `${url.slice(0, mark + 1)}${query.join('&')}`
 }
 
 /**

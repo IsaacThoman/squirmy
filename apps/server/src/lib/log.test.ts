@@ -11,5 +11,7 @@ describe('redactUrl', () => {
     // An encoded key is still the same parameter to the server.
     expect(redactUrl('/rest/ping?%70=secret&u=a')).toBe('/rest/ping?%70=[redacted]&u=a')
     expect(redactUrl('/api/v1/tracks')).toBe('/api/v1/tracks')
+    // The router also reads a query after `#`.
+    expect(redactUrl('/rest/ping.view#u=mira&p=secret')).toBe('/rest/ping.view#u=mira&p=[redacted]')
   })
 })
