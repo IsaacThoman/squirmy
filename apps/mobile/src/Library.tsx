@@ -365,6 +365,8 @@ const searchFilterOptions = searchFilters.map(filter => searchFilterLabels[filte
 const filterOf = (label: string) => searchFilters.find(filter => searchFilterLabels[filter] === label) ?? 'all';
 /** How many recent searches and recently viewed results the tab offers. */
 const recentQueries = 6;
+/** A song row's cover size (`TrackCover`), which other results match. */
+const resultCover = 42;
 const recentItems = 10;
 
 /** A result as the row it is drawn with, for what is not a song. */
@@ -418,7 +420,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   };
   const tracks = useMemo(() => shown.flatMap(item => (item.type === 'track' ? [item.track] : [])), [shown]);
   const songItems = useSongListItems({
-    tracks, onTrackMenu: track => onTrackMenu(track),
+    tracks, kind: 'Song', onTrackMenu: track => onTrackMenu(track),
     onPlay: index => {
       const track = tracks[index]!;
       remember({ type: 'track', track });
@@ -472,8 +474,9 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
       case 'song': return <View style={styles.songs}>{renderSong({ item: row.song })}</View>;
       case 'row': {
         const item = collectionDim(resultCollection(row.item, link));
-        return <CollectionRow title={item.title} subtitle={item.subtitle} size={50} dim={item.dim} href={item.href}
-          cover={<CollectionCover item={item} size={50} radius={item.round ? 25 : 9} />}
+        // The size of a song row's cover, so titles line up down the mixed list.
+        return <CollectionRow title={item.title} subtitle={item.subtitle} size={resultCover} dim={item.dim} href={item.href}
+          cover={<CollectionCover item={item} size={resultCover} radius={item.round ? resultCover / 2 : 8} />}
           onSelect={() => { tapFeedback(); remember(row.item); }} actions={menuFor(row.item)} />;
       }
       case 'query': return <View style={styles.recentRow}>
@@ -503,9 +506,6 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
 
   const empty = active && list.items !== null && !list.items.length && !list.pending && !list.stale;
   const header = active ? <>
-    <View style={styles.searchFilters}>
-      <LibraryFilters options={searchFilterOptions} value={searchFilterLabels[filter]} onChange={label => { tapFeedback(); setFilter(filterOf(label)); }} />
-    </View>
     {offline ? <EmptyState icon="wifi.slash" title="You’re offline" description="Search needs your server. Your downloads are in your Library." />
       : list.failed ? <EmptyState icon="wifi.exclamationmark" title="Search isn’t available" description="Check your connection to the server."
         action={{ title: 'Try again', onPress: () => { tapFeedback(); void list.refetch(); } }} />
@@ -539,6 +539,10 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
       <OfflineBadge />
     </View>
     <View style={styles.searchHeader}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists, playlists" /></View>
+    {/* Fixed above the list, as the Library's are, so a filter is a tap away however far down the results go. */}
+    {active && <View style={styles.searchFilters}>
+      <LibraryFilters options={searchFilterOptions} value={searchFilterLabels[filter]} onChange={label => { tapFeedback(); setFilter(filterOf(label)); }} />
+    </View>}
     <FlatList data={offline && active ? [] : rows} renderItem={renderRow} keyExtractor={searchRowKey}
       refreshControl={refreshControl} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       onEndReached={active ? list.loadMore : undefined} onEndReachedThreshold={1.5}
@@ -569,7 +573,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   matchNote: { color: colors.quiet, fontSize: 13, textAlign: 'center', marginVertical: 18, marginHorizontal: 12 },
   searching: { paddingVertical: 48, alignItems: 'center' },
   searchHeader: { marginHorizontal: gutter, marginTop: 13, marginBottom: 12 },
-  searchFilters: { marginBottom: 8 },
+  searchFilters: { marginHorizontal: gutter, marginBottom: 8 },
   searchBody: { paddingHorizontal: gutter },
   searchGenres: { marginTop: 22, marginHorizontal: -gutter },
   genres: { paddingHorizontal: gutter },
@@ -580,7 +584,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   recentTitle: { color: colors.text, fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
   recentRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
   recentQuery: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
-  recentIcon: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  recentIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   recentText: { color: colors.text, fontSize: 15, fontWeight: '600' },
   recentRemove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 }));

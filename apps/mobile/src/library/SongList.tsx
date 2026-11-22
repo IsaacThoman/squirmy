@@ -24,6 +24,8 @@ export type SongListProps = {
   tracks: readonly TrackSummary[];
   /** Shows each track's position on its album instead of its cover. */
   numbered?: boolean;
+  /** Said before each artist, where songs are listed among other kinds of result ("Song"). */
+  kind?: string;
   /** Called with the index of the track in `tracks`. */
   onPlay: (index: number) => void;
   onTrackMenu: (track: TrackSummary, index: number) => void;
@@ -49,10 +51,10 @@ export function SongList(props: SongListProps) {
 
 /** The rows of a long list, for a virtualized list to render. */
 export function useSongListItems(props: SongListProps): SongListItems {
-  const { tracks, numbered, playlist, album } = props;
+  const { tracks, numbered, playlist, album, kind } = props;
   const handlers = useSongRowHandlers(props);
   const { run } = useTrackActionRunner();
-  const data = useMemo(() => songRows({ tracks, numbered, playlist, album }), [album, numbered, playlist, tracks]);
+  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, kind }), [album, numbered, playlist, tracks, kind]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongRow item={item} handlers={handlers} run={run} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }
@@ -135,7 +137,7 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
             {typeof number !== 'number' && loading !== 'none' ? <ActivityIndicator size="small" color={colors.accent} style={styles.rowSpinner} />
               : mark && <Icon name={mark} size={11} color={colors.muted} />}
             {(item.showArtist || loading === 'slow') && <Text numberOfLines={1} style={[styles.rowSub, styles.flex]}>
-              {loading === 'slow' ? STILL_LOADING_LABEL : track.artistCredit}
+              {loading === 'slow' ? STILL_LOADING_LABEL : item.kind ? `${item.kind} · ${track.artistCredit}` : track.artistCredit}
             </Text>}
           </View>}
         </View>

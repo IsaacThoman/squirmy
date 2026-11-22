@@ -35,6 +35,8 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
   const search = useSearch(filter === 'all' ? text : '');
   const pages = useSearchPages(text, filterKind(filter));
   const playlists = usePlaylists();
+  // `usePlaylists` hands out a new list every render; the ranking needs one per answer.
+  const playlistItems = useMemo(() => playlists.data?.pages.flatMap(page => page.items) ?? [], [playlists.data]);
 
   const answered = search.query === term && term.length > 0;
   const library = answered && !search.library.isPlaceholderData ? search.library.data : undefined;
@@ -54,12 +56,12 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
   const shownOrder = useRef<{ term: string; order: string[] } | null>(null);
   const all = useMemo(() => {
     if (stage === 'wait') return null;
-    const items = searchItems(library, catalog, viewer, term, playlists.items);
+    const items = searchItems(library, catalog, viewer, term, playlistItems);
     if (stage !== 'full') return { term, items, full: false };
     const kept = keepOrder(items, shownOrder.current?.term === term ? shownOrder.current.order : null);
     shownOrder.current = { term, order: kept.order };
     return { term, items: kept.items, full: true };
-  }, [stage, library, catalog, viewer, term, playlists.items]);
+  }, [stage, library, catalog, viewer, term, playlistItems]);
 
   const paged = useMemo(() => {
     const kind = filterKind(filter);
@@ -81,7 +83,7 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
   const current = useMemo((): SearchList | null => {
     if (!term) return null;
     if (filter === 'playlist') {
-      const items = playlists.items.map(playlist => ({ playlist, score: playlistScore(term, playlist.name) }))
+      const items = playlistItems.map(playlist => ({ playlist, score: playlistScore(term, playlist.name) }))
         .filter(({ score }) => score > 0).sort((a, b) => b.score - a.score)
         .map(({ playlist }): SearchItem => ({ type: 'playlist', playlist }));
       return { items, stale: false, pending: false, failed: false, catalogFailed: false, refetch: playlists.refetch };
@@ -103,12 +105,15 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
       catalogFailed: pages.data?.pages.some(page => page.catalogFailed) ?? false, refetch: pages.refetch,
       loadMore: pages.hasNextPage && !pages.isFetchingNextPage ? () => void pages.fetchNextPage() : undefined,
     };
-  }, [term, filter, all, paged, pages, playlists, search.library, search.catalog, libraryFailed, catalogFailed]);
+  }, [term, filter, all, paged, pages, playlists, playlistItems, search.library, search.catalog, libraryFailed, catalogFailed]);
 
   // The last results shown stand in, faded, while the next ones are on their way: only for the
   // same filter and the same search typed on or deleted back, never under an unrelated one.
-  const [shown, setShown] = useState<{ term: string; filter: SearchFilter; list: SearchList } | null>(null);
-  if (current && current !== shown?.list) setShown({ term, filter, list: current });
+  // Kept by what it lists, not by identity: the query results it is built from are new objects
+  // on most renders, and storing each would render again without end.
+  const [shown, setShown] = useState<{ term: string; filter: SearchFilter; signature: string; list: SearchList } | null>(null);
+  const signature = current?.items ? `${term}\n${filter}\n${current.items.map(searchItemKey).join(',')}` : null;
+  if (current && signature !== null && signature !== shown?.signature) setShown({ term, filter, signature, list: current });
   if (!term) return { items: null, stale: false, pending: false, failed: false, catalogFailed: false, refetch: async () => {} };
   if (current) return current;
   return shown?.list.items && shown.filter === filter && continuesQuery(term, shown.term)
