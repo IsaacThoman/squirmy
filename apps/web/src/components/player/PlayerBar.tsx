@@ -31,7 +31,8 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
   const item = state.current
   const elsewhere = playingElsewhere(state)
   return (
-    <div className={barClass}>
+    // A landmark, so screen readers can jump to the player and tests can find it by name.
+    <section aria-label="Player" className={barClass}>
       {/*
         Narrow: the track takes what the transport and the tools leave, and below 36rem shuffle, repeat
         and lyrics step aside (the queue and Now Playing have them) so the title stays readable.
@@ -90,7 +91,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
         </div>
       </div>
       {elsewhere && <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="border-t" />}
-    </div>
+    </section>
   )
 }
 
@@ -101,7 +102,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
   const elsewhere = playingElsewhere(state)
   if (!item) return null
   return (
-    <div className={cn(barClass, 'relative pb-[env(safe-area-inset-bottom)]')}>
+    <section aria-label="Player" className={cn(barClass, 'relative pb-[env(safe-area-inset-bottom)]')}>
       <div className="flex h-16 items-center gap-1 border-t pl-3 pr-2">
         <button type="button" aria-label={`Open Now Playing, ${item.track.title}`} onClick={onOpenNowPlaying} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
           <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-10 rounded-[5px]" />
@@ -120,7 +121,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
         <PlayPauseButton playing={state.playing} onClick={controls.togglePlay} className="mx-1 size-10 after:absolute after:-inset-0.5 after:rounded-full [&_svg]:size-5" />
       </div>
       <MiniProgress durationMs={item.entry.durationMs} />
-    </div>
+    </section>
   )
 }
 
