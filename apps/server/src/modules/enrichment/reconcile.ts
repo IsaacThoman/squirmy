@@ -21,7 +21,8 @@ import { queryKeys } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import { lockUpserts } from '../matching/apply.js'
-import { mergeAlbum } from '../matching/merge.js'
+import { lockCatalog } from '../library/cleanup.js'
+import { mergeAlbum, mergeArtist } from '../matching/merge.js'
 import { labelFreeKey } from '../search/keys.js'
 import { changed } from './rows.js'
 
@@ -166,4 +167,55 @@ export async function reconcileAllArtists(): Promise<number> {
     if (page.length < repairBatch) return total
     after = page.at(-1)!.id
   }
+}
+
+/**
+ * An artist row built from a delivery's tags that only rows merged away still credit: no
+ * MBID, no provider id, no live album or recording. Ingest made it from the file's tags
+ * ("Mira Vale" beside the catalog's, or a whole credit like "Grimes, VADAKIN" as one artist)
+ * before the file was placed on the requested rows, and it stayed listed in search.
+ */
+const tagBuiltLeftover = sql.raw(`
+  a.merged_into_id is null and a.mbid is null
+  and not exists (select 1 from external_ids e where e.entity_type = 'artist' and e.entity_id = a.id)
+  and not exists (select 1 from album_artists aa join albums al on al.id = aa.album_id where aa.artist_id = a.id and al.merged_into_id is null)
+  and not exists (select 1 from recording_artists ra join recordings r on r.id = ra.recording_id where ra.artist_id = a.id and r.merged_into_id is null)
+  and not exists (select 1 from albums al where al.primary_artist_id = a.id and al.merged_into_id is null)
+  and not exists (select 1 from recordings r where r.primary_artist_id = a.id and r.merged_into_id is null)
+  and (exists (select 1 from album_artists aa where aa.artist_id = a.id) or exists (select 1 from recording_artists ra where ra.artist_id = a.id))`)
+
+/**
+ * Folds tag-built artist leftovers (see `tagBuiltLeftover`) into the one other artist of
+ * the same name, keeping likes and ratings (`mergeArtist`), or removes one no other artist
+ * shares a name with when nothing of a user's points at it. Returns how many rows went.
+ * Takes the library's catalog lock per row, so it never races an ingest. Idempotent.
+ */
+export async function foldTagBuiltArtists(): Promise<number> {
+  const candidates = await db.execute<{ id: string }>(sql`select a.id from artists a where ${tagBuiltLeftover} order by a.id`)
+  let folded = 0
+  for (const { id } of candidates) {
+    const done = await db.transaction(async (tx) => {
+      await lockCatalog(tx)
+      const [still] = await tx.execute<{ id: string; nameKey: string }>(sql`
+        select a.id, a.name_key as "nameKey" from artists a where a.id = ${id} and ${tagBuiltLeftover}`)
+      if (!still) return false
+      const namesakes = await tx.execute<{ id: string }>(sql`
+        select id from artists where name_key = ${still.nameKey} and id <> ${id} and merged_into_id is null limit 2`)
+      if (namesakes.length === 1) {
+        await mergeArtist(id, namesakes[0]!.id, tx)
+        return true
+      }
+      if (namesakes.length > 1) return false
+      const [kept] = await tx.execute<{ found: boolean }>(sql`
+        select exists (select 1 from likes where entity_type = 'artist' and entity_id = ${id})
+          or exists (select 1 from ratings where entity_type = 'artist' and entity_id = ${id})
+          or exists (select 1 from artists m where m.merged_into_id = ${id}) as found`)
+      if (kept?.found) return false
+      // Its credits are on rows merged away, whose pages show the rows they redirect to.
+      await tx.execute(sql`delete from artists where id = ${id}`)
+      return true
+    })
+    if (done) folded++
+  }
+  return folded
 }

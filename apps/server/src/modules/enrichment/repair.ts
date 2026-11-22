@@ -3,7 +3,9 @@
  * now. Idempotent, so it runs at worker start and daily.
  *
  * 1. Store editions merged into their release group's row are split off again (`editions.ts`).
- * 2. Every artist's duplicate album rows are merged (`reconcileAllArtists`).
+ * 2. Every artist's duplicate album rows are merged (`reconcileAllArtists`), and artist rows
+ *    built from a delivery's tags that only merged rows still credit are folded into the
+ *    catalog artist of their name, or removed (`foldTagBuiltArtists`).
  * 3. Names and titles stored with HTML entities ("Will Taylor &amp; Strings Attached") are
  *    decoded, and their keys recomputed.
  * 4. Albums with a date but no year get the year.
@@ -21,7 +23,7 @@ import { decodeEntities } from '../metadata/deezer.js'
 import { refreshTopTracks } from './artist.js'
 import { linkDeezerAlbum } from './deezer-rows.js'
 import { splitMergedEditions } from './editions.js'
-import { reconcileAllArtists, reconcileArtistAlbums } from './reconcile.js'
+import { foldTagBuiltArtists, reconcileAllArtists, reconcileArtistAlbums } from './reconcile.js'
 import { attempt } from './rows.js'
 
 /** Artists whose top tracks are fetched again per run: one or two Deezer requests each. */
@@ -29,15 +31,18 @@ const topTrackBatch = 200
 /** Albums whose Deezer track list is read again per run for explicit flags: two Deezer requests each. */
 const explicitBatch = 200
 
-export type RepairReport = { editions: number; merged: number; decoded: number; years: number; explicitAlbums: number; topTrackArtists: number }
+export type RepairReport = {
+  editions: number; merged: number; tagArtists: number; decoded: number; years: number; explicitAlbums: number; topTrackArtists: number
+}
 
 export async function repairReleases(): Promise<RepairReport> {
   const deezerEnabled = (await getServerSettings()).deezerEnabled
   const editions = deezerEnabled ? await splitMergedEditions() : 0
   const merged = await reconcileAllArtists()
+  const tagArtists = await foldTagBuiltArtists()
   const decoded = await decodeStoredEntities()
   const years = await backfillYears()
-  if (!deezerEnabled) return { editions, merged, decoded, years, explicitAlbums: 0, topTrackArtists: 0 }
+  if (!deezerEnabled) return { editions, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0 }
   const explicitAlbums = await backfillExplicit()
   // Popular Deezer tracks on no release and without an album: the artist page showed them with no artwork.
   const artists = await db.execute<{ id: string }>(sql`
@@ -52,7 +57,7 @@ export async function repairReleases(): Promise<RepairReport> {
   for (const artist of artists) {
     if (await refreshTopTracks(artist.id)) await reconcileArtistAlbums(artist.id)
   }
-  return { editions, merged, decoded, years, explicitAlbums, topTrackArtists: artists.length }
+  return { editions, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length }
 }
 
 const encoded = `'&(#x?[0-9a-f]+|amp|quot|lt|gt|apos|nbsp);'`
