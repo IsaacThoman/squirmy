@@ -431,6 +431,23 @@ describe('sessions', () => {
     expect((await a.state(2)).current).toMatchObject({ trackId: album.tracks[0]!.recordingId, state: 'ready' })
   })
 
+  it('asks again for an on-demand track that left the queue before its answer came', async () => {
+    const remote = await createAlbum({ tracks: [{ title: 'Again' }] })
+    const far = remote.tracks[0]!.recordingId
+    onDemand.add(far)
+    const a = await device('device-a-0021')
+    const play = (...trackIds: string[]) => a.send({ type: 'playTracks', tracks: trackIds.map((trackId) => ({ trackId, albumId: remote.albumId, durationMs: 1 })), seed: 1 })
+    // Requested while up next, then gone with the queue it was in.
+    await play(album.tracks[0]!.recordingId, far)
+    await play(album.tracks[1]!.recordingId)
+    await a.state(2)
+    // The fetch failed while the session no longer held the track; it is still on demand.
+    await markRecordingFailed(far)
+    await play(far)
+    expect((await a.state(3)).current).toMatchObject({ trackId: far, state: 'preparing' })
+    expect(vi.mocked(requestRecording).mock.calls.map(([request]) => request.recordingId)).toEqual([far, far])
+  })
+
   it('refills autoplay from the radio module once per entry, and never loops on an empty answer', async () => {
     const extra = await createAlbum({ owned: true, tracks: [{ title: 'Suggested' }] })
     const suggestion: QueueSeed = { trackId: extra.tracks[0]!.recordingId, albumId: extra.albumId, durationMs: extra.tracks[0]!.durationMs, state: 'ready' }

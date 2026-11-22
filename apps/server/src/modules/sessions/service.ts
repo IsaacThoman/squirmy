@@ -401,13 +401,19 @@ export function markRecordingFailed(recordingId: string): Promise<void> {
 }
 
 async function setRecordingState(recordingId: string, state: 'ready' | 'failed'): Promise<void> {
-  const holders = [...loadedRecords()].filter(record => entriesOf(record.session).some(entry => entry.trackId === recordingId))
-  await Promise.all(holders.map(({ userId }) => serial(userId, () => {
-    const record = loadedRecord(userId)
-    if (!record) return
-    record.requested.delete(recordingId)
-    applyServer(record, { type: 'setEntryState', trackId: recordingId, state })
-  })))
+  // The request is answered for sessions that no longer hold the recording too, so one
+  // that queues it again asks again instead of waiting on an answer that already came.
+  await Promise.all([...loadedRecords()].filter(record => record.requested.has(recordingId) || holds(record, recordingId))
+    .map(({ userId }) => serial(userId, () => {
+      const record = loadedRecord(userId)
+      if (!record) return
+      record.requested.delete(recordingId)
+      if (holds(record, recordingId)) applyServer(record, { type: 'setEntryState', trackId: recordingId, state })
+    })))
+}
+
+function holds(record: SessionRecord, recordingId: string): boolean {
+  return entriesOf(record.session).some(entry => entry.trackId === recordingId)
 }
 
 /**
