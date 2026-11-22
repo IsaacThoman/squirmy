@@ -65,6 +65,23 @@ describe('GET /search/library', () => {
     expect(titles((await search('karma')).tracks)).toEqual(['Karma Police'])
   })
 
+  it('finds what the user hearted though it has no file yet, for that user only', async () => {
+    const saved = await createAlbum({ title: 'Saved Before Arrival', artist: await createArtist({ name: 'Hearted Band' }), tracks: [{ title: 'On Its Way' }] })
+    const followed = await createArtist({ name: 'Followed Only' })
+    expect(await search('saved before')).toMatchObject({ albums: [], tracks: [] })
+    await db.insert(likes).values([
+      { userId: user.id, entityType: 'album', entityId: saved.albumId },
+      { userId: user.id, entityType: 'recording', entityId: saved.tracks[0]!.recordingId },
+      { userId: user.id, entityType: 'artist', entityId: followed.id },
+    ])
+    expect(titles((await search('saved before')).albums)).toEqual(['Saved Before Arrival'])
+    expect(titles((await search('on its way')).tracks)).toEqual(['On Its Way'])
+    expect((await search('followed only')).artists.map((artist) => artist.name)).toEqual(['Followed Only'])
+    expect(await search('saved before', other)).toMatchObject({ albums: [], tracks: [] })
+    expect((await search('followed only', other)).artists).toEqual([])
+    await db.delete(likes)
+  })
+
   it('ranks an exact title first, then prefixes, then similar titles', async () => {
     expect(titles((await search('lucky')).tracks)).toEqual(['Lucky', 'Get Lucky'])
     expect(titles((await search('kid a')).albums)[0]).toBe('Kid A')
