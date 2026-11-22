@@ -279,7 +279,8 @@ export default function Player() {
   const trackDetails = (compact: boolean) => (
     <>
       <View style={styles.trackCopy}>
-        <Text numberOfLines={1} maxFontSizeMultiplier={displayFontScale}
+        {/* Two lines, as Apple Music gives a long title; `metadataHeight` keeps room for both. */}
+        <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={displayFontScale}
           style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{title}</Text>
         <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>
       </View>
@@ -311,8 +312,9 @@ export default function Player() {
           <Animated.View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }, contentStyle]}>
             <GestureDetector gesture={grabberDismiss}>
               <Animated.View style={[styles.grabberTouch, grabberStyle]}>
-                <CollapseButton onPress={close} />
-                <View style={styles.context} accessible={Boolean(context)}
+                {/* 44 pt tall, it reaches over the top of the context line, which lets touches through to it. */}
+                <View style={styles.collapse} pointerEvents="box-none"><CollapseButton onPress={close} /></View>
+                <View style={styles.context} pointerEvents="none" accessible={Boolean(context)}
                   accessibilityLabel={context ? `${context.heading}, ${context.title}` : undefined}>
                   {context && <>
                     <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={styles.contextHeading}>{context.heading}</Text>
@@ -327,7 +329,10 @@ export default function Player() {
                   pointerEvents={artworkPage ? 'auto' : 'none'} accessibilityElementsHidden={!artworkPage}
                   importantForAccessibility={artworkPage ? 'auto' : 'no-hide-descendants'}>
                   <View style={{ height: artSize }} />
-                  <Animated.View style={[styles.metadata, { minHeight: metadataHeight }, artworkDetailsStyle]}>{trackDetails(false)}</Animated.View>
+                  {/* A fixed height, with the lines at its top: a one-line title leaves the second line's room below. */}
+                  <Animated.View style={[styles.metadataSlot, { height: metadataHeight }, artworkDetailsStyle]}>
+                    <View style={styles.metadata}>{trackDetails(false)}</View>
+                  </Animated.View>
                 </View>
               </GestureDetector>
               {(seenLyrics || seenQueue) && <Animated.View style={[styles.details, compactDetailsStyle]} pointerEvents={artworkPage ? 'none' : 'auto'}
@@ -593,7 +598,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
-  grabberTouch: { height: headerHeight, alignItems: 'center' },
+  grabberTouch: { height: headerHeight, alignItems: 'center', paddingTop: grabberHeight },
+  collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   context: { height: contextHeight, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: artworkInset },
   contextHeading: { color: colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
   contextTitle: { color: colors.text, fontSize: 13, fontWeight: '600', marginTop: 1 },
@@ -607,6 +613,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     marginLeft: artworkInset + compactArtworkSize + 12, marginRight: artworkInset, marginBottom: 9 },
   compactTrackTitle: { color: colors.text, fontWeight: '700', fontSize: 18 },
   compactTrackArtist: { color: colors.muted, marginTop: 2, fontSize: 14 },
+  metadataSlot: { width: '100%', maxWidth: 440 },
   metadata: { width: '100%', maxWidth: 440, flexDirection: 'row', alignItems: 'center', gap: 5 },
   trackCopy: { minWidth: 0, flex: 1 },
   trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: colors.text },
@@ -630,5 +637,6 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   routePicker: { width: 44, height: 44, marginLeft: -2, marginVertical: -4 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
   footerSide: { flex: 1, alignItems: 'center' },
-  output: { flex: 1.3, minWidth: 0 },
+  // The sides hold one 44 pt button each; the device's name, such as "Only on this device", gets the rest.
+  output: { flex: 2, minWidth: 0 },
 }));
