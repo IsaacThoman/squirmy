@@ -2,18 +2,18 @@
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
-import type { HomeSection, LibrarySort, PlaylistDetail } from '@squirmy/contracts'
+import type { HomeSection, Page as ListPage, PlaylistDetail } from '@squirmy/contracts'
 import { queryKeys } from '@squirmy/contracts'
-import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
 import { CloudOff, Compass } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { moveItem } from '@/lib/reorder'
 import { useCachedSummary } from '@/api/prefetch'
 import {
-  isNotFound, itemsOf, loadItems, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist, usePlaylists, useWants,
-  type LibraryKind,
+  isNotFound, itemsOf, LIBRARY_MATCH_LIMIT, loadItems, searchesServer, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLibraryMatches,
+  useLikedTracks, usePlaylist, usePlaylists, useWants,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useMergedSearch } from '@/api/use-search'
@@ -27,12 +27,17 @@ import { EmptyState } from '@/components/ui/feedback'
 import { AlbumView } from '@/components/views/AlbumView'
 import { ArtistView } from '@/components/views/ArtistView'
 import { HomeView, type ScanProgress } from '@/components/views/HomeView'
-import { LibraryAlbumsView, LibraryArtistsView, LibraryPlaylistsView, LibrarySongsView, type LibraryListProps } from '@/components/views/LibraryView'
+import { LibraryView, type LibraryItem } from '@/components/views/LibraryView'
+import {
+  isLibraryFilter, isLibrarySort, matches, readLibraryFilter, readLibraryLayout, sortFor, sortsFor, writeLibraryFilter, writeLibraryLayout,
+  type LibraryFilterName,
+} from '@/components/views/library-state'
 import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
 import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
 import { SearchView } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
 import { canFetch } from '@/lib/catalog'
+import { plural } from '@/lib/format'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
@@ -155,7 +160,7 @@ function EditablePlaylist({ playlist }: { playlist: PlaylistDetail }) {
     mutationFn: () => api.userdata.deletePlaylist(playlist.id),
     onSuccess: () => {
       toast({ title: 'Playlist deleted', description: playlist.name })
-      void navigate('/library/playlists', { replace: true })
+      void navigate('/library?filter=playlists', { replace: true })
       queryClient.removeQueries({ queryKey: key })
       return queryClient.invalidateQueries({ queryKey: queryKeys.playlists(), exact: true })
     },
@@ -254,74 +259,176 @@ export function SearchPage() {
       }}
       search={search}
       genres={genres}
-      onBrowseGenre={genre => void navigate(`/library/albums?genre=${encodeURIComponent(genre)}`)}
+      onBrowseGenre={genre => void navigate(`/library?${new URLSearchParams({ filter: 'albums', genre })}`)}
       onPlayAlbum={album => void playAlbum(album)}
     />
   )
 }
 
-const sorts: LibrarySort[] = ['recent', 'title', 'artist', 'year']
-
-/** Sort and genre live in the URL (`?sort=`, `?genre=`), as the API names them. */
-function useLibraryFilter() {
-  const [params, setParams] = useSearchParams()
-  const value = params.get('sort') as LibrarySort | null
-  const sort: LibrarySort = value && sorts.includes(value) ? value : 'recent'
-  const genre = params.get('genre') ?? undefined
-  const set = (next: { sort: LibrarySort; genre?: string }) => setParams({
-    ...(next.sort === 'recent' ? {} : { sort: next.sort }),
-    ...(next.genre ? { genre: next.genre } : {}),
-  }, { replace: true })
-  return { sort, genre, onSortChange: (next: LibrarySort) => set({ sort: next, genre }), onGenreChange: (next: string | undefined) => set({ sort, genre: next }) }
+/** Where a filter chip goes: the filter, with the chosen sort kept for when it applies again. */
+function libraryHref(filter: LibraryFilterName, params: URLSearchParams) {
+  const next = new URLSearchParams({ filter })
+  const sort = params.get('sort')
+  if (isLibrarySort(sort) && sort !== 'recent') next.set('sort', sort)
+  return `/library?${next}`
 }
 
-function useLibraryPage<K extends LibraryKind>(kind: K) {
-  const user = useCurrentUser()
-  const filter = useLibraryFilter()
-  const genres = useGenres().data?.items.map(genre => genre.name)
-  // Artists come in name order only; a sort or genre left in the address would only split the cache.
-  const list = useLibraryList(kind, kind === 'artists' ? { sort: 'recent' } : { sort: filter.sort, genre: filter.genre })
-  // While another sort's list stands in, its cursor is not this list's.
-  const { isFetchingNextPage, fetchNextPage } = list
-  const hasNextPage = list.hasNextPage && !list.isPlaceholderData
-  const props = {
-    items: list.data && itemsOf(list.data),
-    more: hasNextPage,
-    onEndReached: () => { if (hasNextPage && !isFetchingNextPage) void fetchNextPage() },
-    genres,
-    canAddMusic: user.role === 'admin',
-    ...filter,
-  } satisfies Partial<LibraryListProps<unknown>>
-  return { list, props }
+/**
+ * The old list pages (`/library/albums`, …) and links from before the combined Library: the
+ * combined view with that filter chosen, keeping a sort or genre they carried.
+ */
+export function LibraryRedirect({ filter }: { filter: LibraryFilterName }) {
+  const [params] = useSearchParams()
+  const next = new URLSearchParams(params)
+  next.set('filter', filter)
+  return <Navigate to={`/library?${next}`} replace />
 }
 
-export function LibraryAlbumsPage() {
-  const { playAlbum } = usePlayCollections()
-  const { list, props } = useLibraryPage('albums')
-  if (list.error) return <ErrorPage error={list.error} onRetry={() => void list.refetch()} />
-  return <LibraryAlbumsView {...props} onPlayAlbum={album => void playAlbum(album)} />
-}
-
-export function LibraryArtistsPage() {
-  const { list, props } = useLibraryPage('artists')
-  if (list.error) return <ErrorPage error={list.error} onRetry={() => void list.refetch()} />
-  return <LibraryArtistsView {...props} />
+/** `/library` without a filter opens on the one this browser chose last. */
+export function LibraryPage() {
+  const [params] = useSearchParams()
+  const filter = params.get('filter')
+  if (!isLibraryFilter(filter)) {
+    const next = new URLSearchParams(params)
+    next.set('filter', readLibraryFilter())
+    return <Navigate to={`/library?${next}`} replace />
+  }
+  return <CombinedLibrary filter={filter} />
 }
 
 /** How many songs after the one played go into the queue with it. */
 const SONGS_AFTER = 300
+const songsContext = { type: 'other', id: null, title: 'Songs' } as const
+const likedContext = { type: 'liked', id: null, title: 'Liked Songs' } as const
 
-export function LibrarySongsPage() {
-  const controls = usePlayerControls()
-  const { list, props } = useLibraryPage('tracks')
-  if (list.error) return <ErrorPage error={list.error} onRetry={() => void list.refetch()} />
-  const play = async (index: number) => controls.playTracks(await loadItems(list, index + SONGS_AFTER), index, { type: 'other', id: null, title: 'Songs' })
-  return <LibrarySongsView {...props} onPlay={index => void play(index)} />
+const listCount = <T,>(list: { data?: InfiniteData<ListPage<T>>; hasNextPage: boolean }, one: string) => {
+  if (!list.data) return undefined
+  const count = itemsOf(list.data).length
+  return list.hasNextPage ? `${count.toLocaleString()}+ ${one}s` : plural(count, one)
 }
 
-export function LibraryPlaylistsPage() {
-  const { playPlaylist } = usePlayCollections()
+/**
+ * The combined Library. Only the lists the filter shows are loaded. Two characters or more
+ * search the whole library on the server (playlists are only ever filtered here); one
+ * character filters what is loaded.
+ */
+function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
+  const user = useCurrentUser()
   const library = useLibrary()
+  const controls = usePlayerControls()
+  const { playAlbum, playPlaylist } = usePlayCollections()
+  const [params, setParams] = useSearchParams()
+  const [layout, setLayout] = useState(readLibraryLayout)
+  const [query, setQuery] = useState('')
+  const chosen = params.get('sort')
+  const sort = sortFor(filter, isLibrarySort(chosen) ? chosen : 'recent')
+  const genre = params.get('genre') ?? undefined
+
+  useEffect(() => writeLibraryFilter(filter), [filter])
+
+  const showsPlaylists = filter === 'all' || filter === 'playlists'
+  const showsAlbums = filter === 'all' || filter === 'albums'
+  const albums = useLibraryList('albums', { sort, genre }, showsAlbums)
+  // The server lists artists by name whatever the order asked for.
+  const artists = useLibraryList('artists', { sort: 'recent' }, filter === 'artists')
+  const songs = useLibraryList('tracks', { sort, genre }, filter === 'songs')
   const playlists = usePlaylists().data?.items
-  return <LibraryPlaylistsView playlists={playlists} onPlayPlaylist={playlist => void playPlaylist(playlist)} onCreate={() => library.newPlaylist()} />
+  const liked = useLikedTracks()
+
+  const searchText = filter === 'playlists' ? '' : query
+  const found = useLibraryMatches(searchText)
+  const searching = searchesServer(searchText)
+  const matched = searching ? found.data : undefined
+  const listed = filter === 'artists' ? artists : filter === 'songs' ? songs : showsAlbums ? albums : null
+
+  const items = useMemo((): LibraryItem[] | undefined => {
+    if (filter === 'songs') return undefined
+    const collections: LibraryItem[] = []
+    if (showsPlaylists) {
+      if (!playlists) return undefined
+      collections.push(
+        ...[{ kind: 'liked' } as const, ...playlists.map(playlist => ({ kind: 'playlist', playlist }) as const)]
+          .filter(item => matches(query, item.kind === 'liked' ? 'Liked Songs' : item.playlist.name, item.kind === 'liked' ? '' : item.playlist.ownerName)),
+      )
+    }
+    if (showsAlbums) {
+      const list = searching ? matched?.albums : albums.data && itemsOf(albums.data).filter(album => matches(query, album.title, album.artistCredit))
+      if (!list) return undefined
+      collections.push(...list.map(album => ({ kind: 'album', album }) as const))
+    }
+    if (filter === 'artists') {
+      const list = searching ? matched?.artists : artists.data && itemsOf(artists.data).filter(artist => matches(query, artist.name))
+      if (!list) return undefined
+      collections.push(...list.map(artist => ({ kind: 'artist', artist }) as const))
+    }
+    return collections
+  }, [filter, showsPlaylists, showsAlbums, playlists, query, searching, matched, albums.data, artists.data])
+
+  const tracks = useMemo(() => {
+    if (filter !== 'songs') return undefined
+    if (searching) return matched?.tracks
+    return songs.data && itemsOf(songs.data).filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? ''))
+  }, [filter, searching, matched, songs.data, query])
+
+  // While another sort's list stands in, its cursor is not this list's.
+  const hasNextPage = Boolean(listed?.hasNextPage && !listed.isPlaceholderData)
+  const { fetchNextPage, isFetchingNextPage } = listed ?? {}
+  const onEndReached = useCallback(() => {
+    if (!searching && hasNextPage && !isFetchingNextPage) void fetchNextPage?.()
+  }, [searching, hasNextPage, isFetchingNextPage, fetchNextPage])
+
+  const error = listed?.error ?? (searching ? found.error : null)
+  if (error && !listed?.data) return <ErrorPage error={error} onRetry={() => void (searching ? found.refetch() : listed?.refetch())} />
+
+  const matchedCount = !matched ? 0 : filter === 'songs' ? matched.tracks.length : filter === 'artists' ? matched.artists.length : matched.albums.length
+  const count = filter === 'albums' ? listCount(albums, 'album')
+    : filter === 'artists' ? listCount(artists, 'artist')
+      : filter === 'songs' ? listCount(songs, 'song')
+        : filter === 'playlists' && playlists ? plural(playlists.length, 'playlist') : undefined
+  const setParam = (key: string, value: string | undefined) => setParams(current => {
+    const next = new URLSearchParams(current)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    return next
+  }, { replace: true })
+
+  const playSong = async (index: number) => {
+    // Filtered, the matches on screen are what is played.
+    if (query.trim()) controls.playTracks(tracks ?? [], index, songsContext)
+    else controls.playTracks(await loadItems(songs, index + SONGS_AFTER), index, songsContext)
+  }
+
+  return (
+    <LibraryView
+      filter={filter}
+      filterHref={name => libraryHref(name, params)}
+      sort={sort}
+      sorts={sortsFor(filter)}
+      onSortChange={next => setParam('sort', next === 'recent' ? undefined : next)}
+      layout={layout}
+      onLayoutChange={next => {
+        setLayout(next)
+        writeLibraryLayout(next)
+      }}
+      query={query}
+      onQueryChange={setQuery}
+      genre={genre}
+      onClearGenre={() => setParam('genre', undefined)}
+      items={items}
+      tracks={tracks}
+      count={count}
+      likedCount={liked.data ? listCount(liked, 'song') : undefined}
+      libraryEmpty={Boolean(albums.data && !itemsOf(albums.data).length && !genre)}
+      pending={searching && found.pending}
+      capped={searching && matchedCount >= LIBRARY_MATCH_LIMIT}
+      loadingMore={!searching && Boolean(listed?.isFetchingNextPage)}
+      onEndReached={onEndReached}
+      canAddMusic={user.role === 'admin'}
+      onPlayAlbum={album => void playAlbum(album)}
+      onPlayPlaylist={playlist => void playPlaylist(playlist)}
+      onPlayLiked={() => void loadItems(liked, 5000).then(list => controls.playTracks(list, 0, likedContext))}
+      onPlaySong={index => void playSong(index)}
+      onNewPlaylist={() => library.newPlaylist()}
+    />
+  )
 }

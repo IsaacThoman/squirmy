@@ -1,5 +1,5 @@
 import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
-import { Bookmark, Disc3, House, LogOut, MicVocal, Music2, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
+import { Bookmark, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
 import { memo, useCallback, useMemo, useState, type DragEvent, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
@@ -9,7 +9,9 @@ import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { Tooltip } from '@/components/ui/tooltip'
 import { canUploadMusic } from '@/lib/catalog'
 import { draggedTracks } from '@/lib/drag'
+import { plural } from '@/lib/format'
 import { modKey } from '@/lib/platform'
+import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
@@ -62,7 +64,13 @@ const SidebarView = memo(function SidebarView({
   const navigate = useNavigate()
   const name = user.displayName ?? user.username
   const runningIn = (type: PlayingCollection['type'], id: string | null) => (playing?.type === type && playing.id === id ? playing.running : null)
-  const likeTracks = useCallback((tracks: TrackSummary[]) => tracks.filter(track => !track.liked).forEach(track => library.setLiked('track', track.id, true)), [library])
+  // Songs dropped on Liked Songs are saved to the library, with one toast for them all.
+  const likeTracks = useCallback((tracks: TrackSummary[]) => {
+    const saving = tracks.filter(track => !track.liked)
+    if (!saving.length) return
+    saving.forEach(track => library.setSaved({ type: 'track', id: track.id, title: track.title }, true, { quiet: true }))
+    toast({ title: 'Saved to your library', description: saving.length === 1 ? saving[0].title : plural(saving.length, 'song') })
+  }, [library])
   const addToPlaylist = useCallback((playlist: PlaylistSummary, tracks: TrackSummary[]) => library.addToPlaylist(playlist, tracks), [library])
   const likedEntries = useMemo<MenuEntry[]>(() => [{ label: 'Play', icon: <Play />, onSelect: onPlayLiked }], [onPlayLiked])
 
@@ -140,9 +148,7 @@ const SidebarView = memo(function SidebarView({
         <nav aria-label="Main" className="space-y-0.5 px-2">
           {navItem('/', 'Home', House, { end: true })}
           {navItem('/search', 'Search', Search, { hint: mobile ? undefined : <Kbd>{modKey}K</Kbd> })}
-          {navItem('/library/albums', 'Albums', Disc3)}
-          {navItem('/library/artists', 'Artists', MicVocal)}
-          {navItem('/library/songs', 'Songs', Music2)}
+          {navItem('/library', 'Library', Library)}
           {library.wantlistEnabled && navItem('/wantlist', 'Wantlist', Bookmark)}
           {canUploadMusic(user) && navItem('/imports', 'Add music', Upload)}
         </nav>
@@ -151,7 +157,7 @@ const SidebarView = memo(function SidebarView({
         <div aria-hidden={collapsed} inert={collapsed} className={cn('transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]', collapsed && 'h-0 overflow-hidden', contentTransition)}>
           <div className="px-2 pb-4 pt-4">
             <div className="flex items-center px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              <Link to="/library/playlists" onClick={onNavigate} className="rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline">Playlists</Link>
+              <Link to="/library?filter=playlists" onClick={onNavigate} className="rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline">Playlists</Link>
               {/* In the drawer the tooltip would only take the first Escape. */}
               <Tooltip label={mobile ? null : 'New playlist'} side="right">
                 <button type="button" onClick={() => library.newPlaylist()} aria-label="New playlist" className="-my-0.5 ml-auto flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">

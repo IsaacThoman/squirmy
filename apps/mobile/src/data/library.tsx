@@ -1,6 +1,6 @@
 import { TrackStore } from '@squirmy/client-core';
 import {
-  queryKeys, type AlbumDetail, type LibraryEntityType, type LikeEntityType, type Page, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
+  queryKeys, type AlbumDetail, type LikeEntityType, type Page, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
   type WantEntityType,
 } from '@squirmy/contracts';
 import { useMutation, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
@@ -15,18 +15,17 @@ import { findTrack, patchEntity, withLikedTrack } from './likePatch';
 import { useRealtime } from './realtime';
 
 type LikeKey = `${LikeEntityType}:${string}`;
-type SaveKey = `${LibraryEntityType}:${string}`;
 
 type LibraryValue = {
   tracks: TrackStore;
-  /** Likes changed here (or on another device) since the screens' data was loaded. */
+  /** Hearts changed here (or on another device) since the screens' data was loaded. */
   likes: ReadonlyMap<LikeKey, boolean>;
-  setLiked: (type: LikeEntityType, id: string, liked: boolean) => void;
+  /**
+   * The heart, the one way to save to or remove from the library. It shows at once with a
+   * notice that can undo it; a refusal sets it back with a notice. `title` names the item there.
+   */
+  setLiked: (type: LikeEntityType, id: string, liked: boolean, title?: string) => void;
   want: (type: WantEntityType, id: string, title: string) => void;
-  /** Library additions and removals made here that the screens' data may not show yet. */
-  saves: ReadonlyMap<SaveKey, boolean>;
-  /** Adds to or removes from the user's library, showing it at once; a refusal sets it back with a notice. */
-  setSaved: (type: LibraryEntityType, id: string, saved: boolean, title: string) => void;
 };
 
 const LibraryContext = createContext<LibraryValue | null>(null);
@@ -38,14 +37,17 @@ const retryMaxMs = 4 * 60_000;
 const likedTracksKey = [...queryKeys.likes(), 'track'];
 
 /**
- * Shows a like everywhere at once: every cached answer that carries the item gets the new
- * flag, and Liked Songs gains or loses the track, so nothing has to be fetched again.
+ * Shows a heart everywhere at once: every cached answer that carries the item gets the new
+ * flag, and Liked Songs gains or loses the track, so nothing has to be fetched again. A
+ * hearted track is in the library; an unhearted one may still be (its album, the server's
+ * collection), so `inLibrary` waits for the server then.
  */
 function patchLike(queryClient: QueryClient, type: LikeEntityType, id: string, liked: boolean) {
   const queries = queryClient.getQueryCache().getAll();
+  const patch = type === 'track' && liked ? { liked, inLibrary: true } : { liked };
   for (const query of queries) {
     const data = query.state.data;
-    const patched = patchEntity(data, id, { liked });
+    const patched = patchEntity(data, id, patch);
     // Keeps the time the data was loaded, so the patch does not make old data look fresh.
     if (patched !== data) queryClient.setQueryData(query.queryKey, patched, { updatedAt: query.state.dataUpdatedAt });
   }
@@ -62,10 +64,19 @@ function patchLike(queryClient: QueryClient, type: LikeEntityType, id: string, l
     data => data && withLikedTrack(data, id, track ?? null), { updatedAt: list.dataUpdatedAt });
 }
 
+/** What a heart changes besides the item itself: the library's lists, Home and the likes lists. */
+function invalidateLibrary(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.libraryAlbums() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.libraryTracks() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.libraryArtists() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.likes() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.home() });
+}
+
 /**
- * What the user keeps: likes, the wantlist and the track summaries every screen shares.
- * Likes apply at once. Made offline, they wait in a queue (kept across launches) and are
- * sent when the server is back; one the server refuses rolls back.
+ * What the user keeps: hearts (their library), the wantlist and the track summaries every
+ * screen shares. Hearts apply at once. Made offline, they wait in a queue (kept across
+ * launches) and are sent when the server is back; one the server refuses rolls back.
  */
 export function LibraryProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
@@ -84,7 +95,9 @@ export function LibraryProvider({ children }: PropsWithChildren) {
     // The server tells this phone too; it already shows the change, so that echo is not refetched.
     expectEcho([type, id]);
     await (liked ? api.userdata.like(type, id) : api.userdata.unlike(type, id));
-  }) : null, [account, api, expectEcho]);
+    // The library's lists, Home and Liked Songs now hold the change.
+    invalidateLibrary(queryClient);
+  }) : null, [account, api, expectEcho, queryClient]);
   const [likes, setLikes] = useState<ReadonlyMap<LikeKey, boolean>>(new Map());
   useEffect(() => setLikes(new Map(queue?.pending.map(like => [`${like.type}:${like.id}`, like.liked] as const))), [queue]);
 
@@ -123,7 +136,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
       for (const like of refused) {
         remember(`${like.type}:${like.id}`, undefined);
         patchLike(queryClient, like.type, like.id, !like.liked);
-        notify(like.liked ? 'Couldn’t add that to your likes.' : 'Couldn’t remove that from your likes.');
+        notify(like.liked ? 'Couldn’t save that to your library.' : 'Couldn’t remove that from your library.');
       }
       // Offline, the reconnect sends what is left; online, the server failed, so try again later.
       if (queue.pending.length && !isOffline.current) {
@@ -140,53 +153,22 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   }, [flush, offline]);
   useEffect(() => () => clearTimeout(retry.current.timer), [queue]);
 
-  const [saves, setSaves] = useState<ReadonlyMap<SaveKey, boolean>>(new Map());
-  useEffect(() => setSaves(new Map()), [account]);
-  const rememberSave = useCallback((key: SaveKey, saved: boolean | undefined) => setSaves(current => {
-    const next = new Map(current);
-    if (saved === undefined) next.delete(key);
-    else next.set(key, saved);
-    return next;
-  }), []);
-  // Each change waits for the one before it on the same item, so a quick add and remove
-  // reach the server in order.
-  const saving = useRef(new Map<SaveKey, Promise<unknown>>());
+  const setLiked = useCallback(function setLiked(type: LikeEntityType, id: string, liked: boolean, title?: string) {
+    if (!queue) return;
+    remember(`${type}:${id}`, liked);
+    patchLike(queryClient, type, id, liked);
+    queue.add({ type, id, liked });
+    flush();
+    // A quick confirmation that can be taken back, as streaming apps do; the heart itself changes too.
+    const name = title ? `“${title}” ` : '';
+    notify(liked ? `Saved ${name}to your library.` : `Removed ${name}from your library.`,
+      { action: { label: 'Undo', run: () => setLiked(type, id, !liked, title) } });
+  }, [flush, notify, queryClient, queue, remember]);
 
   const value: LibraryValue = useMemo<LibraryValue>(() => ({
     tracks,
     likes,
-    saves,
-    setSaved: (type, id, saved, title) => {
-      if (!api) return;
-      const key: SaveKey = `${type}:${id}`;
-      rememberSave(key, saved);
-      patchSaved(queryClient, type, id, saved);
-      const send = () => saved ? api.library.save(type, id) : api.library.remove(type, id);
-      // A quick confirmation that can be taken back, as streaming apps do; the button itself changes too.
-      notify(saved ? `Added “${title}” to your library.` : `Removed “${title}” from your library.`,
-        { action: { label: 'Undo', run: () => value.setSaved(type, id, !saved, title) } });
-      const run = (saving.current.get(key) ?? Promise.resolve()).then(send, send).then(() => {
-        // Library lists and Home's "Recently added" change; the item's own pages now carry the new state.
-        void queryClient.invalidateQueries({ queryKey: queryKeys.libraryAlbums() });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.libraryTracks() });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.libraryArtists() });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.home() });
-      }, () => {
-        rememberSave(key, undefined);
-        patchSaved(queryClient, type, id, !saved);
-        notify(saved ? `Couldn’t add “${title}” to your library.` : `Couldn’t remove “${title}” from your library.`);
-      }).finally(() => {
-        if (saving.current.get(key) === run) saving.current.delete(key);
-      });
-      saving.current.set(key, run);
-    },
-    setLiked: (type, id, liked) => {
-      if (!queue) return;
-      remember(`${type}:${id}`, liked);
-      patchLike(queryClient, type, id, liked);
-      queue.add({ type, id, liked });
-      flush();
-    },
+    setLiked,
     want: (type, id, title) => {
       if (!api) return;
       api.userdata.want(type, id).then(() => {
@@ -196,31 +178,9 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         }
       }, () => notify('Couldn’t add that to your wantlist.'));
     },
-  }), [api, flush, likes, notify, queryClient, queue, remember, rememberSave, saves, tracks]);
+  }), [api, likes, notify, queryClient, setLiked, tracks]);
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
-}
-
-/**
- * Shows an addition or removal everywhere at once: track summaries get `inLibrary`, an
- * album's page `library`. A collection album stays `collection`: removing never applies to it.
- */
-function patchSaved(queryClient: QueryClient, type: LibraryEntityType, id: string, saved: boolean) {
-  for (const query of queryClient.getQueryCache().getAll()) {
-    const data = query.state.data;
-    const patched = type === 'track'
-      ? patchEntity(data, id, { inLibrary: saved })
-      : patchAlbumLibrary(data, id, saved);
-    if (patched !== data) queryClient.setQueryData(query.queryKey, patched, { updatedAt: query.state.dataUpdatedAt });
-  }
-}
-
-function patchAlbumLibrary(data: unknown, id: string, saved: boolean): unknown {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
-  const album = data as Partial<AlbumDetail>;
-  if (album.id !== id || !('library' in album) || album.library === 'collection') return data;
-  const library = saved ? 'saved' : null;
-  return album.library === library ? data : { ...album, library };
 }
 
 function likeStorage(account: string) {
@@ -244,24 +204,18 @@ export function useTrack(trackId: string | null | undefined, albumId: string | n
   return useSyncExternalStore(tracks.subscribe, () => trackId ? tracks.get(trackId, albumId ?? null) : undefined);
 }
 
-/** Whether the user likes it, counting changes not yet reflected in `liked` from the server. */
+/**
+ * Whether the heart is on (the user saved it to their library), counting changes not yet
+ * reflected in `liked` from the server.
+ */
 export function useLiked(type: LikeEntityType, id: string | undefined, liked: boolean | undefined): boolean {
   const { likes } = useLibrary();
   return (id ? likes.get(`${type}:${id}`) : undefined) ?? liked ?? false;
 }
 
 export function useLibraryActions() {
-  const { setLiked, want, setSaved } = useLibrary();
-  return { setLiked, want, setSaved };
-}
-
-/**
- * Whether an item is in the user's library, counting changes made here that the server's
- * answer does not show yet. Undefined when the server does not say (an older server).
- */
-export function useSaved(type: LibraryEntityType, id: string | undefined, saved: boolean | undefined): boolean | undefined {
-  const { saves } = useLibrary();
-  return (id ? saves.get(`${type}:${id}`) : undefined) ?? saved;
+  const { setLiked, want } = useLibrary();
+  return { setLiked, want };
 }
 
 /** Playlist edits. Each one updates the cached playlist from the server's answer. */

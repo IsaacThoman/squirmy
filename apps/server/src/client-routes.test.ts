@@ -31,6 +31,10 @@ const notForClients = new Set([
   // Acquisition providers deliver here with their job's token (docs/provider-protocol.md).
   'POST /acquisition/deliveries/:/files',
   'POST /acquisition/deliveries/:/complete',
+  // Deprecated aliases of PUT/DELETE /me/likes/:type/:id for app builds from before the
+  // single heart; current clients save with the heart.
+  'PUT /me/library/:/:',
+  'DELETE /me/library/:/:',
 ])
 
 /**

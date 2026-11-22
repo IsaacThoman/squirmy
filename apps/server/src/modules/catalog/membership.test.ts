@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import type { z } from 'zod'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, libraryItems, likes, mediaFiles, playlistItems, playlists, recordingArtists } from '../../database/schema.js'
+import { albums, likes, mediaFiles, playlistItems, playlists, recordingArtists } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { body, signIn } from '../../test/api.js'
 import { createFile } from '../../test/catalog.js'
@@ -37,11 +37,12 @@ describe('library membership', () => {
   const fetched = 'provider:00000000-0000-7000-8000-000000000000'
 
   const get = (user: User, url: string) => app.inject({ url: `/api/v1${url}`, headers: user.headers })
-  const save = async (user: User, type: 'album' | 'track', id: string) => {
-    expect((await app.inject({ method: 'PUT', url: `/api/v1/me/library/${type}/${id}`, headers: user.headers })).statusCode).toBe(200)
+  /** The heart: the one way to save. */
+  const save = async (user: User, type: 'album' | 'track' | 'artist', id: string) => {
+    expect((await app.inject({ method: 'PUT', url: `/api/v1/me/likes/${type}/${id}`, headers: user.headers })).statusCode).toBe(200)
   }
-  const remove = async (user: User, type: 'album' | 'track', id: string) => {
-    expect((await app.inject({ method: 'DELETE', url: `/api/v1/me/library/${type}/${id}`, headers: user.headers })).statusCode).toBe(200)
+  const remove = async (user: User, type: 'album' | 'track' | 'artist', id: string) => {
+    expect((await app.inject({ method: 'DELETE', url: `/api/v1/me/likes/${type}/${id}`, headers: user.headers })).statusCode).toBe(200)
   }
 
   async function walk<Schema extends AnyPage>(user: User, url: string, schema: Schema, limit: number) {
@@ -67,7 +68,7 @@ describe('library membership', () => {
     other = await signIn()
   })
   beforeEach(async () => {
-    await db.delete(libraryItems)
+    await db.delete(likes)
     await db.delete(mediaFiles)
   })
   afterAll(async () => {
@@ -120,11 +121,11 @@ describe('library membership', () => {
     expect(await trackIds(other)).not.toContain(wanted.tracks[0]!.recordingId)
   })
 
-  it('removes a save and nothing else', async () => {
+  it('removes a save and nothing else: a song hearted on its own stays', async () => {
     const album = await createAlbum({ title: 'Kept', owned: true, source: fetched })
     const [track] = album.tracks
     await save(owner, 'album', album.albumId)
-    await db.insert(likes).values({ userId: owner.id, entityType: 'recording', entityId: track!.recordingId })
+    await save(owner, 'track', track!.recordingId)
     const playlistId = newId()
     await db.insert(playlists).values({ id: playlistId, ownerId: owner.id, name: 'Mix' })
     await db.insert(playlistItems).values({ id: newId(), playlistId, position: 0, recordingId: track!.recordingId, albumId: album.albumId })
@@ -134,7 +135,7 @@ describe('library membership', () => {
     await remove(owner, 'album', album.albumId)
     await remove(owner, 'album', album.albumId)
     expect(await albumIds(owner)).toEqual([])
-    expect(await trackIds(owner)).toEqual([])
+    expect(await trackIds(owner)).toEqual([track!.recordingId])
     expect(await artistNames(owner)).toEqual([])
     expect(body(await get(owner, `/albums/${album.albumId}`), AlbumDetail).library).toBeNull()
     expect(await db.select().from(mediaFiles).where(eq(mediaFiles.albumId, album.albumId))).toHaveLength(3)
@@ -212,7 +213,7 @@ describe('library membership', () => {
       for (const [index, at] of files.entries()) {
         await createFile({ rootId: root, recordingId: album.tracks[index]!.recordingId, albumId: album.albumId, addedAt: minute(at) })
       }
-      if (savedAt !== null) await db.insert(libraryItems).values({ userId: owner.id, entityType: 'album', entityId: album.albumId, createdAt: minute(savedAt) })
+      if (savedAt !== null) await db.insert(likes).values({ userId: owner.id, entityType: 'album', entityId: album.albumId, createdAt: minute(savedAt) })
       if (name === 'cached8') await createFile({ rootId: root, recordingId: album.tracks[0]!.recordingId, albumId: album.albumId, addedAt: minute(8), source: fetched })
     }
     // Later of newest collection file and save; ties by album id, newest first.
@@ -240,7 +241,7 @@ describe('library membership', () => {
     await createFile({ rootId: root, recordingId: two!, albumId: album.albumId, addedAt: minute(2), source: fetched })
     await createFile({ rootId: root, recordingId: three!, albumId: album.albumId, addedAt: minute(0), source: fetched })
     await createFile({ rootId: root, recordingId: four!, albumId: other1.albumId, addedAt: minute(0), source: fetched })
-    await db.insert(libraryItems).values([
+    await db.insert(likes).values([
       { userId: owner.id, entityType: 'recording', entityId: one!, createdAt: minute(5) },
       { userId: owner.id, entityType: 'album', entityId: album.albumId, createdAt: minute(3) },
       { userId: owner.id, entityType: 'recording', entityId: four!, createdAt: minute(2) },
@@ -252,6 +253,30 @@ describe('library membership', () => {
       expect(tracks.map((track) => track.album?.id)).toEqual([other1.albumId, album.albumId, album.albumId, other1.albumId])
     }
     expect(await trackIds(other)).toEqual([two, one])
+  })
+
+  it('puts a hearted artist in the library without any album of theirs', async () => {
+    const followed = await createArtist({ name: 'Followed' })
+    await createAlbum({ artist: followed, title: 'Not Saved', owned: true, source: fetched })
+    expect(await artistNames(owner)).toEqual([])
+    await save(owner, 'artist', followed.id)
+    expect(await artistNames(owner)).toEqual(['Followed'])
+    expect(await artistNames(other)).toEqual([])
+    expect(body(await get(owner, `/artists/${followed.id}`), ArtistDetail)).toMatchObject({ liked: true, inLibrary: true })
+    // An artist's save leaves its albums where they were.
+    expect(await albumIds(owner)).toEqual([])
+    await remove(owner, 'artist', followed.id)
+    expect(await artistNames(owner)).toEqual([])
+    expect(body(await get(owner, `/artists/${followed.id}`), ArtistDetail)).toMatchObject({ liked: false, inLibrary: false })
+  })
+
+  it('keeps the old Add to library routes as the heart, for older apps', async () => {
+    const album = await createAlbum({ title: 'Old App', owned: true, source: fetched })
+    expect((await app.inject({ method: 'PUT', url: `/api/v1/me/library/album/${album.albumId}`, headers: owner.headers })).statusCode).toBe(200)
+    expect(body(await get(owner, `/albums/${album.albumId}`), AlbumDetail)).toMatchObject({ liked: true, library: 'saved' })
+    expect(await albumIds(owner)).toEqual([album.albumId])
+    expect((await app.inject({ method: 'DELETE', url: `/api/v1/me/library/album/${album.albumId}`, headers: owner.headers })).statusCode).toBe(200)
+    expect(body(await get(owner, `/albums/${album.albumId}`), AlbumDetail)).toMatchObject({ liked: false, library: null })
   })
 
   it('counts an artist only when credited on a library album, not featured on a track', async () => {

@@ -194,8 +194,6 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       deleteRoot: vi.fn(async () => ({ ok: true as const })),
       scanRoot: vi.fn(async () => ({ queued: true })),
       stats: vi.fn(async () => stats),
-      save: vi.fn(async () => ok),
-      remove: vi.fn(async () => ok),
     },
     matching: {
       reviews: vi.fn(async () => list([])),

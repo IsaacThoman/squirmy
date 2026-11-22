@@ -63,7 +63,7 @@ type Sort = (typeof sortOptions)[number]['value']
 const menu: MenuEntry[] = [
   { kind: 'label', label: 'Night Swimming' },
   { label: 'Play next', icon: <Shuffle />, shortcut: '⌘N', onSelect: () => toast({ title: 'Playing next' }) },
-  { label: 'Save to Liked Songs', icon: <Heart />, onSelect: () => toast({ title: 'Saved' }) },
+  { label: 'Save to library', icon: <Heart />, onSelect: () => toast({ title: 'Saved to your library' }) },
   { kind: 'submenu', label: 'Add to playlist', icon: <Plus />, items: playlistSummaries.map(playlist => ({ label: playlist.name, onSelect: () => toast({ title: `Added to ${playlist.name}` }) })) },
   { kind: 'separator' },
   { label: 'Disabled item', onSelect: () => {}, disabled: true },
@@ -464,7 +464,7 @@ function Music() {
           <PlayerBar player={player} liked onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} />
         </div>
         <div className="max-w-sm"><MiniPlayer player={player} onOpenNowPlaying={() => {}} /></div>
-        <PlayingElsewhere device={player.state.devices[2]} onPlayHere={() => {}} />
+        <PlayingElsewhere player={player} device={player.state.devices[2]} onPlayHere={() => {}} />
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="rounded-xl border bg-card p-2"><DeviceList player={player} /></div>
           <ScrollArea className="h-[28rem] rounded-xl border bg-card p-3"><QueueContent player={player} /></ScrollArea>

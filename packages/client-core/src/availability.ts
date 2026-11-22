@@ -56,14 +56,16 @@ export function albumNote(
   return `${album.ownedTrackCount} of ${album.trackCount} songs available`
 }
 
+/** The heart's state and the words of the menu entry that mirrors it. */
+export type LibrarySave = { saved: boolean; label: string }
+
 /**
- * What a track's Add/Remove from library entry offers: false to add it, true to remove it,
- * null for no entry. A track the collection holds, or one on an album the user added, stays
- * in the library whatever its own save says, so Remove would do nothing there and Add is moot.
- * Older servers send neither field; then there is nothing to toggle. `saved` is what the
- * user just did, ahead of the server's answer.
+ * The one library control, for a track, album or artist: the heart and the "Save to library" /
+ * "Remove from library" menu entry both show and flip `liked`. A collection item (the server's
+ * own files) is in everyone's library whatever the heart says; the heart only ever shows the
+ * viewer's own save. `saved` is what the viewer just did, ahead of the server's answer.
  */
-export function trackLibraryToggle(track: Pick<TrackSummary, 'inLibrary' | 'library'>, saved?: boolean): boolean | null {
-  if (track.library === 'collection' || track.library === 'album') return null
-  return saved ?? track.inLibrary ?? null
+export function librarySave(item: { liked: boolean }, saved?: boolean): LibrarySave {
+  const value = saved ?? item.liked
+  return { saved: value, label: value ? 'Remove from library' : 'Save to library' }
 }

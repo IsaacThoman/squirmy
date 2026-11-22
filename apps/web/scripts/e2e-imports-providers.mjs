@@ -433,12 +433,13 @@ await step('add an album to the library', async () => {
   const pick = unowned.find(album => ['single', 'ep'].includes(album.type)) ?? unowned[0]
   if (!pick) throw new Error('no album the library lacks')
   await page.goto(`${base}/album/${pick.id}`)
-  const add = button('Add to library')
+  // The heart is the one way into the library.
+  const add = button('Save to library')
   await add.waitFor({ timeout: minutes(1) })
   check('the album page says nothing of where its music is', !(await page.getByText(/on demand|Get this album|library yet/i).count()), pick.title)
   await shoot('album-on-demand')
   await add.click()
-  check('Add to library turns into a check at once', await button('Remove from library').isVisible())
+  check('the heart fills at once', await button('Remove from library').isVisible())
   await shoot('album-added')
   const detail = await until(() => get(`/albums/${pick.id}`), value => value.availability === 'full' || value.availability === 'partial', minutes(6), 2000)
   check('the server fetches its songs behind it', detail.availability === 'full', `${detail.ownedTrackCount} of ${detail.trackCount}`)

@@ -60,7 +60,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Wantlist: hide it on the web while `wantlistEnabled` is off, add the switch to Admin → Server settings, and let iOS remove a want
 - [x] Gray-out on web
 - [x] Gray-out on mobile
-- [x] iOS as a streaming app: one playable rule from client-core, one merged search list, a fetch shown as buffering ("Still loading…" after 8 s), one notice per failed song and one for an outage, and a library that only Add to library (with Undo) changes
+- [x] One heart: hearting a song, album or artist is what saves it to the library, on web, iOS and Subsonic (stars); the web Library is one combined view like the phone's
+- [x] iOS as a streaming app: one playable rule from client-core, one merged search list, a fetch shown as buffering ("Still loading…" after 8 s), one notice per failed song and one for an outage, and a library that only the heart (with Undo) changes
 
 ## 7. Add and take
 

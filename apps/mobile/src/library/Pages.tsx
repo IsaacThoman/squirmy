@@ -12,7 +12,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useAccount, useSignedInApi, useWantlistEnabled, type Api } from '../account/AccountProvider';
 import { albumExpanding } from '../data/albums';
 import { fallbackTint } from '../data/color';
-import { useLibraryActions, useLiked, usePlaylistActions, useSaved } from '../data/library';
+import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
 import { useAlbum, useArtist, useGenreAlbums, useHistory, useLikedTracks, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
 import { useRealtime } from '../data/realtime';
@@ -26,9 +26,9 @@ import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
 import { AlbumStatusBlur } from './AlbumStatusBlur';
 import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
-import { albumLibraryButton } from './albumLibrary';
 import { CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
+import { heartButton } from './heart';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useCollectionDim, type Collection,
@@ -242,11 +242,8 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const actions = usePlaybackActions();
   const { canPlay, offline, viewer } = useAvailability();
   const download = useDownloadActions();
-  const notify = useNotice();
   const liked = useLiked('album', id, data?.liked);
-  // Only what was changed here; the server's own answer is `library` on the page.
-  const savedHere = useSaved('album', id, undefined);
-  const { setLiked, want, setSaved } = useLibraryActions();
+  const { setLiked, want } = useLibraryActions();
   const wantlist = useWantlistEnabled();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
     album.data?.discs.some(disc => disc.tracks.some(track => track.availability === 'server')) ? () => download.album(album.data!) : null);
@@ -284,7 +281,6 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       tapFeedback();
       want('album', data.id, data.title);
     } }];
-  const library = album.data ? albumLibraryButton(album.data, savedHere, offline) : null;
 
   const artistLinks = data.artists.map(artist => ({ name: artist.name, open: () => { tapFeedback(); onOpen(link('artist', artist.id)); } }));
 
@@ -293,14 +289,9 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     info={[typeNames[data.type], data.genres[0], data.year, albumNote(data, viewer)].filter(Boolean).join('  ·  ')}
     buttons={buttons.length ? buttons : wantButton} status={control.status}
     nav={[
-      // The placeholder does not know whether the album is liked.
-      !album.isPlaceholderData && { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.title}` : `Like ${data.title}`, selected: liked,
-        onPress: () => { tapFeedback(); setLiked('album', data.id, !liked); } },
-      library !== null && { icon: library.icon, label: library.label, selected: library.selected, onPress: () => {
-        tapFeedback();
-        if (library.action === 'none') notify(`“${data.title}” is on this server, so it’s always in your library.`);
-        else setSaved('album', data.id, library.action === 'add', data.title);
-      } },
+      // The heart saves the album to the library. The placeholder does not know whether it is saved.
+      !album.isPlaceholderData && { ...heartButton(liked, data.title),
+        onPress: () => { tapFeedback(); setLiked('album', data.id, !liked, data.title); } },
       control.nav,
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
@@ -502,8 +493,8 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
     info={['Artist', ...data.genres.slice(0, 2)].join('  ·  ')}
     buttons={playButtons(top, canPlay, play)} description={data.bio}
     nav={[
-      { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.name}` : `Like ${data.name}`, selected: liked,
-        onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked); } },
+      // The heart saves (follows) the artist, which puts it in the library.
+      { ...heartButton(liked, data.name), onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked, data.name); } },
       // Only when the server says a radio starts for this user (for a requester, from what it
       // can fetch too); an older server does not say, and then the library decides.
       (data.radio ?? (data.inLibrary || canFetch(viewer))) && !offline && { icon: 'dot.radiowaves.left.and.right', busy: startingRadio, onPress: radio,

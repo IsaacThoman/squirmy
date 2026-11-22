@@ -1,6 +1,6 @@
 import {
   CreateLibraryRootRequest, UpdateLibraryRootRequest,
-  type DirectoryListing, type JobQueueStats, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type ServerEvent,
+  type AcquisitionUsage, type DirectoryListing, type JobQueueStats, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type ServerEvent,
 } from '@squirmy/contracts'
 import { Briefcase, ChevronRight, Eye, FolderOpen, FolderPlus, MoreHorizontal, Pencil, Power, RefreshCw, ScanLine, Trash2, Wand2 } from 'lucide-react'
 import { Fragment, useState } from 'react'
@@ -36,6 +36,8 @@ type LibraryAdminProps = {
   /** Undefined while loading. */
   roots: LibraryRoot[] | undefined
   stats: LibraryStats | undefined
+  /** The provider cache, which `stats` leaves out. Undefined while loading. */
+  cache?: AcquisitionUsage
   /** Albums waiting in the review queue. */
   openReviews: number | undefined
   /** The latest `scan.progress` of each root, by root id. */
@@ -55,7 +57,7 @@ type LibraryAdminProps = {
 
 type RootDialog = { kind: 'add' } | { kind: 'edit' | 'remove'; root: LibraryRoot }
 
-export function LibraryAdmin({ roots, stats, openReviews, progress, templateInfo, editRootId, onEditorClosed, folders, onScan, onAdd, onUpdate, onRemove, onFixMatch }: LibraryAdminProps) {
+export function LibraryAdmin({ roots, stats, cache, openReviews, progress, templateInfo, editRootId, onEditorClosed, folders, onScan, onAdd, onUpdate, onRemove, onFixMatch }: LibraryAdminProps) {
   const [opened, setDialog] = useState<RootDialog | null>(null)
   const linked = editRootId ? roots?.find(root => root.id === editRootId) : undefined
   const dialog: RootDialog | null = opened ?? (linked ? { kind: 'edit', root: linked } : null)
@@ -72,7 +74,7 @@ export function LibraryAdmin({ roots, stats, openReviews, progress, templateInfo
       </AdminHeader>
 
       <div className="flex flex-col gap-7">
-        <LibraryStatistics stats={stats} openReviews={openReviews} />
+        <LibraryStatistics stats={stats} cache={cache} openReviews={openReviews} />
 
         <Panel title="Folders">
           {!roots && (
@@ -126,7 +128,11 @@ export function LibraryAdmin({ roots, stats, openReviews, progress, templateInfo
   )
 }
 
-function LibraryStatistics({ stats, openReviews }: { stats: LibraryStats | undefined; openReviews: number | undefined }) {
+/**
+ * The collection's numbers. Fetched music is cache, not collection (product decision 20),
+ * so it is left out here and only pointed to, which is why a folder can list more files.
+ */
+function LibraryStatistics({ stats, cache, openReviews }: { stats: LibraryStats | undefined; cache: AcquisitionUsage | undefined; openReviews: number | undefined }) {
   if (!stats) return <div className="@container"><div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">{[0, 1, 2, 3].map(index => <Skeleton key={index} className="h-24 rounded-xl" />)}</div></div>
   const states = [
     { label: 'Identified', count: stats.matched, className: 'bg-primary' },
@@ -135,40 +141,60 @@ function LibraryStatistics({ stats, openReviews }: { stats: LibraryStats | undef
     { label: 'Waiting', count: stats.pending, className: 'bg-muted-foreground/20' },
   ]
   return (
-    <div className="@container flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
-        <Stat label="Songs" value={stats.tracks.toLocaleString()} detail={`${plural(stats.albums, 'album')} · ${plural(stats.artists, 'artist')}`} />
-        <Stat label="Playing time" value={stats.durationMs ? formatTotalDuration(stats.durationMs) : '0 min'} detail={`${formatBytes(stats.bytes)} · ${plural(stats.files, 'file')}`} />
-        <Stat label="Identified" value={stats.files ? `${Math.round((stats.matched / stats.files) * 100)}%` : '–'} detail={`${stats.matched.toLocaleString()} of ${plural(stats.files, 'file')}`} />
-        <Stat
-          label="Needs review"
-          value={openReviews === undefined ? '–' : openReviews.toLocaleString()}
-          detail={openReviews ? <Link to="/admin/reviews" className="text-primary underline-offset-4 hover:underline">Open the review queue</Link> : 'Nothing waiting'}
-        />
-      </div>
-      {stats.files > 0 && (
-        <div className={cn(cardClass, 'p-4')}>
-          <p className="text-xs text-muted-foreground">Identification of {plural(stats.files, 'file')}</p>
-          <div className="mt-3 flex h-2 gap-0.5 overflow-hidden rounded-full" aria-hidden>
-            {states.filter(state => state.count > 0).map(state => (
-              <span key={state.label} className={cn('h-full min-w-1.5', state.className)} style={{ flexGrow: state.count }} />
-            ))}
-          </div>
-          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
-            {states.map(state => (
-              <li key={state.label} className="flex items-center gap-1.5">
-                <span aria-hidden className={cn('size-2 rounded-full', state.className)} />
-                {state.label} <span className="font-medium tabular text-foreground">{state.count.toLocaleString()}</span>
-              </li>
-            ))}
-            <li className={cn('flex items-center gap-1.5', stats.missing > 0 && 'text-destructive')}>
-              Missing from disk <span className={cn('font-medium tabular', !stats.missing && 'text-foreground')}>{stats.missing.toLocaleString()}</span>
-            </li>
-          </ul>
-        </div>
+    <Panel
+      title="Collection"
+      description={(
+        <>
+          Music you brought: scanned, uploaded or imported.
+          {cache && cache.cachedFiles > 0 && <> The {plural(cache.cachedFiles, 'file')} ({formatBytes(cache.cachedBytes)}) fetched for playing are cache, counted under <Link to="/admin/providers" className="text-primary underline-offset-4 hover:underline">Providers</Link> instead.</>}
+        </>
       )}
-    </div>
+    >
+      <div className="@container flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
+          <Stat label="Songs" value={stats.tracks.toLocaleString()} detail={`${plural(stats.albums, 'album')} · ${plural(stats.artists, 'artist')}`} />
+          <Stat label="Playing time" value={stats.durationMs ? formatTotalDuration(stats.durationMs) : '0 min'} detail={`${formatBytes(stats.bytes)} · ${plural(stats.files, 'file')}`} />
+          <Stat label="Identified" value={stats.files ? `${Math.round((stats.matched / stats.files) * 100)}%` : '–'} detail={`${stats.matched.toLocaleString()} of ${plural(stats.files, 'file')}`} />
+          <Stat
+            label="Needs review"
+            value={openReviews === undefined ? '–' : openReviews.toLocaleString()}
+            detail={openReviews ? <Link to="/admin/reviews" className="text-primary underline-offset-4 hover:underline">Open the review queue</Link> : 'Nothing waiting'}
+          />
+        </div>
+        {stats.files > 0 && (
+          <div className={cn(cardClass, 'p-4')}>
+            <p className="text-xs text-muted-foreground">Identification of {plural(stats.files, 'file')}</p>
+            <div className="mt-3 flex h-2 gap-0.5 overflow-hidden rounded-full" aria-hidden>
+              {states.filter(state => state.count > 0).map(state => (
+                <span key={state.label} className={cn('h-full min-w-1.5', state.className)} style={{ flexGrow: state.count }} />
+              ))}
+            </div>
+            <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
+              {states.map(state => (
+                <li key={state.label} className="flex items-center gap-1.5">
+                  <span aria-hidden className={cn('size-2 rounded-full', state.className)} />
+                  {state.label} <span className="font-medium tabular text-foreground">{state.count.toLocaleString()}</span>
+                </li>
+              ))}
+              <li className={cn('flex items-center gap-1.5', stats.missing > 0 && 'text-destructive')}>
+                Missing from disk <span className={cn('font-medium tabular', !stats.missing && 'text-foreground')}>{stats.missing.toLocaleString()}</span>
+              </li>
+            </ul>
+          </div>
+        )}
+      </div>
+    </Panel>
   )
+}
+
+/**
+ * "1,204 files", or "12 in the collection · 110 cached" when the folder also holds the
+ * provider cache, so its count matches the collection numbers above.
+ */
+function folderFiles(root: LibraryRoot) {
+  const cached = root.cachedFileCount ?? 0
+  if (!cached) return plural(root.fileCount, 'file')
+  return `${(root.fileCount - cached).toLocaleString()} in the collection · ${cached.toLocaleString()} cached`
 }
 
 const phaseLabels = { discovering: 'Finding files', probing: 'Reading tags', matching: 'Identifying albums' }
@@ -198,7 +224,7 @@ function RootRow({ root, live, onScan, onEdit, onToggle, onRemove }: { root: Lib
           </div>
           <FolderPath path={root.path} className="mt-0.5" />
           <p className="mt-1 text-xs tabular text-muted-foreground">
-            {plural(root.fileCount, 'file')}
+            {folderFiles(root)}
             {root.lastScanFinishedAt ? ` · scanned ${formatRelative(root.lastScanFinishedAt)}` : ' · not scanned yet'}
             {last && ` · ${last.filesAdded.toLocaleString()} added, ${last.filesChanged.toLocaleString()} changed, ${last.filesMissing.toLocaleString()} missing`}
             {last?.errors ? <span className="text-destructive"> · {plural(last.errors, 'unreadable file')}</span> : null}

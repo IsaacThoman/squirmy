@@ -1,6 +1,7 @@
 /**
- * Likes (stars in Subsonic) and ratings. Both point at catalog rows, never files, and
- * take API entity types (`track`, `album`, `artist`).
+ * Saves (the heart; stars in Subsonic, loves on Last.fm) and ratings. Both point at catalog
+ * rows, never files, and take API entity types (`track`, `album`, `artist`). A save is what
+ * puts something in a user's library, beside the server's collection.
  */
 import {
   queryKeys,
@@ -15,12 +16,17 @@ import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pa
 import { resolveMerged } from '../catalog/redirects.js'
 import { albumSummaries, artistSummaries, trackSummaries } from '../catalog/summaries.js'
 import { entityKey, entityTable, resolveEntity, storedType } from './entities.js'
+import { fetchMissingOf } from './library.js'
 
-/** Everything that shows a like flag for the entity, for the user's other devices. */
-async function invalidateLike(userId: string, type: LikeEntityType, id: string) {
-  const keys: (readonly unknown[])[] = [queryKeys.likes(), queryKeys.home(), entityKey(type, id)]
+/**
+ * Everything that shows the heart or library membership the save changes, for the user's
+ * other devices. Library lists and Home move for every type; a track's heart also shows on
+ * its album and artist pages and in the playlists that hold it; an album's save puts its
+ * tracks (wherever they are listed) and its artists in the library.
+ */
+async function invalidateSave(userId: string, type: LikeEntityType, id: string) {
+  const keys: (readonly unknown[])[] = [queryKeys.likes(), queryKeys.home(), queryKeys.library(), queryKeys.search(), entityKey(type, id)]
   if (type === 'track') {
-    // Track hearts also show on album and artist pages, playlist pages, history, songs lists and search results.
     const pages = await db.execute<{ kind: 'album' | 'artist'; id: string }>(sql`
       select distinct 'album' as kind, rl.album_id as id from release_tracks rt join releases rl on rl.id = rt.release_id where rt.recording_id = ${id}
       union
@@ -29,30 +35,45 @@ async function invalidateLike(userId: string, type: LikeEntityType, id: string) 
       union
       select 'artist', artist_id from recording_artists where recording_id = ${id}`)
     // Only the playlists the user can open that hold the track: the playlists list shows
-    // no hearts, and refreshing it on every like refetched it for nothing.
+    // no hearts, and refreshing it on every save refetched it for nothing.
     const holding = await db.execute<{ id: string }>(sql`
       select distinct p.id from playlist_items i join playlists p on p.id = i.playlist_id
       where i.recording_id = ${id} and (p.owner_id = ${userId} or p.is_public)`)
-    keys.push(queryKeys.history(), queryKeys.libraryTracks(), queryKeys.search(),
+    keys.push(queryKeys.history(), queryKeys.wants(),
       ...holding.map((playlist) => queryKeys.playlist(playlist.id)), ...pages.map((page) => entityKey(page.kind, page.id)))
+  } else if (type === 'album') {
+    // Every row of the album's tracks carries `inLibrary`, wherever it is listed.
+    const pages = await db.execute<{ kind: 'artist' | 'track'; id: string }>(sql`
+      select 'artist' as kind, artist_id as id from album_artists where album_id = ${id}
+      union select 'track', recording_id from media_files where album_id = ${id} and recording_id is not null
+      union select 'track', rt.recording_id from release_tracks rt join releases rl on rl.id = rt.release_id where rl.album_id = ${id}`)
+    keys.push(queryKeys.playlists(), queryKeys.history(), queryKeys.wants(), ...pages.map((page) => entityKey(page.kind, page.id)))
   }
   await invalidate({ user: userId }, keys)
 }
 
-/** Likes an entity (idempotent). Follows merge redirects; 404 when it does not exist. Returns the id liked. */
+/**
+ * Saves an entity with the heart (idempotent): the one way into a user's library. Follows
+ * merge redirects; 404 when it does not exist. For a user who may fetch music, an album or
+ * track is then fetched in the background (`fetchMissingOf`). Returns the id saved.
+ */
 export async function likeEntity(userId: string, type: LikeEntityType, id: string): Promise<string> {
   const entityId = await resolveEntity(type, id)
   await db.insert(likes).values({ userId, entityType: storedType[type], entityId }).onConflictDoNothing()
-  await invalidateLike(userId, type, entityId)
+  await invalidateSave(userId, type, entityId)
+  if (type !== 'artist') await fetchMissingOf(userId, type, entityId)
   return entityId
 }
 
-/** Removes a like (idempotent), under the given id and wherever its redirects lead. */
+/**
+ * Removes a save (idempotent), under the given id and wherever its redirects lead. Nothing
+ * else goes: files stay as cache, playlists and history stay.
+ */
 export async function unlikeEntity(userId: string, type: LikeEntityType, id: string): Promise<void> {
   const resolved = (await resolveMerged(entityTable[type], [id])).get(id)
   const ids = [...new Set([id, resolved ?? id])]
   await db.delete(likes).where(and(eq(likes.userId, userId), eq(likes.entityType, storedType[type]), inArray(likes.entityId, ids)))
-  await invalidateLike(userId, type, resolved ?? id)
+  await invalidateSave(userId, type, resolved ?? id)
 }
 
 const likeOrdering = (type: LikeEntityType): Ordering => ({
@@ -63,7 +84,7 @@ const likeOrdering = (type: LikeEntityType): Ordering => ({
   ],
 })
 
-/** One page of the user's likes of one type, newest first. */
+/** One page of the user's saves of one type, newest first (Liked Songs for tracks). */
 export async function listLikes(userId: string, type: 'track', query: PageQuery): Promise<TrackPage>
 export async function listLikes(userId: string, type: 'album', query: PageQuery): Promise<AlbumPage>
 export async function listLikes(userId: string, type: 'artist', query: PageQuery): Promise<ArtistPage>
