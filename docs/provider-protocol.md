@@ -45,6 +45,7 @@ Describes the provider.
 {
   "protocol": 1,
   "name": "Cold storage",
+  "version": "1.4.0",
   "coverage": "must_resolve",
   "kinds": ["recording", "album"],
   "formats": ["flac", "mp3"],
@@ -52,10 +53,14 @@ Describes the provider.
 }
 ```
 
+`version` is optional: your provider's own version. The server asks for capabilities every five minutes, and when the version changes it stops counting the tracks the provider could not supply before (see below), since a new version may supply them. Without a version, any other change to the answer counts as a new version. Report one, and bump it with every release, so a fix is noticed but nothing else is.
+
 `coverage` decides how tracks appear before anyone asks for them:
 
 - `must_resolve`: a track is playable on demand only after a `resolve` call returned an offer for it. Use this when the provider knows exactly what it has. The server asks about tracks as lists show them, in batches of up to 100, and remembers the answers: offers for 30 days, "nothing" for a day.
 - `assume_available`: every track shows as playable on demand. If a later request finds nothing, or the delivery fails, that track turns gray for a day and is not asked for again until then.
+
+Either "nothing" (a miss) lasts a day, or until the provider changes: another `version` or capabilities, the operator turning it back on or giving it a new address or secret, or the operator choosing **Retry unavailable tracks**. Then everything it could not supply is asked for again.
 
 ## `POST /resolve`
 
@@ -119,7 +124,7 @@ Starts fetching one offer.
 }
 ```
 
-Respond quickly with `{ "accepted": true, "providerJobId": "…" }` and do the work in the background, or `{ "accepted": false, "error": "…" }` (the job then ends as `rejected`, and the tracks count as ones this provider cannot supply for a day). A provider that cannot take another job right now answers `{ "accepted": false, "reason": "busy", "error": "…" }`: the server asks again later (after 5 seconds, doubling up to a minute) and does not count it against the tracks. For providers older than the field, an `error` starting with "Provider is busy" is read the same way. The server may send the same `jobId` twice, after a restart; treat it as an idempotency key and do not fetch twice, but use the `delivery` from the latest request: it carries a new token, and the old one no longer works.
+Respond quickly with `{ "accepted": true, "providerJobId": "…" }` and do the work in the background, or `{ "accepted": false, "error": "…" }` (the job then ends as `rejected`, and the tracks count as ones this provider cannot supply for a day). A provider that cannot take another job right now answers `{ "accepted": false, "reason": "busy", "error": "…" }`: the server asks again later (after 5 seconds, doubling up to a minute) and does not count it against the tracks. For providers older than the field, an `error` starting with "Provider is busy", or one saying it is rate limited or got too many requests, is read the same way. An HTTP 429 to `/resolve` or `/acquire` (or a 503 with `Retry-After`) is busy too, and the server waits at least as long as `Retry-After` says, up to five minutes. A bare 503 counts as the provider being down. The server may send the same `jobId` twice, after a restart; treat it as an idempotency key and do not fetch twice, but use the `delivery` from the latest request: it carries a new token, and the old one no longer works.
 
 The server sends at most `maxConcurrent` jobs to a provider at once, counting jobs it has handed over and not yet seen delivered; others wait their turn, the track being played first, then tracks coming up in a queue, downloads, and library saves.
 
@@ -128,7 +133,7 @@ The operator can set a provider's coverage on the server; that choice wins over 
 ## Delivering files
 
 1. `POST delivery.uploadUrl` as `multipart/form-data` with one or more `file` parts. Keep the original filename and extension. A text field `relativePath` sent just before a file part names its path inside the delivery (`Album/01 Song.flac`), which keeps an album's files together. An album may be sent in one request or several. The answer is `ProviderUploadResponse`: each file `accepted`, or `rejected` with a reason (not audio, an unsafe name, `empty_file` for audio of zero bytes). A file larger than the operator's per-file limit (`maxFileBytes`) ends the request with 413 and fails the job, and so does going past what the job may receive in all: 1.25 × `maxFileBytes` per requested track, and four files per requested track plus two (`import_too_large`, `import_too_many_files`).
-2. `POST delivery.completeUrl` with `{ "status": "completed" }`, or `{ "status": "failed", "error": "…" }`.
+2. `POST delivery.completeUrl` with `{ "status": "completed" }`, or `{ "status": "failed", "error": "…" }`. A job you took but cannot do right now (your source rate limited you) fails with `"reason": "busy"`: before any file was uploaded, the server sends the same `jobId` again later, with a new `delivery`, and does not count it against the tracks or the provider. Run it again then. After files were uploaded it ends the job, still without counting it against the tracks.
 
 Both URLs answer 401 `invalid_delivery_token` for a missing or wrong token (including another job's), 409 `job_not_active` once the job has ended, and 429 past 120 requests a minute per job and address.
 
@@ -147,6 +152,8 @@ Polled only when a job has had no upload or completion for a while.
 ```json
 { "status": "running", "progress": 0.4 }
 ```
+
+A `failed` job may carry `"reason": "busy"`, read as for `complete`.
 
 `status` is `queued`, `running`, `completed` or `failed`. The server polls a job that has had no upload or completion for a minute. `failed` fails the job; `completed` is treated as a completion. A job that has not delivered within the operator's timeout (`timeoutSeconds`, 15 minutes by default) is marked failed on the server, and later uploads for it are refused.
 
