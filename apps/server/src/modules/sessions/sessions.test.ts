@@ -419,6 +419,18 @@ describe('sessions', () => {
     expect((await getSnapshot(user.id)).state).toMatchObject({ stalled: false, current: { trackId: farthest, state: 'ready' } })
   })
 
+  it('fails an on-demand entry whose request could not be made, rather than leave it preparing', async () => {
+    const remote = await createAlbum({ tracks: [{ title: 'Unreachable' }] })
+    const far = remote.tracks[0]!.recordingId
+    onDemand.add(far)
+    vi.mocked(requestRecording).mockRejectedValueOnce(new Error('connection terminated'))
+    const a = await device('device-a-0020')
+    const tracks = [far, album.tracks[0]!.recordingId].map((trackId) => ({ trackId, albumId: remote.albumId, durationMs: 1 }))
+    await a.send({ type: 'playTracks', tracks, seed: 1 })
+    expect((await a.state(1)).current).toMatchObject({ trackId: far, state: 'preparing' })
+    expect((await a.state(2)).current).toMatchObject({ trackId: album.tracks[0]!.recordingId, state: 'ready' })
+  })
+
   it('refills autoplay from the radio module once per entry, and never loops on an empty answer', async () => {
     const extra = await createAlbum({ owned: true, tracks: [{ title: 'Suggested' }] })
     const suggestion: QueueSeed = { trackId: extra.tracks[0]!.recordingId, albumId: extra.albumId, durationMs: extra.tracks[0]!.durationMs, state: 'ready' }

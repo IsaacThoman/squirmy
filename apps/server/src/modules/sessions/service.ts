@@ -138,8 +138,18 @@ function requestUpcoming(record: SessionRecord): void {
   const upcoming = [...queue, ...(autoplay ? autoplayQueue : [])].slice(0, PREPARE_AHEAD)
   for (const entry of current ? [current, ...upcoming] : upcoming) {
     if (entry.state !== 'preparing' || record.requested.has(entry.trackId)) continue
-    record.requested.add(entry.trackId)
-    requestRecording({ userId: record.userId, recordingId: entry.trackId, albumId: entry.albumId }).catch(report)
+    const { userId } = record
+    const recordingId = entry.trackId
+    record.requested.add(recordingId)
+    requestRecording({ userId, recordingId, albumId: entry.albumId }).catch((error: unknown) => {
+      report(error)
+      // A request that threw was never made, so no outcome will come: fail the entries
+      // rather than leave them preparing. A job that did start still marks them ready.
+      return serial(userId, () => {
+        const latest = loadedRecord(userId)
+        if (latest?.requested.delete(recordingId)) applyServer(latest, { type: 'setEntryState', trackId: recordingId, state: 'failed' })
+      })
+    }).catch(report)
   }
 }
 
