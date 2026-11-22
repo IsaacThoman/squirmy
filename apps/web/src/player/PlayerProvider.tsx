@@ -9,7 +9,7 @@ import { useCurrentUser } from '@/auth/session'
 import { apiArtUrl } from '@/lib/artwork'
 import { isPlayable } from '@/lib/catalog'
 import { playableCodecs } from '@/lib/codecs'
-import { browserName, claimTabDevice, saveBrowserName, tabDeviceName } from '@/lib/device'
+import { browserName, claimTabDevice, saveBrowserName } from '@/lib/device'
 import { toast } from '@/lib/toast'
 import { useRealtime, useServerEvent } from '@/realtime/realtime-context'
 import { useEngine } from './engine/engine-context'
@@ -202,7 +202,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       attach: options => client.attach(options),
       renameDevice: name => {
         saveBrowserName(name)
-        client.rename(tabDeviceName(browserName(), tab.slot))
+        client.rename(browserName())
       },
     }
   }, [client, store, tab, startRadio, viewer])
