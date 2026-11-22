@@ -55,4 +55,10 @@ describe('where an entry plays from', () => {
     expect((await resolvePlayback(entry, 'original', offline, true)).url).toBe('file:///cache/a.flac');
     expect(offline.server).not.toHaveBeenCalled();
   });
+
+  it('offline, still asks the server when nothing is on the phone', async () => {
+    const nothing = sources({ server: true });
+    expect((await resolvePlayback(entry, 'original', nothing, true)).url).toBe('/api/v1/stream/a?sig=x');
+    expect(nothing.cached).toHaveBeenCalledWith(entry.trackId, 'original', true);
+  });
 });
