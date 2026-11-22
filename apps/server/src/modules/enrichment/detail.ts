@@ -12,7 +12,7 @@ import { queryKeys } from '@squirmy/contracts'
 import { enqueue } from '../../jobs/index.js'
 import { hydrateAlbum } from './album.js'
 import { hydrateArtist } from './artist.js'
-import { fitStrayRecordingsNow } from './fit.js'
+import { fitStrayFilesNow } from './fit.js'
 import { fetchLyrics } from './lyrics.js'
 import { changed } from './rows.js'
 import { onBudget, shared, warn } from './runner.js'
@@ -35,8 +35,9 @@ async function onPage(key: string, work: (usable: () => void) => Promise<void>, 
 const albumWork = (albumId: string) => async (usable: () => void) => {
   const result = await hydrateAlbum(albumId, { usable })
   // A file filed under an album that is already complete (a fetched track) may still be
-  // on a stand-in recording; folding it in needs no provider.
-  if (result && (await fitStrayRecordingsNow(result)) > 0) await changed([queryKeys.album(result)])
+  // on a stand-in recording; folding it in needs no provider. Writing the release fits
+  // stand-ins itself, so this only runs when such a file is there.
+  if (result && (await fitStrayFilesNow(result)) > 0) await changed([queryKeys.album(result)])
 }
 
 const artistWork = (artistId: string) => async () => {

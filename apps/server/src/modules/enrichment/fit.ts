@@ -8,11 +8,11 @@
  * when there is none.
  */
 import { sql } from 'drizzle-orm'
-import { db, type Transaction } from '../../database/client.js'
+import { db, type Executor, type Transaction } from '../../database/client.js'
 import { canonicalRelease } from '../catalog/availability.js'
+import { uuidArray } from '../catalog/sql.js'
 import { lockUpserts } from '../matching/apply.js'
 import { mergeRecording } from '../matching/merge.js'
-import { uuidArray } from '../catalog/sql.js'
 import { editionFreeKey, textArray } from '../search/keys.js'
 
 /** Two recordings of one song differ in length by at most this. */
@@ -22,13 +22,18 @@ type Row = { id: string; title: string; durationMs: number | null; isrcs: string
 type Stray = Row & { filed: boolean }
 
 /**
- * Merges each stand-in into the one canonical track it is: the track sharing an ISRC, else
- * the only track with the same title once edition suffixes are dropped whose length is
- * within five seconds. Stand-ins are recordings without an MBID that are not on the
- * release and either have a present file filed under the album, or have no file and share
- * an ISRC with a track, or have no file, are on no release and are led by an artist of the
- * album (loose stubs). A loose stub needs both lengths. Returns how many were merged. Call
- * it under `lockUpserts`.
+ * Merges each stand-in into the one canonical track it is. Stand-ins are recordings
+ * without an MBID that are not on the release, found three ways, each an indexed lookup:
+ *
+ * - filed: the recording of a present file whose `album_id` is this album. Matching and
+ *   acquisition own how files are linked, so this is kept narrow: only a title and length
+ *   fit (the only track with the same edition-free title, both lengths known, within five
+ *   seconds), never an ISRC alone.
+ * - by ISRC: a recording with no file that shares an ISRC with exactly one track.
+ * - loose: a recording with no file and on no release (a search or top-track stub) led by
+ *   an artist of the album, fitted by title and length as above.
+ *
+ * Returns how many were merged. Call it under `lockUpserts`.
  */
 export async function fitStrayRecordings(tx: Transaction, albumId: string): Promise<number> {
   const tracks = await tx.execute<Row & { artistId: string | null }>(sql`
@@ -36,24 +41,27 @@ export async function fitStrayRecordings(tx: Transaction, albumId: string): Prom
     from albums a join release_tracks rt on rt.release_id = ${canonicalRelease('a')} join recordings r on r.id = rt.recording_id
     where a.id = ${albumId} and r.merged_into_id is null`)
   if (tracks.length === 0) return 0
-  const trackIds = tracks.map((track) => track.id)
-  const artistIds = [...new Set(tracks.flatMap((track) => (track.artistId ? [track.artistId] : [])))]
+  const trackIds = uuidArray(tracks.map((track) => track.id))
+  const credited = await tx.execute<{ id: string }>(sql`select artist_id as id from album_artists where album_id = ${albumId}`)
+  const artistIds = [...new Set([...tracks.flatMap((track) => (track.artistId ? [track.artistId] : [])), ...credited.map((row) => row.id)])]
   const isrcs = [...new Set(tracks.flatMap((track) => track.isrcs))]
+  const stub = sql`s.mbid is null and s.merged_into_id is null and not (s.id = any(${trackIds}))`
+  const noFiles = sql`not exists (select 1 from media_files f where f.recording_id = s.id)`
 
   const strays = await tx.execute<Stray>(sql`
-    select s.id, s.title, s.duration_ms as "durationMs", s.isrcs,
-      exists (select 1 from media_files f where f.recording_id = s.id and f.album_id = ${albumId} and f.missing_since is null) as filed
-    from recordings s
-    where s.mbid is null and s.merged_into_id is null and not (s.id = any(${uuidArray(trackIds)}))
-      and (
-        exists (select 1 from media_files f where f.recording_id = s.id and f.album_id = ${albumId} and f.missing_since is null)
-        or (not exists (select 1 from media_files f where f.recording_id = s.id) and (
-          s.isrcs && ${textArray(isrcs)}
-          or ((s.primary_artist_id = any(${uuidArray(artistIds)})
-              or s.primary_artist_id in (select aa.artist_id from album_artists aa where aa.album_id = ${albumId}))
-            and not exists (select 1 from release_tracks rt where rt.recording_id = s.id))
-        ))
-      )`)
+    select distinct on (id) id, title, "durationMs", isrcs, filed from (
+      select s.id, s.title, s.duration_ms as "durationMs", s.isrcs, true as filed
+      from media_files f join recordings s on s.id = f.recording_id
+      where f.album_id = ${albumId} and f.missing_since is null and ${stub}
+      ${isrcs.length === 0 ? sql`` : sql`union all
+      select s.id, s.title, s.duration_ms, s.isrcs, false
+      from recordings s where s.isrcs && ${textArray(isrcs)} and ${stub} and ${noFiles}`}
+      ${artistIds.length === 0 ? sql`` : sql`union all
+      select s.id, s.title, s.duration_ms, s.isrcs, false
+      from recordings s where s.primary_artist_id = any(${uuidArray(artistIds)}) and ${stub} and ${noFiles}
+        and not exists (select 1 from release_tracks rt where rt.recording_id = s.id)`}
+    ) candidates
+    order by id, filed desc`)
 
   let merged = 0
   for (const stray of strays) {
@@ -67,20 +75,39 @@ export async function fitStrayRecordings(tx: Transaction, albumId: string): Prom
 
 /** The one track `stray` is, or null when none or several qualify. */
 function fit(stray: Stray, tracks: readonly Row[]): string | null {
-  const byIsrc = new Set(tracks.filter((track) => track.isrcs.some((isrc) => stray.isrcs.includes(isrc))).map((track) => track.id))
-  if (byIsrc.size > 0) return byIsrc.size === 1 ? [...byIsrc][0]! : null
+  if (!stray.filed) {
+    const byIsrc = new Set(tracks.filter((track) => track.isrcs.some((isrc) => stray.isrcs.includes(isrc))).map((track) => track.id))
+    if (byIsrc.size > 0) return byIsrc.size === 1 ? [...byIsrc][0]! : null
+  }
   const key = editionFreeKey(stray.title)
   if (!key) return null
   const sameTitle = tracks.filter((track) => editionFreeKey(track.title) === key)
   if (sameTitle.length !== 1) return null
-  const [track] = sameTitle
-  const lengths = stray.durationMs !== null && track!.durationMs !== null
-  if (!lengths) return stray.filed ? track!.id : null
-  return Math.abs(stray.durationMs! - track!.durationMs!) <= lengthToleranceMs ? track!.id : null
+  const track = sameTitle[0]!
+  if (stray.durationMs === null || track.durationMs === null) return null
+  return Math.abs(stray.durationMs - track.durationMs) <= lengthToleranceMs ? track.id : null
 }
 
-/** `fitStrayRecordings` in its own transaction. */
-export async function fitStrayRecordingsNow(albumId: string): Promise<number> {
+/**
+ * Whether the album has a present file on an MBID-less recording its canonical release
+ * does not list: the only stand-in that can turn up without the release being written
+ * again (a fetched track filed under a complete album). One indexed lookup, no lock.
+ */
+export async function hasStrayFiles(albumId: string, executor: Executor = db): Promise<boolean> {
+  const [row] = await executor.execute<{ found: boolean }>(sql`
+    select exists (
+      select 1 from albums a
+      join media_files f on f.album_id = a.id and f.missing_since is null
+      join recordings r on r.id = f.recording_id and r.mbid is null and r.merged_into_id is null
+      where a.id = ${albumId}
+        and not exists (select 1 from release_tracks rt where rt.release_id = ${canonicalRelease('a')} and rt.recording_id = r.id)
+    ) as found`)
+  return Boolean(row?.found)
+}
+
+/** `fitStrayRecordings` in its own transaction, only when `hasStrayFiles` says there is something to fit. */
+export async function fitStrayFilesNow(albumId: string): Promise<number> {
+  if (!(await hasStrayFiles(albumId))) return 0
   return db.transaction(async (tx) => {
     await lockUpserts(tx)
     return fitStrayRecordings(tx, albumId)

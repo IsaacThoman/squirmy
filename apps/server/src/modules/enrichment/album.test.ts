@@ -306,8 +306,8 @@ describe('album detail folds stand-in recordings into the release', () => {
     const stub = await topTrackStub('No Surprises', artist!.id, 229_000)
     const live = await topTrackStub('Lucky (Live)', artist!.id, 259_000)
     const longer = await topTrackStub('Let Down', artist!.id, 340_000)
-    // Fresh already: a page visit still folds in stand-ins that turned up since.
-    await ensureAlbumDetail(album!.id)
+    // Top tracks stored before the album's release is written again.
+    await hydrateAlbum(album!.id, { force: true })
     const merged = async (id: string) => (await db.select({ into: recordings.mergedIntoId }).from(recordings).where(eq(recordings.id, id)))[0]!.into
     expect(await merged(stub)).not.toBeNull()
     expect(await merged(live)).toBeNull()
