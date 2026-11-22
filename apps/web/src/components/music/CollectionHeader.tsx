@@ -29,7 +29,8 @@ export function CollectionHeader({ kind, title, art, byline, meta, description, 
     <header className={cn('px-(--gutter) pb-6 pt-12 md:pt-10', tint && 'album-tint')} style={tint ? { '--tint': tint } as CSSProperties : undefined}>
       <div className="flex flex-col items-center gap-5 text-center md:flex-row md:items-end md:gap-7 md:text-left">
         <div className="w-[min(56vw,13rem)] shrink-0 md:w-48 lg:w-56 [&>*]:shadow-cover">{art}</div>
-        <div className="flex min-w-0 flex-col items-center gap-2 md:items-start md:pb-1">
+        {/* A name with no spaces (a long unbroken title) breaks anywhere rather than run past the edge. */}
+        <div className="flex min-w-0 max-w-full flex-col items-center gap-2 wrap-anywhere md:items-start md:pb-1">
           <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{kind}</span>
           {/* A very long title steps down a size, so it does not run to four lines. */}
           <h1 dir="auto" className={cn('text-balance font-semibold tracking-tight', title.length > 40 ? 'text-2xl md:text-3xl lg:text-4xl' : 'text-3xl md:text-4xl lg:text-5xl')}>{title}</h1>

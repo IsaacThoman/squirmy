@@ -1,18 +1,7 @@
-/** `225000` → `3:45`; an hour or more → `1:02:05`. */
-export function formatDuration(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  const seconds = String(total % 60).padStart(2, '0')
-  return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`
-}
+import { formatReleaseDate } from '@squirmy/client-core'
 
-/** A collection's length in words: `34 min`, `1 hr 12 min`. */
-export function formatTotalDuration(ms: number): string {
-  const minutes = Math.max(1, Math.round(ms / 60000))
-  const hours = Math.floor(minutes / 60)
-  return hours ? `${hours} hr ${minutes % 60} min` : `${minutes} min`
-}
+// One set of formatters for both apps, so a length reads the same on the web and on iOS.
+export { formatDuration, formatReleaseDate, formatRemaining, formatTotalDuration } from '@squirmy/client-core'
 
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count.toLocaleString()} ${count === 1 ? one : many}`
@@ -60,7 +49,12 @@ export function formatClock(iso: string, now = Date.now()): string {
   return date.toLocaleString('en', { ...(today ? {} : { month: 'short', day: 'numeric' }), hour: 'numeric', minute: '2-digit' })
 }
 
+/**
+ * `Nov 21, 2026`. A date without a time (`2026-11-05`, `1985`) is a calendar date and is
+ * printed as written; only a timestamp is shown in the viewer's time zone.
+ */
 export function formatDate(iso: string): string {
+  if (/^\d{4}(-\d{2}){0,2}$/.test(iso)) return formatReleaseDate(iso) ?? iso
   return new Date(iso).toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
