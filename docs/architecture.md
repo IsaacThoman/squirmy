@@ -202,7 +202,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /stream/:fileId`, `/stream/:fileId/:profile` | streaming | signed URL or session; Range |
 | `GET /art/:assetId/:size` | artwork | no auth; immutable cache headers; `:size` may end in `.webp` |
 | `PUT/DELETE /me/likes/:type/:id`, `GET /me/likes/:type` | userdata | |
-| `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/:id`, `POST /playlists/:id/items`, `POST /playlists/:id/items/move`, `DELETE /playlists/:id/items/:itemId` | userdata | |
+| `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/:id`, `POST /playlists/:id/items`, `POST /playlists/:id/items/move`, `DELETE /playlists/:id/items/:itemId` | userdata | at most 1,000 playlists per user (`too_many_playlists`) and 10,000 items per playlist (`playlist_full`), both 409 |
 | `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | while `wantlistEnabled` is off, `GET /me/wants` is empty, `PUT`/`DELETE` are 404 `wantlist_disabled`, album pages say `wanted: false` and imports skip refreshing wants; stored wants are kept |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |

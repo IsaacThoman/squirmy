@@ -1,12 +1,13 @@
 import {
-  AlbumDetail, AlbumPage, ArtistPage, HistoryPage, Ok, PlaylistDetail, PlaylistPage, PlaylistSummary, queryKeys, TrackPage, TrackSummary, UserSettings, WantPage,
+  AlbumDetail, AlbumPage, ArtistPage, HistoryPage, Ok, PLAYLIST_ITEM_LIMIT, PLAYLIST_LIMIT, PlaylistDetail, PlaylistPage, PlaylistSummary, queryKeys, TrackPage,
+  TrackSummary, UserSettings, WantPage,
 } from '@squirmy/contracts'
 import { and, asc, eq } from 'drizzle-orm'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, assets, playlistItems, recordings, users, wants } from '../../database/schema.js'
+import { albums, assets, playlistItems, playlists, recordings, users, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { invalidate } from '../../realtime/index.js'
@@ -267,6 +268,35 @@ describe('userdata', () => {
       ])
       expect(results.every((response) => response.statusCode === 200)).toBe(true)
       expect(await positions(playlist.id)).toEqual(Array.from({ length: 17 }, (_, index) => index))
+    })
+
+    it('refuses playlists past PLAYLIST_LIMIT per user, even when created at once', async () => {
+      const ren = await signIn({ username: 'ren' })
+      await db.insert(playlists).values(Array.from({ length: PLAYLIST_LIMIT - 3 }, (_, index) => ({ id: newId(), ownerId: ren.id, name: `P${index}` })))
+      const results = await Promise.all(Array.from({ length: 6 }, (_, index) => call(ren, { method: 'POST', url: '/playlists', payload: { name: `Q${index}` } })))
+      expect(results.map((response) => response.statusCode).sort()).toEqual([201, 201, 201, 409, 409, 409])
+      expect(errorCode(results.find((response) => response.statusCode === 409)!, 409)).toBe('too_many_playlists')
+      expect(await db.$count(playlists, eq(playlists.ownerId, ren.id))).toBe(PLAYLIST_LIMIT)
+      // Other users are unaffected, and deleting one makes room.
+      await create(lune, { name: 'Still fine' })
+      const [first] = await db.select({ id: playlists.id }).from(playlists).where(eq(playlists.ownerId, ren.id)).limit(1)
+      body(await call(ren, { method: 'DELETE', url: `/playlists/${first!.id}` }), Ok)
+      await create(ren, { name: 'Room again' })
+    })
+
+    it('refuses to add items past PLAYLIST_ITEM_LIMIT, changing nothing', async () => {
+      const album = await createAlbum({ owned: true })
+      const [a, b] = album.tracks.map((track) => track.recordingId)
+      const playlist = await create(mira, { name: 'Full' })
+      const rows = Array.from({ length: PLAYLIST_ITEM_LIMIT - 1 }, (_, position) => ({ id: newId(), playlistId: playlist.id, position, recordingId: a! }))
+      for (let start = 0; start < rows.length; start += 2000) await db.insert(playlistItems).values(rows.slice(start, start + 2000))
+
+      expect(errorCode(await add(mira, playlist.id, { tracks: [{ trackId: b }, { trackId: b }] }), 409)).toBe('playlist_full')
+      expect(await db.$count(playlistItems, eq(playlistItems.playlistId, playlist.id))).toBe(PLAYLIST_ITEM_LIMIT - 1)
+      // Duplicates that are skipped do not count.
+      body(await add(mira, playlist.id, { tracks: [{ trackId: a }, { trackId: b }], skipDuplicates: true }), PlaylistDetail)
+      expect(errorCode(await add(mira, playlist.id, { tracks: [{ trackId: b }] }), 409)).toBe('playlist_full')
+      expect(await positions(playlist.id)).toEqual(Array.from({ length: PLAYLIST_ITEM_LIMIT }, (_, index) => index))
     })
   })
 

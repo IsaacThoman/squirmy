@@ -11,7 +11,7 @@ The menu under your name, top right, has **Settings**, **Add music** (for people
 - **Home** shows a featured album (what you played last, else what was added last) and rows of recently added and recently played albums, most played songs, your playlists, liked albums, your wantlist and new releases by artists in your library. On a server with no music yet it says so; admins get **Add a music folder**, which opens **Admin → Library**.
 - **Library** pages load as you scroll and can be sorted and filtered by genre. Counts read "60+" until the last page arrives.
 - **Album, artist and playlist pages** play from the header. Artist pages can start a radio. The first open of an artist the server knows little about can take a few seconds while it fetches the details.
-- **Playlists** you own can be renamed, made public or private, reordered by dragging or with **Move up** and **Move down**, and deleted.
+- **Playlists** you own can be renamed, made public or private, reordered by dragging or with **Move up** and **Move down**, and deleted. A playlist holds up to 10,000 songs, and you can have up to 1,000 playlists.
 
 ## Search
 
