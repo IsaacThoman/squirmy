@@ -1,5 +1,6 @@
+import { isPlayable, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
 import type {
-  AlbumDetail, Artwork, PlaybackDescriptor, PlaylistSummary, StreamQuality, TrackSummary, User,
+  AlbumDetail, Artwork, PlaybackDescriptor, PlaylistSummary, StreamQuality, TrackSummary,
 } from '@squirmy/contracts';
 
 /**
@@ -218,21 +219,17 @@ export function unreferenced(rows: Iterable<DownloadRow>, collections: Iterable<
   return [...rows].filter(row => !kept.has(row.trackId)).map(row => row.trackId);
 }
 
-/** Admins, and members allowed to, may have on-demand tracks fetched; for others those tracks are gray. */
-export function canRequestMusic(user: Pick<User, 'role' | 'canAcquire'>): boolean {
-  return user.role === 'admin' || user.canAcquire;
-}
-
 /**
- * Whether `track` can be played: with no connection only downloads can; otherwise what the
- * server has, what it can fetch when `canRequest`, and downloads.
+ * Whether `track` can be played now: a download or a cached copy always can; with no
+ * connection nothing else can; otherwise client-core's rule decides (`isPlayable`: what the
+ * server has, and what it fetches for this viewer).
  */
-export function canPlay(track: Pick<TrackSummary, 'id' | 'availability'>, { offline, downloaded, canRequest }: {
-  offline: boolean; downloaded: (trackId: string) => boolean; canRequest: boolean;
+export function canPlay(track: Pick<TrackSummary, 'id' | 'availability'>, { offline, onDevice, viewer }: {
+  offline: boolean; onDevice: (trackId: string) => boolean; viewer: Viewer | null | undefined;
 }): boolean {
-  if (downloaded(track.id)) return true;
+  if (onDevice(track.id)) return true;
   if (offline) return false;
-  return track.availability === 'server' || (track.availability === 'on_demand' && canRequest);
+  return isPlayable(track, viewer);
 }
 
 export function formatBytes(bytes: number): string {
@@ -252,16 +249,15 @@ export function downloadSymbol(download: TrackDownload | undefined): string | nu
   }
 }
 
-/** Why a gray track is gray, for screen readers. */
-export function unavailableReason(track: Pick<TrackSummary, 'availability'>, offline: boolean): string {
-  if (offline && track.availability !== 'none') return 'not downloaded or cached';
-  return track.availability === 'on_demand' ? 'not on the server yet; ask an admin to let you fetch missing music' : 'not in your library';
+/**
+ * Why a gray track is gray, in the one or two words every surface uses: offline it is
+ * "Not downloaded" (it would play with a connection), otherwise "Not available".
+ */
+export function unavailableReason(track: Pick<TrackSummary, 'availability'>, offline: boolean, viewer: Viewer | null | undefined): string {
+  return offline && isPlayable(track, viewer) ? NOT_DOWNLOADED_LABEL : UNAVAILABLE_LABEL;
 }
 
-/** The small mark next to a track's artist: its download, or that the server fetches it when played. */
-export function trackMark(download: TrackDownload | undefined, track: Pick<TrackSummary, 'availability'>, playable: boolean): string | null {
-  return downloadSymbol(download) ?? (track.availability === 'on_demand' && playable ? 'icloud.and.arrow.down' : null);
-}
+export const NOT_DOWNLOADED_LABEL = 'Not downloaded';
 
 /** The page a song downloaded on its own opens: its album, or its first artist when it has no album. */
 export function songPage(track: Pick<TrackSummary, 'album' | 'artists'>): { page: 'album' | 'artist'; id: string } | null {

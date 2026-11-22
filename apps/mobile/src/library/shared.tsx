@@ -1,12 +1,13 @@
+import { albumPresentation, type Viewer } from '@squirmy/client-core';
 import type { AlbumSummary, ArtistSummary, Artwork, PlaylistSummary } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePreventZoomTransitionDismissal, type Href } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { ActivityIndicator, PixelRatio, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { loadFailure } from '../data/errors';
 import { useRealtime } from '../data/realtime';
-import { useKeptCollections } from '../downloads/DownloadsProvider';
+import { useKeptCollections, useViewer } from '../downloads/DownloadsProvider';
 import { Cover, Icon } from '../ui';
 import { BrowseButton, CollectionTile } from './BrowseControls';
 import type { Page } from './links';
@@ -36,8 +37,10 @@ export type Collection = {
   artworks?: readonly Artwork[];
   special?: 'liked' | 'recent' | 'playlist';
   round?: boolean;
-  /** Not in the library, or not downloaded while offline: drawn gray, cover and title alike. */
+  /** Nothing on it plays for this viewer, or not downloaded while offline: drawn gray, cover and title alike. */
   dim?: boolean;
+  /** An album's availability, which `useCollectionDim` reads with the viewer's rights. */
+  availability?: AlbumSummary['availability'];
 };
 
 type Link = (page: Page, id: string) => Href;
@@ -45,15 +48,17 @@ type Link = (page: Page, id: string) => Href;
 export const likedId = 'liked';
 export const recentId = 'recent';
 
+/** An album as a tile. Gray when nothing on it plays for anyone; `useCollectionDim` adds what the viewer can't fetch. */
 export function albumCollection(album: AlbumSummary, link: Link, subtitle = album.artistCredit): Collection {
   return {
     key: album.id, kind: 'album', title: album.title, subtitle, href: link('album', album.id), artwork: album.artwork,
-    dim: album.availability === 'none',
+    dim: album.availability === 'none', availability: album.availability,
   };
 }
 
+/** An artist as a tile. Never gray online: an artist's page lists their music whether or not it is in the library. */
 export function artistCollection(artist: ArtistSummary, link: Link): Collection {
-  return { key: artist.id, kind: 'artist', title: artist.name, subtitle: 'Artist', href: link('artist', artist.id), artwork: artist.image, round: true, dim: !artist.inLibrary };
+  return { key: artist.id, kind: 'artist', title: artist.name, subtitle: 'Artist', href: link('artist', artist.id), artwork: artist.image, round: true };
 }
 
 export function playlistCollection(playlist: PlaylistSummary, link: Link): Collection {
@@ -103,19 +108,53 @@ export function CollectionCover({ item, size, radius = 13 }: { item: Collection;
 }
 
 /**
- * Grays what cannot be opened usefully offline: albums, artists and playlists with
- * nothing downloaded. Liked Songs and history stay lit; their pages show what was saved.
+ * Whether a tile is gray: an album nothing on which plays for this viewer (client-core's
+ * `albumPresentation`), and offline also albums, artists and playlists with nothing
+ * downloaded. Liked Songs and history stay lit; their pages show what was saved.
  */
-export function useOfflineDim() {
+export function collectionDim(item: Collection, { viewer, offline, kept }: {
+  viewer: Viewer | null | undefined; offline: boolean; kept: { albums: ReadonlySet<string>; artists: ReadonlySet<string>; playlists: ReadonlySet<string> };
+}): boolean {
+  if (item.dim) return true;
+  if (item.kind === 'album' && item.availability && albumPresentation({ availability: item.availability }, viewer) === 'dimmed') return true;
+  if (!offline) return false;
+  return item.kind === 'album' ? !kept.albums.has(item.key)
+    : item.kind === 'artist' ? !kept.artists.has(item.key)
+      : item.kind === 'playlist' ? !kept.playlists.has(item.key) : false;
+}
+
+/** `collectionDim` for the signed-in viewer, as a function that returns the tile with `dim` set. */
+export function useCollectionDim() {
   const { offline } = useRealtime();
   const kept = useKeptCollections();
+  const viewer = useViewer();
   return useCallback((item: Collection): Collection => {
-    if (!offline || item.dim) return item;
-    const lit = item.kind === 'album' ? kept.albums.has(item.key)
-      : item.kind === 'artist' ? kept.artists.has(item.key)
-        : item.kind === 'playlist' ? kept.playlists.has(item.key) : true;
-    return lit ? item : { ...item, dim: true };
-  }, [kept, offline]);
+    const dim = collectionDim(item, { viewer, offline, kept });
+    return dim === Boolean(item.dim) ? item : { ...item, dim };
+  }, [kept, offline, viewer]);
+}
+
+/** A rail of empty tiles the height of a `CollectionRail`, holding its place while results load. */
+export function RailPlaceholder({ size, round = false }: { size: number; round?: boolean }) {
+  const styles = useStyles();
+  const fontScale = Math.min(PixelRatio.getFontScale(), 1.6);
+  return <View style={styles.railContent} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View style={styles.placeholderRow}>
+      {[0, 1, 2, 3].map(index => <View key={index} style={{ width: size, gap: 8 }}>
+        <View style={[styles.placeholder, { width: size, height: size, borderRadius: round ? size / 2 : 13 }]} />
+        <View style={[styles.placeholder, { width: size * 0.7, height: 12 * fontScale, borderRadius: 6 }]} />
+        <View style={[styles.placeholder, { width: size * 0.45, height: 10 * fontScale, borderRadius: 5, marginBottom: 6 * fontScale }]} />
+      </View>)}
+    </View>
+  </View>;
+}
+
+/** An empty top result card of the real one's height. */
+export function TopResultPlaceholder({ size }: { size: number }) {
+  const styles = useStyles();
+  return <View style={[styles.topPlaceholder, { height: size + 28 }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View style={[styles.placeholder, { width: size, height: size, borderRadius: 10 }]} />
+  </View>;
 }
 
 /** Says the server cannot be reached, next to (or under) a page's title. */
@@ -132,9 +171,9 @@ export function OfflineBadge({ style }: { style?: StyleProp<ViewStyle> }) {
 
 export function CollectionRail({ items, size = 131 }: { items: readonly Collection[]; size?: number }) {
   const styles = useStyles();
-  const offlineDim = useOfflineDim();
+  const collectionDim = useCollectionDim();
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railContent}>
-    {items.map(offlineDim).map(item => <CollectionTile key={item.key} title={item.title} subtitle={item.subtitle} size={size} dim={item.dim}
+    {items.map(collectionDim).map(item => <CollectionTile key={item.key} title={item.title} subtitle={item.subtitle} size={size} dim={item.dim}
       cover={<CollectionCover item={item} size={size} />} href={item.href} />)}
   </ScrollView>;
 }
@@ -220,4 +259,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   loading: { paddingVertical: 60, alignItems: 'center' },
   offline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, height: 28, borderRadius: 14, backgroundColor: colors.surface },
   offlineText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  placeholderRow: { flexDirection: 'row', gap: 12 },
+  placeholder: { backgroundColor: colors.surface, opacity: 0.7 },
+  topPlaceholder: { borderRadius: 18, backgroundColor: colors.surface, padding: 14, justifyContent: 'center', opacity: 0.6 },
 }));

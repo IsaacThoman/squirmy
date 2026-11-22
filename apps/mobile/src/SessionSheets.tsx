@@ -6,7 +6,8 @@ import { useAccount } from './account/AccountProvider';
 import { closeSheet } from './closeSheet';
 import { usePlaylistActions, useTrack } from './data/library';
 import { useRealtime } from './data/realtime';
-import { useCanPlay } from './downloads/DownloadsProvider';
+import { useCanPlay, useViewer } from './downloads/DownloadsProvider';
+import { unavailableReason } from './downloads/model';
 import { usePlaylists } from './data/queries';
 import { usePageLinks } from './library/links';
 import { matches } from './library/shared';
@@ -53,11 +54,12 @@ export function TrackActionSheet({ id, albumId, playlistId, itemId }: { id: stri
   const actions = useTrackActions(track, { playlist: playlistId && itemId ? { id: playlistId, itemId } : undefined });
   const playable = useCanPlay(track);
   const { offline } = useRealtime();
+  const viewer = useViewer();
   const run = useRunTrackAction(true);
   if (!track) return <Sheet title="Track options" />;
   return (
     <Sheet title="Track options">
-      <TrackSummary track={track} subtitle={!playable ? `${track.artistCredit} · ${offline && track.availability !== 'none' ? 'Not downloaded' : 'Not in your library'}` : undefined} />
+      <TrackSummary track={track} subtitle={!playable ? `${track.artistCredit} · ${unavailableReason(track, offline, viewer)}` : undefined} />
       <SheetRows>
         {actions.map(action => <SheetRow key={action.id} title={action.title} icon={action.icon} onPress={() => {
           void Haptics.selectionAsync();
