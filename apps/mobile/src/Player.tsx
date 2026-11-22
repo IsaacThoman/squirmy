@@ -22,6 +22,7 @@ import {
 } from './player/transition';
 import { usePlaybackState, usePosition } from './playback';
 import { activeLine, lyricLines } from './player/lyrics';
+import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
 import QueuePage from './player/QueuePage';
@@ -475,7 +476,8 @@ function LyricsPage({ visible }: { visible: boolean }) {
 function Scrubber() {
   const styles = useStyles();
   const { durationMs: duration, current, actions } = usePlaybackState();
-  const position = usePosition();
+  // Collapsed, Now Playing stays mounted but unseen; its clock waits until it opens again.
+  const position = usePosition(usePlayerShown());
   const [draft, setDraft] = useState<number | null>(null);
   const shown = Math.min(draft ?? position, duration || Infinity);
   const elapsed = formatDuration(shown);

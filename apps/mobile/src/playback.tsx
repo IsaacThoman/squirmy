@@ -364,3 +364,70 @@ export function usePosition(enabled = true): number {
   }, [active, enabled, runtime, session]);
   return position;
 }
+
+// Narrow subscriptions. A component that shows one fact about the session reads it here
+// and re-renders only when that fact changes, not on every session broadcast.
+
+/** Reads one value from the session client; re-renders only when it changes (compared with `Object.is`). */
+function useSessionValue<T>(select: (snapshot: SessionClientSnapshot) => T): T {
+  const runtime = useContext(RuntimeContext);
+  return useSyncExternalStore(runtime?.client.subscribe ?? noSubscription, () => select(runtime?.client.getSnapshot() ?? idle));
+}
+
+/** Whether the session is playing (on whichever device plays it). */
+export function useIsPlaying(): boolean {
+  return useSessionValue(snapshot => snapshot.session.playing);
+}
+
+/** Whether `trackId` is the current entry's track. */
+export function useIsCurrentTrack(trackId: string | undefined): boolean {
+  return useSessionValue(snapshot => Boolean(trackId) && snapshot.session.current?.trackId === trackId);
+}
+
+/** `playing` or `paused` while `trackId` is the current entry's track, otherwise null. */
+export function useCurrentTrackState(trackId: string | undefined): 'playing' | 'paused' | null {
+  return useSessionValue(({ session }) => !trackId || session.current?.trackId !== trackId ? null : session.playing ? 'playing' : 'paused');
+}
+
+/**
+ * The session's commands. The object changes only with the session runtime, so passing it
+ * down does not re-render anything; which tracks are playable is read when a command runs.
+ */
+export function usePlaybackActions(): PlaybackActions {
+  const runtime = useContext(RuntimeContext);
+  const { canPlay } = useAvailability();
+  const playable = useRef(canPlay);
+  playable.current = canPlay;
+  return useMemo(() => createActions(runtime, track => playable.current(track)), [runtime]);
+}
+
+/**
+ * The current entry's position, read every `intervalMs` while it moves, the app is on
+ * screen and `enabled`. Unlike `usePosition`, it re-renders for the clock only, not for
+ * other session changes.
+ */
+export function usePositionEvery(intervalMs: number, enabled = true): number {
+  const runtime = useContext(RuntimeContext);
+  const moving = useSessionValue(({ session }) => session.playing && !session.stalled);
+  // Seeks and track changes move the clock without a tick.
+  const anchor = useSessionValue(({ session }) => `${session.current?.id ?? ''}:${session.positionMs}:${session.anchorAt}`);
+  const active = useAppActive();
+  const [position, setPosition] = useState(() => runtime?.client.getPositionMs() ?? 0);
+  useEffect(() => {
+    const read = () => setPosition(runtime?.client.getPositionMs() ?? 0);
+    read();
+    if (!runtime || !enabled || !active || !moving) return;
+    const timer = setInterval(read, intervalMs);
+    return () => clearInterval(timer);
+  }, [active, anchor, enabled, intervalMs, moving, runtime]);
+  return position;
+}
+
+/** The current entry's length, from the session or, while it is unknown there, the track. */
+export function useCurrentDurationMs(): number {
+  const durationMs = useSessionValue(({ session }) => session.current?.durationMs ?? 0);
+  const trackId = useSessionValue(({ session }) => session.current?.trackId);
+  const albumId = useSessionValue(({ session }) => session.current?.albumId);
+  const track = useTrack(trackId, albumId);
+  return durationMs || track?.durationMs || 0;
+}
