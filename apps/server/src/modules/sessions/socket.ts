@@ -1,7 +1,7 @@
 import { SessionHello } from '@squirmy/contracts'
 import { tokenBucket } from '../../lib/token-bucket.js'
 import type { Realtime } from '../../realtime/index.js'
-import { applyReport, greet, leave, runCommand, setRealtimeServer } from './service.js'
+import { applyReport, attach, detach, greet, leave, runCommand, setRealtimeServer } from './service.js'
 
 /**
  * Per-socket budgets. A user's events run one at a time, so one socket flooding them
@@ -43,6 +43,12 @@ export function registerSessionSockets(realtime: Realtime): void {
     })
     // A dropped report costs nothing: the next one carries the same information.
     socket.on('session:report', (raw) => void (reports.take() && applyReport(userId, deviceId, raw)))
+    socket.on('session:detach', (raw, ack) => {
+      if (typeof ack === 'function') void detach(userId, deviceId, socket.id, raw, ack)
+    })
+    socket.on('session:attach', (raw, ack) => {
+      if (typeof ack === 'function') void attach(userId, deviceId, socket.id, raw, ack)
+    })
     socket.on('disconnect', () => {
       if (deviceId) leave(userId, socket.id, deviceId)
     })
