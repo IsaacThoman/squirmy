@@ -254,7 +254,7 @@ export function downloadSymbol(download: TrackDownload | undefined): string | nu
 
 /** Why a gray track is gray, for screen readers. */
 export function unavailableReason(track: Pick<TrackSummary, 'availability'>, offline: boolean): string {
-  if (offline && track.availability !== 'none') return 'not downloaded';
+  if (offline && track.availability !== 'none') return 'not downloaded or cached';
   return track.availability === 'on_demand' ? 'not on the server yet; ask an admin to let you fetch missing music' : 'not in your library';
 }
 
