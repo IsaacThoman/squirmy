@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayAddress, isExposedHttp, parseServerAddress, socketAddress } from './address';
+import { displayAddress, isExposedHttp, parseServerAddress, serverVersion, socketAddress } from './address';
 
 describe('parseServerAddress', () => {
   it('tries https before http when the scheme is missing', () => {
@@ -64,5 +64,12 @@ describe('socketAddress', () => {
     expect(socketAddress('http://192.168.1.20:4747')).toEqual({ origin: 'http://192.168.1.20:4747', path: '/socket.io' });
     expect(socketAddress('https://home.example.com/squirmy')).toEqual({ origin: 'https://home.example.com', path: '/squirmy/socket.io' });
     expect(socketAddress('http://[fd00::2]:4747/a/b/')).toEqual({ origin: 'http://[fd00::2]:4747', path: '/a/b/socket.io' });
+  });
+});
+
+describe('serverVersion', () => {
+  it('reads as a version, not a second name', () => {
+    expect(serverVersion('1.4.0')).toBe('Version 1.4.0');
+    expect(serverVersion('dev')).toBe('Development build');
   });
 });
