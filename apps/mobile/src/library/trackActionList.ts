@@ -66,7 +66,8 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     : download && onItsOwn
       ? { id: 'removeDownload', title: download.state === 'done' ? 'Remove download' : 'Cancel download',
         icon: download.state === 'done' ? 'trash' : 'xmark.circle', destructive: download.state === 'done' }
-      : !download && online && track.availability === 'server' && { id: 'download', title: 'Download', icon: 'arrow.down.circle' };
+      // What plays for this user downloads: a song the server does not have yet is fetched first.
+      : !download && online && isPlayable(track, viewer) && { id: 'download', title: 'Download', icon: 'arrow.down.circle' };
   const items: (TrackAction | false)[] = [
     // The current track can only be resumed; queueing it next would play it twice.
     playable && current === null && { id: 'play', title: 'Play now', icon: 'play.fill' },

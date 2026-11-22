@@ -1,3 +1,4 @@
+import { UNAVAILABLE_LABEL } from '@squirmy/client-core';
 import type { StreamQuality } from '@squirmy/contracts';
 import type { Href } from 'expo-router';
 import { Alert, Platform } from 'react-native';
@@ -5,10 +6,9 @@ import { useUpdateSettings, useUserSettings } from '../data/queries';
 import { albumCollection, likedCollection, playlistCollection, type Collection } from '../library/shared';
 import { usePageLinks } from '../library/links';
 import { tapFeedback } from '../library/shared';
-import { downloadStatus } from '../library/DownloadControl';
 import { useDownloadActions, useDownloadManager, useDownloadsSummary } from './DownloadsProvider';
 import { freeSpace } from './files';
-import { formatBytes, songPage, songsId, type CollectionRow } from './model';
+import { downloadStatus, formatBytes, songPage, songsId, type CollectionRow } from './model';
 
 export const downloadQualityOptions: readonly { value: StreamQuality; label: string }[] = [
   { value: 'original', label: 'Original' },
@@ -76,8 +76,9 @@ export function useDownloadsScreen() {
     const download = manager?.track(trackId);
     const track = manager?.collectionTracks(songsId).find(item => item.id === trackId);
     if (!download || !track) return [];
-    const detail = download.state === 'done' ? formatBytes(download.bytes) : download.state === 'failed' ? 'Couldn’t be downloaded'
-      : download.state === 'downloading' ? `Downloading ${Math.round(download.progress * 100)}%` : 'Waiting to download';
+    const detail = download.state === 'done' ? formatBytes(download.bytes)
+      : download.state === 'failed' ? download.unavailable ? UNAVAILABLE_LABEL : 'Couldn’t be downloaded'
+        : download.state === 'downloading' ? `Downloading ${Math.round(download.progress * 100)}%` : 'Waiting to download';
     const page = songPage(track);
     const href = page && link(page.page, page.id);
     return [{
@@ -99,7 +100,7 @@ export function useDownloadsScreen() {
           : summary.wait === 'storage' ? `${count(summary.pending)} waiting: the storage limit is reached`
             : `Downloading ${count(summary.pending)}`,
       retry: false,
-    } : null;
+    } : summary.unavailable ? { text: `${count(summary.unavailable)} not available`, retry: true } : null;
 
   return {
     summary,

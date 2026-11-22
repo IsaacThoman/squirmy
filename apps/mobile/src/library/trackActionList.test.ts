@@ -48,6 +48,14 @@ describe('trackActions', () => {
     expect(ids(track({ availability: 'none' }), state({ viewer: requester }))).not.toContain('radio');
   });
 
+  it('downloads a song the server does not have yet only for someone who may have it fetched', () => {
+    const requester = { role: 'member', canAcquire: true } as const;
+    const member = { role: 'member', canAcquire: false } as const;
+    expect(ids(track({ availability: 'on_demand' }), state({ viewer: requester }))).toContain('download');
+    expect(ids(track({ availability: 'on_demand' }), state({ viewer: member }))).not.toContain('download');
+    expect(ids(track({ availability: 'none' }), state({ viewer: requester }))).not.toContain('download');
+  });
+
   it('offers no wantlist when the server has it off', () => {
     expect(ids(track({ availability: 'none' }), state({ playable: false, wantlist: false }))).toEqual(['like', 'album', 'artist']);
   });

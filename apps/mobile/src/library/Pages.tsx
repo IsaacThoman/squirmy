@@ -247,7 +247,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const { setLiked, want } = useLibraryActions();
   const wantlist = useWantlistEnabled();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
-    album.data?.discs.some(disc => disc.tracks.some(track => track.availability === 'server')) ? () => download.album(album.data!) : null);
+    album.data?.discs.flatMap(disc => disc.tracks), () => download.album(album.data!));
   // Play pressed before the server had the track list: it starts as soon as the tracks are known.
   const [waitingPlay, setWaitingPlay] = useState<{ shuffle: boolean } | null>(null);
   const expanding = album.isPlaceholderData || albumExpanding(album.data, queryClient.getQueryState(queryKeys.album(id))?.dataUpdateCount ?? 0);
@@ -402,7 +402,7 @@ function LikedScreen(props: PageProps) {
   const download = useDownloadActions();
   const tracks = liked.data ? liked.items : kept;
   const control = useDownloadControl(likedDownloadId, 'Liked Songs',
-    liked.items.some(track => track.availability === 'server') ? () => download.liked(liked.items) : null);
+    liked.items, () => download.liked(liked.items));
   useBackSwipeOnly();
   if (!tracks) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
   return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={tracks} download={control}
@@ -435,7 +435,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const download = useDownloadActions();
   const [editing, setEditing] = useState(false);
   const control = useDownloadControl(playlistCollectionId(id), data?.name ?? '',
-    playlist.data?.items.some(item => item.track.availability === 'server') ? () => download.playlist(playlist.data!) : null);
+    playlist.data?.items.map(item => item.track), () => download.playlist(playlist.data!));
   const items = data?.items;
   const tracks = useMemo(() => items?.map(item => item.track) ?? [], [items]);
   // The kept copy has no item ids, and edits need the server.

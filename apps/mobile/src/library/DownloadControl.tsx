@@ -1,43 +1,28 @@
+import { isPlayable } from '@squirmy/client-core';
+import type { TrackSummary } from '@squirmy/contracts';
 import type { ReactNode } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRealtime } from '../data/realtime';
-import { useCollectionDownload, useDownloadActions } from '../downloads/DownloadsProvider';
-import { formatBytes, type CollectionDownload, type WaitReason } from '../downloads/model';
+import { useCollectionDownload, useDownloadActions, useViewer } from '../downloads/DownloadsProvider';
+import { downloadStatus, type CollectionDownload } from '../downloads/model';
 import { createThemedStyles, useColors } from '../theme';
 import { Icon } from '../ui';
 import type { AlbumNavProps } from './AlbumButtons';
 import { tapFeedback } from './shared';
 
-const waiting: Record<WaitReason, string> = {
-  offline: 'Waiting for the server',
-  wifi: 'Waiting for Wi-Fi',
-  storage: 'Storage limit reached',
-};
-
-/** The line under a collection's buttons while it is downloaded or downloading. */
-export function downloadStatus(download: CollectionDownload): { icon: string; text: string; retry?: boolean } {
-  switch (download.state) {
-    case 'queued': return { icon: 'arrow.down.circle.dotted', text: download.wait ? waiting[download.wait] : 'Waiting to download' };
-    case 'downloading': return { icon: 'arrow.down.circle.dotted', text: `Downloading ${download.done + 1} of ${download.total}` };
-    case 'failed': {
-      const missing = download.total - download.done;
-      return { icon: 'exclamationmark.circle', text: `${missing} ${missing === 1 ? 'song' : 'songs'} couldn’t be downloaded`, retry: true };
-    }
-    case 'done': return {
-      icon: 'arrow.down.circle.fill',
-      text: download.gone ? 'Downloaded · No longer on the server' : `Downloaded · ${formatBytes(download.bytes)}`,
-    };
-  }
-}
-
 /**
- * The download button of an album, playlist or Liked Songs, and its status line. `start`
- * is null when there is nothing to download. Offline, only a download already made shows.
+ * The download button of an album, playlist or Liked Songs, and its status line. It is
+ * offered when something of `tracks` plays for this user (client-core's `isPlayable`): what
+ * the server has, and for a user who may have music fetched, what it can get, which the
+ * download asks it for. Offline, only a download already made shows.
  */
-export function useDownloadControl(collectionId: string, title: string, start: (() => void) | null): { nav: AlbumNavProps | false; status: ReactNode } {
+export function useDownloadControl(collectionId: string, title: string, tracks: readonly TrackSummary[] | undefined,
+  start: () => void): { nav: AlbumNavProps | false; status: ReactNode } {
   const download = useCollectionDownload(collectionId);
   const actions = useDownloadActions();
+  const viewer = useViewer();
   const { offline } = useRealtime();
+  const startable = Boolean(tracks?.some(track => isPlayable(track, viewer)));
   const remove = (cancel: boolean) => {
     tapFeedback();
     Alert.alert(cancel ? `Stop downloading “${title}”?` : `Remove “${title}” from this device?`,
@@ -48,9 +33,15 @@ export function useDownloadControl(collectionId: string, title: string, start: (
   };
   let nav: AlbumNavProps | false = false;
   if (!download) {
-    if (start && !offline) nav = { icon: 'arrow.down.circle', label: `Download ${title}`, onPress: () => { tapFeedback(); start(); } };
+    if (startable && !offline) nav = { icon: 'arrow.down.circle', label: `Download ${title}`, onPress: () => { tapFeedback(); start(); } };
   } else if (download.state === 'done') {
     nav = { icon: 'arrow.down.circle.fill', label: `Downloaded. Remove ${title} from this device`, selected: true, onPress: () => remove(false) };
+  } else if (download.state === 'incomplete') {
+    // All that can be had is here; the status line says what is not.
+    nav = {
+      icon: 'arrow.down.circle.fill', label: `${download.done} of ${download.total} songs downloaded. Remove ${title} from this device`,
+      selected: true, onPress: () => remove(false),
+    };
   } else if (download.state === 'failed') {
     nav = { icon: 'exclamationmark.circle', label: `Retry downloading ${title}`, onPress: () => { tapFeedback(); actions.retry(); } };
   } else {
