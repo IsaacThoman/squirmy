@@ -1,11 +1,12 @@
 import { recentSearchKey, searchItemKey, tooShortToSearch, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core'
 import type { TrackSummary } from '@squirmy/contracts'
-import { Clock3, Heart, MoreHorizontal, Play, RotateCw, Search, X } from 'lucide-react'
+import { Clock3, MoreHorizontal, Play, RotateCw, Search, X } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Page, PageHeader } from '@/components/layout/Page'
 import { GenreTile } from '@/components/music/Cards'
 import { Equalizer } from '@/components/music/Equalizer'
+import { SaveHeart } from '@/components/music/LibrarySave'
 import { PrefetchLink } from '@/components/music/PrefetchLink'
 import { useResultMenus } from '@/components/music/result-menus'
 import { searchItemText, searchRowClass } from '@/components/music/search-row'
@@ -354,15 +355,7 @@ function ResultRow({ id, item, active, stale, onChoose, trackMenu, resultMenu, o
         {primary}
         <div className="relative z-10 flex shrink-0 items-center gap-1">
           {track && onLike && (
-            <IconButton
-              label={track.liked ? `Remove ${title} from Liked Songs` : `Save ${title} to Liked Songs`}
-              tooltip={false}
-              size="sm"
-              onClick={onLike}
-              className={cn(track.liked ? 'text-primary hover:text-primary' : revealed)}
-            >
-              <Heart fill={track.liked ? 'currentColor' : 'none'} />
-            </IconButton>
+            <SaveHeart liked={track.liked} onToggle={onLike} title={title} tooltip={false} size="sm" className={cn(!track.liked && revealed)} />
           )}
           {track && <span className={cn('hidden w-10 text-right text-xs tabular text-muted-foreground sm:block', unavailable && 'opacity-60')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>}
           <DropdownMenu
