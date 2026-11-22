@@ -1,6 +1,8 @@
 import type { AddressInfo } from 'node:net'
-import type {
-  ClientToServerEvents, CommandAck, QueueSeed, ServerToClientEvents, SessionCommand, SessionHelloAck, SessionQueue, SessionState,
+import {
+  COMMAND_TRACK_LIMIT, QUEUE_LIMIT,
+  type ClientToServerEvents, type CommandAck, type QueueSeed, type ServerToClientEvents, type SessionCommand, type SessionHelloAck,
+  type SessionQueue, type SessionState,
 } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -415,6 +417,24 @@ describe('sessions', () => {
     expect(await a.send({ type: 'playTracks', tracks: tracks.slice(0, 2), seed: 1 })).toEqual({ ok: false, error: 'nothing_playable' })
   })
 
+  it('refuses to grow the queue past QUEUE_LIMIT, counting the tracks it trusts', async () => {
+    const a = await device('device-a-0019')
+    const many = (count: number) => Array.from({ length: count }, (_, index) => seeds()[index % album.tracks.length]!)
+    await a.send(playAlbum())
+    expect(await a.send({ type: 'enqueue', tracks: many(COMMAND_TRACK_LIMIT), placement: 'last' })).toMatchObject({ ok: true })
+    // Unplayable tracks are dropped before counting, so this one fits exactly.
+    const room = QUEUE_LIMIT - (album.tracks.length - 1) - COMMAND_TRACK_LIMIT
+    const fits = [...many(room), { trackId: newId(), durationMs: 1 }]
+    expect(await a.send({ type: 'enqueue', tracks: fits, placement: 'next' })).toMatchObject({ ok: true })
+    expect((await getSnapshot(user.id)).queue.queue).toHaveLength(QUEUE_LIMIT)
+
+    expect(await a.send({ type: 'enqueue', tracks: many(1), placement: 'last' })).toEqual({ ok: false, error: 'queue_full' })
+    expect(await a.send({ type: 'enqueue', tracks: many(2), placement: 'next' })).toEqual({ ok: false, error: 'queue_full' })
+    expect((await getSnapshot(user.id)).queue.queue).toHaveLength(QUEUE_LIMIT)
+    expect(await a.send({ type: 'playTracks', tracks: many(COMMAND_TRACK_LIMIT), seed: 1 })).toMatchObject({ ok: true })
+    expect((await getSnapshot(user.id)).queue.queue).toHaveLength(COMMAND_TRACK_LIMIT - 1)
+  })
+
   it('prepares on-demand tracks and follows them to ready or failed', async () => {
     const remote = await createAlbum({ tracks: [{ title: 'Far' }, { title: 'Farther' }, { title: 'Farthest' }] })
     const [far, farther, farthest] = remote.tracks.map((track) => track.recordingId) as [string, string, string]
@@ -639,6 +659,16 @@ describe('sessions', () => {
     expect(snapshot.queue.queue.map((entry) => entry.trackId)).toEqual([ids[2]])
     expect((await a.state(snapshot.version)).current?.trackId).toBe(ids[1])
     expect((await replaceQueue(user.id, { trackIds: [] })).queue.queue).toEqual([])
+
+    // A Subsonic client may save far more ids than a session holds or one query may bind.
+    const unknown = Array.from({ length: 70_000 }, () => newId())
+    const huge = await replaceQueue(user.id, { trackIds: [...unknown.slice(0, 10), ...ids, ...unknown], currentId: ids[0] })
+    expect(huge.state.current?.trackId).toBe(ids[0])
+    expect(huge.queue.queue.map((entry) => entry.trackId)).toEqual(ids.slice(1))
+    const long = Array.from({ length: COMMAND_TRACK_LIMIT + 50 }, (_, index) => ids[index % ids.length]!)
+    const capped = await replaceQueue(user.id, { trackIds: long, currentId: ids[1] })
+    expect(capped.state.current?.trackId).toBe(ids[1])
+    expect(capped.queue.queue).toHaveLength(COMMAND_TRACK_LIMIT - 1)
 
     expect(await recordExternalPlay(user.id, newId())).toBe(false)
     expect(await recordExternalPlay(user.id, ids[0]!, { playedAt: new Date('2026-01-01T00:00:00Z') })).toBe(true)
