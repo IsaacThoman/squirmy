@@ -13,7 +13,8 @@ import type {
 } from '@squirmy/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeEngine } from '../engine.js'
-import { type SavedSession, SessionClient } from './client.js'
+import { ApiError } from '../api/client.js'
+import { type SavedSession, SessionClient, type SessionPlayer } from './client.js'
 import { createInitialSession, positionAt, queueChanged, reduceSession, splitSession } from './reducer.js'
 import type { AckCallback, AckEvent, AckPayload, AckReply, SessionTransport } from './transport.js'
 
@@ -207,8 +208,9 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true, restore, server = new FakeServer() }: {
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), onLoadError }: {
   canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer
+  onLoadError?: SessionPlayer['onLoadError']
 } = {}) {
   const transport = new FakeTransport(server)
   const engine = new FakeEngine()
@@ -217,7 +219,7 @@ function setup({ canPlay = true, connect = true, restore, server = new FakeServe
   const client = new SessionClient({
     transport,
     device: { id: PHONE, name: 'Phone', kind: 'ios' },
-    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off' } : undefined,
+    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError } : undefined,
     restore,
   })
   client.start()
@@ -502,6 +504,66 @@ describe('SessionClient engine', () => {
     client.dispatch({ type: 'seek', positionMs: 30_000 })
     await settle()
     expect(calls('load').at(-1)).toMatchObject(['load', { startMs: 30_000, autoplay: true }])
+  })
+
+  it('gives up on an entry the server refuses: reports it, stops the audio and tells the caller', async () => {
+    const onLoadError = vi.fn()
+    const context = setup({ onLoadError })
+    const { client, engine, resolvePlayback, server, settle } = context
+    const refused = new ApiError(404, 'not_available', 'Not available')
+    resolvePlayback.mockImplementation(async entry => {
+      if (entry.trackId === track(2)) throw refused
+      return descriptor(entry)
+    })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await settle()
+    client.dispatch({ type: 'next' })
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(trackOf(current)).toBe(2)
+    expect(onLoadError).toHaveBeenCalledTimes(1)
+    expect(onLoadError).toHaveBeenCalledWith(current, refused, false)
+    // The first track must not go on playing under the second one's title.
+    expect(engine.getStatus().state).toBe('idle')
+    expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'error' })
+    const asked = resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2)).length
+    await vi.advanceTimersByTimeAsync(30_000)
+    await settle()
+    expect(resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2))).toHaveLength(asked)
+    expect(onLoadError).toHaveBeenCalledTimes(1)
+    // Play asks again.
+    client.dispatch({ type: 'pause' })
+    client.dispatch({ type: 'play' })
+    await settle()
+    expect(resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2))).toHaveLength(asked + 1)
+  })
+
+  it('retries an entry it cannot reach, reporting a stall meanwhile', async () => {
+    const onLoadError = vi.fn()
+    const context = setup({ onLoadError })
+    const { client, engine, resolvePlayback, server, settle } = context
+    let failures = 2
+    resolvePlayback.mockImplementation(async entry => {
+      if (entry.trackId === track(2) && failures > 0) {
+        failures -= 1
+        throw new ApiError(0, 'network_error', 'Network request failed')
+      }
+      return descriptor(entry)
+    })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await settle()
+    // The preload took the first failure; the load takes the second.
+    client.dispatch({ type: 'next' })
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(onLoadError).toHaveBeenCalledWith(current, expect.any(ApiError), true)
+    expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'buffering' })
+    await vi.advanceTimersByTimeAsync(3000)
+    await settle()
+    expect(engine.getStatus()).toMatchObject({ entryId: current.id, state: 'playing' })
+    expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'playing' })
   })
 
   it('stops the engine when another device takes over', async () => {
