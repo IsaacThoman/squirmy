@@ -28,9 +28,10 @@ const silent = { silent: true }
 /** Imports: their list, each one, and the upload options. `import.updated` refreshes them all. */
 export const importsKey = ['imports'] as const
 
+export const homeQuery = (api: ApiClient) => ({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home(), meta: silent })
+
 export function useHome() {
-  const api = useApi()
-  return useQuery({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home(), meta: silent })
+  return useQuery(homeQuery(useApi()))
 }
 
 export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.album(id), queryFn: () => api.catalog.album(id), meta: silent })

@@ -2,6 +2,8 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
+import { restoreBeforeRender, startPersisting } from '@/api/persist'
+import { homeQuery } from '@/api/queries'
 import { createQueryClient } from '@/api/query-client'
 import { createServices, ServicesContext } from '@/api/services'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -19,6 +21,10 @@ startAppearance()
 void claimTabDevice()
 const queryClient = createQueryClient()
 const services = createServices()
+
+// The last session's pages first, so a reload paints them before any request returns.
+await restoreBeforeRender(queryClient, () => void queryClient.prefetchQuery(homeQuery(services.api)))
+startPersisting(queryClient)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
