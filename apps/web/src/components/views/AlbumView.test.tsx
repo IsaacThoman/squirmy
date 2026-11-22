@@ -158,6 +158,15 @@ describe('album page', () => {
       expect(await screen.findByRole('button', { name: 'Save to library' })).toBeInTheDocument()
     })
 
+    it('offers no playlist to add to before its songs are known', async () => {
+      const { services, api } = fakeServices()
+      api.catalog.album.mockResolvedValue({ ...lowTide, discs: [], trackCount: 0, ownedTrackCount: 0, durationMs: 0, detailPending: true })
+      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      await screen.findByRole('status', { name: 'Loading songs' })
+      await userEvent.click(screen.getByRole('button', { name: 'More options' }))
+      expect(await screen.findByRole('menuitem', { name: 'Add to playlist' })).toHaveAttribute('aria-disabled', 'true')
+    })
+
     it('can be played before its songs are known, and plays once they arrive', async () => {
       const { services, api, socket } = fakeServices()
       const bare: AlbumDetail = { ...lowTide, discs: [], trackCount: 0, ownedTrackCount: 0, durationMs: 0, detailPending: true }
@@ -262,7 +271,7 @@ describe('album page', () => {
       renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, fakeServices({ user: robin }).services)
       const tracks = await screen.findByRole('list', { name: 'Blue Hour tracks' })
       expect(screen.getByText(/5 of 7 songs available/)).toBeInTheDocument()
-      expect(within(tracks).getAllByRole('listitem').filter(row => row.getAttribute('aria-disabled') === 'true')).toHaveLength(2)
+      expect(within(tracks).getAllByRole('listitem').filter(row => row.getAttribute('title') === 'Not available')).toHaveLength(2)
     })
 
     it('cannot play an album nothing of which plays, and offers it to the Wantlist', async () => {

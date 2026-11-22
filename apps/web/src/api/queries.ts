@@ -2,6 +2,7 @@ import { ApiError, type ApiClient } from '@squirmy/client-core'
 import { Id, queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
 import { awaitsTrackList } from '@/lib/catalog'
+import { useCallback, useRef } from 'react'
 import { useDebounced } from '@/lib/use-debounced'
 import { useApi } from './services'
 
@@ -50,17 +51,36 @@ export const artistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKey
 export const playlistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.playlist(id), queryFn: () => byId(id, () => api.userdata.playlist(id)), meta: silent })
 
 /**
- * How often, and for how many answers, an album whose songs are still being looked up asks
- * again, should the server's invalidation not come: a minute, then the page waits for it.
+ * How often, and for how long, an album whose songs are still being looked up asks again,
+ * should the server's invalidation not come: a minute, then the page waits for it.
  */
 const TRACK_LIST_POLL_MS = 3000
-const TRACK_LIST_POLLS = 20
+export const TRACK_LIST_POLL_FOR_MS = 60_000
 
+/**
+ * An album page's album. While its songs are being looked up it asks again every few seconds for
+ * a minute from when the page opened. `refetch` (the page's "Check again") starts another minute:
+ * counting answers instead would leave a person who asks again with a single answer, the polling
+ * long since spent.
+ */
 export function useAlbum(id: string) {
-  return useQuery({
+  // When this page began waiting for this album's songs: set by the first answer that awaits them.
+  const round = useRef<{ id: string; since: number } | null>(null)
+  const query = useQuery({
     ...albumQuery(useApi(), id),
-    refetchInterval: query => (query.state.data && awaitsTrackList(query.state.data) && query.state.dataUpdateCount < TRACK_LIST_POLLS ? TRACK_LIST_POLL_MS : false),
+    refetchInterval: ({ state }) => {
+      if (!state.data || !awaitsTrackList(state.data)) return false
+      if (round.current?.id !== id) round.current = { id, since: Date.now() }
+      return Date.now() - round.current.since < TRACK_LIST_POLL_FOR_MS ? TRACK_LIST_POLL_MS : false
+    },
   })
+  const { refetch } = query
+  const checkAgain = useCallback<typeof refetch>(options => {
+    round.current = { id, since: Date.now() }
+    return refetch(options)
+  }, [id, refetch])
+  // Spread, the result loses the union that ties `data` to `status`; it is the same result with one function changed.
+  return { ...query, refetch: checkAgain } as typeof query
 }
 
 /**

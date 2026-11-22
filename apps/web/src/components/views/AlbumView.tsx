@@ -124,6 +124,7 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
                   onEnqueue: enqueue,
                   playlists: library.playlists,
                   onAddToPlaylist: playlist => (playlist ? library.addToPlaylist(playlist, tracks) : library.newPlaylist(tracks)),
+                  songsKnown: tracks.length > 0,
                   liked: album.liked,
                   onToggleSaved: toggleSaved,
                   want: library.wantlistEnabled && dimmed ? { wanted, onToggle: want } : undefined,
