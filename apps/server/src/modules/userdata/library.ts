@@ -91,12 +91,12 @@ export async function fetchSaved({ userId, type, id }: FetchSavedJob): Promise<v
     .where(and(eq(libraryItems.userId, userId), eq(libraryItems.entityType, storedType[type]), eq(libraryItems.entityId, id)))
   if (!kept) return
   try {
-    // Acquisition records no origin for a request yet; once it does, these are `library` ones.
+    // `library` jobs start after anything being played or fetched ahead.
     if (type === 'album') {
       await albumDetailRun(id).catch((error: unknown) => warn(`Could not complete album ${id} before fetching it`, error))
-      await requestAlbum(userId, id)
+      await requestAlbum(userId, id, 'library')
     } else {
-      await requestTrack(userId, id, null)
+      await requestTrack(userId, id, null, 'library')
     }
   } catch (error) {
     if (!(error instanceof AppError)) throw error

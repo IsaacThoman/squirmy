@@ -41,6 +41,7 @@ export type MatchStatus = 'pending' | 'matched' | 'review' | 'unmatched'
 /** How a file's links were decided. `request`: the file was delivered for an acquisition request that named them. */
 export type MatchSource = 'tags' | 'tags-mbid' | 'search' | 'acoustid' | 'manual' | 'request'
 export type ImportKind = 'upload' | 'inbox' | 'acquisition'
+export type AcquisitionOrigin = 'play' | 'prefetch' | 'download' | 'library'
 export type ImportStatus = 'receiving' | 'processing' | 'completed' | 'failed'
 export type ImportStep = 'extracting' | 'moving' | 'identifying' | 'filing'
 
@@ -745,8 +746,13 @@ export const acquisitionProviders = pgTable('acquisition_providers', {
   baseUrl: text('base_url').notNull(),
   secretEncrypted: text('secret_encrypted').notNull(),
   enabled: boolean('enabled').notNull().default(true),
-  /** assume_available | must_resolve */
+  /** assume_available | must_resolve, as the provider last declared it in `capabilities`. */
   coverage: text('coverage').notNull().default('must_resolve'),
+  /**
+   * The admin's choice of coverage, which wins over the declared one and which a later
+   * `capabilities` answer never changes. Null follows the provider.
+   */
+  coverageOverride: text('coverage_override'),
   priority: integer('priority').notNull().default(0),
   capabilities: jsonb('capabilities').$type<Record<string, unknown>>(),
   lastOkAt: at('last_ok_at'),
@@ -776,6 +782,11 @@ export const acquisitionJobs = pgTable('acquisition_jobs', {
   /** SHA-256 of the job-scoped token the provider uses to deliver files. */
   uploadTokenHash: text('upload_token_hash'),
   importId: uuid('import_id'),
+  /**
+   * Why it was asked for: play | prefetch | download | library. Waiting jobs start in that
+   * order within a provider's `maxConcurrent`, so a prefetch never holds up what is playing.
+   */
+  origin: text('origin').$type<AcquisitionOrigin>().notNull().default('play'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
   completedAt: at('completed_at'),

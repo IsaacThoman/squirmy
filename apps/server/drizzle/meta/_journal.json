@@ -85,6 +85,13 @@
       "when": 1795338854320,
       "tag": "0011_library_membership",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795342954801,
+      "tag": "0012_provider_cache",
+      "breakpoints": true
     }
   ]
 }

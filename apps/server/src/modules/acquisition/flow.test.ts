@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, realpath, rm } from 'node:fs/promises'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -13,7 +13,7 @@ import { io as connect } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { acquisitionJobs, acquisitionMisses, imports, mediaFiles, recordings } from '../../database/schema.js'
+import { acquisitionJobs, acquisitionMisses, imports, matchReviews, mediaFiles, recordings } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
@@ -319,7 +319,7 @@ describe('acquisition end to end', () => {
     expect(await jobsFor(forbidden)).toEqual([])
   })
 
-  it('fails a delivery that is not what was asked for, records a miss and skips the entry', async () => {
+  it('fails a delivery that is not what was asked for, deletes it, records a miss and skips the entry', async () => {
     const album = await createAlbum({ tracks: [{ title: 'The Right One', durationMs: 4000 }, { title: 'Owned Next', durationMs: 3000 }], owned: [1] })
     const [wanted, owned] = album.tracks.map((track) => track.recordingId) as [string, string]
     mock.settings.wrongFile = true
@@ -329,12 +329,11 @@ describe('acquisition end to end', () => {
     await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: owned }))
 
     const [job] = await jobsFor(wanted)
-    expect(job).toMatchObject({ status: 'failed', error: 'The delivery was left for review and does not contain what was asked for' })
-    const files = await db.select().from(mediaFiles).where(eq(mediaFiles.importId, job!.importId!))
-    expect(files).toHaveLength(1)
-    expect(files[0]!.source).toBe(`provider:${providerId}`)
-    expect(files[0]!.relPath).toMatch(/^_Incoming\//)
-    expect(await resolveOne('recordings', files[0]!.recordingId!)).not.toBe(wanted)
+    expect(job).toMatchObject({ status: 'failed', error: 'The delivered files are not what was asked for' })
+    // Nothing of it is kept, on disk or in the library, and nothing waits for review.
+    await eventually(async () => expect(await db.select().from(mediaFiles).where(eq(mediaFiles.importId, job!.importId!))).toEqual([]))
+    expect(await readdir(path.join(rootDir, '_Incoming')).catch(() => [])).not.toContain(job!.importId)
+    expect(await db.select().from(matchReviews)).toEqual([])
     const [requested] = await db.select().from(recordings).where(eq(recordings.id, wanted))
     expect(requested!.mergedIntoId).toBeNull()
     expect(await db.select().from(acquisitionMisses).where(and(eq(acquisitionMisses.providerId, providerId), eq(acquisitionMisses.entityId, wanted)))).toHaveLength(1)

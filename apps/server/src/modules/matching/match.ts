@@ -368,8 +368,10 @@ async function matchRound(rootId: string, groupKey: string): Promise<string[] | 
       const plausible = unit.best && score >= reviewFloor && unit.best.evaluation.pairs.length > 0
       if (unit.best && plausible && score >= settings.matchAutoAcceptScore) {
         applied.push(await applyMatch(tx, { ...unit.best, fileIds, locked: false, attachExtras: unit.attachExtras }))
-      } else if (plausible && units.length === 1) {
-        // A review belongs to a whole group, so loose tracks sharing a folder get none.
+      } else if (plausible && units.length === 1 && !unit.files.every((file) => file.cached)) {
+        // A review belongs to a whole group, so loose tracks sharing a folder get none. A
+        // group of provider deliveries gets none either: acquisition places what was asked
+        // for and deletes the rest, so no admin is ever needed for what listening fetched.
         await tx.update(mediaFiles).set({ matchStatus: 'review', matchConfidence: score, updatedAt: new Date() }).where(inArray(mediaFiles.id, fileIds))
         await upsertReview(tx, rootId, groupKey, files, unit.candidates.slice(0, reviewCandidates).map((found) => toCandidate(found.release, found.evaluation)))
         reviewOpened = true

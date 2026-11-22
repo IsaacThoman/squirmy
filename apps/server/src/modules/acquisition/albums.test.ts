@@ -188,7 +188,7 @@ describe('acquired tracks and their album', () => {
       const track = album.tracks[index]!
       expect(files[0]).toMatchObject({
         albumId: album.albumId, releaseId: album.releaseId, releaseTrackId: track.releaseTrackId, matchStatus: 'matched', matchSource: 'request',
-        source: `provider:${providerId}`, relPath: `${album.artist.name}/The Coin Shop (2012)/0${index + 1} ${track.title}.flac`,
+        source: `provider:${providerId}`, relPath: `_Fetched/${album.artist.name}/The Coin Shop (2012)/0${index + 1} ${track.title}.flac`,
       })
       expect(await exists(files[0]!.relPath)).toBe(true)
     }
@@ -230,7 +230,7 @@ describe('acquired tracks and their album', () => {
     expect((await libraryAlbums(album.artist.id)).map((item) => [item.id, item.title, item.year])).toEqual([[album.albumId, 'Plain Title', 1997]])
     expect(await albumsNamed('Plain Title (Deluxe Edition)', album.artist.name)).toEqual([])
     const [file] = await filesOf(wanted.recordingId)
-    expect(file).toMatchObject({ albumId: album.albumId, releaseTrackId: wanted.releaseTrackId, relPath: `${album.artist.name}/Plain Title (1997)/02 Second Song.flac` })
+    expect(file).toMatchObject({ albumId: album.albumId, releaseTrackId: wanted.releaseTrackId, relPath: `_Fetched/${album.artist.name}/Plain Title (1997)/02 Second Song.flac` })
     const page = await albumPage(album.albumId)
     expect(page.discs[0]!.tracks.map((track) => [track.position, track.title, track.availability])).toEqual([[1, 'Opening Song', 'on_demand'], [2, 'Second Song', 'server']])
   })
@@ -250,7 +250,7 @@ describe('acquired tracks and their album', () => {
     expect(page.discs[0]!.tracks.map((track) => [track.position, track.title, track.id])).toEqual([[1, 'First In Line', stub.tracks[1]!.recordingId], [3, 'Third In Line', stub.tracks[0]!.recordingId]])
     const files = await db.select().from(mediaFiles).where(eq(mediaFiles.albumId, stub.albumId))
     expect(new Set(files.map((file) => file.releaseId)).size).toBe(1)
-    expect(files.map((file) => file.relPath).sort()).toEqual([`${artist.name}/Only Searched/01 First In Line.flac`, `${artist.name}/Only Searched/03 Third In Line.flac`])
+    expect(files.map((file) => file.relPath).sort()).toEqual([`_Fetched/${artist.name}/Only Searched/01 First In Line.flac`, `_Fetched/${artist.name}/Only Searched/03 Third In Line.flac`])
     expect(await incoming()).toEqual([])
   })
 
@@ -268,7 +268,7 @@ describe('acquired tracks and their album', () => {
 
     expect(await fetchTrack(stub.tracks[1]!.recordingId, stub.albumId)).toMatchObject({ status: 'completed', error: null })
     const [file] = await filesOf(stub.tracks[1]!.recordingId)
-    expect(file).toMatchObject({ albumId: stub.albumId, releaseId, releaseTrackId: trackIds[1], matchStatus: 'matched', relPath: `${artist.name}/Listed Elsewhere/02 Side B.flac` })
+    expect(file).toMatchObject({ albumId: stub.albumId, releaseId, releaseTrackId: trackIds[1], matchStatus: 'matched', relPath: `_Fetched/${artist.name}/Listed Elsewhere/02 Side B.flac` })
     expect((await libraryAlbums(artist.id)).map((item) => [item.id, item.availability, item.trackCount, item.ownedTrackCount])).toEqual([[stub.albumId, 'partial', 2, 1]])
     expect(await db.select().from(releases).where(eq(releases.albumId, stub.albumId))).toHaveLength(1)
   })
@@ -277,7 +277,7 @@ describe('acquired tracks and their album', () => {
     const album = await identified({ title: 'No Context', year: 2001, tracks: [{ title: 'Asked Alone', durationMs: 3000 }, { title: 'Never Asked', durationMs: 2000 }] })
     expect(await fetchTrack(album.tracks[0]!.recordingId)).toMatchObject({ status: 'completed', error: null, albumId: null })
     expect((await libraryAlbums(album.artist.id)).map((item) => item.id)).toEqual([album.albumId])
-    expect((await filesOf(album.tracks[0]!.recordingId))[0]).toMatchObject({ albumId: album.albumId, releaseTrackId: album.tracks[0]!.releaseTrackId, relPath: `${album.artist.name}/No Context (2001)/01 Asked Alone.flac` })
+    expect((await filesOf(album.tracks[0]!.recordingId))[0]).toMatchObject({ albumId: album.albumId, releaseTrackId: album.tracks[0]!.releaseTrackId, relPath: `_Fetched/${album.artist.name}/No Context (2001)/01 Asked Alone.flac` })
 
     // A search stub knows its album only as a hint.
     const artist = await createArtist()
@@ -372,7 +372,7 @@ describe('acquired tracks and their album', () => {
     expect(listed.map((item) => [item.id, item.availability, item.trackCount, item.ownedTrackCount])).toEqual([[album.albumId, 'full', 3, 3]])
     expect(await albumsNamed('All At Once (Expanded Edition)', album.artist.name)).toEqual([])
     const files = await db.select().from(mediaFiles).where(eq(mediaFiles.albumId, album.albumId))
-    expect(files.map((file) => file.relPath).sort()).toEqual(['01 Part One', '02 Part Two', '03 Part Three'].map((name) => `${album.artist.name}/All At Once (2015)/${name}.flac`))
+    expect(files.map((file) => file.relPath).sort()).toEqual(['01 Part One', '02 Part Two', '03 Part Three'].map((name) => `_Fetched/${album.artist.name}/All At Once (2015)/${name}.flac`))
     expect(files.every((file) => file.matchStatus === 'matched' && file.releaseTrackId !== null)).toBe(true)
     expect(await incoming()).toEqual([])
   })
@@ -457,19 +457,15 @@ describe('acquired tracks and their album', () => {
     expect((await albumPage(album.albumId)).discs[0]!.tracks.find((track) => track.id === studio.recordingId)?.availability).not.toBe('server')
   })
 
-  it('still refuses a delivery that is another song, and keeps it apart from the album', async () => {
+  it('still refuses a delivery that is another song, and deletes it instead of keeping it apart', async () => {
     const album = await identified({ title: 'Not This', year: 2010, tracks: [{ title: 'The Right One', durationMs: 3000 }, { title: 'Another', durationMs: 2000 }] })
     const wanted = album.tracks[0]!.recordingId
     mock.settings.wrongFile = true
     const job = await fetchTrack(wanted, album.albumId)
     expect(job.status).toBe('failed')
 
-    const files = await db.select().from(mediaFiles).where(eq(mediaFiles.importId, job.importId!))
-    expect(files).toHaveLength(1)
-    expect(files[0]!.relPath).toMatch(/^_Incoming\//)
-    expect(files[0]!.albumId).not.toBe(album.albumId)
-    expect(files[0]!.matchStatus).not.toBe('matched')
-    expect(await resolveOne('recordings', files[0]!.recordingId!)).not.toBe(wanted)
+    expect(await db.select().from(mediaFiles).where(eq(mediaFiles.importId, job.importId!))).toEqual([])
+    expect(await incoming()).not.toContain(job.importId)
     expect(await filesOf(wanted)).toEqual([])
     expect(await db.select().from(acquisitionMisses).where(and(eq(acquisitionMisses.providerId, providerId), eq(acquisitionMisses.entityId, wanted)))).toHaveLength(1)
     expect((await albumPage(album.albumId)).ownedTrackCount).toBe(0)

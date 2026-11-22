@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import {
   AcquireQuery, AcquisitionJobListQuery, CreateAcquisitionProviderRequest, Id, ProviderDeliveryComplete, UpdateAcquisitionPolicy, UpdateAcquisitionProviderRequest,
-  type AcquireResponse, type AcquisitionJob, type AcquisitionJobList, type AcquisitionJobStatus, type AcquisitionPolicy, type AcquisitionProvider,
+  type AcquireResponse, type AcquisitionJob, type AcquisitionJobList, type AcquisitionJobStatus, type AcquisitionPolicy, type AcquisitionProvider, type AcquisitionUsage,
   type AcquisitionProviderList, type ImportFileResult, type Ok, type ProviderUploadResponse,
 } from '@squirmy/contracts'
 import { and, desc, eq, inArray, lt, sql, type SQL } from 'drizzle-orm'
@@ -17,6 +17,7 @@ import { addImportFile } from '../imports/index.js'
 import {
   completeDelivery, DELIVERING, ensureImport, finishJob, loadJob, providerFailed, markDownloading, requestAlbum, requestTrack, touchJob, type JobRow,
 } from './jobs.js'
+import { cacheUsage, evictWhenOver } from './evict.js'
 import { getAcquisitionPolicy, updateAcquisitionPolicy } from './policy.js'
 import { createProvider, deleteProvider, listProviders, testProvider, updateProvider } from './providers.js'
 
@@ -26,6 +27,26 @@ const JobParams = z.object({ jobId: Id })
 const deliveryRateLimit = 120
 /** File and field parts per upload request. */
 const maxParts = 2_000
+/**
+ * Explicit acquire requests per user per minute: enough for a device downloading a long
+ * playlist track by track. Playback asks the server directly, not through these routes.
+ */
+const acquireRateLimit = 120
+
+/**
+ * What one job may receive in all: room for each requested track at the per-file limit with
+ * a quarter to spare, and four files per track (audio, cover, lyrics, cue sheet) plus two.
+ * Never more than the cache limit itself, when there is one. Past either the delivery is
+ * refused with 413 and the job fails, so a provider cannot fill the disk through one job.
+ */
+export function deliveryBudget(job: Pick<JobRow, 'recordingIds'>, policy: Pick<AcquisitionPolicy, 'maxFileBytes' | 'storageQuotaBytes'>) {
+  const tracks = Math.max(1, job.recordingIds.length)
+  const bytes = Math.ceil(tracks * policy.maxFileBytes * 1.25)
+  return {
+    maxImportBytes: policy.storageQuotaBytes > 0 ? Math.min(bytes, policy.storageQuotaBytes) : bytes,
+    maxFiles: tracks * 4 + 2,
+  }
+}
 
 /** Jobs as the admin API shows them, newest first. */
 async function selectJobs(where: SQL | undefined, limit: number): Promise<AcquisitionJob[]> {
@@ -52,6 +73,7 @@ async function selectJobs(where: SQL | undefined, limit: number): Promise<Acquis
     status: job.status as AcquisitionJobStatus,
     error: job.error,
     importId: job.importId,
+    origin: job.origin,
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
     completedAt: job.completedAt?.toISOString() ?? null,
@@ -97,6 +119,17 @@ export async function acquisitionRoutes(app: FastifyInstance) {
     reply.header('retry-after', result.ttlInSeconds)
     throw new AppError(429, 'rate_limited', `Too many delivery requests. Try again in ${result.ttlInSeconds} seconds.`)
   }
+  const acquireLimit = app.createRateLimit({
+    max: acquireRateLimit,
+    timeWindow: 60_000,
+    keyGenerator: (request) => `acquire:${request.user?.id ?? request.ip}`,
+  })
+  const limitAcquires = async (request: FastifyRequest, reply: FastifyReply) => {
+    const result = await acquireLimit(request)
+    if (result.isAllowed || !result.isExceeded) return
+    reply.header('retry-after', result.ttlInSeconds)
+    throw new AppError(429, 'rate_limited', `Too many requests. Try again in ${result.ttlInSeconds} seconds.`)
+  }
 
   app.get('/admin/acquisition/providers', async (request): Promise<AcquisitionProviderList> => {
     requireAdmin(request)
@@ -141,17 +174,23 @@ export async function acquisitionRoutes(app: FastifyInstance) {
     return listJobs(AcquisitionJobListQuery.parse(request.query))
   })
 
-  app.post('/tracks/:id/acquire', async (request, reply): Promise<AcquireResponse> => {
+  app.get('/admin/acquisition/usage', async (request): Promise<AcquisitionUsage> => {
+    requireAdmin(request)
+    return cacheUsage()
+  })
+
+  app.post('/tracks/:id/acquire', { preHandler: limitAcquires }, async (request, reply): Promise<AcquireResponse> => {
     const user = requireUser(request)
-    const { albumId } = AcquireQuery.parse(request.query)
-    const job = await requestTrack(user.id, IdParams.parse(request.params).id, albumId ?? null)
+    const { albumId, origin } = AcquireQuery.parse(request.query)
+    const job = await requestTrack(user.id, IdParams.parse(request.params).id, albumId ?? null, origin ?? 'library')
     reply.code(202)
     return { items: await jobsById([job.id]) }
   })
 
-  app.post('/albums/:id/acquire', async (request, reply): Promise<AcquireResponse> => {
+  app.post('/albums/:id/acquire', { preHandler: limitAcquires }, async (request, reply): Promise<AcquireResponse> => {
     const user = requireUser(request)
-    const jobs = await requestAlbum(user.id, IdParams.parse(request.params).id)
+    const { origin } = AcquireQuery.parse(request.query)
+    const jobs = await requestAlbum(user.id, IdParams.parse(request.params).id, origin ?? 'library')
     reply.code(202)
     return { items: await jobsById(jobs.map((job) => job.id)) }
   })
@@ -159,29 +198,34 @@ export async function acquisitionRoutes(app: FastifyInstance) {
   app.post('/acquisition/deliveries/:jobId/files', { preHandler: limitDeliveries }, async (request): Promise<ProviderUploadResponse> => {
     const job = await deliveringJob(request, JobParams.parse(request.params).jobId)
     if (!request.isMultipart()) throw badRequest('Send the files as multipart/form-data', 'not_multipart')
-    const { maxFileBytes } = await getAcquisitionPolicy()
+    const policy = await getAcquisitionPolicy()
     const { importMaxFileBytes } = await getServerSettings()
+    const budget = deliveryBudget(job, policy)
     const importId = await ensureImport(job)
     await markDownloading(job.id)
     const files: ImportFileResult[] = []
     let relativePath: string | undefined
     try {
       // Our own byte count enforces the limit; the parser's is one byte looser so ours speaks first.
-      for await (const part of request.parts({ limits: { fileSize: Math.min(maxFileBytes, importMaxFileBytes) + 1, parts: maxParts } })) {
+      for await (const part of request.parts({ limits: { fileSize: Math.min(policy.maxFileBytes, importMaxFileBytes) + 1, parts: maxParts } })) {
         if (part.type === 'field') {
           if (part.fieldname === 'relativePath') relativePath = String(part.value)
           continue
         }
-        files.push(await addImportFile(importId, { filename: part.filename, relativePath, stream: part.file, maxFileBytes }))
+        files.push(await addImportFile(importId, {
+          filename: part.filename, relativePath, stream: part.file, maxFileBytes: policy.maxFileBytes, ...budget, rejectEmptyAudio: true,
+        }))
         relativePath = undefined
       }
     } catch (error) {
       if (error instanceof AppError && error.status === 413) {
-        await finishJob(job.id, { status: 'failed', error: `The provider delivered a file over the limit: ${error.message}`, missed: job.recordingIds })
+        await finishJob(job.id, { status: 'failed', error: `The delivery went over the limit: ${error.message}`, missed: job.recordingIds })
       }
       throw error
     }
     await touchJob(job.id)
+    // The cache limit is kept by evicting, not by refusing what a listener is waiting for.
+    await evictWhenOver()
     return { files }
   })
 
