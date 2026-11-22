@@ -84,6 +84,13 @@ describe('telling failures', () => {
     expect(titles().filter(title => title.startsWith('Can’t load'))).toHaveLength(1)
   })
 
+  it('gives the reason the server knows for an outage', async () => {
+    const { socket } = await playLowTide()
+    act(() => socket.serverSet(session => ({ ...session, playing: false, current: session.current && { ...session.current, state: 'failed' } })))
+    act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id, reason: 'The server can’t fetch music on demand right now.' }))
+    expect(await screen.findByText('The server can’t fetch music on demand right now. Playback is paused.')).toBeInTheDocument()
+  })
+
   it('says nothing for a fetch that ends outside the session', async () => {
     const { socket } = await playLowTide()
     act(() => socket.serverEmit('event', { type: 'acquisition.updated', jobId: '00000000-0000-4000-8b00-000000000001', trackId: album('afterimage').discs[0].tracks[0].id, status: 'failed' }))

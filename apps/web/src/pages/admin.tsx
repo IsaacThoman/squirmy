@@ -390,7 +390,11 @@ export function AdminProvidersPage() {
     select: page => page.items,
     placeholderData: keepPreviousData,
   })
-  useServerEvent('acquisition.updated', () => void queryClient.invalidateQueries({ queryKey: acquisitionJobsKey }))
+  // A job that ends can change a provider's health too.
+  useServerEvent('acquisition.updated', () => {
+    void queryClient.invalidateQueries({ queryKey: acquisitionJobsKey })
+    void queryClient.invalidateQueries({ queryKey: providersKey })
+  })
   const refresh = () => queryClient.invalidateQueries({ queryKey: providersKey })
   const replace = (provider: AcquisitionProvider) => queryClient.setQueryData<{ items: AcquisitionProvider[] }>(providersKey, page => page && { ...page, items: page.items.map(item => item.id === provider.id ? provider : item) })
 

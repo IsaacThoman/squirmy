@@ -53,6 +53,13 @@ export function formatIdle(lastSeenAt: number | undefined, now = Date.now()): st
   return ` · Active ${formatRelative(new Date(lastSeenAt).toISOString(), now)}`
 }
 
+/** `12:40 PM` for a time today, `Nov 21, 12:40 PM` for an earlier day. */
+export function formatClock(iso: string, now = Date.now()): string {
+  const date = new Date(iso)
+  const today = date.toDateString() === new Date(now).toDateString()
+  return date.toLocaleString('en', { ...(today ? {} : { month: 'short', day: 'numeric' }), hour: 'numeric', minute: '2-digit' })
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric' })
 }
