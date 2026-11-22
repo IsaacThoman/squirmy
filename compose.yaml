@@ -23,13 +23,19 @@ services:
       # Set to true when a reverse proxy sits in front and sends X-Forwarded-* headers.
       TRUST_PROXY: ${TRUST_PROXY:-false}
     volumes:
-      # Your music. Append ":ro" to guarantee the server can never change it; leave it
-      # writable if you want Squirmy to organize files or accept uploads.
-      - ${MUSIC_DIR:-./music}:/music
+      # Use long syntax so Coolify honors the MUSIC_DIR override. Set read_only: true
+      # to protect an existing collection at the filesystem level.
+      - type: bind
+        source: ${MUSIC_DIR:-./music}
+        target: /music
+        bind:
+          create_host_path: true
       # Artwork, transcodes, uploads in progress and the generated secret.key. Transcodes and
       # resized art are rebuilt, and most of assets/ too; secret.key is not: back it up, with
       # assets/ (docs/server/backup.md).
       - squirmy_data:/data
+    expose:
+      - "4747"
     ports:
       - "${SQUIRMY_PORT:-4747}:4747"
 

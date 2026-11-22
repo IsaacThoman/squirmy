@@ -41,7 +41,10 @@ To guarantee the server can never write to your music, make the mount read-only 
 
 ```yaml
     volumes:
-      - ${MUSIC_DIR:-./music}:/music:ro
+      - type: bind
+        source: ${MUSIC_DIR:-./music}
+        target: /music
+        read_only: true
 ```
 
 ## 3. Start it
