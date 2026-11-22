@@ -25,7 +25,7 @@ function described(rows: readonly Recorded[]) {
 }
 
 describe('release reconciliation plan, on recorded discographies', () => {
-  it('folds the Grimes stubs into their release groups and leaves distinct releases alone', () => {
+  it('folds the Grimes stubs into their release groups and leaves distinct releases and editions alone', () => {
     expect(described(recorded('grimes'))).toEqual([
       // Search stubs written under a second Grimes row, merged into the MusicBrainz artist after its discography ran.
       'Art Angels (-, album) -> Art Angels (2015, album, mb)',
@@ -33,8 +33,6 @@ describe('release reconciliation plan, on recorded discographies', () => {
       'Darkbloom (-, ep) -> Darkbloom (2011, ep, mb)',
       'Entropy (-, single) -> Entropy (2015, single, mb)',
       'Halfaxa (-, album) -> Halfaxa (2010, album, mb)',
-      // The deluxe edition is the same release.
-      'Miss Anthropocene (Deluxe Edition) (-, album) -> Miss Anthropocene (2019, album, mb)',
       // MusicBrainz has two "Violence" singles; the stub joins the one the page shows.
       'Violence (-, single) -> Violence (2019, single, mb)',
       '爱 (-, single) -> 爱 (2026, single, mb)',
@@ -64,6 +62,24 @@ describe('release reconciliation plan, on recorded discographies', () => {
     expect(planReleaseMerges([row('a', 'album', { mbid: 'x', year: 2016 }), row('b', 'single', { typeGuessed: true })]).map(([from]) => from.id)).toEqual(['b'])
     // Years far apart are different releases (a re-recording, a reissue under the old title).
     expect(planReleaseMerges([row('a', 'album', { mbid: 'x', year: 2001 }), row('b', 'album', { year: 2016 })])).toEqual([])
+  })
+
+  it('never merges another edition, or an edition row', () => {
+    const row = (id: string, title: string, extra: Partial<ReleaseRow> = {}): ReleaseRow => ({
+      id, title, type: 'album', typeGuessed: false, mbid: null, year: null, detailLevel: 0, hasFiles: false, hasArtwork: true, ...extra,
+    })
+    const rows = [
+      row('sos', 'SOS', { mbid: 'x', year: 2022 }),
+      row('lana', 'SOS Deluxe: LANA'),
+      row('3am', 'Midnights (3am Edition)'),
+      row('midnights', 'Midnights', { mbid: 'y', year: 2022 }),
+      // A store copy under the group's own title kept as an edition (its track count differed).
+      row('copy', 'Midnights', { isEdition: true }),
+      // The same edition, labelled the store's way.
+      row('f1', 'Just Keep Watching (From F1® The Movie)', { typeGuessed: true }),
+      row('jkw', 'Just Keep Watching', { type: 'soundtrack', mbid: 'z', year: 2025 }),
+    ]
+    expect(planReleaseMerges(rows).map(([from, into]) => [from.id, into.id])).toEqual([['f1', 'jkw']])
   })
 
   it('merges stubs of one release that no MusicBrainz row stands for into the best of them', () => {

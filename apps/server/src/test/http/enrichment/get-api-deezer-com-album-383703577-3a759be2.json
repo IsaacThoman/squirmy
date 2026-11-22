@@ -1,0 +1,516 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/383703577"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 383703577,
+      "title": "SOS",
+      "upc": "196589564931",
+      "link": "https://www.deezer.com/album/383703577",
+      "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+      "genres": {
+        "data": [
+          {
+            "id": 165,
+            "name": "R&B",
+            "type": "genre"
+          }
+        ]
+      },
+      "label": "Top Dawg Entertainment/RCA Records",
+      "nb_tracks": 23,
+      "duration": 4072,
+      "release_date": "2022-12-09",
+      "record_type": "album",
+      "explicit_lyrics": true,
+      "contributors": [
+        {
+          "id": 5531258,
+          "name": "SZA",
+          "link": "https://www.deezer.com/artist/5531258",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8ced041da2bed70d5715f0860956169b/1000x1000-000000-80-0-0.jpg",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 5531258,
+        "name": "SZA",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8ced041da2bed70d5715f0860956169b/1000x1000-000000-80-0-0.jpg",
+        "type": "artist"
+      },
+      "type": "album",
+      "tracks": {
+        "data": [
+          {
+            "id": 2055292017,
+            "title": "SOS",
+            "link": "https://www.deezer.com/track/2055292017",
+            "duration": 117,
+            "rank": 483560,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292027,
+            "title": "Kill Bill",
+            "link": "https://www.deezer.com/track/2055292027",
+            "duration": 153,
+            "rank": 803201,
+            "explicit_lyrics": false,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292037,
+            "title": "Seek & Destroy",
+            "link": "https://www.deezer.com/track/2055292037",
+            "duration": 203,
+            "rank": 539107,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292047,
+            "title": "Low",
+            "link": "https://www.deezer.com/track/2055292047",
+            "duration": 181,
+            "rank": 658611,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292057,
+            "title": "Love Language",
+            "link": "https://www.deezer.com/track/2055292057",
+            "duration": 183,
+            "rank": 570045,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292067,
+            "title": "Blind",
+            "link": "https://www.deezer.com/track/2055292067",
+            "duration": 150,
+            "rank": 594056,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292077,
+            "title": "Used (feat. Don Toliver)",
+            "link": "https://www.deezer.com/track/2055292077",
+            "duration": 146,
+            "rank": 597927,
+            "explicit_lyrics": false,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292087,
+            "title": "Snooze",
+            "link": "https://www.deezer.com/track/2055292087",
+            "duration": 201,
+            "rank": 845535,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292097,
+            "title": "Notice Me",
+            "link": "https://www.deezer.com/track/2055292097",
+            "duration": 160,
+            "rank": 438187,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292107,
+            "title": "Gone Girl",
+            "link": "https://www.deezer.com/track/2055292107",
+            "duration": 244,
+            "rank": 462394,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292117,
+            "title": "Smoking on my Ex Pack",
+            "link": "https://www.deezer.com/track/2055292117",
+            "duration": 83,
+            "rank": 403246,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292127,
+            "title": "Ghost in the Machine (feat. Phoebe Bridgers)",
+            "link": "https://www.deezer.com/track/2055292127",
+            "duration": 218,
+            "rank": 506186,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292137,
+            "title": "F2F",
+            "link": "https://www.deezer.com/track/2055292137",
+            "duration": 185,
+            "rank": 490184,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292147,
+            "title": "Nobody Gets Me",
+            "link": "https://www.deezer.com/track/2055292147",
+            "duration": 180,
+            "rank": 684194,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292157,
+            "title": "Conceited",
+            "link": "https://www.deezer.com/track/2055292157",
+            "duration": 151,
+            "rank": 440302,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292167,
+            "title": "Special",
+            "link": "https://www.deezer.com/track/2055292167",
+            "duration": 158,
+            "rank": 518804,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292177,
+            "title": "Too Late",
+            "link": "https://www.deezer.com/track/2055292177",
+            "duration": 164,
+            "rank": 444950,
+            "explicit_lyrics": false,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292187,
+            "title": "Far",
+            "link": "https://www.deezer.com/track/2055292187",
+            "duration": 180,
+            "rank": 449917,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292197,
+            "title": "Shirt",
+            "link": "https://www.deezer.com/track/2055292197",
+            "duration": 181,
+            "rank": 485277,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292207,
+            "title": "Open Arms (feat. Travis Scott)",
+            "link": "https://www.deezer.com/track/2055292207",
+            "duration": 239,
+            "rank": 725473,
+            "explicit_lyrics": false,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292217,
+            "title": "I Hate U",
+            "link": "https://www.deezer.com/track/2055292217",
+            "duration": 174,
+            "rank": 564958,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292227,
+            "title": "Good Days",
+            "link": "https://www.deezer.com/track/2055292227",
+            "duration": 279,
+            "rank": 519179,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2055292237,
+            "title": "Forgiveless (feat. Ol' Dirty Bastard)",
+            "link": "https://www.deezer.com/track/2055292237",
+            "duration": 142,
+            "rank": 428568,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 383703577,
+              "title": "SOS",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/328d68300e654b21831b261e413780e0/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -5,18 +5,21 @@
  */
 import { queryKeys, type AlbumType } from '@squirmy/contracts'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { db, type Executor } from '../../database/client.js'
-import { albums, releases } from '../../database/schema.js'
-import { lockUpserts, upsertRelease } from '../matching/apply.js'
-import { mergeAlbum } from '../matching/merge.js'
+import { db, type Executor, type Transaction } from '../../database/client.js'
+import { albumArtists, albums, externalIds, releases } from '../../database/schema.js'
+import { newId } from '../../lib/ids.js'
+import { creditKey, matchKey } from '../../lib/text.js'
+import { lockUpserts, replaceCredits, upsertArtists, upsertRelease } from '../matching/apply.js'
+import { mergeAlbum, resolveMerged } from '../matching/merge.js'
+import { labelFreeKey } from '../search/keys.js'
 import { deezer, musicbrainz } from '../metadata/index.js'
 import type { DeezerAlbum } from '../metadata/deezer.js'
 import type { MbReleaseGroup } from '../metadata/musicbrainz.js'
-import { bridgeAlbum } from './bridge.js'
-import { chooseCanonicalRelease } from './canonical.js'
-import { buildFromDeezer, linkDeezerAlbum } from './deezer-rows.js'
+import { bridgeAlbum, type BridgedAlbum } from './bridge.js'
+import { chooseCanonicalRelease, type EditionHint } from './canonical.js'
+import { buildFromDeezer, creditDeezerTracks, linkDeezerAlbum } from './deezer-rows.js'
 import { fitStrayRecordings } from './fit.js'
-import { adoptMbid, albumOwned, attempt, changed, currentId, day, externalIdOf } from './rows.js'
+import { adoptMbid, albumOwned, attempt, changed, currentId, day } from './rows.js'
 
 /** A complete album is refreshed after this long. */
 const refreshAfterMs = 30 * day
@@ -52,10 +55,11 @@ export async function hydrateAlbum(id: string, { force = false, usable }: { forc
   const [album] = await db.select({
     id: albums.id, mbid: albums.mbid, title: albums.title, artistCredit: albums.artistCredit, type: albums.type,
     detailLevel: albums.detailLevel, fetchedAt: albums.fetchedAt, canonicalReleaseId: albums.canonicalReleaseId, canonicalMbid: releases.mbid,
+    editionOfId: albums.editionOfId,
   }).from(albums).leftJoin(releases, eq(releases.id, albums.canonicalReleaseId)).where(eq(albums.id, albumId))
   if (!album || (!force && fresh(album, Date.now()))) return albumId
 
-  const deezerId = await externalIdOf('deezer', 'album', albumId)
+  const deezerId = await deezerAlbumOf(albumId)
   if (!album.mbid && !deezerId) return albumId
   let dz: DeezerAlbum | null | undefined
   let result = albumId
@@ -72,19 +76,54 @@ export async function hydrateAlbum(id: string, { force = false, usable }: { forc
         usable?.()
       })
     }
-    const groupMbid = album.mbid ?? (deezerId ? await bridgeAlbum(deezerId, { title: album.title, artist: album.artistCredit, type: album.type as AlbumType }) : null)
+    // An edition row already knows its group; a store album is bridged to one.
+    const parentMbid = album.editionOfId ? await groupMbidOf(album.editionOfId) : null
+    const bridged: BridgedAlbum | null = album.mbid || parentMbid || !deezerId ? null
+      : await bridgeAlbum(deezerId, { title: album.title, artist: album.artistCredit, type: album.type as AlbumType })
+    const groupMbid = album.mbid ?? parentMbid ?? bridged?.group ?? null
     if (groupMbid) {
       const group = await musicbrainz.getReleaseGroup(groupMbid)
-      if (group) result = await fromMusicBrainz(albumId, group)
+      if (dz === undefined && !album.mbid && deezerId) dz = await deezer.getAlbum(Number(deezerId))
+      // A store album is one edition of the group, as far as the store says which; a row
+      // that is the group itself shows the group's own choice.
+      const edition: EditionHint | null = album.mbid || !dz ? null : { releaseMbid: bridged?.release ?? null, barcode: dz.upc, trackCount: dz.tracks.length }
+      if (group && (edition || !album.editionOfId)) result = await fromMusicBrainz(albumId, group, edition && { ...edition, title: album.title })
     }
     const [after] = await db.select({ detailLevel: albums.detailLevel }).from(albums).where(eq(albums.id, result))
     if (dz === undefined) dz = deezerId ? await deezer.getAlbum(Number(deezerId)) : null
-    if (dz && (after?.detailLevel ?? 0) < 2) await buildFromDeezer(result, dz)
+    if (dz && (after?.detailLevel ?? 0) < 2) {
+      const built = dz
+      await buildFromDeezer(result, built)
+      // A track list only Deezer has: its guests come from each track's own entry.
+      await attempt('featured artists', () => creditDeezerTracks(built))
+    }
     if (dz) await linkDeezerAlbum(result, dz)
   } finally {
     await changed([queryKeys.album(result), ...(result === albumId ? [] : [queryKeys.album(albumId)])])
   }
   return result
+}
+
+/**
+ * The Deezer album to build an album from: its one Deezer id, or of several (the explicit
+ * and the clean version of one album, or two copies), the explicit one, so the page shows
+ * the songs as released rather than the radio edit.
+ */
+async function deezerAlbumOf(albumId: string): Promise<string | null> {
+  const rows = await db.select({ id: externalIds.externalId }).from(externalIds)
+    .where(and(eq(externalIds.provider, 'deezer'), eq(externalIds.entityType, 'album'), eq(externalIds.entityId, albumId)))
+    .orderBy(externalIds.createdAt, externalIds.externalId)
+  if (rows.length <= 1) return rows[0]?.id ?? null
+  for (const row of rows) {
+    const one = await deezer.getAlbum(Number(row.id)).catch(() => null)
+    if (one?.explicit) return row.id
+  }
+  return rows[0]!.id
+}
+
+async function groupMbidOf(albumId: string): Promise<string | null> {
+  const [row] = await db.select({ mbid: albums.mbid }).from(albums).where(eq(albums.id, albumId))
+  return row?.mbid ?? null
 }
 
 /** Whether the album has any edition with tracks yet. */
@@ -112,9 +151,22 @@ async function keepsCanonical(albumId: string, executor: Executor = db): Promise
  * group's own row when one exists (a bridged stub) or MusicBrainz answered with another
  * id (a merge on their side), then folds recordings that stood in for its tracks into
  * them (`fit.ts`). An album with files on a MusicBrainz edition keeps it.
+ *
+ * A store album is another edition ("SOS Deluxe: LANA", the 3am edition of "Midnights", a
+ * deluxe "Watch the Throne") when its track count differs from the group's own edition's
+ * and either a release of the group has its track count or its title names an edition the
+ * group's does not. It stays a row of its own (`asEdition`), so the page opened for it
+ * keeps its songs instead of turning into the standard album a few seconds later. A store
+ * copy that only lacks a track (a song not licensed there) is the group's own edition.
  */
-async function fromMusicBrainz(albumId: string, group: MbReleaseGroup): Promise<string> {
-  const chosen = (await keepsCanonical(albumId)) ? null : chooseCanonicalRelease(group.releases)
+async function fromMusicBrainz(albumId: string, group: MbReleaseGroup, edition: (EditionHint & { title: string }) | null): Promise<string> {
+  const standard = chooseCanonicalRelease(group.releases)
+  if (edition?.trackCount && standard && edition.trackCount !== standard.trackCount) {
+    const own = chooseCanonicalRelease(group.releases, edition)
+    const counted = own && own.trackCount === edition.trackCount ? own : null
+    if (counted || labelFreeKey(edition.title) !== labelFreeKey(group.title)) return asEdition(albumId, group, counted?.mbid ?? null)
+  }
+  const chosen = (await keepsCanonical(albumId)) ? null : standard
   const release = chosen ? await musicbrainz.getRelease(chosen.mbid) : null
   return db.transaction(async (tx) => {
     await lockUpserts(tx)
@@ -133,5 +185,70 @@ async function fromMusicBrainz(albumId: string, group: MbReleaseGroup): Promise<
     await fitStrayRecordings(tx, target)
     await tx.update(albums).set({ genres: genreNames(group.genres), detailLevel: 2, fetchedAt: new Date(), updatedAt: new Date() }).where(eq(albums.id, target))
     return target
+  })
+}
+
+/**
+ * The row of a release group, by MBID, else a new one at `detail_level` 1 (as the
+ * discography writes them) with its credits. Its track list is fetched when it is opened.
+ */
+async function groupRow(tx: Transaction, group: MbReleaseGroup): Promise<string> {
+  const [known] = await tx.select({ id: albums.id }).from(albums).where(eq(albums.mbid, group.mbid))
+  if (known) return resolveMerged(tx, albums, known.id)
+  const artistIds = await upsertArtists(tx, group.artistCredit)
+  const id = newId()
+  await tx.insert(albums).values({
+    id,
+    mbid: group.mbid,
+    title: group.title,
+    artistCredit: group.artistName,
+    primaryArtistId: group.artistCredit[0] ? artistIds.get(group.artistCredit[0].mbid)! : null,
+    type: group.type,
+    secondaryTypes: group.secondaryTypes,
+    releaseDate: group.date,
+    year: group.year,
+    titleKey: matchKey(group.title),
+    matchKey: creditKey(group.artistName, group.title),
+    detailLevel: 1,
+  })
+  await replaceCredits(tx, albumArtists, id, group.artistCredit, artistIds)
+  return id
+}
+
+/**
+ * Keeps a store album as one edition of a release group: no MBID of its own, `edition_of_id`
+ * set to the group's row, the group's type, year and credits, and as its track list the
+ * MusicBrainz release `releaseMbid` when one has its track count, else the store's.
+ *
+ * A release the group's row had shown (written before editions were kept apart) moves here
+ * and the group's row picks its own again when next opened; one that files are on stays.
+ */
+async function asEdition(albumId: string, group: MbReleaseGroup, releaseMbid: string | null): Promise<string> {
+  const release = releaseMbid ? await musicbrainz.getRelease(releaseMbid) : null
+  return db.transaction(async (tx) => {
+    await lockUpserts(tx)
+    const parent = await groupRow(tx, group)
+    await tx.update(albums).set({ editionOfId: parent, updatedAt: new Date() }).where(eq(albums.id, albumId))
+    const [filedElsewhere] = release ? await tx.execute<{ found: boolean }>(sql`
+      select exists (select 1 from releases rl join media_files f on f.release_id = rl.id
+        where rl.mbid = ${release.mbid} and f.album_id is distinct from ${albumId}) as found`) : []
+    if (release && !filedElsewhere?.found) {
+      await tx.execute(sql`
+        update albums set canonical_release_id = null, detail_level = least(detail_level, 1), fetched_at = null, updated_at = now()
+        where id <> ${albumId} and canonical_release_id = (select id from releases where mbid = ${release.mbid})`)
+      const providerReleases = (await tx.select({ id: releases.id }).from(releases)
+        .where(and(eq(releases.albumId, albumId), isNull(releases.mbid),
+          sql`not exists (select 1 from media_files f where f.release_id = ${releases.id})`))).map((row) => row.id)
+      await upsertRelease(tx, release, { releaseIds: providerReleases }, { canonical: 'always', editionAlbumId: albumId })
+      await fitStrayRecordings(tx, albumId)
+    } else {
+      await tx.update(albums).set({
+        type: group.type, typeGuessed: false, secondaryTypes: group.secondaryTypes, year: group.year, releaseDate: group.date,
+      }).where(eq(albums.id, albumId))
+    }
+    await tx.update(albums).set({
+      genres: genreNames(group.genres), detailLevel: release ? 2 : sql`greatest(${albums.detailLevel}, 1)`, fetchedAt: new Date(), updatedAt: new Date(),
+    }).where(eq(albums.id, albumId))
+    return albumId
   })
 }

@@ -1,0 +1,664 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/686640951/tracks?limit=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 3152680411,
+          "title": "No More Hiding",
+          "isrc": "USRC12403823",
+          "link": "https://www.deezer.com/track/3152680411",
+          "duration": 162,
+          "track_position": 1,
+          "disk_number": 1,
+          "rank": 345487,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680421,
+          "title": "What Do I Do",
+          "isrc": "USRC12403824",
+          "link": "https://www.deezer.com/track/3152680421",
+          "duration": 167,
+          "track_position": 2,
+          "disk_number": 1,
+          "rank": 428600,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680431,
+          "title": "30 For 30 (with Kendrick Lamar)",
+          "isrc": "USRC12403853",
+          "link": "https://www.deezer.com/track/3152680431",
+          "duration": 278,
+          "track_position": 3,
+          "disk_number": 1,
+          "rank": 628507,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680441,
+          "title": "Diamond Boy (DTM)",
+          "isrc": "USRC12403825",
+          "link": "https://www.deezer.com/track/3152680441",
+          "duration": 217,
+          "track_position": 4,
+          "disk_number": 1,
+          "rank": 438102,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680451,
+          "title": "BMF",
+          "isrc": "USRC12403826",
+          "link": "https://www.deezer.com/track/3152680451",
+          "duration": 181,
+          "track_position": 5,
+          "disk_number": 1,
+          "rank": 563151,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680461,
+          "title": "Scorsese Baby Daddy",
+          "isrc": "USRC12403827",
+          "link": "https://www.deezer.com/track/3152680461",
+          "duration": 153,
+          "track_position": 6,
+          "disk_number": 1,
+          "rank": 422796,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680471,
+          "title": "Love Me 4 Me",
+          "isrc": "USRC12403828",
+          "link": "https://www.deezer.com/track/3152680471",
+          "duration": 181,
+          "track_position": 7,
+          "disk_number": 1,
+          "rank": 290531,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680481,
+          "title": "Chill Baby",
+          "isrc": "USRC12403829",
+          "link": "https://www.deezer.com/track/3152680481",
+          "duration": 140,
+          "track_position": 8,
+          "disk_number": 1,
+          "rank": 408908,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680491,
+          "title": "My Turn",
+          "isrc": "USRC12403830",
+          "link": "https://www.deezer.com/track/3152680491",
+          "duration": 181,
+          "track_position": 9,
+          "disk_number": 1,
+          "rank": 335757,
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680501,
+          "title": "Crybaby",
+          "isrc": "USRC12403847",
+          "link": "https://www.deezer.com/track/3152680501",
+          "duration": 242,
+          "track_position": 10,
+          "disk_number": 1,
+          "rank": 533936,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680511,
+          "title": "Kitchen",
+          "isrc": "USRC12403848",
+          "link": "https://www.deezer.com/track/3152680511",
+          "duration": 181,
+          "track_position": 11,
+          "disk_number": 1,
+          "rank": 457664,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680521,
+          "title": "Get Behind Me (Interlude)",
+          "isrc": "USRC12403854",
+          "link": "https://www.deezer.com/track/3152680521",
+          "duration": 108,
+          "track_position": 12,
+          "disk_number": 1,
+          "rank": 232174,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680531,
+          "title": "Drive",
+          "isrc": "USRC12403822",
+          "link": "https://www.deezer.com/track/3152680531",
+          "duration": 181,
+          "track_position": 13,
+          "disk_number": 1,
+          "rank": 352124,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680541,
+          "title": "Another Life",
+          "isrc": "USRC12403849",
+          "link": "https://www.deezer.com/track/3152680541",
+          "duration": 205,
+          "track_position": 14,
+          "disk_number": 1,
+          "rank": 533942,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680551,
+          "title": "Saturn",
+          "isrc": "USRC12400216",
+          "link": "https://www.deezer.com/track/3152680551",
+          "duration": 181,
+          "track_position": 15,
+          "disk_number": 1,
+          "rank": 270719,
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680561,
+          "title": "SOS",
+          "isrc": "USRC12204583",
+          "link": "https://www.deezer.com/track/3152680561",
+          "duration": 117,
+          "track_position": 16,
+          "disk_number": 1,
+          "rank": 231991,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680571,
+          "title": "Kill Bill",
+          "isrc": "USRC12204584",
+          "link": "https://www.deezer.com/track/3152680571",
+          "duration": 153,
+          "track_position": 17,
+          "disk_number": 1,
+          "rank": 226243,
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680581,
+          "title": "Seek & Destroy",
+          "isrc": "USRC12204585",
+          "link": "https://www.deezer.com/track/3152680581",
+          "duration": 203,
+          "track_position": 18,
+          "disk_number": 1,
+          "rank": 245996,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680591,
+          "title": "Low",
+          "isrc": "USRC12204586",
+          "link": "https://www.deezer.com/track/3152680591",
+          "duration": 181,
+          "track_position": 19,
+          "disk_number": 1,
+          "rank": 191150,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680601,
+          "title": "Love Language",
+          "isrc": "USRC12204588",
+          "link": "https://www.deezer.com/track/3152680601",
+          "duration": 181,
+          "track_position": 20,
+          "disk_number": 1,
+          "rank": 211576,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680611,
+          "title": "Blind",
+          "isrc": "USRC12204589",
+          "link": "https://www.deezer.com/track/3152680611",
+          "duration": 150,
+          "track_position": 21,
+          "disk_number": 1,
+          "rank": 204862,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680621,
+          "title": "Used (feat. Don Toliver)",
+          "isrc": "USRC12204590",
+          "link": "https://www.deezer.com/track/3152680621",
+          "duration": 146,
+          "track_position": 22,
+          "disk_number": 1,
+          "rank": 252068,
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680631,
+          "title": "Snooze",
+          "isrc": "USRC12204591",
+          "link": "https://www.deezer.com/track/3152680631",
+          "duration": 201,
+          "track_position": 23,
+          "disk_number": 1,
+          "rank": 202953,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680641,
+          "title": "Notice Me",
+          "isrc": "USRC12204592",
+          "link": "https://www.deezer.com/track/3152680641",
+          "duration": 160,
+          "track_position": 24,
+          "disk_number": 1,
+          "rank": 213451,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680651,
+          "title": "Gone Girl",
+          "isrc": "USRC12204593",
+          "link": "https://www.deezer.com/track/3152680651",
+          "duration": 244,
+          "track_position": 25,
+          "disk_number": 1,
+          "rank": 186612,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680661,
+          "title": "Smoking on my Ex Pack",
+          "isrc": "USRC12204594",
+          "link": "https://www.deezer.com/track/3152680661",
+          "duration": 83,
+          "track_position": 26,
+          "disk_number": 1,
+          "rank": 193696,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680671,
+          "title": "Ghost in the Machine (feat. Phoebe Bridgers)",
+          "isrc": "USRC12204595",
+          "link": "https://www.deezer.com/track/3152680671",
+          "duration": 218,
+          "track_position": 27,
+          "disk_number": 1,
+          "rank": 169680,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680681,
+          "title": "F2F",
+          "isrc": "USRC12204596",
+          "link": "https://www.deezer.com/track/3152680681",
+          "duration": 185,
+          "track_position": 28,
+          "disk_number": 1,
+          "rank": 217412,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680691,
+          "title": "Nobody Gets Me",
+          "isrc": "USRC12204598",
+          "link": "https://www.deezer.com/track/3152680691",
+          "duration": 181,
+          "track_position": 29,
+          "disk_number": 1,
+          "rank": 219091,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680701,
+          "title": "Conceited",
+          "isrc": "USRC12204587",
+          "link": "https://www.deezer.com/track/3152680701",
+          "duration": 151,
+          "track_position": 30,
+          "disk_number": 1,
+          "rank": 212411,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680711,
+          "title": "Special",
+          "isrc": "USRC12204597",
+          "link": "https://www.deezer.com/track/3152680711",
+          "duration": 158,
+          "track_position": 31,
+          "disk_number": 1,
+          "rank": 161543,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680721,
+          "title": "Too Late",
+          "isrc": "USRC12204600",
+          "link": "https://www.deezer.com/track/3152680721",
+          "duration": 164,
+          "track_position": 32,
+          "disk_number": 1,
+          "rank": 175651,
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680731,
+          "title": "Far",
+          "isrc": "USRC12204601",
+          "link": "https://www.deezer.com/track/3152680731",
+          "duration": 181,
+          "track_position": 33,
+          "disk_number": 1,
+          "rank": 203741,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680741,
+          "title": "Shirt",
+          "isrc": "USRC12203632",
+          "link": "https://www.deezer.com/track/3152680741",
+          "duration": 181,
+          "track_position": 34,
+          "disk_number": 1,
+          "rank": 227738,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680751,
+          "title": "Open Arms (feat. Travis Scott)",
+          "isrc": "USRC12204602",
+          "link": "https://www.deezer.com/track/3152680751",
+          "duration": 239,
+          "track_position": 35,
+          "disk_number": 1,
+          "rank": 246815,
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680761,
+          "title": "I Hate U",
+          "isrc": "USRC12103605",
+          "link": "https://www.deezer.com/track/3152680761",
+          "duration": 181,
+          "track_position": 36,
+          "disk_number": 1,
+          "rank": 227213,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680771,
+          "title": "Good Days",
+          "isrc": "USRC12004189",
+          "link": "https://www.deezer.com/track/3152680771",
+          "duration": 279,
+          "track_position": 37,
+          "disk_number": 1,
+          "rank": 256574,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3152680781,
+          "title": "Forgiveless (feat. Ol' Dirty Bastard)",
+          "isrc": "USRC12204603",
+          "link": "https://www.deezer.com/track/3152680781",
+          "duration": 141,
+          "track_position": 38,
+          "disk_number": 1,
+          "rank": 164531,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 5531258,
+            "name": "SZA",
+            "type": "artist"
+          },
+          "type": "track"
+        }
+      ],
+      "total": 38
+    }
+  }
+}

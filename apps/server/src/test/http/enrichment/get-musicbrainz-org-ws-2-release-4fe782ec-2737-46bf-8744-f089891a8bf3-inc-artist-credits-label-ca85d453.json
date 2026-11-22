@@ -1,0 +1,2168 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/4fe782ec-2737-46bf-8744-f089891a8bf3?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "artist-credit": [
+        {
+          "name": "SZA",
+          "artist": {
+            "disambiguation": "",
+            "type": "Person",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+            "sort-name": "SZA",
+            "name": "SZA",
+            "id": "272989c8-5535-492d-a25c-9f58803e027f",
+            "country": "US"
+          },
+          "joinphrase": ""
+        }
+      ],
+      "status": "Official",
+      "quality": "normal",
+      "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+      },
+      "title": "SOS Deluxe: LANA",
+      "id": "4fe782ec-2737-46bf-8744-f089891a8bf3",
+      "packaging": "None",
+      "release-events": [
+        {
+          "area": null,
+          "date": "2024-12-20"
+        }
+      ],
+      "asin": null,
+      "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+      "date": "2024-12-20",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "cover-art-archive": {
+        "count": 1,
+        "darkened": false,
+        "back": false,
+        "front": true,
+        "artwork": true
+      },
+      "disambiguation": "",
+      "barcode": "196871766890",
+      "label-info": [
+        {
+          "catalog-number": null,
+          "label": {
+            "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+            "sort-name": "RCA",
+            "name": "RCA",
+            "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+            "type": "Imprint",
+            "label-code": 316,
+            "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle"
+          }
+        },
+        {
+          "label": {
+            "label-code": null,
+            "disambiguation": "",
+            "type": "Original Production",
+            "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+            "sort-name": "Top Dawg Entertainment",
+            "id": "56d2501f-12b7-4cfd-b8f8-e95189ea27f5",
+            "name": "Top Dawg Entertainment"
+          },
+          "catalog-number": null
+        }
+      ],
+      "release-group": {
+        "secondary-type-ids": [],
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "artist-credit": [
+          {
+            "artist": {
+              "type": "Person",
+              "name": "SZA",
+              "id": "272989c8-5535-492d-a25c-9f58803e027f",
+              "sort-name": "SZA",
+              "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+              "country": "US",
+              "disambiguation": ""
+            },
+            "name": "SZA",
+            "joinphrase": ""
+          }
+        ],
+        "disambiguation": "",
+        "first-release-date": "2022-12-09",
+        "id": "1646286a-d0ad-4288-bfab-34b0fb7b22c1",
+        "title": "SOS",
+        "primary-type": "Album",
+        "secondary-types": []
+      },
+      "relations": [
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "type": "free streaming",
+          "begin": null,
+          "ended": false,
+          "url": {
+            "id": "dda6d5fd-b088-4649-99b5-1a5bc03ad175",
+            "resource": "https://open.spotify.com/album/3VQkNrG74QPY4rHBPoyZYZ"
+          },
+          "target-credit": "",
+          "end": null,
+          "target-type": "url"
+        },
+        {
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.deezer.com/album/686640951",
+            "id": "5ca19025-2c5e-44ca-b01e-947416274003"
+          },
+          "target-type": "url",
+          "end": null,
+          "begin": null,
+          "source-credit": "",
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "free streaming",
+          "attributes": [],
+          "attribute-values": {}
+        },
+        {
+          "begin": null,
+          "target-type": "url",
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "f3f875d0-7ef1-434b-b3a0-24745444b051",
+            "resource": "https://shop.szasos.com/collections/music/products/sos-deluxe-digital-download"
+          },
+          "attribute-values": {},
+          "attributes": [],
+          "type-id": "3ee51e05-a06a-415e-b40c-b3f740dedfd7",
+          "attribute-ids": {},
+          "direction": "forward",
+          "type": "purchase for mail-order",
+          "source-credit": ""
+        },
+        {
+          "type": "streaming",
+          "type-id": "320adf26-96fa-4183-9045-1f5f32f833cb",
+          "attribute-ids": {},
+          "direction": "forward",
+          "source-credit": "",
+          "attribute-values": {},
+          "attributes": [],
+          "target-type": "url",
+          "end": null,
+          "url": {
+            "resource": "https://music.apple.com/us/album/1786643044",
+            "id": "68552b1e-a562-4408-a8b7-512e787272d7"
+          },
+          "target-credit": "",
+          "ended": false,
+          "begin": null
+        },
+        {
+          "attributes": [],
+          "attribute-values": {},
+          "source-credit": "",
+          "type-id": "320adf26-96fa-4183-9045-1f5f32f833cb",
+          "direction": "forward",
+          "attribute-ids": {},
+          "type": "streaming",
+          "begin": null,
+          "ended": false,
+          "target-credit": "",
+          "url": {
+            "id": "b35c611e-359a-4eba-b6f5-5e221956528e",
+            "resource": "https://tidal.com/album/407108971"
+          },
+          "target-type": "url",
+          "end": null
+        }
+      ],
+      "country": null,
+      "media": [
+        {
+          "track-count": 38,
+          "title": "",
+          "tracks": [
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type": "Person",
+                    "country": "US",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA",
+                  "joinphrase": ""
+                }
+              ],
+              "length": 162662,
+              "title": "No More Hiding",
+              "id": "8969ae2e-663c-48d6-8bdd-3fd490f90b3e",
+              "recording": {
+                "first-release-date": "2024-12-20",
+                "id": "2d2e35a3-541e-4213-87c6-206628210dbc",
+                "isrcs": [
+                  "USRC12403823"
+                ],
+                "length": 162662,
+                "title": "No More Hiding",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "SZA",
+                    "artist": {
+                      "country": "US",
+                      "type": "Person",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "disambiguation": "explicit"
+              },
+              "number": "1",
+              "position": 1
+            },
+            {
+              "id": "dd9b3aa1-5fa7-44f5-986d-76bf960ad9f6",
+              "length": 167448,
+              "title": "What Do I Do",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "SZA",
+                  "artist": {
+                    "country": "US",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type": "Person",
+                    "disambiguation": ""
+                  }
+                }
+              ],
+              "position": 2,
+              "number": "2",
+              "recording": {
+                "id": "8fa46ee4-c829-4db3-a357-2daa575e95c4",
+                "first-release-date": "2024-12-20",
+                "isrcs": [
+                  "USRC12403824"
+                ],
+                "video": false,
+                "title": "What Do I Do",
+                "length": 167448,
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "SZA",
+                    "artist": {
+                      "disambiguation": "",
+                      "type": "Person",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "country": "US"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "title": "30 for 30",
+              "length": 278277,
+              "artist-credit": [
+                {
+                  "joinphrase": " & ",
+                  "artist": {
+                    "country": "US",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "type": "Person",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA"
+                },
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "type": "Person",
+                    "sort-name": "Lamar, Kendrick",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "381086ea-f511-4aba-bdf9-71c753dc5077",
+                    "name": "Kendrick Lamar",
+                    "country": "US"
+                  },
+                  "name": "Kendrick Lamar"
+                }
+              ],
+              "id": "33969c5d-a6c0-4702-b3ef-3a48551ede25",
+              "number": "3",
+              "recording": {
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "joinphrase": " with ",
+                    "name": "SZA",
+                    "artist": {
+                      "country": "US",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "type": "Person",
+                      "disambiguation": ""
+                    }
+                  },
+                  {
+                    "joinphrase": "",
+                    "name": "Kendrick Lamar",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Lamar, Kendrick",
+                      "id": "381086ea-f511-4aba-bdf9-71c753dc5077",
+                      "name": "Kendrick Lamar",
+                      "type": "Person",
+                      "country": "US",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "first-release-date": "2024-12-20",
+                "id": "336a7ab5-422f-4c05-90f5-f09931daaafd",
+                "isrcs": [
+                  "USRC12403853"
+                ],
+                "video": false,
+                "length": 278276,
+                "title": "30 for 30"
+              },
+              "position": 3
+            },
+            {
+              "length": 217523,
+              "title": "Diamond Boy (DTM)",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "US",
+                    "type": "Person",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA",
+                  "joinphrase": ""
+                }
+              ],
+              "id": "2d611628-7efe-4bfc-9166-56634cae95dc",
+              "number": "4",
+              "recording": {
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "type": "Person",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA"
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ],
+                "video": false,
+                "title": "Diamond Boy (DTM)",
+                "length": 217523,
+                "first-release-date": "2024-12-20",
+                "id": "ba8d497a-9075-4991-a821-ccdf63a8a589",
+                "isrcs": [
+                  "USRC12403825"
+                ]
+              },
+              "position": 4
+            },
+            {
+              "title": "BMF",
+              "length": 180746,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "type": "Person",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "country": "US"
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "id": "2f7c5253-1da1-4436-b591-892f68e9cdb0",
+              "number": "5",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "country": "US"
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit",
+                "first-release-date": "2024-12-20",
+                "id": "ed76cd3e-1204-4f72-a179-6ac931cf6020",
+                "isrcs": [
+                  "USRC12403826"
+                ],
+                "video": false,
+                "title": "BMF",
+                "length": 180746
+              },
+              "position": 5
+            },
+            {
+              "length": 153911,
+              "title": "Scorsese Baby Daddy",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "US",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type": "Person",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "id": "79a3ef88-ac6a-4acb-a5e5-ed0e7d82a7e7",
+              "number": "6",
+              "recording": {
+                "first-release-date": "2024-12-20",
+                "id": "7366d2e7-7d33-4c77-9707-e4441e497d70",
+                "isrcs": [
+                  "USRC12403827"
+                ],
+                "video": false,
+                "length": 153911,
+                "title": "Scorsese Baby Daddy",
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "type": "Person",
+                      "country": "US",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit"
+              },
+              "position": 6
+            },
+            {
+              "title": "Love Me 4 Me",
+              "length": 185749,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "SZA",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type": "Person",
+                    "country": "US",
+                    "disambiguation": ""
+                  }
+                }
+              ],
+              "id": "390e0b8a-b764-4e66-9afb-2ad462be1e05",
+              "number": "7",
+              "recording": {
+                "isrcs": [
+                  "USRC12403828"
+                ],
+                "id": "0e5112a3-f9ec-4c0e-b263-61f3b48ab8d9",
+                "first-release-date": "2024-12-20",
+                "video": false,
+                "title": "Love Me 4 Me",
+                "length": 185749,
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "SZA",
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person"
+                    }
+                  }
+                ]
+              },
+              "position": 7
+            },
+            {
+              "id": "a8e664f3-3d78-40e4-8504-36bdd058207d",
+              "length": 140637,
+              "title": "Chill Baby",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "US",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type": "Person",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA",
+                  "joinphrase": ""
+                }
+              ],
+              "position": 8,
+              "number": "8",
+              "recording": {
+                "title": "Chill Baby",
+                "length": 140637,
+                "video": false,
+                "id": "ee526ed8-d54d-4071-bda9-067dcafcda5e",
+                "isrcs": [
+                  "USRC12403829"
+                ],
+                "first-release-date": "2024-12-20",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "type": "Person",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "US"
+                    },
+                    "name": "SZA"
+                  }
+                ],
+                "disambiguation": "explicit"
+              }
+            },
+            {
+              "id": "8519f4a0-433d-40f7-99ac-4de121a22f22",
+              "title": "My Turn",
+              "length": 177242,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f"
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "position": 9,
+              "number": "9",
+              "recording": {
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "type": "Person",
+                      "country": "US"
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ],
+                "id": "e391b444-848a-463f-976a-26ff8d108db7",
+                "isrcs": [
+                  "USRC12403830"
+                ],
+                "first-release-date": "2024-12-20",
+                "title": "My Turn",
+                "length": 177242,
+                "video": false
+              }
+            },
+            {
+              "length": 241948,
+              "title": "Crybaby",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "type": "Person",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA"
+                  }
+                }
+              ],
+              "id": "f0cd2a2b-6bac-4891-a2de-eb5325c5e6ab",
+              "number": "10",
+              "recording": {
+                "id": "819442af-767d-41a3-8cfd-1abbff94d92d",
+                "isrcs": [
+                  "USRC12403847"
+                ],
+                "first-release-date": "2024-12-20",
+                "video": false,
+                "length": 241948,
+                "title": "Crybaby",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "US",
+                      "type": "Person",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": ""
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit"
+              },
+              "position": 10
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "SZA",
+                  "artist": {
+                    "country": "US",
+                    "type": "Person",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "disambiguation": ""
+                  }
+                }
+              ],
+              "title": "Kitchen",
+              "length": 172171,
+              "id": "349ecb47-6c61-4c42-a258-98e310006974",
+              "recording": {
+                "first-release-date": "2024-12-20",
+                "id": "a5b88319-0503-480e-9cf5-749eb222ccdd",
+                "isrcs": [
+                  "USRC12403848"
+                ],
+                "title": "Kitchen",
+                "length": 172171,
+                "video": false,
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "type": "Person",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "country": "US"
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "number": "11",
+              "position": 11
+            },
+            {
+              "position": 12,
+              "recording": {
+                "first-release-date": "2024-12-20",
+                "id": "5e6b6144-8567-4124-8e28-cfb51b8e020b",
+                "isrcs": [
+                  "USRC12403854"
+                ],
+                "length": 108095,
+                "title": "Get Behind Me (interlude)",
+                "video": false,
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "US",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "disambiguation": ""
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit"
+              },
+              "number": "12",
+              "id": "b0455e60-8dd7-4e0c-939b-15694f779894",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Person",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "country": "US",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "title": "Get Behind Me (interlude)",
+              "length": 108095
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Person",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "country": "US",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "length": 185132,
+              "title": "Drive",
+              "id": "bc2c1d6e-9cc3-488a-92e2-953abb9f7ed6",
+              "recording": {
+                "first-release-date": "2024-12-20",
+                "id": "d3703583-6f47-4c2b-96e0-31560d68e6b0",
+                "isrcs": [
+                  "USRC12403822"
+                ],
+                "title": "Drive",
+                "length": 185132,
+                "video": false,
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "number": "13",
+              "position": 13
+            },
+            {
+              "position": 14,
+              "recording": {
+                "video": false,
+                "length": 205214,
+                "title": "Another Life",
+                "id": "09d0e72b-350c-4859-9d8f-bc7e996e7441",
+                "isrcs": [
+                  "USRC12403849"
+                ],
+                "first-release-date": "2024-12-20",
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "type": "Person",
+                      "country": "US"
+                    },
+                    "name": "SZA"
+                  }
+                ]
+              },
+              "number": "14",
+              "id": "de664860-a493-457c-b29e-d798de2f7906",
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type": "Person",
+                    "country": "US"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 205214,
+              "title": "Another Life"
+            },
+            {
+              "position": 15,
+              "number": "15",
+              "recording": {
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "Saturn",
+                "length": 186000,
+                "video": false,
+                "id": "9b6b096f-36d8-4297-b181-ea501c4b41a2",
+                "isrcs": [
+                  "USRC12400216"
+                ],
+                "first-release-date": "2024-02-24"
+              },
+              "id": "ffc44438-dc96-4ba6-bca0-9513bd18baff",
+              "title": "Saturn",
+              "length": 186191,
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type": "Person",
+                    "country": "US"
+                  },
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "recording": {
+                "id": "aeac4b51-5b92-4e8e-8aaf-19576895af19",
+                "first-release-date": "2022-12-09",
+                "isrcs": [
+                  "USRC12204583"
+                ],
+                "length": 117773,
+                "title": "SOS",
+                "video": false,
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "type": "Person",
+                      "country": "US",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "number": "16",
+              "position": 16,
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "type": "Person",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "country": "US",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "title": "SOS",
+              "length": 117773,
+              "id": "1beb9a58-b76f-4356-9d0e-f00179003878"
+            },
+            {
+              "length": 153946,
+              "title": "Kill Bill",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "US",
+                    "type": "Person",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA",
+                  "joinphrase": ""
+                }
+              ],
+              "id": "b78e12c9-7634-46df-9f32-3b8bd7c44eee",
+              "number": "17",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "US",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "type": "Person",
+                      "disambiguation": ""
+                    },
+                    "name": "SZA"
+                  }
+                ],
+                "disambiguation": "",
+                "video": false,
+                "length": 154000,
+                "title": "Kill Bill",
+                "id": "52dc5433-ce6f-4946-8b71-333e66bd37b8",
+                "isrcs": [
+                  "USRC12204584"
+                ],
+                "first-release-date": "2022-12-09"
+              },
+              "position": 17
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "type": "Person",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 203733,
+              "title": "Seek & Destroy",
+              "id": "33021b2a-63ae-4e0f-b4d3-5a141492e87b",
+              "recording": {
+                "video": false,
+                "title": "Seek & Destroy",
+                "length": 203733,
+                "id": "17894247-e585-4c97-83ea-de7047df7639",
+                "first-release-date": "2022-12-09",
+                "isrcs": [
+                  "USRC12204585"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "SZA",
+                    "artist": {
+                      "country": "US",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "type": "Person",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "disambiguation": "explicit"
+              },
+              "number": "18",
+              "position": 18
+            },
+            {
+              "number": "19",
+              "recording": {
+                "title": "Low",
+                "length": 181000,
+                "video": false,
+                "isrcs": [
+                  "USRC12204586"
+                ],
+                "id": "8e7e8b05-a99d-40ef-86df-8c718e906f3e",
+                "first-release-date": "2022-12-09",
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "US",
+                      "type": "Person",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "disambiguation": ""
+                    },
+                    "name": "SZA"
+                  }
+                ]
+              },
+              "position": 19,
+              "title": "Low",
+              "length": 181080,
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "type": "Person"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "id": "ab935eff-ff74-4be8-b0bb-158b33e35e1d"
+            },
+            {
+              "number": "20",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person",
+                      "country": "US",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit",
+                "video": false,
+                "title": "Love Language",
+                "length": 183893,
+                "id": "749d6eaf-1222-4700-9283-135837499c05",
+                "first-release-date": "2022-12-09",
+                "isrcs": [
+                  "USRC12204588"
+                ]
+              },
+              "position": 20,
+              "title": "Love Language",
+              "length": 183893,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "country": "US",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "id": "f1278b9b-8252-42b1-9a4d-8a812c1c8429"
+            },
+            {
+              "position": 21,
+              "number": "21",
+              "recording": {
+                "first-release-date": "2022-12-09",
+                "id": "e243a9b1-cce4-4790-8b3b-5c1eca7193bc",
+                "isrcs": [
+                  "USRC12204589"
+                ],
+                "title": "Blind",
+                "length": 150720,
+                "video": false,
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "type": "Person"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "id": "582c7fdf-6f37-4b18-b365-b48d83f18d11",
+              "title": "Blind",
+              "length": 150720,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type": "Person"
+                  }
+                }
+              ]
+            },
+            {
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": " feat. ",
+                    "name": "SZA",
+                    "artist": {
+                      "type": "Person",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "US",
+                      "disambiguation": ""
+                    }
+                  },
+                  {
+                    "name": "Don Toliver",
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "type": "Person",
+                      "sort-name": "Don Toliver",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "a0723a3c-4135-438e-85c5-012712144ede",
+                      "name": "Don Toliver"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "",
+                "video": false,
+                "length": 146946,
+                "title": "Used",
+                "id": "c13bbaac-b8e1-41fb-8d46-a64c656f6a01",
+                "isrcs": [
+                  "USRC12204590"
+                ],
+                "first-release-date": "2022-12-09"
+              },
+              "number": "22",
+              "position": 22,
+              "artist-credit": [
+                {
+                  "joinphrase": " feat. ",
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "type": "Person",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                  },
+                  "name": "SZA"
+                },
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "type": "Person",
+                    "sort-name": "Don Toliver",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Don Toliver",
+                    "id": "a0723a3c-4135-438e-85c5-012712144ede",
+                    "country": "US"
+                  },
+                  "name": "Don Toliver"
+                }
+              ],
+              "length": 146950,
+              "title": "Used",
+              "id": "de0d37d0-5602-45aa-b9c2-07e429dfbf11"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "type": "Person",
+                    "country": "US"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 201800,
+              "title": "Snooze",
+              "id": "6fac786f-d672-4142-a35f-5c5f394cd1c0",
+              "recording": {
+                "first-release-date": "2022-12-09",
+                "id": "6cf2ac53-82d4-4c6d-94ca-083cfd23db6d",
+                "isrcs": [
+                  "USRC12204591"
+                ],
+                "title": "Snooze",
+                "length": 201800,
+                "video": false,
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "type": "Person"
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "number": "23",
+              "position": 23
+            },
+            {
+              "position": 24,
+              "number": "24",
+              "recording": {
+                "video": false,
+                "length": 160920,
+                "title": "Notice Me",
+                "first-release-date": "2022-12-09",
+                "id": "95728361-6383-408f-9611-8d193ab6d638",
+                "isrcs": [
+                  "USRC12204592"
+                ],
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "type": "Person",
+                      "country": "US",
+                      "disambiguation": ""
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "id": "466ce960-80dc-4e1f-a04c-9fee2185c32c",
+              "length": 160920,
+              "title": "Notice Me",
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "country": "US",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type": "Person",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "id": "4a1de474-2cdf-4eca-8795-adf756fd38c5",
+              "length": 244026,
+              "title": "Gone Girl",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type": "Person",
+                    "country": "US"
+                  },
+                  "name": "SZA",
+                  "joinphrase": ""
+                }
+              ],
+              "position": 25,
+              "number": "25",
+              "recording": {
+                "title": "Gone Girl",
+                "length": 244000,
+                "video": false,
+                "first-release-date": "2022-12-09",
+                "id": "c4a9b84d-3ab8-4b9b-89b4-6833eff5a793",
+                "isrcs": [
+                  "USRC12204593"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "country": "US",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit"
+              }
+            },
+            {
+              "length": 83826,
+              "title": "Smoking on My Ex Pack",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "type": "Person",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA"
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "id": "392f2bab-d5c6-4504-a723-66ae7db04d58",
+              "number": "26",
+              "recording": {
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person"
+                    },
+                    "name": "SZA"
+                  }
+                ],
+                "video": false,
+                "length": 83826,
+                "title": "Smoking on My Ex Pack",
+                "isrcs": [
+                  "USRC12204594"
+                ],
+                "id": "95762af7-9df8-4423-a692-3482238937ad",
+                "first-release-date": "2022-12-09"
+              },
+              "position": 26
+            },
+            {
+              "position": 27,
+              "recording": {
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "country": "US",
+                      "type": "Person",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Bridgers, Phoebe",
+                      "name": "Phoebe Bridgers",
+                      "id": "96855c21-b832-4366-ba12-0d2330c36a86",
+                      "country": "US",
+                      "disambiguation": ""
+                    },
+                    "name": "Phoebe Bridgers"
+                  }
+                ],
+                "first-release-date": "2022-12-09",
+                "id": "fc3374ef-831b-4e47-9c72-4688a33710c6",
+                "isrcs": [
+                  "USRC12204595"
+                ],
+                "title": "Ghost in the Machine",
+                "length": 218586,
+                "video": false
+              },
+              "number": "27",
+              "id": "1096ef37-a1d6-4970-bc41-e2f764a248c0",
+              "artist-credit": [
+                {
+                  "joinphrase": " feat. ",
+                  "artist": {
+                    "type": "Person",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "US",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA"
+                },
+                {
+                  "name": "Phoebe Bridgers",
+                  "artist": {
+                    "country": "US",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Bridgers, Phoebe",
+                    "name": "Phoebe Bridgers",
+                    "id": "96855c21-b832-4366-ba12-0d2330c36a86",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "title": "Ghost in the Machine",
+              "length": 218586
+            },
+            {
+              "position": 28,
+              "number": "28",
+              "recording": {
+                "id": "e930b920-de7c-4df0-b046-2d80c1f65596",
+                "first-release-date": "2022-12-09",
+                "isrcs": [
+                  "USRC12204596"
+                ],
+                "video": false,
+                "length": 185000,
+                "title": "F2F",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "US",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "type": "Person",
+                      "disambiguation": ""
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit"
+              },
+              "id": "d00c9912-cc2f-48aa-911b-fcd54ed3ad1a",
+              "title": "F2F",
+              "length": 185040,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "type": "Person"
+                  }
+                }
+              ]
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "country": "US"
+                  }
+                }
+              ],
+              "title": "Nobody Gets Me",
+              "length": 180853,
+              "id": "9e1623fe-9bc6-48b2-a893-5c846dd7bb3c",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "country": "US",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "type": "Person",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit",
+                "id": "28d18425-e859-42d6-9eb6-e52665442cb7",
+                "isrcs": [
+                  "USRC12204598"
+                ],
+                "first-release-date": "2022-12-09",
+                "video": false,
+                "length": 180853,
+                "title": "Nobody Gets Me"
+              },
+              "number": "29",
+              "position": 29
+            },
+            {
+              "id": "5a9d6186-57c1-4830-b8e4-cadb2f170a61",
+              "length": 151413,
+              "title": "Conceited",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "US",
+                    "type": "Person",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "position": 30,
+              "number": "30",
+              "recording": {
+                "video": false,
+                "title": "Conceited",
+                "length": 151000,
+                "isrcs": [
+                  "USRC12204587"
+                ],
+                "id": "2b3818ab-5530-4b14-9901-7ad15f06a03d",
+                "first-release-date": "2022-12-09",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "SZA",
+                    "artist": {
+                      "country": "US",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "disambiguation": "explicit"
+              }
+            },
+            {
+              "id": "5cdb8669-e6ef-4438-94be-e5014c782aa7",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "country": "US"
+                  }
+                }
+              ],
+              "title": "Special",
+              "length": 158840,
+              "position": 31,
+              "recording": {
+                "isrcs": [
+                  "USRC12204597"
+                ],
+                "id": "0ee56896-15cf-4baa-8b48-0ad4ca989269",
+                "first-release-date": "2022-12-09",
+                "title": "Special",
+                "length": 158840,
+                "video": false,
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "number": "31"
+            },
+            {
+              "title": "Too Late",
+              "length": 164426,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "country": "US"
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "id": "42f8f2b6-d110-480f-af41-67083f193998",
+              "number": "32",
+              "recording": {
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "disambiguation": "",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "name": "SZA",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person",
+                      "country": "US"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "id": "0f56ff37-1b90-4328-ac9c-83599c86569b",
+                "first-release-date": "2022-12-09",
+                "isrcs": [
+                  "USRC12204600"
+                ],
+                "length": 164000,
+                "title": "Too Late",
+                "video": false
+              },
+              "position": 32
+            },
+            {
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "type": "Person",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "country": "US",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit",
+                "title": "Far",
+                "length": 180680,
+                "video": false,
+                "id": "238be1c9-7e29-445d-8bbc-f7216afaed95",
+                "isrcs": [
+                  "USRC12204601"
+                ],
+                "first-release-date": "2022-12-09"
+              },
+              "number": "33",
+              "position": 33,
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "country": "US",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "disambiguation": ""
+                  },
+                  "name": "SZA"
+                }
+              ],
+              "title": "Far",
+              "length": 180680,
+              "id": "5c49a7e9-e8ac-49dd-b1c1-c8682eb131c5"
+            },
+            {
+              "position": 34,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "",
+                      "country": "US",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f"
+                    },
+                    "name": "SZA"
+                  }
+                ],
+                "disambiguation": "explicit",
+                "isrcs": [
+                  "USRC12203632"
+                ],
+                "id": "d974be20-b524-490d-bf04-2eb1b0a11ef1",
+                "first-release-date": "2022-10-28",
+                "length": 181840,
+                "title": "Shirt",
+                "video": false
+              },
+              "number": "34",
+              "id": "9b3f768b-34b6-48df-9488-0159d76b4ab3",
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "country": "US",
+                    "type": "Person",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "name": "SZA",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 181840,
+              "title": "Shirt"
+            },
+            {
+              "id": "af6a4ae3-e864-40f7-8237-bb5c9678e5df",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "type": "Person",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f"
+                  },
+                  "name": "SZA",
+                  "joinphrase": " feat. "
+                },
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Scott, Travis",
+                    "name": "Travis Scott",
+                    "id": "e4a51f17-a57b-47b1-b37b-f552d0f8e9e6",
+                    "country": "US",
+                    "disambiguation": "US rapper"
+                  },
+                  "name": "Travis Scott"
+                }
+              ],
+              "length": 239613,
+              "title": "Open Arms",
+              "position": 35,
+              "recording": {
+                "id": "0a1d4a69-14ce-43aa-b112-5d075b5894e7",
+                "isrcs": [
+                  "USRC12204602"
+                ],
+                "first-release-date": "2022-12-09",
+                "video": false,
+                "length": 239613,
+                "title": "Open Arms",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "type": "Person",
+                      "country": "US",
+                      "disambiguation": ""
+                    },
+                    "name": "SZA",
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "name": "Travis Scott",
+                    "artist": {
+                      "id": "e4a51f17-a57b-47b1-b37b-f552d0f8e9e6",
+                      "name": "Travis Scott",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Scott, Travis",
+                      "type": "Person",
+                      "country": "US",
+                      "disambiguation": "US rapper"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": ""
+              },
+              "number": "35"
+            },
+            {
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "name": "SZA",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "SZA",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "type": "Person",
+                    "country": "US",
+                    "disambiguation": ""
+                  }
+                }
+              ],
+              "length": 173906,
+              "title": "I Hate U",
+              "id": "424a9140-41bd-4600-997b-07433bb98946",
+              "recording": {
+                "id": "f5e54962-d384-435f-8006-fbb872790c73",
+                "first-release-date": "2021-12-03",
+                "isrcs": [
+                  "USRC12103605"
+                ],
+                "video": false,
+                "length": 173906,
+                "title": "I Hate U",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "US",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "type": "Person",
+                      "disambiguation": ""
+                    },
+                    "name": "SZA",
+                    "joinphrase": ""
+                  }
+                ],
+                "disambiguation": "explicit"
+              },
+              "number": "36",
+              "position": 36
+            },
+            {
+              "number": "37",
+              "recording": {
+                "video": false,
+                "length": 278000,
+                "title": "Good Days",
+                "id": "dc80e9a0-8282-4bea-8cdb-a7acdeb7f692",
+                "first-release-date": "2020-12-25",
+                "isrcs": [
+                  "USRC12004189"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "SZA",
+                    "artist": {
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "SZA",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "country": "US",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "disambiguation": "explicit"
+              },
+              "position": 37,
+              "length": 278480,
+              "title": "Good Days",
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "disambiguation": "",
+                    "country": "US",
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "id": "fccca9ef-da94-4d73-8c34-ee727c9e44ab"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "SZA",
+                  "artist": {
+                    "name": "SZA",
+                    "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                    "sort-name": "SZA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "country": "US",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": " feat. "
+                },
+                {
+                  "name": "Ol’ Dirty Bastard",
+                  "artist": {
+                    "disambiguation": "Wu‐Tang founder, NYC rapper/producer",
+                    "type": "Person",
+                    "name": "Ol’ Dirty Bastard",
+                    "id": "d50548a0-3cfd-4d7a-964b-0aef6545d819",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "Ol’ Dirty Bastard",
+                    "country": "US"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "title": "Forgiveless",
+              "length": 141960,
+              "id": "d381f76d-1149-41d4-a0a4-135677fb5869",
+              "recording": {
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "name": "SZA",
+                    "artist": {
+                      "type": "Person",
+                      "name": "SZA",
+                      "id": "272989c8-5535-492d-a25c-9f58803e027f",
+                      "sort-name": "SZA",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "US",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "Wu‐Tang founder, NYC rapper/producer",
+                      "country": "US",
+                      "id": "d50548a0-3cfd-4d7a-964b-0aef6545d819",
+                      "name": "Ol’ Dirty Bastard",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "Ol’ Dirty Bastard",
+                      "type": "Person"
+                    },
+                    "name": "Ol’ Dirty Bastard"
+                  }
+                ],
+                "id": "8d141e6d-9a3b-4450-8593-fcd8c9f356b4",
+                "first-release-date": "2022-12-09",
+                "isrcs": [
+                  "USRC12204603"
+                ],
+                "length": 141960,
+                "title": "Forgiveless",
+                "video": false
+              },
+              "number": "38",
+              "position": 38
+            }
+          ],
+          "id": "eb065d78-9982-3d2d-8001-820a4a75ef0c",
+          "track-offset": 0,
+          "position": 1,
+          "format": "Digital Media",
+          "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794"
+        }
+      ]
+    }
+  }
+}

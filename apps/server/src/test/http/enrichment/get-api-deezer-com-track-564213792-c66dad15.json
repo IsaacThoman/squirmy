@@ -1,0 +1,51 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/track/564213792"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 564213792,
+      "title": "Respect (Data Punk)",
+      "isrc": "RUA491813181",
+      "link": "https://www.deezer.com/track/564213792",
+      "duration": 285,
+      "track_position": 10,
+      "disk_number": 1,
+      "rank": 26562,
+      "release_date": "2018-10-12",
+      "explicit_lyrics": false,
+      "contributors": [
+        {
+          "id": 1602566,
+          "name": "Electric Funky",
+          "link": "https://www.deezer.com/artist/1602566",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/cc5e6e4eda5ea1a84288d692aab96316/1000x1000-000000-80-0-0.jpg",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 1602566,
+        "name": "Electric Funky",
+        "link": "https://www.deezer.com/artist/1602566",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/cc5e6e4eda5ea1a84288d692aab96316/1000x1000-000000-80-0-0.jpg",
+        "type": "artist"
+      },
+      "album": {
+        "id": 74901252,
+        "title": "Discovery",
+        "link": "https://www.deezer.com/album/74901252",
+        "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4ff21b23662026086ec6145e406b6b0e/1000x1000-000000-80-0-0.jpg",
+        "release_date": "2018-10-12",
+        "type": "album"
+      },
+      "type": "track"
+    }
+  }
+}

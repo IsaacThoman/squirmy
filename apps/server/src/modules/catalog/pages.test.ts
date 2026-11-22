@@ -267,6 +267,12 @@ describe('standingRows', () => {
     expect(standingRows(rows).map((one) => one.id)).toEqual(['a', 'c', 'e', 'f', 'h', 'i'])
   })
 
+  it('lists an edition row once with its release group', () => {
+    const group = row('g', 'SOS', 'album', { year: 2022 })
+    const lana = row('l', 'SOS Deluxe: LANA', 'album', { hasMbid: false, year: 2022, releaseTitle: 'SOS' })
+    expect(standingRows([lana, group]).map((one) => one.id)).toEqual(['g'])
+  })
+
   it('leaves out a popular song’s album MusicBrainz does not list for an artist it knows', () => {
     const cyberpunk = row('a', 'Cyberpunk 2077: Radio, Vol. 2 (Original Soundtrack)', 'album', { typeGuessed: true, hasMbid: false, year: null })
     const visions = row('b', 'Visions', 'album', { year: 2012 })

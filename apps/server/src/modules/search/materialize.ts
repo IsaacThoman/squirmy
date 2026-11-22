@@ -7,8 +7,10 @@
  * 2. its MBID;
  * 3. its key. Artists: the one artist with that `name_key`, when exactly one exists.
  *    Albums and tracks: the same artist (by credit or by primary artist) and the same
- *    title once edition suffixes are dropped (keys.ts), so "OK Computer (Deluxe
- *    Edition)" finds an owned "OK Computer". Owned rows win over others.
+ *    title. For a track, once edition suffixes are dropped (keys.ts), so "Let It Be -
+ *    Remastered 2009" finds an owned "Let It Be". For an album, once only store labels are
+ *    dropped (`labelFreeKey`): "OK Computer (Deluxe Edition)" is another edition with its
+ *    own songs and stays apart from "OK Computer". Owned rows win over others.
  * Only then is a stub inserted (`detail_level` 0, no releases). The enrichment module
  * completes a stub when it is opened. An album or track found by id or MBID that the user
  * does not own still gives way to an owned one found by key, and its provider id moves
@@ -30,7 +32,7 @@ import { recordingOwned } from '../catalog/availability.js'
 import { mergeAlbum, mergeRecording } from '../matching/merge.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { uuidArray } from '../catalog/sql.js'
-import { editionFreeKey, guessAlbumType, prefixEnd, textArray } from './keys.js'
+import { editionFreeKey, guessAlbumType, labelFreeKey, prefixEnd, textArray } from './keys.js'
 import { artistOwned } from './library.js'
 import type { IdSource, ProviderAlbum, ProviderArtist, ProviderCredit, ProviderResults, ProviderTrack } from './providers.js'
 
@@ -267,11 +269,11 @@ async function resolveAlbums(tx: Transaction, source: IdSource, inputs: Provider
   for (const [key, ref] of refs) {
     const id = known.get(key)
     if (id && ownedKnown.has(id)) resolved.set(key, id)
-    else if (editionFreeKey(ref.title)) open.push([key, ref])
+    else if (labelFreeKey(ref.title)) open.push([key, ref])
     else if (id) resolved.set(key, id)
   }
   const primary = (ref: ProviderAlbum) => (ref.artists[0] ? artistIds.get(artistRef(ref.artists[0])) ?? null : null)
-  const wanted = open.map(([, ref]) => ({ title: editionFreeKey(ref.title), credit: matchKey(ref.artistCredit), artistId: primary(ref) }))
+  const wanted = open.map(([, ref]) => ({ title: labelFreeKey(ref.title), credit: matchKey(ref.artistCredit), artistId: primary(ref) }))
   // MusicBrainz rows first: a track's album reference (no type) then lands on the release
   // group rather than on another stub.
   const candidates = wanted.length === 0 ? [] : await tx.execute<KeyCandidate & { type: string; typeGuessed: boolean; detailLevel: number }>(sql`
@@ -285,7 +287,7 @@ async function resolveAlbums(tx: Transaction, source: IdSource, inputs: Provider
   const moves: [string, string, string][] = []
   for (const [index, [key, ref]] of open.entries()) {
     const fallback = known.get(key)
-    const sameTitle = candidates.filter((row) => row.i === index + 1 && editionFreeKey(row.title) === wanted[index]!.title && compatible(row.mbid, ref.mbid))
+    const sameTitle = candidates.filter((row) => row.i === index + 1 && labelFreeKey(row.title) === wanted[index]!.title && compatible(row.mbid, ref.mbid))
     // A stated type prefers the row of that type: an artist's album and single may share a title.
     const match = sameTitle.find((row) => row.owned && (ref.type === null || row.type === ref.type))
       ?? sameTitle.find((row) => row.owned)

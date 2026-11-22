@@ -1,0 +1,55 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/url?resource=https%3A%2F%2Fwww.deezer.com%2Falbum%2F383703577&inc=artist-rels+release-rels+release-group-rels+recording-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": "cf3a5346-9c94-4447-93b3-ba7ebfa76623",
+      "relations": [
+        {
+          "source-credit": "",
+          "end": null,
+          "ended": false,
+          "target-type": "release",
+          "attribute-ids": {},
+          "begin": null,
+          "attributes": [],
+          "type": "free streaming",
+          "attribute-values": {},
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "release": {
+            "barcode": "196589564931",
+            "country": null,
+            "disambiguation": "explicit",
+            "status": null,
+            "date": "2022-12-09",
+            "id": "b82458a3-7d3a-495f-861f-8698731c4dd0",
+            "title": "SOS",
+            "quality": "normal",
+            "text-representation": {
+              "script": "Latn",
+              "language": "eng"
+            },
+            "packaging-id": null,
+            "release-events": [
+              {
+                "area": null,
+                "date": "2022-12-09"
+              }
+            ],
+            "packaging": null,
+            "status-id": null
+          },
+          "direction": "backward",
+          "target-credit": ""
+        }
+      ],
+      "resource": "https://www.deezer.com/album/383703577"
+    }
+  }
+}
