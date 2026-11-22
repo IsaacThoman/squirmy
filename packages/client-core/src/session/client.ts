@@ -225,6 +225,12 @@ export class SessionClient {
   private move: Move | null = null
   private heldQueue: { version: number; queue: SessionQueue } | null = null
   private pending: Pending[] = []
+  /**
+   * The pause and seek `restore` adds for a session this device was playing, and the
+   * version of the saved state they were made against. Dropped at the first hello when the
+   * server has moved on since: it then knows better where the music stopped.
+   */
+  private restored: { commands: Set<Pending>; version: number; savedAt: number } | null = null
   private local: Session = createInitialSession()
   private devices: DeviceInfo[] = []
   private connection: ConnectionStatus = 'offline'
@@ -453,10 +459,12 @@ export class SessionClient {
     })
     const session = this.rebase()
     if (session.playing && session.activeDeviceId === this.device.id) {
-      this.pending.push(
+      const commands: Pending[] = [
         { commandId: this.newCommandId(), command: { type: 'pause' }, at: saved.savedAt, ackVersion: null, sentEpoch: null },
         { commandId: this.newCommandId(), command: { type: 'seek', positionMs: positionAt(session, saved.savedAt) }, at: saved.savedAt, ackVersion: null, sentEpoch: null },
-      )
+      ]
+      this.pending.push(...commands)
+      this.restored = { commands: new Set(commands), version: saved.version, savedAt: saved.savedAt }
     }
     this.local = this.rebase()
   }
@@ -497,6 +505,16 @@ export class SessionClient {
       this.pending = []
     }
 
+    const restored = this.restored
+    this.restored = null
+    // The save is from up to several seconds before the app stopped. A server that changed
+    // the session after it (it paused it when this device went away, or another device
+    // played) holds a later position: seeking back to the save would rewind every device.
+    // One that last changed before the save, as when this device played on offline, does not.
+    const later = reply.snapshot.version > (restored?.version ?? Infinity) && reply.snapshot.state.anchorAt > (restored?.savedAt ?? Infinity)
+    if (restored && (moved || later)) {
+      this.pending = this.pending.filter(pending => !restored.commands.has(pending))
+    }
     const active = reply.snapshot.state.activeDeviceId
     if (active !== null && active !== this.device.id) {
       this.pending = this.pending.filter(pending => !PLAYBACK_COMMANDS.has(pending.command.type))

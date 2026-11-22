@@ -67,8 +67,8 @@ class FakeServer implements Held {
   }
 
   /** Applies a command as if another device (or the server itself) sent it; to the shared session unless told otherwise. */
-  apply(command: AnySessionCommand, deviceId?: string, commandId = `server-${(this.serial += 1)}`, held: Held = this): void {
-    this.replace(held, reduceSession(held.session, { command, now: this.now(), commandId, deviceId }))
+  apply(command: AnySessionCommand, deviceId?: string, commandId = `server-${(this.serial += 1)}`, held: Held = this, now = this.now()): void {
+    this.replace(held, reduceSession(held.session, { command, now, commandId, deviceId }))
   }
 
   /** Makes `next` the session and tells the sockets in it. */
@@ -854,6 +854,7 @@ describe('SessionClient engine', () => {
     const first = await playingHere(3)
     await vi.advanceTimersByTimeAsync(40_000)
     first.transport.disconnect()
+    const lostAt = first.server.now()
     first.client.dispatch({ type: 'next' })
     await vi.advanceTimersByTimeAsync(20_000)
     const saved = JSON.parse(JSON.stringify(first.client.save())) as SavedSession
@@ -866,11 +867,33 @@ describe('SessionClient engine', () => {
     await settle()
     expect(calls('load')[0]![1]).toMatchObject({ startMs: 20_000, autoplay: false })
 
-    server.apply({ type: 'deviceLost', deviceId: PHONE })
+    // As the server does, as of when the device went away: before the save, made offline.
+    server.apply({ type: 'deviceLost', deviceId: PHONE }, undefined, undefined, server, lostAt)
     transport.connect()
     await settle()
     expect(trackOf(server.session.current)).toBe(2)
     expect(server.session).toMatchObject({ playing: false, positionMs: 20_000 })
+  })
+
+  it('does not rewind a session the server paused after the save when this device went away', async () => {
+    const first = await playingHere(3)
+    await vi.advanceTimersByTimeAsync(10_000)
+    const saved = JSON.parse(JSON.stringify(first.client.save())) as SavedSession
+    // The app goes on playing for 15 s after its last save, then is killed.
+    await vi.advanceTimersByTimeAsync(15_000)
+    first.transport.disconnect()
+    first.client.dispose()
+    first.server.apply({ type: 'deviceLost', deviceId: PHONE })
+    const paused = first.server.session
+    expect(paused.positionMs).toBe(25_000)
+
+    const { server, transport, client, settle } = setup({ restore: saved, connect: false, server: first.server })
+    expect(client.getSnapshot().session).toMatchObject({ playing: false, positionMs: 10_000 })
+    transport.connect()
+    await settle()
+    expect(server.session).toBe(paused)
+    expect(client.getSnapshot().session).toMatchObject({ playing: false, positionMs: 25_000, activeDeviceId: null })
+    expect(client.save().pending).toEqual([])
   })
 
   it('drops a saved command that is no longer valid, keeping the rest', async () => {
