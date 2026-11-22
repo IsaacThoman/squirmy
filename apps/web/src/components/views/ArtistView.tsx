@@ -51,7 +51,8 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
             liked={artist.liked}
             onLike={() => library.setLiked('artist', artist.id, !artist.liked)}
           >
-            {(artist.inLibrary || canFetch(viewer)) && (
+            {/* The server says whether a radio starts for this viewer; an older one does not, and then the library decides. */}
+            {(artist.radio ?? (artist.inLibrary || canFetch(viewer))) && (
               <IconButton label={`Start ${artist.name} radio`} size="lg" onClick={() => controls.startRadio({ type: 'artist', id: artist.id })}><Radio /></IconButton>
             )}
           </PlayActions>
