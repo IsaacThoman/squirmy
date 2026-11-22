@@ -161,4 +161,19 @@ describe('artist detail', () => {
     expect(http.requests).toEqual([])
     await updateServerSettings({ musicBrainzEnabled: true, deezerEnabled: true, wikidataEnabled: true, coverArtArchiveEnabled: true })
   })
+
+  it('fetches no discography or popular tracks for Various Artists', async () => {
+    await updateServerSettings({ deezerEnabled: false, wikidataEnabled: false })
+    try {
+      const various = await artistStub({ name: 'Various Artists', mbid: '89ad4ac3-39f7-470e-963a-56509c546377' })
+      const before = await counts()
+      http.requests.length = 0
+      await hydrateArtist(various)
+      expect(await artistRow(various)).toMatchObject({ name: 'Various Artists', detailLevel: 2 })
+      expect(http.requests.filter((url) => url.includes('release-group'))).toEqual([])
+      expect(await counts()).toEqual(before)
+    } finally {
+      await updateServerSettings({ deezerEnabled: true, wikidataEnabled: true })
+    }
+  })
 })

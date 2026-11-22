@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { enqueueMany } from '../../jobs/index.js'
 import { getServerSettings } from '../../lib/settings.js'
+import { albumsMissingCovers } from './covers.js'
 import { bridgeNamesakes } from './namesakes.js'
 
 /** Jobs queued per kind per sweep; the next sweep picks up the rest. */
@@ -14,8 +15,9 @@ const priority = -5
  * `enriched_at`; artists credited on them below `detail_level` 2 that have an id to look
  * up and were not tried in the last day; and, while LRCLIB is on, owned recordings with no
  * lyrics row (or a `none` marker older than 30 days). Keyed jobs, so a sweep that
- * finds work already queued adds nothing. Then, while MusicBrainz is on, it bridges a few
- * Deezer-only artists that share a name with another row (namesakes.ts).
+ * finds work already queued adds nothing. It queues `enrichment.cover` for albums without
+ * a cover that have files or a Deezer page (covers.ts). Then, while MusicBrainz is on, it
+ * bridges a few Deezer-only artists that share a name with another row (namesakes.ts).
  */
 export async function sweep(): Promise<void> {
   const [albums, artists, recordings] = await Promise.all([
@@ -40,6 +42,7 @@ export async function sweep(): Promise<void> {
   ])
   await enqueueMany('enrichment.album', albums.map((row) => ({ data: { albumId: row.id }, singletonKey: row.id, priority })))
   await enqueueMany('enrichment.artist', artists.map((row) => ({ data: { artistId: row.id }, singletonKey: row.id, priority })))
+  await enqueueMany('enrichment.cover', (await albumsMissingCovers()).map((albumId) => ({ data: { albumId }, singletonKey: albumId, priority })))
   const settings = await getServerSettings()
   if (settings.lrclibEnabled) {
     await enqueueMany('enrichment.lyrics', recordings.map((row) => ({ data: { recordingId: row.id }, singletonKey: row.id, priority })))

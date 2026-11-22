@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { useHttpFixtures } from '../../test/http.js'
-import { getReleaseCover, getReleaseGroupCover } from './coverart.js'
-import { fetchImage } from './images.js'
+import { getReleaseCover, getReleaseGroupCover, originalFront } from './coverart.js'
+import { downloadImage, fetchImage } from './images.js'
 
 const okComputer = 'b1392450-e666-3926-a536-22c65f834433'
 const okComputerCd = '52709206-8816-3c12-9ff6-f957f2f1eecf'
@@ -49,5 +49,32 @@ describe('coverart', () => {
       'GET https://images.example.test/redirect-moved.png', 'GET https://images.example.test/pixel.png',
       'GET https://images.example.test/redirect-internal.png', 'GET https://images.example.test/redirect-plain.png',
     ])
+  })
+
+  it('fetches the original front while archive.org has not derived the sized one yet', async () => {
+    // HYPE MEDIA JAPAN: Hype Selects, Vol. 1, uploaded days before: front-500 redirects to a
+    // thumbnail that answers 404, while the original is there.
+    const fresh = 'https://coverartarchive.org/release-group/6c5f8e76-87b9-4480-8d2f-432180feba69/front-500'
+    const result = await downloadImage(fresh)
+    expect(result).toMatchObject({ gone: false, image: { contentType: 'image/jpeg' } })
+    expect(http.requests.slice(-4)).toEqual([
+      `GET ${fresh}`,
+      'GET https://archive.org/download/mbid-d3e32178-af15-4856-aa34-7399e5e1d93c/mbid-d3e32178-af15-4856-aa34-7399e5e1d93c-46748862495_thumb500.jpg',
+      'GET https://coverartarchive.org/release-group/6c5f8e76-87b9-4480-8d2f-432180feba69/front',
+      'GET https://archive.org/download/mbid-d3e32178-af15-4856-aa34-7399e5e1d93c/mbid-d3e32178-af15-4856-aa34-7399e5e1d93c-46748862495.jpg',
+    ])
+
+    // A group without a cover is gone once the original is missing too.
+    const none = 'https://coverartarchive.org/release-group/18cf83bd-c54c-4c97-b91f-bb64bbc7c340/front-500'
+    expect(await downloadImage(none)).toEqual({ image: null, gone: true })
+    expect(http.requests.slice(-2)).toEqual([`GET ${none}`, 'GET https://coverartarchive.org/release-group/18cf83bd-c54c-4c97-b91f-bb64bbc7c340/front'])
+  })
+
+  it('names the original only for sized Cover Art Archive fronts', () => {
+    expect(originalFront('https://coverartarchive.org/release/52709206-8816-3c12-9ff6-f957f2f1eecf/front-1200'))
+      .toBe('https://coverartarchive.org/release/52709206-8816-3c12-9ff6-f957f2f1eecf/front')
+    expect(originalFront('https://coverartarchive.org/release-group/52709206-8816-3c12-9ff6-f957f2f1eecf/front')).toBeNull()
+    expect(originalFront('https://coverartarchive.org/release-group/52709206-8816-3c12-9ff6-f957f2f1eecf/back-500')).toBeNull()
+    expect(originalFront('https://cdn-images.dzcdn.net/images/cover/abc/front-500')).toBeNull()
   })
 })

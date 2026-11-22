@@ -89,11 +89,14 @@ export async function hydrateArtist(id: string, { force = false } = {}): Promise
     for (const one of linked) await linkExternalId('deezer', 'artist', one, target)
     deezerId = linked.length > 0 ? await mainDeezerArtist(linked) : await externalIdOf('deezer', 'artist', target)
 
+    // Various Artists and the other placeholders have no discography or popular tracks of
+    // their own: every compilation is credited to them (hundreds of thousands of rows).
+    const placeholder = musicbrainz.specialPurposeArtists.has(profile.mbid)
     const steps = [
-      await attempt('discography', async () => upsertDiscography(await musicbrainz.browseReleaseGroups(profile.mbid, { officialOnly: true }))),
+      placeholder || await attempt('discography', async () => upsertDiscography(await musicbrainz.browseReleaseGroups(profile.mbid, { officialOnly: true }))),
       await attempt('artist image', () => artistImage(target, { mbid: profile.mbid, wikidataId: profile.wikidataId, deezerId })),
       await attempt('bio', () => artistBio(target, profile.wikidataId)),
-      await attempt('top tracks', () => topTracks(target, { mbid: profile.mbid, deezerId })),
+      placeholder || await attempt('top tracks', () => topTracks(target, { mbid: profile.mbid, deezerId })),
     ]
     complete = steps.every(Boolean)
   } else if (deezerId) {

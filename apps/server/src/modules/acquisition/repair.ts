@@ -20,18 +20,23 @@
  * emptied. The rows the files leave keep redirects, because their ids were visible for a
  * while. Whatever was placed is then filed by its import, and imports whose placed files
  * are still in `_Incoming` are filed (once a day at most, in case filing cannot succeed).
+ * Deliveries filed under `_Fetched/` before their credits were corrected (a folder named
+ * after the artists their tags ran together) move to the folder their credits name now,
+ * and the folders they leave empty go (organize's `refileCredits`); nothing else that was
+ * filed moves.
  *
  * `acquisition.repair` runs it over everything at worker start and once a day;
  * `acquisition.sweep` runs it over the last hours every minute. Running it again changes
  * nothing.
  */
-import { INCOMING_FOLDER } from '@squirmy/contracts'
+import { FETCHED_FOLDER, INCOMING_FOLDER } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { acquisitionJobs } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { refileImport } from '../imports/index.js'
+import { refileCredits } from '../organize/refile.js'
 import { placeDelivery } from './place.js'
 
 export type RepairOptions = {
@@ -43,7 +48,7 @@ export type RepairOptions = {
   budgetMs?: number
 }
 
-export type RepairResult = { jobs: number; placed: number; refiled: number }
+export type RepairResult = { jobs: number; placed: number; refiled: number; moved: number }
 
 function report(error: unknown) {
   if (getConfig().LOG_LEVEL !== 'silent') console.error('[acquisition]', error)
@@ -131,7 +136,7 @@ export function resetRepair() {
 export async function repairDeliveries(options: RepairOptions = {}): Promise<RepairResult> {
   const limit = options.limit ?? 500
   const deadline = Date.now() + (options.budgetMs ?? 10 * 60_000)
-  const result: RepairResult = { jobs: 0, placed: 0, refiled: 0 }
+  const result: RepairResult = { jobs: 0, placed: 0, refiled: 0, moved: 0 }
   const filed = new Set<string>()
   for (const [id, at] of triedAt) if (at < Date.now() - RETRY_MS) triedAt.delete(id)
   // Newest first, page by page, until the budget or the limit runs out.
@@ -171,5 +176,25 @@ export async function repairDeliveries(options: RepairOptions = {}): Promise<Rep
     }
   }
   if (!options.since) await reingestTagBuilt(limit).catch(report)
+  // Placing corrects credits; a full run also catches what earlier runs placed.
+  if (!options.since || result.placed > 0) {
+    for (const rootId of await rootsWithDeliveries()) {
+      result.moved += await refileCredits(rootId).catch((error: unknown) => {
+        report(error)
+        return 0
+      })
+    }
+  }
   return result
+}
+
+/** Managed roots with delivered files filed under `_Fetched/`. */
+async function rootsWithDeliveries(): Promise<string[]> {
+  const rows = await db.execute<{ id: string }>(sql`
+    select r.id from library_roots r
+    where r.mode = 'managed' and exists (
+      select 1 from media_files f
+      where f.root_id = r.id and f.cached and f.missing_since is null and starts_with(f.rel_path, ${`${FETCHED_FOLDER}/`}))
+    order by r.id`)
+  return rows.map((row) => row.id)
 }

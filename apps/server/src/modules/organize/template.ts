@@ -126,6 +126,14 @@ export function validateTemplate(template: string): string | null {
 /** The parsed default template. */
 export const defaultTemplate = (): ParsedTemplate => parseTemplate(DEFAULT_ORGANIZE_TEMPLATE)
 
+/**
+ * For each component of a rendered path (folders, then the file name), whether the
+ * template fills it from an artist credit (`{albumartist}` or `{artist}`).
+ */
+export function creditComponents(template: ParsedTemplate): boolean[] {
+  return [...template.directories, template.fileName].map((nodes) => hasToken(nodes, 'albumartist') || hasToken(nodes, 'artist'))
+}
+
 function hasToken(nodes: Node[], name?: TemplateToken): boolean {
   return nodes.some((node) => 'token' in node ? !name || node.token === name : 'optional' in node && hasToken(node.optional, name))
 }

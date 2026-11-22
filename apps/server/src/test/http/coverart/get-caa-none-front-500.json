@@ -1,0 +1,14 @@
+{
+  "note": "Recorded 2026-11-22 for a release group with no cover at all.",
+  "request": {
+    "method": "GET",
+    "url": "https://coverartarchive.org/release-group/18cf83bd-c54c-4c97-b91f-bb64bbc7c340/front-500"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "text": "Not Found"
+  }
+}

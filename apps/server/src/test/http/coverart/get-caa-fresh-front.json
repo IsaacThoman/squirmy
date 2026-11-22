@@ -1,0 +1,14 @@
+{
+  "note": "Recorded 2026-11-22: the original front of the same group is already served.",
+  "request": {
+    "method": "GET",
+    "url": "https://coverartarchive.org/release-group/6c5f8e76-87b9-4480-8d2f-432180feba69/front"
+  },
+  "response": {
+    "status": 307,
+    "headers": {
+      "location": "https://archive.org/download/mbid-d3e32178-af15-4856-aa34-7399e5e1d93c/mbid-d3e32178-af15-4856-aa34-7399e5e1d93c-46748862495.jpg"
+    },
+    "text": ""
+  }
+}
