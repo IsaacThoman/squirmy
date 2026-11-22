@@ -39,11 +39,18 @@ export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys
 export const artistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.artist(id), queryFn: () => api.catalog.artist(id), meta: silent })
 export const playlistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.playlist(id), queryFn: () => api.userdata.playlist(id), meta: silent })
 
-/** How often an album whose songs are still being looked up asks again, should the server's invalidation not come. */
+/**
+ * How often, and for how many answers, an album whose songs are still being looked up asks
+ * again, should the server's invalidation not come: a minute, then the page waits for it.
+ */
 const TRACK_LIST_POLL_MS = 3000
+const TRACK_LIST_POLLS = 20
 
 export function useAlbum(id: string) {
-  return useQuery({ ...albumQuery(useApi(), id), refetchInterval: query => (query.state.data && awaitsTrackList(query.state.data) ? TRACK_LIST_POLL_MS : false) })
+  return useQuery({
+    ...albumQuery(useApi(), id),
+    refetchInterval: query => (query.state.data && awaitsTrackList(query.state.data) && query.state.dataUpdateCount < TRACK_LIST_POLLS ? TRACK_LIST_POLL_MS : false),
+  })
 }
 
 export function useArtist(id: string) {
