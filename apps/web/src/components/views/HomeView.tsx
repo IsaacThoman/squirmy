@@ -51,20 +51,20 @@ export function HomeView({ featured, sections, empty, canAddMusic, canFindMusic 
           switch (section.kind) {
             case 'albums':
               return (
-                // Only what was added is in the library; played and liked albums have no page of their own.
-                <Rail key={section.id} title={section.title} href={section.id === 'recently-added' ? '/library/albums' : undefined}>
+                // Only what was added is in the library; played albums have no page of their own.
+                <Rail key={section.id} title={section.title} href={section.id === 'recently-added' ? '/library?filter=albums' : undefined}>
                   {section.albums.map(album => <RailItem key={album.id}><AlbumCard album={album} onPlay={() => onPlayAlbum(album)} /></RailItem>)}
                 </Rail>
               )
             case 'artists':
               return (
-                <Rail key={section.id} title={section.title} href="/library/artists">
+                <Rail key={section.id} title={section.title} href="/library?filter=artists">
                   {section.artists.map(artist => <RailItem key={artist.id}><ArtistCard artist={artist} /></RailItem>)}
                 </Rail>
               )
             case 'playlists':
               return (
-                <Rail key={section.id} title={section.title} href="/library/playlists">
+                <Rail key={section.id} title={section.title} href="/library?filter=playlists">
                   {section.playlists.map(playlist => <RailItem key={playlist.id}><PlaylistCard playlist={playlist} onPlay={() => onPlayPlaylist(playlist)} /></RailItem>)}
                 </Rail>
               )

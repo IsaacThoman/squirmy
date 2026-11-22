@@ -51,7 +51,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
             onPlay={playable ? () => controls.playTracks(artist.topTracks, 0, context) : undefined}
             onShuffle={playable ? () => controls.playTracks(artist.topTracks, 0, context, { shuffle: true }) : undefined}
             liked={artist.liked}
-            onLike={() => library.setLiked('artist', artist.id, !artist.liked)}
+            onLike={() => library.setSaved({ type: 'artist', id: artist.id, title: artist.name }, !artist.liked)}
           >
             {/* The server says whether a radio starts for this viewer; an older one does not, and then the library decides. */}
             {(artist.radio ?? (artist.inLibrary || canFetch(viewer))) && (

@@ -3,7 +3,6 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { newReleaseAlbumIds } from '../enrichment/releases.js'
-import { listLikes } from '../userdata/likes.js'
 import { listPlaylists } from '../userdata/playlists.js'
 import { refreshWants, wantedAlbumIds } from '../userdata/wants.js'
 import { listLibraryAlbums } from './library.js'
@@ -17,18 +16,18 @@ const RECENT_PLAYS = 500
  * The Home screen. Section ids are stable; a section without content is left out.
  *
  * - `recently-added`: the user's library albums, most recently added (a collection file
- *   arrived or the user saved it) first. Music fetched for playing never enters it.
+ *   arrived or the user hearted it) first. Music fetched for playing never enters it. It
+ *   replaced `liked-albums`, which listed the same saves once the heart became the save.
  * - `recently-played`: albums of the user's latest plays.
  * - `most-played`: the user's most played tracks over the last 90 days.
  * - `playlists`: the user's own playlists, recently updated first.
- * - `liked-albums`: albums the user liked, newest first.
  * - `wantlist`: albums on the user's wantlist, newest first. Only while the wantlist is on.
  * - `new-releases`: recent albums by library artists that the library lacks, newest first.
  */
 export async function home(userId: string): Promise<HomeResponse> {
   const { wantlistEnabled } = await getServerSettings()
   if (wantlistEnabled) await refreshWants(userId)
-  const [recentlyAdded, recentlyPlayed, mostPlayed, playlists, liked, wanted, newReleases] = await Promise.all([
+  const [recentlyAdded, recentlyPlayed, mostPlayed, playlists, wanted, newReleases] = await Promise.all([
     listLibraryAlbums(userId, { sort: 'recent', limit: RAIL }),
     db.execute<{ id: string }>(sql`
       select recent.album_id as id from (
@@ -41,7 +40,6 @@ export async function home(userId: string): Promise<HomeResponse> {
       from plays where user_id = ${userId} and started_at > now() - interval '90 days'
       group by recording_id order by count(*) desc, max(started_at) desc limit ${RAIL}`).then((rows) => trackSummaries(userId, rows)),
     listPlaylists(userId, { limit: RAIL }, { ownOnly: true }),
-    listLikes(userId, 'album', { limit: RAIL }),
     wantlistEnabled ? wantedAlbumIds(userId, RAIL).then(albumSummaries) : [],
     newReleaseAlbumIds(RAIL).then(albumSummaries),
   ])
@@ -50,7 +48,6 @@ export async function home(userId: string): Promise<HomeResponse> {
     { kind: 'albums', id: 'recently-played', title: 'Recently played', albums: recentlyPlayed },
     { kind: 'tracks', id: 'most-played', title: 'Most played', tracks: mostPlayed },
     { kind: 'playlists', id: 'playlists', title: 'Your playlists', playlists: playlists.items },
-    { kind: 'albums', id: 'liked-albums', title: 'Liked albums', albums: liked.items },
     { kind: 'albums', id: 'wantlist', title: 'Wantlist', albums: wanted },
     { kind: 'albums', id: 'new-releases', title: 'New releases', albums: newReleases },
   ]

@@ -1,7 +1,7 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
-  ArrowDown, ArrowUp, BookmarkCheck, BookmarkPlus, CircleCheck, CirclePlus, Clock3, Disc3, Heart, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal,
+  ArrowDown, ArrowUp, BookmarkCheck, BookmarkPlus, Clock3, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal,
   Pause, Play, Plus, Radio, Trash2,
 } from 'lucide-react'
 import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
@@ -10,7 +10,7 @@ import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
-import { isPlayable, trackLibraryToggle, UNAVAILABLE_LABEL } from '@/lib/catalog'
+import { isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -18,11 +18,16 @@ import { useViewer } from '@/player/on-demand-context'
 import { ArtistLinks } from './ArtistLinks'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
+import { librarySaveEntry } from './library-save-entry'
+import { SaveHeart } from './LibrarySave'
 import { PrefetchLink } from './PrefetchLink'
 import { useEndReached } from './use-end-reached'
 
-/** `add-to:<playlist id>` adds the track to a playlist; `add-to:new` starts one with it. */
-export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'library' | 'radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}`
+/**
+ * `like` is the heart, which saves the track to the library or takes it out. `add-to:<playlist id>`
+ * adds the track to a playlist; `add-to:new` starts one with it.
+ */
+export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}`
 
 export type PlaylistChoice = { id: string; name: string }
 
@@ -111,8 +116,6 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const loading = current && nowPlaying.loading
   const play = current ? nowPlaying.onTogglePlay : onPlay
   const act = (action: TrackAction) => onAction?.(action, track, index)
-  // Only what removing would take out of the library: never a collection song or one of an added album.
-  const library = trackLibraryToggle(track)
 
   const menu: MenuEntry[] = [
     { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), disabled: unavailable },
@@ -129,8 +132,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
     }] : []),
     { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
     { kind: 'separator' },
-    ...(library === null ? [] : [{ label: library ? 'Remove from library' : 'Add to library', icon: library ? <CircleCheck /> : <CirclePlus />, onSelect: () => act('library') }]),
-    { label: liked ? 'Remove from Liked Songs' : 'Save to Liked Songs', icon: <Heart />, onSelect: () => act('like') },
+    librarySaveEntry(track, () => act('like')),
     // Undefined `wanted` means the server has the wantlist off. It is for music that does not play.
     ...(!unavailable || wanted === undefined ? [] : [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: () => act('want') }]),
     { kind: 'separator' },
@@ -260,17 +262,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @4xl:block">{formatRelative(addedAt)}</div>}
 
           <div className={cn(actionsColumn, album && '@max-xl:col-start-3 @max-xl:row-span-2 @max-xl:row-start-1')}>
-            {onAction && (
-              <IconButton
-                label={liked ? `Remove ${track.title} from Liked Songs` : `Save ${track.title} to Liked Songs`}
-                tooltip={false}
-                size="sm"
-                onClick={() => act('like')}
-                className={cn(liked ? 'text-primary hover:text-primary' : revealed)}
-              >
-                <Heart fill={liked ? 'currentColor' : 'none'} />
-              </IconButton>
-            )}
+            {onAction && <SaveHeart liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(!liked && revealed)} />}
             <span className={cn('hidden w-10 text-right text-xs tabular text-muted-foreground @md:block', unavailable && 'opacity-60')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
             <DropdownMenu
               entries={menu}

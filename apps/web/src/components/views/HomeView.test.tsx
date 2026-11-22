@@ -44,14 +44,20 @@ describe('library', () => {
     const fake = fakeServices()
     fake.api.catalog.albums.mockResolvedValue({ items: [], nextCursor: null })
     renderWithApp(<AppRoutes />, '/library/albums', fake.services)
-    expect(await screen.findByText(/^Albums you add to your library and music on this server appear here\./)).toBeInTheDocument()
+    expect(await screen.findByText(/^Albums and songs you save show up here.*tap the heart\.$/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Find music' })).toHaveAttribute('href', '/search')
   })
 
-  it('lists artists with no sort or genre the server would ignore', async () => {
+  it('lists artists with no sort the server would ignore, and no genre', async () => {
     renderWithApp(<AppRoutes />, '/library/artists')
     await screen.findByRole('list', { name: 'Artists' })
     expect(screen.queryByRole('combobox', { name: 'Sort by' })).toBeNull()
     expect(screen.queryByRole('combobox', { name: 'Genre' })).toBeNull()
+  })
+
+  it('links Recently added to the Library’s albums', async () => {
+    renderHome(home)
+    await screen.findByRole('heading', { level: 2, name: 'Recently added' })
+    expect(screen.getAllByRole('link').filter(link => link.getAttribute('href') === '/library?filter=albums')).toHaveLength(1)
   })
 })

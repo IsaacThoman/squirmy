@@ -1,11 +1,12 @@
 import type { AlbumDetail } from '@squirmy/contracts'
-import { BookmarkCheck, BookmarkPlus, CircleCheck, CirclePlus, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal, Plus, Wand2 } from 'lucide-react'
+import { BookmarkCheck, BookmarkPlus, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal, Plus, Wand2 } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useCurrentUser } from '@/auth/session'
 import { FixMatch } from '@/components/admin/FixMatch'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
 import { Cover } from '@/components/music/Cover'
+import { librarySaveEntry } from '@/components/music/library-save-entry'
 import { TrackRowsSkeleton } from '@/components/music/Skeletons'
 import { TrackList } from '@/components/music/TrackList'
 import { Badge } from '@/components/ui/feedback'
@@ -20,8 +21,8 @@ import { usePlayerControls } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 /**
- * One layout for every album, wherever its music is: the header, Play, Shuffle, the library and
- * the heart, and the full track list. Nothing says what is on the server; a member who may not
+ * One layout for every album, wherever its music is: the header, Play, Shuffle, the heart (which
+ * saves it to the library), and the full track list. Nothing says what is on the server; a member who may not
  * fetch music sees gray rows and, for a partial album, one line of how much plays.
  */
 export function AlbumView({ album }: { album: AlbumDetail }) {
@@ -42,7 +43,6 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   const waiting = listing && !dimmed
   const [queued, setQueued] = useState<'play' | 'shuffle' | null>(null)
   const owned = album.availability === 'full' || album.availability === 'partial'
-  const inLibrary = album.library === 'collection' || album.library === 'saved'
 
   const play = (shuffle: boolean) => {
     if (playable.length) controls.playTracks(tracks, 0, context, { shuffle })
@@ -60,7 +60,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
     library.setWanted({ type: 'album', album }, !wanted)
     toast({ title: wanted ? 'Removed from Wantlist' : 'Added to Wantlist', description: album.title })
   }
-  const setInLibrary = (next: boolean) => library.setInLibrary({ type: 'album', id: album.id, title: album.title }, next)
+  const toggleSaved = () => library.setSaved({ type: 'album', id: album.id, title: album.title }, !album.liked)
   const enqueue = (placement: 'next' | 'last') => {
     controls.enqueue(playable, placement)
     toast({ title: placement === 'next' ? 'Playing next' : 'Added to queue', description: album.title })
@@ -91,10 +91,8 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
             onPlay={playable.length || waiting ? () => play(false) : undefined}
             onShuffle={playable.length > 1 || waiting ? () => play(true) : undefined}
             pending={pending}
-            // Older servers do not say; then there is nothing to toggle.
-            library={album.library === undefined ? undefined : { state: album.library, onChange: setInLibrary }}
             liked={album.liked}
-            onLike={() => library.setLiked('album', album.id, !album.liked)}
+            onLike={toggleSaved}
             wanted={wanted}
             onWant={library.wantlistEnabled && dimmed ? want : undefined}
           >
@@ -113,9 +111,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
                     ...library.playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => library.addToPlaylist(playlist, tracks) })),
                   ],
                 },
-                ...(album.library === null || album.library === 'saved'
-                  ? [{ label: inLibrary ? 'Remove from library' : 'Add to library', icon: inLibrary ? <CircleCheck /> : <CirclePlus />, onSelect: () => setInLibrary(!inLibrary) }]
-                  : []),
+                librarySaveEntry(album, toggleSaved),
                 ...(library.wantlistEnabled && dimmed ? [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: want }] : []),
                 { kind: 'separator' },
                 ...album.artists.map(artist => ({ label: `Go to ${artist.name}`, icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),

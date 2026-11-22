@@ -4,7 +4,7 @@ import path from 'node:path'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albums, imports, libraryItems, likes, mediaFiles, playbackSessions, playlistItems, playlists, recordings } from '../../database/schema.js'
+import { albums, imports, likes, mediaFiles, playbackSessions, playlistItems, playlists, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { matchKey } from '../../lib/text.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -70,9 +70,9 @@ describe('the provider cache', () => {
     const likedAlbum = await cached('Liked Album')
     await db.insert(likes).values({ userId: fan.id, entityType: 'album', entityId: likedAlbum.albumId })
     const savedAlbum = await cached('Saved Album')
-    await db.insert(libraryItems).values({ userId: fan.id, entityType: 'album', entityId: savedAlbum.albumId })
+    await db.insert(likes).values({ userId: fan.id, entityType: 'album', entityId: savedAlbum.albumId })
     const savedTrack = await cached('Saved Track')
-    await db.insert(libraryItems).values({ userId: fan.id, entityType: 'recording', entityId: savedTrack.recordingId })
+    await db.insert(likes).values({ userId: fan.id, entityType: 'recording', entityId: savedTrack.recordingId })
     const listed = await cached('In A Playlist')
     const [playlist] = await db.insert(playlists).values({ id: newId(), ownerId: fan.id, name: 'Mix' }).returning()
     await db.insert(playlistItems).values({ id: newId(), playlistId: playlist!.id, position: 0, recordingId: listed.recordingId })
@@ -139,7 +139,7 @@ describe('the provider cache', () => {
 
       // The saved album lists the song; its delivered file was placed on a single.
       const saved = await createAlbum({ title: 'Saved Album', mbid: crypto.randomUUID(), tracks: [{ title: 'On The Single' }] })
-      await db.insert(libraryItems).values({ userId: fan.id, entityType: 'album', entityId: saved.albumId })
+      await db.insert(likes).values({ userId: fan.id, entityType: 'album', entityId: saved.albumId })
       const single = await cached('On The Single')
       await db.update(mediaFiles).set({ recordingId: saved.tracks[0]!.recordingId }).where(eq(mediaFiles.id, single.fileId))
 

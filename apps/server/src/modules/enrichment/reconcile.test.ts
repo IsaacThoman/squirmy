@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { eq, sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, externalIds, libraryItems, likes, mediaFiles, playlistItems, playlists, plays, recordings } from '../../database/schema.js'
+import { albumArtists, albums, externalIds, likes, mediaFiles, playlistItems, playlists, plays, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { createFile } from '../../test/catalog.js'
@@ -105,8 +105,9 @@ describe('reconcileArtistAlbums', () => {
     const owner = await createUser()
     const root = await createLibraryRoot()
     await createFile({ rootId: root.id, recordingId: await recording(tate, 'TIT FOR TAT'), albumId: owned })
+    // Two saves (the heart), each of a row that gives way.
     await db.insert(likes).values({ userId: owner.id, entityType: 'album', entityId: stub })
-    await db.insert(libraryItems).values({ userId: owner.id, entityType: 'album', entityId: orphan })
+    await db.insert(likes).values({ userId: owner.id, entityType: 'album', entityId: orphan })
     const [playlist] = await db.insert(playlists).values({ id: newId(), ownerId: owner.id, name: 'Mix' }).returning()
     await db.insert(playlistItems).values({ id: newId(), playlistId: playlist!.id, position: 0, recordingId: song, albumId: stub })
     await db.insert(plays).values({ id: newId(), userId: owner.id, recordingId: song, albumId: stub })
@@ -117,8 +118,7 @@ describe('reconcileArtistAlbums', () => {
     expect((await row(stub)).mergedIntoId).toBe(single)
     expect((await row(orphan)).mergedIntoId).toBe(owned)
     expect((await row(album2023)).mergedIntoId).toBeNull()
-    expect(await db.select({ entityId: likes.entityId }).from(likes)).toEqual([{ entityId: single }])
-    expect(await db.select({ entityId: libraryItems.entityId }).from(libraryItems)).toEqual([{ entityId: owned }])
+    expect((await db.select({ entityId: likes.entityId }).from(likes)).map((row) => row.entityId).sort()).toEqual([single, owned].sort())
     expect(await db.select({ albumId: playlistItems.albumId }).from(playlistItems)).toEqual([{ albumId: single }])
     expect(await db.select({ albumId: plays.albumId }).from(plays)).toEqual([{ albumId: single }])
     expect((await db.select({ hint: recordings.albumHintId }).from(recordings).where(eq(recordings.id, song)))[0]!.hint).toBe(single)

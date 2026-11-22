@@ -32,7 +32,7 @@ export function hasPresentFile(column: 'album_id' | 'recording_id', owner: strin
 export function libraryFile(alias: string, userId: string, rootId?: string | null): SQL {
   const file = sql.raw(alias)
   return sql`(${presentFiles(alias, rootId)} and (${collectionFile(alias)} or exists (
-    select 1 from library_items kept where kept.user_id = ${userId}
+    select 1 from likes kept where kept.user_id = ${userId}
       and ((kept.entity_type = 'recording' and kept.entity_id = ${file}.recording_id)
         or (kept.entity_type = 'album' and kept.entity_id = ${file}.album_id))
   )))`
