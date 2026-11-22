@@ -1,5 +1,5 @@
 import {
-  artworkUrl, createInitialSession, randomSeed, SessionClient, splitSession, type SessionClientSnapshot,
+  artworkUrl, createInitialSession, randomSeed, SessionClient, splitSession, type SessionClientSnapshot, type SessionMoveResult,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
@@ -37,7 +37,7 @@ const saveDelayMs = 2000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -86,6 +86,9 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         transport: createSocketTransport(socket),
         device,
         restore: saved?.session,
+        onDetachedEnded: reason => notify(reason === 'expired'
+          ? 'This phone was away for over a week, so it’s playing with your other devices again.'
+          : 'This phone is playing with your other devices again.'),
         player: {
           engine,
           baseUrl: serverUrl,
@@ -251,6 +254,11 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     setVolume: (deviceId: string, value: number) => send({ type: 'setVolume', deviceId, value: Math.min(1, Math.max(0, value)) }),
     /** Moves playback to `deviceId`, which carries on from the current position. */
     transfer: (deviceId: string) => send({ type: 'transfer', deviceId }),
+    /** Takes this phone out of the shared session into one of its own. Resolves once the server has answered. */
+    detach: (): Promise<SessionMoveResult> => runtime?.client.detach() ?? Promise.resolve({ ok: false, error: 'offline' }),
+    /** Puts this phone back in the shared session; `bringQueue` makes the shared session what it was playing. */
+    attach: (options?: { bringQueue?: boolean }): Promise<SessionMoveResult> =>
+      runtime?.client.attach(options) ?? Promise.resolve({ ok: false, error: 'offline' }),
     toggleShuffle: () => send({ type: 'setShuffle', value: !session().shuffle, seed: randomSeed() }),
     cycleRepeat: () => send({ type: 'setRepeat', value: nextRepeat(session().repeat) }),
     toggleAutoplay: () => send({ type: 'setAutoplay', value: !session().autoplay }),
