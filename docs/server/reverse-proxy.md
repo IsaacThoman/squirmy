@@ -19,17 +19,16 @@ Artwork (`/api/v1/art/…`) is `public, max-age=31536000, immutable`: the bytes 
 
 ## 1. Configure Squirmy
 
-Add these to the `app` service in `compose.yaml`, or `PUBLIC_URL=https://music.example.com` and `TRUST_PROXY=true` to `.env`:
+Add these to `.env` next to `compose.yaml` (or to the `app` service's `environment:`):
 
-```yaml
-services:
-  app:
-    environment:
-      PUBLIC_URL: https://music.example.com
-      TRUST_PROXY: "true"
+```sh
+PUBLIC_URL=https://music.example.com
+TRUST_PROXY=true
 ```
 
-Then make port 4747 reachable only by the proxy. If the proxy runs on the same machine, bind the port to localhost:
+`TRUST_PROXY=true` is right for one proxy (Caddy, nginx, Traefik) on the same machine or a private network. With a Cloudflare Tunnel in front of that proxy, also set `CLIENT_IP_HEADER`; see [Cloudflare Tunnel](#cloudflare-tunnel). For other layouts, see [What `TRUST_PROXY` does](#what-trust-proxy-does).
+
+Then make port 4747 reachable only by the proxy. This matters for `TRUST_PROXY=true` too: Docker often hands a published port's connections to the container from its own bridge address (always on Docker Desktop and with rootless Docker or Podman, and for IPv6 clients on Linux), so a client on the internet would look like a proxy on a private network and could choose its address. If the proxy runs on the same machine, bind the port to localhost (`SQUIRMY_PORT=127.0.0.1:4747` in `.env` does the same):
 
 ```yaml
     ports:
@@ -44,7 +43,7 @@ Apply with `docker compose up -d`.
 
 ### Coolify with Traefik
 
-Import the repository using the Docker Compose build strategy and select `/compose.yaml`. Set `MUSIC_DIR` to the absolute path of your music folder on the Coolify server. Set `POSTGRES_PASSWORD`, `TRUST_PROXY=true`, and `PUBLIC_URL` to the browser-facing origin; `compose.yaml` passes all three to the app. Set `SQUIRMY_PORT=127.0.0.1:4747` to keep the host port on loopback.
+Import the repository using the Docker Compose build strategy and select `/compose.yaml`. Set `MUSIC_DIR` to the absolute path of your music folder on the Coolify server. Set `POSTGRES_PASSWORD`, `TRUST_PROXY=true`, and `PUBLIC_URL` to the browser-facing origin (add `CLIENT_IP_HEADER=CF-Connecting-IP` when a Cloudflare Tunnel connects to Coolify's proxy, but only if Traefik's public ports 80 and 443 do not answer for this host name: otherwise anyone can send a request to the server's own address with any `CF-Connecting-IP`; see [Cloudflare Tunnel](#cloudflare-tunnel)). `compose.yaml` passes these to the app. Set `SQUIRMY_PORT=127.0.0.1:4747` to keep the host port on loopback.
 
 Assign the domain to the `app` service and set its internal port to `4747`. Coolify creates the Traefik route. If an upstream proxy terminates TLS and connects to Traefik over HTTP, set the Coolify route to HTTP and keep `PUBLIC_URL` set to the public HTTPS origin.
 
@@ -141,6 +140,26 @@ command:
 
 Do not add Traefik's buffering middleware to this router.
 
+### Cloudflare Tunnel
+
+With a tunnel, requests travel browser → Cloudflare → `cloudflared` → your proxy (Traefik, Caddy, nginx) → Squirmy. Cloudflare puts the visitor's address in `CF-Connecting-IP` and overwrites whatever the visitor sent there; the proxies in between pass it on unchanged. Set:
+
+```sh
+PUBLIC_URL=https://music.example.com
+TRUST_PROXY=true
+CLIENT_IP_HEADER=CF-Connecting-IP
+```
+
+`TRUST_PROXY=true` makes Squirmy believe the proxy next to it (on the same machine or a private network), and `CLIENT_IP_HEADER` reads the visitor's address from the header Cloudflare set. Without `CLIENT_IP_HEADER`, every visitor appears as `cloudflared`, because Traefik and Caddy replace `X-Forwarded-For` from a peer they do not trust, and the per-address sign-in limits would then be shared by everyone.
+
+`CF-Connecting-IP` can only be trusted if nobody can reach your proxy for this host name without going through Cloudflare. A tunnel needs no open ports: if the proxy also listens on the internet for this host name, firewall it to Cloudflare's addresses, or remove the header there for other traffic, or use the hop count below instead.
+
+When `cloudflared` connects straight to Squirmy (no proxy in between), the same three settings work.
+
+**Without `CLIENT_IP_HEADER`.** If your proxy is set to trust `cloudflared`'s forwarded headers (Caddy `trusted_proxies`, Traefik `forwardedHeaders.trustedIPs`), it appends to Cloudflare's `X-Forwarded-For` instead of replacing it, and `TRUST_PROXY=2` (your proxy and `cloudflared`) gives the visitor's address.
+
+Cloudflare's own `X-Forwarded-Proto` usually does not survive the proxy, which sees plain HTTP from `cloudflared`. That is why `PUBLIC_URL` matters here: an `https://` `PUBLIC_URL` marks the session cookie `Secure` for requests to that host name.
+
 ### Checking it
 
 From another machine:
@@ -153,13 +172,26 @@ Then open the web app, start a song, and check that the browser's developer tool
 
 ## What `TRUST_PROXY` does
 
-With `TRUST_PROXY=true` the server believes the `X-Forwarded-*` headers. That changes three things:
+`TRUST_PROXY` says which peers may tell Squirmy who the client is, through `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`. The first address in `X-Forwarded-For` is whatever the client wrote; nginx and Cloudflare append to it rather than replace it. So Squirmy reads the header from the right: it skips the proxies it trusts and takes the first address after them.
 
-- **The client address** comes from `X-Forwarded-For`. Login is limited to 20 attempts a minute per address and 5 per username, and failed Subsonic logins are limited per address. Behind a proxy without `TRUST_PROXY`, every request seems to come from the proxy, so one person's typos can lock everyone out for a minute.
-- **The protocol** comes from `X-Forwarded-Proto`. The session cookie is marked `Secure` only when the request was HTTPS, and links the server builds itself (when `PUBLIC_URL` is not set) use the right scheme.
+| Value | Trusts | Use it for |
+|---|---|---|
+| `false` (default) | nobody | nothing in front of Squirmy |
+| `true` | one proxy, and only when it connects from this machine or a private network (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`, link-local, `::1`, `fc00::/7`) | Caddy, nginx or Traefik on the same machine, in the same Compose project, or on your LAN or tailnet |
+| a number, such as `2` | that many proxies, from any address | a chain of proxies (Cloudflare Tunnel into Caddy that trusts `cloudflared`: `2`), when port 4747 is reachable only through them |
+| addresses, such as `127.0.0.1,172.16.0.0/12` | any proxy in the list, CIDR ranges and `loopback`, `linklocal`, `uniquelocal`, `private` allowed | proxies with known addresses, including one on a public address |
+
+It changes three things:
+
+- **The client address.** Sign-in is limited per address and per username, register and setup per address, and Subsonic failures are counted per address (see [Users](./users.md#signing-in-and-sessions)). IPv6 addresses count per /64, since one client can usually pick any address in its /64. Without `TRUST_PROXY` behind a proxy, every request seems to come from the proxy, and everyone shares one address's limits.
+- **The protocol** comes from `X-Forwarded-Proto`. The session cookie is marked `Secure` when the request was HTTPS, or when `PUBLIC_URL` is `https://` and the request is for its host name. Links the server builds itself (when `PUBLIC_URL` is not set) use the right scheme.
 - **The host** comes from `X-Forwarded-Host`.
 
-Leave it `false` when nothing sits in front of Squirmy. With it on and port 4747 reachable directly, anyone can claim any address in `X-Forwarded-For` and get around the login limits.
+`CLIENT_IP_HEADER` names a header the outermost proxy sets to the client's address, such as `CF-Connecting-IP` behind Cloudflare. It is read only from a peer `TRUST_PROXY` trusts, and only when it holds a single address; otherwise the `X-Forwarded-For` rule above applies.
+
+Anyone who can reach port 4747 directly can write any `X-Forwarded-*` headers. `true` ignores them from internet addresses that reach Squirmy as themselves, but Docker's published ports often present outside clients as the bridge address (see [step 1](#_1-configure-squirmy)), and a number trusts any peer. So keep the port bound to localhost or the Compose network whenever `TRUST_PROXY` is set. Docker's published ports also bypass host firewalls such as ufw. If the proxy reaches Squirmy from a global IPv6 address (a Docker IPv6 network on a public prefix), `true` does not trust it: list its address or prefix instead.
+
+`CLIENT_IP_HEADER` needs `TRUST_PROXY`; the server refuses to start with one and not the other.
 
 ## HTTPS and the apps
 

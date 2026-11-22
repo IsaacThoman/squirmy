@@ -3,6 +3,7 @@ import { access } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
+import { audioInput } from '../../lib/ffmpeg.js'
 import { db } from '../../database/client.js'
 import { mediaFiles, releaseLoudness, releaseTracks } from '../../database/schema.js'
 import { libraryPath } from '../streaming/files.js'
@@ -60,7 +61,7 @@ async function runMeter(args: string[]): Promise<Loudness> {
 
 /** EBU R128 integrated loudness and true peak of one file's first audio stream. */
 export function measureLoudness(file: string): Promise<Loudness> {
-  return runMeter(['-i', file, '-map', '0:a:0', '-af', meter])
+  return runMeter([...audioInput(file), '-map', '0:a:0', '-af', meter])
 }
 
 /**
@@ -73,7 +74,7 @@ export function measureAlbumLoudness(files: string[], allMono: boolean): Promise
   const format = `aresample=48000,aformat=sample_fmts=flt:channel_layouts=${allMono ? 'mono' : 'stereo'}`
   const chains = files.map((_, index) => `[${index}:a:0]${format}[a${index}]`)
   const joined = `${files.map((_, index) => `[a${index}]`).join('')}concat=n=${files.length}:v=0:a=1,${meter}`
-  return runMeter([...files.flatMap((file) => ['-i', file]), '-filter_complex', [...chains, joined].join(';')])
+  return runMeter([...files.flatMap(audioInput), '-filter_complex', [...chains, joined].join(';')])
 }
 
 const isMissing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT'

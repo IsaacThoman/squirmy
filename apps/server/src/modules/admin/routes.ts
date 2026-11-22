@@ -18,7 +18,7 @@ import { newId } from '../../lib/ids.js'
 import { getServerSettings, invalidateServerSettings, updateServerSettings } from '../../lib/settings.js'
 import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
-import { hashPassword, insertUser, revokeUserSessions, toUser } from '../auth/service.js'
+import { hashPassword, insertUser, revokeAppPasswords, revokeUserSessions, toUser } from '../auth/service.js'
 import { markEnrichmentStale } from '../enrichment/stale.js'
 import { queueNewlyPossibleMatching } from '../matching/retry.js'
 import { checkImportSettings } from '../imports/settings.js'
@@ -118,7 +118,11 @@ export async function adminRoutes(app: FastifyInstance) {
         ...(body.password !== undefined && { passwordHash: await hashPassword(body.password) }),
         updatedAt: new Date(),
       }).where(eq(users.id, id)).returning()
-      if (body.password !== undefined || body.disabled) await revokeUserSessions(tx, id)
+      if (body.password !== undefined || body.disabled) {
+        await revokeUserSessions(tx, id)
+        // An app password minted by whoever had the account would survive the reset.
+        await revokeAppPasswords(tx, id)
+      }
       return row!
     })
     // Sockets carry the role and session they connected with; make them reconnect.

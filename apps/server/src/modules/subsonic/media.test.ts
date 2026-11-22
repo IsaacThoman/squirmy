@@ -3,6 +3,8 @@
  * (test/audio.ts), checked with ffprobe.
  */
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { once } from 'node:events'
+import type { Readable } from 'node:stream'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { and, eq } from 'drizzle-orm'
@@ -14,12 +16,14 @@ import { db } from '../../database/client.js'
 import { albums, artists, lyrics, mediaFiles, transcodes } from '../../database/schema.js'
 import { startJobs } from '../../jobs/index.js'
 import { runFfprobe } from '../../lib/ffmpeg.js'
-import { makeTone } from '../../test/audio.js'
+import { makeTone, writeHostileInputs } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { storeImage } from '../artwork/store.js'
 import { createAppPassword } from '../auth/service.js'
 import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.js'
+import { setTranscodeSlotLimit } from '../streaming/transcode.js'
+import { LIVE_ENCODES_PER_USER, liveEncode, planStream } from './transcode.js'
 
 type Probe = { streams: { codec_name: string; sample_rate?: string }[]; format: { duration: string; bit_rate?: string } }
 
@@ -34,11 +38,13 @@ describe('subsonic media', () => {
   let mp3: { id: string; bytes: Buffer }
   let coverId: string
   let artistId: string
+  let userId: string
 
   beforeAll(async () => {
     await startJobs({ work: false })
     app = await buildApp()
     const user = await createUser({ username: 'mira' })
+    userId = user.id
     secret = (await createAppPassword(user.id, 'test')).secret!
     client = subsonicClient(app, { username: 'mira', secret })
 
@@ -151,6 +157,55 @@ describe('subsonic media', () => {
     expect(response.headers['content-length']).toBe(String(expected))
     expect(response.rawPayload.length).toBe(expected)
     expect((await probe(response)).streams[0]!.codec_name).toBe('mp3')
+  })
+
+  it('sends no audio from a file whose content makes ffmpeg read another file', async () => {
+    await makeTone(root, { path: 'hostile/real.flac', durationSec: 2 })
+    await writeHostileInputs(path.join(root, 'hostile'), { target: 'real.flac', url: 'http://127.0.0.1:9' })
+    const [night] = await db.select().from(mediaFiles).where(eq(mediaFiles.relPath, 'Mira Vale/Blue Hour/01 Night.flac'))
+    const album = await createAlbum({ title: 'Hostile', owned: true, rootId: night!.rootId, tracks: [{ title: 'Script' }] })
+    await db.update(mediaFiles).set({ relPath: 'hostile/concat.flac', durationMs: 6000 }).where(eq(mediaFiles.id, album.tracks[0]!.fileId!))
+    const response = await get('stream', { id: `tr-${album.tracks[0]!.recordingId}`, maxBitRate: 96 })
+    expect(response.rawPayload.length).toBe(0)
+  })
+
+  it('counts live encodes against the transcode slots and per user, and gives them back', async () => {
+    // Long enough that an unread encode stalls on the pipe instead of finishing.
+    await makeTone(root, { path: 'long/tone.flac', durationSec: 120 })
+    const [night] = await db.select().from(mediaFiles).where(eq(mediaFiles.relPath, 'Mira Vale/Blue Hour/01 Night.flac'))
+    const album = await createAlbum({ title: 'Long', owned: true, rootId: night!.rootId, tracks: [{ title: 'Long' }] })
+    const [file] = await db.update(mediaFiles).set({ relPath: 'long/tone.flac', durationMs: 120_000 }).where(eq(mediaFiles.id, album.tracks[0]!.fileId!)).returning()
+    const plan = planStream(file!, { maxBitRateKbps: 96 })
+    if (plan.kind !== 'live') throw new Error('expected a live encode')
+    const other = (await createUser({ username: 'noor' })).id
+    const open: Readable[] = []
+    const close = async () => {
+      for (const stream of open.splice(0)) {
+        stream.destroy()
+        await once(stream, 'close')
+      }
+    }
+    try {
+      setTranscodeSlotLimit(2)
+      open.push(await liveEncode(file!, plan, userId), await liveEncode(file!, plan, other))
+      await expect(liveEncode(file!, plan, userId)).rejects.toMatchObject({ status: 503, code: 'transcoder_busy' })
+      const busy = await client.json('stream', { id: `tr-${album.tracks[0]!.recordingId}`, maxBitRate: 96 })
+      expect(busy.error).toMatchObject({ code: 0, message: expect.stringMatching(/try again/) })
+      await close()
+      // The slots came back once the encoders were gone.
+      open.push(await liveEncode(file!, plan, userId), await liveEncode(file!, plan, other))
+      await close()
+
+      setTranscodeSlotLimit(20)
+      for (let count = 0; count < LIVE_ENCODES_PER_USER; count++) open.push(await liveEncode(file!, plan, userId))
+      await expect(liveEncode(file!, plan, userId)).rejects.toMatchObject({ status: 429, code: 'too_many_live_encodes' })
+      open.push(await liveEncode(file!, plan, other))
+      await close()
+      open.push(await liveEncode(file!, plan, userId))
+    } finally {
+      await close()
+      setTranscodeSlotLimit(null)
+    }
   })
 
   it('downloads the original as an attachment', async () => {

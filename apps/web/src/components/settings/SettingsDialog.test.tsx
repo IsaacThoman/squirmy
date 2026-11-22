@@ -38,7 +38,7 @@ function props() {
     onConnectLastFm: vi.fn<SettingsDialogProps['onConnectLastFm']>(),
     onDisconnect: vi.fn<SettingsDialogProps['onDisconnect']>(async () => {}),
     appPasswords,
-    onCreateAppPassword: vi.fn<SettingsDialogProps['onCreateAppPassword']>(async name => ({ ...appPasswords[0], name, secret: 'sq-secret' })),
+    onCreateAppPassword: vi.fn<SettingsDialogProps['onCreateAppPassword']>(async request => ({ ...appPasswords[0], name: request.name, secret: 'sq-secret' })),
     onRevokeAppPassword: vi.fn<SettingsDialogProps['onRevokeAppPassword']>(async () => {}),
     onChangePassword: vi.fn<SettingsDialogProps['onChangePassword']>(async () => {}),
     onLogout: vi.fn<SettingsDialogProps['onLogout']>(),

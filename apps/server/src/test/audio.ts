@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { access, mkdir, rename } from 'node:fs/promises'
+import { access, mkdir, rename, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -124,4 +124,29 @@ export async function makeAlbum(root: string, spec: AlbumSpec): Promise<string[]
     }))
   }
   return paths
+}
+
+/**
+ * Files with an audio name whose content makes ffmpeg reach past them: a concat script
+ * that plays `target` (a plain file name in the same folder: letters, digits, `.`, `-`, `_`), an HLS playlist and a DASH manifest
+ * with segments at `url`, and an SDP description that opens RTP sockets. Returns their paths.
+ */
+export async function writeHostileInputs(directory: string, options: { target: string; url: string }) {
+  const files = {
+    concat: path.join(directory, 'concat.flac'),
+    hls: path.join(directory, 'hls.flac'),
+    dash: path.join(directory, 'dash.flac'),
+    sdp: path.join(directory, 'sdp.flac'),
+  }
+  await mkdir(directory, { recursive: true })
+  await writeFile(files.concat, `ffconcat version 1.0\nfile ${options.target}\n`)
+  await writeFile(files.hls, `#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXTINF:10,\n${options.url}/segment.ts\n#EXT-X-ENDLIST\n`)
+  await writeFile(files.dash, [
+    '<?xml version="1.0"?>',
+    '<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static" mediaPresentationDuration="PT10S">',
+    `<BaseURL>${options.url}/</BaseURL><Period><AdaptationSet mimeType="audio/mp4"><Representation id="a" bandwidth="1000"><BaseURL>a.m4a</BaseURL></Representation></AdaptationSet></Period></MPD>`,
+  ].join('\n'))
+  const host = new URL(options.url).hostname
+  await writeFile(files.sdp, `v=0\no=- 0 0 IN IP4 ${host}\ns=x\nc=IN IP4 ${host}\nt=0 0\nm=audio 9 RTP/AVP 0\n`)
+  return files
 }

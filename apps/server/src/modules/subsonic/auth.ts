@@ -6,36 +6,14 @@
  * - `u` + `t` + `s`: token auth, `t = md5(app password + s)`;
  * - `u` + `p`: the app password in clear or as `enc:` hex.
  *
- * Comparisons are constant time (auth/service.ts). Failures are counted per IP; an IP
- * over the limit is refused without checking until its window ends.
+ * Comparisons are constant time (auth/service.ts). There is no lockout: app passwords are
+ * 144-bit random, so guessing them is hopeless, and checking them is cheap (no argon2). A
+ * lockout per address only let anyone sharing the address, or claiming it, cut off every
+ * app there.
  */
 import type { AuthUser } from '../../lib/auth.js'
 import { findAppPasswordByKey, verifyAppPassword } from '../auth/service.js'
 import { ErrorCode, missingParameter, SubsonicError, type Params } from './protocol.js'
-
-const FAILURE_LIMIT = 10
-const FAILURE_WINDOW_MS = 60_000
-
-const failures = new Map<string, { count: number; resetAt: number }>()
-
-function limited(ip: string, now: number): boolean {
-  const entry = failures.get(ip)
-  return entry !== undefined && entry.resetAt > now && entry.count >= FAILURE_LIMIT
-}
-
-function recordFailure(ip: string, now: number) {
-  if (failures.size > 10_000) {
-    for (const [key, entry] of failures) if (entry.resetAt <= now) failures.delete(key)
-  }
-  const entry = failures.get(ip)
-  if (!entry || entry.resetAt <= now) failures.set(ip, { count: 1, resetAt: now + FAILURE_WINDOW_MS })
-  else entry.count += 1
-}
-
-/** Forgets every failure count. For tests. */
-export function resetAuthFailures() {
-  failures.clear()
-}
 
 function decodePassword(raw: string): string {
   if (!raw.startsWith('enc:')) return raw
@@ -77,13 +55,6 @@ async function check(params: Params): Promise<AuthUser> {
 }
 
 /** The user the request's credentials belong to. Throws a SubsonicError with code 10, 40, 43 or 44. */
-export async function authenticate(params: Params, ip: string): Promise<AuthUser> {
-  const now = Date.now()
-  if (limited(ip, now)) throw new SubsonicError(ErrorCode.wrongCredentials, 'Too many failed attempts; try again in a minute')
-  try {
-    return await check(params)
-  } catch (error) {
-    if (error instanceof SubsonicError && error.code !== ErrorCode.missingParameter) recordFailure(ip, now)
-    throw error
-  }
+export async function authenticate(params: Params): Promise<AuthUser> {
+  return check(params)
 }
