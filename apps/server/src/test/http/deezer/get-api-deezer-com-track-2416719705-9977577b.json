@@ -1,0 +1,59 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/track/2416719705"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 2416719705,
+      "title": "Gotta Have It",
+      "isrc": "USUM71111623",
+      "link": "https://www.deezer.com/track/2416719705",
+      "duration": 140,
+      "track_position": 5,
+      "disk_number": 1,
+      "rank": 412231,
+      "release_date": "2023-08-25",
+      "explicit_lyrics": true,
+      "contributors": [
+        {
+          "id": 1309,
+          "name": "JAŸ-Z",
+          "link": "https://www.deezer.com/artist/1309",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/a59aabd18e84d732ce3b9f6f5c4e5f50/1000x1000-000000-80-0-0.jpg",
+          "type": "artist",
+          "role": "Main"
+        },
+        {
+          "id": 230,
+          "name": "Kanye West",
+          "link": "https://www.deezer.com/artist/230",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/bb76c2ee3b068726ab4c37b0aabdb57a/1000x1000-000000-80-0-0.jpg",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 1309,
+        "name": "JAŸ-Z",
+        "link": "https://www.deezer.com/artist/1309",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/a59aabd18e84d732ce3b9f6f5c4e5f50/1000x1000-000000-80-0-0.jpg",
+        "type": "artist"
+      },
+      "album": {
+        "id": 477673195,
+        "title": "Watch The Throne (Deluxe)",
+        "link": "https://www.deezer.com/album/477673195",
+        "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+        "release_date": "2011-08-12",
+        "type": "album"
+      },
+      "type": "track"
+    }
+  }
+}

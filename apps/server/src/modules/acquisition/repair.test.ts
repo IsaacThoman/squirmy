@@ -473,6 +473,8 @@ describe('repairing deliveries left on albums of their own', () => {
     }
     expect(await fileRow(umpa.file.id)).toMatchObject({ albumId: stub, matchStatus: 'matched', matchSource: 'request' })
     expect(await albumPage(stub)).toMatchObject({ trackCount: 1, ownedTrackCount: 1, availability: 'full' })
+    const filedAt = (await fileRow(umpa.file.id)).relPath
+    expect(filedAt).toMatch(/^_Fetched\/Fcukerrs\/Baggy\$\$/)
 
     await repairDeliveries()
     await drainJobs()
@@ -487,7 +489,7 @@ describe('repairing deliveries left on albums of their own', () => {
     expect(page.discs.flatMap((disc) => disc.tracks.filter((track) => track.availability === 'server').map((track) => track.position))).toEqual([4, 5])
     expect(await db.select().from(releases).where(eq(releases.albumId, ep.albumId))).toHaveLength(1)
     // Filed files are not moved again: it keeps the folder it was filed in under the stub.
-    expect((await fileRow(umpa.file.id)).relPath).toBe('_Fetched/Fcukerrs/Baggy$$/04 UMPA.flac')
+    expect((await fileRow(umpa.file.id)).relPath).toBe(filedAt)
 
     expect(await repairDeliveries()).toMatchObject({ placed: 0 })
   }, 120_000)

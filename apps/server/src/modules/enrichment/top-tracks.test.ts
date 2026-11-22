@@ -10,6 +10,7 @@ import { useHttpFixtures } from '../../test/http.js'
 import { trackSummaries } from '../catalog/summaries.js'
 import { deezer } from '../metadata/index.js'
 import { releaseKey } from '../search/keys.js'
+import { refreshTopTracks } from './artist.js'
 import { deezerTopTrackRow } from './deezer-rows.js'
 import type { ReleaseRow } from './reconcile.js'
 
@@ -82,6 +83,18 @@ describe('Deezer top tracks', () => {
     const before = await db.execute(sql`select count(*)::int as albums from albums`)
     for (const track of top) await deezerTopTrackRow(tate.id, '13817211', track)
     expect(await db.execute(sql`select count(*)::int as albums from albums`)).toEqual(before)
+  })
+
+  it('drop the popularity of songs that left the ranking, so a song is not listed twice', async () => {
+    const [tate] = await db.select({ id: artists.id }).from(artists).where(eq(artists.name, 'Tate McRae'))
+    // A song ranked last time under a Deezer id the ranking no longer uses.
+    const stale = crypto.randomUUID()
+    await db.insert(recordings).values({ id: stale, title: 'exes', artistCredit: 'Tate McRae', primaryArtistId: tate!.id, titleKey: 'exes', matchKey: 'tate mcrae|exes', popularity: 0.9 })
+    expect(await refreshTopTracks(tate!.id)).toBe(true)
+    const [row] = await db.select({ popularity: recordings.popularity }).from(recordings).where(eq(recordings.id, stale))
+    expect(row!.popularity).toBeNull()
+    const ranked = await db.select({ id: recordings.id }).from(recordings).where(sql`${recordings.primaryArtistId} = ${tate!.id} and ${recordings.popularity} is not null`)
+    expect(ranked.length).toBeGreaterThan(15)
   })
 
   it('credit a featured artist to the row of that name instead of a second row', async () => {

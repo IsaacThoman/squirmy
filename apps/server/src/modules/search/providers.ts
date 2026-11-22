@@ -81,13 +81,19 @@ function deezerCredit(artist: { id: number; name: string }): ProviderCredit {
   return { id: String(artist.id), mbid: null, name: artist.name, joinPhrase: '' }
 }
 
+/** Credits joined the way Deezer lists them: "A, B, C". */
+function deezerCredits(artists: readonly { id: number; name: string }[]): ProviderCredit[] {
+  return artists.map((artist, index) => ({ ...deezerCredit(artist), joinPhrase: index < artists.length - 1 ? ', ' : '' }))
+}
+
 function deezerAlbum(album: DeezerAlbumSummary): ProviderAlbum {
+  const artists = deezerCredits(album.artists)
   return {
     id: String(album.id),
     mbid: null,
     title: album.title,
-    artistCredit: album.artist.name,
-    artists: [deezerCredit(album.artist)],
+    artistCredit: artists.map((artist) => artist.name + artist.joinPhrase).join(''),
+    artists,
     type: album.type,
     year: album.releaseDate ? Number(album.releaseDate.slice(0, 4)) : null,
     releaseDate: album.releaseDate,
@@ -96,7 +102,7 @@ function deezerAlbum(album: DeezerAlbumSummary): ProviderAlbum {
 }
 
 function deezerTrack(track: DeezerTrack): ProviderTrack {
-  const artists = track.artists.map((artist, index) => ({ ...deezerCredit(artist), joinPhrase: index < track.artists.length - 1 ? ', ' : '' }))
+  const artists = deezerCredits(track.artists)
   return {
     id: String(track.id),
     mbid: null,

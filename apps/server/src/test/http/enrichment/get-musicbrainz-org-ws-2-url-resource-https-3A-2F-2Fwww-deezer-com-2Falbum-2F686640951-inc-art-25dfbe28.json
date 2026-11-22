@@ -1,0 +1,55 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/url?resource=https%3A%2F%2Fwww.deezer.com%2Falbum%2F686640951&inc=artist-rels+release-rels+release-group-rels+recording-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "resource": "https://www.deezer.com/album/686640951",
+      "id": "5ca19025-2c5e-44ca-b01e-947416274003",
+      "relations": [
+        {
+          "target-type": "release",
+          "attributes": [],
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "attribute-ids": {},
+          "release": {
+            "packaging": null,
+            "status-id": null,
+            "text-representation": {
+              "script": "Latn",
+              "language": "eng"
+            },
+            "barcode": "196871766890",
+            "status": null,
+            "country": null,
+            "release-events": [
+              {
+                "area": null,
+                "date": "2024-12-20"
+              }
+            ],
+            "disambiguation": "",
+            "quality": "normal",
+            "date": "2024-12-20",
+            "id": "4fe782ec-2737-46bf-8744-f089891a8bf3",
+            "packaging-id": null,
+            "title": "SOS Deluxe: LANA"
+          },
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "direction": "backward",
+          "target-credit": "",
+          "type": "free streaming",
+          "begin": null,
+          "attribute-values": {}
+        }
+      ]
+    }
+  }
+}
