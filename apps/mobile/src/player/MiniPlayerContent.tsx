@@ -1,10 +1,13 @@
 import type { ComponentRef, Ref } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { usePlaybackState, usePosition } from '../playback';
+import { useCurrentDurationMs, usePlaybackState, usePositionEvery } from '../playback';
 import { Cover, Icon } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import { createThemedStyles, useColors } from '../theme';
+import { usePlayerShown } from './visibility';
+
+const progressIntervalMs = 1000;
 
 type BubbleView = ComponentRef<typeof View>;
 type Appearance = { compact?: boolean; native?: boolean };
@@ -19,8 +22,9 @@ export type MiniPlayerContentProps = Appearance & {
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
   const colors = useColors();
   const styles = useStyles();
-  const { track, output, session, actions, preparing, remote } = usePlaybackState();
-  const title = track?.title ?? 'Not Playing';
+  const { current, track, output, session, actions, preparing, remote } = usePlaybackState();
+  // Until the current song's details load, say nothing rather than claim nothing is playing.
+  const title = track?.title ?? (current ? '' : 'Not Playing');
   const subtitle = preparing ? 'Preparing…' : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
@@ -48,23 +52,27 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
         </Pressable>
         {!compact && <Pressable accessibilityRole="button" accessibilityLabel={`Playback device, ${output.name}`}
           style={styles.control} onPress={onDevices}>
-          <Icon name="airplay.audio" size={21} color={colors.accent} />
+          <Icon name="laptopcomputer.and.iphone" size={21} color={colors.accent} />
         </Pressable>}
         <Pressable accessibilityRole="button" accessibilityLabel={session.playing ? 'Pause' : 'Play'}
           onPress={preview ? undefined : actions.playPause} style={styles.control}>
           <Icon name={session.playing ? 'pause.fill' : 'play.fill'} size={23} />
         </Pressable>
-        {!compact && <Progress />}
+        {!compact && <Progress preview={preview} />}
       </Animated.View>
     </View>
   );
 }
 
-/** The only part of the bubble that follows the playback clock, so each tick redraws just this. */
-function Progress() {
+/**
+ * The only part of the bubble that follows the playback clock, so each tick redraws just this.
+ * A thin bar moves about a point a second, so it reads the clock once a second, and only
+ * while it can be seen: the bubble's own while Now Playing is away, the preview's while it is up.
+ */
+function Progress({ preview }: { preview: boolean }) {
   const styles = useStyles();
-  const { durationMs } = usePlaybackState();
-  const position = usePosition();
+  const durationMs = useCurrentDurationMs();
+  const position = usePositionEvery(progressIntervalMs, usePlayerShown() === preview);
   const fraction = durationMs > 0 ? Math.min(1, position / durationMs) : 0;
   return (
     <View style={styles.progress} pointerEvents="none">

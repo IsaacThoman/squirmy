@@ -119,9 +119,58 @@ jobs:
         run: |
           docker exec squirmy ffmpeg -version | head -1
           docker exec squirmy fpcalc -version
-          # Built without SQUIRMY_VERSION and without git, the image reports "dev".
+          # Built without SQUIRMY_VERSION, SOURCE_COMMIT and git, the image reports "dev".
           curl --silent --fail http://127.0.0.1:4747/api/v1/setup/status | tee /dev/stderr | grep -q '"version":"dev"'
           curl --silent --fail http://127.0.0.1:4747/ | grep -qi "<!doctype html"
+
+      - name: Wait for the health check
+        run: |
+          for attempt in $(seq 1 60); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' squirmy)
+            if [ "$status" = healthy ]; then exit 0; fi
+            sleep 1
+          done
+          echo "Health status: $status"
+          docker inspect --format '{{json .State.Health}}' squirmy
+          exit 1
+
+      # A source build such as Coolify's passes the commit it was built from.
+      - name: Build the image with the source commit
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          load: true
+          tags: squirmy:ci-commit
+          build-args: SOURCE_COMMIT=${{ github.sha }}
+          cache-from: type=gha
+
+      - name: Check that it reports the commit
+        run: |
+          docker rm -f squirmy
+          docker run -d --name squirmy --network squirmy-ci -p 4747:4747 -e DATABASE_URL=postgres://squirmy:squirmy@postgres:5432/squirmy squirmy:ci-commit
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:4747/ready; then break; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:4747/api/v1/setup/status | tee /dev/stderr | grep -q "\"version\":\"dev+${GITHUB_SHA::7}\""
+
+  # Coolify deploys every push to main without waiting for this workflow, so a red main is
+  # already running on the test environment. Say so where the owner gets notified.
+  deployed-red:
+    name: Report a failing main
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [checks, test, image]
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "CI failed on main at ${GITHUB_SHA::7}, which the test environment already runs" \
+            --body "CI failed for ${GITHUB_SHA} on main: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Coolify deploys main on push, so this commit is live on the test environment. Fix it on dev and promote again, or revert the merge on main (see the Git section of docs/architecture.md)."
 
   release:
     name: Semantic release
@@ -139,7 +188,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: main
+          # The commit this run tested. If main has moved on meanwhile, semantic-release sees
+          # the local commit is behind and publishes nothing; the newer push's run releases
+          # once its own checks pass.
+          ref: ${{ github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -155,10 +207,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          # main can advance while this run waits for the concurrency lock.
-          git pull --ff-only origin main
-          npm run release
+        run: npm run release
 
   publish:
     name: Publish image
@@ -194,6 +243,12 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: SQUIRMY_VERSION=${{ needs.release.outputs.version }}
+          # Links the package page to the repository and states what the image is.
+          labels: |
+            org.opencontainers.image.source=https://github.com/IsaacThoman/squirmy
+            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=GPL-3.0-or-later
           tags: |
             ghcr.io/isaacthoman/squirmy:${{ needs.release.outputs.version }}
             ghcr.io/isaacthoman/squirmy:latest

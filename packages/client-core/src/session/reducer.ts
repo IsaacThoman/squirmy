@@ -1,4 +1,5 @@
 import {
+  QUEUE_LIMIT,
   type QueueEntry,
   type QueueSeed,
   ServerSessionCommand,
@@ -107,10 +108,20 @@ export function randomSeed(): number {
  */
 export function reduceSession(session: Session, input: SessionInput): Session {
   const parsed = AnyCommand.safeParse(input.command)
-  if (!parsed.success || !Number.isFinite(input.now)) return session
+  if (!parsed.success) return session
+  return reduceParsedSession(session, { ...input, command: parsed.data })
+}
+
+/**
+ * `reduceSession` for a command that was already validated. A client replays its unsent
+ * commands on every update; validating a 5,000-track `playTracks` each time is what made
+ * that slow.
+ */
+export function reduceParsedSession(session: Session, input: SessionInput): Session {
+  if (!Number.isFinite(input.now)) return session
   let serial = 0
   const context: Context = { now: input.now, deviceId: input.deviceId, nextId: () => `${input.commandId}.${(serial++).toString(36)}` }
-  const next = apply(session, parsed.data, context)
+  const next = apply(session, input.command, context)
   if (next !== session && next.playing && next.activeDeviceId === null && input.deviceId) {
     return { ...next, activeDeviceId: input.deviceId }
   }
@@ -164,10 +175,15 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
         shuffle,
         playOrder: shuffle ? entries.filter(entry => upcomingIds.has(entry.id)).map(entry => entry.id) : [],
         playedInCycle: [],
+        // Suggestions follow what plays: those made for the old queue would come back
+        // after the new one, often repeating its tracks. The server suggests afresh.
+        autoplayQueue: s.autoplayQueue.length ? [] : s.autoplayQueue,
         context: command.context ?? null,
       }
     }
     case 'enqueue': {
+      // Refused whole rather than cut short, so the client and the server agree on it.
+      if (s.queue.length + command.tracks.length > QUEUE_LIMIT) return s
       const entries = command.tracks.map(seed => toEntry(seed, context.nextId()))
       const ids = entries.map(entry => entry.id)
       const first = command.placement === 'next'
@@ -221,7 +237,7 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
       return setEntryState(s, command.trackId, command.state, context)
     case 'setAutoplayQueue': {
       if (!command.tracks.length && !s.autoplayQueue.length) return s
-      return { ...s, autoplayQueue: command.tracks.map(seed => toEntry(seed, context.nextId())) }
+      return { ...s, autoplayQueue: command.tracks.slice(0, QUEUE_LIMIT).map(seed => toEntry(seed, context.nextId())) }
     }
     case 'deviceLost':
       if (s.activeDeviceId !== command.deviceId) return s

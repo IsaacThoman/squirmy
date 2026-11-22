@@ -8,7 +8,6 @@ import * as deezer from './deezer.js'
 const radiohead = 399
 const okComputer = 14879699
 const airbag = 138539971
-const uptownFunk = 92734438
 
 describe('deezer', () => {
   useTestDatabase()
@@ -38,12 +37,6 @@ describe('deezer', () => {
     expect(album!.tracks[0]).toMatchObject({ id: airbag, title: 'Airbag', discNumber: 1, trackNumber: 1, isrc: 'GBAYE9701274', album: { id: okComputer } })
   })
 
-  it('gets a track with ISRC and featured artists', async () => {
-    expect(await deezer.getTrack(airbag)).toMatchObject({ title: 'Airbag', isrc: 'GBAYE9701274', durationMs: 287_000 })
-    const funk = await deezer.getTrack(uptownFunk)
-    expect(funk!.artists.map((artist) => artist.name)).toEqual(['Mark Ronson', 'Bruno Mars'])
-  })
-
   it('gets an artist with top tracks, related artists and albums', async () => {
     expect(await deezer.getArtist(radiohead)).toMatchObject({ name: 'Radiohead' })
     const top = await deezer.getArtistTopTracks(radiohead, { limit: 5 })
@@ -68,7 +61,6 @@ describe('deezer', () => {
 
   it('returns null for Deezer "no data" errors', async () => {
     expect(await deezer.getAlbum(999999999999)).toBeNull()
-    expect(await deezer.getTrack(999999999999)).toBeNull()
   })
 
   it('retries quota errors and surfaces other API errors', async () => {
@@ -83,6 +75,10 @@ describe('deezer', () => {
 
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: { type: 'ParameterException', message: 'Wrong parameter', code: 500 } }), { headers: { 'content-type': 'application/json' } }))
     await expect(deezer.getArtist(2)).rejects.toBeInstanceOf(ProviderError)
+
+    // An error is not an answer: once Deezer is back, the next call gets the artist.
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ id: 2, name: 'Back' }), { headers: { 'content-type': 'application/json' } }))
+    expect(await deezer.getArtist(2)).toMatchObject({ name: 'Back' })
   })
 
   it('follows next links to collect every page', async () => {

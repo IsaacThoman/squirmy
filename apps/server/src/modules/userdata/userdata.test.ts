@@ -1,19 +1,21 @@
 import {
-  AlbumDetail, AlbumPage, ArtistPage, HistoryPage, Ok, PlaylistDetail, PlaylistPage, PlaylistSummary, queryKeys, TrackPage, TrackSummary, UserSettings, WantPage,
+  AlbumDetail, AlbumPage, ArtistPage, HistoryPage, Ok, PLAYLIST_ITEM_LIMIT, PLAYLIST_LIMIT, PlaylistDetail, PlaylistPage, PlaylistSummary, queryKeys, TrackPage,
+  TrackSummary, UserSettings, WantPage,
 } from '@squirmy/contracts'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, playlistItems, recordings, users, wants } from '../../database/schema.js'
+import { albums, assets, playlistItems, playlists, ratings, recordings, users, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
+import { updateServerSettings } from '../../lib/settings.js'
 import { invalidate } from '../../realtime/index.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createFile, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
-import { createAlbum } from '../../test/factories.js'
-import { getRatings, setRating } from './likes.js'
+import { createAlbum, createLibraryRoot } from '../../test/factories.js'
+import { setRating } from './likes.js'
 import { refreshWants } from './wants.js'
 
 vi.mock('../../realtime/index.js', async (importOriginal) => ({
@@ -81,11 +83,33 @@ describe('userdata', () => {
       const [target, keys] = invalidated.mock.calls[0]!
       expect(target).toEqual({ user: mira.id })
       expect(keys).toEqual(expect.arrayContaining([
-        queryKeys.likes(), queryKeys.track(track), queryKeys.album(album.albumId), queryKeys.artist(album.artist.id), queryKeys.playlists(), queryKeys.history(),
+        queryKeys.likes(), queryKeys.track(track), queryKeys.album(album.albumId), queryKeys.artist(album.artist.id), queryKeys.history(),
+        // Songs lists and search results show the heart too.
+        queryKeys.libraryTracks(), queryKeys.search(),
       ]))
+      // The playlists list shows no hearts: only playlists holding the track are refreshed.
+      expect(keys).not.toContainEqual(queryKeys.playlists())
+      const holding = body(await call(mira, { method: 'POST', url: '/playlists', payload: { name: 'Holding' } }), PlaylistSummary, 201)
+      await call(mira, { method: 'POST', url: `/playlists/${holding.id}/items`, payload: { tracks: [{ trackId: track }] } })
+      const other = body(await call(lune, { method: 'POST', url: '/playlists', payload: { name: 'Private elsewhere' } }), PlaylistSummary, 201)
+      await call(lune, { method: 'POST', url: `/playlists/${other.id}/items`, payload: { tracks: [{ trackId: track }] } })
+      invalidated.mockClear()
+      await call(mira, { method: 'DELETE', url: `/me/likes/track/${track}` })
+      const [, unliked] = invalidated.mock.calls[0]!
+      expect(unliked).toContainEqual(queryKeys.playlist(holding.id))
+      expect(unliked).not.toContainEqual(queryKeys.playlist(other.id))
       invalidated.mockClear()
       await call(mira, { method: 'PUT', url: `/me/likes/album/${album.albumId}` })
       expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.likes(), queryKeys.home(), queryKeys.album(album.albumId)])
+    })
+
+    it('refreshes the album a liked bonus track is filed under', async () => {
+      const album = await createAlbum({ owned: true })
+      // A recording the album's release does not list, owned through a file filed under the album.
+      const bonus = (await createAlbum({ tracks: [{ title: 'Hidden Track' }] })).tracks[0]!.recordingId
+      await createFile({ rootId: (await createLibraryRoot()).id, recordingId: bonus, albumId: album.albumId })
+      await call(mira, { method: 'PUT', url: `/me/likes/track/${bonus}` })
+      expect(invalidated.mock.calls[0]![1]).toEqual(expect.arrayContaining([queryKeys.album(album.albumId)]))
     })
 
     it('stores likes against the surviving row of a merge', async () => {
@@ -105,16 +129,20 @@ describe('userdata', () => {
       expect(errorCode(await app.inject({ url: '/api/v1/me/likes/track' }), 401)).toBe('unauthorized')
     })
 
+    // The app reads ratings in Subsonic's queries only; this reads what setRating stored.
+    const trackRatings = async (userId: string, ids: string[]) => new Map((await db.select({ id: ratings.entityId, rating: ratings.rating }).from(ratings)
+      .where(and(eq(ratings.userId, userId), eq(ratings.entityType, 'recording'), inArray(ratings.entityId, ids)))).map((row) => [row.id, row.rating]))
+
     it('sets and reads ratings', async () => {
       const album = await createAlbum()
       const track = album.tracks[0]!.recordingId
       await setRating(mira.id, 'track', track, 4)
       await setRating(mira.id, 'track', track, 5)
       await setRating(mira.id, 'album', album.albumId, 2)
-      expect(await getRatings(mira.id, 'track', [track, album.tracks[1]!.recordingId])).toEqual(new Map([[track, 5]]))
-      expect(await getRatings(lune.id, 'track', [track])).toEqual(new Map())
+      expect(await trackRatings(mira.id, [track, album.tracks[1]!.recordingId])).toEqual(new Map([[track, 5]]))
+      expect(await trackRatings(lune.id, [track])).toEqual(new Map())
       await setRating(mira.id, 'track', track, 0)
-      expect(await getRatings(mira.id, 'track', [track])).toEqual(new Map())
+      expect(await trackRatings(mira.id, [track])).toEqual(new Map())
       await expect(setRating(mira.id, 'track', track, 6)).rejects.toMatchObject({ code: 'invalid_rating' })
       await expect(setRating(mira.id, 'artist', newId(), 3)).rejects.toMatchObject({ code: 'artist_not_found' })
     })
@@ -131,8 +159,10 @@ describe('userdata', () => {
       const mine = await create(mira, { name: 'Morning', description: 'Slow start' })
       expect(mine).toMatchObject({ name: 'Morning', description: 'Slow start', ownerId: mira.id, ownerName: 'mira', isPublic: false, trackCount: 0, durationMs: 0, artworks: [] })
       expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.playlists(), queryKeys.home()])
+      invalidated.mockClear()
       const shared = await create(lune, { name: 'Shared', isPublic: true })
-      expect(invalidated).toHaveBeenCalledWith('all', [queryKeys.playlists()])
+      // Everyone refreshes the list once, the owner included (they are in 'all' too).
+      expect(invalidated.mock.calls).toEqual([[[{ user: lune.id }, 'all'], [queryKeys.playlists()]], [{ user: lune.id }, [queryKeys.home()]]])
       const secret = await create(lune, { name: 'Secret' })
 
       const visible = body(await call(mira, { url: '/playlists' }), PlaylistPage).items.map((playlist) => playlist.name)
@@ -201,10 +231,28 @@ describe('userdata', () => {
         await db.update(albums).set({ artworkAssetId: cover.id }).where(eq(albums.id, album.albumId))
         made.push({ album, cover })
       }
+      // An album without a cover is passed over.
+      const bare = await createAlbum({ tracks: [{ title: 'Bare' }] })
       const playlist = await create(mira, { name: 'Covers' })
       const order = [0, 0, 1, 1, 2, 3, 4].map((index, position) => ({ trackId: made[index]!.album.tracks[position % 2]!.recordingId }))
+      order.splice(1, 0, { trackId: bare.tracks[0]!.recordingId })
       const detail = body(await add(mira, playlist.id, { tracks: order }), PlaylistDetail)
       expect(detail.artworks.map((art) => art.id)).toEqual(made.slice(0, 4).map((entry) => entry.cover.id))
+    })
+
+    it('leaves out covers the art route cannot serve, taking the next album instead', async () => {
+      const made: { album: Awaited<ReturnType<typeof createAlbum>>; cover: Awaited<ReturnType<typeof createAsset>> }[] = []
+      for (let index = 0; index < 3; index++) {
+        const album = await createAlbum({ tracks: [{ title: 'A' }] })
+        const cover = await createAsset()
+        await db.update(albums).set({ artworkAssetId: cover.id }).where(eq(albums.id, album.albumId))
+        made.push({ album, cover })
+      }
+      await db.update(assets).set({ status: 'missing' }).where(eq(assets.id, made[0]!.cover.id))
+      await db.update(assets).set({ status: 'failed', checkedAt: new Date() }).where(eq(assets.id, made[1]!.cover.id))
+      const playlist = await create(mira, { name: 'Broken covers' })
+      const detail = body(await add(mira, playlist.id, { tracks: made.map((entry) => ({ trackId: entry.album.tracks[0]!.recordingId })) }), PlaylistDetail)
+      expect(detail.artworks.map((art) => art.id)).toEqual([made[2]!.cover.id])
     })
 
     it('keeps positions dense under concurrent adds, moves and removals', async () => {
@@ -224,6 +272,35 @@ describe('userdata', () => {
       ])
       expect(results.every((response) => response.statusCode === 200)).toBe(true)
       expect(await positions(playlist.id)).toEqual(Array.from({ length: 17 }, (_, index) => index))
+    })
+
+    it('refuses playlists past PLAYLIST_LIMIT per user, even when created at once', async () => {
+      const ren = await signIn({ username: 'ren' })
+      await db.insert(playlists).values(Array.from({ length: PLAYLIST_LIMIT - 3 }, (_, index) => ({ id: newId(), ownerId: ren.id, name: `P${index}` })))
+      const results = await Promise.all(Array.from({ length: 6 }, (_, index) => call(ren, { method: 'POST', url: '/playlists', payload: { name: `Q${index}` } })))
+      expect(results.map((response) => response.statusCode).sort()).toEqual([201, 201, 201, 409, 409, 409])
+      expect(errorCode(results.find((response) => response.statusCode === 409)!, 409)).toBe('too_many_playlists')
+      expect(await db.$count(playlists, eq(playlists.ownerId, ren.id))).toBe(PLAYLIST_LIMIT)
+      // Other users are unaffected, and deleting one makes room.
+      await create(lune, { name: 'Still fine' })
+      const [first] = await db.select({ id: playlists.id }).from(playlists).where(eq(playlists.ownerId, ren.id)).limit(1)
+      body(await call(ren, { method: 'DELETE', url: `/playlists/${first!.id}` }), Ok)
+      await create(ren, { name: 'Room again' })
+    })
+
+    it('refuses to add items past PLAYLIST_ITEM_LIMIT, changing nothing', async () => {
+      const album = await createAlbum({ owned: true })
+      const [a, b] = album.tracks.map((track) => track.recordingId)
+      const playlist = await create(mira, { name: 'Full' })
+      const rows = Array.from({ length: PLAYLIST_ITEM_LIMIT - 1 }, (_, position) => ({ id: newId(), playlistId: playlist.id, position, recordingId: a! }))
+      for (let start = 0; start < rows.length; start += 2000) await db.insert(playlistItems).values(rows.slice(start, start + 2000))
+
+      expect(errorCode(await add(mira, playlist.id, { tracks: [{ trackId: b }, { trackId: b }] }), 409)).toBe('playlist_full')
+      expect(await db.$count(playlistItems, eq(playlistItems.playlistId, playlist.id))).toBe(PLAYLIST_ITEM_LIMIT - 1)
+      // Duplicates that are skipped do not count.
+      body(await add(mira, playlist.id, { tracks: [{ trackId: a }, { trackId: b }], skipDuplicates: true }), PlaylistDetail)
+      expect(errorCode(await add(mira, playlist.id, { tracks: [{ trackId: b }] }), 409)).toBe('playlist_full')
+      expect(await positions(playlist.id)).toEqual(Array.from({ length: PLAYLIST_ITEM_LIMIT }, (_, index) => index))
     })
   })
 
@@ -259,6 +336,32 @@ describe('userdata', () => {
     const wantsOf = async (who: typeof mira, query = '') => body(await call(who, { url: `/me/wants${query}` }), WantPage)
     const describeItem = (item: WantPage['items'][number]) =>
       item.type === 'album' ? ['album', item.album.id, item.fulfilledAt !== null] : ['track', item.track.id, item.fulfilledAt !== null]
+
+    beforeAll(async () => {
+      await updateServerSettings({ wantlistEnabled: true })
+    })
+
+    it('reads as empty and refuses changes while switched off, keeping what is stored', async () => {
+      const wanter = await signIn()
+      const album = await createAlbum()
+      const other = await createAlbum()
+      body(await call(wanter, { method: 'PUT', url: `/me/wants/album/${album.albumId}` }), Ok)
+
+      await updateServerSettings({ wantlistEnabled: false })
+      try {
+        expect(await wantsOf(wanter)).toEqual({ items: [], nextCursor: null })
+        expect(body(await call(wanter, { url: `/albums/${album.albumId}` }), AlbumDetail).wanted).toBe(false)
+        expect(errorCode(await call(wanter, { method: 'PUT', url: `/me/wants/album/${other.albumId}` }), 404)).toBe('wantlist_disabled')
+        expect(errorCode(await call(wanter, { method: 'DELETE', url: `/me/wants/album/${album.albumId}` }), 404)).toBe('wantlist_disabled')
+        // The import pipeline keeps refreshing wants either way.
+        await refreshWants()
+        expect(await db.select({ entityId: wants.entityId }).from(wants).where(eq(wants.userId, wanter.id))).toEqual([{ entityId: album.albumId }])
+      } finally {
+        await updateServerSettings({ wantlistEnabled: true })
+      }
+      expect((await wantsOf(wanter)).items.map(describeItem)).toEqual([['album', album.albumId, false]])
+      expect(body(await call(wanter, { url: `/albums/${album.albumId}` }), AlbumDetail).wanted).toBe(true)
+    })
 
     it('lists wants newest first and marks them fulfilled once imports cover them', async () => {
       const wanter = await signIn()
@@ -336,6 +439,14 @@ describe('userdata', () => {
       body(await call(person, { method: 'PATCH', url: '/me/settings', payload: { secrets: 'nope' } }), UserSettings)
       const [after] = await db.select({ settings: users.settings }).from(users).where(eq(users.id, person.id))
       expect((after!.settings as { secrets: unknown }).secrets).toEqual({ lastFm: 'cipher' })
+    })
+
+    it('refreshes the scrobbling status when a service is switched', async () => {
+      const person = await signIn()
+      invalidated.mockClear()
+      body(await call(person, { method: 'PATCH', url: '/me/settings', payload: { scrobbleLastFm: true } }), UserSettings)
+      // The status reports each service's switch, and other devices show it.
+      expect(invalidated).toHaveBeenCalledWith({ user: person.id }, [queryKeys.settings(), queryKeys.scrobbling()])
     })
   })
 })

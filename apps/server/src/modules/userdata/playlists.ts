@@ -6,20 +6,22 @@
  * playlist row first, so concurrent adds, moves and removals serialize.
  */
 import {
-  queryKeys,
+  PLAYLIST_ITEM_LIMIT, PLAYLIST_LIMIT, queryKeys,
   type CreatePlaylistRequest, type PageQuery, type PlaylistDetail, type PlaylistPage, type PlaylistSummary, type UpdatePlaylistRequest,
 } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import { playlistItems, playlists } from '../../database/schema.js'
-import { badRequest, forbidden, notFound } from '../../lib/errors.js'
+import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
 import { invalidate } from '../../realtime/index.js'
 import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pagination.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
-import { alignedTrackSummaries } from '../catalog/summaries.js'
+import { alignedTrackSummaries, servable } from '../catalog/summaries.js'
 
 const playlistNotFound = () => notFound('No such playlist', 'playlist_not_found')
+/** Thrown by every path that would grow a playlist past `PLAYLIST_ITEM_LIMIT`. */
+export const playlistFull = () => conflict(`A playlist holds at most ${PLAYLIST_ITEM_LIMIT.toLocaleString('en')} tracks`, 'playlist_full')
 
 /** Summaries of playlists in input order, leaving out ids that do not exist. Does not check access. */
 export async function playlistSummaries(ids: readonly string[]): Promise<PlaylistSummary[]> {
@@ -37,11 +39,19 @@ export async function playlistSummaries(ids: readonly string[]): Promise<Playlis
     cross join lateral (
       select coalesce(json_agg(json_build_object('id', c.id, 'color', c.color, 'thumbhash', c.thumbhash) order by c.first), '[]'::json) as artworks
       from (
-        select art.id, art.color, art.thumbhash, min(i.position) as first
-        from playlist_items i join albums al on al.id = i.album_id join assets art on art.id = al.artwork_asset_id
-        where i.playlist_id = p.id
-        group by al.id, art.id
-        order by first limit 4
+        -- Albums in order of first appearance, then their covers one by one until four are
+        -- found: the lateral join keeps Postgres from joining every item to its album.
+        select art.id, art.color, art.thumbhash, firsts.first
+        from (
+          select i.album_id, min(i.position) as first from playlist_items i
+          where i.playlist_id = p.id and i.album_id is not null
+          group by i.album_id order by first
+        ) firsts
+        cross join lateral (
+          select art.id, art.color, art.thumbhash from albums al join assets art on art.id = al.artwork_asset_id and ${servable('art')}
+          where al.id = firsts.album_id
+        ) art
+        order by firsts.first limit 4
       ) c
     ) covers
     where p.id = any(${uuidArray([...new Set(ids)])})`)
@@ -105,21 +115,35 @@ async function touch(tx: Transaction, id: string) {
 
 /** Refreshes the owner's devices, and everyone's playlist lists when the playlist is or was public. */
 async function invalidatePlaylist(ownerId: string, isPublic: boolean) {
-  await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.home()])
-  if (isPublic) await invalidate('all', [queryKeys.playlists()])
+  if (!isPublic) {
+    await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.home()])
+    return
+  }
+  // One target list reaches each socket once; the owner is in 'all' as well and would
+  // otherwise refetch the playlists twice.
+  await invalidate([{ user: ownerId }, 'all'], [queryKeys.playlists()])
+  await invalidate({ user: ownerId }, [queryKeys.home()])
 }
 
-/** Creates an empty playlist owned by the user. */
+/** Creates an empty playlist owned by the user, who may own at most `PLAYLIST_LIMIT`. */
 export async function createPlaylist(userId: string, input: CreatePlaylistRequest): Promise<PlaylistSummary> {
-  const [row] = await db.insert(playlists).values({
-    id: newId(),
-    ownerId: userId,
-    name: input.name,
-    description: input.description ?? null,
-    isPublic: input.isPublic ?? false,
-  }).returning()
-  await invalidatePlaylist(userId, row!.isPublic)
-  return (await playlistSummaries([row!.id]))[0]!
+  const row = await db.transaction(async (tx) => {
+    // One user's creates take turns, so concurrent ones cannot all pass the count.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`squirmy:playlists:${userId}`}, 0))`)
+    if (await tx.$count(playlists, eq(playlists.ownerId, userId)) >= PLAYLIST_LIMIT) {
+      throw conflict(`You can have at most ${PLAYLIST_LIMIT.toLocaleString('en')} playlists`, 'too_many_playlists')
+    }
+    const [row] = await tx.insert(playlists).values({
+      id: newId(),
+      ownerId: userId,
+      name: input.name,
+      description: input.description ?? null,
+      isPublic: input.isPublic ?? false,
+    }).returning()
+    return row!
+  })
+  await invalidatePlaylist(userId, row.isPublic)
+  return (await playlistSummaries([row.id]))[0]!
 }
 
 /** Renames, re-describes or publishes a playlist. Owner only. */
@@ -152,7 +176,8 @@ export async function deletePlaylist(userId: string, id: string): Promise<void> 
  * Appends tracks in request order. Unknown track ids fail the whole request with
  * `track_not_found`. Each item remembers the album it was added from: the one given, or
  * the album its summary would show. With `skipDuplicates`, tracks already in the
- * playlist or repeated in the request are left out. Owner only.
+ * playlist or repeated in the request are left out. Fails with `playlist_full` when the
+ * playlist would hold more than `PLAYLIST_ITEM_LIMIT`. Owner only.
  */
 export async function addPlaylistItems(
   userId: string,
@@ -162,6 +187,7 @@ export async function addPlaylistItems(
 ): Promise<PlaylistDetail> {
   // Permission first, so a caller learns nothing about tracks from a playlist they cannot change.
   checkOwner(userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0])
+  if (tracks.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
   const summaries = await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.trackId, albumId: track.albumId })))
   const unknown = tracks.filter((_, index) => !summaries[index]).map((track) => track.trackId)
   if (unknown.length > 0) throw badRequest('Some tracks do not exist', 'track_not_found', { ids: unknown })
@@ -176,6 +202,7 @@ export async function addPlaylistItems(
       return [{ recordingId: summary.id, albumId: summary.album?.id ?? null }]
     })
     const start = present.length
+    if (start + rows.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
     if (rows.length > 0) {
       await tx.insert(playlistItems).values(rows.map((row, index) => ({
         id: newId(), playlistId: id, position: start + index, recordingId: row.recordingId, albumId: row.albumId, addedBy: userId,
@@ -238,10 +265,12 @@ export type PlaylistItemSlot = { itemId: string } | { trackId: string; albumId?:
  * Replaces the playlist's items with `slots`, in order. A slot with `itemId` keeps that
  * item (and when it was added); one with `trackId` adds a track as `addPlaylistItems`
  * would. Items not named are removed. Unknown tracks fail with `track_not_found`, items
- * of another playlist with `playlist_item_not_found`. Owner only.
+ * of another playlist with `playlist_item_not_found`, more than `PLAYLIST_ITEM_LIMIT`
+ * slots with `playlist_full`. Owner only.
  */
 export async function replacePlaylistItems(userId: string, id: string, slots: readonly PlaylistItemSlot[]): Promise<void> {
   checkOwner(userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0])
+  if (slots.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
   const added = slots.flatMap((slot) => 'trackId' in slot ? [slot] : [])
   const summaries = await alignedTrackSummaries(userId, added.map((slot) => ({ id: slot.trackId, albumId: slot.albumId })))
   const unknown = added.filter((_, index) => !summaries[index]).map((slot) => slot.trackId)

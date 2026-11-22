@@ -49,7 +49,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /data /music && chown node:node /data
 WORKDIR /app
-# Release builds pass the version; without it the server reports "dev".
+# Release builds pass the version; without it the server reports "dev", or dev+<commit>
+# when SOURCE_COMMIT is set (below).
 ARG SQUIRMY_VERSION=
 ENV NODE_ENV=production \
     SQUIRMY_VERSION=${SQUIRMY_VERSION} \
@@ -67,10 +68,19 @@ COPY --from=build /app/apps/server/package.json apps/server/package.json
 COPY --from=build /app/apps/server/dist apps/server/dist
 COPY --from=build /app/apps/server/drizzle apps/server/drizzle
 COPY --from=build /app/apps/web/dist apps/web/dist
+# A source build can pass the commit it was built from (Coolify does with "Include Source
+# Commit in Build"; by hand: --build-arg SOURCE_COMMIT=$(git rev-parse HEAD)). Without
+# SQUIRMY_VERSION the server then reports dev+<short commit>. Coolify also sets SOURCE_COMMIT
+# at run time, which overrides this. Declared last so a new commit rebuilds no other layer.
+ARG SOURCE_COMMIT=
+ENV SOURCE_COMMIT=${SOURCE_COMMIT}
 USER node
 VOLUME /data
 EXPOSE 4747
-HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
-  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 4747) + '/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+# Healthy once migrations have run, the server listens and the database answers. Checked every
+# 2 s while it starts (Docker 25 and later), since proxies such as Traefik route to it only once
+# it is healthy, then every 15 s.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --start-interval=2s --retries=4 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 4747) + '/ready').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 ENTRYPOINT ["tini", "--"]
 CMD ["node", "apps/server/dist/index.js"]

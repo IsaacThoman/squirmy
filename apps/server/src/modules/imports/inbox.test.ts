@@ -1,5 +1,5 @@
 import { appendFile, chmod, mkdir, mkdtemp, readdir, readFile, realpath, rename, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { eq } from 'drizzle-orm'
@@ -14,7 +14,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { insertRoot } from '../library/roots.js'
 import { startInbox, stopInbox } from './inbox.js'
 import { SET_ASIDE_FOLDER } from './service.js'
-import { checkImportSettings, checkInboxPath } from './settings.js'
+import { checkImportSettings, checkInboxPath, isSystemFolder } from './settings.js'
 
 const tree = async (dir: string) => (await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => []))
   .filter((entry) => !entry.isDirectory()).map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)).split(path.sep).join('/')).sort()
@@ -41,7 +41,10 @@ describe('inbox', () => {
 
   beforeAll(async () => {
     await startJobs({ work: false })
-    library = await realpath(await mkdtemp(path.join(tmpdir(), 'squirmy-inbox-root-')))
+    // In a folder of its own, so the folder around it is never the platform's temp folder
+    // (/tmp on Linux), which is refused as a system folder before any overlap is checked.
+    library = path.join(await realpath(await mkdtemp(path.join(tmpdir(), 'squirmy-inbox-root-'))), 'library')
+    await mkdir(library)
     const root = await insertRoot({ name: 'Library', path: library, mode: 'managed', watch: false })
     inbox = await realpath(await mkdtemp(path.join(tmpdir(), 'squirmy-inbox-')))
     await updateServerSettings({ importRootId: root.id, inboxPath: inbox })
@@ -63,6 +66,20 @@ describe('inbox', () => {
     await expect(checkInboxPath('relative/inbox')).rejects.toMatchObject({ code: 'relative_path' })
     await expect(checkInboxPath(path.join(inbox, 'missing'))).rejects.toMatchObject({ code: 'inbox_not_found' })
     expect(await checkImportSettings({ inboxPath: `${inbox}/` })).toEqual({ inboxPath: inbox })
+    // A folder in the platform's temp folder is a fine inbox.
+    expect(await checkInboxPath(inbox)).toBe(inbox)
+  })
+
+  it('refuses the file system root, the home folder and system folders', async () => {
+    for (const folder of ['/', homedir(), path.dirname(homedir()), '/etc', '/usr', '/usr/lib', '/var', '/var/log', '/dev', '/tmp/..']) {
+      await expect(checkInboxPath(folder), folder).rejects.toMatchObject({ code: 'inbox_system_folder' })
+    }
+    for (const folder of ['/etc/squirmy', '/proc/1', '/var/lib', '/home', '/home/alice', '/Users/alice', '/opt', '/opt/app', '/System/Volumes', '/private/var/db', '/Volumes/Music', '/tmp', '/private/tmp']) {
+      expect(isSystemFolder(folder), folder).toBe(true)
+    }
+    for (const folder of ['/inbox', '/srv/inbox', '/srv/music/inbox', '/var/lib/squirmy/inbox', '/mnt/inbox', '/Volumes/Music/Inbox', path.join(homedir(), 'Inbox'), '/private/var/folders/x/y/T/squirmy-inbox', '/tmp/squirmy-inbox', '/tmp/a/b', '/private/tmp/inbox']) {
+      expect(isSystemFolder(folder), folder).toBe(false)
+    }
   })
 
   it('takes a dropped folder once it settles, setting aside what it cannot import', async () => {

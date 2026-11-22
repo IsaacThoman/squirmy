@@ -43,7 +43,7 @@ Scans happen:
 - every night at 04:00 UTC, for every enabled folder;
 - for just the changed paths, two seconds after changes stop, while **Watch for changes** is on.
 
-Hidden files and folders, partial downloads, Synology `@eaDir`, `#recycle` and `#snapshot`, `$RECYCLE.BIN`, `System Volume Information` and `lost+found` are skipped. Symbolic links are followed only to files inside the folder.
+Hidden files and folders, partial downloads, Synology `@eaDir`, `#recycle` and `#snapshot`, `$RECYCLE.BIN`, `System Volume Information` and `lost+found` are skipped. Symbolic links are followed only to files inside the folder; a linked folder, or a link to a file outside, is never scanned or played.
 
 ### When watching does not work
 
@@ -103,7 +103,7 @@ Music plays the whole time, whatever its state.
 
 ## The review queue and Fix match
 
-**Admin → Review queue** lists the albums the matcher was not sure about, with a count in the admin menu. Pick an album to see its files ("The tags say") beside each candidate release, with a track-by-track comparison and a score.
+**Admin → Review queue** lists the albums the matcher was not sure about, with a count beside its link at the top of the admin panel. Pick an album to see its files ("The tags say") beside each candidate release, with a track-by-track comparison and a score.
 
 - **Use this release** applies the candidate.
 - **Keep as it is** keeps the album as its tags describe it.

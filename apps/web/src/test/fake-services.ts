@@ -143,7 +143,7 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
   const socket = new FakeSocket()
   const api = {
     auth: {
-      setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, ...status })),
+      setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, wantlistEnabled: true, ...status })),
       me: vi.fn(async () => {
         if (user) return user
         throw new ApiError(401, 'unauthorized', 'Sign in to continue')

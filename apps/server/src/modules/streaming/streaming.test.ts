@@ -1,5 +1,5 @@
 import { fstatSync, readdirSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rename, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, stat, symlink } from 'node:fs/promises'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -194,6 +194,43 @@ describe('streaming originals', () => {
     expect(gone.json().error.code).toBe('file_missing')
     const [row] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId))
     expect(row!.missingSince).toBeInstanceOf(Date)
+  })
+
+  it('does not mark files missing while their library folder is unavailable', async () => {
+    const mount = await mkdtemp(path.join(tmpdir(), 'squirmy-mount-'))
+    const unmountedRoot = (await createLibraryRoot({ path: mount })).id
+    await makeTone(mount, { path: 'A/01.flac' })
+    const fileId = newId()
+    await db.insert(mediaFiles).values({ id: fileId, rootId: unmountedRoot, relPath: 'A/01.flac', size: 1, mtime: new Date(), container: 'FLAC', codec: 'FLAC', lossless: true })
+    // An external drive or network share that went away: the root folder itself is gone.
+    await rm(mount, { recursive: true, force: true })
+    for (const profile of ['original', 'aac_256'] as const) {
+      const response = await call({ url: signStreamUrl(fileId, profile, memberId).url })
+      expect(response.statusCode, profile).toBe(503)
+      expect(response.json().error.code).toBe('root_unavailable')
+    }
+    const [row] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId))
+    expect(row!.missingSince).toBeNull()
+  })
+
+  it('refuses a file whose link leads out of the root, and serves one that stays inside', async () => {
+    const fileId = otherAlbum.tracks[1]!.fileId!
+    const outside = await makeTone(path.dirname(root), { path: `${path.basename(root)}-linked.flac` })
+    try {
+      await symlink(outside, path.join(root, 'Mira/Blue Hour/02 Out.flac'))
+      await db.update(mediaFiles).set({ relPath: 'Mira/Blue Hour/02 Out.flac', missingSince: null }).where(eq(mediaFiles.id, fileId))
+      const escaped = await call({ url: `/api/v1/stream/${fileId}`, headers: admin })
+      expect(escaped.statusCode).toBe(403)
+      expect(escaped.json().error.code).toBe('path_outside_root')
+
+      await symlink('01 Night.flac', path.join(root, 'Mira/Blue Hour/03 Same.flac'))
+      await db.update(mediaFiles).set({ relPath: 'Mira/Blue Hour/03 Same.flac' }).where(eq(mediaFiles.id, fileId))
+      const inside = await call({ url: `/api/v1/stream/${fileId}`, headers: admin })
+      expect(inside.statusCode).toBe(200)
+      expect(inside.rawPayload.equals(flac.bytes)).toBe(true)
+    } finally {
+      await rm(outside, { force: true })
+    }
   })
 
   it('keeps serving a file that organize is moving, at either end of the move', async () => {

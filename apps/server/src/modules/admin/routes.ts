@@ -18,7 +18,7 @@ import { newId } from '../../lib/ids.js'
 import { getServerSettings, invalidateServerSettings, updateServerSettings } from '../../lib/settings.js'
 import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
-import { hashPassword, insertUser, revokeUserSessions, toUser } from '../auth/service.js'
+import { hashPassword, insertUser, revokeAppPasswords, revokeUserSessions, toUser } from '../auth/service.js'
 import { markEnrichmentStale } from '../enrichment/stale.js'
 import { queueNewlyPossibleMatching } from '../matching/retry.js'
 import { checkImportSettings } from '../imports/settings.js'
@@ -118,7 +118,11 @@ export async function adminRoutes(app: FastifyInstance) {
         ...(body.password !== undefined && { passwordHash: await hashPassword(body.password) }),
         updatedAt: new Date(),
       }).where(eq(users.id, id)).returning()
-      if (body.password !== undefined || body.disabled) await revokeUserSessions(tx, id)
+      if (body.password !== undefined || body.disabled) {
+        await revokeUserSessions(tx, id)
+        // An app password minted by whoever had the account would survive the reset.
+        await revokeAppPasswords(tx, id)
+      }
       return row!
     })
     // Sockets carry the role and session they connected with; make them reconnect.
@@ -184,6 +188,11 @@ export async function adminRoutes(app: FastifyInstance) {
     // Owned by the matching module: identification that was not possible before.
     await queueNewlyPossibleMatching(before, settings)
     await invalidate('admins', [queryKeys.admin()])
+    // Clients read the switch from the setup status, and Home and the wantlist answer
+    // differently with it off, so open apps show or hide the wantlist without a reload.
+    if (before.wantlistEnabled !== settings.wantlistEnabled) {
+      await invalidate('all', [queryKeys.setupStatus(), queryKeys.home(), queryKeys.wants()])
+    }
     return settings
   })
 

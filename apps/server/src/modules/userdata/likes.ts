@@ -20,12 +20,21 @@ import { entityKey, entityTable, resolveEntity, storedType } from './entities.js
 async function invalidateLike(userId: string, type: LikeEntityType, id: string) {
   const keys: (readonly unknown[])[] = [queryKeys.likes(), queryKeys.home(), entityKey(type, id)]
   if (type === 'track') {
-    // Track hearts also show on album and artist pages, playlists and history.
+    // Track hearts also show on album and artist pages, playlist pages, history, songs lists and search results.
     const pages = await db.execute<{ kind: 'album' | 'artist'; id: string }>(sql`
       select distinct 'album' as kind, rl.album_id as id from release_tracks rt join releases rl on rl.id = rt.release_id where rt.recording_id = ${id}
       union
+      -- Album pages also list owned recordings filed under them that the release does not.
+      select 'album', album_id from media_files where recording_id = ${id} and album_id is not null
+      union
       select 'artist', artist_id from recording_artists where recording_id = ${id}`)
-    keys.push(queryKeys.playlists(), queryKeys.history(), ...pages.map((page) => entityKey(page.kind, page.id)))
+    // Only the playlists the user can open that hold the track: the playlists list shows
+    // no hearts, and refreshing it on every like refetched it for nothing.
+    const holding = await db.execute<{ id: string }>(sql`
+      select distinct p.id from playlist_items i join playlists p on p.id = i.playlist_id
+      where i.recording_id = ${id} and (p.owner_id = ${userId} or p.is_public)`)
+    keys.push(queryKeys.history(), queryKeys.libraryTracks(), queryKeys.search(),
+      ...holding.map((playlist) => queryKeys.playlist(playlist.id)), ...pages.map((page) => entityKey(page.kind, page.id)))
   }
   await invalidate({ user: userId }, keys)
 }
@@ -68,7 +77,7 @@ export async function listLikes(userId: string, type: LikeEntityType, query: Pag
   const ids = rows.slice(0, query.limit).map((row) => row.id)
   const items: (TrackSummary | AlbumSummary | ArtistSummary)[] = type === 'track'
     ? await trackSummaries(userId, ids.map((id) => ({ id })))
-    : type === 'album' ? await albumSummaries(ids) : await artistSummaries(ids)
+    : type === 'album' ? await albumSummaries(ids) : await artistSummaries(ids, userId)
   return toPage(ordering, rows, query.limit, items)
 }
 
@@ -86,12 +95,4 @@ export async function setRating(userId: string, type: LikeEntityType, id: string
   }
   await db.insert(ratings).values({ userId, entityType: storedType[type], entityId, rating })
     .onConflictDoUpdate({ target: [ratings.userId, ratings.entityType, ratings.entityId], set: { rating, updatedAt: new Date() } })
-}
-
-/** The user's ratings of the given entities, keyed by id; unrated ids are absent. Ids are not redirect-resolved. */
-export async function getRatings(userId: string, type: LikeEntityType, ids: readonly string[]): Promise<Map<string, number>> {
-  if (ids.length === 0) return new Map()
-  const rows = await db.select({ id: ratings.entityId, rating: ratings.rating }).from(ratings)
-    .where(and(eq(ratings.userId, userId), eq(ratings.entityType, storedType[type]), inArray(ratings.entityId, [...ids])))
-  return new Map(rows.map((row) => [row.id, row.rating]))
 }

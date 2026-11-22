@@ -1,6 +1,7 @@
 import type { Lyrics } from '@squirmy/contracts'
-import { Quote } from 'lucide-react'
+import { MessageSquareQuote } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
+import { EmptyState } from '@/components/ui/feedback'
 import { activeLine, parseLrc } from '@/lib/lyrics'
 import { cn } from '@/lib/utils'
 import { usePosition } from '@/player/player-context'
@@ -16,16 +17,11 @@ export function LyricsPane({ lyrics, onSeek }: { lyrics: Lyrics | null; onSeek: 
   }, [active])
 
   if (!lyrics || lyrics.instrumental || (!lines.length && !lyrics.plain)) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-quiet">
-        <Quote className="size-8" />
-        <p className="text-base font-semibold">{lyrics?.instrumental ? 'Instrumental' : 'No lyrics for this song'}</p>
-      </div>
-    )
+    return <EmptyState icon={<MessageSquareQuote />} title={lyrics?.instrumental ? 'Instrumental' : 'No lyrics for this song'} className="h-full justify-center" />
   }
 
   return (
-    <div ref={container} className="h-full overflow-y-auto px-2 py-[30vh] [mask-image:linear-gradient(transparent,black_18%,black_82%,transparent)] [scrollbar-width:none]">
+    <div ref={container} className="scrollbar-none h-full overflow-y-auto px-1 py-[30vh] [mask-image:linear-gradient(transparent,black_18%,black_82%,transparent)]">
       {lines.length
         ? lines.map((line, index) => (
           <button
@@ -35,15 +31,15 @@ export function LyricsPane({ lyrics, onSeek }: { lyrics: Lyrics | null; onSeek: 
             aria-current={index === active || undefined}
             onClick={() => onSeek(line.timeMs)}
             className={cn(
-              'block max-w-[34rem] origin-left py-2.5 text-left text-[clamp(1.5rem,2.6vw,2.1rem)] font-bold leading-tight tracking-[-0.02em] transition duration-200 hover:text-foreground/80',
-              index === active ? 'text-foreground' : index < active ? 'text-quiet/70' : 'text-quiet',
+              'block max-w-xl rounded-md py-2 text-left text-2xl font-semibold leading-snug tracking-tight text-balance outline-none transition-colors duration-200 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring lg:text-3xl lg:leading-snug',
+              index === active ? 'text-foreground' : 'text-muted-foreground',
             )}
           >
             {line.text || '♪'}
           </button>
         ))
-        : <p className="whitespace-pre-line text-2xl font-bold leading-snug text-muted">{lyrics.plain}</p>}
-      <p className="mt-8 text-xs font-semibold text-quiet">Lyrics from {lyrics.source}</p>
+        : <p className="max-w-xl whitespace-pre-line text-xl font-medium leading-relaxed">{lyrics.plain}</p>}
+      <p className="mt-8 text-xs text-muted-foreground">Lyrics from {lyrics.source}</p>
     </div>
   )
 }

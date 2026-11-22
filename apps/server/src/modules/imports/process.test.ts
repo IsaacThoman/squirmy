@@ -7,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { INCOMING_FOLDER } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import sharp from 'sharp'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albums, imports, mediaFiles, organizeBatches, recordings, wants } from '../../database/schema.js'
@@ -26,10 +26,11 @@ import { matchingModule } from '../matching/index.js'
 import { realFileOps, type FileOps } from '../organize/files.js'
 import { planOrganize } from '../organize/plan.js'
 import { wantEntity } from '../userdata/wants.js'
-import { processImport, runStep, type ProcessOptions } from './process.js'
+import { ImportFailure, processImport, runStep, type ProcessOptions } from './process.js'
 import { addImportFile, commitImport, createImport, getImport, importAlbums, type ImportWork } from './service.js'
+import { disk, MIN_FREE_BYTES } from './space.js'
 import { stagingDir, stagingRoot } from './staging.js'
-import { writeZip } from './test-zip.js'
+import { writeZip } from '../../test/zip.js'
 
 const okComputerGroup = 'b1392450-e666-3926-a536-22c65f834433'
 const karmaPolice = '9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3'
@@ -176,6 +177,7 @@ describe('import processing', () => {
     // Someone browsed Karma Police and wanted it before anyone had it.
     const browsed = await createAlbum({ title: 'OK Computer', tracks: [{ title: 'Karma Police', mbid: karmaPolice }] })
     const fan = await createUser()
+    await updateServerSettings({ wantlistEnabled: true })
     await wantEntity(fan.id, 'track', browsed.tracks[0]!.recordingId)
 
     const archive = await writeZip(path.join(fixtures, 'OK Computer.zip'), [
@@ -214,9 +216,30 @@ describe('import processing', () => {
     expect(await importAlbums(id)).toMatchObject([{ album: { id: album!.id, title: 'OK Computer', availability: 'full' }, files: 12, filed: true }])
   }, 120_000)
 
+  it('does not extract an archive the disk has no room for', async () => {
+    await managedRoot()
+    const archive = await writeZip(path.join(fixtures, 'Roomy.zip'), okFlac.slice(0, 2).map((file) => ({ name: `Roomy/${path.basename(file)}`, data: file })))
+    const id = await receive([{ from: archive, to: 'Roomy.zip' }])
+    await commitImport(id)
+    const free = vi.spyOn(disk, 'freeBytes').mockResolvedValue(MIN_FREE_BYTES + 1024)
+    try {
+      await expect(runStep(id, fast)).rejects.toThrow(ImportFailure)
+      await expect(runStep(id, fast)).rejects.toThrow(/disk space/)
+      expect(await tree(stagingDir(id))).toEqual(['Roomy.zip'])
+    } finally {
+      free.mockRestore()
+    }
+    expect(await runStep(id, fast)).toMatchObject({ step: 'moving', stats: { filesExtracted: 2 } })
+  })
+
   it('removes audio the library already has, and repeats within one import', async () => {
     const root = await managedRoot()
     const before = await db.select({ count: sql<number>`count(*)::int` }).from(mediaFiles)
+    // A want for the album the first import filed, left alone while the wantlist is off.
+    await updateServerSettings({ wantlistEnabled: false })
+    const [owned] = await db.select({ id: albums.id }).from(albums).where(eq(albums.mbid, okComputerGroup))
+    const fan = await createUser()
+    await db.insert(wants).values({ userId: fan.id, entityType: 'album', entityId: owned!.id })
     // The copy is hashed last, after identification has seen every other file hashed.
     const copy = pipeline.hold('library.analyze', fileAt('Again/copy of the first.flac'))
     const analyzed = pipeline.finished.length
@@ -235,6 +258,8 @@ describe('import processing', () => {
     expect(await tree(root.path)).toEqual([])
     expect(await db.select({ count: sql<number>`count(*)::int` }).from(mediaFiles)).toEqual(before)
     expect(http.requests, 'no provider is asked about duplicates').toEqual([])
+    const [want] = await db.select({ fulfilledAt: wants.fulfilledAt }).from(wants).where(eq(wants.userId, fan.id))
+    expect(want!.fulfilledAt).toBeNull()
   })
 
   it('asks no provider about part of an album before its duplicates are decided', async () => {

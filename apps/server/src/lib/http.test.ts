@@ -1,9 +1,12 @@
+import { once } from 'node:events'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../database/client.js'
 import { httpCache, rateLimits } from '../database/schema.js'
 import { useTestDatabase } from '../test/database.js'
-import { cachedFetch, ProviderError, rateLimit, userAgent } from './http.js'
+import { cachedFetch, ProviderError, publicDispatcher, rateLimit, RefusedUrlError, requestPublic, userAgent } from './http.js'
 
 type Handler = (url: string, init: RequestInit) => Response | Promise<Response>
 
@@ -162,5 +165,71 @@ describe('lib/http', () => {
     const reserved = await nextSlot()
     expect((await cachedFetch('test', 'https://example.test/limited-1', options)).cached).toBe(true)
     expect(await nextSlot()).toEqual(reserved)
+  })
+
+  it('reads at most 8 MiB of a response, and fails larger ones without caching them', async () => {
+    const limit = 8 * 1024 * 1024
+    const url = 'https://example.test/large'
+    // No content-length: the body is counted as it streams in.
+    stubFetch(() => new Response('x'.repeat(limit + 1), { headers: { 'content-type': 'text/plain' } }))
+    await expect(cachedFetch('test', url, { ttlSeconds: 60 })).rejects.toThrow(/larger than 8 MiB/)
+    stubFetch(() => new Response('{}', { headers: { 'content-length': String(limit + 1) } }))
+    await expect(cachedFetch('test', url, { ttlSeconds: 60 })).rejects.toBeInstanceOf(ProviderError)
+    expect(await db.select().from(httpCache).where(eq(httpCache.url, url))).toEqual([])
+
+    stubFetch(() => new Response('y'.repeat(limit)))
+    expect((await cachedFetch('test', url, { ttlSeconds: 60 })).text).toHaveLength(limit)
+  })
+
+  describe('requestPublic', () => {
+    const redirect = (location: string, status = 302) => new Response(null, { status, headers: { location } })
+
+    it('follows up to three redirects by hand, each to a public https URL', async () => {
+      const calls = stubFetch((url) => ({
+        'https://a.example.test/1': redirect('/2', 301),
+        'https://a.example.test/2': redirect('https://b.example.test/3', 307),
+        'https://b.example.test/3': redirect('//c.example.test/4', 308),
+        'https://c.example.test/4': new Response('done'),
+      })[url] ?? new Response(null, { status: 404 }))
+      const response = await requestPublic('test', 'https://a.example.test/1')
+      expect(await response.text()).toBe('done')
+      expect(calls.map((call) => call.url)).toEqual(['https://a.example.test/1', 'https://a.example.test/2', 'https://b.example.test/3', 'https://c.example.test/4'])
+      for (const { init } of calls) expect(init).toMatchObject({ redirect: 'manual', dispatcher: publicDispatcher })
+
+      stubFetch((url) => redirect(`${url}x`))
+      await expect(requestPublic('test', 'https://a.example.test/')).rejects.toBeInstanceOf(RefusedUrlError)
+    })
+
+    it('refuses plain http, private address literals and redirects to either, before connecting', async () => {
+      const calls = stubFetch((url) => ({
+        'https://a.example.test/to-http': redirect('http://a.example.test/image.png'),
+        'https://a.example.test/to-metadata': redirect('https://169.254.169.254/latest/meta-data/'),
+        'https://a.example.test/to-mapped': redirect('https://[::ffff:127.0.0.1]:8443/'),
+        'https://a.example.test/to-file': redirect('file:///etc/passwd'),
+      })[url] ?? new Response('should not be reached'))
+      for (const url of [
+        'http://a.example.test/image.png', 'https://127.0.0.1/', 'https://10.1.2.3/', 'https://[::1]/', 'https://[fd00::1]/',
+        'https://a.example.test/to-http', 'https://a.example.test/to-metadata', 'https://a.example.test/to-mapped', 'https://a.example.test/to-file',
+      ]) {
+        await expect(requestPublic('test', url), url).rejects.toBeInstanceOf(RefusedUrlError)
+      }
+      expect(calls.map((call) => call.url)).toEqual([
+        'https://a.example.test/to-http', 'https://a.example.test/to-metadata', 'https://a.example.test/to-mapped', 'https://a.example.test/to-file',
+      ])
+    })
+
+    it('connects only to names that resolve to public addresses', async () => {
+      const server = createServer((_request, response) => response.end('private')).listen(0, '127.0.0.1')
+      await once(server, 'listening')
+      try {
+        const { port } = server.address() as AddressInfo
+        // The plain dispatcher reaches it, so the refusal below is the filter's doing.
+        expect(await (await fetch(`http://localhost:${port}/`)).text()).toBe('private')
+        const error = await fetch(`http://localhost:${port}/`, { dispatcher: publicDispatcher } as RequestInit).catch((caught: unknown) => caught)
+        expect((error as Error & { cause?: { code?: string } }).cause?.code).toBe('ERR_NON_PUBLIC_ADDRESS')
+      } finally {
+        server.close()
+      }
+    })
   })
 })

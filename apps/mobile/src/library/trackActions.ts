@@ -1,104 +1,130 @@
 import type { TrackSummary } from '@squirmy/contracts';
-import { useRouter, type Href } from 'expo-router';
-import { useSignedInApi } from '../account/AccountProvider';
+import { useNavigationContainerRef, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef } from 'react';
+import { useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
 import { closeSheet } from '../closeSheet';
 import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
 import { useRealtime } from '../data/realtime';
-import { useCanPlay, useDownloadActions, useDownloadManager, useTrackDownload } from '../downloads/DownloadsProvider';
-import { songsId } from '../downloads/model';
+import { useCanPlay, useDownloadManager, useTrackDownload } from '../downloads/DownloadsProvider';
+import { songsId, type TrackDownload } from '../downloads/model';
 import { useNotice } from '../Notice';
-import { usePlaybackState } from '../playback';
+import { useCurrentTrackState, usePlaybackActions } from '../playback';
 import { usePlayerTransition } from '../player/transition';
-import { usePageLinks } from './links';
+import { pageHref } from './links';
+import { tabIn } from './tabs';
+import { createStartGuard } from './pending';
+import { trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
 
-/** One thing to do with a track: a command, a page to open, or a sheet to open. */
-export type TrackAction = {
-  id: string;
-  title: string;
-  icon: string;
-  destructive?: boolean;
-  run?: () => void;
-  href?: Href;
-  sheet?: boolean;
-};
+export { trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
 
-export type TrackActionOptions = {
-  /** The playlist the track is shown in, for "Remove from playlist". */
-  playlist?: { id: string; itemId: string };
-};
+/** Radios started from a song's menu, which closes before the radio arrives. */
+const radioStarts = createStartGuard();
 
-/**
- * What can be done with `track`, in menu order. Gray tracks can only be liked, wanted and
- * opened. Offline, what needs the server is left out, and likes wait for it.
- */
-export function useTrackActions(track: TrackSummary | undefined, { playlist }: TrackActionOptions = {}): TrackAction[] {
-  const api = useSignedInApi();
-  const notify = useNotice();
-  const link = usePageLinks();
-  const { session, actions } = usePlaybackState();
-  const liked = useLiked('track', track?.id, track?.liked);
-  const { setLiked, want } = useLibraryActions();
-  const playlists = usePlaylistActions();
-  const { offline } = useRealtime();
-  const playable = useCanPlay(track);
-  const download = useTrackDownload(track?.id);
-  const downloads = useDownloadActions();
+/** Whether the track was downloaded on its own, as opposed to with an album or playlist. */
+export function useDownloadedOnItsOwn(trackId: string | undefined, download: TrackDownload | undefined) {
   const manager = useDownloadManager();
-  if (!track) return [];
-  const online = !offline;
-  const isCurrent = session.current?.trackId === track.id;
-  const onItsOwn = manager?.collectionRow(songsId)?.trackIds.includes(track.id) ?? false;
-  const downloadAction: TrackAction | false = download?.state === 'failed' && onItsOwn
-    ? { id: 'download', title: 'Retry download', icon: 'arrow.clockwise', run: downloads.retry }
-    : download && onItsOwn
-      ? { id: 'download', title: download.state === 'done' ? 'Remove download' : 'Cancel download',
-        icon: download.state === 'done' ? 'trash' : 'xmark.circle', destructive: download.state === 'done', run: () => downloads.removeTrack(track.id) }
-      : !download && online && track.availability === 'server' && { id: 'download', title: 'Download', icon: 'arrow.down.circle', run: () => downloads.track(track) };
-  const items: (TrackAction | false)[] = [
-    playable && { id: 'play', title: 'Play now', icon: 'play.fill', run: () => {
-      if (isCurrent) actions.play();
-      else actions.playNow(track);
-    } },
-    playable && { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward', run: () => actions.enqueue([track], 'next') },
-    playable && { id: 'last', title: 'Play last', icon: 'text.badge.plus', run: () => actions.enqueue([track], 'last') },
-    { id: 'like', title: liked ? 'Remove from Liked Songs' : 'Add to Liked Songs', icon: liked ? 'heart.slash' : 'heart',
-      run: () => setLiked('track', track.id, !liked) },
-    downloadAction,
-    playable && online && { id: 'playlist', title: 'Add to playlist', icon: 'text.badge.plus', sheet: true,
-      href: { pathname: '/add-to-playlist', params: { trackId: track.id, albumId: track.album?.id ?? '' } } },
-    playable && online && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right', run: () => {
-      api?.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
-    } },
-    // Gray tracks, including on-demand ones this user may not have fetched.
-    !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star', run: () => want('track', track.id, track.title) },
-    Boolean(track.album) && { id: 'album', title: 'Go to album', icon: 'square.stack', href: link('album', track.album!.id) },
-    Boolean(track.artists[0]) && { id: 'artist', title: 'Go to artist', icon: 'music.mic', href: link('artist', track.artists[0]!.id) },
-    playlist !== undefined && online && { id: 'remove', title: 'Remove from playlist', icon: 'minus.circle', destructive: true,
-      run: () => playlists.removeItem(playlist.id, playlist.itemId) },
-  ];
-  return items.filter((item): item is TrackAction => Boolean(item));
+  return Boolean(download && trackId && manager?.collectionRow(songsId)?.trackIds.includes(trackId));
 }
 
 /**
- * Carries out an action. Opening a page closes Now Playing first; from inside a sheet the
- * sheet closes too, and another sheet takes its place.
+ * Carries out a track's action. Reads only contexts, so a row can hold one without
+ * re-rendering as playback, playlists or navigation change; what an action needs is
+ * looked up when it runs. Opening a page closes Now Playing first; from inside a sheet
+ * the sheet closes too, and another sheet takes its place.
  */
-export function useRunTrackAction(inSheet: boolean) {
+export function useTrackActionRunner(inSheet = false) {
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const { close } = usePlayerTransition();
-  return (action: TrackAction) => {
-    if (action.run) action.run();
-    if (!action.href) {
+  const api = useSignedInApi();
+  const notify = useNotice();
+  const actions = usePlaybackActions();
+  const { setLiked, want } = useLibraryActions();
+  const manager = useDownloadManager();
+  const live = useRef({ api, notify, actions, setLiked, want, manager, close });
+  live.current = { api, notify, actions, setLiked, want, manager, close };
+
+  const perform = useCallback((track: TrackSummary, action: TrackAction, { playlist }: TrackActionOptions = {}) => {
+    const { api, notify, actions, setLiked, want, manager } = live.current;
+    switch (action.id) {
+      case 'play': return actions.playNow(track);
+      case 'resume': return actions.play();
+      case 'next': return actions.enqueue([track], 'next');
+      case 'last': return actions.enqueue([track], 'last');
+      case 'like': return setLiked('track', track.id, true);
+      case 'unlike': return setLiked('track', track.id, false);
+      case 'download': return void manager?.addTrack(track);
+      case 'retryDownload': return void manager?.retry();
+      case 'removeDownload': return void manager?.removeTrack(track.id);
+      case 'radio':
+        // The menu closes at once, so the notice is what shows the radio is on its way.
+        if (api) radioStarts.run('radio', () => {
+          notify('Starting radio…');
+          return api.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
+        });
+        return undefined;
+      case 'want': return want('track', track.id, track.title);
+      case 'remove': return playlist?.onRemove?.(playlist.itemId);
+      default: return undefined;
+    }
+  }, []);
+
+  const open = useCallback((action: TrackAction) => {
+    const href = action.href ?? (action.page && pageHref(tabIn(navigation.getRootState()), action.page.page, action.page.id));
+    if (!href) {
       if (inSheet) closeSheet(router);
       return;
     }
     if (action.sheet) {
-      if (inSheet) router.replace(action.href);
-      else router.push(action.href);
+      if (inSheet) router.replace(href);
+      else router.push(href);
       return;
     }
     if (inSheet) closeSheet(router);
-    close();
-    router.navigate(action.href);
+    live.current.close();
+    router.navigate(href);
+  }, [inSheet, navigation, router]);
+
+  return useMemo(() => ({
+    /** The action's command, such as queueing or liking the track. */
+    perform,
+    /** The page or sheet the action leads to, if any. */
+    open,
+    run: (track: TrackSummary, action: TrackAction, options?: TrackActionOptions) => {
+      perform(track, action, options);
+      open(action);
+    },
+  }), [open, perform]);
+}
+
+/**
+ * What can be done with `track`, each action with its command bound as `run`. For a
+ * single menu or sheet; rows build theirs with `trackActions` from what they already read.
+ */
+export function useTrackActions(track: TrackSummary | undefined, options: TrackActionOptions = {}): TrackAction[] {
+  const liked = useLiked('track', track?.id, track?.liked);
+  const { offline } = useRealtime();
+  const playable = useCanPlay(track);
+  const download = useTrackDownload(track?.id);
+  const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
+  const current = useCurrentTrackState(track?.id);
+  const wantlist = useWantlistEnabled();
+  const playlists = usePlaylistActions();
+  const { perform } = useTrackActionRunner();
+  if (!track) return [];
+  const playlist = options.playlist && {
+    ...options.playlist,
+    onRemove: options.playlist.onRemove ?? ((itemId: string) => playlists.removeItem(options.playlist!.id, itemId)),
+  };
+  return trackActions(track, { liked, playable, offline, current, download, onItsOwn, wantlist }, { playlist })
+    .map(action => ({ ...action, run: () => perform(track, action, { playlist }) }));
+}
+
+/** Carries out an action from `useTrackActions`: its command, then the page or sheet it leads to. */
+export function useRunTrackAction(inSheet: boolean) {
+  const { open } = useTrackActionRunner(inSheet);
+  return (action: TrackAction) => {
+    action.run?.();
+    open(action);
   };
 }

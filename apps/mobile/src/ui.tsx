@@ -1,7 +1,7 @@
 import type { Artwork } from '@squirmy/contracts';
 import { Image } from 'expo-image';
 import { SymbolView, type AndroidSymbol } from 'expo-symbols';
-import type { ComponentProps } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { StyleSheet, View, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
 import { useArtworkImage } from './data/artwork';
 import { useColors } from './theme';
@@ -9,7 +9,7 @@ import { useColors } from './theme';
 type AppleSymbol = Extract<ComponentProps<typeof SymbolView>['name'], string>;
 
 const material: Record<string, AndroidSymbol> = {
-  'airplay.audio': 'cast', 'arrow.down': 'arrow_downward', 'arrow.up.arrow.down': 'swap_vert',
+  'laptopcomputer.and.iphone': 'devices', 'arrow.down': 'arrow_downward', 'arrow.up.arrow.down': 'swap_vert',
   'checkmark': 'check', 'checkmark.circle.fill': 'check_circle', 'chevron.down': 'expand_more',
   'chevron.left': 'chevron_left', 'chevron.right': 'chevron_right',
   'chevron.up.chevron.down': 'unfold_more', 'clock.arrow.circlepath': 'history',
@@ -65,8 +65,10 @@ export function Cover({ artwork, size, style, radius = 10, icon = 'music.note' }
 }) {
   const colors = useColors();
   const image = useArtworkImage(artwork, size);
+  // A cover the server cannot deliver (its source is gone) gets the placeholder, not an empty frame.
+  const [failed, setFailed] = useState<string | null>(null);
   const frame = { width: size, height: size, borderRadius: radius, backgroundColor: colors.surface };
-  if (!image) {
+  if (!image || failed === image.source.uri) {
     return <View style={[frame, styles.empty, style as StyleProp<ViewStyle>]}>
       <Icon name={icon} size={Math.max(14, size * 0.34)} color={colors.quiet} />
     </View>;
@@ -79,6 +81,7 @@ export function Cover({ artwork, size, style, radius = 10, icon = 'music.note' }
     cachePolicy="memory-disk"
     recyclingKey={artwork?.id}
     transition={120}
+    onError={() => setFailed(image.source.uri ?? null)}
     style={[frame, style]}
   />;
 }

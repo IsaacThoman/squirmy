@@ -22,6 +22,8 @@ export async function updateUserSettings(userId: string, patch: UpdateUserSettin
     .where(eq(users.id, userId))
     .returning({ settings: users.settings })
   if (!row) throw notFound('No such user')
-  await invalidate({ user: userId }, [queryKeys.settings()])
+  // The scrobbling status reports each service's switch.
+  const scrobbling = patch.scrobbleListenBrainz !== undefined || patch.scrobbleLastFm !== undefined
+  await invalidate({ user: userId }, [queryKeys.settings(), ...scrobbling ? [queryKeys.scrobbling()] : []])
   return UserSettings.parse(row.settings)
 }

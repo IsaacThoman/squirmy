@@ -25,6 +25,9 @@ export const UpdateUserSettings = z.object({
 }).partial()
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 
+/** An http or https address: `new URL` on anything else throws, or fetches nothing. */
+const HttpUrl = z.url({ protocol: /^https?$/ })
+
 /**
  * Operator settings, stored in `server_settings`. Secrets are write-only: reads return
  * `…Set` booleans instead of the value.
@@ -33,7 +36,8 @@ export const ServerSettings = z.object({
   serverName: z.string().default('Squirmy'),
   deezerEnabled: z.boolean().default(true),
   musicBrainzEnabled: z.boolean().default(true),
-  musicBrainzBaseUrl: z.string().default('https://musicbrainz.org'),
+  // A value stored before it was validated must not break every lookup.
+  musicBrainzBaseUrl: HttpUrl.default('https://musicbrainz.org').catch('https://musicbrainz.org'),
   coverArtArchiveEnabled: z.boolean().default(true),
   wikidataEnabled: z.boolean().default(true),
   lrclibEnabled: z.boolean().default(true),
@@ -58,6 +62,17 @@ export const ServerSettings = z.object({
   importMaxFileBytes: z.number().int().min(1).default(4 * 1024 ** 3),
   /** Largest import, counting what its archives extract to. */
   importMaxBytes: z.number().int().min(1).default(64 * 1024 ** 3),
+  /**
+   * Uploads one member may have receiving or processing at once; more are refused with
+   * 429 `too_many_imports`. Admins are not limited.
+   */
+  importMaxActivePerUser: z.number().int().min(1).default(3),
+  /**
+   * Whether people can keep a wantlist of music the server does not have. Off by default:
+   * with a provider that can fetch anything it is noise. Turning it off keeps the stored
+   * wants, so turning it back on restores them.
+   */
+  wantlistEnabled: z.boolean().default(false),
 })
 export type ServerSettings = z.infer<typeof ServerSettings>
 
@@ -69,7 +84,7 @@ export const UpdateServerSettings = z.object({
   serverName: z.string(),
   deezerEnabled: z.boolean(),
   musicBrainzEnabled: z.boolean(),
-  musicBrainzBaseUrl: z.string(),
+  musicBrainzBaseUrl: HttpUrl,
   coverArtArchiveEnabled: z.boolean(),
   wikidataEnabled: z.boolean(),
   lrclibEnabled: z.boolean(),
@@ -81,6 +96,8 @@ export const UpdateServerSettings = z.object({
   inboxPath: z.string().nullable(),
   importMaxFileBytes: z.number().int().min(1),
   importMaxBytes: z.number().int().min(1),
+  importMaxActivePerUser: z.number().int().min(1),
+  wantlistEnabled: z.boolean(),
   listenBrainzToken: z.string().nullable(),
   acoustIdKey: z.string().nullable(),
   fanartKey: z.string().nullable(),

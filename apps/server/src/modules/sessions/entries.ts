@@ -1,7 +1,8 @@
+import { canFetch } from '@squirmy/client-core'
 import type { QueueSeed } from '@squirmy/contracts'
-import { and, inArray, isNull, max } from 'drizzle-orm'
+import { and, eq, inArray, isNull, max } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { albums, mediaFiles, recordings } from '../../database/schema.js'
+import { albums, mediaFiles, recordings, users } from '../../database/schema.js'
 import { onDemandRecordings } from '../acquisition/coverage.js'
 
 /**
@@ -68,21 +69,34 @@ export async function lookupTracks(ids: readonly string[]): Promise<Map<string, 
 }
 
 /**
- * Rebuilds client-sent seeds from the database: canonical recording and album ids, the
- * recording's duration, and `ready` or `preparing` by availability. Tracks that cannot be
- * played are dropped. `indexes[i]` is the position in `seeds` of the i-th kept seed.
+ * Whether tracks may be fetched for the user: an admin or a member with `canAcquire`
+ * whose account is enabled, the same rule acquisition applies to a request.
  */
-export async function trustSeeds(seeds: readonly QueueSeed[]): Promise<{ seeds: QueueSeed[]; indexes: number[] }> {
+export async function isRequester(userId: string): Promise<boolean> {
+  const [user] = await db.select({ role: users.role, canAcquire: users.canAcquire, disabledAt: users.disabledAt }).from(users).where(eq(users.id, userId))
+  return Boolean(user && !user.disabledAt && canFetch(user))
+}
+
+/**
+ * Rebuilds client-sent seeds from the database for `userId`: canonical recording and
+ * album ids, the recording's duration, and `ready` or `preparing` by availability. Tracks
+ * the user cannot play are dropped: `none` for everyone, and `on_demand` for a user who
+ * may not have tracks fetched, whose entry would otherwise sit preparing and then fail.
+ * `indexes[i]` is the position in `seeds` of the i-th kept seed.
+ */
+export async function trustSeeds(userId: string, seeds: readonly QueueSeed[]): Promise<{ seeds: QueueSeed[]; indexes: number[] }> {
   const albumIds = seeds.flatMap(seed => (seed.albumId ? [seed.albumId] : []))
   const [tracks, albumMap] = await Promise.all([
     lookupTracks(seeds.map(seed => seed.trackId)),
     albumIds.length ? followMerges(albums, albumIds) : new Map<string, string>(),
   ])
+  // Asked only when it matters, so a queue of owned tracks costs no extra query.
+  const fetchable = [...tracks.values()].some(track => track.availability === 'on_demand') && await isRequester(userId)
   const trusted: QueueSeed[] = []
   const indexes: number[] = []
   for (const [index, seed] of seeds.entries()) {
     const track = tracks.get(seed.trackId)
-    if (!track || track.availability === 'none') continue
+    if (!track || track.availability === 'none' || (track.availability === 'on_demand' && !fetchable)) continue
     trusted.push({
       trackId: track.id,
       albumId: seed.albumId ? albumMap.get(seed.albumId) ?? null : null,

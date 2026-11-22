@@ -62,6 +62,8 @@ export const serverSettings: ServerSettings = {
   inboxPath: null,
   importMaxFileBytes: 4 * 1024 ** 3,
   importMaxBytes: 64 * 1024 ** 3,
+  importMaxActivePerUser: 3,
+  wantlistEnabled: false,
 }
 
 export const jobs: JobQueueStats[] = [
@@ -70,7 +72,7 @@ export const jobs: JobQueueStats[] = [
   { name: 'library.ingest', queued: 31, active: 1, failed: 0 },
   { name: 'library.analyze', queued: 1840, active: 2, failed: 0 },
   { name: 'matching.match-album', queued: 12, active: 1, failed: 1 },
-  { name: 'enrichment.covers', queued: 0, active: 0, failed: 0 },
+  { name: 'enrichment.album', queued: 0, active: 0, failed: 0 },
 ]
 
 export const thisDeviceId = 'web-this-browser'

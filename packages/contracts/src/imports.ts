@@ -16,7 +16,8 @@ import { Id, IsoDateTime, PageQuery, page } from './common.js'
  *
  * Error codes: `no_managed_root`, `import_root_not_set` (several managed roots and no
  * `importRootId`), `import_root_unavailable`, `import_not_receiving`, `import_empty`,
- * `file_too_large`, `import_too_large`.
+ * `file_too_large`, `import_too_large`, `insufficient_storage` (507: the server would be
+ * left with less than 1 GiB free), `too_many_imports` (429: `importMaxActivePerUser`).
  */
 
 /** Folder at the top of a managed root that holds imports until they are filed. */
@@ -139,9 +140,14 @@ export const ImportFilesResponse = z.object({
 })
 export type ImportFilesResponse = z.infer<typeof ImportFilesResponse>
 
-/** `GET /imports`, newest first: the caller's own imports, or every import for an admin. */
+/**
+ * `GET /imports`, newest first: the caller's own imports, or every import for an admin.
+ * Without `kind`, acquisition deliveries are left out: they are cache filled by listening,
+ * not music someone added.
+ */
 export const ImportListQuery = PageQuery.extend({
   status: ImportStatus.optional(),
+  kind: ImportKind.optional(),
 })
 export type ImportListQuery = z.infer<typeof ImportListQuery>
 

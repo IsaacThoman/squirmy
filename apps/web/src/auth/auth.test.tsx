@@ -131,31 +131,48 @@ describe('setup wizard', () => {
   })
 })
 
+// Settings are a dialog over the app. A dialog opened from it hides it from assistive
+// technology, so while one is open the only dialog queries find is that one.
 describe('account', () => {
   it('shows a new app password once and revokes after confirming', async () => {
     const { services, api } = fakeServices()
-    renderWithApp(app, '/settings', services)
-    await userEvent.click(await screen.findByRole('button', { name: 'Create' }))
-    await userEvent.type(screen.getByLabelText('Name'), 'Phone')
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+    renderWithApp(app, '/', services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Account, Alex Rivera' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Settings' }))
+    const settings = await screen.findByRole('dialog', { name: 'Settings' })
+    await userEvent.click(within(settings).getByRole('button', { name: 'App passwords' }))
+
+    await userEvent.click(await within(settings).findByRole('button', { name: 'Create' }))
+    const creating = await screen.findByRole('dialog', { name: 'New app password' })
+    await userEvent.type(within(creating).getByLabelText('Name'), 'Phone')
+    await userEvent.type(within(creating).getByLabelText('Your password'), 'correct horse')
+    await userEvent.click(within(creating).getByRole('button', { name: 'Create' }))
     expect(await screen.findByLabelText('App password')).toHaveValue('sq-secret')
+    expect((api.auth.createAppPassword.mock.lastCall as unknown[] | undefined)?.[0]).toEqual({ name: 'Phone', currentPassword: 'correct horse' })
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
 
-    await userEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[0])
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
+    await userEvent.click((await within(settings).findAllByRole('button', { name: 'Revoke' }))[0])
+    await userEvent.click(within(await screen.findByRole('dialog', { name: /^Revoke/ })).getByRole('button', { name: 'Revoke' }))
     await waitFor(() => expect(api.auth.deleteAppPassword).toHaveBeenCalled())
   })
 
   it('puts a wrong current password on its field', async () => {
     const { services, api } = fakeServices()
     api.auth.changePassword.mockRejectedValueOnce(new ApiError(403, 'invalid_credentials', 'The current password is wrong'))
-    renderWithApp(app, '/settings', services)
-    await userEvent.click(await screen.findByRole('button', { name: 'Change password' }))
-    await userEvent.type(screen.getByLabelText('Current password'), 'nope')
-    await userEvent.type(screen.getByLabelText('New password'), 'a new password')
-    await userEvent.type(screen.getByLabelText('Repeat the new password'), 'a new password')
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Change password' }))
-    expect(await screen.findByText('The current password is wrong')).toBeInTheDocument()
+    renderWithApp(app, '/settings/account', services)
+    const settings = await screen.findByRole('dialog', { name: 'Settings' })
+    expect(within(settings).getByRole('button', { name: 'Account' })).toHaveAttribute('aria-current', 'page')
+    await waitFor(() => expect(where()).toBe('/'))
+
+    await userEvent.click(within(settings).getByRole('button', { name: 'Change password' }))
+    const changing = await screen.findByRole('dialog', { name: 'Change password' })
+    await userEvent.type(within(changing).getByLabelText('Current password'), 'nope')
+    await userEvent.type(within(changing).getByLabelText('New password'), 'a new password')
+    await userEvent.type(within(changing).getByLabelText('Repeat the new password'), 'a new password')
+    await userEvent.click(within(changing).getByRole('button', { name: 'Change password' }))
+    expect(await within(changing).findByText('The current password is wrong')).toBeInTheDocument()
+    expect(within(changing).getByLabelText('Current password')).toBeInvalid()
+    expect(within(changing).getByLabelText('New password')).toBeValid()
   })
 })
 

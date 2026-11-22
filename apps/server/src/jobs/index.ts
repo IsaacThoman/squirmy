@@ -22,6 +22,8 @@ const schedules = new Map<string, string>()
 const queues = new Set<string>()
 let boss: PgBoss | undefined
 let workerIds: string[] = []
+/** This process's worker ids per queue, to wake them for a deferred job. */
+const workersByQueue = new Map<string, string[]>()
 
 /** Collects job handlers. Modules receive it in their `jobs` hook, before `startJobs`. */
 export const jobs: JobRegistry = {
@@ -47,13 +49,30 @@ async function ensureQueue(name: string, options: QueueOptions = {}) {
 /** Adds a job. Returns its id, or null when a job with the same singleton key is already queued or active. */
 export async function enqueue<T extends object>(name: string, data: T, options: EnqueueOptions = {}): Promise<string | null> {
   await ensureQueue(name)
+  const instance = running()
   // pg-boss validates keys that are present, even when undefined.
-  return running().send(name, data, {
+  const id = await instance.send(name, data, {
     singletonKey: options.singletonKey ?? newId(),
     ...(options.priority !== undefined && { priority: options.priority }),
     ...(options.startAfter !== undefined && { startAfter: options.startAfter }),
     ...(options.tx && { db: fromDrizzle(options.tx, sql) }),
   })
+  if (id && options.startAfter !== undefined) wakeWhenDue(instance, name, options.startAfter)
+  return id
+}
+
+/**
+ * NOTIFY wakes workers when a job is inserted, not when a deferred one becomes due, so a
+ * job deferred by five seconds would otherwise wait for the next 30 second poll. When this
+ * process works the queue, its workers are woken just after the job's start time.
+ */
+function wakeWhenDue(instance: PgBoss, name: string, startAfter: number | Date) {
+  const ids = workersByQueue.get(name)
+  if (!ids) return
+  const delayMs = typeof startAfter === 'number' ? startAfter * 1000 : startAfter.getTime() - Date.now()
+  setTimeout(() => {
+    if (boss === instance) for (const worker of ids) instance.notifyWorker(worker)
+  }, Math.max(0, delayMs) + 100).unref()
 }
 
 /**
@@ -68,6 +87,49 @@ export async function enqueueMany<T extends object>(name: string, items: readonl
     singletonKey: item.singletonKey ?? newId(),
     ...(item.priority !== undefined && { priority: item.priority }),
   })))
+}
+
+/** A job that holds its singleton key: waiting to run (`created`, `retry`) or running. */
+export type HeldJob<T> = { id: string; state: 'created' | 'retry' | 'active'; data: T }
+
+/** The job of `name` that holds this singleton key, if any. */
+export async function findJob<T extends object>(name: string, singletonKey: string): Promise<HeldJob<T> | null> {
+  const [row] = await db.execute<HeldJob<T>>(sql`
+    select id, state, data from pgboss.job
+    where name = ${name} and singleton_key = ${singletonKey} and state in ('created', 'retry', 'active')
+    limit 1`)
+  return row ?? null
+}
+
+/** Replaces the data of a job that has not started yet. False when it has started or is gone. */
+export async function replaceQueuedData<T extends object>(name: string, id: string, data: T): Promise<boolean> {
+  const rows = await db.execute<{ id: string }>(sql`
+    update pgboss.job set data = ${JSON.stringify(data)}::jsonb
+    where name = ${name} and id = ${id} and state in ('created', 'retry')
+    returning id`)
+  return rows.length > 0
+}
+
+/**
+ * Deletes the job of `name` with this singleton key if it has not started, so a running job
+ * can do its work instead. Returns whether there was one.
+ */
+export async function takeQueued(name: string, singletonKey: string): Promise<boolean> {
+  const rows = await db.execute<{ id: string }>(sql`
+    delete from pgboss.job
+    where name = ${name} and singleton_key = ${singletonKey} and state in ('created', 'retry')
+    returning id`)
+  return rows.length > 0
+}
+
+/**
+ * Deletes the queue of a job that no longer exists, with any jobs left in it, so Admin →
+ * Jobs stops listing it. A no-op once it is gone.
+ */
+export async function retireQueue(name: string) {
+  const instance = running()
+  if (await instance.getQueue(name)) await instance.deleteQueue(name)
+  queues.delete(name)
 }
 
 /** Runs `name` on a cron expression (UTC). Call it from a module's `jobs` hook or after `startJobs`. */
@@ -136,6 +198,7 @@ export async function startJobs({ work }: { work: boolean }) {
         }
       })
       workerIds.push(id)
+      workersByQueue.set(name, [...(workersByQueue.get(name) ?? []), id])
     }
   }
   for (const [name, cron] of schedules) {
@@ -152,6 +215,7 @@ export async function stopJobs() {
   const instance = boss
   boss = undefined
   workerIds = []
+  workersByQueue.clear()
   queues.clear()
   definitions.clear()
   schedules.clear()

@@ -4,12 +4,17 @@ import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { createContext, useContext } from 'react'
 import { useApi } from '@/api/services'
 
-export const setupStatusKey = ['setup-status'] as const
+export const setupStatusKey = queryKeys.setupStatus()
 const isAuthKey = (key: readonly unknown[]) => key.length === 1 && (key[0] === setupStatusKey[0] || key[0] === queryKeys.me()[0])
 
 export function useSetupStatus() {
   const api = useApi()
   return useQuery({ queryKey: setupStatusKey, queryFn: () => api.auth.setupStatus(), meta: { silent: true } })
+}
+
+/** Whether the server has the wantlist on. Off (the default), the app shows no trace of it. */
+export function useWantlistEnabled() {
+  return useSetupStatus().data?.wantlistEnabled ?? false
 }
 
 /** The signed-in user, or null when signed out. */
@@ -55,5 +60,12 @@ export function useCurrentUser(): User {
 
 /** Where to go after signing in: a path inside the app, never another origin. */
 export function safeNext(next: string | null): string {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
+  if (!next) return '/'
+  try {
+    // Parsed as the browser will, so backslashes, tabs and newlines cannot turn it into another origin.
+    const url = new URL(next, window.location.origin)
+    return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : '/'
+  } catch {
+    return '/'
+  }
 }

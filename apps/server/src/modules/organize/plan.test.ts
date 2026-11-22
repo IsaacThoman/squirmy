@@ -9,7 +9,7 @@ import { createArtist } from '../../test/factories.js'
 import { getBatch } from './batches.js'
 import { planOrganize } from './plan.js'
 import { foldPath, MAX_COMPONENT_BYTES, resolveInRoot, sanitizeComponent } from './template.js'
-import { addAlbum, addFileRow, makeRoot, manifest, movesOf, writeFixture } from './test-library.js'
+import { addAlbum, addFileRow, makeRoot, manifest, movesOf, writeFixture } from '../../test/organize-library.js'
 
 describe('organize: planning', () => {
   useTestDatabase()

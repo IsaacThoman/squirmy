@@ -5,10 +5,13 @@ import { Id } from './common.js'
 /**
  * Playback session protocol.
  *
- * Each user has exactly one session, held by the server. Every connected client is a
- * controller; at most one of them, the active device, outputs audio. Clients send
+ * Each user has one shared session, held by the server. Every connected client is a
+ * controller of it; at most one of them, the active device, outputs audio. Clients send
  * commands, the server applies them with the shared reducer in @squirmy/client-core,
  * bumps `version`, and broadcasts. Clients run the same reducer optimistically.
+ *
+ * A device may detach from the shared session and play on its own; see "Detaching"
+ * further down. Everything else in this file applies to either kind of session.
  *
  * Position is never streamed. While `playing && !stalled`, the position at server time
  * `t` is `positionMs + (t - anchorAt)`, capped at the current entry's duration when that
@@ -97,15 +100,41 @@ export const SessionQueue = z.object({
 })
 export type SessionQueue = z.infer<typeof SessionQueue>
 
+/**
+ * Which session a snapshot is of: the user's shared one, or the own session of a detached
+ * device, which only that device sees and controls.
+ */
+export const SessionScope = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('shared') }),
+  z.object({ type: z.literal('device'), deviceId: z.string() }),
+])
+export type SessionScope = z.infer<typeof SessionScope>
+
 export const SessionSnapshot = z.object({
   version: z.number().int(),
   queueVersion: z.number().int(),
   state: SessionState,
   queue: SessionQueue,
+  /**
+   * Absent from servers that cannot detach devices, where every session is the shared one.
+   * Each session counts its own `version` and `queueVersion`.
+   */
+  scope: SessionScope.optional(),
 })
 export type SessionSnapshot = z.infer<typeof SessionSnapshot>
 
-const seeds = z.array(QueueSeed).min(1).max(5000)
+/** Most tracks one `playTracks` or `enqueue` carries. */
+export const COMMAND_TRACK_LIMIT = 5000
+
+/**
+ * Most entries `queue` grows to. The session lives in the server's memory and is sent
+ * whole on every queue change, so it has to stay small enough to copy and send often.
+ * `enqueue` past it is refused (`queue_full`); `previous` may still put the few entries
+ * of `history` back in front of a full queue.
+ */
+export const QUEUE_LIMIT = 10_000
+
+const seeds = z.array(QueueSeed).min(1).max(COMMAND_TRACK_LIMIT)
 
 /**
  * Commands any of the user's clients may send. Semantics, as implemented by
@@ -122,8 +151,10 @@ const seeds = z.array(QueueSeed).min(1).max(5000)
  *   `playOrder`; off restores that order.
  * - `playTracks`: replace the queue with `tracks` and start playing. `startIndex` indexes
  *   `tracks`; when omitted, the first track, or with shuffle the first of the shuffled
- *   order. Without shuffle the tracks before the start are not queued.
- * - `enqueue`: `next` inserts before the queue, `last` appends.
+ *   order. Without shuffle the tracks before the start are not queued. The autoplay
+ *   queue is emptied, so the server suggests tracks for the new ones.
+ * - `enqueue`: `next` inserts before the queue, `last` appends. Changes nothing when the
+ *   queue would grow past `QUEUE_LIMIT`.
  * - `playQueueEntry`: play an entry of the queue or the autoplay queue now; the entries
  *   before it stay queued.
  * - `moveInQueue`: move an entry within its list (queue or autoplay queue). With shuffle
@@ -152,7 +183,12 @@ export const SessionCommand = z.discriminatedUnion('type', [
   z.object({ type: z.literal('moveInQueue'), entryId: z.string(), toIndex: z.number().int().min(0) }),
   z.object({ type: z.literal('clearQueue') }),
   z.object({ type: z.literal('clearHistory') }),
-  /** Makes `deviceId` the active device. Playback continues there from the current position. */
+  /**
+   * Makes `deviceId` the active device. Playback continues there from the current position.
+   * Refused (`device_unavailable`) for a device that is not connected, cannot play, or is
+   * not in this session: a detached device from the shared session, and any device but
+   * itself from a detached device's own session.
+   */
   z.object({ type: z.literal('transfer'), deviceId: z.string(), play: z.boolean().optional() }),
   z.object({ type: z.literal('setVolume'), deviceId: z.string(), value: z.number().min(0).max(1) }),
   /**
@@ -198,24 +234,124 @@ export const EngineReport = z.object({
 })
 export type EngineReport = z.infer<typeof EngineReport>
 
+/**
+ * One of the user's connected devices. Every client of the user gets the same list,
+ * whichever session it is in.
+ */
 export const DeviceInfo = z.object({
   id: z.string(),
   name: z.string(),
   kind: ClientDevice.shape.kind,
+  /**
+   * The shared session can be transferred to it. False for a device that only controls,
+   * and for a detached one, so a client that does not know `detached` never offers it.
+   */
   canPlay: z.boolean(),
+  /** It is the active device of the shared session. */
   isActive: z.boolean(),
+  /**
+   * Present while the device is detached: whether its own session is playing, and what.
+   * The list is sent again when either changes.
+   */
+  detached: z.object({ playing: z.boolean(), trackId: Id.nullable(), albumId: Id.nullable() }).optional(),
 })
 export type DeviceInfo = z.infer<typeof DeviceInfo>
 
-export const SessionHello = z.object({ device: ClientDevice, canPlay: z.boolean() })
+/**
+ * Detaching.
+ *
+ * A device that can play may leave the shared session with `session:detach` and get a
+ * session of its own, held and run by the server exactly like the shared one (the same
+ * reducer, on-demand fetching, autoplay, plays). Only that device is in it: its updates
+ * go to that device alone, the user's other devices list it with `DeviceInfo.detached`,
+ * and nothing can be transferred to or from it.
+ *
+ * - **Detach.** The own session starts as a copy of the shared one, entry ids included,
+ *   and continues the shared session's version numbers. If the device was the shared
+ *   session's active device, the copy is exact and it goes on playing without a gap, and
+ *   the shared session is left as after `deviceLost`: paused, no active device. Otherwise
+ *   the copy is paused where the shared session was and has no active device. Refused
+ *   for a device that cannot play (`cannot_play`), and when the user already has eight
+ *   detached devices that are all connected (`too_many_detached`); otherwise the own
+ *   session of the one gone longest makes room.
+ * - **Attach.** `session:attach` puts the device back in the shared session as a remote
+ *   and discards its own session; whatever it played there stops. With `bringQueue`
+ *   the shared session becomes what the device's own session was (current entry, position,
+ *   queue, history, shuffle, repeat, autoplay and context; entry ids kept) and the device
+ *   becomes its active device, as if it had sent `playTracks` and `transfer` to itself,
+ *   so it continues without a gap and whatever another device was playing stops. Refused
+ *   with `nothing_to_bring` when the own session has no current entry and no queue.
+ * - **Both are idempotent**, answer with everything a hello does, and replace what the
+ *   client held: adopt the snapshot (its `scope` says which session it is) and drop own
+ *   commands already acknowledged. Commands sent after the request apply to the new
+ *   session. Other sockets of the same device receive `session:moved` instead of the ack.
+ * - **Returning.** The server remembers a detached device. A hello carrying `detached`
+ *   (either value) from a device with no other socket connected is answered with its own
+ *   session when one is stored: the server's record wins over what the client believed.
+ *   A hello without the field is from a client that cannot detach: a stored own session
+ *   is discarded and the device is in the shared session. A further socket of a
+ *   connected device joins the session the device is in.
+ * - **Forgetting.** An own session is kept while its device is connected and for seven
+ *   days after it was last seen, then discarded. A device that says `detached: true`
+ *   and has none is answered with the shared session and `detachedEnded`.
+ *
+ * A client that held a different scope than a hello's answer drops its unsent commands:
+ * they were made for another session.
+ */
+export const SessionHello = z.object({
+  device: ClientDevice,
+  canPlay: z.boolean(),
+  /**
+   * Sent by every client that can detach: whether this device was in its own session when
+   * the client last heard from the server. Older clients leave it out.
+   */
+  detached: z.boolean().optional(),
+})
 export type SessionHello = z.infer<typeof SessionHello>
+
+/** What a server can do beyond the base protocol. `detach`: `session:detach`, `session:attach` and all they imply. */
+export const SessionCapability = z.enum(['detach'])
+export type SessionCapability = z.infer<typeof SessionCapability>
 
 export const SessionHelloAck = z.object({
   serverTime: z.number(),
   snapshot: SessionSnapshot,
   devices: z.array(DeviceInfo),
+  /**
+   * `SessionCapability` names this server supports, and names a newer one may add. Absent
+   * from servers older than the first capability; a client offers a feature only when its
+   * name is listed.
+   */
+  capabilities: z.array(z.string()).optional(),
+  /**
+   * Set when the hello said `detached: true` and the device is in the shared session all
+   * the same. `expired`: its own session was found and was past the seven days.
+   * `missing`: the server holds none (cleaned up earlier, or ended from elsewhere).
+   */
+  detachedEnded: z.enum(['expired', 'missing']).optional(),
 })
 export type SessionHelloAck = z.infer<typeof SessionHelloAck>
+
+/** `session:detach` takes no options yet. */
+export const SessionDetach = z.object({})
+export type SessionDetach = z.infer<typeof SessionDetach>
+
+export const SessionAttach = z.object({
+  /** Make the shared session what this device's own session was, with this device active. */
+  bringQueue: z.boolean().optional(),
+})
+export type SessionAttach = z.infer<typeof SessionAttach>
+
+/**
+ * Answer to `session:detach` and `session:attach`: on success, the session the device is
+ * in now. Errors: `hello_required`, `cannot_play`, `too_many_detached`,
+ * `nothing_to_bring`, `invalid_request`, `internal_error`.
+ */
+export const SessionMoveAck = z.union([
+  SessionHelloAck.extend({ ok: z.literal(true) }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+])
+export type SessionMoveAck = z.infer<typeof SessionMoveAck>
 
 /**
  * `commandId` is unique per user. Clients re-send unacknowledged commands after a
@@ -254,6 +390,13 @@ export const ServerEvent = z.discriminatedUnion('type', [
     status: z.string(),
   }),
   z.object({ type: z.literal('import.updated'), importId: Id, status: z.string() }),
+  /**
+   * Sent to the sockets in a session when several tracks in a row failed to load and it
+   * paused instead of skipping on, so clients show one notice rather than one per track.
+   * A detached device's own session tells that device alone.
+   * `trackId` is the current entry's track when playback paused.
+   */
+  z.object({ type: z.literal('playback.unavailable'), trackId: Id.nullable() }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>
 
@@ -263,16 +406,25 @@ export interface ClientToServerEvents {
   'time:sync': (clientTime: number, ack: (reply: { clientTime: number; serverTime: number }) => void) => void
   'session:command': (envelope: CommandEnvelope, ack: (reply: CommandAck) => void) => void
   'session:report': (report: EngineReport) => void
+  /** Only on servers with the `detach` capability. See "Detaching". */
+  'session:detach': (request: SessionDetach, ack: (reply: SessionMoveAck) => void) => void
+  'session:attach': (request: SessionAttach, ack: (reply: SessionMoveAck) => void) => void
 }
 
 /**
  * Every session change emits `session:state`. When the queue half also changed,
  * `session:queue` with the same `version` is emitted first; clients hold it until the
- * matching `session:state` arrives.
+ * matching `session:state` arrives. Both go only to the sockets in that session: a
+ * detached device's to that device, the shared session's to everyone else.
  */
 export interface ServerToClientEvents {
   'session:state': (update: { version: number; state: SessionState }) => void
   'session:queue': (update: { version: number; queueVersion: number; queue: SessionQueue }) => void
+  /**
+   * This socket's device changed session without this socket asking: another socket of
+   * the device detached or attached it. Handle it like the answer to a hello.
+   */
+  'session:moved': (update: SessionHelloAck) => void
   devices: (devices: DeviceInfo[]) => void
   /** TanStack Query keys to invalidate. See `queryKeys`. */
   invalidate: (update: { keys: readonly (readonly unknown[])[] }) => void
@@ -285,6 +437,8 @@ export interface ServerToClientEvents {
  */
 export const queryKeys = {
   me: () => ['me'] as const,
+  /** `GET /setup/status`. Clients may add the server's URL after it. */
+  setupStatus: () => ['setup-status'] as const,
   home: () => ['home'] as const,
   libraryAlbums: () => ['library', 'albums'] as const,
   libraryArtists: () => ['library', 'artists'] as const,

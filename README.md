@@ -3,7 +3,7 @@
 Squirmy is a self-hosted music server with a web app and an iOS app. Point it at your music and it:
 
 - **identifies and organizes your files**: tags are read, albums are matched against MusicBrainz, covers and lyrics are filled in, and managed folders can be renamed into a clean layout, with a preview and undo;
-- **searches all music**: your library comes first, everything else shows gray and can go on your wantlist;
+- **searches all music**: your library comes first, everything else shows gray and can go on an optional wantlist;
 - **keeps one playback session across your devices**: start an album in the browser, continue on your phone, or use one as a remote for the other;
 - **works with Subsonic apps** through an OpenSubsonic API.
 
@@ -23,7 +23,7 @@ curl -fsSLO https://raw.githubusercontent.com/IsaacThoman/squirmy/main/compose.y
 MUSIC_DIR=/path/to/your/music docker compose up -d
 ```
 
-Open http://localhost:4747 and create the admin account. At the folder step your music folder is already listed: it is mounted at `/music`, added read-only and scanning, so choose **Continue**. The image contains the API, the worker, the web app, ffmpeg and fpcalc; `compose.yaml` adds PostgreSQL. Append `:ro` to the music volume in `compose.yaml` if the server must never change your files.
+Open http://localhost:4747 and create the admin account. At the folder step your music folder is already listed: it is mounted at `/music`, added read-only and scanning, so choose **Continue**. The image contains the API, the worker, the web app, ffmpeg and fpcalc; `compose.yaml` adds PostgreSQL. Set `read_only: true` on the music volume in `compose.yaml` if the server must never change your files.
 
 To build the image from the source instead, clone this repository and run `docker compose up -d --build` in it.
 
@@ -114,7 +114,7 @@ The bench points at port 4800 on the machine running Metro. It loads, pauses, se
 
 ```sh
 npm run docs:dev       # live preview
-npm run docs:build     # what CI runs; dead links fail it
+npm run docs:build     # dead links fail it; CI also runs npm run docs:check for #anchors
 npm run docs:preview   # serve the built site
 ```
 
@@ -122,7 +122,7 @@ npm run docs:preview   # serve the built site
 
 ```sh
 npm run build:packages && npm run typecheck && npm run lint && npm test
-npm run docs:build
+npm run docs:build && npm run docs:check
 (cd apps/mobile && npx expo export --platform ios)
 ```
 

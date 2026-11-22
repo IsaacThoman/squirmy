@@ -1,12 +1,21 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { queryKeys, SetupStatus } from '@squirmy/contracts'
 import type { FastifyInstance, InjectOptions } from 'fastify'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { enqueue, startJobs, stopJobs } from '../../jobs/index.js'
 import { getServerSecret } from '../../lib/settings.js'
+import { invalidate } from '../../realtime/index.js'
 import { useTestDatabase } from '../../test/database.js'
+
+// Records invalidations and still sends them.
+vi.mock('../../realtime/index.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../realtime/index.js')>()
+  return { ...original, invalidate: vi.fn(original.invalidate) }
+})
+const invalidated = vi.mocked(invalidate)
 
 describe('admin', () => {
   useTestDatabase()
@@ -50,9 +59,12 @@ describe('admin', () => {
     expect(updated.json()).toMatchObject({ displayName: 'Mira V', canUpload: true })
     expect((await call({ url: '/api/v1/auth/me', headers: member })).statusCode).toBe(200)
 
-    // A password reset signs the user out everywhere.
+    // A password reset signs the user out everywhere, Subsonic apps included.
+    const appPassword = await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: member, payload: { name: 'Planted', currentPassword: 'mira password' } })
+    expect(appPassword.statusCode).toBe(201)
     await call({ method: 'PATCH', url: `/api/v1/admin/users/${id}`, headers: admin, payload: { password: 'reset password' } })
     expect((await call({ url: '/api/v1/auth/me', headers: member })).statusCode).toBe(401)
+    expect((await call({ url: `/rest/ping?f=json&apiKey=${appPassword.json().secret}` })).json()['subsonic-response'].status).toBe('failed')
     member = await login('mira', 'reset password')
 
     const disabled = await call({ method: 'PATCH', url: `/api/v1/admin/users/${id}`, headers: admin, payload: { disabled: true } })
@@ -116,8 +128,31 @@ describe('admin', () => {
     expect((await call({ url: '/api/v1/admin/settings', headers: admin })).body).not.toContain('very-secret-key')
     expect(await getServerSecret('acoustIdKey')).toBe('very-secret-key')
     expect((await call({ method: 'PATCH', url: '/api/v1/admin/settings', headers: admin, payload: { matchAutoAcceptScore: 2 } })).statusCode).toBe(400)
+    expect((await call({ method: 'PATCH', url: '/api/v1/admin/settings', headers: admin, payload: { musicBrainzBaseUrl: 'musicbrainz-mirror:5000' } })).statusCode).toBe(400)
     expect((await call({ method: 'PATCH', url: '/api/v1/admin/settings', headers: member, payload: { serverName: 'Mine' } })).statusCode).toBe(403)
     expect((await call({ url: '/api/v1/setup/status' })).json().serverName).toBe('Home')
+  })
+
+  it('keeps the wantlist off until an admin turns it on, and tells open clients', async () => {
+    const status = async () => SetupStatus.parse((await call({ url: '/api/v1/setup/status' })).json()).wantlistEnabled
+    expect((await call({ url: '/api/v1/admin/settings', headers: admin })).json().wantlistEnabled).toBe(false)
+    expect(await status()).toBe(false)
+
+    const clientKeys = [queryKeys.setupStatus(), queryKeys.home(), queryKeys.wants()]
+    invalidated.mockClear()
+    const on = await call({ method: 'PATCH', url: '/api/v1/admin/settings', headers: admin, payload: { wantlistEnabled: true } })
+    expect(on.json().wantlistEnabled).toBe(true)
+    expect(await status()).toBe(true)
+    expect(invalidated).toHaveBeenCalledWith('all', clientKeys)
+
+    // Saving other settings leaves what clients show alone.
+    invalidated.mockClear()
+    await call({ method: 'PATCH', url: '/api/v1/admin/settings', headers: admin, payload: { wantlistEnabled: true, serverName: 'Home' } })
+    expect(invalidated).not.toHaveBeenCalledWith('all', clientKeys)
+
+    await call({ method: 'PATCH', url: '/api/v1/admin/settings', headers: admin, payload: { wantlistEnabled: false } })
+    expect(await status()).toBe(false)
+    expect(invalidated).toHaveBeenCalledWith('all', clientKeys)
   })
 
   it('reports queue stats', async () => {

@@ -1,6 +1,8 @@
 import type { AddressInfo } from 'node:net'
-import type {
-  ClientToServerEvents, CommandAck, QueueSeed, ServerToClientEvents, SessionCommand, SessionHelloAck, SessionQueue, SessionState,
+import {
+  COMMAND_TRACK_LIMIT, QUEUE_LIMIT,
+  type ClientToServerEvents, type CommandAck, type QueueSeed, type ServerToClientEvents, type SessionCommand, type SessionHelloAck,
+  type SessionQueue, type SessionState,
 } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -16,6 +18,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { requestRecording } from '../acquisition/coverage.js'
 import { createSession } from '../auth/service.js'
+import { mergeRecording } from '../matching/merge.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { onPlayStart, sessionsModule } from './index.js'
 import { configureSessions, getSnapshot, markRecordingFailed, markRecordingReady, recordExternalPlay, replaceQueue } from './service.js'
@@ -83,7 +86,7 @@ class Peer {
   private serial = 0
 
   constructor(readonly socket: Client, readonly deviceId: string) {
-    for (const event of ['session:state', 'session:queue', 'devices', 'invalidate'] as const) {
+    for (const event of ['session:state', 'session:queue', 'devices', 'invalidate', 'event'] as const) {
       socket.on(event, (payload: unknown) => this.log.push([event, payload]))
     }
   }
@@ -145,7 +148,8 @@ describe('sessions', () => {
     vi.mocked(requestRecording).mockClear()
     vi.mocked(suggestAutoplay).mockReset().mockResolvedValue([])
     onDemand.clear()
-    user = await newUser()
+    // May have tracks fetched, so on-demand tracks are kept in its queues.
+    user = await newUser({ canAcquire: true })
   })
   afterEach(async () => {
     for (const socket of sockets.splice(0)) socket.disconnect()
@@ -155,8 +159,8 @@ describe('sessions', () => {
     await app.close()
   })
 
-  async function newUser() {
-    const row = await createUser()
+  async function newUser(input: Parameters<typeof createUser>[0] = {}) {
+    const row = await createUser(input)
     const { token } = await createSession(db, { userId: row.id, clientKind: 'test' })
     return { id: row.id, token }
   }
@@ -246,6 +250,16 @@ describe('sessions', () => {
     expect((await getSnapshot(user.id)).state.current?.id).toBe('once.0')
   })
 
+  it('still knows the command ids of a stored session after a restart', async () => {
+    const a = await device('device-a-0022')
+    await a.send(playAlbum(), 'first')
+    expect(await a.send({ type: 'enqueue', tracks: seeds().slice(0, 1), placement: 'last' }, 'added')).toEqual({ ok: true, version: 2 })
+    await sessionsModule.stop!()
+    // A client re-sends what it has no confirmed state for after reconnecting.
+    expect(await a.send({ type: 'enqueue', tracks: seeds().slice(0, 1), placement: 'last' }, 'added')).toEqual({ ok: true, version: 2 })
+    expect((await getSnapshot(user.id)).queue.queue.map((entry) => entry.id)).toEqual(['first.1', 'first.2', 'added.0'])
+  })
+
   it('enforces who may send which command', async () => {
     const stranger = await open('device-x-0004')
     expect(await stranger.send({ type: 'play' })).toEqual({ ok: false, error: 'hello_required' })
@@ -297,6 +311,24 @@ describe('sessions', () => {
     a.socket.disconnect()
     await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0006']))
     expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
+  })
+
+  it('pauses a lost device where it was when it went away, and counts no play time after', async () => {
+    const clock = stoppedClock()
+    const timers = manualTimers()
+    const a = await device('device-a-0023')
+    const b = await device('device-b-0023')
+    await a.send(playAlbum())
+    await b.state(1)
+    clock.advance(10_000)
+    a.socket.disconnect()
+    await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0023']))
+    clock.advance(20_000)
+    timers.fireAll()
+    expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
+    // The paused play is still open; shutdown writes it as counted so far.
+    await sessionsModule.stop!()
+    expect(await db.select({ msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id))).toEqual([{ msPlayed: 10_000 }])
   })
 
   it('keeps the active device when it reconnects within the grace period', async () => {
@@ -386,6 +418,37 @@ describe('sessions', () => {
     expect(await a.send({ type: 'playTracks', tracks: tracks.slice(0, 2), seed: 1 })).toEqual({ ok: false, error: 'nothing_playable' })
   })
 
+  it('refuses to grow the queue past QUEUE_LIMIT, counting the tracks it trusts', async () => {
+    const a = await device('device-a-0019')
+    const many = (count: number) => Array.from({ length: count }, (_, index) => seeds()[index % album.tracks.length]!)
+    await a.send(playAlbum())
+    expect(await a.send({ type: 'enqueue', tracks: many(COMMAND_TRACK_LIMIT), placement: 'last' })).toMatchObject({ ok: true })
+    // Unplayable tracks are dropped before counting, so this one fits exactly.
+    const room = QUEUE_LIMIT - (album.tracks.length - 1) - COMMAND_TRACK_LIMIT
+    const fits = [...many(room), { trackId: newId(), durationMs: 1 }]
+    expect(await a.send({ type: 'enqueue', tracks: fits, placement: 'next' })).toMatchObject({ ok: true })
+    expect((await getSnapshot(user.id)).queue.queue).toHaveLength(QUEUE_LIMIT)
+
+    expect(await a.send({ type: 'enqueue', tracks: many(1), placement: 'last' })).toEqual({ ok: false, error: 'queue_full' })
+    expect(await a.send({ type: 'enqueue', tracks: many(2), placement: 'next' })).toEqual({ ok: false, error: 'queue_full' })
+    expect((await getSnapshot(user.id)).queue.queue).toHaveLength(QUEUE_LIMIT)
+    expect(await a.send({ type: 'playTracks', tracks: many(COMMAND_TRACK_LIMIT), seed: 1 })).toMatchObject({ ok: true })
+    expect((await getSnapshot(user.id)).queue.queue).toHaveLength(COMMAND_TRACK_LIMIT - 1)
+  })
+
+  it('acks commands past the rate limit rate_limited without applying them', async () => {
+    const a = await device('device-a-0020')
+    expect(await a.send(playAlbum())).toEqual({ ok: true, version: 1 })
+    const acks = await Promise.all(Array.from({ length: 60 }, (_, index) => a.send({ type: 'seek', positionMs: (index + 1) * 1000 })))
+    // The burst left 39 tokens; one or two more may refill while the rest arrive.
+    expect(acks.slice(0, 39).every((ack) => ack.ok)).toBe(true)
+    const limited = acks.filter((ack) => !ack.ok)
+    expect(limited.length).toBeGreaterThanOrEqual(15)
+    expect(limited).toEqual(limited.map(() => ({ ok: false, error: 'rate_limited' })))
+    // Every seek that went through moved the position, and none of the others did.
+    expect((await getSnapshot(user.id)).version).toBe(1 + acks.length - limited.length)
+  })
+
   it('prepares on-demand tracks and follows them to ready or failed', async () => {
     const remote = await createAlbum({ tracks: [{ title: 'Far' }, { title: 'Farther' }, { title: 'Farthest' }] })
     const [far, farther, farthest] = remote.tracks.map((track) => track.recordingId) as [string, string, string]
@@ -395,9 +458,10 @@ describe('sessions', () => {
     await a.send({ type: 'playTracks', tracks, seed: 1 })
     const state = await a.state(1)
     expect(state).toMatchObject({ stalled: true, playing: true, current: { trackId: far, state: 'preparing' } })
-    // The current entry and the next two are requested; the fourth is not yet.
-    expect(vi.mocked(requestRecording).mock.calls.map(([request]) => request.recordingId)).toEqual([far, farther])
-    expect(vi.mocked(requestRecording).mock.calls[0]![0]).toEqual({ userId: user.id, recordingId: far, albumId: remote.albumId })
+    // The current entry as `play`, the next ones as `prefetch`; the owned one needs nothing.
+    const requests = () => vi.mocked(requestRecording).mock.calls.map(([request]) => [request.recordingId, request.origin])
+    await eventually(requests, (value) => expect(value).toEqual([[far, 'play'], [farther, 'prefetch'], [farthest, 'prefetch']]))
+    expect(vi.mocked(requestRecording).mock.calls[0]![0]).toEqual({ userId: user.id, recordingId: far, albumId: remote.albumId, origin: 'play' })
 
     await markRecordingReady(far)
     expect(await a.state(2)).toMatchObject({ stalled: false, current: { trackId: far, state: 'ready' } })
@@ -409,13 +473,160 @@ describe('sessions', () => {
     await a.send({ type: 'next' })
     await a.send({ type: 'next' })
     expect((await a.state(5)).current).toMatchObject({ trackId: farthest, state: 'preparing' })
-    expect(vi.mocked(requestRecording).mock.calls.map(([request]) => request.recordingId)).toEqual([far, farther, farthest])
+    // Once current, a prefetched entry is asked for again as what the user waits for.
+    await eventually(requests, (value) => expect(value).toEqual([[far, 'play'], [farther, 'prefetch'], [farthest, 'prefetch'], [farthest, 'play']]))
 
     // A session loaded from the database re-checks its preparing entries.
     await sessionsModule.stop!()
     const root = await createLibraryRoot()
     await db.insert(mediaFiles).values({ id: newId(), rootId: root.id, relPath: 'farthest.flac', size: 1, mtime: new Date(), container: 'flac', codec: 'flac', durationMs: 1000, recordingId: farthest })
     expect((await getSnapshot(user.id)).state).toMatchObject({ stalled: false, current: { trackId: farthest, state: 'ready' } })
+  })
+
+  describe('on demand', () => {
+    /** An album of `count` tracks the server has no file for, all on demand. */
+    async function remoteAlbum(count: number) {
+      const remote = await createAlbum({ tracks: Array.from({ length: count }, (_, index) => ({ title: `Remote ${index + 1}` })) })
+      const ids = remote.tracks.map((track) => track.recordingId)
+      for (const id of ids) onDemand.add(id)
+      return { albumId: remote.albumId, ids, seeds: ids.map((trackId) => ({ trackId, albumId: remote.albumId, durationMs: 1 })) }
+    }
+    const requests = () => vi.mocked(requestRecording).mock.calls.map(([request]) => [request.recordingId, request.origin])
+    const queued = (peer: Peer) => peer.queues().at(-1)!.queue.queue.map((entry) => [entry.trackId, entry.state])
+
+    it('keeps on-demand tracks out of the queue of a user who may not have tracks fetched', async () => {
+      const remote = await remoteAlbum(1)
+      const member = await newUser()
+      const a = await device('device-a-0030', { token: member.token })
+      const owned = album.tracks[0]!.recordingId
+      const tracks = [{ trackId: owned, albumId: album.albumId, durationMs: 1 }, ...remote.seeds]
+      expect(await a.send({ type: 'playTracks', tracks, startIndex: 1, seed: 1 })).toEqual({ ok: true, version: 1 })
+      expect((await a.state(1)).current).toMatchObject({ trackId: owned, state: 'ready' })
+      expect(a.queues()[0]!.queue.queue).toEqual([])
+      expect(await a.send({ type: 'enqueue', tracks: remote.seeds, placement: 'next' })).toEqual({ ok: false, error: 'nothing_playable' })
+      expect(requestRecording).not.toHaveBeenCalled()
+    })
+
+    it('prepares the current entry and the next five, current first, in queue order', async () => {
+      const remote = await remoteAlbum(13)
+      const a = await device('device-a-0031')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      const expected = remote.ids.slice(0, 6).map((id, index) => [id, index === 0 ? 'play' : 'prefetch'])
+      await eventually(requests, (value) => expect(value).toEqual(expected))
+
+      await a.send({ type: 'next' })
+      await eventually(requests, (value) => expect(value).toEqual([...expected, [remote.ids[1], 'play'], [remote.ids[6], 'prefetch']]))
+    })
+
+    it('marks a prefetched entry that fails quietly while the current one loads, and skips it when reached', async () => {
+      const remote = await remoteAlbum(4)
+      const [first, second, third, fourth] = remote.ids as [string, string, string, string]
+      const a = await device('device-a-0032')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      await markRecordingFailed(third)
+      // The current entry still loads, playing; only the third is marked.
+      expect(await a.state(2)).toMatchObject({ playing: true, stalled: true, current: { trackId: first, state: 'preparing' } })
+      expect(queued(a)).toEqual([[second, 'preparing'], [third, 'failed'], [fourth, 'preparing']])
+
+      await markRecordingReady(first)
+      await markRecordingReady(second)
+      await a.state(4)
+      await a.send({ type: 'trackEnded', entryId: (await a.state(4)).current!.id })
+      expect((await a.state(5)).current).toMatchObject({ trackId: second, state: 'ready' })
+      await a.send({ type: 'trackEnded', entryId: (await a.state(5)).current!.id })
+      expect(await a.state(6)).toMatchObject({ playing: true, current: { trackId: fourth, state: 'preparing' } })
+      // Nothing was said to the user at any point.
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(a.events('event')).toEqual([])
+    })
+
+    it('waits on an entry whose fetch has no answer yet rather than moving past it', async () => {
+      // A provider that answers busy has its start queued again: no outcome reaches the session.
+      const remote = await remoteAlbum(2)
+      const [first] = remote.ids as [string, string]
+      const a = await device('device-a-0033')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      expect(a.states().at(-1)!.state).toMatchObject({ playing: true, stalled: true, current: { trackId: first, state: 'preparing' } })
+      expect(requests().filter(([id]) => id === first)).toEqual([[first, 'play']])
+      await markRecordingReady(first)
+      expect((await a.state(2)).current).toMatchObject({ trackId: first, state: 'ready' })
+    })
+
+    it('pauses with one notice after three current entries fail in a row, keeping the queue', async () => {
+      const remote = await remoteAlbum(10)
+      const ids = remote.ids
+      const a = await device('device-a-0034')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      await markRecordingFailed(ids[0]!)
+      expect(await a.state(2)).toMatchObject({ playing: true, current: { trackId: ids[1] } })
+      await markRecordingFailed(ids[1]!)
+      expect(await a.state(3)).toMatchObject({ playing: true, current: { trackId: ids[2] } })
+      await markRecordingFailed(ids[2]!)
+      expect(await a.state(4)).toMatchObject({ playing: false, stalled: false, current: { trackId: ids[2], state: 'failed' } })
+      expect(queued(a).map(([id]) => id)).toEqual(ids.slice(3))
+      await eventually(() => a.events('event'), (events) => expect(events).toEqual([{ type: 'playback.unavailable', trackId: ids[2] }]))
+
+      // Play moves on from the failed entry, and the count starts again.
+      await a.send({ type: 'play' })
+      expect(await a.state(5)).toMatchObject({ playing: true, current: { trackId: ids[3], state: 'preparing' } })
+      await markRecordingFailed(ids[3]!)
+      await markRecordingFailed(ids[4]!)
+      expect(await a.state(7)).toMatchObject({ playing: true, current: { trackId: ids[5], state: 'preparing' } })
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(a.events('event')).toHaveLength(1)
+    })
+
+    it('counts failures in a row only: a track that became ready in between starts the count again', async () => {
+      const remote = await remoteAlbum(6)
+      const ids = remote.ids
+      const a = await device('device-a-0035')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      await markRecordingFailed(ids[0]!)
+      await markRecordingFailed(ids[1]!)
+      await markRecordingReady(ids[2]!)
+      const playing = await a.state(4)
+      expect(playing.current).toMatchObject({ trackId: ids[2], state: 'ready' })
+      await a.send({ type: 'trackEnded', entryId: playing.current!.id })
+      await markRecordingFailed(ids[3]!)
+      await markRecordingFailed(ids[4]!)
+      expect(await a.state(7)).toMatchObject({ playing: true, current: { trackId: ids[5], state: 'preparing' } })
+      expect(a.events('event')).toEqual([])
+    })
+  })
+
+  it('fails an on-demand entry whose request could not be made, rather than leave it preparing', async () => {
+    const remote = await createAlbum({ tracks: [{ title: 'Unreachable' }] })
+    const far = remote.tracks[0]!.recordingId
+    onDemand.add(far)
+    vi.mocked(requestRecording).mockRejectedValueOnce(new Error('connection terminated'))
+    const a = await device('device-a-0020')
+    const tracks = [far, album.tracks[0]!.recordingId].map((trackId) => ({ trackId, albumId: remote.albumId, durationMs: 1 }))
+    await a.send({ type: 'playTracks', tracks, seed: 1 })
+    expect((await a.state(1)).current).toMatchObject({ trackId: far, state: 'preparing' })
+    expect((await a.state(2)).current).toMatchObject({ trackId: album.tracks[0]!.recordingId, state: 'ready' })
+  })
+
+  it('asks again for an on-demand track that left the queue before its answer came', async () => {
+    const remote = await createAlbum({ tracks: [{ title: 'Again' }] })
+    const far = remote.tracks[0]!.recordingId
+    onDemand.add(far)
+    const a = await device('device-a-0021')
+    const play = (...trackIds: string[]) => a.send({ type: 'playTracks', tracks: trackIds.map((trackId) => ({ trackId, albumId: remote.albumId, durationMs: 1 })), seed: 1 })
+    // Requested while up next, then gone with the queue it was in.
+    await play(album.tracks[0]!.recordingId, far)
+    await play(album.tracks[1]!.recordingId)
+    await a.state(2)
+    // The fetch failed while the session no longer held the track; it is still on demand.
+    await markRecordingFailed(far)
+    await play(far)
+    expect((await a.state(3)).current).toMatchObject({ trackId: far, state: 'preparing' })
+    expect(vi.mocked(requestRecording).mock.calls.map(([request]) => request.recordingId)).toEqual([far, far])
   })
 
   it('refills autoplay from the radio module once per entry, and never loops on an empty answer', async () => {
@@ -468,6 +679,49 @@ describe('sessions', () => {
       { recordingId: third!.recordingId, msPlayed: third!.durationMs, completed: true },
     ]))
     await eventually(() => a.events('invalidate'), (value) => expect(value).toContainEqual({ keys: [['history'], ['home']] }))
+  })
+
+  it('records a play under the album and recording its track resolves to when it closes', async () => {
+    const clock = stoppedClock()
+    // A catalog stub named as the queue's album: it has no tracks of its own.
+    const stub = await createAlbum({ tracks: [] })
+    const fetched = await createAlbum({ owned: true, tracks: [{ title: 'Fetched' }, { title: 'Also fetched' }] })
+    const [first, second] = fetched.tracks as [typeof fetched.tracks[0], typeof fetched.tracks[0]]
+    const a = await device('device-a-0018')
+    const tracks = [first, second].map((track) => ({ trackId: track.recordingId, albumId: stub.albumId, durationMs: 1 }))
+    await a.send({ type: 'playTracks', tracks, seed: 1 })
+    await a.state(1)
+    clock.advance(30_000)
+    await a.send({ type: 'next' })
+    clock.advance(30_000)
+    // Identification merges the recording while it plays.
+    const winner = (await createAlbum({ tracks: [{ title: 'Canonical' }] })).tracks[0]!.recordingId
+    await mergeRecording(second.recordingId, winner)
+    await a.send({ type: 'pause' })
+    await a.send({ type: 'next' })
+    await a.state(4)
+    await eventually(() => db.select({ recordingId: plays.recordingId, albumId: plays.albumId }).from(plays).where(eq(plays.userId, user.id)).orderBy(plays.startedAt), (rows) => expect(rows).toEqual([
+      { recordingId: first.recordingId, albumId: fetched.albumId },
+      { recordingId: winner, albumId: fetched.albumId },
+    ]))
+  })
+
+  it('keeps one play row for a listen that spans a restart', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0019')
+    await a.send(playAlbum(), 'span')
+    await a.state(1)
+    clock.advance(60_000)
+    await sessionsModule.stop!()
+    clock.advance(30_000)
+    // The device kept playing; its next report re-anchors the reloaded session.
+    expect(await a.send({ type: 'seek', positionMs: 90_000 })).toEqual({ ok: true, version: 2 })
+    clock.advance(30_000)
+    await a.send({ type: 'next' })
+    await a.state(3)
+    await sessionsModule.stop!()
+    expect(await db.select({ recordingId: plays.recordingId, msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id)))
+      .toEqual([{ recordingId: album.tracks[0]!.recordingId, msPlayed: 120_000 }])
   })
 
   it('waits for the write of a play that closed just before shutdown', async () => {
@@ -538,6 +792,16 @@ describe('sessions', () => {
     expect(snapshot.queue.queue.map((entry) => entry.trackId)).toEqual([ids[2]])
     expect((await a.state(snapshot.version)).current?.trackId).toBe(ids[1])
     expect((await replaceQueue(user.id, { trackIds: [] })).queue.queue).toEqual([])
+
+    // A Subsonic client may save far more ids than a session holds or one query may bind.
+    const unknown = Array.from({ length: 70_000 }, () => newId())
+    const huge = await replaceQueue(user.id, { trackIds: [...unknown.slice(0, 10), ...ids, ...unknown], currentId: ids[0] })
+    expect(huge.state.current?.trackId).toBe(ids[0])
+    expect(huge.queue.queue.map((entry) => entry.trackId)).toEqual(ids.slice(1))
+    const long = Array.from({ length: COMMAND_TRACK_LIMIT + 50 }, (_, index) => ids[index % ids.length]!)
+    const capped = await replaceQueue(user.id, { trackIds: long, currentId: ids[1] })
+    expect(capped.state.current?.trackId).toBe(ids[1])
+    expect(capped.queue.queue).toHaveLength(COMMAND_TRACK_LIMIT - 1)
 
     expect(await recordExternalPlay(user.id, newId())).toBe(false)
     expect(await recordExternalPlay(user.id, ids[0]!, { playedAt: new Date('2026-01-01T00:00:00Z') })).toBe(true)

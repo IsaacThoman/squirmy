@@ -7,9 +7,10 @@
  * that do not exist, and returns summaries in the order of its input.
  */
 import type { AlbumSummary, ArtistRef, ArtistSummary, Artwork, TrackSummary } from '@squirmy/contracts'
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { albumAvailability, recordingOwned, trackAvailability } from './availability.js'
+import { retryFailedAfterMs } from '../artwork/index.js'
+import { albumAvailability, inLibraryAlbum, inLibraryRecording, trackAvailability } from './availability.js'
 import { resolveMerged } from './redirects.js'
 import { uuidArray } from './sql.js'
 
@@ -17,6 +18,15 @@ import { uuidArray } from './sql.js'
 export type TrackRef = { id: string; albumId?: string | null }
 
 type ArtworkColumns = { artworkId: string | null; artworkColor: string | null; artworkThumbhash: string | null }
+
+/**
+ * Join condition: the art route can serve the asset (alias given). A missing asset and a
+ * failed download it will not try again yet answer 404, so handing out their ids only
+ * gets a broken image requested on every render.
+ */
+export function servable(asset: string): SQL {
+  return sql.raw(`${asset}.status <> 'missing' and not (${asset}.status = 'failed' and ${asset}.checked_at > now() - interval '${retryFailedAfterMs} milliseconds')`)
+}
 
 function artwork(row: ArtworkColumns): Artwork | null {
   return row.artworkId ? { id: row.artworkId, color: row.artworkColor, thumbhash: row.artworkThumbhash } : null
@@ -88,7 +98,7 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
 
   const pairs = [...new Map(known.map((ref) => [`${ref.id}|${ref.albumId ?? ''}`, ref])).values()]
   const ids = [...new Set(pairs.map((pair) => pair.id))]
-  const [rows, artists, liked, availability] = await Promise.all([
+  const [rows, artists, liked, availability, inLibrary] = await Promise.all([
     db.execute<TrackRow>(sql`
       select req.id, req.album_id as "albumContext", r.mbid, r.title, r.artist_credit as "artistCredit",
         r.primary_artist_id as "primaryArtistId", coalesce(r.duration_ms, place.duration_ms, 0) as "durationMs",
@@ -108,12 +118,14 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
           select rl.album_id, 2, rt.id from release_tracks rt join releases rl on rl.id = rt.release_id
           where rt.recording_id = r.id
           union all
-          select r.album_hint_id, 3, null where r.album_hint_id is not null
+          -- Merges do not rewrite hints. A merge points every row that redirected to the
+          -- loser straight at the winner, so one hop reaches the current album.
+          select coalesce(hint.merged_into_id, hint.id), 3, null from albums hint where hint.id = r.album_hint_id
         ) candidate
         order by candidate.rank, candidate.tiebreak limit 1
       ) chosen on true
       left join albums al on al.id = chosen.album_id
-      left join assets art on art.id = al.artwork_asset_id
+      left join assets art on art.id = al.artwork_asset_id and ${servable('art')}
       left join lateral (
         select rt.disc, rt.position, rt.duration_ms from release_tracks rt join releases rl on rl.id = rt.release_id
         where rt.recording_id = r.id and rl.album_id = al.id
@@ -124,9 +136,12 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
       select entity_id as id from likes
       where user_id = ${userId} and entity_type = 'recording' and entity_id = any(${uuidArray(ids)})`),
     trackAvailability(ids),
+    db.execute<{ id: string }>(sql`
+      select candidate.id from unnest(${uuidArray(ids)}) as candidate(id) where ${inLibraryRecording('candidate.id', userId)}`),
   ])
 
   const likedIds = new Set(liked.map((row) => row.id))
+  const libraryIds = new Set(inLibrary.map((row) => row.id))
   const byPair = new Map(rows.map((row) => [`${row.id}|${row.albumContext ?? ''}`, row]))
   return resolved.map((ref): TrackSummary | null => {
     const row = ref && byPair.get(`${ref.id}|${ref.albumId ?? ''}`)
@@ -143,6 +158,7 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
       position: row.position,
       availability: availability.get(row.id) ?? 'none',
       liked: likedIds.has(row.id),
+      inLibrary: libraryIds.has(row.id),
       explicit: row.explicit,
       hasLyrics: row.hasLyrics,
     }
@@ -170,7 +186,7 @@ export async function albumSummaries(albumIds: readonly string[]): Promise<Album
     db.execute<AlbumRow>(sql`
       select a.id, a.mbid, a.title, a.artist_credit as "artistCredit", a.primary_artist_id as "primaryArtistId",
         a.year, a.type, art.id as "artworkId", art.color as "artworkColor", art.thumbhash as "artworkThumbhash"
-      from albums a left join assets art on art.id = a.artwork_asset_id
+      from albums a left join assets art on art.id = a.artwork_asset_id and ${servable('art')}
       where a.id = any(${uuidArray(ids)})`),
     credits('album_artists', ids),
     albumAvailability(ids),
@@ -195,22 +211,19 @@ export async function albumSummaries(albumIds: readonly string[]): Promise<Album
 }
 
 /**
- * Summaries of artists, in input order. `inLibrary` is true when a present file's
- * recording credits the artist, or the artist is credited on an album with a present file.
+ * Summaries of artists, in input order. `inLibrary` is true when the artist is credited on
+ * an album in `userId`'s library (without a user, on a collection album). Being featured
+ * on a track, or credited on music fetched for playing, does not count.
  */
-export async function artistSummaries(artistIds: readonly string[]): Promise<ArtistSummary[]> {
+export async function artistSummaries(artistIds: readonly string[], userId: string | null = null): Promise<ArtistSummary[]> {
   const resolved = await resolveMerged('artists', artistIds)
   const ids = [...new Set(resolved.values())]
   if (ids.length === 0) return []
   const rows = await db.execute<ArtworkColumns & { id: string; mbid: string | null; name: string; inLibrary: boolean }>(sql`
     select a.id, a.mbid, a.name,
       art.id as "artworkId", art.color as "artworkColor", art.thumbhash as "artworkThumbhash",
-      (exists (select 1 from recording_artists ra where ra.artist_id = a.id and ${recordingOwned('ra.recording_id')})
-        or exists (
-          select 1 from album_artists aa join media_files f on f.album_id = aa.album_id and f.missing_since is null
-          where aa.artist_id = a.id
-        )) as "inLibrary"
-    from artists a left join assets art on art.id = a.image_asset_id
+      exists (select 1 from album_artists aa where aa.artist_id = a.id and ${inLibraryAlbum('aa.album_id', userId)}) as "inLibrary"
+    from artists a left join assets art on art.id = a.image_asset_id and ${servable('art')}
     where a.id = any(${uuidArray(ids)})`)
   const byId = new Map(rows.map((row) => [row.id, row]))
   return artistIds.flatMap((input) => {

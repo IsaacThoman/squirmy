@@ -1,10 +1,10 @@
-import { open } from 'node:fs/promises'
+import { open, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { fileMoves, libraryRoots, mediaFiles, organizeBatches } from '../../database/schema.js'
-import { forbidden, notFound } from '../../lib/errors.js'
+import { AppError, forbidden, notFound } from '../../lib/errors.js'
 import type { MediaFile } from './profiles.js'
 
 /** A response ready to send: status, headers and a body (null for HEAD, 416 and similar). */
@@ -14,9 +14,12 @@ export type StreamResponse = { status: number; headers: Record<string, string>; 
 export type StreamRequest = { range?: string; ifRange?: string; head?: boolean }
 
 /**
- * Absolute path of a library file. `rel_path` comes from the scanner, but a value that
- * climbs out of its root is refused rather than trusted. Symlinks inside the root are
- * followed: pointing a root at linked folders is a normal way to assemble a library.
+ * Absolute path of a library file, with its links resolved. `rel_path` comes from the
+ * scanner, but a value that climbs out of its root is refused rather than trusted, and so
+ * is a file whose real path is outside the root's: whoever can write in a library folder
+ * could otherwise link a file there to anything the server can read, after the scan. Links
+ * that stay inside the root are followed. A file that does not exist keeps its lexical path,
+ * so callers report it missing as before.
  */
 export async function libraryPath(file: Pick<MediaFile, 'rootId' | 'relPath'>): Promise<string> {
   const [root] = await db.select({ path: libraryRoots.path }).from(libraryRoots).where(eq(libraryRoots.id, file.rootId))
@@ -24,7 +27,14 @@ export async function libraryPath(file: Pick<MediaFile, 'rootId' | 'relPath'>): 
   const base = path.resolve(root.path)
   const full = path.resolve(base, file.relPath)
   if (!full.startsWith(base + path.sep)) throw forbidden('The file is outside its library root', 'path_outside_root')
-  return full
+  const real = await realpath(full).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null
+    throw error
+  })
+  if (real === null) return full
+  const realBase = await realpath(base)
+  if (!real.startsWith(realBase + path.sep)) throw forbidden('The file is outside its library root', 'path_outside_root')
+  return real
 }
 
 /**
@@ -55,10 +65,21 @@ async function otherPaths(file: Pick<MediaFile, 'id' | 'relPath'>): Promise<stri
 }
 
 /**
+ * True when the file's library root is a readable folder. A drive or share that is not
+ * mounted takes every file with it; like the scanner, streaming then marks nothing missing,
+ * or the library would lose those albums until a scan finds them again.
+ */
+async function rootAvailable(rootId: string): Promise<boolean> {
+  const [root] = await db.select({ path: libraryRoots.path }).from(libraryRoots).where(eq(libraryRoots.id, rootId))
+  return root ? stat(root.path).then((info) => info.isDirectory(), () => false) : false
+}
+
+/**
  * Calls `attempt` with the file's absolute path, and again at the other paths it may have
  * moved to while `attempt` answers null (not found). A stream URL handed out before
  * organize filed the file keeps working through the move. Throws 404 `file_missing`, and
- * marks the file missing, when it is nowhere.
+ * marks the file missing, when it is nowhere; 503 `root_unavailable`, marking nothing,
+ * when its whole library folder is gone.
  */
 export async function withLibraryFile<T>(file: MediaFile, attempt: (absolutePath: string, file: MediaFile) => Promise<T | null>): Promise<T> {
   const found = await attempt(await libraryPath(file), file)
@@ -68,6 +89,7 @@ export async function withLibraryFile<T>(file: MediaFile, attempt: (absolutePath
     const result = await attempt(await libraryPath(moved), moved)
     if (result !== null) return result
   }
+  if (!await rootAvailable(file.rootId)) throw new AppError(503, 'root_unavailable', 'The library folder holding this file is not available')
   await markMissing(file.id, file.relPath)
   throw notFound('The file is missing from disk', 'file_missing')
 }

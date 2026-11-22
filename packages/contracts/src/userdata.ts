@@ -5,6 +5,14 @@ import { Id, IsoDateTime, page } from './common.js'
 export const LikeEntityType = z.enum(['track', 'album', 'artist'])
 export type LikeEntityType = z.infer<typeof LikeEntityType>
 
+/**
+ * `PUT/DELETE /me/library/:type/:id`, both answering `Ok` and idempotent. A user's library
+ * is the server's collection plus what they saved here, so saving never needs a file and
+ * removing deletes nothing but the save. Saving an unknown id is 404.
+ */
+export const LibraryEntityType = z.enum(['album', 'track'])
+export type LibraryEntityType = z.infer<typeof LibraryEntityType>
+
 export const PlaylistSummary = z.object({
   id: Id,
   name: z.string(),
@@ -29,6 +37,14 @@ export type PlaylistDetail = z.infer<typeof PlaylistDetail>
 /** `GET /api/v1/playlists`: your playlists and other users' public ones, recently updated first. */
 export const PlaylistPage = page(PlaylistSummary)
 export type PlaylistPage = z.infer<typeof PlaylistPage>
+
+/**
+ * Most items one playlist holds. Adding past it fails with `playlist_full` (409), and the
+ * playlist is left as it was.
+ */
+export const PLAYLIST_ITEM_LIMIT = 10_000
+/** Most playlists one user owns. Creating another fails with `too_many_playlists` (409). */
+export const PLAYLIST_LIMIT = 1000
 
 export const CreatePlaylistRequest = z.object({
   name: z.string().trim().min(1).max(120),

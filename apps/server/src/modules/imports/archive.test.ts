@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { extractArchive, inspectArchive, type ArchiveLimits } from './archive.js'
 import { checkRelativePath, fileKind } from './paths.js'
-import { writeZip } from './test-zip.js'
+import { writeZip } from '../../test/zip.js'
 
 const limits: ArchiveLimits = { maxEntries: 100, maxEntryBytes: 1024 * 1024, maxTotalBytes: 4 * 1024 * 1024 }
 
@@ -89,6 +89,16 @@ describe('zip archives', () => {
     const plan = await inspectArchive(liar, limits)
     expect(plan.ok).toBe(true)
     expect(await extractArchive(liar, plan as Extract<typeof plan, { ok: true }>, path.join(dir, 'out-liar'))).toEqual({ ok: false, reason: 'unsafe_archive' })
+  })
+
+  it('refuses an archive that inflates far beyond its own size', async () => {
+    const wide = { maxEntries: 100, maxEntryBytes: 1024 ** 3, maxTotalBytes: 1024 ** 3 }
+    // 80 MiB of silence deflates to well under a megabyte.
+    const bomb = await zip('silence.zip', [{ name: 'Album/01 Silence.wav', data: Buffer.alloc(80 * 1024 * 1024) }])
+    expect(await inspectArchive(bomb, wide)).toEqual({ ok: false, reason: 'unsafe_archive' })
+    // Small archives may compress well: text sidecars and short silent tracks.
+    const small = await zip('sidecars.zip', [{ name: 'Album/01.flac', data: Buffer.alloc(4 * 1024 * 1024) }, { name: 'Album/album.cue', data: Buffer.alloc(64 * 1024, 'a') }])
+    expect(await inspectArchive(small, wide)).toMatchObject({ ok: true })
   })
 
   it('reports damaged archives', async () => {

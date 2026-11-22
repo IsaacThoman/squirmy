@@ -25,6 +25,7 @@ apps/web               Vite, React, Tailwind, Radix, TanStack Query
 apps/server            Fastify, Drizzle, Postgres, pg-boss, socket.io
 packages/contracts     zod schemas shared by all three
 packages/client-core   session reducer, API client, formatters
+adapters/              reference acquisition providers and the provider kit
 docs/                  plan, architecture, self-hosting guide, provider protocol
 ```
 
@@ -36,24 +37,30 @@ docs/                  plan, architecture, self-hosting guide, provider protocol
 ## Data model
 
 ```
-Catalog    artists, albums (release groups), releases (editions),
-           recordings, release_tracks, external_ids, assets, lyrics
+Catalog    artists, albums (release groups), album_artists, releases (editions),
+           recordings, recording_artists, release_tracks, release_loudness,
+           external_ids, assets, lyrics
 
-Library    library_roots (path, mode: read-only | managed)
-           media_files (path, audio_hash, format, tags, loudness, peak,
-                        recording_id, match_status, confidence, source)
-           file_moves (undo journal), transcodes (cache index)
+Library    library_roots (path, mode: read_only | managed, template)
+           media_files (rel_path, audio_hash, codec, tags, loudness, peak, fingerprint,
+                        recording_id, match_status, match_confidence, source)
+           match_reviews, organize_batches and file_moves (undo journal),
+           transcodes (cache index), imports
 
 Users      users, auth_sessions, app_passwords, invites, devices
-           playback_sessions (state JSON, version)
-           likes, playlists, playlist_items, plays, wants
+           playback_sessions (state JSON, version, queue version)
+           likes, ratings, playlists, playlist_items, plays, wants,
+           scrobble_deliveries
 
-Providers  acquisition_providers, acquisition_jobs
+Providers  acquisition_providers, acquisition_jobs, acquisition_offers, acquisition_misses
+
+Server     server_settings, http_cache and rate_limits (metadata clients),
+           catalog_index and catalog_index_imports (local search index)
 ```
 
 - **The catalog is a lazy cache.** It holds everything you own plus whatever anyone has browsed, each row with a fetch time for refresh.
 - **Ownership is derived.** A recording is owned when a present file links to it; album availability follows from that.
-- **Availability on every track and album:** `none`, `on_demand` or `server` for tracks; albums add `partial` and `full`. Clients overlay "on device" themselves.
+- **Availability on every track and album:** `none`, `on_demand` or `server` for tracks; `none`, `on_demand`, `partial` or `full` for albums. Clients overlay "on device" themselves.
 - **Local-only rows.** Unidentified music gets catalog rows with no MusicBrainz ID, built from file tags.
 - **Merges.** When a local-only album is matched later, or MusicBrainz merges two IDs, one transaction re-points files and user data and leaves a redirect.
 - **Missing files get a grace period.** An unmounted drive marks files missing rather than emptying the library.
@@ -72,7 +79,7 @@ Providers  acquisition_providers, acquisition_jobs
 | fanart.tv | Better artist images | Off; needs an operator key |
 | Local search index | Typeahead from MusicBrainz canonical dumps | Optional |
 
-Every source can be switched off in admin settings. The MusicBrainz client uses one queue at 1 request/second, an identifying User-Agent, and a response cache in Postgres. Its base URL is configurable, so an operator with their own mirror has no rate limit.
+Every source can be switched off in admin settings. The MusicBrainz client spaces requests to MusicBrainz's own servers (`musicbrainz.org` and its subdomains) 1.1 seconds apart through one queue shared by every process, sends an identifying User-Agent, and caches responses in Postgres. Its base URL is configurable (an http or https address), and any other host, such as an operator's own mirror, is not rate limited.
 
 ## Library pipeline
 
@@ -89,7 +96,7 @@ discover → probe → group → match → enrich → measure loudness
   3. AcoustID fingerprint for untagged files.
   4. Below the threshold, a review queue with "Fix match".
 - **Manual matches are locked.** A rescan never overwrites them.
-- **Enrich.** Covers (Cover Art Archive, then embedded art, then folder images, then Deezer), artist images, bios, lyrics (embedded, `.lrc` sidecar, then LRCLIB). `sharp` resizes images and produces the album color and a blur placeholder.
+- **Enrich.** Covers (the folder image or embedded art, whichever is larger; when that is under 500 px, the Cover Art Archive release, then release group, then Deezer, keeping the largest), artist images, bios, lyrics (`.lrc` sidecar or embedded, synced first, then LRCLIB). `sharp` resizes images and produces the album color and a blur placeholder.
 - **Every stage is a resumable job.** Heavy ones run at low priority.
 
 Music is playable from its tags the whole time identification runs, and the admin page shows progress.
@@ -130,12 +137,12 @@ A device is listed only while its socket is connected, so a paused phone that iO
 ## Search and browsing
 
 - **Two queries in parallel.** Your library comes from Postgres trigram search, instantly and at full brightness. The catalog comes from a search provider, grayed and deduplicated against library hits.
-- **Search providers are pluggable.** Deezer is the default; MusicBrainz is the fallback when Deezer is off; the local index is optional.
+- **Search providers are pluggable.** The local index when it is installed, else Deezer, else MusicBrainz, falling through to the next when one fails.
 - **Opening a catalog result resolves it to MusicBrainz** by link, barcode, ISRC, or name, then caches it.
 - **Artist pages:** image, bio, top tracks, and the full discography with owned albums lit.
 - **Album pages:** track list with per-track availability.
-- **Wantlist.** Gray items can be wanted; a matching import completes them.
-- **Home:** recently added, recently played, new releases from artists you own, and the wantlist.
+- **Wantlist.** Gray items can be wanted; a matching import completes them. Off unless the admin turns it on (`wantlistEnabled`): with a provider that can fetch anything it is noise.
+- **Home:** recently added, recently played, new releases from artists you own, and the wantlist when it is on.
 
 ## OpenSubsonic
 
@@ -172,7 +179,9 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 
 **Web**
 
-- Layout: sidebar, main view, bottom player bar, queue panel.
+- Layout: a sidebar that folds to icons and is a drawer on phones, the main view, a player bar along the bottom, a queue panel beside the page.
+- Search: a search page, and a quick search dialog from any page.
+- Settings in a dialog. Appearance is light, dark or the system's, with a choice of color themes, kept per browser.
 - Audio: `HTMLAudioElement`, the Media Session API, and Web Audio gain.
 - Admin: setup wizard, library roots, job status, review queue, organize preview, users and invites, providers.
 - Upload by dragging in a folder or zip.
@@ -194,10 +203,10 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 ## Milestones
 
 1. **Foundations.** Monorepo, contracts, shared reducer, CI, release tooling.
-2. **Your files, playing.** Server, auth, setup wizard, scan, tags-only library, streaming, server-held session, loudness, real audio on phone and web.
-3. **Connect.** Device list, transfer, remote control, reconnect rule, live invalidations.
+2. **Your files, playing.** Server, auth, setup wizard, scan, tags-only library, streaming and the transcode cache, loudness, real audio on phone and web.
+3. **Connect.** Server-held session, device list, transfer, remote control, reconnect rule, live invalidations.
 4. **Identify and reorganize.** MusicBrainz matching, review queue, enrichment, merges, then managed roots with preview, undo and tag writing.
-5. **OpenSubsonic.** Router, app passwords, transcoding, client test pass.
-6. **Search everything.** Local search, search providers, gray-out, artist and album pages, wantlist.
+5. **OpenSubsonic.** Router, app passwords, client test pass.
+6. **Search everything.** Library search, Deezer and MusicBrainz search providers, gray-out, artist and album pages, wantlist.
 7. **Add and take.** Web upload, inbox folder, fingerprinting, offline downloads.
 8. **Providers and extras.** Acquisition protocol and reference adapters, external scrobbling, radio from similar-artist data, local search index, docs site.

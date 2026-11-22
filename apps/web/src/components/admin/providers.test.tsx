@@ -94,6 +94,17 @@ describe('providers admin', () => {
   })
 })
 
+describe('wantlist setting', () => {
+  it('turns the wantlist on from General', async () => {
+    const onSave = vi.fn(async () => {})
+    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" />)
+    const toggle = screen.getByRole('switch', { name: 'Wantlist' })
+    expect(toggle).not.toBeChecked()
+    await userEvent.click(toggle)
+    expect(onSave).toHaveBeenCalledWith({ wantlistEnabled: true })
+  })
+})
+
 describe('import settings', () => {
   it('shows why the server refused an inbox folder under the field', async () => {
     const onSave = vi.fn(async () => { throw new ApiError(400, 'inbox_not_found', 'The inbox folder does not exist') })

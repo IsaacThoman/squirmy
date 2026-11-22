@@ -35,6 +35,7 @@ import { planOrganize } from '../organize/plan.js'
 import { refreshWants } from '../userdata/wants.js'
 import { extractArchive, inspectArchive } from './archive.js'
 import { fileKind, numbered } from './paths.js'
+import { hasRoomFor } from './space.js'
 import { announceImport, incomingFolder, releaseStaging, type ImportRow, type ImportWork } from './service.js'
 import { TEMP_PREFIX, treeFiles } from './staging.js'
 
@@ -193,6 +194,9 @@ async function extract(row: ImportRow, stats: Stats, work: ImportWork) {
         }
         const temp = path.join(row.stagingPath, parent, `${TEMP_PREFIX}extract-${shortHash(archive.relPath)}`)
         await rm(temp, { recursive: true, force: true })
+        if (!(await hasRoomFor(row.stagingPath, plan.bytes))) {
+          throw new ImportFailure(`There is not enough free disk space to extract ${archive.relPath}`)
+        }
         const result = await extractArchive(archive.absolute, plan, temp)
         if (result.ok) {
           archives[archive.relPath] = { target: record.target, extracted: result.extracted, skipped: plan.skipped + result.duplicates }
@@ -431,7 +435,7 @@ async function removeDuplicateFiles(row: ImportRow, root: Root, paths: string[])
  * Files the albums the matcher identified with confidence: plans one organize batch
  * restricted to them (remembered, so a rerun applies the same batch) and applies it. What
  * was not identified stays in `_Incoming/<importId>/`; the folder is removed once no audio
- * is left in it. Then the counts are taken and wants are refreshed.
+ * is left in it. Then the counts are taken and, while the wantlist is on, wants are refreshed.
  */
 async function file(row: ImportRow, root: Root, stats: Stats, work: ImportWork, options: typeof defaults) {
   const folder = incomingFolder(row.id)
@@ -463,7 +467,8 @@ async function file(row: ImportRow, root: Root, stats: Stats, work: ImportWork, 
     unreadable: sql<number>`(count(*) filter (where ${mediaFiles.probeError} is not null))::int`,
   }).from(mediaFiles).where(ofImport(row))
   Object.assign(stats, counts, { filesLeftForReview: audioLeft })
-  await refreshWants()
+  // A switched-off wantlist is left as it was; listing wants catches up once it is back on.
+  if ((await getServerSettings()).wantlistEnabled) await refreshWants()
 }
 
 /** Applies a batch, waiting while another batch holds the root. Gives up quietly after `organizeWaitMs`. */

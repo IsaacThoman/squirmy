@@ -254,11 +254,18 @@ export function downloadSymbol(download: TrackDownload | undefined): string | nu
 
 /** Why a gray track is gray, for screen readers. */
 export function unavailableReason(track: Pick<TrackSummary, 'availability'>, offline: boolean): string {
-  if (offline && track.availability !== 'none') return 'not downloaded';
+  if (offline && track.availability !== 'none') return 'not downloaded or cached';
   return track.availability === 'on_demand' ? 'not on the server yet; ask an admin to let you fetch missing music' : 'not in your library';
 }
 
 /** The small mark next to a track's artist: its download, or that the server fetches it when played. */
 export function trackMark(download: TrackDownload | undefined, track: Pick<TrackSummary, 'availability'>, playable: boolean): string | null {
   return downloadSymbol(download) ?? (track.availability === 'on_demand' && playable ? 'icloud.and.arrow.down' : null);
+}
+
+/** The page a song downloaded on its own opens: its album, or its first artist when it has no album. */
+export function songPage(track: Pick<TrackSummary, 'album' | 'artists'>): { page: 'album' | 'artist'; id: string } | null {
+  if (track.album) return { page: 'album', id: track.album.id };
+  const artist = track.artists[0];
+  return artist ? { page: 'artist', id: artist.id } : null;
 }

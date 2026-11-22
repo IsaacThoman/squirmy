@@ -2,11 +2,14 @@ import { z } from 'zod'
 import { Id, page, PageQuery } from './common.js'
 
 /**
- * Whether a track can be played.
- * - `server`: a file is present on the server.
- * - `on_demand`: no file yet, but an acquisition provider can supply one. Playing it
- *   puts the queue entry in `preparing` until the file arrives.
- * - `none`: catalog only. Rendered gray.
+ * Where a track's audio can come from, and so how a client presents it. A *requester* is
+ * an admin or a member with `canAcquire`; `isPlayable` in client-core is the one rule.
+ * - `server`: a file is present on the server. Playable for everyone.
+ * - `on_demand`: no file yet, but an acquisition provider can supply one. For a requester
+ *   it looks and plays exactly like `server` (the queue entry is `preparing` until the
+ *   file arrives, shown as buffering); for anyone else it is unavailable.
+ * - `none`: no file and no provider covers it. Unavailable for everyone.
+ * Unavailable tracks are gray, do not start, and are labelled "Not available".
  */
 export const TrackAvailability = z.enum(['none', 'on_demand', 'server'])
 export type TrackAvailability = z.infer<typeof TrackAvailability>
@@ -14,6 +17,14 @@ export type TrackAvailability = z.infer<typeof TrackAvailability>
 /**
  * `full` and `partial` count owned tracks against the album's track list: its canonical
  * release, plus owned tracks filed under the album that the release does not list.
+ * Presentation by viewer (`albumPresentation` and `albumNote` in client-core):
+ * - `full`: normal for everyone.
+ * - `partial`: normal for everyone; a non-requester's album page says "N of M songs
+ *   available" and grays the rest.
+ * - `on_demand`: normal for a requester, dimmed for anyone else.
+ * - `none`: dimmed for everyone.
+ * Requesters never see a count or badge: whether the server holds the files is not theirs
+ * to manage. The counts stay for non-requesters and Subsonic.
  */
 export const AlbumAvailability = z.enum(['none', 'on_demand', 'partial', 'full'])
 export type AlbumAvailability = z.infer<typeof AlbumAvailability>
@@ -42,7 +53,11 @@ export const ArtistSummary = z.object({
   mbid: z.string().nullable(),
   name: z.string(),
   image: Artwork.nullable(),
-  /** True when at least one owned track credits this artist. */
+  /**
+   * True when the artist is credited on an album in the viewer's library (the server's
+   * collection plus what the viewer added), not merely on any file the server holds:
+   * fetched-for-play files must not make an artist part of the library.
+   */
   inLibrary: z.boolean(),
 })
 export type ArtistSummary = z.infer<typeof ArtistSummary>
@@ -85,6 +100,12 @@ export const TrackSummary = z.object({
   liked: z.boolean(),
   explicit: z.boolean().nullable(),
   hasLyrics: z.boolean(),
+  /**
+   * True when the track is in the viewer's library: a collection file links it, the viewer
+   * saved it, or the viewer saved the album a present file of it belongs to. Optional so
+   * older servers, which do not send it, still parse.
+   */
+  inLibrary: z.boolean().optional(),
 })
 export type TrackSummary = z.infer<typeof TrackSummary>
 
@@ -104,6 +125,18 @@ export const AlbumDetail = AlbumSummary.extend({
   discs: z.array(AlbumDisc),
   liked: z.boolean(),
   wanted: z.boolean(),
+  /**
+   * True when the page was answered while its detail (track list, edition) was still
+   * being fetched: what it shows is not final, and an invalidation of the album follows.
+   * Absent otherwise.
+   */
+  detailPending: z.literal(true).optional(),
+  /**
+   * Why the album is in the viewer's library, or null when it is not. `collection`: a file
+   * the server's owner brought (scan, upload, inbox) belongs to it, shared by every user and
+   * not removable by them. `saved`: the viewer added it. Optional for older servers.
+   */
+  library: z.enum(['collection', 'saved']).nullable().optional(),
 })
 export type AlbumDetail = z.infer<typeof AlbumDetail>
 
@@ -118,6 +151,8 @@ export const ArtistDetail = ArtistSummary.extend({
   /** Whole discography, newest first. Clients group by `type`. */
   albums: z.array(AlbumSummary),
   similar: z.array(ArtistSummary),
+  /** As on `AlbumDetail`: the profile and discography are still being fetched. */
+  detailPending: z.literal(true).optional(),
 })
 export type ArtistDetail = z.infer<typeof ArtistDetail>
 
@@ -155,7 +190,15 @@ export const TrackSummariesRequest = z.object({
   tracks: z.array(z.object({ id: Id, albumId: Id.nullable().optional() })).max(500),
 })
 export type TrackSummariesRequest = z.infer<typeof TrackSummariesRequest>
-export const TrackSummariesResponse = z.object({ tracks: z.array(TrackSummary) })
+export const TrackSummariesResponse = z.object({
+  tracks: z.array(TrackSummary),
+  /**
+   * For each item of `tracks`, the id the request named. It differs from the item's `id`
+   * when that track was merged into another, so a client can file the answer under the id
+   * it holds (a queue entry, a playlist item). Optional: older servers do not send it.
+   */
+  requestedIds: z.array(Id).optional(),
+})
 export type TrackSummariesResponse = z.infer<typeof TrackSummariesResponse>
 
 /** Responses of the library lists and of `GET /me/likes/:type`. */

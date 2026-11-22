@@ -14,7 +14,9 @@ export type SearchSections = { top: TopResult | null; groups: { library: SearchG
 /**
  * Your music, then the rest of the catalog without what is already in it, and the top
  * result: the library search's own `top` hint, else the catalog's. A hint naming nothing
- * in the lists (or a server without hints) gives no top result.
+ * in the lists (or a server without hints) gives no top result, and neither does one naming
+ * an album or song nobody can play: leading with a gray tile above the user's own music
+ * (catalog "Money Store" over the library's "The Money Store") reads as a wrong answer.
  */
 export function searchSections(library: SearchResults | undefined, catalog: SearchResults | undefined): SearchSections {
   const known = new Set([...(library?.artists ?? []), ...(library?.albums ?? []), ...(library?.tracks ?? [])].map(item => item.id));
@@ -32,10 +34,10 @@ export function searchSections(library: SearchResults | undefined, catalog: Sear
         if (artist) return { group, type: 'artist', artist };
       } else if (hint.type === 'album') {
         const album = albums.find(item => item.id === hint.id);
-        if (album) return { group, type: 'album', album };
+        if (album) return album.availability === 'none' ? null : { group, type: 'album', album };
       } else {
         const track = tracks.find(item => item.id === hint.id);
-        if (track) return { group, type: 'track', track };
+        if (track) return track.availability === 'none' ? null : { group, type: 'track', track };
       }
     }
     return null;

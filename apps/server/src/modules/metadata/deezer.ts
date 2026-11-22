@@ -92,12 +92,16 @@ const ttl = 86400
 const quotaCode = 4
 const notFoundCode = 800
 
-/** Deezer reports errors in 200 bodies: quota errors retry, "no data" is a miss. */
+/**
+ * Deezer reports errors in 200 bodies: quota errors retry, "no data" is a miss, and any
+ * other error is not cached, or it would be served as the answer for a day.
+ */
 function classify(result: HttpResult) {
-  const code = (result.json as RawError | undefined)?.error?.code
-  if (code === quotaCode) return 'retry'
-  if (code === notFoundCode) return 'miss'
-  return undefined
+  const error = (result.json as RawError | undefined)?.error
+  if (!error) return undefined
+  if (error.code === quotaCode) return 'retry'
+  if (error.code === notFoundCode) return 'miss'
+  return 'error'
 }
 
 /** GETs an API path; null when Deezer is off or has no such object. */
@@ -241,15 +245,9 @@ export async function getAlbumByUpc(upc: string): Promise<DeezerAlbum | null> {
   return raw ? getAlbum(raw.id) : null
 }
 
-/** The track with this ISRC, as `getTrack` returns it. */
+/** The track with this ISRC, with its album and every contributing artist. */
 export async function getTrackByIsrc(isrc: string): Promise<DeezerTrack | null> {
   const raw = await get<RawTrack>(`track/isrc:${encodeURIComponent(isrc.trim().toUpperCase())}`)
-  return raw ? track(raw) : null
-}
-
-/** One track with ISRC, album and every contributing artist. */
-export async function getTrack(id: number): Promise<DeezerTrack | null> {
-  const raw = await get<RawTrack>(`track/${id}`)
   return raw ? track(raw) : null
 }
 

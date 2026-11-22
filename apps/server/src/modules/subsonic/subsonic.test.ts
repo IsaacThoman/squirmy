@@ -1,11 +1,13 @@
 /**
  * Conformance tests through `app.inject`: every call is made in JSON and in XML, and the
- * two must carry the same structure (test-client.ts). Rows come from the factories; the
+ * two must carry the same structure (src/test/subsonic-client.ts). Rows come from the factories; the
  * audio tests with real files are in media.test.ts.
  */
+import { randomUUID } from 'node:crypto'
+import { COMMAND_TRACK_LIMIT, PLAYLIST_ITEM_LIMIT } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albums, appPasswords, mediaFiles, plays, recordings, releaseLoudness, users } from '../../database/schema.js'
@@ -15,15 +17,14 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist, createLibraryRoot, createUser } from '../../test/factories.js'
 import { createAppPassword } from '../auth/service.js'
 import { listHistory } from '../userdata/history.js'
-import { getRatings, likeEntity, listLikes } from '../userdata/likes.js'
+import { likeEntity, listLikes } from '../userdata/likes.js'
 import { addPlaylistItems, createPlaylist, getPlaylist } from '../userdata/playlists.js'
 import { similarArtists } from '../radio/index.js'
 import { getSnapshot } from '../sessions/index.js'
-import { resetAuthFailures } from './auth.js'
 import { folderId } from './ids.js'
 import { extensions } from './handlers/system.js'
 import { methodNames } from './endpoints.js'
-import { subsonicClient, tokenAuth, type SubsonicClient } from './test-client.js'
+import { subsonicClient, tokenAuth, type SubsonicClient } from '../../test/subsonic-client.js'
 
 // Similar artists come from Deezer and ListenBrainz, which tests never reach.
 vi.mock('../radio/index.js', async (importOriginal) => ({
@@ -70,7 +71,6 @@ describe('subsonic', () => {
     await db.update(mediaFiles).set({ loudnessLufs: -21, truePeakDb: -6 }).where(eq(mediaFiles.id, blueHour.tracks[0]!.fileId!))
     await db.insert(releaseLoudness).values({ releaseId: blueHour.releaseId, loudnessLufs: -20, truePeakDb: -3, fileCount: 3 })
   })
-  beforeEach(() => resetAuthFailures())
   afterAll(async () => {
     await app.close()
   })
@@ -180,11 +180,10 @@ describe('subsonic', () => {
       expect(Date.now() - row!.lastUsedAt!.getTime()).toBeLessThan(10_000)
     })
 
-    it('limits failed attempts per IP', async () => {
-      for (let attempt = 0; attempt < 10; attempt++) expect(await code({ u: 'mira', p: 'guess' })).toBe(40)
-      expect(await code({ u: 'mira', p: mira.secret })).toBe(40)
-      const elsewhere = await app.inject({ url: `/rest/ping?f=json&${new URLSearchParams({ u: 'mira', p: mira.secret })}`, remoteAddress: '10.9.8.7' })
-      expect(elsewhere.json()['subsonic-response'].status).toBe('ok')
+    it('accepts valid credentials however many failures came from the same address', async () => {
+      for (let attempt = 0; attempt < 120; attempt++) expect(await code({ u: 'mira', p: 'guess' })).toBe(40)
+      // A stale app on the same address must not lock out the user's working ones.
+      expect(await code({ u: 'mira', p: mira.secret })).toBeUndefined()
     })
 
     it('needs admin rights for admin methods and for other users', async () => {
@@ -460,7 +459,6 @@ describe('subsonic', () => {
 
     it('rates, and clears a rating with 0', async () => {
       await mira.client.call('setRating', { id: song(blueHour, 2), rating: 3 })
-      expect(await getRatings(mira.id, 'track', [blueHour.tracks[2]!.recordingId])).toEqual(new Map([[blueHour.tracks[2]!.recordingId, 3]]))
       expect((await mira.client.call('getSong', { id: song(blueHour, 2) })).song.userRating).toBe(3)
       await mira.client.call('setRating', { id: song(blueHour, 2), rating: 0 })
       expect((await mira.client.call('getSong', { id: song(blueHour, 2) })).song.userRating).toBeUndefined()
@@ -487,6 +485,23 @@ describe('subsonic', () => {
       expect(await kai.client.error('scrobble', { id: song(gray, 0), time: 'yesterday' })).toBe(0)
       // Seconds mistaken for milliseconds, times 1000 again: tens of thousands of years ahead.
       expect(await kai.client.error('scrobble', { id: song(blueHour, 1), time: at * 1000 })).toBe(0)
+    })
+
+    it('shows what others are playing with the stars, ratings and play counts of whoever asks', async () => {
+      const ren = await person('ren4')
+      const ash = await person('ash4')
+      await ren.client.call('star', { id: song(blueHour, 2) })
+      await ren.client.call('setRating', { id: song(blueHour, 2), rating: 5 })
+      await ren.client.json('scrobble', { id: song(blueHour, 2), time: Date.parse('2026-03-01T12:00:00Z') })
+      await ren.client.call('scrobble', { id: song(blueHour, 2), submission: false })
+
+      const seen = (await ash.client.call('getNowPlaying')).nowPlaying.entry.find((entry: { username: string }) => entry.username === 'ren4')
+      expect(seen).toMatchObject({ id: song(blueHour, 2), playCount: 0 })
+      expect(seen).not.toHaveProperty('starred')
+      expect(seen).not.toHaveProperty('userRating')
+      expect(seen).not.toHaveProperty('played')
+      const own = (await ren.client.call('getNowPlaying')).nowPlaying.entry.find((entry: { username: string }) => entry.username === 'ren4')
+      expect(own).toMatchObject({ id: song(blueHour, 2), playCount: 1, userRating: 5, starred: expect.any(String) })
     })
   })
 
@@ -536,6 +551,28 @@ describe('subsonic', () => {
       expect(await lune.client.error('createPlaylist', { songId: song(blueHour, 0) })).toBe(10)
       expect(await lune.client.error('createPlaylist', { name: 'Bad', songId: `tr-${own.id}` })).toBe(70)
     })
+
+    it('applies the playlist limits: name and comment lengths, and songs per playlist', async () => {
+      const sol = await person('sol5')
+      const count = async () => (await sol.client.call('getPlaylists')).playlists.playlist?.length ?? 0
+      expect(await sol.client.error('createPlaylist', { name: 'x'.repeat(121) })).toBe(0)
+      expect(await sol.client.error('createPlaylist', { name: '   ' })).toBe(0)
+      expect(await count()).toBe(0)
+
+      const many = (length: number) => Array.from({ length }, (_, index) => song(blueHour, index % 3))
+      expect(await sol.client.error('createPlaylist', { name: 'Huge', songId: many(PLAYLIST_ITEM_LIMIT + 1) }, { method: 'POST' })).toBe(0)
+      expect(await count()).toBe(0)
+      const { playlist } = await sol.client.json('createPlaylist', { name: ` ${'y'.repeat(120)} `, songId: many(PLAYLIST_ITEM_LIMIT - 1) }, { method: 'POST' })
+      expect(playlist).toMatchObject({ name: 'y'.repeat(120), songCount: PLAYLIST_ITEM_LIMIT - 1 })
+
+      expect(await sol.client.error('updatePlaylist', { playlistId: playlist.id, comment: 'z'.repeat(2001) })).toBe(0)
+      expect(await sol.client.error('updatePlaylist', { playlistId: playlist.id, name: ' ' })).toBe(0)
+      expect(await sol.client.error('updatePlaylist', { playlistId: playlist.id, songIdToAdd: many(2) })).toBe(0)
+      expect(await sol.client.error('createPlaylist', { playlistId: playlist.id, songId: many(PLAYLIST_ITEM_LIMIT + 1) }, { method: 'POST' })).toBe(0)
+      expect(await getPlaylist(sol.id, playlist.id.slice(3))).toMatchObject({ name: 'y'.repeat(120), description: null, trackCount: PLAYLIST_ITEM_LIMIT - 1 })
+      await sol.client.json('updatePlaylist', { playlistId: playlist.id, comment: 'z'.repeat(2000), songIdToAdd: many(1) })
+      expect(await getPlaylist(sol.id, playlist.id.slice(3))).toMatchObject({ description: 'z'.repeat(2000), trackCount: PLAYLIST_ITEM_LIMIT })
+    })
   })
 
   describe('play queue', () => {
@@ -567,6 +604,18 @@ describe('subsonic', () => {
       expect(await mira.client.error('savePlayQueueByIndex', { id: ids })).toBe(10)
       expect(await mira.client.error('savePlayQueue', { id: ids })).toBe(10)
       expect(await mira.client.error('savePlayQueue', { id: ids, current: song(blueHour, 0) })).toBe(0)
+    })
+
+    it('keeps a bounded part of a very long saved queue', async () => {
+      const unknown = (count: number) => Array.from({ length: count }, () => `tr-${randomUUID()}`)
+      const ids = [song(kites, 0), ...unknown(COMMAND_TRACK_LIMIT), song(blueHour, 0), song(blueHour, 1), ...unknown(COMMAND_TRACK_LIMIT), song(gray, 0)]
+      await mira.client.call('savePlayQueue', { id: ids, current: song(blueHour, 0) }, { method: 'POST' })
+      const snapshot = await getSnapshot(mira.id)
+      expect(snapshot.state.current?.trackId).toBe(blueHour.tracks[0]!.recordingId)
+      expect(snapshot.queue.queue.map((entry) => entry.trackId)).toEqual([blueHour.tracks[1]!.recordingId])
+      // What came before the current song is remembered only as far back as one command carries.
+      const { playQueue } = await mira.client.call('getPlayQueue')
+      expect(playQueue.entry.map((entry: { id: string }) => entry.id)).toEqual([song(blueHour, 0), song(blueHour, 1)])
     })
 
     it('shows changes made in Squirmy and clears with no ids', async () => {

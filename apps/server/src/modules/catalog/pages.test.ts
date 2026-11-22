@@ -1,11 +1,12 @@
 import { AlbumDetail, ArtistDetail, HomeResponse, Lyrics, TrackPage, TrackSummariesResponse, TrackSummary } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albumArtists, albums, artists, likes, lyrics, mediaFiles, playlistItems, playlists, recordings, releaseTracks, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
+import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -43,8 +44,12 @@ describe('catalog pages', () => {
     await db.update(albums).set({ genres: ['Ambient'], description: 'Quiet.' }).where(eq(albums.id, album.albumId))
     await db.insert(likes).values({ userId: user.id, entityType: 'album', entityId: album.albumId })
     await db.insert(wants).values({ userId: user.id, entityType: 'album', entityId: album.albumId })
+    // Nothing is wanted while the wantlist is off.
+    expect(body(await get(`/albums/${album.albumId}`), AlbumDetail).wanted).toBe(false)
 
+    await updateServerSettings({ wantlistEnabled: true })
     const detail = body(await get(`/albums/${album.albumId}`), AlbumDetail)
+    await updateServerSettings({ wantlistEnabled: false })
     expect(ensureAlbumDetail).toHaveBeenCalledWith(album.albumId)
     expect(detail).toMatchObject({
       title: 'Two Sides', availability: 'partial', trackCount: 3, ownedTrackCount: 2, liked: true, wanted: true,
@@ -128,6 +133,25 @@ describe('catalog pages', () => {
     ])
   })
 
+  it('orders a discography by year when an album has no release date', async () => {
+    const artist = await createArtist()
+    await createAlbum({ artist, title: 'Dated', year: 2001 })
+    const undated = await createAlbum({ artist, title: 'Undated', year: 2020 })
+    const unknown = await createAlbum({ artist, title: 'Unknown' })
+    await db.update(albums).set({ releaseDate: null }).where(eq(albums.id, undated.albumId))
+    await db.update(albums).set({ releaseDate: null, year: null }).where(eq(albums.id, unknown.albumId))
+    const detail = body(await get(`/artists/${artist.id}`), ArtistDetail)
+    expect(detail.albums.map((album) => album.title)).toEqual(['Undated', 'Dated', 'Unknown'])
+  })
+
+  it('lists an album the artist leads without credit rows', async () => {
+    const artist = await createArtist()
+    const album = await createAlbum({ artist, title: 'Bare' })
+    await db.delete(albumArtists).where(eq(albumArtists.albumId, album.albumId))
+    const detail = body(await get(`/artists/${artist.id}`), ArtistDetail)
+    expect(detail.albums.map((one) => [one.id, one.artists])).toEqual([[album.albumId, [{ id: artist.id, name: artist.name }]]])
+  })
+
   it('returns a track in an album context, and its lyrics', async () => {
     const album = await createAlbum({ owned: true })
     const other = await createAlbum({ tracks: [{ title: 'Elsewhere' }] })
@@ -153,6 +177,17 @@ describe('catalog pages', () => {
     })
     const result = body(response, TrackSummariesResponse)
     expect(result.tracks.map((track) => track.id)).toEqual([b!.recordingId, a!.recordingId, b!.recordingId])
+    expect(result.requestedIds).toEqual([b!.recordingId, a!.recordingId, b!.recordingId])
+
+    // A merged id is answered with the row it was merged into, and says which id it stands for.
+    const loser = await createAlbum({ tracks: [{ title: 'Merged Away' }] })
+    const merged = loser.tracks[0]!.recordingId
+    await db.update(recordings).set({ mergedIntoId: a!.recordingId }).where(eq(recordings.id, merged))
+    const redirected = body(await app.inject({
+      method: 'POST', url: '/api/v1/tracks/summaries', headers: user.headers, payload: { tracks: [{ id: newId() }, { id: merged }] },
+    }), TrackSummariesResponse)
+    expect(redirected.tracks.map((track) => track.id)).toEqual([a!.recordingId])
+    expect(redirected.requestedIds).toEqual([merged])
 
     const tooMany = Array.from({ length: 501 }, () => ({ id: a!.recordingId }))
     const rejected = await app.inject({ method: 'POST', url: '/api/v1/tracks/summaries', headers: user.headers, payload: { tracks: tooMany } })
@@ -183,6 +218,13 @@ describe('catalog pages', () => {
     // Someone else's public playlist is not "yours".
     await db.insert(playlists).values({ id: newId(), ownerId: user.id, name: 'Theirs', isPublic: true })
 
+    // The wantlist is off by default: Home leaves it out and does not refresh wants.
+    expect((await homeOf()).map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'liked-albums'])
+    const ownedWant = async () => (await db.select({ fulfilledAt: wants.fulfilledAt }).from(wants)
+      .where(and(eq(wants.userId, fresh.id), eq(wants.entityId, played.albumId))))[0]!.fulfilledAt
+    expect(await ownedWant()).toBeNull()
+    await updateServerSettings({ wantlistEnabled: true })
+
     const sections = await homeOf()
     expect(sections.map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'liked-albums', 'wantlist'])
     const byId = Object.fromEntries(sections.map((section) => [section.id, section]))
@@ -194,5 +236,6 @@ describe('catalog pages', () => {
     expect(byId.playlists).toMatchObject({ kind: 'playlists', title: 'Your playlists', playlists: [{ name: 'Mine', trackCount: 1 }] })
     expect(byId['liked-albums']).toMatchObject({ kind: 'albums', albums: [{ id: liked.albumId }] })
     expect(byId.wantlist).toMatchObject({ kind: 'albums', albums: [{ id: wanted.albumId }] })
+    expect(await ownedWant()).not.toBeNull()
   })
 })

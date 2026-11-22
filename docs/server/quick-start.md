@@ -119,7 +119,7 @@ cd squirmy
 docker compose up -d --build
 ```
 
-The `.env` file goes in this folder. An image built this way reports its version as `dev`. Update it with `git pull` and the same `docker compose up -d --build`.
+The `.env` file goes in this folder. An image built this way reports its version as `dev`. To have it report the commit instead (`dev+<commit>`), build it with `docker compose build --build-arg SOURCE_COMMIT=$(git rev-parse HEAD)` and then run `docker compose up -d`. Update it with `git pull` and the same commands.
 
 ## Uninstalling
 

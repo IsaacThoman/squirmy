@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { brotliDecompressSync, gunzipSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { sql } from 'drizzle-orm'
@@ -8,6 +9,7 @@ import { resetConfig } from './config.js'
 import { db } from './database/client.js'
 import { users } from './database/schema.js'
 import { newId } from './lib/ids.js'
+import { signIn } from './test/api.js'
 import { useTestDatabase } from './test/database.js'
 
 describe('server kernel', () => {
@@ -22,6 +24,20 @@ describe('server kernel', () => {
     await app.close()
   })
 
+  it('keeps credentials in query parameters out of the request log', async () => {
+    const lines: string[] = []
+    const app = await buildApp({ logStream: { write: (line) => { lines.push(line) } } })
+    try {
+      await app.inject({ url: '/rest/ping.view?u=mira&p=hunter2-secret&f=json', headers: { authorization: 'Bearer bearer-secret', cookie: 'squirmy_session=cookie-secret' } })
+      await app.inject({ url: '/api/v1/stream/abc?exp=1&uid=u&sig=signature-secret' })
+      const log = lines.join('')
+      expect(log).toContain('/rest/ping.view?u=mira&p=[redacted]&f=json')
+      expect(log).not.toMatch(/hunter2-secret|bearer-secret|cookie-secret|signature-secret/)
+    } finally {
+      await app.close()
+    }
+  })
+
   it('has a migrated database with trigram search', async () => {
     await db.insert(users).values({ id: newId(), username: 'Isaac', usernameKey: 'isaac', passwordHash: 'x' })
     const rows = await db.select().from(users)
@@ -30,19 +46,77 @@ describe('server kernel', () => {
     expect(Number(row?.score)).toBeGreaterThan(0.5)
   })
 
-  it('answers unknown API routes with a JSON 404 and allows the Vite dev origin', async () => {
+  it('answers unknown API routes with a JSON 404 and allows the Vite dev origin only in development', async () => {
+    const preflight = async () => {
+      resetConfig()
+      const app = await buildApp()
+      try {
+        const missing = await app.inject({ url: '/api/v1/nothing-here' })
+        expect(missing.statusCode).toBe(404)
+        expect(missing.json().error.code).toBe('not_found')
+        const foreign = await app.inject({ url: '/health', headers: { origin: 'https://elsewhere.example' } })
+        expect(foreign.headers['access-control-allow-origin']).toBeUndefined()
+        const response = await app.inject({
+          method: 'OPTIONS',
+          url: '/api/v1/auth/me',
+          headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'GET' },
+        })
+        return response.headers['access-control-allow-origin']
+      } finally {
+        await app.close()
+      }
+    }
+    const environment = process.env.NODE_ENV
+    try {
+      process.env.NODE_ENV = 'development'
+      expect(await preflight()).toBe('http://localhost:5173')
+      // Unset defaults to development for everything else, but not for this.
+      delete process.env.NODE_ENV
+      expect(await preflight()).toBeUndefined()
+    } finally {
+      process.env.NODE_ENV = environment
+      resetConfig()
+    }
+    expect(await preflight()).toBeUndefined()
+  })
+
+  it('compresses JSON and answers unchanged reads with 304', async () => {
     const app = await buildApp()
-    const missing = await app.inject({ url: '/api/v1/nothing-here' })
+    const user = await signIn()
+    for (let index = 0; index < 40; index++) {
+      await app.inject({ method: 'POST', url: '/api/v1/playlists', headers: user.headers, payload: { name: `Playlist number ${index}` } })
+    }
+    const url = '/api/v1/playlists?limit=50'
+    const plain = await app.inject({ url, headers: user.headers })
+    expect(plain.statusCode).toBe(200)
+    expect(plain.headers['content-encoding']).toBeUndefined()
+    expect(plain.headers['cache-control']).toBe('private, no-cache')
+    const etag = plain.headers.etag as string
+    expect(etag).toMatch(/^W\/"/)
+
+    const brotli = await app.inject({ url, headers: { ...user.headers, 'accept-encoding': 'br, gzip' } })
+    expect(brotli.headers['content-encoding']).toBe('br')
+    expect(brotli.headers.etag).toBe(etag)
+    expect(brotliDecompressSync(brotli.rawPayload).toString()).toBe(plain.body)
+    const gzip = await app.inject({ url, headers: { ...user.headers, 'accept-encoding': 'gzip' } })
+    expect(gunzipSync(gzip.rawPayload).toString()).toBe(plain.body)
+
+    // Proxies hand ETags back weakened or in a list; either still matches.
+    for (const header of [etag, etag.slice(2), `"other", ${etag}`]) {
+      const again = await app.inject({ url, headers: { ...user.headers, 'if-none-match': header } })
+      expect(again.statusCode, header).toBe(304)
+      expect(again.body).toBe('')
+      expect(again.headers.etag).toBe(etag)
+    }
+    await app.inject({ method: 'POST', url: '/api/v1/playlists', headers: user.headers, payload: { name: 'One more' } })
+    const changed = await app.inject({ url, headers: { ...user.headers, 'if-none-match': etag } })
+    expect(changed.statusCode).toBe(200)
+    expect(changed.headers.etag).not.toBe(etag)
+
+    // Errors carry no validators.
+    const missing = await app.inject({ url: `/api/v1/playlists/${newId()}`, headers: user.headers })
     expect(missing.statusCode).toBe(404)
-    expect(missing.json().error.code).toBe('not_found')
-    const preflight = await app.inject({
-      method: 'OPTIONS',
-      url: '/api/v1/auth/me',
-      headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'GET' },
-    })
-    expect(preflight.headers['access-control-allow-origin']).toBe('http://localhost:5173')
-    const foreign = await app.inject({ url: '/health', headers: { origin: 'https://elsewhere.example' } })
-    expect(foreign.headers['access-control-allow-origin']).toBeUndefined()
+    expect(missing.headers.etag).toBeUndefined()
     await app.close()
   })
 
@@ -58,7 +132,8 @@ describe('server kernel', () => {
       dist = await mkdtemp(path.join(tmpdir(), 'squirmy-web-'))
       await mkdir(path.join(dist, 'assets'))
       await writeFile(path.join(dist, 'index.html'), '<!doctype html><title>Squirmy</title>')
-      await writeFile(path.join(dist, 'assets', 'app-abc123.js'), 'console.log(1)')
+      await writeFile(path.join(dist, 'assets', 'app-abc123.js'), `console.log(${JSON.stringify('squirmy '.repeat(400))})`)
+      await writeFile(path.join(dist, 'assets', 'cover-abc123.png'), Buffer.alloc(4096, 1))
       process.env.SQUIRMY_WEB_DIST = dist
       resetConfig()
       const app = await buildApp()
@@ -66,6 +141,12 @@ describe('server kernel', () => {
       const asset = await app.inject({ url: '/assets/app-abc123.js' })
       expect(asset.statusCode).toBe(200)
       expect(asset.headers['cache-control']).toContain('immutable')
+      const compressed = await app.inject({ url: '/assets/app-abc123.js', headers: { 'accept-encoding': 'br' } })
+      expect(compressed.headers['content-encoding']).toBe('br')
+      expect(brotliDecompressSync(compressed.rawPayload).toString()).toBe(asset.body)
+      const image = await app.inject({ url: '/assets/cover-abc123.png', headers: { 'accept-encoding': 'br, gzip' } })
+      expect(image.statusCode).toBe(200)
+      expect(image.headers['content-encoding']).toBeUndefined()
 
       for (const url of ['/', '/albums/123', '/library?tab=artists']) {
         const page = await app.inject({ url })
@@ -86,6 +167,61 @@ describe('server kernel', () => {
       expect((await app.inject({ method: 'POST', url: '/somewhere' })).statusCode).toBe(404)
       expect((await app.inject({ url: '/health' })).json().status).toBe('ok')
       await app.close()
+    })
+  })
+
+  describe('behind a proxy', () => {
+    afterAll(() => {
+      delete process.env.TRUST_PROXY
+      delete process.env.CLIENT_IP_HEADER
+      resetConfig()
+    })
+
+    async function seen(env: { TRUST_PROXY?: string; CLIENT_IP_HEADER?: string }, remoteAddress: string, headers: Record<string, string>) {
+      process.env.TRUST_PROXY = env.TRUST_PROXY ?? 'false'
+      if (env.CLIENT_IP_HEADER) process.env.CLIENT_IP_HEADER = env.CLIENT_IP_HEADER
+      else delete process.env.CLIENT_IP_HEADER
+      resetConfig()
+      const app = await buildApp()
+      app.get('/test/client', async (request) => ({ ip: request.ip, protocol: request.protocol }))
+      try {
+        return (await app.inject({ url: '/test/client', remoteAddress, headers })).json() as { ip: string; protocol: string }
+      } finally {
+        await app.close()
+      }
+    }
+
+    it('TRUST_PROXY=true believes one proxy on a private network, and not a forged first entry', async () => {
+      const forged = { 'x-forwarded-for': '6.6.6.6, 203.0.113.9', 'x-forwarded-proto': 'https' }
+      expect(await seen({ TRUST_PROXY: 'true' }, '172.18.0.2', forged)).toEqual({ ip: '203.0.113.9', protocol: 'https' })
+      // Straight from the internet, the headers are the client's own words.
+      expect(await seen({ TRUST_PROXY: 'true' }, '198.51.100.7', forged)).toEqual({ ip: '198.51.100.7', protocol: 'http' })
+      expect(await seen({ TRUST_PROXY: 'false' }, '172.18.0.2', forged)).toEqual({ ip: '172.18.0.2', protocol: 'http' })
+    })
+
+    it('a hop count reaches past a tunnel and a local proxy', async () => {
+      const headers = { 'x-forwarded-for': '6.6.6.6, 203.0.113.9, 127.0.0.1' }
+      expect((await seen({ TRUST_PROXY: '2' }, '127.0.0.1', headers)).ip).toBe('203.0.113.9')
+    })
+
+    it('reads CF-Connecting-IP from a trusted proxy only', async () => {
+      const headers = { 'cf-connecting-ip': '203.0.113.9', 'x-forwarded-for': '172.18.0.9' }
+      const env = { TRUST_PROXY: 'true', CLIENT_IP_HEADER: 'CF-Connecting-IP' }
+      expect((await seen(env, '172.18.0.2', headers)).ip).toBe('203.0.113.9')
+      expect((await seen(env, '198.51.100.7', headers)).ip).toBe('198.51.100.7')
+    })
+
+    it('refuses a TRUST_PROXY it does not understand', async () => {
+      process.env.TRUST_PROXY = 'sometimes'
+      resetConfig()
+      await expect(buildApp()).rejects.toThrow(/TRUST_PROXY/)
+    })
+
+    it('refuses CLIENT_IP_HEADER without a trusted proxy', async () => {
+      process.env.TRUST_PROXY = 'false'
+      process.env.CLIENT_IP_HEADER = 'CF-Connecting-IP'
+      resetConfig()
+      await expect(buildApp()).rejects.toThrow(/CLIENT_IP_HEADER/)
     })
   })
 })

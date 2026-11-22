@@ -7,9 +7,9 @@ import {
   type Import, type ImportAlbum, type ImportCounts, type ImportFileRejection, type ImportFileResult, type ImportKind, type ImportList, type ImportListQuery,
   type ImportOptions,
 } from '@squirmy/contracts'
-import { and, desc, eq, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { acquisitionJobs, imports, libraryRoots, mediaFiles } from '../../database/schema.js'
+import { acquisitionJobs, imports, libraryRoots, mediaFiles, users } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import type { AuthUser } from '../../lib/auth.js'
 import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
@@ -19,6 +19,7 @@ import { publish } from '../../realtime/index.js'
 import { albumSummaries } from '../catalog/summaries.js'
 import { errorCode } from '../organize/files.js'
 import { checkRelativePath } from './paths.js'
+import { disk, requireRoomFor } from './space.js'
 import { moveTree, stagingDir, TEMP_PREFIX, TooLargeError, writeLimited } from './staging.js'
 
 export type ImportRow = typeof imports.$inferSelect
@@ -137,7 +138,9 @@ export type CreateImportInput = {
 
 /**
  * Starts an import in `receiving`, with an empty staging folder. Fails when there is no
- * managed root to file into (see {@link resolveImportRoot}).
+ * managed root to file into (see {@link resolveImportRoot}), and with 429
+ * `too_many_imports` when a member already has `importMaxActivePerUser` uploads receiving
+ * or processing. Inbox and acquisition imports are not counted.
  */
 export async function createImport(input: CreateImportInput): Promise<Import> {
   const root = await resolveImportRoot(input.rootId)
@@ -150,10 +153,28 @@ export async function createImport(input: CreateImportInput): Promise<Import> {
   const id = newId()
   const staging = stagingDir(id)
   await mkdir(staging, { recursive: true })
-  const [row] = await db.insert(imports).values({
+  const values = {
     id, kind: input.kind, source, userId: input.userId, acquisitionJobId: input.acquisitionJobId ?? null,
     targetRootId: root.id, label: input.label ?? null, stagingPath: staging,
-  }).returning()
+  }
+  const userId = input.kind === 'upload' ? input.userId : null
+  const row = userId === null ? (await db.insert(imports).values(values).returning())[0] : await db.transaction(async (tx) => {
+    // One creation per user at a time, so two requests cannot both take the last place.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`squirmy.imports.user:${userId}`}))`)
+    const [user] = await tx.select({ role: users.role }).from(users).where(eq(users.id, userId))
+    if (user?.role !== 'admin') {
+      const { importMaxActivePerUser } = await getServerSettings()
+      const [active] = await tx.select({ count: sql<number>`count(*)::int` }).from(imports)
+        .where(and(eq(imports.userId, userId), eq(imports.kind, 'upload'), inArray(imports.status, ['receiving', 'processing'])))
+      if ((active?.count ?? 0) >= importMaxActivePerUser) {
+        throw new AppError(429, 'too_many_imports', `You already have ${importMaxActivePerUser} uploads going. Wait for one to finish, or cancel one.`, { limit: importMaxActivePerUser })
+      }
+    }
+    return (await tx.insert(imports).values(values).returning())[0]
+  }).catch(async (error: unknown) => {
+    await rm(staging, { recursive: true, force: true })
+    throw error
+  })
   await announceImport(row!)
   return toImport(row!)
 }
@@ -173,6 +194,8 @@ export type ImportFileInput = {
  * `checkRelativePath`) or when the import already has one at that path; the stream is then
  * drained and the result says why. A file over `importMaxFileBytes` (or `maxFileBytes`), or one that would take
  * the import past `importMaxBytes`, throws 413 (`file_too_large`, `import_too_large`).
+ * Free space is checked before the file and again every `disk.checkEveryBytes` while it
+ * arrives; too little throws 507 `insufficient_storage` (see `space.ts`).
  *
  * The bytes land in a temporary file first. The import's counters are bumped and the file
  * is linked into place in one transaction that holds the import's row, so a concurrent
@@ -199,9 +222,16 @@ export async function addImportFile(importId: string, input: ImportFileInput): P
   const importMaxFileBytes = Math.min(settings.importMaxFileBytes, input.maxFileBytes ?? Infinity)
   const temp = path.join(row.stagingPath, `${TEMP_PREFIX}upload-${newId()}.part`)
   await mkdir(row.stagingPath, { recursive: true })
+  await requireRoomFor(row.stagingPath, 0).catch(async (error: unknown) => {
+    input.stream.resume()
+    throw error
+  })
   let bytes: number
   try {
-    bytes = await writeLimited(input.stream, temp, Math.min(importMaxFileBytes, importMaxBytes - row.receivedBytes))
+    bytes = await writeLimited(input.stream, temp, Math.min(importMaxFileBytes, importMaxBytes - row.receivedBytes), {
+      everyBytes: disk.checkEveryBytes,
+      check: () => requireRoomFor(row.stagingPath, 0),
+    })
   } catch (error) {
     if (!(error instanceof TooLargeError) && (error as { code?: string }).code !== 'FST_REQ_FILE_TOO_LARGE') throw error
     throw importMaxBytes - row.receivedBytes < importMaxFileBytes ? importTooLarge(importMaxBytes) : fileTooLarge(importMaxFileBytes)

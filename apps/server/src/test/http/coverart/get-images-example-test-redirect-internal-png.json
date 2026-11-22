@@ -1,0 +1,14 @@
+{
+  "note": "Hand-written: a redirect to a link-local address, which fetchImage must not follow.",
+  "request": {
+    "method": "GET",
+    "url": "https://images.example.test/redirect-internal.png"
+  },
+  "response": {
+    "status": 302,
+    "headers": {
+      "location": "https://169.254.169.254/latest/meta-data/"
+    },
+    "text": ""
+  }
+}

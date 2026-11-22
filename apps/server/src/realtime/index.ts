@@ -5,6 +5,7 @@ import { Server } from 'socket.io'
 import { devOrigins, getConfig } from '../config.js'
 import { getSql } from '../database/client.js'
 import { SESSION_COOKIE } from '../lib/auth.js'
+import { dropCachedReads } from '../lib/read-cache.js'
 import { authenticateToken } from '../modules/auth/service.js'
 import type { Realtime, RealtimeServer, RealtimeSocket, RealtimeTarget } from './types.js'
 
@@ -40,6 +41,9 @@ export async function publish(target: Targets, event: ServerEvent) {
 
 /** Tells the target's clients to refetch these query keys. Works from any process. */
 export async function invalidate(target: Targets, keys: readonly QueryKey[]) {
+  // At once in this process, so a client that refetches right after its own change never
+  // gets the cached answer; other processes drop theirs when the NOTIFY arrives.
+  dropCachedReads(target, keys)
   // Keys that do not fit in one notification are split across several.
   const base = Buffer.byteLength(JSON.stringify({ kind: 'invalidate', target, keys: [] }))
   let batch: QueryKey[] = []
@@ -65,6 +69,29 @@ export async function disconnectSockets(userId: string, filter: { only?: string;
   await notify({ kind: 'disconnect', userId, ...filter })
 }
 
+/**
+ * Whether a handshake that authenticates with the session cookie comes from the app's own
+ * pages. WebSocket handshakes get no CORS check, and SameSite=Lax still sends the cookie
+ * from sibling subdomains, so a page there could otherwise act as the visitor. Requests
+ * without an Origin are not from a cross-origin page: browsers send it on every WebSocket
+ * handshake and every cross-origin request.
+ */
+export function allowedCookieOrigin(origin: string | undefined, host: string | undefined, config: { PUBLIC_URL?: string; devCors: boolean }): boolean {
+  if (origin === undefined) return true
+  let parsed: URL
+  try {
+    parsed = new URL(origin)
+  } catch {
+    return false
+  }
+  if (host !== undefined && parsed.host === host.toLowerCase()) return true
+  if (config.PUBLIC_URL && parsed.origin === new URL(config.PUBLIC_URL).origin) return true
+  return config.devCors && devOrigins.includes(parsed.origin)
+}
+
+/** setTimeout's ceiling (about 24.8 days); later expiries are checked again then. */
+const maxTimerMs = 2 ** 31 - 1
+
 function room(target: RealtimeTarget) {
   return target === 'admins' || target === 'all' ? target : `user:${target.user}`
 }
@@ -76,6 +103,8 @@ function audience(io: RealtimeServer, target: Targets) {
 }
 
 function deliver(io: RealtimeServer, message: Message) {
+  // Before the clients hear of it, so their refetch cannot be answered from the cache.
+  if (message.kind === 'invalidate') dropCachedReads(message.target, message.keys)
   if (message.kind === 'disconnect') {
     for (const socket of io.of('/').sockets.values()) {
       const { userId, authSessionId } = socket.data
@@ -101,17 +130,27 @@ export async function startRealtime(app: FastifyInstance): Promise<Realtime> {
   const io: RealtimeServer = new Server(app.server, {
     path: '/socket.io',
     serveClient: false,
-    cors: config.NODE_ENV === 'production' ? undefined : { origin: devOrigins, credentials: true },
+    // `session:queue` carries the whole queue (about 150 bytes an entry) on every queue
+    // change; compressed it is a tenth of that. Small messages are not worth deflating.
+    perMessageDeflate: { threshold: 1024 },
+    cors: config.devCors ? { origin: devOrigins, credentials: true } : undefined,
+    // Socket.io's default, stated: the largest session command (5000 queue seeds) is
+    // about 750 KB of JSON.
+    maxHttpBufferSize: 1_000_000,
   })
 
   io.use(async (socket, next) => {
     const fromAuth = (socket.handshake.auth as { token?: unknown }).token
     const cookie = socket.handshake.headers.cookie
-    const token = typeof fromAuth === 'string' ? fromAuth : cookie ? fastifyCookie.parse(cookie)[SESSION_COOKIE] : undefined
+    const viaCookie = typeof fromAuth !== 'string'
+    const token = viaCookie ? cookie ? fastifyCookie.parse(cookie)[SESSION_COOKIE] : undefined : fromAuth
+    if (viaCookie && token && !allowedCookieOrigin(socket.handshake.headers.origin, socket.handshake.headers.host, config)) {
+      return next(new Error('unauthorized'))
+    }
     try {
       const session = token ? await authenticateToken(token) : null
       if (!session) return next(new Error('unauthorized'))
-      socket.data = { userId: session.user.id, role: session.user.role, authSessionId: session.sessionId }
+      socket.data = { userId: session.user.id, role: session.user.role, authSessionId: session.sessionId, expiresAt: session.expiresAt.getTime() }
       next()
     } catch (error) {
       app.log.error({ err: error }, 'Socket authentication failed')
@@ -120,6 +159,17 @@ export async function startRealtime(app: FastifyInstance): Promise<Realtime> {
   })
 
   io.on('connection', (socket) => {
+    // A socket authenticated once would otherwise outlive its session's natural expiry;
+    // the client reconnects and authenticates again, which renews a session still in use.
+    let expiry: NodeJS.Timeout | undefined
+    const expireAt = () => {
+      const remaining = socket.data.expiresAt - Date.now()
+      if (remaining <= 0) return void socket.disconnect(true)
+      expiry = setTimeout(expireAt, Math.min(remaining, maxTimerMs))
+      expiry.unref()
+    }
+    expireAt()
+    socket.once('disconnect', () => clearTimeout(expiry))
     void socket.join(`user:${socket.data.userId}`)
     if (socket.data.role === 'admin') void socket.join('admins')
     socket.on('time:sync', (clientTime, ack) => {

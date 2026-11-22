@@ -1,9 +1,13 @@
 import type { AddressInfo } from 'node:net'
 import { queryKeys, type ClientToServerEvents, type ServerEvent, type ServerToClientEvents } from '@squirmy/contracts'
+import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect, type Socket } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../app.js'
+import { db } from '../database/client.js'
+import { authSessions } from '../database/schema.js'
+import { hashToken } from '../lib/crypto.js'
 import { useTestDatabase } from '../test/database.js'
 import { disconnectSockets, invalidate, publish, startRealtime } from './index.js'
 import type { RealtimeSocket } from './types.js'
@@ -35,13 +39,14 @@ describe('realtime', () => {
   afterEach(() => { for (const client of clients.splice(0)) client.disconnect() })
   afterAll(async () => { await app.close() })
 
-  function open(options: { token?: string; cookie?: string } = {}): Promise<Client> {
+  function open(options: { token?: string; cookie?: string; origin?: string } = {}): Promise<Client> {
+    const headers = { ...(options.cookie && { cookie: options.cookie }), ...(options.origin && { origin: options.origin }) }
     const client: Client = connect(url, {
       path: '/socket.io',
       transports: ['websocket'],
       reconnection: false,
       auth: options.token ? { token: options.token } : {},
-      extraHeaders: options.cookie ? { cookie: options.cookie } : undefined,
+      extraHeaders: Object.keys(headers).length ? headers : undefined,
     })
     clients.push(client)
     return new Promise((resolve, reject) => {
@@ -67,6 +72,25 @@ describe('realtime', () => {
     const data = connected.map((socket) => socket.data)
     expect(data).toContainEqual(expect.objectContaining({ userId: member.id, role: 'member' }))
     expect(data).toContainEqual(expect.objectContaining({ userId: admin.id, role: 'admin' }))
+  })
+
+  it('takes the session cookie only from the app\'s own origin', async () => {
+    const cookie = `squirmy_session=${member.token}`
+    await open({ cookie, origin: url })
+    await open({ cookie })
+    await expect(open({ cookie, origin: 'https://sibling.example.com' })).rejects.toThrow('unauthorized')
+    await expect(open({ cookie, origin: 'null' })).rejects.toThrow('unauthorized')
+    // A bearer token is not sent by the browser on its own, so any origin may use one.
+    await open({ token: member.token, origin: 'https://sibling.example.com' })
+  })
+
+  it('disconnects a socket when its session expires', async () => {
+    const login = await app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { username: 'member', password: 'member password' } })
+    const { token } = login.json()
+    await db.update(authSessions).set({ lastSeenAt: new Date(), expiresAt: new Date(Date.now() + 1500) }).where(eq(authSessions.tokenHash, hashToken(token)))
+    const client = await open({ token })
+    const reason = await new Promise<string>((resolve) => client.once('disconnect', resolve))
+    expect(reason).toBe('io server disconnect')
   })
 
   it('delivers invalidations and events to the right rooms through NOTIFY', async () => {

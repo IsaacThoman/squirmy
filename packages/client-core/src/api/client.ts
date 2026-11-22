@@ -6,7 +6,9 @@ import {
   AcquisitionPolicy,
   AcquisitionProvider,
   AcquisitionProviderList,
+  AcquisitionUsage,
   AlbumDetail,
+  AlbumPage,
   AlbumSummary,
   API_PREFIX,
   ApiErrorBody,
@@ -14,6 +16,7 @@ import {
   AppPasswordList,
   ART_SIZES,
   ArtistDetail,
+  ArtistPage,
   ArtistSummary,
   type Artwork,
   AuthResponse,
@@ -31,8 +34,8 @@ import {
   DeviceInfo,
   DirectoryListing,
   type DirectoryQuery,
-  GenreSummary,
-  HistoryItem,
+  GenrePage,
+  HistoryPage,
   HomeResponse,
   Import,
   ImportAlbumList,
@@ -46,7 +49,9 @@ import {
   LastFmConnectStart,
   type LibraryQuery,
   LibraryRoot,
+  LibraryRootList,
   LibraryStats,
+  type LibraryEntityType,
   type LikeEntityType,
   type LoginRequest,
   Lyrics,
@@ -70,6 +75,7 @@ import {
   PlaybackDescriptor,
   type PlaybackQuery,
   PlaylistDetail,
+  PlaylistPage,
   PlaylistSummary,
   type RegisterRequest,
   RadioResponse,
@@ -88,6 +94,7 @@ import {
   type UpdateAcquisitionProviderRequest,
   TrackSummariesResponse,
   type TrackSummariesRequest,
+  TrackPage,
   TrackSummary,
   type UpdateLibraryRootRequest,
   type UpdatePlaylistRequest,
@@ -98,7 +105,7 @@ import {
   UserList,
   UserSettings,
   type WantEntityType,
-  WantItem,
+  WantPage,
 } from '@squirmy/contracts'
 import { z } from 'zod'
 
@@ -206,14 +213,6 @@ export type CallOptions = { signal?: AbortSignalLike }
 /** Request bodies accept the schema's input type, so fields with defaults are optional. */
 type Input<T extends z.ZodType> = z.input<T>
 
-const AlbumPage = page(AlbumSummary)
-const ArtistPage = page(ArtistSummary)
-const TrackPage = page(TrackSummary)
-const GenrePage = page(GenreSummary)
-const PlaylistPage = page(PlaylistSummary)
-const HistoryPage = page(HistoryItem)
-const WantPage = page(WantItem)
-const RootList = page(LibraryRoot)
 const DeviceList = page(DeviceInfo)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
@@ -338,14 +337,20 @@ export function createApiClient(options: ApiClientOptions) {
       updateSettings: (body: UpdateServerSettings) => send('PATCH', '/admin/settings', ServerSettings, body),
       jobs: () => get('/admin/jobs', JobList),
       directories: (query: DirectoryQuery = {}) => get('/admin/fs', DirectoryListing, query),
+      /** How much the provider cache holds against its limit. */
+      acquisitionUsage: () => get('/admin/acquisition/usage', AcquisitionUsage),
     },
     library: {
-      roots: () => get('/admin/library/roots', RootList),
+      roots: () => get('/admin/library/roots', LibraryRootList),
       createRoot: (body: Input<typeof CreateLibraryRootRequest>) => send('POST', '/admin/library/roots', LibraryRoot, body),
       updateRoot: (rootId: string, body: UpdateLibraryRootRequest) => send('PATCH', `/admin/library/roots/${id(rootId)}`, LibraryRoot, body),
       deleteRoot: (rootId: string) => send('DELETE', `/admin/library/roots/${id(rootId)}`, Ok),
       scanRoot: (rootId: string) => send('POST', `/admin/library/roots/${id(rootId)}/scan`, ScanRootResponse),
       stats: () => get('/admin/library/stats', LibraryStats),
+      /** Adds to your library; for a requester the server also fetches what is missing. */
+      save: (type: LibraryEntityType, entityId: string) => send('PUT', `/me/library/${type}/${id(entityId)}`, Ok),
+      /** Removes the save only: files, likes and playlists stay. */
+      remove: (type: LibraryEntityType, entityId: string) => send('DELETE', `/me/library/${type}/${id(entityId)}`, Ok),
     },
     matching: {
       reviews: (query: Partial<MatchReviewQuery> = {}) => get('/admin/reviews', MatchReviewList, query),
@@ -469,7 +474,8 @@ export function createApiClient(options: ApiClientOptions) {
       jobs: (query: Partial<AcquisitionJobListQuery> = {}) => get('/admin/acquisition/jobs', AcquisitionJobList, query),
       /** Fetches a track the server lacks. Playing one does this by itself. */
       acquireTrack: (trackId: string, query: AcquireQuery = {}) => request('POST', `/tracks/${id(trackId)}/acquire`, { schema: AcquireResponse, query }),
-      acquireAlbum: (albumId: string) => send('POST', `/albums/${id(albumId)}/acquire`, AcquireResponse),
+      acquireAlbum: (albumId: string, query: Omit<AcquireQuery, 'albumId'> = {}) =>
+        request('POST', `/albums/${id(albumId)}/acquire`, { schema: AcquireResponse, query }),
     },
   }
 }

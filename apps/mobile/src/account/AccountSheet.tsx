@@ -1,12 +1,26 @@
+import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Alert, Platform } from 'react-native';
 import { closeSheet } from '../closeSheet';
 import { useDownloadActions, useDownloadsSummary } from '../downloads/DownloadsProvider';
 import { formatBytes } from '../downloads/model';
-import { SheetFrame, SheetInfo, SheetRow, SheetRows } from '../SheetUI';
-import { displayAddress } from './address';
+import { SheetFrame, SheetInfo, SheetNote, SheetRow, SheetRows } from '../SheetUI';
+import { displayAddress, serverVersion } from './address';
 import { useAccount } from './AccountProvider';
+
+/**
+ * About as long as a sheet takes to slide away. The closed sheet's route is already gone,
+ * so no transition event reaches this screen to say when it has.
+ */
+const dismissMs = 400;
+
+/** This app's version and build, for bug reports: `Squirmy for iOS 1.0.0 (12)`. */
+function appVersion(): string {
+  const version = Constants.expoConfig?.version ?? '';
+  const build = Platform.OS === 'ios' ? Constants.platform?.ios?.buildNumber : null;
+  return `Squirmy for ${Platform.OS === 'ios' ? 'iOS' : 'Android'} ${version}${build ? ` (${build})` : ''}`.trim();
+}
 
 export function AccountSheet() {
   const router = useRouter();
@@ -21,11 +35,14 @@ export function AccountSheet() {
   const leaving = (message: string) => kept && downloads
     ? `${message} The ${downloads.count} ${downloads.count === 1 ? 'song' : 'songs'} (${formatBytes(downloads.usedBytes)}) downloaded from it will be removed from this ${Platform.OS === 'ios' ? 'iPhone' : 'phone'}.`
     : message;
-  // The sheet closes first: left open, it would outlive the tabs beneath it for a moment.
+  // The sheet closes first, and the account goes once it is off screen: otherwise the
+  // sign-in screen appears beneath a sheet still showing this account while it slides away.
   const leave = (perform: () => void) => () => {
     closeSheet(router);
-    removeAll();
-    perform();
+    setTimeout(() => {
+      removeAll();
+      perform();
+    }, dismissMs);
   };
 
   const confirm = (title: string, message: string, action: string, perform: () => void) => {
@@ -40,20 +57,22 @@ export function AccountSheet() {
     <SheetFrame title="Account" onClose={() => closeSheet(router)}>
       <SheetInfo icon="person.crop.circle.fill" title={user.displayName ?? user.username}
         subtitle={[user.displayName && user.username, user.role === 'admin' ? 'Admin' : 'Member'].filter(Boolean).join(' · ')} />
-      <SheetInfo icon="server.rack" title={server.name} subtitle={`${displayAddress(server.url)} · Squirmy ${server.version}`} />
+      <SheetInfo icon="server.rack" title={server.name} subtitle={displayAddress(server.url)} />
       <SheetRows>
-        <SheetRow title="Settings" subtitle="Volume, streaming quality, scrobbling" icon="gearshape" onPress={() => router.replace('/settings')} />
+        {/* Opened over this sheet, so closing them comes back here. */}
+        <SheetRow title="Settings" subtitle="Volume, streaming quality, scrobbling" icon="gearshape" onPress={() => router.push('/settings')} />
         <SheetRow title="Downloads" subtitle={kept ? keptLine : 'Music kept on this device'} icon="arrow.down.circle"
-          onPress={() => router.replace('/downloads')} />
+          onPress={() => router.push('/downloads')} />
         {__DEV__ && <SheetRow title="Engine test bench" subtitle="Development builds only" icon="waveform"
           onPress={() => router.push('/dev/engine')} />}
         <SheetRow title="Switch server" icon="arrow.left.arrow.right" onPress={() => confirm(
           'Switch server?', leaving(`You’ll be signed out of ${server.name}.`), 'Switch Server', leave(switchServer),
         )} />
-        <SheetRow title="Sign out" icon="rectangle.portrait.and.arrow.right" onPress={() => confirm(
+        <SheetRow title="Sign out" icon="rectangle.portrait.and.arrow.right" destructive onPress={() => confirm(
           `Sign out of ${server.name}?`, leaving('You can sign back in at any time.'), 'Sign Out', leave(signOut),
         )} />
       </SheetRows>
+      <SheetNote>{`${appVersion()}\nServer ${serverVersion(server.version).toLowerCase()}`}</SheetNote>
     </SheetFrame>
   );
 }

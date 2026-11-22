@@ -8,6 +8,7 @@ import { usePlaylistActions, useTrack } from './data/library';
 import { useRealtime } from './data/realtime';
 import { useCanPlay } from './downloads/DownloadsProvider';
 import { usePlaylists } from './data/queries';
+import { usePageLinks } from './library/links';
 import { matches } from './library/shared';
 import { useRunTrackAction, useTrackActions } from './library/trackActions';
 import { usePlaybackState } from './playback';
@@ -116,6 +117,7 @@ export function NamePlaylistSheet({ mode, id, name, trackId, albumId }: {
   mode: 'create' | 'rename'; id?: string; name?: string; trackId?: string; albumId?: string;
 }) {
   const router = useRouter();
+  const link = usePageLinks();
   const track = useTrack(trackId || null, albumId || null);
   const playlists = usePlaylistActions();
   const [value, setValue] = useState(name ?? '');
@@ -127,6 +129,8 @@ export function NamePlaylistSheet({ mode, id, name, trackId, albumId }: {
     else {
       void playlists.create(value.trim()).then(playlist => {
         if (track) playlists.add(playlist, [track]);
+        // Made from the Library, the new playlist opens, ready for songs; made while adding a song, the person stays where they were.
+        else router.navigate(link('playlist', playlist.id));
       }, () => undefined);
     }
     closeSheet(router);

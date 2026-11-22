@@ -27,14 +27,15 @@ export function endNowPlaying(userId: string, recordingId: string) {
 /** NowPlayingEntry wants an integer player id; derive a stable one from the player's name. */
 const playerId = (name: string) => Number.parseInt(createHash('sha256').update(name).digest('hex').slice(0, 7), 16)
 
-export async function nowPlaying(): Promise<Payload[]> {
+/** Every user's entries, annotated (starred, rating, play count) for `viewerId`, who is asking. */
+export async function nowPlaying(viewerId: string): Promise<Payload[]> {
   const now = Date.now()
   const people = await db.select({ id: users.id, username: users.username }).from(users).where(isNull(users.disabledAt))
   const entries = await Promise.all(people.map(async (person): Promise<Payload[]> => {
     const found: Payload[] = []
     const report = reports.get(person.id)
     if (report) {
-      const [song] = await songs(person.id, [{ id: report.recordingId }])
+      const [song] = await songs(viewerId, [{ id: report.recordingId }])
       const elapsed = now - report.at
       if (song && elapsed <= ((song.duration as number) + 60) * 1000) {
         found.push({ ...song, username: person.username, minutesAgo: Math.floor(elapsed / 60_000), playerId: playerId(report.client), playerName: report.client })
@@ -44,7 +45,7 @@ export async function nowPlaying(): Promise<Payload[]> {
     }
     const { state } = await getSnapshot(person.id)
     if (state.playing && state.current) {
-      const [song] = await songs(person.id, [{ id: state.current.trackId, albumId: state.current.albumId }])
+      const [song] = await songs(viewerId, [{ id: state.current.trackId, albumId: state.current.albumId }])
       const device = state.activeDeviceId ? (await getDevices(person.id)).find((candidate) => candidate.id === state.activeDeviceId) : undefined
       const name = device?.name ?? 'Squirmy'
       if (song) found.push({ ...song, username: person.username, minutesAgo: 0, playerId: playerId(name), playerName: name })

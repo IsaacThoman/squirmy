@@ -20,7 +20,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Library and catalog read API, home
 - [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
 - [x] Loudness measurement and normalization values
-- [x] Likes, playlists, history, user settings
+- [x] Likes, ratings, playlists, history, user settings
+- [x] Lyrics: embedded, sidecar and LRCLIB, shown on web and iOS
 - [x] Web app: setup, login, library, album and artist pages, player, queue
 - [x] Mobile app: connect, login, real data, real audio, lock-screen controls
 
@@ -33,11 +34,11 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 ## 4. Identify and reorganize
 
-- [ ] Metadata clients with cache and rate limits
+- [x] Metadata clients with cache and rate limits
 - [x] Album matching tiers, review queue, fix match, merges
-- [x] Enrichment: covers, artist images, bios, lyrics, external ids, new-release feed (server)
+- [x] Enrichment: covers, artist images, bios, lyrics, external ids
 - [x] Managed roots: preview, apply, journal, undo (server and API)
-- [x] Admin screens for library folders, the review queue, Fix match and Organize (web)
+- [x] Admin screens (web): library folders, review queue, Fix match, Organize, users and invites, server settings, jobs
 - [x] Tag writing with verification
 
 ## 5. OpenSubsonic
@@ -50,12 +51,15 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 ## 6. Search everything
 
 - [x] Library search
-- [x] Local index, Deezer and MusicBrainz search providers, stub rows, stub cleanup
-- [ ] Resolve stubs on open (enrichment)
-- [ ] Artist and album pages for music you do not own
-- [ ] Wantlist and new-release feed
+- [x] Deezer and MusicBrainz search providers, stub rows, stub cleanup
+- [x] Resolve stubs on open (enrichment)
+- [x] Artist and album pages for music you do not own
+- [x] Similar artists on artist pages, genre pages
+- [x] New-release feed on Home (server, web and iOS)
+- [x] Wantlist (server, iOS add, web), opt-in behind `wantlistEnabled`
+- [ ] Wantlist: hide it on the web while `wantlistEnabled` is off, add the switch to Admin → Server settings, and let iOS remove a want
 - [x] Gray-out on web
-- [ ] Gray-out on mobile
+- [x] Gray-out on mobile
 
 ## 7. Add and take
 
@@ -69,9 +73,11 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Acquisition provider protocol, on-demand playback, policy ([provider-protocol.md](./provider-protocol.md)), and on the web the Providers admin screen, "Get this album" and preparing tracks
 - [x] Reference adapters: cold storage and mock (`adapters/`)
 - [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
-- [x] Radio and autoplay (server and API)
+- [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
+- [ ] Detached playback: one device plays its own queue apart from the shared session. Protocol, server and shared client code are done; the web and iOS controls are next ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
+- [x] Docker health check on `/ready`, and the image reports its source version
 
 ## Deferred
 

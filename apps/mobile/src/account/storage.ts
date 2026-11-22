@@ -54,9 +54,14 @@ function readSaved(): Saved | null {
   try {
     const json = globalThis.localStorage?.getItem(savedKey);
     const saved = json ? JSON.parse(json) as Partial<Saved> : null;
-    // Servers saved before the invite setting was known are assumed to require one.
+    // Servers saved before the invite setting was known are assumed to require one, and
+    // before the wantlist setting was known to have it off.
     return saved?.server?.url ? {
-      server: { ...saved.server, registrationRequiresInvite: saved.server.registrationRequiresInvite ?? true },
+      server: {
+        ...saved.server,
+        registrationRequiresInvite: saved.server.registrationRequiresInvite ?? true,
+        wantlistEnabled: saved.server.wantlistEnabled ?? false,
+      },
       user: saved.user ?? null,
     } : null;
   } catch {
@@ -81,3 +86,27 @@ export function clientDevice(): Promise<ClientDevice> {
   return device;
 }
 
+
+const usernamesKey = 'squirmy.usernames.v1';
+
+function readUsernames(): Record<string, string> {
+  try {
+    const json = globalThis.localStorage?.getItem(usernamesKey);
+    return json ? JSON.parse(json) as Record<string, string> : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The username last signed in with on this server from this device, to fill in next time. */
+export function lastUsername(serverUrl: string): string {
+  return readUsernames()[serverUrl] ?? '';
+}
+
+export function rememberUsername(serverUrl: string, username: string): void {
+  try {
+    globalThis.localStorage?.setItem(usernamesKey, JSON.stringify({ ...readUsernames(), [serverUrl]: username }));
+  } catch {
+    // Only a convenience: the field starts empty next time.
+  }
+}
