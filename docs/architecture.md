@@ -458,3 +458,4 @@ apps/mobile/
 - Branches are named like commits: `feat-library-scan`, `fix-range-requests`.
 - Pull requests target `dev`. `main` receives merges from `dev`; semantic-release tags a version on every push to `main`.
 - Every push to `main` is deployed to the test environment at once, without waiting for CI. So `main` changes only through a `dev` → `main` pull request whose checks have passed, never by a direct push. A fix made on `main` anyway is merged back into `dev` right away.
+- When CI fails on `main`, it opens an issue. Either fix the problem on `dev` and open another `dev` → `main` pull request, or revert the merge commit on `main` (and merge that revert back into `dev`).

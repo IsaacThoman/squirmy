@@ -170,7 +170,7 @@ jobs:
         run: |
           gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "CI failed on main at ${GITHUB_SHA::7}, which the test environment already runs" \
-            --body "CI failed for ${GITHUB_SHA} on main: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Coolify deploys main on push, so this commit is live on the test environment. Fix it on dev and promote again, or revert the merge on main (see the promotion runbook)."
+            --body "CI failed for ${GITHUB_SHA} on main: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Coolify deploys main on push, so this commit is live on the test environment. Fix it on dev and promote again, or revert the merge on main (see the Git section of docs/architecture.md)."
 
   release:
     name: Semantic release
@@ -243,6 +243,12 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: SQUIRMY_VERSION=${{ needs.release.outputs.version }}
+          # Links the package page to the repository and states what the image is.
+          labels: |
+            org.opencontainers.image.source=https://github.com/IsaacThoman/squirmy
+            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=GPL-3.0-or-later
           tags: |
             ghcr.io/isaacthoman/squirmy:${{ needs.release.outputs.version }}
             ghcr.io/isaacthoman/squirmy:latest
