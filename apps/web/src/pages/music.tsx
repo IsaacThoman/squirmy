@@ -6,10 +6,9 @@ import { filterKind, searchContext, searchFilters, searchQueue, type SearchFilte
 import type { HomeSection, Page as ListPage, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
 import { queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
-import { CloudOff, Compass } from 'lucide-react'
+import { Compass } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
-import { errorMessage } from '@/api/errors'
 import { moveItem } from '@/lib/reorder'
 import { useCachedSummary } from '@/api/prefetch'
 import {
@@ -25,6 +24,7 @@ import { CollectionSkeleton } from '@/components/music/Skeletons'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/feedback'
+import { LoadError, QueryState } from '@/components/ui/query-state'
 import { AlbumView } from '@/components/views/AlbumView'
 import { ArtistReleasesView, ArtistView } from '@/components/views/ArtistView'
 import { HomeView, type ScanProgress } from '@/components/views/HomeView'
@@ -51,24 +51,26 @@ import { useServerEvent } from '@/realtime/realtime-context'
 export function NotFoundPage() {
   return (
     <Page>
-      <EmptyState icon={<Compass />} title="Nothing here" description="This page does not exist, or the music it pointed to is gone." action={<Button asChild variant="primary"><Link to="/">Go home</Link></Button>} />
+      <EmptyState icon={<Compass />} title="Nothing here" description="This page does not exist, or the music it pointed to is gone." headingLevel={1} action={<Button asChild variant="primary"><Link to="/">Go home</Link></Button>} />
     </Page>
   )
 }
 
-function ErrorPage({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+function ErrorPage({ error, onRetry, retrying }: { error: unknown; onRetry: () => void; retrying?: boolean }) {
   return (
     <Page>
-      <EmptyState icon={<CloudOff />} title="This page did not load" description={errorMessage(error)} action={<Button variant="primary" onClick={onRetry}>Try again</Button>} />
+      <LoadError variant="page" title="This page did not load" error={error} onRetry={onRetry} retrying={retrying} />
     </Page>
   )
 }
 
 /** A page's main query: its skeleton while loading, "Nothing here" for a 404, a retry for other failures. */
 function Loaded<T>({ query, skeleton, children }: { query: UseQueryResult<T>; skeleton: ReactNode; children: (data: T) => ReactNode }) {
-  if (query.data !== undefined) return children(query.data)
-  if (query.error) return isNotFound(query.error) ? <NotFoundPage /> : <ErrorPage error={query.error} onRetry={() => void query.refetch()} />
-  return skeleton
+  return (
+    <QueryState query={query} loading={skeleton} errorTitle="This page did not load" variant="page" renderError={error => (isNotFound(error) ? <NotFoundPage /> : undefined)}>
+      {children}
+    </QueryState>
+  )
 }
 
 /** Files read so far by the scans running now, from the server's progress events. */
@@ -87,7 +89,8 @@ export function HomePage() {
   const user = useCurrentUser()
   const home = useHome()
   const scan = useScanProgress()
-  if (home.error) return <ErrorPage error={home.error} onRetry={() => void home.refetch()} />
+  // A failed refetch keeps the last answer on screen; only a first answer that failed replaces the page.
+  if (home.error && !home.data) return <ErrorPage error={home.error} retrying={home.isFetching} onRetry={() => void home.refetch()} />
   const { featured, sections } = featuring(home.data?.sections)
   return (
     <HomeView
@@ -169,7 +172,7 @@ export function ArtistReleasesPage() {
   const summary = useCachedSummary('artist', id, artist.data === undefined)
   const releases = useArtistReleases(id, known ? section : 'album', known)
   if (!known || isNotFound(artist.error) || isNotFound(releases.error)) return <NotFoundPage />
-  if (releases.error) return <ErrorPage error={releases.error} onRetry={() => void releases.refetch()} />
+  if (releases.error && !releases.data) return <ErrorPage error={releases.error} retrying={releases.isFetching} onRetry={() => void releases.refetch()} />
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = releases
   return (
     <ArtistReleasesView

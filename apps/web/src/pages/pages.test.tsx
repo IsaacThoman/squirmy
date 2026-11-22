@@ -48,7 +48,8 @@ describe('pages', () => {
     renderWithApp(<AppRoutes />, route)
     // The dev pages are the largest lazy chunks, and under a full parallel run their first import can take a while.
     const wait = route.startsWith('/dev/') ? { timeout: LAZY_DEV_PAGE_MS } : undefined
-    expect(await screen.findByRole('heading', { level: heading === 'Nothing here' ? 3 : 1, name: heading }, wait)).toBeInTheDocument()
+    // "Nothing here" is the whole page, so it is the page's level 1 heading too.
+    expect(await screen.findByRole('heading', { level: 1, name: heading }, wait)).toBeInTheDocument()
   }, LAZY_DEV_PAGE_MS + 2000)
 
   it('/wantlist goes home while the server has the wantlist off', async () => {
