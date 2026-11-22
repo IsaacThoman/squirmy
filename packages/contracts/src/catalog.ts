@@ -126,6 +126,12 @@ export const AlbumDetail = AlbumSummary.extend({
   liked: z.boolean(),
   wanted: z.boolean(),
   /**
+   * True when the page was answered while its detail (track list, edition) was still
+   * being fetched: what it shows is not final, and an invalidation of the album follows.
+   * Absent otherwise.
+   */
+  detailPending: z.literal(true).optional(),
+  /**
    * Why the album is in the viewer's library, or null when it is not. `collection`: a file
    * the server's owner brought (scan, upload, inbox) belongs to it, shared by every user and
    * not removable by them. `saved`: the viewer added it. Optional for older servers.
@@ -145,6 +151,8 @@ export const ArtistDetail = ArtistSummary.extend({
   /** Whole discography, newest first. Clients group by `type`. */
   albums: z.array(AlbumSummary),
   similar: z.array(ArtistSummary),
+  /** As on `AlbumDetail`: the profile and discography are still being fetched. */
+  detailPending: z.literal(true).optional(),
 })
 export type ArtistDetail = z.infer<typeof ArtistDetail>
 
@@ -182,7 +190,15 @@ export const TrackSummariesRequest = z.object({
   tracks: z.array(z.object({ id: Id, albumId: Id.nullable().optional() })).max(500),
 })
 export type TrackSummariesRequest = z.infer<typeof TrackSummariesRequest>
-export const TrackSummariesResponse = z.object({ tracks: z.array(TrackSummary) })
+export const TrackSummariesResponse = z.object({
+  tracks: z.array(TrackSummary),
+  /**
+   * For each item of `tracks`, the id the request named. It differs from the item's `id`
+   * when that track was merged into another, so a client can file the answer under the id
+   * it holds (a queue entry, a playlist item). Optional: older servers do not send it.
+   */
+  requestedIds: z.array(Id).optional(),
+})
 export type TrackSummariesResponse = z.infer<typeof TrackSummariesResponse>
 
 /** Responses of the library lists and of `GET /me/likes/:type`. */

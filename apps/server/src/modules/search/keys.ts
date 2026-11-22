@@ -43,6 +43,19 @@ export function editionFreeTitle(title: string): string {
   }
 }
 
+/**
+ * The query without trailing edition words, when it has some and something is left:
+ * "ok computer deluxe" is "ok computer". Search providers match every word, so an edition
+ * the provider names differently ("OKNOTOK") or not at all would otherwise find nothing.
+ */
+export function editionFreeQuery(query: string): string {
+  const words = query.split(' ')
+  let end = words.length
+  while (end > 1 && (strongEditionWords.has(words[end - 1]!) || weakEditionWords.has(words[end - 1]!) || ordinal.test(words[end - 1]!))) end--
+  const dropped = words.slice(end)
+  return dropped.some((word) => strongEditionWords.has(word)) ? words.slice(0, end).join(' ') : query
+}
+
 /** `matchKey` of `editionFreeTitle`: the key two editions of one album or song share. */
 export function editionFreeKey(title: string): string {
   return matchKey(editionFreeTitle(title))

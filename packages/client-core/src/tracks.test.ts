@@ -102,4 +102,26 @@ describe('TrackStore', () => {
     await vi.runAllTimersAsync()
     expect(failing).toHaveBeenCalledTimes(2)
   })
+
+  it('files a summary answered under a merged id under the id it asked for', async () => {
+    // The server follows the merge from 3 to 7 and says which requested id each summary is for.
+    const api = vi.fn(async () => ({ tracks: [summary(7), summary(2)], requestedIds: [uuid(3), uuid(2)] }))
+    const store = new TrackStore(api)
+    store.get(uuid(3))
+    store.get(uuid(2))
+    await vi.runAllTimersAsync()
+    expect(store.get(uuid(3))?.id).toBe(uuid(7))
+    expect(store.get(uuid(2))?.id).toBe(uuid(2))
+    await vi.runAllTimersAsync()
+    expect(api).toHaveBeenCalledOnce()
+
+    // An older server sends no requestedIds: matching by id still works for the rest.
+    const older = vi.fn(async () => ({ tracks: [summary(7), summary(2)] }))
+    const legacy = new TrackStore(older)
+    legacy.get(uuid(3))
+    legacy.get(uuid(2))
+    await vi.runAllTimersAsync()
+    expect(legacy.get(uuid(2))?.id).toBe(uuid(2))
+    expect(legacy.get(uuid(3))).toBeUndefined()
+  })
 })

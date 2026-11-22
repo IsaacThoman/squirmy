@@ -11,9 +11,10 @@ export type SearchQuery = z.infer<typeof SearchQuery>
 /**
  * The single result a client can lead with, one of the items in `artists`, `albums` or
  * `tracks`. Chosen by how exactly its name matches the query (the whole name, or artist
- * and title together; then the same with edition suffixes such as "(Deluxe Edition)"
- * dropped; then the name starting with the query), ties broken by popularity, then artist
- * before album before track, then the order of the lists.
+ * and title together, also with edition suffixes such as "(Deluxe Edition)" or a leading
+ * article dropped; then the name starting with the query; then a name one typo away),
+ * ties broken by the article as typed, popularity, the order of the lists, then artist
+ * before album before track.
  */
 export const SearchTopResult = z.object({
   type: z.enum(['artist', 'album', 'track']),

@@ -179,8 +179,12 @@ export async function deezerDiscography(artistId: string, deezerArtistId: string
   }
 }
 
-/** Finds or creates the row for one of an artist's popular Deezer tracks. */
-export async function deezerTopTrackRow(artistId: string, track: DeezerTrack): Promise<string> {
+/**
+ * Finds or creates the row for one of an artist's popular Deezer tracks. `deezerArtistId`
+ * is the page artist's Deezer id: a top track may be another artist's with this one
+ * featured, and only this artist's own credit is `artistId`.
+ */
+export async function deezerTopTrackRow(artistId: string, deezerArtistId: string, track: DeezerTrack): Promise<string> {
   return db.transaction(async (tx) => {
     await lockUpserts(tx)
     const existing = await linked(tx, 'recording', track.id)
@@ -201,6 +205,6 @@ export async function deezerTopTrackRow(artistId: string, track: DeezerTrack): P
       await tx.insert(externalIds).values({ provider: 'deezer', entityType: 'recording', externalId: String(track.id), entityId: known.id }).onConflictDoNothing()
       return known.id
     }
-    return deezerRecordingRow(tx, track, async (artist) => (artist.id === track.artist.id ? artistId : deezerArtistRow(tx, artist)))
+    return deezerRecordingRow(tx, track, async (artist) => (String(artist.id) === deezerArtistId ? artistId : deezerArtistRow(tx, artist)))
   })
 }

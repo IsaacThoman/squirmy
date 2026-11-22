@@ -131,6 +131,27 @@ describe('transcodes', () => {
     expect(ranged.rawPayload.equals(first.rawPayload.subarray(100, 200))).toBe(true)
   })
 
+  it('encodes again when the source file is replaced', async () => {
+    const file = await addFile('a/tone.flac')
+    const first = await fetch(file.id, 'mp3_192')
+    await writeFile(path.join(scratch, 'before.mp3'), first.rawPayload)
+    expect(await decodedSeconds(path.join(scratch, 'before.mp3'))).toBeCloseTo(3, 1)
+    expect(await row(file.id, 'mp3_192')).toMatchObject({ status: 'ready' })
+
+    // A different recording copied over the same path; the scanner records its new size and mtime.
+    await copyFile(path.join(root, 'a/long.flac'), path.join(root, file.relPath))
+    const info = await stat(path.join(root, file.relPath))
+    await db.update(mediaFiles).set({ size: info.size, mtime: new Date(Math.floor(info.mtimeMs)) }).where(eq(mediaFiles.id, file.id))
+
+    const second = await fetch(file.id, 'mp3_192')
+    expect(second.statusCode).toBe(200)
+    await writeFile(path.join(scratch, 'after.mp3'), second.rawPayload)
+    expect(await decodedSeconds(path.join(scratch, 'after.mp3'))).toBeCloseTo(20, 1)
+    const ready = await row(file.id, 'mp3_192')
+    expect(ready).toMatchObject({ status: 'ready', bytes: second.rawPayload.length })
+    expect((await fetch(file.id, 'mp3_192', { range: 'bytes=0-9' })).rawPayload.equals(second.rawPayload.subarray(0, 10))).toBe(true)
+  })
+
   it('keeps tags in Ogg Opus and drops the picture', async () => {
     const file = await addFile('a/tone.flac')
     const response = await fetch(file.id, 'opus_128')
@@ -224,9 +245,9 @@ describe('transcodes', () => {
       }
       await db.insert(transcodes).values({ id: newId(), fileId: file.id, profile, storagePath, bytes, status: 'ready', lastUsedAt: new Date(Date.now() - minutesAgo * 60_000) })
     }
-    await put('oldest', 1000, 30)
-    await put('middle', 1000, 20)
-    await put('newest', 1000, 10)
+    await put('oldest', 1000, 180)
+    await put('middle', 1000, 150)
+    await put('newest', 1000, 120)
     await put('vanished', 1000, 5, false)
     const orphan = path.join(cacheRoot(), file.id, 'orphan.aac')
     const fresh = path.join(cacheRoot(), file.id, '.aac_256.abc.part')
@@ -242,8 +263,15 @@ describe('transcodes', () => {
     expect(left.map((entry) => entry.profile).sort()).toEqual(['middle', 'newest'])
     expect((await readdir(path.join(cacheRoot(), file.id))).sort()).toEqual(['.aac_256.abc.part', 'middle.bin', 'newest.bin'])
 
+    // Someone is listening to this one: a seek or the next Range request must still find it.
+    await put('playing', 1000, 2)
     await updateServerSettings({ transcodeCacheMaxBytes: 0 })
     await rm(fresh)
+    await evictTranscodes()
+    expect((await db.select({ profile: transcodes.profile }).from(transcodes)).map((entry) => entry.profile)).toEqual(['playing'])
+    expect(await readdir(path.join(cacheRoot(), file.id))).toEqual(['playing.bin'])
+
+    await db.update(transcodes).set({ lastUsedAt: hourAgo })
     await evictTranscodes()
     expect(await db.select().from(transcodes)).toEqual([])
     expect(await readdir(cacheRoot())).toEqual([])
