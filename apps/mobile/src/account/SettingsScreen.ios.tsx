@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
 import { IconButton } from '../native/Controls';
+import { StorageSection } from '../streamingCache/StorageSection';
 import { useColors } from '../theme';
 import {
   normalizationNote, normalizationOptions, qualityNote, qualityOptions, scrobbleDetail, useSettingsScreen,
@@ -52,6 +53,7 @@ export function SettingsScreen() {
             </Picker>
           </Section>
         </> : <Section modifiers={clearRow}><HStack><Spacer /><ProgressView /><Spacer /></HStack></Section>}
+        <StorageSection />
         {screen.listenBrainz && <ListenBrainzSection service={screen.listenBrainz} busy={screen.connectingListenBrainz}
           onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
         {screen.lastFm && <Section title="Last.fm" footer={<Text>Plays are sent once you have listened to half a song or four minutes of it.</Text>}>
