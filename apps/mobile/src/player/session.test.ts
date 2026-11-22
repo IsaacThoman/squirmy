@@ -1,7 +1,7 @@
 import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  codecsFor, deviceRows, failureNotices, isPlayable, outageNotice, queueRow, isRemote, newlyFailed, newlyReady, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
+  codecsFor, deviceRows, isPlayable, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
   seedOf,
 } from './session';
 
@@ -118,68 +118,6 @@ describe('availability', () => {
     expect(playableSeeds([track('a'), track('b'), track('c'), track('d')], 2, item => downloaded.has(item.id)).startIndex).toBe(1);
   });
 
-  it('reports entries that failed after preparing, once', () => {
-    const before = { current: entry('a', 'preparing'), queue: [entry('b', 'preparing'), entry('c', 'ready')], history: [], autoplayQueue: [] };
-    const after = { current: entry('c', 'ready'), queue: [entry('b', 'preparing')], history: [entry('a', 'failed')], autoplayQueue: [] };
-    expect(newlyFailed(before, after).map(item => item.id)).toEqual(['a']);
-    expect(newlyFailed(after, after)).toEqual([]);
-  });
-
-  it('reports entries the server fetched, once, so their summaries are read again', () => {
-    const before = { current: entry('a', 'preparing'), queue: [entry('b', 'preparing'), entry('c', 'ready')], history: [], autoplayQueue: [] };
-    const after = { current: entry('a', 'ready'), queue: [entry('b', 'failed'), entry('c', 'ready')], history: [], autoplayQueue: [] };
-    expect(newlyReady(before, after).map(item => item.id)).toEqual(['a']);
-    expect(newlyReady(after, after)).toEqual([]);
-  });
-
-  it('announces a failed current or next entry, not failed prefetches further down', () => {
-    const before = {
-      playing: true, current: entry('a', 'preparing'),
-      queue: [entry('b', 'preparing'), entry('c', 'preparing'), entry('d', 'preparing')], history: [], autoplayQueue: [],
-    };
-    // The current entry fails and is skipped; d, three ahead, fails as well.
-    const skipped = {
-      playing: true, current: entry('b', 'preparing'),
-      queue: [entry('c', 'preparing'), entry('d', 'failed')], history: [entry('a', 'failed')], autoplayQueue: [],
-    };
-    expect(failureNotices(before, skipped)).toEqual({ skipped: [entry('a', 'failed')], outage: null });
-    // The next entry fails while the current one still loads.
-    const nextFailed = { ...skipped, queue: [entry('c', 'failed'), entry('d', 'failed')] };
-    expect(failureNotices(skipped, nextFailed).skipped.map(item => item.id)).toEqual(['c']);
-    expect(failureNotices(nextFailed, nextFailed)).toEqual({ skipped: [], outage: null });
-  });
-
-  it('reports an outage, not a skip, when the session pauses on a failed current entry', () => {
-    const before = { playing: true, current: entry('c', 'preparing'), queue: [entry('d', 'preparing')], history: [], autoplayQueue: [] };
-    const paused = { playing: false, current: entry('c', 'failed'), queue: [entry('d', 'preparing')], history: [], autoplayQueue: [] };
-    expect(failureNotices(before, paused)).toEqual({ skipped: [], outage: { message: 'Can’t load music right now', detail: 'Playback is paused.' } });
-  });
-
-  it('tells the server’s reason with the pause, worded as on the web', () => {
-    const reason = 'The server can’t fetch music on demand right now.';
-    const outage = { trackId: 'c', reason };
-    const before = { playing: true, current: entry('c', 'preparing'), queue: [entry('d', 'preparing')], history: [], autoplayQueue: [], outage: null };
-    const paused = { ...before, playing: false, current: entry('c', 'failed'), outage };
-    const told = { message: 'Can’t load music right now', detail: `${reason} Playback is paused.` };
-    expect(failureNotices(before, paused)).toEqual({ skipped: [], outage: told });
-    // A reason that comes after the pause (an older server) is still told; the app tells one outage once.
-    const generic = { ...paused, outage: null };
-    expect(failureNotices(before, generic).outage?.detail).toBe('Playback is paused.');
-    expect(failureNotices(generic, paused).outage).toEqual(told);
-    // Nothing new: nothing to tell.
-    expect(failureNotices(paused, { ...paused, queue: [entry('d', 'failed')] }).outage).toBeNull();
-  });
-
-  it('words an outage without a reason as the web does', () => {
-    expect(outageNotice(null)).toEqual({ message: 'Can’t load music right now', detail: 'Playback is paused.' });
-    expect(outageNotice({ reason: 'Tidal refused the sign-in.' })).toEqual({ message: 'Can’t load music right now', detail: 'Tidal refused the sign-in. Playback is paused.' });
-  });
-
-  it('counts the first autoplay suggestion as next when Up Next is empty', () => {
-    const before = { playing: true, current: entry('a', 'ready'), queue: [], history: [], autoplayQueue: [entry('x', 'preparing'), entry('y', 'preparing')] };
-    const after = { ...before, autoplayQueue: [entry('x', 'failed'), entry('y', 'failed')] };
-    expect(failureNotices(before, after).skipped.map(item => item.id)).toEqual(['x']);
-  });
 });
 
 describe('nextRepeat', () => {

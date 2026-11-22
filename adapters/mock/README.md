@@ -18,4 +18,5 @@ PORT=4801 MOCK_PROVIDER_SECRET=mock-secret npm start -w @squirmy/adapter-mock
 | `MOCK_PROVIDER_FAIL` | off | `1`: accept jobs, then report them failed. |
 | `MOCK_PROVIDER_WRONG_FILE` | off | `1`: deliver a tone with another title and length. |
 | `MOCK_PROVIDER_PRICED` | off | `1`: put a price on every offer (the server ignores priced offers). |
+| `MOCK_PROVIDER_MISSING` | none | A regular expression (case-insensitive): tracks and albums whose title matches get no offer, as a provider that lacks them. |
 | `MOCK_PROVIDER_VERSION` | none | The `version` it reports in `capabilities`. Changing it and restarting makes the server ask again for tracks it could not supply. |
