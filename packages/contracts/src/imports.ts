@@ -139,9 +139,14 @@ export const ImportFilesResponse = z.object({
 })
 export type ImportFilesResponse = z.infer<typeof ImportFilesResponse>
 
-/** `GET /imports`, newest first: the caller's own imports, or every import for an admin. */
+/**
+ * `GET /imports`, newest first: the caller's own imports, or every import for an admin.
+ * Without `kind`, acquisition deliveries are left out: they are cache filled by listening,
+ * not music someone added.
+ */
 export const ImportListQuery = PageQuery.extend({
   status: ImportStatus.optional(),
+  kind: ImportKind.optional(),
 })
 export type ImportListQuery = z.infer<typeof ImportListQuery>
 
