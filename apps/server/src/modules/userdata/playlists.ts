@@ -37,11 +37,19 @@ export async function playlistSummaries(ids: readonly string[]): Promise<Playlis
     cross join lateral (
       select coalesce(json_agg(json_build_object('id', c.id, 'color', c.color, 'thumbhash', c.thumbhash) order by c.first), '[]'::json) as artworks
       from (
-        select art.id, art.color, art.thumbhash, min(i.position) as first
-        from playlist_items i join albums al on al.id = i.album_id join assets art on art.id = al.artwork_asset_id
-        where i.playlist_id = p.id
-        group by al.id, art.id
-        order by first limit 4
+        -- Albums in order of first appearance, then their covers one by one until four are
+        -- found: the lateral join keeps Postgres from joining every item to its album.
+        select art.id, art.color, art.thumbhash, firsts.first
+        from (
+          select i.album_id, min(i.position) as first from playlist_items i
+          where i.playlist_id = p.id and i.album_id is not null
+          group by i.album_id order by first
+        ) firsts
+        cross join lateral (
+          select art.id, art.color, art.thumbhash from albums al join assets art on art.id = al.artwork_asset_id
+          where al.id = firsts.album_id
+        ) art
+        order by firsts.first limit 4
       ) c
     ) covers
     where p.id = any(${uuidArray([...new Set(ids)])})`)

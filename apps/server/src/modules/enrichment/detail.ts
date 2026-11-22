@@ -8,6 +8,7 @@
  * queued as a safety net in case the process stops first (it finds the row complete and
  * does nothing otherwise). Concurrent callers for one row share one run.
  */
+import { getConfig } from '../../config.js'
 import { enqueue } from '../../jobs/index.js'
 import { hydrateAlbum } from './album.js'
 import { hydrateArtist } from './artist.js'
@@ -46,6 +47,32 @@ export async function ensureAlbumDetail(albumId: string): Promise<void> {
 /** Fetch an artist's profile and discography if they are missing or stale. */
 export async function ensureArtistDetail(artistId: string): Promise<void> {
   await onPage(artistDetailRun(artistId), 'enrichment.artist', artistId, { artistId })
+}
+
+/** Background warm-ups at a time; more are skipped, so a burst of searches cannot queue up provider calls. */
+const maxWarming = 2
+const warming = new Set<string>()
+let warmInTests = false
+
+/** Tests turn warming on where they record the provider calls it makes. */
+export function setDetailWarming(enabled: boolean) {
+  warmInTests = enabled
+}
+
+/**
+ * Starts completing an album's or artist's detail in the background, for the page a user
+ * is likely to open next (a search's top result), so the page does not wait up to the
+ * budget for providers. Joins a run already in flight; does nothing for a complete row,
+ * as the run itself checks; never throws.
+ */
+export function warmDetail(type: 'album' | 'artist', id: string) {
+  if (getConfig().NODE_ENV === 'test' && !warmInTests) return
+  const key = `${type}:${id}`
+  if (warming.has(key) || warming.size >= maxWarming) return
+  warming.add(key)
+  void (type === 'album' ? albumDetailRun(id) : artistDetailRun(id))
+    .catch((error: unknown) => warn(`Warming ${key} failed`, error))
+    .finally(() => warming.delete(key))
 }
 
 /** The shared run that looks a recording's lyrics up. */
