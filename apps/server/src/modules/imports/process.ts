@@ -27,6 +27,7 @@ import { enqueue } from '../../jobs/index.js'
 import { AppError } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { invalidate } from '../../realtime/index.js'
+import { settleDelivery } from '../acquisition/delivery.js'
 import { lockCatalog, removeOrphans } from '../library/cleanup.js'
 import { matchJobKey } from '../matching/index.js'
 import { applyBatch } from '../organize/apply.js'
@@ -295,10 +296,12 @@ async function identify(row: ImportRow, root: Root, stats: Stats, work: ImportWo
       ))
       return decided ? null : decideDuplicates(tx, row, root, stats, work, timeUp)
     })
-    if (paths) {
-      decided = true
-      await removeDuplicateFiles(row, root, paths)
-    }
+    if (paths) decided = true
+    // Owned by the acquisition module: a delivery is checked against its request, and what
+    // fits is placed on the requested album, before matching is awaited and anything is
+    // filed. Before the duplicates' groups are ingested again, so ingest finds them identified.
+    if (decided && row.kind === 'acquisition') await settleDelivery(row.id, work.copies ?? [])
+    if (paths) await removeDuplicateFiles(row, root, paths)
 
     const { musicBrainzEnabled } = await getServerSettings()
     const [state] = await db.select({
@@ -372,6 +375,19 @@ async function decideDuplicates(tx: Transaction, row: ImportRow, root: Root, sta
   }).from(mediaFiles).where(ofImport(row))
   if (!force && (state!.rows < (stats.audioFiles ?? 0) || state!.unhashed > 0)) return null
 
+  // The kept files outside this import that its duplicates copy, before those rows go. Only
+  // files a provider delivered earlier, not locked by "Fix match": an acquisition checks its
+  // request against them and may merge their recording into the requested one, which must
+  // never touch a recording the owner's own files or a fixed match stand for.
+  const copies = await tx.execute<{ id: string }>(sql`
+    select distinct other.id from media_files f
+    join media_files other on other.audio_hash = f.audio_hash and other.id <> f.id and other.missing_since is null
+      and starts_with(other.source, 'provider:') and other.match_locked = false
+    where f.import_id = ${row.id} and f.missing_since is null and f.root_id = ${root.id} and f.audio_hash is not null
+      and other.import_id is distinct from ${row.id}
+      and (other.import_id is null or other.import_id < ${row.id}
+        or not exists (select 1 from imports i where i.id = other.import_id and i.status = 'processing'))`)
+  work.copies = copies.map((copy) => copy.id)
   const paths = await deleteRows(tx, and(
     ofImport(row),
     eq(mediaFiles.rootId, root.id),
@@ -432,10 +448,11 @@ async function removeDuplicateFiles(row: ImportRow, root: Root, paths: string[])
 // ---------------------------------------------------------------------------
 
 /**
- * Files the albums the matcher identified with confidence: plans one organize batch
- * restricted to them (remembered, so a rerun applies the same batch) and applies it. What
- * was not identified stays in `_Incoming/<importId>/`; the folder is removed once no audio
- * is left in it. Then the counts are taken and, while the wantlist is on, wants are refreshed.
+ * Files the import's files that were identified with confidence (by the matcher, or placed
+ * on the album they were requested from): plans one organize batch restricted to them
+ * (remembered, so a rerun applies the same batch) and applies it. What was not identified
+ * stays in `_Incoming/<importId>/`; the folder is removed once no audio is left in it. Then
+ * the counts are taken and, while the wantlist is on, wants are refreshed.
  */
 async function file(row: ImportRow, root: Root, stats: Stats, work: ImportWork, options: typeof defaults) {
   const folder = incomingFolder(row.id)
@@ -445,7 +462,7 @@ async function file(row: ImportRow, root: Root, stats: Stats, work: ImportWork, 
       sql`starts_with(${mediaFiles.relPath}, ${`${folder}/`})`,
     ))
     if (albums.length > 0) {
-      work.batchId = await planOrganize({ rootId: root.id, albumIds: albums.map((album) => album.albumId!), includeIncoming: true, userId: row.userId })
+      work.batchId = await planOrganize({ rootId: root.id, albumIds: albums.map((album) => album.albumId!), importId: row.id, includeIncoming: true, userId: row.userId })
       await saveWork(row.id, work)
     }
   }
@@ -469,6 +486,43 @@ async function file(row: ImportRow, root: Root, stats: Stats, work: ImportWork, 
   Object.assign(stats, counts, { filesLeftForReview: audioLeft })
   // A switched-off wantlist is left as it was; listing wants catches up once it is back on.
   if ((await getServerSettings()).wantlistEnabled) await refreshWants()
+}
+
+/**
+ * Files what a finished import left in `_Incoming/<importId>/` and was identified since:
+ * the filing step again, with a new organize batch, and the counts brought up to date. An
+ * acquisition delivery is placed late when its album's track list arrived late, and
+ * deliveries made before they were placed at all are placed by a repair. Does nothing for
+ * an import that is not completed or whose root is gone; a second call at the same time
+ * returns at once.
+ */
+export async function refileImport(importId: string, options: ProcessOptions = {}): Promise<void> {
+  const connection = await getSql().reserve()
+  const key = `squirmy.import:${importId}`
+  try {
+    const [lock] = await connection<{ locked: boolean }[]>`select pg_try_advisory_lock(hashtext(${key})) as locked`
+    if (!lock?.locked) return
+    try {
+      const row = await load(importId)
+      if (row?.status !== 'completed') return
+      const root = await targetRoot(row).catch(() => null)
+      if (!root) return
+      const stats: Stats = { ...row.stats }
+      const work: ImportWork = { ...(row.work as ImportWork | null), refiledAt: new Date().toISOString() }
+      delete work.batchId
+      // The caller is a sweep or a job that just ended: neither waits half an hour for a busy root.
+      await file(row, root, stats, work, { ...defaults, organizeWaitMs: 60_000, ...options })
+      const [updated] = await db.update(imports).set({ stats, work, updatedAt: new Date() })
+        .where(and(eq(imports.id, importId), eq(imports.status, 'completed'))).returning()
+      if (!updated) return
+      await announceImport(updated)
+      await invalidate('all', [queryKeys.library(), queryKeys.home()])
+    } finally {
+      await connection`select pg_advisory_unlock(hashtext(${key}))`
+    }
+  } finally {
+    connection.release()
+  }
 }
 
 /** Applies a batch, waiting while another batch holds the root. Gives up quietly after `organizeWaitMs`. */

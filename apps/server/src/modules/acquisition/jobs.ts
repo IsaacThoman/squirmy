@@ -13,7 +13,8 @@
  *   Files stream into an import of kind `acquisition`.
  * - **importing**: the provider posted `complete`; the import is committed and
  *   `acquisition.finish` waits for it, then checks the delivery against the request
- *   (verify.ts).
+ *   (verify.ts). Files that are what was asked for are placed on the album they were
+ *   requested from (place.ts) while the import runs, so the import files them.
  *
  * One job is in flight per recording or album: the `idempotency_key` is `recording:<id>` or
  * `album:<id>` while the job runs and gets the job id appended when it ends. Every status
@@ -33,20 +34,23 @@ import { randomToken, hashToken } from '../../lib/crypto.js'
 import { AppError, conflict, forbidden, notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
 import { publish } from '../../realtime/index.js'
-import { resolveOne } from '../catalog/redirects.js'
+import { resolveMerged, resolveOne } from '../catalog/redirects.js'
 import { uuidArray } from '../catalog/sql.js'
-import { commitImport, createImport, failImport, getImport } from '../imports/index.js'
+import { commitImport, createImport, failImport, getImport, importCopies, refileImport } from '../imports/index.js'
 import { resolveImportRoot } from '../imports/service.js'
 import { albumWithTracks, ownedRecordings } from './catalog.js'
 import { acquire, jobStatus, ProviderCallError, resolveItems } from './client.js'
 import { announceOutcome, stillWorking } from './outcomes.js'
+import { placeDelivery } from './place.js'
 import { acquiredBytes, deliveryUrls, getAcquisitionPolicy } from './policy.js'
 import { activeProviders, noteProviderError, providerEndpoint, type ActiveProvider } from './providers.js'
+import { repairDeliveries } from './repair.js'
 import { expireCaches, freshOffers, invalidateRecordings, MISS_TTL_MS, recordMisses, resolveRecordings, usableOffers } from './resolve.js'
 import { verifyDelivery } from './verify.js'
 
 export type JobRow = typeof acquisitionJobs.$inferSelect
-export type StartJob = { jobId: string }
+/** `attempt` counts the times the provider said it was busy, for the backoff. */
+export type StartJob = { jobId: string; attempt?: number }
 
 /** Statuses in which the provider may still deliver files. */
 export const DELIVERING: AcquisitionJobStatus[] = ['resolving', 'queued', 'downloading']
@@ -60,6 +64,10 @@ const timing = {
   stuckMs: 2 * 60_000,
   /** How long a job waiting for a free slot at its provider waits before trying again. */
   slotWaitSeconds: 5,
+  /** The longest wait after a provider said it was busy; the waits double up to it. */
+  busyWaitMaxSeconds: 60,
+  /** How far back the sweep looks for deliveries that are not on their album yet. */
+  recentMs: 2 * 60 * 60_000,
 }
 
 /** Overrides the job timings in tests. */
@@ -279,14 +287,22 @@ export function chooseOffer(offers: readonly ProviderOffer[], preferLossless: bo
   return ranked[0] ?? null
 }
 
-async function albumQuery(albumId: string): Promise<ProviderAlbumQuery | null> {
+/**
+ * The album as a provider is asked for it: the whole track list, so it can tell the edition
+ * apart, with the tracks the job does not need (the server has them, or another job is
+ * fetching them) marked `wanted: false`.
+ */
+async function albumQuery(albumId: string, recordingIds: readonly string[]): Promise<ProviderAlbumQuery | null> {
   const found = await albumWithTracks(albumId)
   if (!found) return null
   const { album, tracks } = found
+  const resolved = await resolveMerged('recordings', recordingIds)
+  const needed = new Set(recordingIds.map((id) => resolved.get(id) ?? id))
   return {
     mbid: album.mbid, title: album.title, artist: album.artist, year: album.year, barcode: album.barcode,
     tracks: tracks.map((track) => ({
       disc: track.disc, position: track.position, title: track.title, durationMs: track.durationMs, recordingMbid: track.mbid, isrcs: track.isrcs,
+      ...(track.owned || !needed.has(track.recordingId) ? { wanted: false } : {}),
     })),
   }
 }
@@ -302,7 +318,7 @@ async function chooseProvider(job: JobRow): Promise<{ provider: ActiveProvider; 
     let offers: ProviderOffer[]
     try {
       if (isAlbum) {
-        const album = await albumQuery(job.albumId!)
+        const album = await albumQuery(job.albumId!, job.recordingIds)
         if (!album) return { reason: 'The album no longer exists' }
         const response = await resolveItems(provider, { items: [{ ref: 'album', kind: 'album', album }] })
         offers = usableOffers(response.items.find((item) => item.ref === 'album')?.offers ?? [])
@@ -328,7 +344,7 @@ async function chooseProvider(job: JobRow): Promise<{ provider: ActiveProvider; 
  * stored. A run that finds the job past `resolving` does nothing, and a concurrent duplicate
  * loses the claim on the token.
  */
-export async function startJob(jobId: string) {
+export async function startJob(jobId: string, attempt = 0) {
   let job = await loadJob(jobId)
   if (!job || job.status !== 'resolving') return
   const providers = await activeProviders()
@@ -337,7 +353,8 @@ export async function startJob(jobId: string) {
   if (!provider || !offer) {
     const choice = await chooseProvider(job)
     if ('reason' in choice) {
-      await finishJob(jobId, { status: 'failed', error: choice.reason, missed: job.recordingId ? [] : job.recordingIds })
+      if (job.recordingId === null) await fetchTracksInstead(job, choice.reason)
+      else await finishJob(jobId, { status: 'failed', error: choice.reason })
       return
     }
     ;({ provider, offer } = choice)
@@ -345,19 +362,13 @@ export async function startJob(jobId: string) {
     if (!job) return
   }
 
-  const [busy] = await db.select({ count: sql<number>`count(*)::int` }).from(acquisitionJobs)
-    .where(and(eq(acquisitionJobs.providerId, provider.id), inArray(acquisitionJobs.status, ['queued', 'downloading'])))
-  if ((busy?.count ?? 0) >= provider.capabilities.maxConcurrent) {
-    await enqueue<StartJob>('acquisition.start', { jobId }, { singletonKey: `${jobId}:${Date.now()}`, startAfter: timing.slotWaitSeconds })
+  const token = randomToken()
+  const claim = await claimSlot(job, provider, token)
+  if (claim === 'full') {
+    await enqueue<StartJob>('acquisition.start', { jobId, attempt }, { singletonKey: `${jobId}:${Date.now()}`, startAfter: timing.slotWaitSeconds })
     return
   }
-
-  const token = randomToken()
-  const [claimed] = await db.update(acquisitionJobs).set({ uploadTokenHash: hashToken(token), updatedAt: new Date() }).where(and(
-    eq(acquisitionJobs.id, jobId), eq(acquisitionJobs.status, 'resolving'),
-    or(isNull(acquisitionJobs.uploadTokenHash), lt(acquisitionJobs.updatedAt, new Date(Date.now() - timing.stuckMs))),
-  )).returning({ id: acquisitionJobs.id })
-  if (!claimed) return
+  if (claim === 'taken') return
 
   let response
   try {
@@ -369,13 +380,99 @@ export async function startJob(jobId: string) {
     return
   }
   if (!response.accepted) {
-    await finishJob(jobId, { status: 'rejected', error: `The provider declined: ${response.error ?? 'no reason given'}`, missed: job.recordingIds })
+    if (saysBusy(response)) {
+      await retryWhenFree(jobId, attempt)
+      return
+    }
+    const error = `The provider declined: ${response.error ?? 'no reason given'}`
+    if (job.recordingId === null) await fetchTracksInstead(job, error)
+    else await finishJob(jobId, { status: 'rejected', error, missed: job.recordingIds })
     return
   }
   if (response.providerJobId) {
     await db.update(acquisitionJobs).set({ providerJobId: response.providerJobId.slice(0, 500) }).where(eq(acquisitionJobs.id, jobId))
   }
   await transition(jobId, ['resolving'], { status: 'queued' })
+}
+
+/**
+ * Takes one of the provider's `maxConcurrent` slots for the job by storing its token's hash.
+ * Counting and claiming happen under a lock per provider, so jobs starting at the same time
+ * cannot all see a free slot and overshoot: the provider would decline the extra ones. A
+ * job that claimed a slot and is still waiting for the provider's answer holds it too.
+ * `taken`: another run of this start claimed the job first.
+ */
+async function claimSlot(job: JobRow, provider: ActiveProvider, token: string): Promise<'claimed' | 'full' | 'taken'> {
+  const stale = new Date(Date.now() - timing.stuckMs)
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`squirmy.acquisition.slot:${provider.id}`}))`)
+    const [busy] = await tx.select({ count: sql<number>`count(*)::int` }).from(acquisitionJobs).where(and(
+      eq(acquisitionJobs.providerId, provider.id),
+      sql`${acquisitionJobs.id} <> ${job.id}`,
+      or(
+        inArray(acquisitionJobs.status, ['queued', 'downloading']),
+        and(eq(acquisitionJobs.status, 'resolving'), sql`${acquisitionJobs.uploadTokenHash} is not null`, gt(acquisitionJobs.updatedAt, stale)),
+      ),
+    ))
+    if ((busy?.count ?? 0) >= provider.capabilities.maxConcurrent) return 'full'
+    const [claimed] = await tx.update(acquisitionJobs).set({ uploadTokenHash: hashToken(token), updatedAt: new Date() }).where(and(
+      eq(acquisitionJobs.id, job.id), eq(acquisitionJobs.status, 'resolving'),
+      or(isNull(acquisitionJobs.uploadTokenHash), lt(acquisitionJobs.updatedAt, stale)),
+    )).returning({ id: acquisitionJobs.id })
+    return claimed ? 'claimed' : 'taken'
+  })
+}
+
+/**
+ * A provider declining because it is busy, by the protocol's `reason` or, from providers
+ * older than it, by the wording they used.
+ */
+function saysBusy(response: { reason?: string | null; error?: string | null }): boolean {
+  return response.reason === 'busy' || /^provider is busy\b/i.test(response.error?.trim() ?? '')
+}
+
+/**
+ * Gives the job's slot back and asks again later, waiting twice as long each time up to
+ * `busyWaitMaxSeconds`. No miss is recorded: the provider did not say it lacks the tracks,
+ * and a miss would gray them out for a day. A job the provider never takes ends at the
+ * policy's timeout, also without a miss.
+ */
+async function retryWhenFree(jobId: string, attempt: number) {
+  await db.update(acquisitionJobs).set({ uploadTokenHash: null, updatedAt: new Date() })
+    .where(and(eq(acquisitionJobs.id, jobId), eq(acquisitionJobs.status, 'resolving')))
+  const wait = Math.min(timing.busyWaitMaxSeconds, timing.slotWaitSeconds * 2 ** attempt)
+  await enqueue<StartJob>('acquisition.start', { jobId, attempt: attempt + 1 }, { singletonKey: `${jobId}:${Date.now()}`, startAfter: wait })
+}
+
+/**
+ * Ends a job the provider gave up on. An album job that delivered nothing is fetched track
+ * by track instead (see `fetchTracksInstead`); anything else fails with misses.
+ */
+export async function providerFailed(job: JobRow, error: string) {
+  if (job.recordingId === null && !job.importId) await fetchTracksInstead(job, error)
+  else await finishJob(job.id, { status: 'failed', error, missed: job.recordingIds })
+}
+
+/**
+ * An album no provider will fetch whole: the job ends without misses and each of its
+ * tracks the server still lacks is asked for on its own, as playing them would. Tracks no
+ * provider can supply are skipped; they get their misses from their own resolve.
+ */
+async function fetchTracksInstead(job: JobRow, reason: string) {
+  if (!job.requestedBy) {
+    await finishJob(job.id, { status: 'failed', error: reason, missed: job.recordingIds })
+    return
+  }
+  const ended = await finishJob(job.id, { status: 'failed', error: `${reason}; fetching its tracks one at a time` })
+  if (!ended) return
+  const owned = await ownedRecordings(job.recordingIds)
+  for (const recordingId of job.recordingIds.filter((id) => !owned.has(id))) {
+    try {
+      await requestTrack(job.requestedBy, recordingId, job.albumId)
+    } catch (error) {
+      if (!(error instanceof AppError)) throw error
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -435,11 +532,13 @@ export async function completeDelivery(jobId: string) {
 /**
  * `acquisition.finish`: follows the job's import. While it identifies, delivered files
  * that are already usable are checked (verify.ts, `early`) and the recordings they satisfy
- * are announced ready, so playback starts without waiting for matching and filing. Once the
- * import ends, the delivery is checked again and the job ends: `completed` when it
- * satisfied at least one requested recording (the rest get misses), `failed` otherwise.
- * Files that did not match stay where the import left them, with their provider source,
- * and are never linked to the request.
+ * are announced ready, so playback starts without waiting for matching and filing; a
+ * delivery of one file is also placed on its album then (place.ts), and any other when the
+ * import settles it (delivery.ts). Once the import ends, the delivery is checked again and
+ * the job ends: `completed` when it satisfied at least one requested recording (the rest
+ * get misses), `failed` otherwise. What could not be placed while the import ran is placed
+ * then and filed. Files that did not match stay where the import left them, with their
+ * provider source, and are never linked to the request.
  *
  * A recording announced early that the final check no longer finds (matching linked its
  * file to a recording with another MusicBrainz id) fails like any other: it gets a miss and
@@ -449,6 +548,7 @@ export async function completeDelivery(jobId: string) {
  */
 export async function finishDelivery(jobId: string) {
   const announced = new Set<string>()
+  const seen = new Set<string>()
   for (;;) {
     const job = await loadJob(jobId)
     if (job?.status !== 'importing') return
@@ -462,7 +562,7 @@ export async function finishDelivery(jobId: string) {
       return
     }
     if (done.status === 'completed') {
-      const ready = await verifyDelivery(job)
+      const ready = await verifyDelivery(job, { copies: await importCopies(job.importId!) })
       const unmatched = job.recordingIds.filter((id) => !ready.includes(id))
       const revoked = unmatched.filter((id) => announced.has(id)).length
       if (ready.length === 0) {
@@ -475,6 +575,7 @@ export async function finishDelivery(jobId: string) {
       } else {
         const error = unmatched.length > 0 ? `${unmatched.length} of ${job.recordingIds.length} tracks were not in the delivery` : null
         await finishJob(jobId, { status: 'completed', error, ready, missed: unmatched })
+        await placeLate(job)
       }
       return
     }
@@ -484,7 +585,23 @@ export async function finishDelivery(jobId: string) {
       await announceOutcome({ ready: early })
       await invalidateRecordings(early)
     }
+    // After the announcement: placing may wait a few seconds for the album's track list.
+    await placeDelivery(job, { early: true, seen }).catch(report)
     await sleep(timing.pollMs)
+  }
+}
+
+/**
+ * Places what the import finished without placing (its album's track list arrived late, or
+ * the import ran out of time) and files it. The job has ended, so a failure here is only
+ * reported; the repair looks at the delivery again.
+ */
+async function placeLate(job: JobRow) {
+  try {
+    const { placed } = await placeDelivery(job)
+    if (placed.length > 0 && job.importId) await refileImport(job.importId)
+  } catch (error) {
+    report(error)
   }
 }
 
@@ -504,7 +621,7 @@ async function pollProvider(job: JobRow) {
     await touchJob(job.id)
     return
   }
-  if (status.status === 'failed') await finishJob(job.id, { status: 'failed', error: `The provider failed: ${status.error ?? 'no reason given'}`, missed: job.recordingIds })
+  if (status.status === 'failed') await providerFailed(job, `The provider failed: ${status.error ?? 'no reason given'}`)
   else if (status.status === 'completed') await completeDelivery(job.id)
   else await touchJob(job.id)
 }
@@ -513,7 +630,8 @@ async function pollProvider(job: JobRow) {
  * `acquisition.sweep` (every minute and at worker start): expires old misses and offers,
  * fails jobs whose provider has not delivered within the policy's timeout, polls providers
  * of jobs that went quiet, and re-queues the start or finish step of jobs whose pg-boss job
- * was lost in a restart.
+ * was lost in a restart. Then it looks again at recent deliveries that are not yet on their
+ * album (repair.ts): those that were waiting for the album's track list.
  */
 export async function sweepJobs(now = Date.now()) {
   await expireCaches(now)
@@ -523,7 +641,9 @@ export async function sweepJobs(now = Date.now()) {
     try {
       const status = job.status as AcquisitionJobStatus
       if (DELIVERING.includes(status) && job.createdAt.getTime() < now - timeoutSeconds * 1000) {
-        await finishJob(job.id, { status: 'failed', error: `Nothing was delivered within ${timeoutSeconds} seconds`, missed: job.recordingIds })
+        // A job the provider never took (it kept saying it was busy) is no sign it lacks the tracks.
+        const missed = status === 'resolving' ? [] : job.recordingIds
+        await finishJob(job.id, { status: 'failed', error: `Nothing was delivered within ${timeoutSeconds} seconds`, missed })
       } else if (status === 'importing') {
         await enqueue<StartJob>('acquisition.finish', { jobId: job.id }, { singletonKey: job.id })
       } else if (status === 'resolving') {
@@ -535,6 +655,7 @@ export async function sweepJobs(now = Date.now()) {
       report(error)
     }
   }
+  await repairDeliveries({ since: new Date(now - timing.recentMs), limit: 50, budgetMs: 20_000 }).catch(report)
 }
 
 /** What a job is for, in words: the track or album title. */

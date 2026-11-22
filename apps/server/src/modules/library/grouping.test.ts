@@ -89,6 +89,17 @@ describe('planGroup', () => {
     expect(plan.tracks.map((track) => creditText(track.credits))).toEqual(['Daft Punk feat. Someone', 'Other'])
   })
 
+  it('credits the artists of an album artist tag that runs a track\'s artists together', () => {
+    // A provider that writes the track artists joined by commas as the album artist, with a
+    // multi-value artists tag that names them.
+    const plan = planGroup([file('X/01.flac', { album: 'HOTLIFE', albumArtist: 'Tiga, Fcukers', artist: 'Tiga, Fcukers', artists: ['Tiga', 'Fcukers'], track: 4 })])
+    expect(plan.album.credits.map((credit) => credit.name)).toEqual(['Tiga', 'Fcukers'])
+    expect(creditText(plan.album.credits)).toBe('Tiga, Fcukers')
+    // Without names to split by, a comma stays part of the name.
+    expect(planGroup([file('Y/01.flac', { album: 'Y', albumArtist: 'Earth, Wind & Fire', artist: 'Earth, Wind & Fire' })]).album.credits)
+      .toEqual([{ name: 'Earth, Wind & Fire', joinPhrase: '' }])
+  })
+
   it('uses the track artist when every track agrees, at least on the main artist', () => {
     const same = planGroup([file('X/01.flac', { album: 'X', artist: 'Muse' }), file('X/02.flac', { album: 'X', artist: 'muse' })])
     expect(same.album.credits).toEqual([{ name: 'Muse', joinPhrase: '' }])
