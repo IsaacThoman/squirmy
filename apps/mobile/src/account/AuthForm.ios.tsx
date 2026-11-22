@@ -9,7 +9,8 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useImperativeHandle, useRef, useState } from 'react';
-import { KeyboardAvoidingView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, StyleSheet, useWindowDimensions } from 'react-native';
+import { isAccessibilitySize } from '../fontScale';
 import { Symbol } from '../native/Controls';
 import { useColors } from '../theme';
 import { displayAddress, serverVersion } from './address';
@@ -109,6 +110,22 @@ export function AuthLink({ title, icon, onPress }: AuthLinkProps) {
 
 export function AuthServer({ server, onChange }: AuthServerProps) {
   const colors = useColors();
+  const { fontScale } = useWindowDimensions();
+  // At accessibility sizes the card stacks, so the address can wrap whole: it is how the
+  // person knows which server is asking for their password.
+  if (isAccessibilitySize(fontScale)) {
+    return <Section title="Server">
+      <VStack alignment="leading" spacing={4}>
+        <HStack spacing={12}>
+          <Symbol name="server.rack" size={20} color={colors.accent} />
+          <Text modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}>{server.name}</Text>
+        </HStack>
+        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>{displayAddress(server.url)}</Text>
+        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>{serverVersion(server.version)}</Text>
+      </VStack>
+      <Button label="Change Server" onPress={onChange} modifiers={[tint(colors.accent)]} />
+    </Section>;
+  }
   return <Section title="Server">
     <HStack spacing={12}>
       <Symbol name="server.rack" size={20} color={colors.accent} />
