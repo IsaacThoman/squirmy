@@ -11,7 +11,7 @@ import { matchKey } from '../../lib/text.js'
 import { readdirOrEmpty } from './files.js'
 import { assertManaged, type BatchOptions } from './journal.js'
 import {
-  fileName, foldPath, joinRendered, parseTemplate, renderTemplate, resolveInRoot, sanitizeExtension, TemplateError,
+  creditComponents, fileName, foldPath, joinRendered, parseTemplate, renderTemplate, resolveInRoot, sanitizeExtension, TemplateError,
   type RenderedPath, type TemplateValues,
 } from './template.js'
 
@@ -33,6 +33,15 @@ export type PlanOptions = {
   writeTags?: boolean
   /** Also plan files in the root's `_Incoming` folder, where imports wait until they are filed. */
   includeIncoming?: boolean
+  /**
+   * Only provider deliveries already filed under `_Fetched/` whose path no longer follows
+   * their credits: a component the template fills from an artist credit is not what it
+   * would be now, because the catalog corrected the credit after the file was filed (a
+   * delivery filed under the artists its tags ran together, "Grimes, VADAKIN", is on
+   * "Grimes & VADAKIN" now). Other differences (a year that arrived later, a title spelled
+   * otherwise) do not move a filed file.
+   */
+  refileCredits?: boolean
   userId: string | null
 }
 
@@ -99,6 +108,7 @@ export async function planOrganize(options: PlanOptions): Promise<string> {
       options.albumIds ? inArray(mediaFiles.albumId, options.albumIds) : undefined,
       options.importId ? and(eq(mediaFiles.importId, options.importId), sql`starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/${options.importId}/`})`) : undefined,
       options.includeIncoming ? undefined : sql`not starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/`})`,
+      options.refileCredits ? and(eq(mediaFiles.cached, true), sql`starts_with(${mediaFiles.relPath}, ${`${FETCHED_FOLDER}/`})`) : undefined,
     ))
     .orderBy(mediaFiles.relPath)
 
@@ -132,6 +142,7 @@ export async function planOrganize(options: PlanOptions): Promise<string> {
     return parent
   }
 
+  const credited = creditComponents(template)
   let untrusted = 0
   const unchanged: string[] = []
   const audio: Plan[] = []
@@ -146,6 +157,10 @@ export async function planOrganize(options: PlanOptions): Promise<string> {
       ? catalogValues(file as CatalogFile, shapes.get(file.releaseId!) ?? { discs: 1, positions: 1 }, extension)
       : tagValues(file.tags, file.relPath, extension)
     const rendered = renderTemplate(template, values)
+    if (options.refileCredits && (!trusted || !creditsChanged(file.relPath, rendered, credited))) {
+      unchanged.push(file.relPath)
+      continue
+    }
     // Provider deliveries are cache: they live under `_Fetched/` with the root's own layout
     // inside, so the root's top-level folders hold only music someone brought.
     if (file.cached) rendered.directories = [FETCHED_FOLDER, ...rendered.directories]
@@ -180,6 +195,18 @@ export async function planOrganize(options: PlanOptions): Promise<string> {
     for (let index = 0; index < rows.length; index += 1000) await tx.insert(fileMoves).values(rows.slice(index, index + 1000))
   })
   return batchId
+}
+
+/**
+ * Whether a file filed under `_Fetched/` sits where the credits it has now would not put
+ * it: a component `credited` marks differs from the rendered one. A path of another shape
+ * (filed under an earlier template) says nothing about credits and counts as unchanged.
+ */
+function creditsChanged(relPath: string, rendered: RenderedPath, credited: boolean[]): boolean {
+  const current = relPath.split('/').slice(1)
+  const planned = [...rendered.directories, fileName(rendered.stem, rendered.extension)]
+  if (current.length !== planned.length) return false
+  return planned.some((component, index) => credited[index] && foldPath(component) !== foldPath(current[index]!))
 }
 
 type CatalogFile = {
