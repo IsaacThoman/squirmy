@@ -113,6 +113,20 @@ function HomeRail({ section, link, onOpen, onTrackMenu }: { section: HomeSection
   </View>;
 }
 
+/**
+ * Runs `onRetap` when this page's own tab is tapped while the page is on screen. A tap that
+ * changes tabs, or that pops a page pushed over this one, does nothing here.
+ */
+function useTabRetap(onRetap: () => void) {
+  const navigation = useNavigation();
+  const tabs = useNavigation<{ addListener: (event: 'tabPress', listener: () => void) => () => void }>('/(tabs)');
+  const latest = useRef(onRetap);
+  latest.current = onRetap;
+  useEffect(() => tabs.addListener('tabPress', () => {
+    if (navigation.isFocused()) latest.current();
+  }), [navigation, tabs]);
+}
+
 export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAccount, bottomInset = 155 }: BrowseProps) {
   const colors = useColors();
   const styles = useStyles();
@@ -133,9 +147,12 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
   const refreshControl = useRefreshControl(home.refetch, top);
   const statusBar = underStatusBar(top);
+  const list = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  // Re-tapping Home goes back to its top, as the system's tabs do.
+  useTabRetap(() => list.current?.scrollTo({ y: -statusBar.inset, animated: true }));
 
   return <View style={styles.page}>
-    <ScrollView contentInsetAdjustmentBehavior="never" refreshControl={refreshControl} {...statusBar.props}
+    <ScrollView ref={list} contentInsetAdjustmentBehavior="never" refreshControl={refreshControl} {...statusBar.props}
       contentContainerStyle={{ paddingTop: statusBar.contentTop + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       <View style={[styles.pageHeader, styles.homeHeader]}>
         <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Listen now</Text>
@@ -151,7 +168,6 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
       </View>}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </ScrollView>
-    {/* After the list, so the list is the page's first view: re-tapping the tab scrolls the first scroll view it finds to the top. */}
     <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
       locations={[0, top / (top + 14), 1]} style={[styles.statusFade, { height: top + 14 }]} />
   </View>;
@@ -193,6 +209,8 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const actions = usePlaybackActions();
   const router = useRouter();
   const [filter, setFilter] = useState<LibraryFilter>('All');
+  const list = useRef<FlatList<LibraryRow>>(null);
+  useTabRetap(() => list.current?.scrollToOffset({ offset: 0, animated: true }));
   const [sortName, setSortName] = useState<SortName>('Recently added');
   const [grid, setGrid] = useState(true);
   const [showFilter, setShowFilter] = useState(false);
@@ -305,7 +323,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
     <View style={styles.filters}>
       <LibraryFilters options={filters} value={filter} onChange={value => { tapFeedback(); setFilter(value); }} />
     </View>
-    <FlatList key={mode} data={rows} renderItem={renderRow} keyExtractor={libraryRowKey}
+    <FlatList ref={list} key={mode} data={rows} renderItem={renderRow} keyExtractor={libraryRowKey}
       refreshControl={refreshControl}
       initialNumToRender={libraryBatch} maxToRenderPerBatch={libraryBatch} windowSize={libraryWindow}
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
@@ -407,17 +425,13 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const { width } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const searchInput = useRef<SearchHandle>(null);
-  const navigation = useNavigation();
-  const tabs = useNavigation<{ addListener: (event: 'tabPress', listener: () => void) => () => void }>('/(tabs)');
   const search = useSearch(query);
   const viewer = useViewer();
   const genres = useGenres();
   const genreWidth = Math.floor((width - gutter * 2 - 12) / 2);
   const { offline } = useRealtime();
 
-  useEffect(() => tabs.addListener('tabPress', () => {
-    if (navigation.isFocused()) searchInput.current?.focus();
-  }), [navigation, tabs]);
+  useTabRetap(() => searchInput.current?.focus());
 
   // The server answers nothing under two characters; keep the genres until a search can find something.
   const active = query.trim().length >= 2;
