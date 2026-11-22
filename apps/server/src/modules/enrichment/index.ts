@@ -3,6 +3,7 @@ import type { ServerModule } from '../types.js'
 import { fallbackCover } from './covers.js'
 import { artistDetailRun, lyricsRun } from './detail.js'
 import { enrichAlbum } from './owned.js'
+import { foldArtistCopy } from './artist-copies.js'
 import { repairReleases } from './repair.js'
 import { reconcileArtistAlbums } from './reconcile.js'
 import { refreshNewReleases } from './releases.js'
@@ -15,7 +16,11 @@ export type EnrichLyricsJob = { recordingId: string }
 /** Queued by the artwork module when it unassigns a cover its source does not have. */
 export type EnrichCoverJob = { albumId: string }
 /** Queued by search when it writes album stubs for an artist (reconcile.ts). Without an artist: the whole repair. */
-export type ReconcileJob = { artistId?: string }
+export type ReconcileJob = {
+  artistId?: string
+  /** A Deezer-only artist row search stored beside another of its name: merged when it is a second page (artist-copies.ts). */
+  artistCopy?: string
+}
 
 /**
  * Completes catalog rows on demand (the `detail.ts` seam) and decorates owned music in
@@ -26,8 +31,9 @@ export type ReconcileJob = { artistId?: string }
  *   enrichment.cover         { albumId }      another cover when its source has none (covers.ts)
  *   enrichment.sweep         queues owned music that was never enriched, every 30 minutes
  *   enrichment.new-releases  refreshes library artists' discographies, weekly
- *   enrichment.reconcile     { artistId? }    merges an artist's duplicate album rows; without an
- *                                             artist, the release repair (repair.ts): daily and at worker start
+ *   enrichment.reconcile     { artistId? }    merges an artist's duplicate album rows; { artistCopy }
+ *                                             merges a second Deezer page into its artist; with neither,
+ *                                             the release repair (repair.ts): daily and at worker start
  */
 export const enrichmentModule: ServerModule = {
   name: 'enrichment',
@@ -52,8 +58,9 @@ export const enrichmentModule: ServerModule = {
     registry.define('enrichment.new-releases', { retryLimit: 1, timeoutSeconds: 6 * 60 * 60 }, async () => {
       await refreshNewReleases()
     })
-    registry.define<ReconcileJob>('enrichment.reconcile', { retryLimit: 1, timeoutSeconds: 60 * 60 }, async ({ artistId }) => {
-      if (artistId) await reconcileArtistAlbums(artistId)
+    registry.define<ReconcileJob>('enrichment.reconcile', { retryLimit: 1, timeoutSeconds: 60 * 60 }, async ({ artistId, artistCopy }) => {
+      if (artistCopy) await foldArtistCopy(artistCopy)
+      else if (artistId) await reconcileArtistAlbums(artistId)
       else await repairReleases()
     })
     await schedule('enrichment.sweep', '*/30 * * * *')
