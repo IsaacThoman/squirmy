@@ -124,12 +124,12 @@ const SidebarView = memo(function SidebarView({
         <Tooltip label={collapsed ? 'Open sidebar' : null} side="right">
           {collapsed ? (
             <button type="button" onClick={onToggle} aria-label="Open sidebar" className="group/logo flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
-              <LogoMark className="group-hover/logo:hidden" />
+              <LogoMark size={30} className="group-hover/logo:hidden" />
               <PanelLeftOpen aria-hidden className="hidden size-4 group-hover/logo:block" />
             </button>
           ) : (
             <Link to="/" onClick={onNavigate} aria-label="Squirmy home" className="flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
-              <LogoMark />
+              <LogoMark size={30} />
             </Link>
           )}
         </Tooltip>
