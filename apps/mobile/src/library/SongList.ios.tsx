@@ -51,10 +51,10 @@ type RowProps = { item: SongRowItem; run: Run; handlers: SongRowHandlers };
  * playlist being reordered. Long lists go through `useSongListItems` instead.
  */
 export function SongList(props: SongListProps) {
-  const { tracks, numbered, playlist, album } = props;
+  const { tracks, numbered, playlist, album, kind } = props;
   const { run } = useTrackActionRunner();
   const handlers = useSongRowHandlers(props);
-  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album }), [album, numbered, playlist, tracks]);
+  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album, kind }), [album, numbered, playlist, tracks, kind]);
   const onMove = ([source]: number[], destination: number) => {
     const itemId = source === undefined ? undefined : playlist?.itemIds[source];
     if (!playlist || !itemId) return;
