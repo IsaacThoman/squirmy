@@ -29,6 +29,8 @@ export type MergedSearch = {
 type Answer = Pick<SearchResults, 'artists' | 'albums' | 'tracks' | 'top' | 'ranked'>
 
 export type MergeOptions = {
+  /** What was typed: orders an older server's answers, which carry no ranking, by how well names match. */
+  query?: string
   /** The viewer's playlists, listed among the results when their name matches `query`. */
   playlists?: { query: string; items: readonly PlaylistSummary[] }
 }
@@ -118,13 +120,40 @@ function rankItems(
   // A stable sort keeps each answer's own order between equal scores.
   scored.sort((a, b) => b.score - a.score)
 
-  // What no ranking named (an older server): the top result, then artists, albums and songs.
+  // What no ranking named (an older server): the top result, then the rest by how well their
+  // names match what was typed, else artists, albums and songs in their lists' order.
   const listed = new Set(scored.map(({ item }) => searchItemKey(item)))
   const rest: SearchItem[] = []
   const topKey = merged.top && `${merged.top.type}:${topId(merged.top)}`
-  if (topKey && !listed.has(topKey)) rest.push(byKey.get(topKey)!)
   for (const [key, item] of byKey) if (!listed.has(key) && key !== topKey) rest.push(item)
+  if (options.query) {
+    const query = options.query
+    const position = new Map(rest.map((item, index) => [item, index]))
+    const match = new Map(rest.map(item => [item, nameMatch(query, item)]))
+    rest.sort((a, b) => match.get(b)! - match.get(a)! || position.get(a)! - position.get(b)!)
+  }
+  if (topKey && !listed.has(topKey)) rest.unshift(byKey.get(topKey)!)
   return [...scored.map(({ item }) => item), ...rest]
+}
+
+/** How well a name matches, on the server's relevance scale (rank.ts) without its prominence. */
+function nameMatch(query: string, item: SearchItem): number {
+  const own = textMatch(query, item.type === 'artist' ? item.artist.name : item.type === 'album' ? item.album.title : item.type === 'track' ? item.track.title : item.playlist.name)
+  const credit = item.type === 'album' ? item.album.artistCredit : item.type === 'track' ? item.track.artistCredit : null
+  // A name found through its artist reads after names that match themselves.
+  return Math.max(own, credit === null ? 0 : textMatch(query, credit) * 0.62)
+}
+
+function textMatch(query: string, name: string): number {
+  const q = searchKey(query)
+  const key = searchKey(name)
+  if (!q || !key) return 0
+  const bare = (text: string) => text.replace(/^(the|a|an) (?=.)/, '')
+  if (key === q) return 1
+  if (bare(key) === bare(q) || key.replaceAll(' ', '') === q.replaceAll(' ', '')) return 0.97
+  if (key.startsWith(`${q} `)) return 0.8
+  if (key.startsWith(q) || bare(key).startsWith(bare(q))) return 0.7
+  return ` ${key}`.includes(` ${q}`) ? 0.6 : 0
 }
 
 const topId = (top: SearchTop) => (top.type === 'artist' ? top.artist.id : top.type === 'album' ? top.album.id : top.track.id)
@@ -144,11 +173,7 @@ export function searchKey(text: string): string {
  * does not match: the whole name, its start, or the start of a later word.
  */
 export function playlistScore(query: string, name: string): number {
-  const q = searchKey(query)
-  const key = searchKey(name)
-  if (!q || !key) return 0
-  const match = key === q ? 1 : key.startsWith(`${q} `) ? 0.8 : key.startsWith(q) ? 0.7 : ` ${key}`.includes(` ${q}`) ? 0.6 : 0
-  return match * (0.5 + 0.5 * 0.55)
+  return textMatch(query, name) * (0.5 + 0.5 * 0.55)
 }
 
 /** The same album listed twice under different ids: one title, credit, type and year. */

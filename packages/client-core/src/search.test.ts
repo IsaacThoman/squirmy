@@ -122,6 +122,16 @@ describe('mergeSearch', () => {
       expect(keys(mergeSearch(null, results({ ...catalog, ranked: [rank('track', 1, 0.95), rank('track', 2, 0.6)] }), member).items)).toEqual(['track:1', 'track:2'])
     })
 
+    it('orders an older server\'s answers by how well names match what was typed, the top result first', () => {
+      const catalog = results({
+        artists: [{ ...artist(1), name: 'Bluebird' }, { ...artist(2), name: 'Blue' }],
+        albums: [{ ...album(10), title: 'Something', artistCredit: 'Blue' }],
+        tracks: [{ ...track(20), title: 'Blue Moon' }],
+        top: top('artist', 1, 1),
+      })
+      expect(keys(mergeSearch(null, catalog, fetcher, { query: 'blue' }).items)).toEqual(['artist:1', 'artist:2', 'track:20', 'album:10'])
+    })
+
     it('lists what an older server did not rank after, the top result first', () => {
       const catalog = results({ artists: [artist(1)], albums: [album(10)], tracks: [track(20)], top: top('track', 20, 3) })
       expect(keys(mergeSearch(null, catalog, fetcher).items)).toEqual(['track:20', 'artist:1', 'album:10'])
@@ -150,6 +160,7 @@ describe('mergeSearch', () => {
       const merged = mergeSearch(null, catalog, fetcher, { playlists: { query: 'road', items: [playlist(40, 'Road Trip'), playlist(41, 'Gym'), playlist(42, 'Night Road')] } })
       expect(keys(merged.items)).toEqual(['playlist:40', 'artist:1', 'playlist:42'])
       expect(playlistScore('Café', 'cafe')).toBeGreaterThan(playlistScore('caf', 'cafe'))
+      expect(playlistScore('caf', 'cafe')).toBeGreaterThan(0)
       expect(playlistScore('xyz', 'cafe')).toBe(0)
     })
   })

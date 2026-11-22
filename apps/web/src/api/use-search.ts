@@ -82,7 +82,7 @@ export function useMergedSearch(typed: string, { catalog: withCatalog = true, pl
     if (!term) return null
     const ready = exactCatalog || (exactLibrary && (!catalogPending || waited === term))
     if (!ready) return null
-    const options = playlists ? { playlists: { query: term, items: playlists } } : {}
+    const options = { query: term, ...(playlists ? { playlists: { query: term, items: playlists } } : {}) }
     return {
       term,
       results: mergeSearch(exactLibrary?.data, exactCatalog?.data, viewer, options),
@@ -142,10 +142,13 @@ export function useSearchPages(typed: string, kind: SearchKind | null) {
       const missing = (result: PromiseSettledResult<SearchResults>) => result.status === 'rejected' && isNotFound(result.reason)
       return { offset, library: value(library), catalog: value(catalog), catalogFailed: catalog.status === 'rejected' && !missing(catalog) }
     },
-    getNextPageParam: (last: Page) => {
+    getNextPageParam: (last: Page, pages: Page[]) => {
       const full = [last.library, last.catalog].some(answer => listOf(answer, kind!).length >= SEARCH_PAGE_SIZE)
       const next = last.offset + SEARCH_PAGE_SIZE
-      return full && next <= lastOffset ? next : undefined
+      // An older server ignores `offset` and answers the first page again: nothing new, so the end.
+      const earlier = new Set(pages.slice(0, -1).flatMap(page => [page.library, page.catalog].flatMap(answer => listOf(answer, kind!).map(item => item.id))))
+      const fresh = [last.library, last.catalog].some(answer => listOf(answer, kind!).some(item => !earlier.has(item.id)))
+      return full && fresh && next <= lastOffset ? next : undefined
     },
     placeholderData: keepPreviousData,
     staleTime: 60_000,
@@ -156,16 +159,17 @@ export function useSearchPages(typed: string, kind: SearchKind | null) {
     const seen = new Set<string>()
     const list: SearchItem[] = []
     for (const page of query.data?.pages ?? []) {
-      for (const item of mergeSearch(page.library, page.catalog, viewer).items) {
+      for (const item of mergeSearch(page.library, page.catalog, viewer, { query: term }).items) {
         const key = searchItemKey(item)
-        if (!seen.has(key)) {
+        // An older server ignores `type` and answers every kind.
+        if (item.type === kind && !seen.has(key)) {
           seen.add(key)
           list.push(item)
         }
       }
     }
     return list
-  }, [query.data, viewer])
+  }, [query.data, viewer, kind, term])
   return {
     items: query.data ? items : null,
     /** The pages shown are another term's, kept while this one's load. */

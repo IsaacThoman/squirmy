@@ -232,7 +232,8 @@ function Results({ term, filter, list, listboxId, optionId, picked, onChoose }: 
     )
   }
   return (
-    <div aria-busy={stale || pending || undefined}>
+    // A row reads across: past this width its duration and menu drift away from its title.
+    <div aria-busy={stale || pending || undefined} className="max-w-4xl">
       {catalogFailed && (
         <p role="status" className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
           Only music on this server is listed: the catalog could not be searched.
@@ -425,7 +426,7 @@ function Recents({ queries, items, listboxId, optionId, picked, onSearch, onChoo
     )
   }
   return (
-    <section aria-labelledby="search-recent" className="max-w-3xl">
+    <section aria-labelledby="search-recent" className="max-w-4xl">
       <SectionHeader id="search-recent" title="Recent searches" action={<Button variant="ghost" size="sm" onClick={onClear}>Clear all</Button>} />
       <ol id={listboxId} role="listbox" aria-label="Recent searches" className="-mx-2.5 flex flex-col">
         {queries.map(entry => row(

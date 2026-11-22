@@ -99,6 +99,21 @@ describe('search page', () => {
     expect(screen.getByTestId('where').textContent).toBe('/search?q=blue')
   })
 
+  it('keeps a filter to its kind, and ends its pages, with a server that ignores both', async () => {
+    const { services, api } = fakeServices()
+    // An older server: every kind, the same first page whatever the offset, thirty songs to it.
+    const many = Array.from({ length: 30 }, (_, n) => ({ ...track('amber'), id: `00000000-0000-4000-8f00-${String(n).padStart(12, '0')}`, title: `Blue ${n}` }))
+    api.search.library.mockImplementation(async (params: Params) => ({ ...searchFixtures(params.q).library, tracks: many, ranked: undefined }))
+    api.search.catalog.mockImplementation(async (params: Params) => ({ ...searchFixtures(params.q).catalog, ranked: undefined }))
+    renderWithApp(<AppRoutes />, '/search?q=blue&type=track', services)
+    await waitFor(() => expect(rows().length).toBeGreaterThan(29))
+    expect(rows().every(row => row.includes('Song ·'))).toBe(true)
+    await userEvent.click(await screen.findByRole('button', { name: 'Show more' }))
+    await waitFor(() => expect(api.search.library).toHaveBeenCalledWith(expect.objectContaining({ offset: 30 }), expect.anything()))
+    expect(await screen.findByRole('listbox', { name: /^Results for/ })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull())
+  })
+
   it('lists the user’s playlists whose name matches under Playlists', async () => {
     renderWithApp(<AppRoutes />, '/search?type=playlist&q=late')
     await results()
