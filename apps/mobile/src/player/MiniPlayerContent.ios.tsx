@@ -3,7 +3,8 @@ import { accessibilityHidden, accessibilityLabel, dynamicTypeSize, font, foregro
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { IconButton, hitShape, plainButton } from '../native/Controls';
-import { useCurrentDurationMs, usePlaybackState, usePositionEvery } from '../playback';
+import { useCurrentDurationMs, useLoading, usePlaybackState, usePositionEvery } from '../playback';
+import { playPauseLabel, STILL_LOADING_LABEL } from './loading';
 import { Cover } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
@@ -14,10 +15,11 @@ import { useColors } from '../theme';
 
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
   const colors = useColors();
-  const { current, track, output, session, actions, preparing, remote } = usePlaybackState();
+  const { current, track, output, session, actions, remote } = usePlaybackState();
+  const loading = useLoading();
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
-  const subtitle = preparing ? 'Preparing…' : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
+  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
   // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
@@ -51,8 +53,8 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
             </Button>
             {!compact && <IconButton symbol="laptopcomputer.and.iphone" label={`Playback device, ${output.name}`}
               size={20} color={colors.accent} onPress={onDevices} />}
-            <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={session.playing ? 'Pause' : 'Play'}
-              size={22} onPress={preview ? undefined : actions.playPause} />
+            <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={playPauseLabel(session.playing, loading)}
+              busy={loading !== 'none'} size={22} onPress={preview ? undefined : actions.playPause} />
           </HStack>
           {!compact && <Progress preview={preview} />}
         </ZStack>

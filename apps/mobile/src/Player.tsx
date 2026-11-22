@@ -11,7 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { formatDuration } from '@squirmy/client-core';
+import { formatDuration, formatRemaining } from '@squirmy/client-core';
 import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
 import { useLibraryActions, useLiked } from './data/library';
@@ -20,7 +20,8 @@ import { MiniPlayerContent } from './MiniPlayer';
 import {
   grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type PlayerPage,
 } from './player/transition';
-import { usePlaybackState, usePosition } from './playback';
+import { useLoading, usePlaybackState, usePosition } from './playback';
+import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
 import { activeLine, lyricLines } from './player/lyrics';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
@@ -88,7 +89,8 @@ export default function Player() {
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
-  const { current, track, actions, preparing, remote, output } = usePlaybackState();
+  const { current, track, actions, remote, output } = usePlaybackState();
+  const loading = useLoading();
   const { setLiked } = useLibraryActions();
   const artwork = track?.album?.artwork;
   const artworkImage = useArtworkImage(artwork, 440);
@@ -106,7 +108,7 @@ export default function Player() {
   const artworkPage = page === 'player';
   const isFavorite = useLiked('track', track?.id, track?.liked);
   const title = track?.title ?? (current ? '' : 'Not Playing');
-  const subtitle = preparing ? 'Preparing…' : remote ? `${track?.artistCredit ?? ''} · ${output.name}` : track?.artistCredit ?? '';
+  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : remote ? `${track?.artistCredit ?? ''} · ${output.name}` : track?.artistCredit ?? '';
   // Phones with a home indicator have rounded displays; a square card would show in their corners.
   const screenCorner = Platform.OS === 'ios' && !Platform.isPad && bottom > 0 ? 40 : 0;
 
@@ -489,7 +491,7 @@ function Scrubber() {
       />
       <View style={styles.timeRow}>
         <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>{elapsed}</Text>
-        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>−{formatDuration(Math.max(0, duration - shown))}</Text>
+        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>{formatRemaining(shown, duration)}</Text>
       </View>
     </>
   );
@@ -504,6 +506,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
   const colors = useColors();
   const styles = useStyles();
   const { session, output, volume, actions, remote } = usePlaybackState();
+  const loading = useLoading();
   const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
 
   return (
@@ -513,7 +516,8 @@ function Transport({ compact, page, onToggle, onDevices }: {
         <PlayerButton icon="backward.fill" label="Previous track" size={27} onPress={() => { selectionFeedback(); actions.previous(); }} />
         <PlayerButton
           icon={session.playing ? 'pause.fill' : 'play.fill'}
-          label={session.playing ? 'Pause' : 'Play'}
+          label={playPauseLabel(session.playing, loading)}
+          busy={loading !== 'none'}
           size={40}
           color={colors.text}
           onPress={() => { selectionFeedback(); actions.playPause(); }}

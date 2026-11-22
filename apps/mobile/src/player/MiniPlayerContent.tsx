@@ -1,7 +1,8 @@
 import type { ComponentRef, Ref } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { useCurrentDurationMs, usePlaybackState, usePositionEvery } from '../playback';
+import { useCurrentDurationMs, useLoading, usePlaybackState, usePositionEvery } from '../playback';
+import { playPauseLabel, STILL_LOADING_LABEL } from './loading';
 import { Cover, Icon } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import { createThemedStyles, useColors } from '../theme';
@@ -22,10 +23,11 @@ export type MiniPlayerContentProps = Appearance & {
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
   const colors = useColors();
   const styles = useStyles();
-  const { current, track, output, session, actions, preparing, remote } = usePlaybackState();
+  const { current, track, output, session, actions, remote } = usePlaybackState();
+  const loading = useLoading();
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
-  const subtitle = preparing ? 'Preparing…' : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
+  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
   // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
@@ -54,9 +56,9 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
           style={styles.control} onPress={onDevices}>
           <Icon name="laptopcomputer.and.iphone" size={21} color={colors.accent} />
         </Pressable>}
-        <Pressable accessibilityRole="button" accessibilityLabel={session.playing ? 'Pause' : 'Play'}
-          onPress={preview ? undefined : actions.playPause} style={styles.control}>
-          <Icon name={session.playing ? 'pause.fill' : 'play.fill'} size={23} />
+        <Pressable accessibilityRole="button" accessibilityLabel={playPauseLabel(session.playing, loading)}
+          accessibilityState={{ busy: loading !== 'none' }} onPress={preview ? undefined : actions.playPause} style={styles.control}>
+          {loading !== 'none' ? <ActivityIndicator color={colors.text} /> : <Icon name={session.playing ? 'pause.fill' : 'play.fill'} size={23} />}
         </Pressable>
         {!compact && <Progress preview={preview} />}
       </Animated.View>

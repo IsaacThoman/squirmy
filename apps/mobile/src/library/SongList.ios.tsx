@@ -1,18 +1,19 @@
-import { Button, ContextMenu, Host, HStack, Image, List, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, ContextMenu, Host, HStack, Image, List, ProgressView, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityLabel, background, buttonStyle, clipShape, environment, font, foregroundStyle, frame,
+  accessibilityLabel, background, buttonStyle, clipShape, controlSize, environment, font, foregroundStyle, frame,
   labelStyle, lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, opacity, padding,
   scrollContentBackground, scrollDisabled, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { useWantlistEnabled } from '../account/AccountProvider';
-import { useLiked } from '../data/library';
+import { useLiked, useSaved } from '../data/library';
 import { useRealtime } from '../data/realtime';
-import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
-import { trackMark, unavailableReason } from '../downloads/model';
+import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
+import { downloadSymbol, unavailableReason } from '../downloads/model';
 import { IconButton, TrackActionButtons, TrackActionsMenu, TrackCover, hitShape } from '../native/Controls';
-import { useCurrentTrackState, useTrackPreparing } from '../playback';
+import { useCurrentTrackState, useTrackLoading } from '../playback';
+import { STILL_LOADING_LABEL } from '../player/loading';
 import type { SongListProps } from './SongList';
 import {
   sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
@@ -93,12 +94,14 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const { offline } = useRealtime();
   const download = useTrackDownload(track.id);
   const onItsOwn = useDownloadedOnItsOwn(track.id, download);
-  const mark = trackMark(download, track, playable);
-  const preparing = useTrackPreparing(track.id);
+  const mark = downloadSymbol(download);
+  const loading = useTrackLoading(track.id);
   const wantlist = useWantlistEnabled();
+  const viewer = useViewer();
   const options = playlist && { playlist: { ...playlist, onRemove: handlers.remove } };
   // Described from what the row already reads; nothing runs until an item is chosen.
-  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist }, options);
+  const saved = useSaved('track', track.id, track.inLibrary);
+  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist, saved }, options);
   const perform = (action: TrackAction) => run(track, action, options);
 
   return (
@@ -117,11 +120,12 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
             <Button onPress={playable ? () => handlers.play(item.index) : undefined}
               modifiers={[buttonStyle('plain'), accessibilityLabel(playable
                 ? `Play ${track.title} by ${track.artistCredit}`
-                : `${track.title} by ${track.artistCredit}, ${unavailableReason(track, offline)}`)]}>
+                : `${track.title} by ${track.artistCredit}, ${unavailableReason(track, offline, viewer)}`)]}>
               <HStack spacing={10} modifiers={[frame({ height: rowHeight }), hitShape, ...(playable ? [] : [opacity(unavailableOpacity)])]}>
                 {number !== undefined ? (
                   <HStack modifiers={[frame({ width: 27 })]}>
-                    {current ? <Image systemName={playing === 'playing' ? 'waveform' : 'pause.fill'} color={colors.accent} size={16} /> : (
+                    {current && loading !== 'none' ? <ProgressView modifiers={[controlSize('small'), tint(colors.accent)]} />
+                      : current ? <Image systemName={playing === 'playing' ? 'waveform' : 'pause.fill'} color={colors.accent} size={16} /> : (
                       <Text modifiers={[foregroundStyle(colors.muted), font({ size: 13 })]}>{String(number)}</Text>
                     )}
                   </HStack>
@@ -131,9 +135,11 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
                 <VStack alignment="leading" spacing={3}>
                   <Text modifiers={[foregroundStyle(current ? colors.accent : colors.text), font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
                   <HStack spacing={3}>
-                    {mark && !preparing && <Image systemName={mark as 'arrow.down.circle.fill'} color={colors.muted} size={10} />}
-                    <Text modifiers={[foregroundStyle(preparing ? colors.accent : colors.muted), font({ size: 12 }), lineLimit(1)]}>
-                      {preparing ? 'Preparing…' : track.artistCredit}
+                    {/* Rows with a cover have no number to swap for the spinner, so it goes before the artist. */}
+                    {number === undefined && loading !== 'none' ? <ProgressView modifiers={[controlSize('mini'), tint(colors.accent)]} />
+                      : mark && <Image systemName={mark as 'arrow.down.circle.fill'} color={colors.muted} size={10} />}
+                    <Text modifiers={[foregroundStyle(colors.muted), font({ size: 12 }), lineLimit(1)]}>
+                      {loading === 'slow' ? STILL_LOADING_LABEL : track.artistCredit}
                     </Text>
                   </HStack>
                 </VStack>

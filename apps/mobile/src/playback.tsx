@@ -4,7 +4,7 @@ import {
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
-  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, TrackSummary, UserSettings,
+  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, ServerEvent, SessionCommand, TrackSummary, UserSettings,
 } from '@squirmy/contracts';
 import * as Network from 'expo-network';
 import {
@@ -21,16 +21,17 @@ import { useNotice } from './Notice';
 import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
-  codecsFor, deviceRows, findEntry, isRemote, newlyFailed, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
+  codecsFor, deviceRows, failureNotices, findEntry, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
   seedOf,
 } from './player/session';
+import { watchLoading, type LoadingPhase, type LoadingWatch } from './player/loading';
 import { useStreamingCache } from './streamingCache/context';
 import { resolvePlayback } from './streamingCache/resolve';
 import { followSession } from './streamingCache/session';
 
 export type { QueueEntry };
 
-type Runtime = { client: SessionClient; device: ClientDevice };
+type Runtime = { client: SessionClient; device: ClientDevice; loading: LoadingWatch };
 type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
 
 const defaultQuality: Pick<UserSettings, 'qualityWifi' | 'qualityCellular'> = { qualityWifi: 'original', qualityCellular: 'high' };
@@ -167,16 +168,33 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       };
       const stopHolding = client.subscribe(holdWhilePreparing);
 
-      // On-demand tracks the server could not fetch are skipped by the session; say so.
+      // Tracks the server could not fetch are skipped by the session: one notice for each
+      // that was playing or next. When several fail in a row the server pauses instead and
+      // says so with `playback.unavailable`; that gets one notice, and no more per track
+      // until the user plays again.
+      let outage = false;
+      const tellOutage = () => {
+        if (!outage) notify('Can’t load music right now');
+        outage = true;
+      };
       let previous = client.getSnapshot();
       const stopWatching = client.subscribe(() => {
         const next = client.getSnapshot();
-        for (const entry of newlyFailed({ ...previous.session, ...previous.queue }, { ...next.session, ...next.queue })) {
-          const title = tracks.get(entry.trackId, entry.albumId)?.title;
-          notify(title ? `Couldn’t get “${title}”. Skipped it.` : 'Couldn’t get a track. Skipped it.');
-        }
+        if (next.session.playing && !previous.session.playing) outage = false;
+        const { skipped, outage: paused } = failureNotices({ ...previous.session, ...previous.queue }, { ...next.session, ...next.queue });
         previous = next;
+        if (paused) tellOutage();
+        if (outage) return;
+        for (const entry of skipped) {
+          const title = tracks.get(entry.trackId, entry.albumId)?.title;
+          notify(title ? `Couldn’t play “${title}”. Skipped.` : 'Couldn’t play a song. Skipped.');
+        }
       });
+      const onServerEvent = (event: ServerEvent) => {
+        if (event.type === 'playback.unavailable') tellOutage();
+      };
+      socket.on('event', onServerEvent);
+      const loading = watchLoading(client);
 
       // A file that will not play is skipped. When the next one fails as well, the
       // connection is the likelier cause, so playback pauses instead.
@@ -256,7 +274,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
 
       client.start();
       holdWhilePreparing();
-      setRuntime({ client, device });
+      setRuntime({ client, device, loading });
       teardown = () => {
         // Not saved here: this runs on sign-out too, after the account's data was removed.
         clearTimeout(saveTimer);
@@ -269,6 +287,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         stopErrors();
         onOffline.current = null;
         stopWatching();
+        socket.off('event', onServerEvent);
+        loading.dispose();
         stopWaiting();
         nowPlaying.disconnect();
         client.dispose();
@@ -388,7 +408,6 @@ export function usePlaybackState() {
     track,
     /** The current entry's length, from the session or, while it is unknown there, the track. */
     durationMs: current?.durationMs || track?.durationMs || 0,
-    preparing: current?.state === 'preparing',
     connection: snapshot.connection,
     devices: rows,
     output,
@@ -399,15 +418,26 @@ export function usePlaybackState() {
   };
 }
 
+// One object, not a new one per read: `useSyncExternalStore` compares snapshots by identity.
+const notLoading = { trackId: null, phase: 'none' as const };
+const noLoading = () => notLoading;
+
 /**
- * Whether `trackId` is the current entry and waits for the server to fetch it; re-renders
- * only when that changes. Queued entries say so in the queue.
+ * Whether the current entry waits for audio while it should play, fetched or buffering
+ * alike: `loading` shows the buffering spinner, `slow` (after 8 seconds) also the subtitle
+ * "Still loading…". Re-renders only when that changes.
  */
-export function useTrackPreparing(trackId: string | undefined): boolean {
+export function useLoading(): LoadingPhase {
   const runtime = useContext(RuntimeContext);
-  return useSyncExternalStore(runtime?.client.subscribe ?? noSubscription, () => {
-    const current = runtime?.client.getSnapshot().session.current;
-    return Boolean(trackId) && current?.trackId === trackId && current?.state === 'preparing';
+  return useSyncExternalStore(runtime?.loading.subscribe ?? noSubscription, runtime?.loading.getSnapshot ?? noLoading).phase;
+}
+
+/** `useLoading` for a row: its phase while `trackId` is the current entry's track, otherwise `none`. */
+export function useTrackLoading(trackId: string | undefined): LoadingPhase {
+  const runtime = useContext(RuntimeContext);
+  return useSyncExternalStore(runtime?.loading.subscribe ?? noSubscription, () => {
+    const loading = runtime?.loading.getSnapshot();
+    return loading && trackId && loading.trackId === trackId ? loading.phase : 'none';
   });
 }
 

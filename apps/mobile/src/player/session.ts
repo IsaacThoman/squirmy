@@ -1,7 +1,9 @@
+import { UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
 import type {
   DeviceInfo, QueueEntry, QueueSeed, RepeatMode, SessionQueue, SessionState, StreamQuality, TrackSummary,
   UserSettings,
 } from '@squirmy/contracts';
+import { unavailableReason } from '../downloads/model';
 
 /** The SF Symbol for a kind of device. */
 export function deviceIcon(kind: DeviceInfo['kind']): string {
@@ -132,6 +134,40 @@ function allEntries(session: Entries): QueueEntry[] {
 export function newlyFailed(before: Entries, after: Entries): QueueEntry[] {
   const preparing = new Set(allEntries(before).filter(entry => entry.state === 'preparing').map(entry => entry.id));
   return allEntries(after).filter(entry => entry.state === 'failed' && preparing.has(entry.id));
+}
+
+/**
+ * What to tell the listener after a session change. `skipped`: entries that just failed and
+ * were the current entry or the next one, one notice each. A failure further down is only
+ * shown gray in the queue and skipped quietly when reached; announcing every failed
+ * prefetch would turn a provider outage into a stream of notices. `outage`: the session
+ * paused on a current entry that failed (the server does that after several failures in a
+ * row), which gets the one "Can't load music right now" instead of a notice per track.
+ */
+export function failureNotices(before: Entries & Pick<SessionState, 'playing'>, after: Entries & Pick<SessionState, 'playing'>): {
+  skipped: QueueEntry[]; outage: boolean;
+} {
+  const failed = newlyFailed(before, after);
+  const heldOn = after.current?.state === 'failed' && !after.playing ? after.current.id : null;
+  const near = new Set([before.current?.id, before.queue[0]?.id ?? before.autoplayQueue[0]?.id].filter(Boolean));
+  return {
+    skipped: failed.filter(entry => near.has(entry.id) && entry.id !== heldOn),
+    outage: heldOn !== null && failed.some(entry => entry.id === heldOn),
+  };
+}
+
+/**
+ * A queue row's second line and whether it is gray. A waiting or fetching entry looks like
+ * any other (its artist); one the server could not fetch says "Not available", and offline
+ * one that is not on the phone says "Not downloaded". An entry whose summary has not loaded
+ * yet is not grayed, so rows do not flash.
+ */
+export function queueRow(entry: Pick<QueueEntry, 'state'>, track: Pick<TrackSummary, 'availability' | 'artistCredit'> | undefined, {
+  playable, offline, viewer,
+}: { playable: boolean; offline: boolean; viewer: Viewer | null | undefined }): { detail: string; unavailable: boolean } {
+  if (entry.state === 'failed') return { detail: UNAVAILABLE_LABEL, unavailable: true };
+  if (track && !playable) return { detail: unavailableReason(track, offline, viewer), unavailable: true };
+  return { detail: track?.artistCredit ?? '', unavailable: false };
 }
 
 /** Finds an entry anywhere in the session by id. */
