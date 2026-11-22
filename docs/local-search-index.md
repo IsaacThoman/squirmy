@@ -142,4 +142,4 @@ curl -X POST https://music.example.com/api/v1/admin/catalog-index/import \
 - **Offline or slow links.** Download the `.tar.zst` yourself (check it against the `.sha256` file next to it) and pass its path as `source`.
 - **One at a time.** A second import while one runs is refused with 409.
 - **zstd.** Node 22.15 and newer decompress zstd natively. On older Node the importer pipes through the `zstd` program and says so if it is missing.
-- **Crashes.** A worker that dies mid-import leaves staging tables behind; the next import drops them and marks the old run as interrupted.
+- **Crashes.** A worker that dies mid-import leaves its run marked running and staging tables behind. Because no process holds the import lock any more, the run is marked failed ("The import was interrupted") when a worker starts, when an admin starts or cancels an import, and the next import drops the staging tables.
