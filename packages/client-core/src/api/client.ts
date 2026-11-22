@@ -17,6 +17,7 @@ import {
   ART_SIZES,
   ArtistDetail,
   ArtistPage,
+  type ArtistReleasesQuery,
   ArtistSummary,
   type Artwork,
   AuthResponse,
@@ -389,6 +390,8 @@ export function createApiClient(options: ApiClientOptions) {
       genres: (query: Partial<PageQuery> = {}) => get('/library/genres', GenrePage, query),
       home: () => get('/home', HomeResponse),
       artist: (artistId: string) => get(`/artists/${id(artistId)}`, ArtistDetail),
+      /** One section of an artist page, paged ("See all"). */
+      artistReleases: (artistId: string, query: Partial<ArtistReleasesQuery> & Pick<ArtistReleasesQuery, 'section'>) => get(`/artists/${id(artistId)}/releases`, AlbumPage, query),
       album: (albumId: string) => get(`/albums/${id(albumId)}`, AlbumDetail),
       track: (trackId: string, query: TrackQuery = {}) => get(`/tracks/${id(trackId)}`, TrackSummary, query),
       lyrics: (trackId: string) => get(`/tracks/${id(trackId)}/lyrics`, Lyrics),

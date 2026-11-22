@@ -153,8 +153,45 @@ export const AlbumDetail = AlbumSummary.extend({
 })
 export type AlbumDetail = z.infer<typeof AlbumDetail>
 
+/**
+ * The sections of an artist page, in the order clients show them. `album` holds studio
+ * albums, and soundtracks too for an artist whose albums are mostly not soundtracks (The
+ * Beatles' Help!); `mixtape` holds mixtapes and street albums, which keep `type: 'album'`
+ * so older clients still parse them; `appears_on` holds releases led by other artists that
+ * credit this one, on the release or on one of its tracks.
+ */
+export const ARTIST_SECTION_KEYS = ['album', 'mixtape', 'ep', 'single', 'live', 'compilation', 'soundtrack', 'other', 'appears_on'] as const
+export const ArtistSectionKey = z.enum(ARTIST_SECTION_KEYS)
+export type ArtistSectionKey = z.infer<typeof ArtistSectionKey>
+
+/** How many releases each section of `ArtistDetail` carries; `GET /artists/:id/releases` pages the rest. */
+export const ARTIST_SECTION_PREVIEW = 12
+
+/**
+ * One section of an artist page: its first `ARTIST_SECTION_PREVIEW` releases, newest first,
+ * and how many it has in all. When `total` is larger than `items`, clients offer "See all",
+ * which pages `GET /artists/:id/releases?section=<key>`.
+ */
+export const ArtistSection = z.object({
+  /**
+   * One of `ARTIST_SECTION_KEYS`. A plain string, so a key a later server adds does not
+   * fail an older client: it shows the section under `title`.
+   */
+  key: z.string(),
+  /** An English heading ("Albums", "Appears on"), for a key the client does not know. */
+  title: z.string(),
+  total: z.number().int().nonnegative(),
+  items: z.array(AlbumSummary),
+})
+export type ArtistSection = z.infer<typeof ArtistSection>
+
+/** Query of `GET /artists/:id/releases`: one section of the artist page, paged. */
+export const ArtistReleasesQuery = PageQuery.extend({ section: ArtistSectionKey })
+export type ArtistReleasesQuery = z.infer<typeof ArtistReleasesQuery>
+
 export const ArtistDetail = ArtistSummary.extend({
   sortName: z.string().nullable(),
+  /** Tells same-name artists apart ("1960s British band"); clients show it beside the name. */
   disambiguation: z.string().nullable(),
   bio: z.string().nullable(),
   bioUrl: z.string().nullable(),
@@ -163,15 +200,29 @@ export const ArtistDetail = ArtistSummary.extend({
   topTracks: z.array(TrackSummary),
   /**
    * The artist's own releases (led by the artist), newest first, each release once: rows
-   * of one release (editions, store copies) show as the one that stands for it. Clients
-   * group by `type`.
+   * of one release (editions, store copies) show as the one that stands for it. Only the
+   * releases `sections` carries, so a large discography stays a small page: clients that
+   * know `sections` use it instead. Older clients group this by `type`.
    */
   albums: z.array(AlbumSummary),
   /**
-   * Releases led by other artists that credit this one, newest first ("Appears on").
-   * Absent from servers that predate it, which listed them in `albums`.
+   * Releases led by other artists that credit this one, newest first ("Appears on"); like
+   * `albums`, only the first page of that section. Absent from servers that predate it,
+   * which listed them in `albums`.
    */
   appearsOn: z.array(AlbumSummary).optional(),
+  /**
+   * The page's release sections in display order, empty ones left out. Absent from
+   * servers that predate it; clients then group `albums` by `type`.
+   */
+  sections: z.array(ArtistSection).optional(),
+  /** How many releases the artist leads (every section but `appears_on`). Optional for older servers. */
+  releaseCount: z.number().int().nonnegative().optional(),
+  /**
+   * How many of those have a file on the server, which is what plays for a viewer who
+   * cannot fetch music ("12 of 40 releases available"). Optional for older servers.
+   */
+  ownedReleaseCount: z.number().int().nonnegative().optional(),
   similar: z.array(ArtistSummary),
   /**
    * Whether `POST /radio/artist/:id` starts a radio for the viewer: something of the artist
@@ -179,7 +230,11 @@ export const ArtistDetail = ArtistSummary.extend({
    * predate it; clients then fall back to `inLibrary`, or offer it to requesters.
    */
   radio: z.boolean().optional(),
-  /** As on `AlbumDetail`: the profile and discography are still being fetched. */
+  /**
+   * As on `AlbumDetail`: the profile and discography are still being fetched. The page
+   * shows what is known (a provider's discography first, then MusicBrainz's as it comes
+   * in), and invalidations of the artist follow as it fills in.
+   */
   detailPending: z.literal(true).optional(),
 })
 export type ArtistDetail = z.infer<typeof ArtistDetail>
