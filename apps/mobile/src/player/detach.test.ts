@@ -1,6 +1,6 @@
 import type { DeviceInfo, QueueEntry } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { detachedNotice, hasQueueToBring, moveFailure, rejoinedNotice, separateRows } from './detach';
+import { detachedHeader, detachedNotice, hasQueueToBring, moveFailure, rejoinedNotice, separateRows } from './detach';
 
 const entry: QueueEntry = { id: 'e1', trackId: 't1', albumId: null, durationMs: 1, state: 'ready' };
 
@@ -25,6 +25,16 @@ describe('notices', () => {
     expect(rejoinedNotice('Roygbiv', true)).toBe('Rejoined your other devices. Stopped “Roygbiv”.');
     expect(rejoinedNotice(undefined, true)).toBe('Rejoined your other devices.');
     expect(rejoinedNotice('Roygbiv', false)).toBeNull();
+  });
+});
+
+describe('detachedHeader', () => {
+  const song = { title: 'Roygbiv', artistCredit: 'Boards of Canada' };
+
+  it('says the phone plays on its own without claiming it is playing', () => {
+    expect(detachedHeader(song, true)).toEqual({ title: 'Only on this device', subtitle: 'Roygbiv · Boards of Canada' });
+    expect(detachedHeader(song, false)).toEqual({ title: 'Only on this device', subtitle: 'Paused · Roygbiv · Boards of Canada' });
+    expect(detachedHeader(undefined, false)).toEqual({ title: 'Only on this device', subtitle: 'Nothing playing' });
   });
 });
 
