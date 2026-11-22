@@ -1,7 +1,12 @@
 // Walks the single heart and the combined Library in real Chromium against a server that has
 // not been set up yet: the old list addresses land on the combined view, no separate "Add to
 // library" control is left, an album hearted from search shows under Albums and leaves when
-// unhearted, and a hearted song shows in Liked Songs and under Songs. The mock provider is
+// unhearted, and a hearted song shows in Liked Songs and under Songs. Then the Library's rows
+// and cards: album cards carry the album page's menu (⋯ and right-click), list rows keep their
+// play buttons, a search under All lists the songs it matched, Undo of a removal keeps the
+// save's place, a failed playlist list or library search says so and recovers, a search keeps
+// to the genre chosen, a refused save replaces its toast, and Home's hero leaves its rail. The
+// failures are made in the browser (the server is never broken). The mock provider is
 // registered so saving behaves as it does for someone the server fetches music for; it answers
 // slowly, so nothing it delivers lands while the checks run.
 // Catalog search talks to MusicBrainz and Deezer, so a run takes a few minutes.
@@ -150,7 +155,7 @@ await step('the sidebar and the combined view', async () => {
   await shoot('library-all-phone', { width: 390, height: 844 })
   await button('Show list view').click()
   await main().getByRole('list', { name: 'Library' }).getByRole('link', { name: /Liked Songs/ }).waitFor()
-  check('the list view shows rows', !(await main().getByRole('button', { name: /^Play / }).count()))
+  check('the list view shows rows that keep their play buttons', await main().getByRole('list', { name: 'Library' }).getByRole('button', { name: 'Play Liked Songs' }).count() === 1)
   await shoot('library-all-list')
   await page.reload()
   await heading('Library').waitFor()
@@ -192,7 +197,8 @@ await step('heart an album from search', async () => {
   picked = results.albums.find(album => album.availability === 'none' || album.availability === 'on_demand')
   if (!picked) throw new Error('no album the library lacks')
   await page.goto(`${base}/search?q=${encodeURIComponent(query)}`)
-  await main().getByRole('link', { name: picked.title, exact: true }).first().click({ timeout: 30_000 })
+  // Search is one ranked list (#117): an album's row links as "Title, Album · Artist".
+  await main().getByRole('link', { name: new RegExp(`^${loosely(picked.title).source.slice(1, -1)}, `, 'i') }).first().click({ timeout: 30_000 })
   await heading(picked.title).waitFor()
   await button('Save to library').click()
   await toastText('Saved to your library').waitFor()
@@ -221,7 +227,8 @@ await step('heart a song', async () => {
   if (!song) throw new Error('no song the library lacks')
   await page.goto(`${base}/search?q=${encodeURIComponent(query)}`)
   const name = new RegExp(`^Save ${loosely(song.title).source.slice(1, -1)} to library$`, 'i')
-  const row = main().getByRole('listitem').filter({ has: page.getByRole('button', { name }) }).first()
+  // The ranked list's rows are listbox options.
+  const row = main().getByRole('option').filter({ has: page.getByRole('button', { name }) }).first()
   await row.waitFor({ timeout: 30_000 })
   await row.hover()
   await row.getByRole('button', { name }).click()
@@ -236,6 +243,212 @@ await step('heart a song', async () => {
   await shoot('library-songs')
   const saved = await get('/library/tracks?sort=recent&limit=200')
   check('the server lists it among the library’s songs', saved.items.some(track => track.id === song.id))
+})
+
+const albumsByTitle = async () => new Map((await get('/library/albums?sort=title&limit=200')).items.map(album => [album.title, album]))
+const menuItems = () => page.getByRole('menuitem').allTextContents()
+const searchBox = () => page.getByRole('searchbox', { name: 'Find in your library' })
+const busy = { status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'unavailable', message: 'The server is busy. Try again in a moment.' } }) }
+/** Answers 503 to the `method` requests for one API path, as an outage would; returns the undo. */
+async function outage(pathname, method = 'GET') {
+  const matches = url => url.pathname === pathname || (pathname.endsWith('/') && url.pathname.startsWith(pathname))
+  const handler = route => (route.request().method() === method ? route.fulfill(busy) : route.fallback())
+  await page.route(matches, handler)
+  return () => page.unroute(matches, handler)
+}
+/** The heart in an album page's header, not the player's heart for the song playing. */
+const albumHeart = (title, name) => page.locator('header').filter({ has: heading(title) }).getByRole('button', { name, exact: true })
+/** Starts the page without what it kept from earlier visits, so what is asked now is all it has. */
+async function forgetCache() {
+  await page.evaluate(() => new Promise(resolve => {
+    const request = indexedDB.deleteDatabase('squirmy-cache')
+    request.onsuccess = request.onerror = request.onblocked = () => resolve()
+  }))
+}
+
+/** Light, then dark, for the pages where both matter. */
+async function shootBoth(name, options = {}) {
+  await shoot(`${name}-light`, options)
+  await shoot(`${name}-dark`, { ...options, scheme: 'dark' })
+}
+
+await step('album cards have the album page’s menu', async () => {
+  await openLibrary('albums')
+  const albums = main().getByRole('list', { name: 'Albums' })
+  const card = albums.getByRole('listitem').filter({ has: page.getByRole('link', { name: 'Blue Hour', exact: true }) }).first()
+  await card.hover()
+  await card.getByRole('button', { name: 'More options for Blue Hour' }).click()
+  // The one library entry waits for the album, which says whether it is saved.
+  await page.getByRole('menuitem', { name: /^(Save to|Remove from) library$/, disabled: false }).waitFor()
+  const items = await menuItems()
+  check('⋯ on a card opens Play, Play next, Add to queue, Add to playlist, the library entry and Go to the artist',
+    ['Play', 'Play next', 'Add to queue', 'Add to playlist'].every((item, index) => items[index] === item)
+    && items.filter(item => /library/.test(item)).length === 1 && items.at(-1) === 'Go to Mira Vale', items.join(' | '))
+  await shootBoth('library-card-menu', { toasts: true })
+  await page.getByRole('menuitem', { name: 'Add to queue' }).click()
+  check('Add to queue from a card queues the album', await shows(toastText('Added to queue')))
+
+  await albums.getByRole('link', { name: 'Slow Motion', exact: true }).first().click({ button: 'right' })
+  const context = await until(menuItems, list => list.includes('Go to Lune Park'))
+  check('a right-click on a card opens the same menu', context[0] === 'Play' && context.at(-1) === 'Go to Lune Park', context.join(' | '))
+  await page.keyboard.press('Escape')
+
+  await page.goto(`${base}/`)
+  await page.getByRole('region', { name: 'Featured' }).waitFor()
+  const more = main().getByRole('button', { name: /^More options for / }).first()
+  check('Home’s album rails have it too', await shows(more))
+})
+
+await step('the list layout keeps one-click play', async () => {
+  const blueHour = (await albumsByTitle()).get('Blue Hour')
+  const first = (await get(`/albums/${blueHour.id}`)).discs[0].tracks[0]
+  await openLibrary('all')
+  await button('Show list view').click()
+  const list = main().getByRole('list', { name: 'Library' })
+  const row = list.getByRole('listitem').filter({ has: page.getByRole('link', { name: /^Blue Hour/ }) }).first()
+  await row.hover()
+  const play = row.getByRole('button', { name: 'Play Blue Hour' })
+  await sleep(300)
+  check('a hovered album row shows the card’s play button', Number(await play.evaluate(element => getComputedStyle(element).opacity)) > 0.9)
+  check('Liked Songs keeps its play button as a row', await list.getByRole('button', { name: 'Play Liked Songs' }).count() === 1)
+  await shootBoth('library-list-play')
+  // The keyboard reaches it as on a card: focus it and press Enter.
+  await play.focus()
+  await page.keyboard.press('Enter')
+  check('Enter on a row’s play button plays the album', await page.waitForFunction(title => document.title.startsWith(title), first.title, { timeout: 15_000 }).then(() => true, () => false), first.title)
+  await button('Pause').click().catch(() => {})
+  await button('Show grid view').click()
+})
+
+await step('a search under All lists the songs it matched', async () => {
+  await openLibrary('all')
+  await searchBox().fill('Soft Signal')
+  const songs = main().getByRole('region', { name: 'Songs' })
+  check('the song shows under All, in a Songs group', await shows(songs.getByText('Soft Signal', { exact: true }).first(), 10_000))
+  check('and All does not say Nothing found', !(await heading('Nothing found').count()))
+  await shootBoth('library-all-search-songs')
+  await searchBox().fill('qqzzxxjj')
+  check('Nothing found when nothing of any kind matched', await shows(heading('Nothing found'), 10_000))
+  await searchBox().fill('')
+})
+
+await step('Undo of a removal keeps the save’s place', async () => {
+  const titles = await albumsByTitle()
+  const [older, newer] = [titles.get('Blue Hour'), titles.get('Slow Motion')]
+  for (const album of [older, newer]) await api('DELETE', `/me/likes/album/${album.id}`)
+  // Saved one after the other, from their pages' hearts, so the newer leads.
+  for (const album of [older, newer]) {
+    await page.goto(`${base}/album/${album.id}`)
+    await heading(album.title).waitFor()
+    await albumHeart(album.title, 'Save to library').click()
+    await toastText('Saved to your library').waitFor()
+    await sleep(1100)
+  }
+  const order = async () => (await get('/me/likes/album?limit=50')).items.map(item => item.id)
+  const before = await until(order, ids => ids.includes(older.id) && ids.includes(newer.id))
+  check('the two saves are listed newest first', before.includes(older.id) && before.indexOf(newer.id) < before.indexOf(older.id), before.join(' | '))
+  await page.goto(`${base}/album/${older.id}`)
+  await heading(older.title).waitFor()
+  for (const close of await page.getByRole('button', { name: 'Dismiss' }).all()) await close.click().catch(() => {})
+  await albumHeart(older.title, 'Remove from library').click()
+  await toastText('Removed from your library').waitFor()
+  await page.locator('[data-toast]').filter({ hasText: 'Removed from your library' }).getByRole('button', { name: 'Undo' }).click()
+  // The Undo's save, answered, is listed again.
+  const after = await until(order, ids => ids.includes(older.id) && ids.length === before.length, 10_000)
+  check('after Undo the album is back below the newer save, not on top', after.includes(newer.id) && after.indexOf(newer.id) < after.indexOf(older.id), after.join(' | '))
+  const recent = (await get('/library/albums?sort=recent&limit=50')).items.map(album => album.title)
+  console.log(`      Recently added now: ${recent.join(' | ')}`)
+})
+
+await step('a failed playlist list keeps the rest of the Library', async () => {
+  const restore = await outage('/api/v1/playlists')
+  await forgetCache()
+  await openLibrary('playlists')
+  const notice = page.getByText('Your playlists didn’t load.')
+  check('Playlists says the playlists did not load', await shows(notice, 20_000))
+  check('and still shows Liked Songs', await main().getByRole('list', { name: 'Playlists' }).getByRole('link', { name: 'Liked Songs' }).count() === 1)
+  await shootBoth('library-playlists-failed')
+  await forgetCache()
+  await openLibrary('all')
+  await notice.waitFor({ timeout: 20_000 })
+  const titles = await titlesIn(main().getByRole('list', { name: 'Library' }))
+  check('All keeps Liked Songs and the albums', titles[0] === 'Liked Songs' && titles.includes('Blue Hour'), titles.join(' | '))
+  await shootBoth('library-all-playlists-failed')
+  await restore()
+  await button('Try again').click()
+  check('Try again brings the playlists back', await notice.waitFor({ state: 'detached', timeout: 10_000 }).then(() => true, () => false))
+  await openLibrary('playlists')
+  check('the count includes Liked Songs, which is listed as a playlist', await shows(page.getByText('1 playlist', { exact: true })))
+  await shoot('library-playlists-count')
+})
+
+await step('a failed library search says so and recovers', async () => {
+  await openLibrary('albums')
+  let restore = await outage('/api/v1/search/library')
+  await searchBox().fill('Blue')
+  const failed = heading('Couldn’t search your library')
+  check('the search says it failed, though the list had loaded', await shows(failed, 20_000))
+  await shootBoth('library-search-failed')
+  await restore()
+  await button('Try again').click()
+  check('Try again shows the matches', await shows(main().getByRole('list', { name: 'Albums' }).getByRole('link', { name: 'Blue Hour', exact: true }), 10_000))
+  restore = await outage('/api/v1/search/library')
+  await searchBox().fill('Slow')
+  await failed.waitFor({ timeout: 20_000 })
+  await searchBox().fill('')
+  check('clearing the query brings the list back', await shows(main().getByRole('list', { name: 'Albums' }).getByRole('link', { name: 'Slow Motion', exact: true })))
+  await restore()
+})
+
+await step('a search keeps to the genre chosen', async () => {
+  const titles = await albumsByTitle()
+  const genre = (await get(`/albums/${titles.get('Blue Hour').id}`)).genres[0]
+  if (!genre) throw new Error('Blue Hour has no genre')
+  await page.goto(`${base}/library?${new URLSearchParams({ filter: 'albums', genre })}`)
+  await heading('Library').waitFor()
+  const asked = page.waitForRequest(request => request.url().includes('/search/library?') && new URL(request.url()).searchParams.get('genre') === genre)
+  await searchBox().fill('Blue')
+  check('the library search asks for the genre', await asked.then(() => true, () => false), genre)
+  check('and finds the album of that genre', await shows(main().getByRole('list', { name: 'Albums' }).getByRole('link', { name: 'Blue Hour', exact: true }), 10_000))
+  await shoot('library-genre-search')
+  await searchBox().fill('Slow Motion')
+  const others = (await get(`/albums/${titles.get('Slow Motion').id}`)).genres
+  if (!others.includes(genre)) check('an album of another genre is not found', await shows(heading('Nothing found'), 10_000), others.join(', '))
+})
+
+await step('a refused save replaces its toast', async () => {
+  const album = (await albumsByTitle()).get('OK Computer')
+  await api('DELETE', `/me/likes/album/${album.id}`)
+  const restore = await outage('/api/v1/me/likes/album/', 'PUT')
+  await page.goto(`${base}/album/${album.id}`)
+  await heading(album.title).waitFor()
+  for (const close of await page.getByRole('button', { name: 'Dismiss' }).all()) await close.click().catch(() => {})
+  await albumHeart(album.title, 'Save to library').click()
+  check('the refusal says it did not save', await shows(toastText('Couldn’t save to your library')))
+  check('and the success toast is gone', !(await page.getByText('Saved to your library', { exact: true }).count()))
+  check('the heart is back', await shows(albumHeart(album.title, 'Save to library')))
+  await shootBoth('album-save-refused', { toasts: true })
+  await restore()
+  await page.locator('[data-toast]').filter({ hasText: 'Couldn’t save to your library' }).getByRole('button', { name: 'Try again' }).click()
+  check('Try again saves it', await shows(toastText('Saved to your library')) && await shows(albumHeart(album.title, 'Remove from library')))
+  await api('DELETE', `/me/likes/album/${album.id}`)
+})
+
+await step('Home’s hero leaves the rail it leads', async () => {
+  await page.goto(`${base}/`)
+  const featured = page.getByRole('region', { name: 'Featured' })
+  await featured.waitFor()
+  const title = await featured.getByRole('heading', { level: 2 }).textContent()
+  const label = await featured.locator('p').first().textContent()
+  const home = await get('/home')
+  const source = home.sections.find(section => section.id === (/jump back/i.test(label) ? 'recently-played' : 'recently-added'))
+  const rail = page.getByRole('region', { name: source.title, exact: true })
+  const inRail = (await rail.count()) ? await rail.getByRole('link', { name: title, exact: true }).count() : 0
+  check('the featured album is not repeated in its rail', source.albums[0]?.title === title && inRail === 0, `${label}: ${title}`)
+  const order = await main().getByRole('heading', { level: 2 }).allTextContents()
+  const sent = home.sections.map(section => section.title).filter(name => order.includes(name))
+  check('the sections keep the server’s order', JSON.stringify(order.filter(name => sent.includes(name))) === JSON.stringify(sent), sent.join(' | '))
+  await shootBoth('home')
 })
 
 await mock.close()

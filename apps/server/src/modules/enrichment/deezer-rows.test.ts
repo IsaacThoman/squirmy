@@ -32,6 +32,27 @@ describe('Deezer top-track rows', () => {
     expect(credits).toEqual([{ artistId: tiga, name: 'Tiga' }, { artistId: fcukers, name: 'Fcukers' }])
   })
 
+  it('repairs a stored credit that names one artist and points at the page artist', async () => {
+    // As rows were written before featured-on tracks were credited to their own main artist:
+    // live, "Yeat" on Face The Flamë pointed at Grimes, whose page listed the track.
+    const grimes = await artistStub({ name: 'Grimes Fixture', deezerId: 900021 })
+    const yeat = await artistStub({ name: 'Yeat Fixture', deezerId: 900022 })
+    const track = deezerTrack({
+      id: 900120, title: 'Face The Flame Fixture', artist: { id: 900022, name: 'Yeat Fixture' },
+      artists: [{ id: 900022, name: 'Yeat Fixture' }, { id: 900021, name: 'Grimes Fixture' }],
+    })
+    const id = await deezerTopTrackRow(grimes, '900021', track)
+    await db.update(recordingArtists).set({ artistId: grimes }).where(eq(recordingArtists.recordingId, id))
+    await db.update(recordings).set({ primaryArtistId: grimes }).where(eq(recordings.id, id))
+
+    expect(await deezerTopTrackRow(grimes, '900021', track)).toBe(id)
+    const credits = await db.select({ artistId: recordingArtists.artistId }).from(recordingArtists)
+      .where(eq(recordingArtists.recordingId, id)).orderBy(asc(recordingArtists.position))
+    expect(credits.map((credit) => credit.artistId)).toEqual([yeat, grimes])
+    const [row] = await db.select({ primaryArtistId: recordings.primaryArtistId }).from(recordings).where(eq(recordings.id, id))
+    expect(row!.primaryArtistId).toBe(yeat)
+  })
+
   it('creates a stub for a featured main artist the catalog does not know yet', async () => {
     const page = await artistStub({ name: 'Fcukers II', deezerId: 900011 })
     const id = await deezerTopTrackRow(page, '900011', deezerTrack({

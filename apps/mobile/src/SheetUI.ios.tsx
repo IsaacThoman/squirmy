@@ -1,9 +1,10 @@
 import { Button, Divider, Host, HStack, Menu, RNHostView, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
+import { useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { SystemVolumeSlider } from '../modules/now-playing';
 import {
   accessibilityAddTraits, accessibilityLabel, background, clipShape, disabled as disabledModifier, font, foregroundStyle,
-  frame, lineLimit, menuIndicator, multilineTextAlignment, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
+  frame, lineLimit, menuIndicator, multilineTextAlignment, onGeometryChange, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from './BrandMark';
@@ -12,19 +13,40 @@ import type {
   SheetActionProps, SheetFieldProps, SheetFrameProps, SheetNoteProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps,
   TrackSummaryProps,
 } from './SheetUI';
+import { isAccessibilitySize } from './fontScale';
 import { useColors } from './theme';
 
+const sheetTop = 22;
+const sheetSpacing = 14;
+/** Room the system keeps between the tallest sheet and the status bar. */
+const sheetTopGap = 10;
+
+/**
+ * A sheet sized to its content. Content taller than the screen, as at the largest text sizes,
+ * scrolls under the title: a sheet that fits its content stops growing at the top of the
+ * screen and would otherwise cut off its last rows, such as Sign out.
+ */
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
   const colors = useColors();
-  const { bottom } = useSafeAreaInsets();
+  const { top, bottom } = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const [header, setHeader] = useState(0);
+  const [content, setContent] = useState(0);
+  const bottomPadding = Math.max(23, bottom + 8);
+  const room = height - top - sheetTopGap - sheetTop - header - sheetSpacing - bottomPadding;
+  const scrolls = header > 0 && content > room;
+  // Measured in both layouts, so the sheet stops scrolling again when its content shrinks.
+  const body = <VStack alignment="leading" spacing={sheetSpacing} modifiers={[onGeometryChange(frame => setContent(frame.height))]}>
+    {children}
+  </VStack>;
   return <Host matchContents={{ vertical: true }}>
-    <VStack alignment="leading" spacing={14} modifiers={[padding({ top: 22, horizontal: 22, bottom: Math.max(23, bottom + 8) })]}>
-      <HStack spacing={8}>
+    <VStack alignment="leading" spacing={sheetSpacing} modifiers={[padding({ top: sheetTop, horizontal: 22, bottom: bottomPadding })]}>
+      <HStack spacing={8} modifiers={[onGeometryChange(frame => setHeader(frame.height))]}>
         <Text modifiers={[font({ textStyle: 'title2', weight: 'bold' }), accessibilityAddTraits(['isHeader'])]}>{title}</Text>
         <Spacer minLength={0} />
         <IconButton symbol="xmark.circle.fill" label="Close" size={26} color={colors.muted} onPress={onClose} />
       </HStack>
-      {children}
+      {scrolls ? <ScrollView modifiers={[frame({ height: room })]}>{body}</ScrollView> : body}
     </VStack>
   </Host>;
 }
@@ -96,27 +118,48 @@ const markSize = 44;
  */
 export function SheetPickerRow<T extends string | number>({ label, value, options, onChange }: SheetPickerRowProps<T>) {
   const colors = useColors();
+  const { fontScale } = useWindowDimensions();
   const current = options.find(option => option.value === value)?.label ?? '';
+  // At accessibility sizes the label and the value do not fit side by side, so the value goes under the label.
+  const stacked = isAccessibilitySize(fontScale);
+  const choice = <HStack spacing={5}>
+    <Text modifiers={[foregroundStyle(colors.muted), ...(stacked ? [] : [lineLimit(1)])]}>{current}</Text>
+    <Symbol name="chevron.up.chevron.down" size={12} color={colors.muted} />
+  </HStack>;
   // The whole row opens the menu, as a native picker's does.
   return <Menu modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(`${label}, ${current}`)]}
-    label={<HStack spacing={5} modifiers={[frame({ maxWidth: Infinity, minHeight: 32 }), hitShape]}>
-      <Text modifiers={[foregroundStyle(colors.text)]}>{label}</Text>
-      <Spacer minLength={8} />
-      <Text modifiers={[foregroundStyle(colors.muted), lineLimit(1)]}>{current}</Text>
-      <Symbol name="chevron.up.chevron.down" size={12} color={colors.muted} />
-    </HStack>}>
+    label={stacked
+      ? <VStack alignment="leading" spacing={4} modifiers={[frame({ maxWidth: Infinity, minHeight: 44, alignment: 'leading' }), hitShape]}>
+        <Text modifiers={[foregroundStyle(colors.text)]}>{label}</Text>
+        {choice}
+      </VStack>
+      : <HStack spacing={5} modifiers={[frame({ maxWidth: Infinity, minHeight: 32 }), hitShape]}>
+        <Text modifiers={[foregroundStyle(colors.text)]}>{label}</Text>
+        <Spacer minLength={8} />
+        {choice}
+      </HStack>}>
     {options.map(option => <Button key={String(option.value)} label={option.label}
       systemImage={option.value === value ? 'checkmark' : undefined} onPress={() => onChange(option.value)} />)}
   </Menu>;
 }
 
+/**
+ * One line for a summary's title and subtitle, except at accessibility sizes: there one line
+ * holds a word or two, and the sheet scrolls, so they wrap instead.
+ */
+function useSummaryLines() {
+  const { fontScale } = useWindowDimensions();
+  return isAccessibilitySize(fontScale) ? [] : [lineLimit(1)];
+}
+
 export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
   const colors = useColors();
+  const lines = useSummaryLines();
   return <HStack spacing={12} modifiers={[padding({ bottom: 4 })]}>
     <TrackCover track={track} size={53} radius={9} />
     <VStack alignment="leading" spacing={3}>
-      <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{track?.title ?? 'Not Playing'}</Text>
-      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle ?? track?.artistCredit ?? ''}</Text>
+      <Text modifiers={[font({ textStyle: 'headline' }), ...lines]}>{track?.title ?? 'Not Playing'}</Text>
+      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), ...lines]}>{subtitle ?? track?.artistCredit ?? ''}</Text>
     </VStack>
     <Spacer minLength={0} />
   </HStack>;
@@ -124,11 +167,12 @@ export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
 
 export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
   const colors = useColors();
+  const lines = useSummaryLines();
   return <HStack spacing={12} modifiers={[padding({ vertical: 4 })]}>
     <HStack modifiers={[frame({ width: 27 })]}><Symbol name={icon} size={22} color={colors.accent} /></HStack>
     <VStack alignment="leading" spacing={2}>
-      <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{title}</Text>
-      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
+      <Text modifiers={[font({ textStyle: 'headline' }), ...lines]}>{title}</Text>
+      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), ...lines]}>{subtitle}</Text>
     </VStack>
     <Spacer minLength={0} />
   </HStack>;

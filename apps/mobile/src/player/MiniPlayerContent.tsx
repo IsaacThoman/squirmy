@@ -29,7 +29,8 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
   // A detached phone says so where "Playing on …" would be, so pressing play here is never a surprise.
-  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : detached ? DETACHED_LABEL : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
+  // The marker outlasts a slow load: the play button's spinner already says it is loading.
+  const subtitle = detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
   const deviceLabel = detached ? `${DETACHED_LABEL}. Playback devices` : `Playback device, ${output.name}`;
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
@@ -52,7 +53,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
           )}
           <View style={styles.copy}>
             <Text numberOfLines={1} style={styles.title}>{title}</Text>
-            {!compact && <Text numberOfLines={1} style={[styles.subtitle, detached && loading !== 'slow' && { color: colors.accent }]}>{subtitle}</Text>}
+            {!compact && <Text numberOfLines={1} style={[styles.subtitle, detached && { color: colors.accent }]}>{subtitle}</Text>}
           </View>
         </Pressable>
         {!compact && <Pressable accessibilityRole="button" accessibilityLabel={deviceLabel}

@@ -17,6 +17,13 @@ describe('trackActions', () => {
     expect(ids(track(), state())).toEqual(['play', 'next', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
   });
 
+  it('offers to add a song to the wantlist, or to take it off once it is on it', () => {
+    const gray = track({ availability: 'none' });
+    expect(ids(gray, state({ playable: false }))).toContain('want');
+    expect(ids(gray, state({ playable: false, wanted: true }))).toContain('unwant');
+    expect(ids(gray, state({ playable: false, wanted: true }))).not.toContain('want');
+  });
+
   it('leaves out Go to album on that album\'s own page', () => {
     expect(ids(track(), state(), { album: 'al' })).not.toContain('album');
     expect(ids(track(), state(), { album: 'other' })).toContain('album');

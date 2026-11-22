@@ -16,8 +16,11 @@ import { useTrackActions } from '@/player/use-track-actions'
 
 export type ScanProgress = { processed: number; total: number }
 
+/** The album Home leads with, and what it is: the one last played, or the one last added. */
+export type Featured = { album: AlbumSummary; label: 'Jump back in' | 'Recently added' }
+
 type HomeViewProps = {
-  featured: AlbumSummary | null
+  featured: Featured | null
   /** Undefined while loading. */
   sections: HomeSection[] | undefined
   /** Nothing played, added or liked yet: no section has anything in it. */
@@ -46,10 +49,12 @@ export function HomeView({ featured, sections, empty, canAddMusic, canFindMusic 
           </div>
         )}
         {sections && empty && <EmptyLibrary canAddMusic={canAddMusic} canFindMusic={canFindMusic} scan={scan} />}
-        {featured && <Hero album={featured} label={featuredLabel(sections, featured)} onPlay={() => onPlayAlbum(featured)} />}
+        {featured && <Hero album={featured.album} label={featured.label} onPlay={() => onPlayAlbum(featured.album)} />}
         {sections?.map(section => {
           switch (section.kind) {
             case 'albums':
+              // The featured album was its rail's only one.
+              if (!section.albums.length) return null
               return (
                 // Only what was added is in the library; played albums have no page of their own.
                 <Rail key={section.id} title={section.title} href={section.id === 'recently-added' ? '/library?filter=albums' : undefined}>
@@ -75,12 +80,6 @@ export function HomeView({ featured, sections, empty, canAddMusic, canFindMusic 
       </Page>
     </>
   )
-}
-
-/** What the featured album is: the one last played, or the one last added. */
-function featuredLabel(sections: HomeSection[] | undefined, album: AlbumSummary) {
-  const played = sections?.find(section => section.id === 'recently-played')
-  return played?.kind === 'albums' && played.albums[0]?.id === album.id ? 'Jump back in' : 'Recently added'
 }
 
 function TrackSection({ title, tracks }: Pick<Extract<HomeSection, { kind: 'tracks' }>, 'title' | 'tracks'>) {
@@ -144,7 +143,8 @@ function Hero({ album, label, onPlay }: { album: AlbumSummary; label: string; on
           <p className="mt-1.5 truncate text-sm text-white/75 sm:text-base">{album.artistCredit}{album.year && ` · ${album.year}`}</p>
           <div className="mt-4 flex gap-2 sm:mt-5">
             <Button variant="primary" onClick={onPlay} className="bg-white text-black hover:bg-white/90 focus-visible:ring-white"><Play fill="currentColor" />Play</Button>
-            <Button asChild variant="ghost" className="bg-white/15 text-white backdrop-blur-md hover:bg-white/25 hover:text-white focus-visible:ring-white max-sm:hidden dark:hover:bg-white/25">
+            {/* A dark glass, not a light one: white on a light glass falls under 4.5:1 over pale artwork. */}
+            <Button asChild variant="ghost" className="bg-black/35 text-white ring-1 ring-inset ring-white/20 backdrop-blur-md hover:bg-black/50 hover:text-white focus-visible:ring-white max-sm:hidden dark:hover:bg-black/50">
               <Link to={`/album/${album.id}`}>Open album</Link>
             </Button>
           </div>

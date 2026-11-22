@@ -1,9 +1,12 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { ApiError } from '@squirmy/client-core'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
-import { libraryAlbums, libraryArtists, libraryTracks, playlistSummaries } from '@/fixtures/catalog'
+import { albumDetail, libraryAlbums, libraryArtists, libraryTracks, playlistSummaries, searchFixtures } from '@/fixtures/catalog'
+import { currentUser } from '@/fixtures/server'
+import { dismissToast, toastStore } from '@/lib/toast'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 
@@ -25,6 +28,8 @@ const filters = () => within(screen.getByRole('navigation', { name: 'Library fil
 const chosenFilter = () => filters().getAllByRole('link').filter(link => link.getAttribute('aria-current') === 'page').map(link => link.textContent)
 /** The title of each tile or row, in order. */
 const titles = (list: HTMLElement) => within(list).getAllByRole('listitem').map(item => within(item).getAllByRole('link')[0]!.textContent)
+/** The same for rows, whose link also holds the subtitle. */
+const rowTitles = (list: HTMLElement) => within(list).getAllByRole('listitem').map(item => within(item).getAllByRole('link')[0]!.getAttribute('title')!)
 
 beforeEach(() => {
   localStorage.clear()
@@ -33,7 +38,18 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(900)
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(220)
 })
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  for (const item of toastStore.getSnapshot()) dismissToast(item.id)
+})
+
+/**
+ * A failure the client does not retry, so the page shows it at once. A 503 ends the same way,
+ * after the query's retries, which would only make these tests slower.
+ */
+const refused = (message: string) => new ApiError(400, 'invalid_request', message)
+const search = () => screen.getByRole('searchbox', { name: 'Find in your library' })
+const ownPlaylists = { items: playlistSummaries.map(playlist => ({ ...playlist, ownerId: currentUser.id })), nextCursor: null }
 
 describe('Library', () => {
   it('has one set of filter chips, as on iOS, and no genre menu', async () => {
@@ -114,6 +130,12 @@ describe('Library', () => {
       expect(api.catalog.tracks).not.toHaveBeenCalled()
     })
 
+    it('counts Liked Songs among the playlists, as it is listed and labeled', async () => {
+      await renderLibrary('/library?filter=playlists')
+      await main().findByRole('list', { name: 'Playlists' })
+      expect(await screen.findByText(`${playlistSummaries.length + 1} playlists`)).toBeInTheDocument()
+    })
+
     it('lists songs as songs, with no grid', async () => {
       await renderLibrary('/library?filter=songs')
       const list = await main().findByRole('list', { name: 'Songs' })
@@ -181,9 +203,36 @@ describe('Library', () => {
       expect(within(grid).getAllByRole('button', { name: /^Play / }).length).toBeGreaterThan(0)
       await userEvent.click(screen.getByRole('button', { name: 'Show list view' }))
       const list = main().getByRole('list', { name: 'Albums' })
-      expect(within(list).queryAllByRole('button', { name: /^Play / })).toHaveLength(0)
+      // Every row the virtual list shows plays from its own button.
+      expect(within(list).getAllByRole('button', { name: /^Play / }).map(button => button.getAttribute('aria-label'))).toEqual(rowTitles(list).map(title => `Play ${title}`))
       expect(within(list).getAllByRole('link')[0]).toHaveTextContent(`${libraryAlbums[0]!.title}Album · ${libraryAlbums[0]!.artistCredit}`)
       expect(localStorage.getItem('squirmy.library.layout')).toBe('list')
+    })
+
+    it('keeps one-click play on every row that plays, from the pointer or the keyboard', async () => {
+      localStorage.setItem('squirmy.library.layout', 'list')
+      const fake = await renderLibrary('/library?filter=all')
+      const list = await main().findByRole('list', { name: 'Library' })
+      await waitFor(() => expect(rowTitles(list)).toContain('Blue Hour'))
+      // An empty playlist has nothing to play, on a row as on a card.
+      const empty = playlistSummaries.filter(playlist => !playlist.trackCount).map(playlist => playlist.name)
+      const playing = within(list).getAllByRole('button', { name: /^Play / }).map(button => button.getAttribute('aria-label'))
+      expect(playing).toEqual(rowTitles(list).filter(title => !empty.includes(title)).map(title => `Play ${title}`))
+      expect(playing).toContain('Play Liked Songs')
+      // The button is a stop of its own before the row's link, as on a card.
+      const blueHour = within(list).getByRole('button', { name: 'Play Blue Hour' })
+      blueHour.focus()
+      await userEvent.keyboard('{Enter}')
+      await waitFor(() => expect(fake.socket.session.current?.trackId).toBe(albumDetail(libraryAlbums[0]!.id)!.discs[0]!.tracks[0]!.id))
+    })
+
+    it('gives album rows the card’s menu', async () => {
+      localStorage.setItem('squirmy.library.layout', 'list')
+      await renderLibrary('/library?filter=albums')
+      const list = await main().findByRole('list', { name: 'Albums' })
+      await userEvent.click(within(list).getByRole('button', { name: 'More options for Glass City' }))
+      expect(await screen.findByRole('menuitem', { name: 'Save to library' })).toBeEnabled()
+      expect(screen.getByRole('menuitem', { name: 'Go to North Index' })).toBeInTheDocument()
     })
 
     it('opens in the layout chosen last', async () => {
@@ -214,6 +263,37 @@ describe('Library', () => {
       expect(screen.queryByRole('combobox', { name: 'Sort by' })).toBeNull()
     })
 
+    it('keeps a search to the genre chosen', async () => {
+      const { api } = await renderLibrary('/library?filter=albums&genre=Dream%20Pop')
+      await main().findByRole('list', { name: 'Albums' })
+      await userEvent.type(search(), 'blue')
+      await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'blue', limit: 50, genre: 'Dream Pop' }, expect.anything()))
+      expect(screen.getByText('Dream Pop')).toBeInTheDocument()
+    })
+
+    it('lists the songs a search matches under All, so a song is never “Nothing found”', async () => {
+      const fake = await renderLibrary('/library?filter=all')
+      await main().findByRole('list', { name: 'Library' })
+      await userEvent.type(search(), 'riverside')
+      const songs = await screen.findByRole('region', { name: 'Songs' })
+      expect(within(songs).getByText('Riverside')).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: 'Nothing found' })).toBeNull()
+      // No collection matched, so there is no grid above the songs.
+      expect(main().queryByRole('list', { name: 'Library' })).toBeNull()
+      await userEvent.click(within(songs).getByRole('button', { name: 'Play Riverside' }))
+      const riverside = libraryTracks.find(track => track.title === 'Riverside')!
+      await waitFor(() => expect(fake.socket.session.current?.trackId).toBe(riverside.id))
+    })
+
+    it('lists matching songs after the collections under All', async () => {
+      await renderLibrary('/library?filter=all')
+      await main().findByRole('list', { name: 'Library' })
+      await userEvent.type(search(), 'blue')
+      const songs = await screen.findByRole('region', { name: 'Songs' })
+      expect(within(songs).getByText('Blue in the Dark')).toBeInTheDocument()
+      expect(titles(main().getByRole('list', { name: 'Library' }))).toEqual(['Blue Hour'])
+    })
+
     it('says when nothing matches', async () => {
       await renderLibrary('/library?filter=all')
       await main().findByRole('list', { name: 'Library' })
@@ -229,6 +309,87 @@ describe('Library', () => {
       await userEvent.type(screen.getByRole('searchbox', { name: 'Find in your library' }), 'liked')
       expect(titles(main().getByRole('list', { name: 'Playlists' }))).toEqual(['Liked Songs'])
       expect(api.search.library).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('album cards', () => {
+    it('offer the album page’s menu from ⋯ and from a right-click', async () => {
+      await renderLibrary('/library?filter=albums')
+      const grid = await main().findByRole('list', { name: 'Albums' })
+      await userEvent.click(within(grid).getByRole('button', { name: 'More options for Blue Hour' }))
+      // The one library entry waits for the album, which says it is saved.
+      expect(await screen.findByRole('menuitem', { name: 'Remove from library' })).toBeEnabled()
+      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Remove from library', 'Go to Mira Vale'])
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+
+      fireEvent.contextMenu(within(grid).getByRole('link', { name: 'Glass City' }))
+      expect(await screen.findByRole('menuitem', { name: 'Save to library' })).toBeEnabled()
+      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Save to library', 'Go to North Index'])
+    })
+
+    it('queue an album and save it from the menu', async () => {
+      const fake = await renderLibrary('/library?filter=albums')
+      const grid = await main().findByRole('list', { name: 'Albums' })
+      await userEvent.click(within(grid).getByRole('button', { name: 'More options for Glass City' }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Add to queue' }))
+      expect(await screen.findByText('Added to queue')).toBeInTheDocument()
+      const glassCity = albumDetail(libraryAlbums[2]!.id)!
+      await waitFor(() => expect(fake.socket.session.queue.map(entry => entry.trackId)).toEqual(glassCity.discs.flatMap(disc => disc.tracks).map(track => track.id)))
+
+      await userEvent.click(within(grid).getByRole('button', { name: 'More options for Glass City' }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Save to library' }))
+      expect(fake.api.userdata.like).toHaveBeenCalledWith('album', glassCity.id)
+      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
+    })
+  })
+
+  describe('when a request fails', () => {
+    it('keeps Liked Songs under Playlists, says the playlists failed, and asks again', async () => {
+      const fake = fakeServices()
+      fake.api.userdata.playlists.mockRejectedValue(refused('Playlists are resting'))
+      await renderLibrary('/library?filter=playlists', fake)
+      expect(await screen.findByText('Your playlists didn’t load.')).toBeInTheDocument()
+      expect(titles(main().getByRole('list', { name: 'Playlists' }))).toEqual(['Liked Songs'])
+      expect(screen.getByText('Playlists are resting')).toBeInTheDocument()
+
+      fake.api.userdata.playlists.mockResolvedValue(ownPlaylists)
+      await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Playlists' }))).toEqual(['Liked Songs', ...playlistSummaries.map(playlist => playlist.name)]))
+      expect(screen.queryByText('Your playlists didn’t load.')).toBeNull()
+    })
+
+    it('still lists Liked Songs and the albums under All without the playlists', async () => {
+      const fake = fakeServices()
+      fake.api.userdata.playlists.mockRejectedValue(refused('Playlists are resting'))
+      await renderLibrary('/library?filter=all', fake)
+      expect(await screen.findByText('Your playlists didn’t load.')).toBeInTheDocument()
+      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Library' }))).toEqual(['Liked Songs', ...libraryAlbums.map(album => album.title)]))
+    })
+
+    it('says a failed search failed, even with the list loaded, and asks again', async () => {
+      const fake = await renderLibrary('/library?filter=albums')
+      await main().findByRole('list', { name: 'Albums' })
+      fake.api.search.library.mockRejectedValue(refused('Search is resting'))
+      await userEvent.type(search(), 'blue')
+      expect(await screen.findByRole('heading', { name: 'Couldn’t search your library' })).toBeInTheDocument()
+      expect(screen.getByText('Search is resting')).toBeInTheDocument()
+
+      fake.api.search.library.mockImplementation(async ({ q }) => searchFixtures(q).library)
+      await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Albums' }))).toEqual(['Blue Hour']))
+      expect(screen.queryByRole('heading', { name: 'Couldn’t search your library' })).toBeNull()
+    })
+
+    it('comes back to the list when the failed search is cleared', async () => {
+      const fake = await renderLibrary('/library?filter=albums')
+      await main().findByRole('list', { name: 'Albums' })
+      fake.api.search.library.mockRejectedValue(refused('Search is resting'))
+      await userEvent.type(search(), 'blue')
+      expect(await screen.findByRole('heading', { name: 'Couldn’t search your library' })).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+      expect(titles(await main().findByRole('list', { name: 'Albums' }))).toEqual(libraryAlbums.map(album => album.title))
+      expect(screen.queryByRole('heading', { name: 'Couldn’t search your library' })).toBeNull()
     })
   })
 

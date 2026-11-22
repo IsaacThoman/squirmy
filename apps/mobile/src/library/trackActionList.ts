@@ -19,7 +19,7 @@ export type TrackAction = {
 
 export type TrackActionId =
   | 'play' | 'resume' | 'next' | 'last' | 'like' | 'unlike' | 'download' | 'retryDownload' | 'removeDownload'
-  | 'playlist' | 'radio' | 'want' | 'album' | 'artist' | 'remove';
+  | 'playlist' | 'radio' | 'want' | 'unwant' | 'album' | 'artist' | 'remove';
 
 export type TrackActionOptions = {
   /** The playlist the track is shown in, for "Remove from playlist". */
@@ -41,6 +41,8 @@ export type TrackActionState = {
   onItsOwn: boolean;
   /** The server has the wantlist on. */
   wantlist: boolean;
+  /** On the wantlist already, so the menu offers to take it off. */
+  wanted?: boolean;
   /** Who is signed in: a radio starts from what the server plays for them, never from a download alone. */
   viewer?: Viewer | null;
 };
@@ -58,7 +60,7 @@ export function trackActionKey(action: Pick<TrackAction, 'id' | 'page'>): string
  * actions; `useTrackActionRunner` carries one out when it is chosen.
  */
 export function trackActions(track: TrackSummary, state: TrackActionState, { playlist, album }: TrackActionOptions = {}): TrackAction[] {
-  const { liked, playable, offline, current, download, onItsOwn, wantlist, viewer } = state;
+  const { liked, playable, offline, current, download, onItsOwn, wantlist, wanted, viewer } = state;
   const online = !offline;
   const library = librarySave({ liked });
   const downloadAction: TrackAction | false = download?.state === 'failed' && onItsOwn
@@ -84,7 +86,10 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     // device (gone from the server, or `on_demand` for someone who may not fetch) has none.
     online && isPlayable(track, viewer) && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right' },
     // Only what does not play for this user: for someone who may fetch music nothing is wanted.
-    wantlist && !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star' },
+    // Added or removed alike, as on web.
+    wantlist && !playable && track.availability !== 'server' && online && (wanted
+      ? { id: 'unwant', title: 'Remove from wantlist', icon: 'star.slash' }
+      : { id: 'want', title: 'Add to wantlist', icon: 'star' }),
     Boolean(track.album) && track.album!.id !== album && { id: 'album', title: 'Go to album', icon: 'square.stack', page: { page: 'album', id: track.album!.id } },
     // Each credited artist leads to its own page: on an artist's page a featured artist is often not the first.
     ...track.artists.map((artist): TrackAction => ({

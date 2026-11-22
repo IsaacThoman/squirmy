@@ -20,6 +20,16 @@ describe('Toaster', () => {
     expect(screen.getByText('Browser renamed')).toBeInTheDocument()
   })
 
+  it('answers each toast’s id, the one showing for a repeat, so a caller can take it back', async () => {
+    render(<Toaster />)
+    let first = 0
+    act(() => { first = toast({ title: 'Saved to your library', description: 'Blue Hour' }) })
+    expect(toast({ title: 'Saved to your library', description: 'Blue Hour' })).toBe(first)
+    await screen.findByText('Saved to your library')
+    act(() => dismissToast(first))
+    await waitFor(() => expect(screen.queryByText('Saved to your library')).toBeNull())
+  })
+
   it('dismisses the toast with Escape when no dialog is open', async () => {
     render(<Toaster />)
     act(() => toast({ title: 'Added to queue' }))

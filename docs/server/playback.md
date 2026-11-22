@@ -64,7 +64,7 @@ Each user has **one** playback session, held by the server: the queue, the curre
 - **Telling devices apart.** The device you are using is **This browser** (or **This iPhone**). Others are named after their browser and system ("Chrome on macOS", "Safari on iPad") until you rename them. Two browsers can still have the same name: a device that has not been used for five minutes or more says how long, such as "Active 3 hours ago", and when that does not tell them apart either, each shows the start of its id, such as "ID 4f2a". Renaming one is the lasting fix.
 - **A device is listed only while it is connected.** iOS suspends an app that is paused in the background, so a paused phone drops off the list until it is opened again.
 
-Browsers may refuse to start audio until you have clicked on the page. When that happens after a transfer or a reload, the web app shows "Your browser is holding back audio" with **Enable audio**.
+Browsers may refuse to start audio until you have clicked on the page. When that happens after a transfer or a reload, the web app's player shows **Play**, and a notice says "Your browser is holding back audio" with **Enable audio**; either starts it.
 
 ### Gapless playback
 

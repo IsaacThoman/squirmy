@@ -27,7 +27,7 @@ const material: Record<string, AndroidSymbol> = {
   'square.grid.2x2': 'grid_view', 'person.crop.circle': 'account_circle', 'person.crop.circle.fill': 'account_circle',
   'person.crop.circle.badge.plus': 'person_add', 'server.rack': 'dns', 'arrow.left.arrow.right': 'swap_horiz',
   'rectangle.portrait.and.arrow.right': 'logout', 'safari': 'open_in_browser', 'ticket': 'confirmation_number', 'music.note.list': 'library_music', 'music.note.house': 'home',
-  'heart.slash': 'heart_broken', 'dot.radiowaves.left.and.right': 'radio', 'star': 'star_border', 'star.fill': 'star',
+  'heart.slash': 'heart_broken', 'dot.radiowaves.left.and.right': 'radio', 'star': 'star_border', 'star.fill': 'star', 'star.slash': 'star_border',
   'square.stack': 'album', 'music.mic': 'mic', 'minus.circle': 'remove_circle_outline', 'gearshape': 'settings',
   'wifi': 'wifi', 'wifi.exclamationmark': 'wifi_off', 'antenna.radiowaves.left.and.right': 'signal_cellular_alt',
   'arrow.down.circle': 'download', 'arrow.down.circle.fill': 'download_done', 'arrow.down.circle.dotted': 'downloading',

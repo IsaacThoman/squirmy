@@ -114,7 +114,8 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const play = current ? nowPlaying.onTogglePlay : onPlay
   const act = (action: TrackAction) => onAction?.(action, track, index)
 
-  const menu = trackMenuEntries(track, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count } })
+  // Album rows are on that album's page already.
+  const menu = trackMenuEntries(track, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' })
 
   const onDragOver = (event: DragEvent) => {
     const drag = draggedTracks(event)
@@ -168,7 +169,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   // Under the title, except on album pages, where a wide row gives the artists a column of their own.
   const artists = (
     <div className={cn('min-w-0 truncate text-xs text-muted-foreground', album && '@max-xl:col-start-2 @xl:text-sm')}>
-      <ArtistLinks track={track} plain={unavailable} />
+      <ArtistLinks credit={track} plain={unavailable} />
     </div>
   )
 
@@ -355,6 +356,10 @@ export function VirtualTrackList({ tracks, label, variant = 'compact', isWanted,
     overscan: 8,
     scrollMargin: margin,
     initialRect: { width: 1024, height: 900 },
+
+    // Where the page is now: left at 0, the virtualizer scrolls the page back to the top as it
+    // mounts, undoing Back's scroll restoration.
+    initialOffset: () => scroller?.scrollTop ?? 0,
   })
   const last = virtualizer.getVirtualItems().at(-1)?.index ?? -1
   useEndReached(last, tracks.length, onEndReached)
