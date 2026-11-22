@@ -83,6 +83,19 @@ describe('album page', () => {
       expect(screen.getByRole('button', { name: `Remove ${edit.title} from library` })).toBeInTheDocument()
     })
 
+    it('refetches nothing for a heart: the server patches it and brings the lists that move', async () => {
+      const { services, api } = fakeServices()
+      const { queryClient } = renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      await screen.findByRole('list', { name: 'Low Tide tracks' })
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      const searches = api.search.catalog.mock.calls.length + api.search.library.mock.calls.length
+      await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
+      await waitFor(() => expect(api.userdata.like).toHaveBeenCalledWith('album', lowTide.id))
+      expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+      expect(invalidate).not.toHaveBeenCalled()
+      expect(api.search.catalog.mock.calls.length + api.search.library.mock.calls.length).toBe(searches)
+    })
+
     it('undoes a save from its toast', async () => {
       const { services, api } = fakeServices()
       renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)

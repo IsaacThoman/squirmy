@@ -128,8 +128,8 @@ describe('on-demand coverage', () => {
     expect(await db.$count(acquisitionMisses, eq(acquisitionMisses.providerId, created.id))).toBe(125)
     // What lit up is patched where it shows; no list or search is fetched again for it.
     expect(events.availability.get(odd[0]!)).toBe('on_demand')
-    // Half its songs are covered, so the album stays unavailable, and says so.
-    expect(events.availability.get(album.albumId)).toBe('none')
+    // Half its songs are covered, so the album plays on demand, and says so.
+    expect(events.availability.get(album.albumId)).toBe('on_demand')
     expect(events.availability.has(ids[1]!)).toBe(false)
     expect(events.keys).toEqual([])
 
