@@ -5,14 +5,14 @@ import {
 import {
   accessibilityAddTraits, accessibilityLabel, autocorrectionDisabled, buttonStyle, controlSize, disabled, font, foregroundStyle,
   frame, keyboardType, lineLimit, listRowBackground, listRowInsets, multilineTextAlignment, onSubmit, padding,
-  scrollDismissesKeyboard, submitLabel, textContentType, textInputAutocapitalization, tint,
+  scrollDismissesKeyboard, submitLabel, textContentType, textInputAutocapitalization, tint, truncationMode,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useImperativeHandle, useRef, useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { Symbol } from '../native/Controls';
 import { useColors } from '../theme';
-import { displayAddress } from './address';
+import { displayAddress, serverVersion } from './address';
 import type {
   AuthFieldProps, AuthLinkProps, AuthPageProps, AuthSectionProps, AuthServerProps, AuthSubmitProps, FieldKind,
 } from './AuthForm';
@@ -68,7 +68,7 @@ export function AuthField({ kind, placeholder, value, onChange, onSubmit: submit
   const onFocusChange = (focused: boolean) => {
     if (focused) setFocusedOnce(true);
   };
-  useImperativeHandle(ref, () => ({ focus: () => { void field.current?.focus(); } }), []);
+  useImperativeHandle(ref, () => ({ focus: () => { void field.current?.focus(); }, clear: () => text.set('') }), [text]);
   const modifiers = [
     accessibilityLabel(placeholder), autocorrectionDisabled(), textInputAutocapitalization('never'),
     ...fieldModifiers[kind], ...(submit ? [onSubmit(submit)] : []),
@@ -80,17 +80,18 @@ export function AuthField({ kind, placeholder, value, onChange, onSubmit: submit
       autoFocus={focus} modifiers={modifiers} />;
 }
 
-export function AuthSubmit({ title, busy, disabled: off, onPress }: AuthSubmitProps) {
+export function AuthSubmit({ title, busyTitle, busy, disabled: off, onPress }: AuthSubmitProps) {
   const colors = useColors();
+  // Busy keeps the accent fill (a disabled button turns gray and hides the spinner); the
+  // screen ignores presses meanwhile. The row's height is fixed so the spinner moves nothing.
   return <Section modifiers={clearRow}>
     <Button onPress={onPress} modifiers={[
       buttonStyle(isLiquidGlassAvailable() ? 'glassProminent' : 'borderedProminent'), controlSize('large'), tint(colors.accent),
-      disabled(off || busy), accessibilityLabel(title),
+      disabled(Boolean(off) && !busy), accessibilityLabel(busy ? busyTitle ?? title : title),
     ]}>
-      <HStack modifiers={[frame({ maxWidth: Infinity, minHeight: 24 })]}>
-        {busy
-          ? <ProgressView modifiers={[tint(colors.onAccent)]} />
-          : <Text modifiers={[font({ textStyle: 'headline' }), foregroundStyle(colors.onAccent)]}>{title}</Text>}
+      <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity, minHeight: 24, maxHeight: 24 })]}>
+        {busy && <ProgressView modifiers={[controlSize('small'), tint(colors.onAccent)]} />}
+        <Text modifiers={[font({ textStyle: 'headline' }), foregroundStyle(colors.onAccent), lineLimit(1)]}>{busy ? busyTitle ?? title : title}</Text>
       </HStack>
     </Button>
   </Section>;
@@ -113,9 +114,10 @@ export function AuthServer({ server, onChange }: AuthServerProps) {
       <Symbol name="server.rack" size={20} color={colors.accent} />
       <VStack alignment="leading" spacing={2}>
         <Text modifiers={[font({ textStyle: 'body', weight: 'semibold' }), lineLimit(1)]}>{server.name}</Text>
-        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>
-          {`${displayAddress(server.url)} · Squirmy ${server.version}`}
+        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1), truncationMode('middle')]}>
+          {displayAddress(server.url)}
         </Text>
+        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1)]}>{serverVersion(server.version)}</Text>
       </VStack>
       <Spacer minLength={8} />
       <Button label="Change" onPress={onChange} modifiers={[buttonStyle('borderless'), tint(colors.accent), accessibilityLabel('Change server')]} />

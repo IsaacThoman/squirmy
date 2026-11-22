@@ -69,14 +69,34 @@ const settle = async () => {
 let players: FakePlayer[];
 let events: EngineEvent[];
 let interrupted: string[];
+let resumed: string[];
+let silences: FakeSilence[];
 let engine: ExpoAudioEngine;
+
+class FakeSilence {
+  loop = false;
+  playing = false;
+  released = false;
+  play() { this.playing = true; }
+  pause() { this.playing = false; }
+  remove() {}
+  release() { this.released = true; }
+}
 
 beforeEach(() => {
   vi.useFakeTimers();
   players = [];
   events = [];
   interrupted = [];
+  resumed = [];
+  silences = [];
   engine = new ExpoAudioEngine({
+    createSilence: () => {
+      const silence = new FakeSilence();
+      silences.push(silence);
+      return silence;
+    },
+    onResumed: entryId => resumed.push(entryId),
     createPlayer: url => {
       const player = new FakePlayer(url);
       players.push(player);
@@ -167,12 +187,11 @@ describe('ExpoAudioEngine', () => {
     expect(events).toEqual([{ type: 'status', status: { entryId: 'a', state: 'paused', positionMs: 200_000 } }]);
   });
 
-  it('reports a system pause and never resumes on its own', () => {
+  it('pauses for an interruption, stays silent while expo-audio resumes, and asks to resume when iOS says so', () => {
     engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
     players[0].load();
     vi.advanceTimersByTime(2000);
-    players[0].playing = false; // an incoming call
-    vi.advanceTimersByTime(500);
+    engine.interrupt(); // an incoming call
     expect(engine.getStatus().state).toBe('paused');
     expect(interrupted).toEqual(['a']);
     expect(players[0].muted).toBe(true);
@@ -183,9 +202,62 @@ describe('ExpoAudioEngine', () => {
     expect(players[0].playing).toBe(false);
     expect(engine.getStatus().state).toBe('paused');
 
+    engine.endInterruption(true);
+    expect(resumed).toEqual(['a']);
     engine.play();
     expect(players[0].muted).toBe(false);
     expect(engine.getStatus().state).toBe('playing');
+  });
+
+  it('does not resume after an interruption iOS says to stay paused after, or one that came while paused', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].load();
+    engine.interrupt();
+    engine.endInterruption(false);
+    engine.pause();
+    engine.interrupt();
+    engine.endInterruption(true);
+    expect(interrupted).toEqual(['a']);
+    expect(resumed).toEqual([]);
+  });
+
+  it('pauses for good when the headphones are unplugged, even during an interruption', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].load();
+    engine.routeLost();
+    expect(engine.getStatus().state).toBe('paused');
+    expect(interrupted).toEqual(['a']);
+    engine.play();
+    engine.interrupt();
+    engine.routeLost();
+    engine.endInterruption(true);
+    expect(resumed).toEqual([]);
+  });
+
+  it('counts a player that stops by itself as stalled', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].load();
+    vi.advanceTimersByTime(2000);
+    players[0].playing = false;
+    vi.advanceTimersByTime(500);
+    expect(engine.getStatus().state).toBe('buffering');
+    expect(interrupted).toEqual([]);
+  });
+
+  it('loops silence while holding the session with nothing loaded', () => {
+    engine.holdAudioSession(true);
+    expect(silences).toHaveLength(1);
+    expect(silences[0]).toMatchObject({ loop: true, playing: true });
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    expect(silences[0].released).toBe(true);
+    // The session client stops the engine when the next entry is still being fetched.
+    engine.stop();
+    expect(silences).toHaveLength(2);
+    expect(silences[1].playing).toBe(true);
+    engine.holdAudioSession(false);
+    expect(silences[1].released).toBe(true);
+    engine.stop();
+    expect(silences).toHaveLength(2);
   });
 
   it('reports buffering while the player waits for data', () => {

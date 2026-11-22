@@ -14,7 +14,8 @@ export type AlbumNavProps = {
 /** The buttons under a collection's title. The first is the prominent one. */
 export type AlbumPlaybackProps = {
   title: string;
-  actions: readonly { label: string; symbol: string; onPress: () => void }[];
+  /** `busy`: the action has started and is still loading; a spinner shows in place of its symbol. */
+  actions: readonly { label: string; symbol: string; onPress: () => void; busy?: boolean }[];
 };
 
 export function AlbumNavButton({ icon, label, onPress, selected, busy }: AlbumNavProps) {
@@ -30,10 +31,12 @@ export function AlbumPlaybackButtons({ title, actions }: AlbumPlaybackProps) {
   const colors = useColors();
   const styles = useStyles();
   return <View style={styles.controls}>
-    {actions.map(({ label, symbol, onPress }, index) => (
-      <Pressable key={label} accessibilityRole="button" accessibilityLabel={`${label} ${title}`}
+    {actions.map(({ label, symbol, onPress, busy }, index) => (
+      <Pressable key={label} accessibilityRole="button" accessibilityLabel={`${label} ${title}`} accessibilityState={{ busy }}
         style={({ pressed }) => [styles.action, index === 0 && styles.play, pressed && styles.pressed]} onPress={onPress}>
-        <Icon name={symbol} size={17} color={index === 0 ? colors.onAccent : colors.text} />
+        {busy
+          ? <ActivityIndicator color={index === 0 ? colors.onAccent : colors.text} />
+          : <Icon name={symbol} size={17} color={index === 0 ? colors.onAccent : colors.text} />}
         <Text style={[styles.label, index === 0 && styles.playLabel]}>{label}</Text>
       </Pressable>
     ))}

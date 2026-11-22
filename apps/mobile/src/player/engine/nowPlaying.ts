@@ -18,19 +18,22 @@ export type RemoteControls = {
 /**
  * Mirrors `engine` on the lock screen: the loaded entry's metadata from `itemFor`, and its
  * elapsed time and play state from every status. Returns `refresh`, for when an entry's
- * metadata arrives later, and `disconnect`, which clears the lock screen. Does nothing
- * where there is no native module (Android, web).
+ * metadata arrives later, `hold`, which shows an entry that is not loaded yet (the server
+ * is fetching it) as buffering at its start, and `disconnect`, which clears the lock
+ * screen. Does nothing where there is no native module (Android, web).
  */
 export function connectNowPlaying(
   engine: PlayerEngine,
   itemFor: (entryId: string) => NowPlayingItem | null,
   controls: RemoteControls,
-): { refresh: () => void; disconnect: () => void } {
+): { refresh: () => void; hold: (entryId: string | null) => void; disconnect: () => void } {
   const native = NowPlaying;
-  if (!native) return { refresh: () => undefined, disconnect: () => undefined };
+  if (!native) return { refresh: () => undefined, hold: () => undefined, disconnect: () => undefined };
   let shown: string | null = null;
+  let held: string | null = null;
 
-  const show = (status: EngineStatus, force = false) => {
+  const show = (engineStatus: EngineStatus, force = false) => {
+    const status: EngineStatus = !engineStatus.entryId && held ? { entryId: held, state: 'loading', positionMs: 0 } : engineStatus;
     if (!status.entryId) {
       if (shown) void native.clear();
       shown = null;
@@ -52,7 +55,7 @@ export function connectNowPlaying(
       case 'pause': return controls.onPause();
       case 'togglePlayPause': {
         const { state } = engine.getStatus();
-        return state === 'playing' || state === 'buffering' || state === 'loading' ? controls.onPause() : controls.onPlay();
+        return held || state === 'playing' || state === 'buffering' || state === 'loading' ? controls.onPause() : controls.onPlay();
       }
       case 'next': return controls.onNext();
       case 'previous': return controls.onPrevious();
@@ -66,11 +69,17 @@ export function connectNowPlaying(
 
   return {
     refresh: () => show(engine.getStatus(), true),
+    hold: entryId => {
+      if (entryId === held) return;
+      held = entryId;
+      show(engine.getStatus());
+    },
     disconnect: () => {
       commands.remove();
       unsubscribe();
       if (shown) void native.clear();
       shown = null;
+      held = null;
     },
   };
 }

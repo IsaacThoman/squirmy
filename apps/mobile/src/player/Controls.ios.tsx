@@ -1,6 +1,6 @@
 import { Button, Capsule, Host, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityHint, accessibilityLabel, font, foregroundStyle, frame, lineLimit, padding,
+  accessibilityAddTraits, accessibilityHint, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, padding,
 } from '@expo/ui/swift-ui/modifiers';
 import { StyleSheet, View } from 'react-native';
 import { IconButton, Symbol, TrackMenu, hitShape, plainButton } from '../native/Controls';
@@ -35,7 +35,8 @@ export function DeviceButton({ icon, name, onPress }: DeviceButtonProps) {
   const colors = useColors();
   return <Host style={styles.device}>
     <Button onPress={onPress} modifiers={[plainButton, accessibilityLabel(`Playback device: ${name}`)]}>
-      <VStack spacing={5} modifiers={[frame({ maxWidth: Infinity, minHeight: 44 }), hitShape]}>
+      {/* The footer is a fixed 56 pt tall, so the label stops growing before it overflows it. */}
+      <VStack spacing={5} modifiers={[frame({ maxWidth: Infinity, minHeight: 44 }), hitShape, dynamicTypeSize({ max: 'xxxLarge' })]}>
         <Symbol name={icon} size={21} color={colors.accent} />
         <Text modifiers={[foregroundStyle(colors.accent), font({ textStyle: 'caption2', weight: 'semibold' }), lineLimit(1)]}>{name}</Text>
       </VStack>

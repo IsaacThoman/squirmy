@@ -11,11 +11,11 @@ import {
   type SessionQueue,
   type SessionState,
 } from '@squirmy/contracts'
-import { streamUrl } from '../api/client.js'
+import { ApiError, streamUrl } from '../api/client.js'
 import type { EngineEvent, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
 import { gainFor } from '../normalization.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
-import { createInitialSession, joinSession, positionAt, reduceSession, type Session, splitSession } from './reducer.js'
+import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
 import type { SessionTransport } from './transport.js'
 
 /**
@@ -47,6 +47,14 @@ export type SessionPlayer = {
   normalization?: NormalizationMode
   /** The engine can amplify above unity. Defaults to false. */
   canBoost?: boolean
+  /**
+   * `resolvePlayback` failed for the current entry. `willRetry` is true for a failure that
+   * may pass (no connection, a server error), which is retried every few seconds while the
+   * session reports a stall; false when the server refused the track (a 4xx), which the
+   * client gives up on until play or a seek: the caller should move on, as for an engine
+   * `error`.
+   */
+  onLoadError?: (entry: QueueEntry, error: unknown, willRetry: boolean) => void
 }
 
 /**
@@ -168,6 +176,8 @@ export class SessionClient {
   private normalization: NormalizationMode
   private loadToken = 0
   private loadingEntryId: string | null = null
+  /** The entry whose descriptor the server refused; not loaded again until play or a seek. */
+  private refusedEntryId: string | null = null
   private preloadTarget: string | null = null
   private preloadTrackId: string | null = null
   /** Bumped each time the preload is aimed; a resolve begun for an earlier aim is dropped. */
@@ -328,7 +338,11 @@ export class SessionClient {
 
   private restore(saved: SavedSession): void {
     this.server = { version: saved.version, session: joinSession(saved.state, saved.queue) }
-    this.pending = saved.pending.map(pending => ({ ...pending, sentEpoch: null }))
+    // Replays skip validation, so what comes from storage is checked once here.
+    this.pending = saved.pending.flatMap(pending => {
+      const parsed = SessionCommand.safeParse(pending.command)
+      return parsed.success ? [{ ...pending, command: parsed.data, sentEpoch: null }] : []
+    })
     const session = this.rebase()
     if (session.playing && session.activeDeviceId === this.device.id) {
       this.pending.push(
@@ -495,7 +509,7 @@ export class SessionClient {
   private rebase(): Session {
     let session = this.server?.session ?? createInitialSession()
     for (const pending of this.pending) {
-      session = reduceSession(session, { command: pending.command, now: pending.at, commandId: pending.commandId, deviceId: this.playDeviceId() })
+      session = reduceParsedSession(session, { command: pending.command, now: pending.at, commandId: pending.commandId, deviceId: this.playDeviceId() })
     }
     return session
   }
@@ -553,7 +567,9 @@ export class SessionClient {
 
     const status = engine.getStatus()
     if (status.entryId !== current.id) {
-      if (this.loadingEntryId !== current.id) void this.load(current)
+      // As for an engine error below: only play or a seek tries a refused entry again.
+      const retry = this.refusedEntryId !== current.id || forceSeek || (session.playing && !previous.playing)
+      if (retry && this.loadingEntryId !== current.id) void this.load(current)
       return
     }
     if (status.state === 'error') {
@@ -590,15 +606,25 @@ export class SessionClient {
     const { engine, baseUrl } = this.player!
     const token = ++this.loadToken
     this.loadingEntryId = entry.id
+    this.refusedEntryId = null
     let descriptor: PlaybackDescriptor
     try {
       descriptor = await this.describe(entry)
-    } catch {
+    } catch (error) {
       if (token !== this.loadToken) return
       this.loadingEntryId = null
-      setTimer(() => {
-        if (token === this.loadToken) this.syncEngine(this.local, false)
-      }, RETRY_MS)
+      const willRetry = !isRefusal(error)
+      // Whatever the engine still holds is the entry before this one; it must not go on playing.
+      if (engine.getStatus().entryId !== entry.id && engine.getStatus().state !== 'idle') engine.stop()
+      this.reportLoadFailure(entry, willRetry ? 'buffering' : 'error')
+      if (willRetry) {
+        setTimer(() => {
+          if (token === this.loadToken) this.syncEngine(this.local, false)
+        }, RETRY_MS)
+      } else {
+        this.refusedEntryId = entry.id
+      }
+      this.player!.onLoadError?.(entry, error, willRetry)
       return
     }
     if (token !== this.loadToken) return
@@ -623,7 +649,7 @@ export class SessionClient {
     const session = this.local
     const current = session.current
     if (!current) return
-    const predicted = reduceSession(session, {
+    const predicted = reduceParsedSession(session, {
       command: { type: 'trackEnded', entryId: current.id },
       now: this.serverNow(),
       commandId: this.endCommandId(current.id),
@@ -717,6 +743,19 @@ export class SessionClient {
     }
   }
 
+  /**
+   * Nothing is loaded for `entry`, so the engine has nothing to report: say it here, which
+   * stops the clock on the user's other devices instead of letting it run through a silent track.
+   */
+  private reportLoadFailure(entry: QueueEntry, status: 'buffering' | 'error'): void {
+    const session = this.local
+    if (!this.isActive() || this.connection !== 'online' || session.current?.id !== entry.id || !session.playing) return
+    const key = `${entry.id}:${status}`
+    if (key === this.lastReport) return
+    this.lastReport = key
+    this.transport.report({ entryId: entry.id, status, positionMs: positionAt(session, this.serverNow()), at: this.serverNow() })
+  }
+
   private report(status: EngineStatus, periodic: boolean): void {
     const reported = REPORTED[status.state]
     if (!reported || !status.entryId || !this.isActive() || this.connection !== 'online' || status.entryId !== this.local.current?.id) return
@@ -725,6 +764,14 @@ export class SessionClient {
     this.lastReport = key
     this.transport.report({ entryId: status.entryId, status: reported, positionMs: status.positionMs, at: this.serverNow() })
   }
+}
+
+/**
+ * The server answered and will not serve the track (gone, forbidden, not available):
+ * asking again gives the same answer. Timeouts and rate limits pass.
+ */
+function isRefusal(error: unknown): boolean {
+  return error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429
 }
 
 function descriptorKey(entry: QueueEntry): string {

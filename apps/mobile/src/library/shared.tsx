@@ -4,11 +4,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { usePreventZoomTransitionDismissal, type Href } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { loadFailure } from '../data/errors';
 import { useRealtime } from '../data/realtime';
 import { useKeptCollections } from '../downloads/DownloadsProvider';
 import { Cover, Icon } from '../ui';
 import { BrowseButton, CollectionTile } from './BrowseControls';
 import type { Page } from './links';
+import { mosaicCovers } from './mosaic';
+import { displayFontScale } from '../fontScale';
 import { createThemedStyles, useColors } from '../theme';
 
 export const gutter = 22;
@@ -76,7 +79,7 @@ const gradients = {
 
 export function CollectionCover({ item, size, radius = 13 }: { item: Collection; size: number; radius?: number }) {
   const styles = useStyles();
-  const covers = item.artworks ?? [];
+  const covers = mosaicCovers(item.artworks ?? []);
   let cover;
   if (covers.length >= 4) {
     const half = size / 2;
@@ -139,7 +142,7 @@ export function CollectionRail({ items, size = 131 }: { items: readonly Collecti
 export function SectionTitle({ title, onPress }: { title: string; onPress?: () => void }) {
   const styles = useStyles();
   return <View style={styles.sectionTitle}>
-    <Text accessibilityRole="header" style={styles.sectionText}>{title}</Text>
+    <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.sectionText}>{title}</Text>
     {onPress && <BrowseButton label={`See ${title.toLowerCase()}`} title="See all" icon="chevron.right" onPress={onPress} />}
   </View>;
 }
@@ -158,13 +161,16 @@ export function EmptyState({ icon, title, description, action }: {
 }
 
 /** A query's first load, or its failure with a way to try again. Null once there is data to show. */
-export function QueryState({ query, what }: { query: { isPending: boolean; isError: boolean; refetch: () => unknown }; what: string }) {
+export function QueryState({ query, what }: {
+  query: { isPending: boolean; isError: boolean; error?: unknown; refetch: () => unknown }; what: string;
+}) {
   const colors = useColors();
   const styles = useStyles();
   if (query.isPending) return <View style={styles.loading}><ActivityIndicator color={colors.muted} /></View>;
   if (query.isError) {
-    return <EmptyState icon="wifi.exclamationmark" title={`Couldn’t load ${what}`}
-      description="Check your connection to the server." action={{ title: 'Try again', onPress: () => void query.refetch() }} />;
+    const failure = loadFailure(query.error);
+    return <EmptyState icon={failure.connection ? 'wifi.exclamationmark' : 'exclamationmark.circle'} title={`Couldn’t load ${what}`}
+      description={failure.description} action={failure.retry ? { title: 'Try again', onPress: () => void query.refetch() } : undefined} />;
   }
   return null;
 }

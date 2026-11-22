@@ -1,6 +1,7 @@
 import { useRootNavigationState, type Href } from 'expo-router';
+import { tabIn, type Tab } from './tabs';
 
-export type Tab = 'home' | 'library' | 'search';
+export type { Tab };
 export type Page = 'album' | 'artist' | 'playlist' | 'genre';
 
 /** A page inside a tab's own stack, so it opens over that tab and goes back to it. */
@@ -10,10 +11,7 @@ export function pageHref(tab: Tab, page: Page, id: string): Href {
 
 /** The tab on screen, also from a sheet or Now Playing above it. */
 export function useCurrentTab(): Tab {
-  const root = useRootNavigationState();
-  const tabs = root?.routes.find(route => route.name === '(tabs)')?.state;
-  const name = tabs?.routes[tabs.index ?? 0]?.name;
-  return name === '(library)' ? 'library' : name === '(search)' ? 'search' : 'home';
+  return tabIn(useRootNavigationState());
 }
 
 /** Links to pages in the current tab. */
