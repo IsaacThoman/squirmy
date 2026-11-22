@@ -689,8 +689,9 @@ export async function finishDelivery(jobId: string) {
       const unmatched = job.recordingIds.filter((id) => !ready.includes(id))
       const revoked = unmatched.filter((id) => announced.has(id)).length
       if (ready.length === 0) {
+        // Ready is announced for prefetches too, so nothing may have played it yet.
         const error = revoked > 0
-          ? 'Identification found the delivery is a different recording after it had started playing'
+          ? 'Identification found the delivery is a different recording after it was reported ready'
           : 'The delivered files are not what was asked for'
         await finishJob(jobId, { status: 'failed', error, missed: job.recordingIds })
       } else {
