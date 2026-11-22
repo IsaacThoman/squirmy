@@ -51,7 +51,7 @@ export function pinnedFile(file: { recordingId: SQL; albumId: SQL }, queued: rea
       select entity_id from library_items where entity_type = 'recording'
       union all select entity_id from likes where entity_type = 'recording'
       union all select recording_id from playlist_items
-      union all select recording_id from plays where started_at > ${since}
+      union all select recording_id from plays where started_at > ${since.toISOString()}::timestamptz
       union all select unnest(${uuidArray(queued)})
     ))
     or (${file.albumId} is not null and ${file.albumId} in (

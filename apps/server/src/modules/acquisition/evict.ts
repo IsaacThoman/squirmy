@@ -140,7 +140,7 @@ async function candidates(queued: readonly string[], skipped: readonly string[])
   const lastUsed = sql`greatest(${mediaFiles.addedAt}, (select max(p.started_at) from plays p where p.recording_id = ${mediaFiles.recordingId}))`
   return db.select({ id: mediaFiles.id, size: mediaFiles.size }).from(mediaFiles).where(and(
     eq(mediaFiles.cached, true), present, settled,
-    sql`${mediaFiles.addedAt} < ${new Date(Date.now() - timing.graceMs)}`,
+    sql`${mediaFiles.addedAt} < ${new Date(Date.now() - timing.graceMs).toISOString()}::timestamptz`,
     sql`not ${pinnedFile(fileLinks, queued)}`,
     skipped.length > 0 ? sql`${mediaFiles.id} <> all(${uuidArray(skipped)})` : undefined,
   )).orderBy(lastUsed, mediaFiles.id).limit(100)
