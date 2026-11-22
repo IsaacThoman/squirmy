@@ -107,6 +107,14 @@ describe('jobs', () => {
     expect((await getQueueStats()).find((queue) => queue.name === 'test.record')?.queued).toBe(1)
   })
 
+  it('runs a deferred job when it is due, not at the next 30 second poll', async () => {
+    const started = Date.now()
+    await enqueue('test.record', { value: 'soon' }, { startAfter: 1 })
+    // No drainJobs: it would wake the workers itself.
+    await expect.poll(() => seen.some((job) => job.data.value === 'soon'), { timeout: 5000, interval: 50 }).toBe(true)
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1000)
+  })
+
   it('registers schedules', async () => {
     const [row] = await db.execute<{ cron: string }>(sql`select cron from pgboss.schedule where name = 'test.record'`)
     expect(row?.cron).toBe('0 4 * * *')

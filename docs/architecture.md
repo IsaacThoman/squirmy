@@ -163,6 +163,7 @@ await schedule('library.scan-all', '0 4 * * *')
 - A definition can choose `policy: 'stately'` instead: one queued and one active job per key, so a request made while a job runs is kept as a single follow-up (`library.ingest` uses it). The policy is fixed when the queue is created.
 - `enqueueMany(name, items)` inserts many jobs in one statement with the same deduplication.
 - Each concurrency slot is its own pg-boss worker and is woken as soon as its job finishes, so a backlog drains continuously rather than waiting out pg-boss's 30 second notify backstop between jobs.
+- NOTIFY wakes workers when a job is inserted, not when a deferred one (`startAfter`) becomes due, so `enqueue` also wakes this process's workers for that queue just after the start time; a deferred job enqueued by another process still waits for the next poll.
 - Failures retry with exponential backoff (default 3 retries). `timeoutSeconds` fails a job that runs too long.
 - Every process starts pg-boss: `index.ts` calls `startJobs({ work })` with `work` true for worker roles. Modules' `jobs` hooks run only in worker roles; a process that enqueues a job it has no definition for creates the queue on first use.
 - `getQueueStats()` counts jobs live; `GET /admin/jobs` returns it.
