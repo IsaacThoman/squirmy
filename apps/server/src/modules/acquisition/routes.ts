@@ -14,6 +14,7 @@ import { hashToken } from '../../lib/crypto.js'
 import { AppError, badRequest, conflict, unauthorized } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { addImportFile } from '../imports/index.js'
+import { recordSave } from '../userdata/library.js'
 import {
   completeDelivery, DELIVERING, ensureImport, finishJob, loadJob, providerFailed, markDownloading, requestAlbum, requestTrack, touchJob, type JobRow,
 } from './jobs.js'
@@ -151,7 +152,19 @@ export async function acquisitionRoutes(app: FastifyInstance) {
 
   app.post('/albums/:id/acquire', async (request, reply): Promise<AcquireResponse> => {
     const user = requireUser(request)
-    const jobs = await requestAlbum(user.id, IdParams.parse(request.params).id)
+    const albumId = IdParams.parse(request.params).id
+    let jobs
+    try {
+      jobs = await requestAlbum(user.id, albumId)
+    } catch (error) {
+      // Asking for an album the server already has (as cache) still means keeping it.
+      if (error instanceof AppError && error.code === 'already_available') await recordSave(user.id, 'album', albumId)
+      throw error
+    }
+    // Owned by the userdata module: asking for a whole album saves it to the user's library,
+    // as completed album jobs were converted when library saves arrived. A track fetched by
+    // pressing play is cache and is not saved.
+    await recordSave(user.id, 'album', albumId)
     reply.code(202)
     return { items: await jobsById(jobs.map((job) => job.id)) }
   })

@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import {
-  acquisitionJobs, acquisitionMisses, albumArtists, albums, artists, externalIds, imports, likes, matchReviews, mediaFiles, playlistItems, playlists, plays,
+  acquisitionJobs, acquisitionMisses, albumArtists, albums, artists, externalIds, imports, libraryItems, likes, matchReviews, mediaFiles, playlistItems, playlists, plays,
   recordingArtists, recordings, releases, releaseTracks, wants,
 } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
@@ -152,8 +152,24 @@ describe('repairing deliveries left on albums of their own', () => {
 
   const fileRow = async (id: string) => (await db.select().from(mediaFiles).where(eq(mediaFiles.id, id)))[0]!
   const albumRow = async (id: string) => (await db.select().from(albums).where(eq(albums.id, id)))[0]
-  const libraryAlbums = async (artistId: string) => body(await app.inject({ url: '/api/v1/library/albums?limit=200', headers: fan.headers }), AlbumPage)
-    .items.filter((album) => album.artists.some((artist) => artist.id === artistId))
+  /**
+   * The artist's albums that hold a present file, as their album pages show them. This is
+   * where fetched tracks used to show up as one look-alike album each. (Fetched files are
+   * cache: they are in no one's library unless the album was saved, so the library lists
+   * are no measure of where they went.)
+   */
+  const albumsWithFiles = async (artistId: string) => {
+    const rows = await db.execute<{ id: string }>(sql`
+      select distinct f.album_id as id from media_files f
+      where f.missing_since is null and f.album_id is not null
+        and exists (select 1 from album_artists aa where aa.album_id = f.album_id and aa.artist_id = ${artistId})
+      order by f.album_id`)
+    const pages = []
+    for (const row of rows) pages.push(body(await app.inject({ url: `/api/v1/albums/${row.id}`, headers: fan.headers }), AlbumDetail))
+    return pages
+  }
+  /** The ids of the albums in the user's library: the collection plus their saves. */
+  const savedAlbums = async () => body(await app.inject({ url: '/api/v1/library/albums?limit=200', headers: fan.headers }), AlbumPage).items.map((album) => album.id)
   const albumPage = async (albumId: string) => body(await app.inject({ url: `/api/v1/albums/${albumId}`, headers: fan.headers }), AlbumDetail)
   const exists = (relPath: string) => access(path.join(rootDir, relPath)).then(() => true, () => false)
 
@@ -181,6 +197,8 @@ describe('repairing deliveries left on albums of their own', () => {
     const playlistId = newId()
     await db.insert(playlists).values({ id: playlistId, ownerId: fan.id, name: 'Fetched' })
     await db.insert(playlistItems).values({ id: newId(), playlistId, position: 0, recordingId: lp.tracks[0]!.recordingId, albumId: copy, addedBy: fan.id })
+    await db.insert(libraryItems).values({ userId: fan.id, entityType: 'album', entityId: copies[2]! })
+    expect(await savedAlbums()).toContain(copies[2])
     const playId = newId()
     await db.insert(plays).values({ id: playId, userId: fan.id, recordingId: lp.tracks[2]!.recordingId, albumId: copies[1]!, msPlayed: 2000, completed: true })
 
@@ -252,7 +270,7 @@ describe('repairing deliveries left on albums of their own', () => {
     await db.insert(matchReviews).values({ id: newId(), rootId, groupKey: wrong.file.groupKey!, summary: { album: 'The Coin Shop', trackCount: 1 }, candidates: [] })
 
     // The broken state, as the library showed it.
-    expect((await libraryAlbums(lp.artist.id)).filter((album) => album.title === 'The Coin Shop')).toHaveLength(6)
+    expect((await albumsWithFiles(lp.artist.id)).filter((album) => album.title === 'The Coin Shop')).toHaveLength(6)
     expect(await db.select().from(matchReviews).where(eq(matchReviews.status, 'open'))).toHaveLength(8)
 
     const result = await repairDeliveries()
@@ -260,7 +278,7 @@ describe('repairing deliveries left on albums of their own', () => {
     expect(result).toMatchObject({ placed: 7 })
 
     // One album, holding the fetched tracks in its own order, filed where Organize puts it.
-    const listed = await libraryAlbums(lp.artist.id)
+    const listed = await albumsWithFiles(lp.artist.id)
     // The other song's delivery keeps the album its tags made; it is not one of these.
     expect(listed.map((album) => album.id).sort()).toEqual([lp.albumId, single.albumId, ownBefore.albumId, wrong.file.albumId].sort())
     expect(listed.find((album) => album.id === lp.albumId)).toMatchObject({ availability: 'partial', trackCount: 4, ownedTrackCount: 3 })
@@ -293,6 +311,10 @@ describe('repairing deliveries left on albums of their own', () => {
     expect(await db.select({ albumId: playlistItems.albumId, recordingId: playlistItems.recordingId }).from(playlistItems).where(eq(playlistItems.playlistId, playlistId)))
       .toEqual([{ albumId: lp.albumId, recordingId: lp.tracks[0]!.recordingId }])
     expect(await db.select({ albumId: plays.albumId }).from(plays).where(eq(plays.id, playId))).toEqual([{ albumId: lp.albumId }])
+    // A save of a copy is a save of the album.
+    expect(await db.select({ entityId: libraryItems.entityId }).from(libraryItems).where(eq(libraryItems.userId, fan.id))).toEqual([{ entityId: lp.albumId }])
+    expect(await savedAlbums()).toContain(lp.albumId)
+    expect(await savedAlbums()).not.toContain(copies[2])
     // Only the album's real artist is left.
     expect(await db.select().from(artists).where(and(eq(artists.nameKey, matchKey(artistName)), isNull(artists.mergedIntoId)))).toHaveLength(1)
 

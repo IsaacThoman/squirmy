@@ -59,9 +59,7 @@ async function isRequester(userId: string): Promise<boolean> {
  * 404 when it does not exist. Returns the id saved.
  */
 export async function saveToLibrary(userId: string, type: LibraryEntityType, id: string): Promise<string> {
-  const entityId = await resolveEntity(type, id)
-  await db.insert(libraryItems).values({ userId, entityType: storedType[type], entityId }).onConflictDoNothing()
-  await invalidateLibrary(userId, type, entityId)
+  const entityId = await recordSave(userId, type, id)
   try {
     if ((await activeProviders()).length > 0 && await isRequester(userId)) {
       await enqueue<FetchSavedJob>('userdata.fetch-saved', { userId, type, id: entityId }, { singletonKey: `${userId}:${type}:${entityId}` })
@@ -69,6 +67,18 @@ export async function saveToLibrary(userId: string, type: LibraryEntityType, id:
   } catch (error) {
     warn(`Could not ask for the files of saved ${type} ${entityId}`, error)
   }
+  return entityId
+}
+
+/**
+ * Records a save without asking for files: for a caller that is fetching them already
+ * (acquisition, when a user asks for an album). Idempotent; follows merge redirects, 404
+ * when the entity does not exist. Returns the id saved.
+ */
+export async function recordSave(userId: string, type: LibraryEntityType, id: string): Promise<string> {
+  const entityId = await resolveEntity(type, id)
+  await db.insert(libraryItems).values({ userId, entityType: storedType[type], entityId }).onConflictDoNothing()
+  await invalidateLibrary(userId, type, entityId)
   return entityId
 }
 
