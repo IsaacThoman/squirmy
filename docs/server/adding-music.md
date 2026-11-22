@@ -107,7 +107,7 @@ The inbox is a folder on the server that Squirmy empties into the library. Copy 
          - /srv/inbox:/inbox
    ```
 
-   Or set the `inboxPath` server setting instead, which takes precedence. The inbox may not be inside a library folder or the data folder, and the server needs write access to it.
+   Or set the `inboxPath` server setting instead, which takes precedence. The inbox must be a folder of its own, such as `/inbox`, `/srv/music/inbox` or `/var/lib/squirmy/inbox`: the file system root, a home folder, a system folder (`/etc`, `/usr`, `/var/log` and the like) or a folder around one is refused with `inbox_system_folder`, since the inbox moves everything in it. It also may not be inside a library folder or the data folder, and the server needs write access to it. The same rules apply to `SQUIRMY_INBOX_PATH`; a refused inbox is not watched, and the worker log says why.
 2. Run `docker compose up -d`.
 3. Copy music into it.
 

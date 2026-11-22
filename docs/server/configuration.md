@@ -85,7 +85,7 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 | Matching | Accept matches automatically above | `matchAutoAcceptScore` | 90% | Matches at or above this score are applied; lower ones (down to 50%) wait in the review queue. |
 | Library | Keep missing files for | `missingFileGraceDays` | 14 days | How long a vanished file stays in the library before it is removed. 0 to 365. |
 | Imports | Import into | `importRootId` | not chosen | The managed library folder uploads and inbox imports are filed into. Not chosen means the only enabled managed folder, when there is exactly one. |
-| | Inbox folder | `inboxPath` | not set | The [inbox](./adding-music.md#the-inbox-folder). Empty falls back to `SQUIRMY_INBOX_PATH`. It may not be inside a library folder or the data folder; the screen says why a folder is refused. |
+| | Inbox folder | `inboxPath` | not set | The [inbox](./adding-music.md#the-inbox-folder). Empty falls back to `SQUIRMY_INBOX_PATH`. It must be a folder of its own: not `/`, a home folder or a system folder (`/etc`, `/usr`, `/var` and the folders directly in it, and so on), and not inside a library folder or the data folder; the screen says why a folder is refused. |
 | | Largest file | `importMaxFileBytes` | 4 GB | Largest single file an import accepts, zip archives included. |
 | | Largest import | `importMaxBytes` | 64 GB | Largest import, counting what its archives extract to. |
 | | Uploads at once | `importMaxActivePerUser` | 3 | Uploads one member may have receiving or processing at once. Admins are not limited. API only for now. |
