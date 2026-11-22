@@ -172,7 +172,9 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 
 **Web**
 
-- Layout: sidebar, main view, bottom player bar, queue panel.
+- Layout: a sidebar that folds to icons and is a drawer on phones, the main view, a player bar along the bottom, a queue panel beside the page.
+- Search: a search page, and a quick search dialog from any page.
+- Settings in a dialog. Appearance is light, dark or the system's, with a choice of color themes, kept per browser.
 - Audio: `HTMLAudioElement`, the Media Session API, and Web Audio gain.
 - Admin: setup wizard, library roots, job status, review queue, organize preview, users and invites, providers.
 - Upload by dragging in a folder or zip.

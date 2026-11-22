@@ -45,7 +45,7 @@ Admins can always upload; members need **Can upload music** (see [Users and acce
 
 ### In the web app
 
-**Add music** is in the sidebar and in the account menu for everyone who may upload.
+**Add music** is in the sidebar for everyone who may upload.
 
 1. Drop album folders, files or zip archives on the page, or use **Choose a folder** or **Choose files**. Folders keep their structure. The list shows every file before anything is sent, and files over the size limit are marked and left out.
 2. Press **Upload**. Each file shows its progress, and the bar above shows all of it. **Pause** stops sending and **Resume** carries on where it stopped; **Cancel** throws away what was sent. Keep the tab open until the upload finishes; other pages of the app can be used meanwhile.
