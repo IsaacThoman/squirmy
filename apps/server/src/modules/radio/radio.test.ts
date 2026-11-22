@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, externalIds, likes, recordings } from '../../database/schema.js'
+import { albums, externalIds, likes, recordingArtists, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
@@ -181,6 +181,16 @@ describe('radio', () => {
     const others = [...alias.entries()].filter(([id]) => id !== seed.recordingId).map(([, old]) => old)
     const result = await suggestAutoplay({ userId: user.id, seeds: [alias.get(seed.recordingId)!], exclude: others, limit: WINDOW })
     expect(result).toEqual([])
+  })
+
+  it('starts an artist radio from a track the artist leads without credit rows', async () => {
+    const user = await signIn()
+    const artist = await createArtist({ name: 'Uncredited' })
+    const album = await createAlbum({ artist, owned: true, tracks: [{ title: 'Only' }] })
+    // Rows from older imports and catalog stubs can carry only the primary artist.
+    await db.delete(recordingArtists).where(eq(recordingArtists.recordingId, album.tracks[0]!.recordingId))
+    const response = await app.inject({ method: 'POST', url: `/api/v1/radio/artist/${artist.id}`, headers: user.headers })
+    expect(body(response, RadioResponse).tracks[0]!.trackId).toBe(album.tracks[0]!.recordingId)
   })
 
   describe('similar artists', () => {
