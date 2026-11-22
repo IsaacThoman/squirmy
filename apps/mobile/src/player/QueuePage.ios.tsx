@@ -1,5 +1,5 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Button, Host, HStack, List, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Host, HStack, List, Spacer, SwipeActions, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, buttonStyle, dynamicTypeSize, environment, font, foregroundStyle, frame, labelStyle, lineLimit,
   listRowBackground, listRowInsets, listRowSeparatorTint, listStyle, opacity, scrollContentBackground, scrollDisabled, tint,
@@ -9,14 +9,14 @@ import type { TrackSummary } from '@squirmy/contracts';
 import { useWantlistEnabled } from '../account/AccountProvider';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
-import { useLiked, useTrack, useTrackStore } from '../data/library';
+import { useLiked, useTrack, useTrackStore, useWanted } from '../data/library';
 import { heartButton } from '../library/heart';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner } from '../library/trackActions';
 import { IconButton, Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
 import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
-import { queueRow } from './session';
-import { useColors } from '../theme';
+import { pendingQueueRow, queueRow } from './session';
+import { unavailableOpacity, useColors } from '../theme';
 
 /**
  * Rows have one height, which sizes the lists that hold them, so their text stops growing at
@@ -27,7 +27,12 @@ const rowTextLimit = dynamicTypeSize({ max: 'xxLarge' });
 // The list takes the limit too: its minimum row height grows with the text size, and past it rows would
 // outgrow `rowHeight` and the last one would be cut off.
 const listModifiers = [listStyle('plain'), scrollContentBackground('hidden'), scrollDisabled(), rowTextLimit];
-const headingHeight = 42;
+/**
+ * Headings and the controls beside them stop growing here: past it "Play queue" and History
+ * no longer fit side by side. The bands that hold them grow with their text up to it.
+ */
+const headingTextLimit = dynamicTypeSize({ max: 'xxxLarge' });
+const headingHeight = 44;
 /** Up next shows this many entries at first, and this many more each time more are asked for. */
 const upNextPage = 100;
 const rowModifiers = [
@@ -57,6 +62,18 @@ export default function QueuePage(_props: QueueProps) {
   const hidden = queue.queue.length - upNext.length;
   const canEdit = queue.queue.length > 1 || (session.autoplay && queue.autoplayQueue.length > 1);
 
+  // Until the viewport is known the content is not yet tall enough to open at Up next, so a
+  // short queue opened partway into the history; once it is, start at Up next.
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    if (!viewport || placed.current) return;
+    placed.current = true;
+    scrollY.current = historyOffset.current;
+    setHistoryVisible(false);
+    const task = requestAnimationFrame(() => scroll.current?.scrollTo({ y: historyOffset.current, animated: false }));
+    return () => cancelAnimationFrame(task);
+  }, [viewport]);
+
   useLayoutEffect(() => {
     const shift = historyHeight - historyOffset.current;
     historyOffset.current = historyHeight;
@@ -74,17 +91,16 @@ export default function QueuePage(_props: QueueProps) {
   ]);
 
   return <View style={styles.page}>
-    <QueueBand height={42}>
-      <HStack spacing={11}>
+    <QueueBand height={headingHeight}>
+      <HStack spacing={7}>
         <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Play queue</Text>
         <Spacer minLength={4} />
-        {history.length > 0 && <Button label={historyVisible ? 'Now playing' : 'History'}
-          modifiers={[buttonStyle('plain'), tint(colors.accent), foregroundStyle(colors.accent)]}
+        {history.length > 0 && <TextButton label={historyVisible ? 'Now playing' : 'History'} color={colors.accent}
           onPress={() => scroll.current?.scrollTo({
             y: historyVisible ? historyHeight : Math.max(0, historyHeight - viewport * 0.8), animated: true,
           })} />}
         {(canEdit || editing) && <IconButton symbol={editing ? 'checkmark' : 'pencil'}
-          label={editing ? 'Finish reordering' : 'Reorder queue'} color={colors.accent} size={17} width={36} height={42}
+          label={editing ? 'Finish reordering' : 'Reorder queue'} color={colors.accent} size={17}
           selected={editing} onPress={() => setEditing(!editing)} />}
       </HStack>
     </QueueBand>
@@ -102,7 +118,7 @@ export default function QueuePage(_props: QueueProps) {
           <HStack>
             <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Listening history</Text>
             <Spacer />
-            <Button label="Clear" onPress={clearHistory} modifiers={[plainButton, foregroundStyle(colors.muted)]} />
+            <TextButton label="Clear" color={colors.muted} onPress={clearHistory} />
           </HStack>
         </QueueBand>
         <Host ignoreSafeArea="container" style={[styles.list, { height: rowHeight * history.length }]}>
@@ -113,7 +129,7 @@ export default function QueuePage(_props: QueueProps) {
           </List>
         </Host>
       </>}
-      <QueueBand height={49}>
+      <QueueBand height={52}>
         <HStack spacing={12}>
           <QueueMode symbol="shuffle" label="Shuffle" active={session.shuffle} onPress={actions.toggleShuffle} />
           <QueueMode symbol={session.repeat === 'one' ? 'repeat.1' : 'repeat'} label={`Repeat ${session.repeat}`}
@@ -152,8 +168,17 @@ export default function QueuePage(_props: QueueProps) {
   </View>;
 }
 
+/** A heading or note between the lists, at least `height` tall and taller when its text needs it. */
 function QueueBand({ height, children }: { height: number; children: React.ReactNode }) {
-  return <Host alignment="leading" style={[styles.band, { height }]}>{children}</Host>;
+  return <Host alignment="leading" matchContents={{ vertical: true }} style={[styles.band, { minHeight: height }]}
+    modifiers={[headingTextLimit, frame({ maxWidth: Infinity, minHeight: height, alignment: 'leading' })]}>{children}</Host>;
+}
+
+/** A text button the full 44 pt tall, though its label is one short line. */
+function TextButton({ label, color, onPress }: { label: string; color: string; onPress: () => void }) {
+  return <Button onPress={onPress} modifiers={[plainButton, accessibilityLabel(label)]}>
+    <Text modifiers={[foregroundStyle(color), lineLimit(1), frame({ minWidth: 44, minHeight: 44 }), hitShape]}>{label}</Text>
+  </Button>;
 }
 
 function QueueMode({ symbol, label, active, onPress }: {
@@ -165,7 +190,8 @@ function QueueMode({ symbol, label, active, onPress }: {
     tint(active ? colors.accent : colors.muted), accessibilityLabel(label),
     ...(active ? [accessibilityAddTraits(['isSelected'])] : []),
   ]}>
-    <HStack modifiers={[frame({ width: 35, height: 24 })]}>
+    {/* The bordered style adds 7 pt above and below, so the button is 44 pt tall. */}
+    <HStack modifiers={[frame({ width: 35, height: 30 })]}>
       <Symbol name={symbol} size={17} color={active ? colors.onAccent : colors.text} />
     </HStack>
   </Button>;
@@ -246,30 +272,39 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
   const playable = useCanPlay(track);
   const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
+  const wanted = useWanted(track?.id);
   const viewer = useViewer();
-  const { detail, unavailable: failed } = queueRow(entry, track, { playable, offline, viewer });
+  const row = queueRow(entry, track, { playable, offline, viewer });
+  const failed = row.unavailable;
+  // Without its summary a row has nothing to show or act on: it says why, and offers no heart or menu.
+  const pending = track ? null : pendingQueueRow(offline);
   const title = track?.title ?? '';
-  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, viewer }) : [];
-  const heart = heartButton(favorite, title || 'this song');
-  return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
-    <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, accessibilityLabel(`${title}, ${detail}`)]}>
+  const detail = pending?.detail || row.detail;
+  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, wanted, viewer }) : [];
+  const heart = heartButton(favorite, title);
+  // A failed or gray song fades its cover, and its text takes colors that stay readable (3:1);
+  // the heart and menu keep their full color, since they still work.
+  return <HStack spacing={0} modifiers={[frame({ height: rowHeight })]}>
+    <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }}
+      modifiers={[plainButton, accessibilityLabel([pending?.title ?? title, detail].filter(Boolean).join(', '))]}>
       <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape]}>
-        <TrackCover track={track} size={38} />
+        <ZStack modifiers={failed ? [opacity(unavailableOpacity)] : []}><TrackCover track={track} size={38} /></ZStack>
         <VStack alignment="leading" spacing={3}>
-          <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1)]}>{title}</Text>
-          <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), lineLimit(1)]}>{detail}</Text>
+          <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1),
+            ...(pending ? [foregroundStyle(colors.muted)] : failed ? [foregroundStyle(colors.fadedTitle)] : [])]}>{pending?.title ?? title}</Text>
+          {detail ? <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(failed ? colors.fadedCredit : colors.muted), lineLimit(1)]}>{detail}</Text> : null}
         </VStack>
         <Spacer minLength={4} />
       </HStack>
     </Button>
-    <IconButton symbol={heart.icon} size={17} label={heart.label}
+    {track && <IconButton symbol={heart.icon} size={17} label={heart.label}
       color={favorite ? colors.accent : colors.muted} selected={heart.selected}
-      onPress={() => track && handlers.run(track, { id: favorite ? 'unlike' : 'like', title, icon: 'heart' })} />
-    <TrackActionsMenu actions={actions} onRun={action => track && handlers.run(track, action)} label={`More options for ${title || 'this song'}`}>
+      onPress={() => handlers.run(track, { id: favorite ? 'unlike' : 'like', title, icon: 'heart' })} />}
+    {track && <TrackActionsMenu actions={actions} onRun={action => handlers.run(track, action)} label={`More options for ${title}`}>
       {position && position.index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => handlers.move(entry, position.index - 1)} />}
       {position && position.index + 1 < position.total && <Button label="Move down" systemImage="chevron.down" onPress={() => handlers.move(entry, position.index + 1)} />}
       {position && <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={() => handlers.remove(entry)} />}
-    </TrackActionsMenu>
+    </TrackActionsMenu>}
   </HStack>;
 }, (a, b) => a.entry === b.entry && a.handlers === b.handlers && a.position?.index === b.position?.index
   && a.position?.total === b.position?.total && a.position?.autoplay === b.position?.autoplay);

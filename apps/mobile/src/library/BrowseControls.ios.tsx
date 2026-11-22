@@ -4,8 +4,8 @@ import {
   type TextFieldRef,
 } from '@expo/ui/swift-ui';
 import {
-  accessibilityLabel, autocorrectionDisabled, background, buttonBorderShape, buttonStyle, clipShape,
-  font, foregroundStyle, frame, lineLimit, menuIndicator, offset, padding, pickerStyle,
+  accessibilityLabel, autocorrectionDisabled, background, buttonBorderShape, buttonStyle, clipShape, controlSize, dynamicTypeSize, fixedSize,
+  font, foregroundStyle, frame, lineLimit, menuIndicator, offset, padding, pickerStyle, shadow, truncationMode,
   opacity, progressViewStyle, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -46,7 +46,7 @@ export function SearchField({ value, onChange, placeholder, autoFocus, inputRef 
       <TextField ref={nativeRef} text={fieldText} onTextChange={onChange} placeholder={placeholder} autoFocus={autoFocus}
         modifiers={[accessibilityLabel(placeholder), autocorrectionDisabled(), textInputAutocapitalization('never'),
           submitLabel('search'), font({ textStyle: 'body' }), frame({ maxWidth: Infinity })]} />
-      {!!value.length && <IconButton label="Clear search" symbol="xmark.circle.fill" size={17} width={32} height={44}
+      {!!value.length && <IconButton label="Clear search" symbol="xmark.circle.fill" size={17} width={44} height={44}
         color={colors.muted} onPress={() => setText('')} />}
     </HStack>
   </Host>;
@@ -72,8 +72,9 @@ export function BrowseButton({ label, icon, title, glass, onPress }: BrowseButto
 }
 
 export function LibraryFilters<T extends string>({ options, value, onChange }: FilterProps<T>) {
+  // The large segmented control is 44 tall, the smallest target Apple recommends; the regular one is 32.
   return <Host style={styles.filters}>
-    <Picker label="Collections" selection={value} onSelectionChange={onChange} modifiers={[pickerStyle('segmented')]}>
+    <Picker label="Collections" selection={value} onSelectionChange={onChange} modifiers={[pickerStyle('segmented'), controlSize('large')]}>
       {options.map(option => <Text key={option} modifiers={[tag(option)]}>{option}</Text>)}
     </Picker>
   </Host>;
@@ -83,9 +84,10 @@ export function LibrarySort<T extends string>({ options, value, onChange }: Filt
   const colors = useColors();
   return <Host matchContents>
     <Menu modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(`Sort library, ${value}`)]}
-      label={<HStack spacing={6} modifiers={[frame({ minHeight: 44 }), hitShape]}>
+      label={<HStack spacing={6} modifiers={[frame({ minHeight: 44 }), hitShape, dynamicTypeSize({ max: 'accessibility1' })]}>
         <Symbol name="arrow.up.arrow.down" size={14} color={colors.muted} />
-        <Text modifiers={[labelFont, foregroundStyle(colors.muted)]}>{value}</Text>
+        {/* Stops growing before it would push the grid/list switch beside it off the screen. */}
+        <Text modifiers={[labelFont, foregroundStyle(colors.muted), lineLimit(1)]}>{value}</Text>
       </HStack>}>
       {options.map(option => <Button key={option} label={option} systemImage={option === value ? 'checkmark' : undefined}
         onPress={() => onChange(option)} />)}
@@ -125,7 +127,9 @@ function TileButton({ title, subtitle, cover, size, dim, onPress }: LinkedButton
     <VStack alignment="leading" spacing={6} modifiers={[frame({ width: size, alignment: 'leading' }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
       <HostedCover cover={cover} size={size} zoom />
       <VStack alignment="leading" spacing={2}>
-        <Text modifiers={[labelFont, lineLimit(1)]}>{title}</Text>
+        {/* Two lines, cut in the middle: editions of one release differ at the end of the title
+            ("… (Acoustic Version)"), which a cut at the end would hide. */}
+        <Text modifiers={[labelFont, lineLimit(2), truncationMode('middle')]}>{title}</Text>
         <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
       </VStack>
     </VStack>
@@ -146,7 +150,8 @@ function RowButton({ title, subtitle, cover, size, dim, onPress, onSelect, actio
     <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
       <HostedCover cover={cover} size={size} zoom />
       <VStack alignment="leading" spacing={3}>
-        <Text modifiers={[labelFont, lineLimit(1)]}>{title}</Text>
+        {/* Cut in the middle, as on tiles: editions differ at the end of a title. */}
+        <Text modifiers={[labelFont, lineLimit(2), truncationMode('middle')]}>{title}</Text>
         <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
       </VStack>
       <Spacer minLength={4} />
@@ -168,8 +173,8 @@ function RowButton({ title, subtitle, cover, size, dim, onPress, onSelect, actio
   </VStack>;
 }
 
-export function GenreGrid({ items }: GenreGridProps) {
-  return <TileGrid items={items} columns={2} verticalSpacing={12} render={item => <GenreTileButton {...item} />} />;
+export function GenreGrid({ items, columns = 2 }: GenreGridProps) {
+  return <TileGrid items={items} columns={columns} verticalSpacing={12} render={item => <GenreTileButton {...item} />} />;
 }
 
 function TileGrid<T extends { id: string }>({ items, columns, verticalSpacing, render }: {
@@ -189,14 +194,16 @@ function TileGrid<T extends { id: string }>({ items, columns, verticalSpacing, r
 
 function GenreTileButton({ title, color, width, cover, onPress }: GenreCardProps) {
   return <Button onPress={onPress} modifiers={[plainButton, accessibilityLabel(`Browse ${title}`)]}>
+    {/* At least 106 tall, taller when the name needs it: a large text size wraps it instead of cutting it. */}
     <ZStack alignment="bottomTrailing" modifiers={[
-      frame({ width, height: 106 }), background(color), clipShape('roundedRectangle', 15), hitShape,
+      frame({ minWidth: width, maxWidth: width, minHeight: 106 }), background(color), clipShape('roundedRectangle', 15), hitShape,
     ]}>
       <ZStack modifiers={[rotationEffect(19), offset({ x: 8, y: 16 })]}>
         <HostedCover cover={cover} size={85} />
       </ZStack>
-      <Text modifiers={[font({ textStyle: 'headline' }), foregroundStyle('#F5F2FF'), padding({ top: 12, leading: 12, trailing: 8 }),
-        frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]}>{title}</Text>
+      <Text modifiers={[font({ textStyle: 'headline' }), foregroundStyle('#F5F2FF'), padding({ top: 12, leading: 12, trailing: 8, bottom: 12 }),
+        frame({ maxWidth: Infinity, alignment: 'topLeading' }), fixedSize({ horizontal: false, vertical: true }),
+        frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }), shadow({ radius: 6, color: '#00000080' })]}>{title}</Text>
     </ZStack>
   </Button>;
 }
@@ -219,12 +226,14 @@ export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActions
   return <Host style={StyleSheet.absoluteFill}>
     <ZStack alignment="bottomTrailing">
       <Button modifiers={[plainButton, accessibilityLabel(`Open ${title}`)]} onPress={onOpen}>
+        {/* The card keeps its height, so its text stops growing where the title and credit still fit. */}
         <VStack alignment="leading" spacing={4} modifiers={[
-          padding({ bottom: 20, leading: 20, trailing: 75 }),
+          dynamicTypeSize({ max: 'accessibility2' }), padding({ bottom: 20, leading: 20, trailing: 75 }),
           frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'bottomLeading' }), hitShape,
         ]}>
           <Text modifiers={[font({ textStyle: 'largeTitle', weight: 'bold' }), foregroundStyle('#F5F2FF'), lineLimit(2)]}>{title}</Text>
-          <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle('#F0E6FA'), lineLimit(1)]}>{artist}</Text>
+          {/* Two lines, so a large text size keeps every credited artist ("Khruangbin & Leon Bridges"). */}
+          <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle('#F0E6FA'), lineLimit(2)]}>{artist}</Text>
         </VStack>
       </Button>
       <VStack modifiers={[padding({ bottom: 17, trailing: 17 })]}>
@@ -236,6 +245,6 @@ export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActions
 
 const styles = StyleSheet.create({
   search: { height: 46 },
-  filters: { height: 37 },
+  filters: { height: 48 },
   gridRow: { flexDirection: 'row', columnGap: 12, marginBottom: 19 },
 });

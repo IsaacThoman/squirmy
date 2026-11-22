@@ -55,6 +55,17 @@ describe('telling failures', () => {
     expect(titles().filter(title => title.startsWith('Can’t load'))).toHaveLength(1)
   })
 
+  it('tells an outage that fails several songs at once as the outage alone', async () => {
+    const { socket } = await playLowTide()
+    // As the server does when its provider is down: the songs fail in one moment, then it pauses and says so.
+    failTrack(socket, edit.id)
+    failTrack(socket, song.id)
+    act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id }))
+    act(() => socket.serverSet(session => ({ ...session, playing: false })))
+    await act(() => new Promise(resolve => setTimeout(resolve, 1700)))
+    expect(titles()).toEqual(['Can’t load music right now Playback is paused.'])
+  })
+
   it('gives the reason the server knows for an outage', async () => {
     const { socket } = await playLowTide()
     act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id, kind: 'outage', reason: 'The server can’t fetch music on demand right now.' }))

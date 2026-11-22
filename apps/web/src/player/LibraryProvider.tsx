@@ -1,14 +1,15 @@
 import { queryKeys, type CreatePlaylistRequest, type Page, type PlaylistSummary, type TrackSummary, type WantItem } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { patchEntity } from '@/api/patch'
-import { usePlaylists, useWants } from '@/api/queries'
+import { playlistQuery, usePlaylists, useWants } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
+import { AlreadyInPlaylistDialog, type RepeatedAdd } from '@/components/layout/AlreadyInPlaylistDialog'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
 import { plural } from '@/lib/format'
-import { toast } from '@/lib/toast'
+import { dismissToast, toast } from '@/lib/toast'
 import { LibraryContext, type LibraryActions, type LibraryTarget, type WantTarget } from './library-context'
 
 /** Sets fields of one entity in every cached answer that shows it. */
@@ -18,6 +19,26 @@ function patchCache(client: QueryClient, id: string, patch: Record<string, unkno
 
 const wantedId = (target: WantTarget) => (target.type === 'album' ? target.album.id : target.track.id)
 const playlistTracks = (tracks: TrackSummary[]) => tracks.slice(0, 1000).map(track => ({ trackId: track.id, albumId: track.album?.id ?? null }))
+/** A promise and the function that settles it. */
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>(settle => { resolve = settle })
+  return { promise, resolve }
+}
+
+type SaveVariables = {
+  target: LibraryTarget
+  saved: boolean
+  undoing?: boolean
+  quiet?: boolean
+  /** On a save that undoes a removal: when the removed save was made, so it keeps its place. */
+  savedAt?: string
+  /** On a removal: settles with when the removed save was made, or null if the server refused. */
+  removal?: ReturnType<typeof deferred<{ savedAt?: string } | null>>
+}
+
+const removalOf = (saved: boolean) => (saved ? undefined : deferred<{ savedAt?: string } | null>())
+
 const songs = (tracks: TrackSummary[]) => (tracks.length === 1 ? tracks[0].title : plural(tracks.length, 'song'))
 
 /**
@@ -34,29 +55,57 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const wants = useWants(wantlistEnabled).data
   const allPlaylists = usePlaylists().data
   const [draft, setDraft] = useState<{ tracks: TrackSummary[] } | null>(null)
+  const [repeatedAdd, setRepeatedAdd] = useState<RepeatedAdd | null>(null)
 
   // The heart. A saved track or artist is in the library at once; after a removal only the server
   // knows whether it still is (on the collection, on a saved album), so the lists ask it.
   const save = useMutation({
-    mutationFn: ({ target, saved }: { target: LibraryTarget; saved: boolean; undoing?: boolean; quiet?: boolean }) =>
-      (saved ? api.userdata.like(target.type, target.id) : api.userdata.unlike(target.type, target.id)),
-    onMutate: ({ target, saved, undoing, quiet }) => {
+    mutationFn: async ({ target, saved, savedAt, removal }: SaveVariables) => {
+      if (saved) {
+        await (savedAt ? api.userdata.like(target.type, target.id, { savedAt }) : api.userdata.like(target.type, target.id))
+        return
+      }
+      const answer = await api.userdata.unlike(target.type, target.id)
+      removal?.resolve({ savedAt: answer.savedAt ?? undefined })
+    },
+    onMutate: ({ target, saved, undoing, quiet, removal }) => {
       patchCache(queryClient, target.id, saved ? { liked: true, inLibrary: true } : { liked: false })
       // Undo puts it back as it was, quietly: the toast that offered it already said what happened.
-      if (undoing || quiet) return
-      toast({
+      if (undoing || quiet) return {}
+      // Undo of a removal waits for the removal's answer, which says when the save was made, so the
+      // item goes back to its place in Recently added and Liked Songs rather than to the top. A
+      // removal the server refused has nothing to undo.
+      const undo = async () => {
+        const removed = removal ? await removal.promise : {}
+        if (removed) save.mutate({ target, saved: !saved, undoing: true, savedAt: removed.savedAt })
+      }
+      const toastId = toast({
         title: saved ? 'Saved to your library' : 'Removed from your library',
         description: target.title,
-        action: { label: 'Undo', onClick: () => save.mutate({ target, saved: !saved, undoing: true }) },
+        action: { label: 'Undo', onClick: () => void undo() },
+      })
+      return { toastId }
+    },
+    // The success toast said it happened; it goes, and a notice that it did not takes its place.
+    onError: (_error, variables, context) => {
+      const { target, saved } = variables
+      patchCache(queryClient, target.id, { liked: !saved })
+      variables.removal?.resolve(null)
+      if (context?.toastId !== undefined) dismissToast(context.toastId)
+      toast({
+        title: saved ? 'Couldn’t save to your library' : 'Couldn’t remove from your library',
+        description: target.title,
+        action: { label: 'Try again', onClick: () => save.mutate({ ...variables, removal: removalOf(saved) }) },
       })
     },
-    onError: (_error, { target, saved }) => patchCache(queryClient, target.id, { liked: !saved }),
     // The library's lists, Liked Songs and Home's "Recently added" gain or lose it.
     onSettled: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.library() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.likes() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.home() }),
     ]),
+    // The notice above says what failed, with Try again; the cache's own toast would repeat it.
+    meta: { inline: true },
   })
 
   const want = useMutation({
@@ -80,8 +129,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   })
 
   const add = useMutation({
-    mutationFn: ({ playlist, tracks }: { playlist: Pick<PlaylistSummary, 'id' | 'name'>; tracks: TrackSummary[] }) =>
-      api.userdata.addPlaylistItems(playlist.id, { tracks: playlistTracks(tracks) }),
+    mutationFn: ({ playlist, tracks, skipDuplicates }: { playlist: Pick<PlaylistSummary, 'id' | 'name'>; tracks: TrackSummary[]; skipDuplicates?: boolean }) =>
+      api.userdata.addPlaylistItems(playlist.id, { tracks: playlistTracks(tracks), skipDuplicates }),
     onSuccess: (detail, { playlist, tracks }) => {
       queryClient.setQueryData(queryKeys.playlist(detail.id), detail)
       toast({ title: `Added to ${playlist.name}`, description: songs(tracks) })
@@ -108,19 +157,44 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const { mutate: setWanted } = want
   const { mutate: addTo } = add
 
+  // Songs the playlist has already are asked about first. Its cached copy is current enough:
+  // the server's invalidations refresh it whenever it changes elsewhere.
+  const addToPlaylist = useCallback(async (playlist: Pick<PlaylistSummary, 'id' | 'name'>, tracks: TrackSummary[]) => {
+    if (!tracks.length) return
+    const detail = await queryClient.fetchQuery({ ...playlistQuery(api, playlist.id), staleTime: 60_000 }).catch(() => null)
+    const there = new Set(detail?.items.map(item => item.track.id))
+    const repeated = tracks.filter(track => there.has(track.id))
+    if (repeated.length) setRepeatedAdd({ playlist, tracks, repeated })
+    else addTo({ playlist, tracks })
+  }, [api, queryClient, addTo])
+
   const actions = useMemo<LibraryActions>(() => ({
     wantlistEnabled,
     isWanted: (id, fromServer = false) => fromServer || wantedIds.has(id),
-    setSaved: (target, saved, options) => setSaved({ target, saved, quiet: options?.quiet }),
+    setSaved: (target, saved, options) => setSaved({ target, saved, quiet: options?.quiet, removal: removalOf(saved) }),
     setWanted: (target, wanted) => setWanted({ target, wanted }),
     playlists,
-    addToPlaylist: (playlist, tracks) => { if (tracks.length) addTo({ playlist, tracks }) },
+    addToPlaylist: (playlist, tracks) => void addToPlaylist(playlist, tracks),
     newPlaylist: (tracks = []) => setDraft({ tracks }),
-  }), [wantlistEnabled, wantedIds, playlists, setSaved, setWanted, addTo])
+  }), [wantlistEnabled, wantedIds, playlists, setSaved, setWanted, addToPlaylist])
 
   return (
     <LibraryContext value={actions}>
       {children}
+      <AlreadyInPlaylistDialog
+        add={repeatedAdd}
+        onOpenChange={open => { if (!open) setRepeatedAdd(null) }}
+        onAddAnyway={() => {
+          if (repeatedAdd) addTo({ playlist: repeatedAdd.playlist, tracks: repeatedAdd.tracks })
+          setRepeatedAdd(null)
+        }}
+        onSkip={() => {
+          const fresh = repeatedAdd?.tracks.filter(track => !repeatedAdd.repeated.includes(track)) ?? []
+          // The server leaves out anything added meanwhile, too.
+          if (repeatedAdd && fresh.length) addTo({ playlist: repeatedAdd.playlist, tracks: fresh, skipDuplicates: true })
+          setRepeatedAdd(null)
+        }}
+      />
       <PlaylistDialog
         open={draft !== null}
         onOpenChange={open => { if (!open) setDraft(null) }}

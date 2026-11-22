@@ -4,14 +4,14 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, artists, assets, externalIds, lyrics, recordings, releases } from '../../database/schema.js'
+import { albumArtists, albums, artists, assets, externalIds, likes, lyrics, recordings, releases } from '../../database/schema.js'
 import { startJobs } from '../../jobs/index.js'
 import { newId, newPublicId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
-import { createAlbum, createArtist } from '../../test/factories.js'
+import { createAlbum, createArtist, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
 import { demoAlbums } from '../../test/matching.js'
 import { home } from '../catalog/home.js'
@@ -162,10 +162,43 @@ describe('owned music enrichment', () => {
     const ownedRecent = await createAlbum({ title: 'Owned Recent', artist: owned.artist, owned: true })
     await db.update(albums).set({ releaseDate: day(5) }).where(eq(albums.id, ownedRecent.albumId))
 
-    expect(await newReleaseAlbumIds(20)).toEqual([fresh])
+    expect(await newReleaseAlbumIds(user.id, 20)).toEqual([fresh])
     const section = (await home(user.id)).sections.find((one) => one.id === 'new-releases')
     expect(section).toMatchObject({ kind: 'albums', title: 'New releases' })
     expect(section?.kind === 'albums' && section.albums.map((album) => album.id)).toEqual([fresh])
+  })
+
+  it("draws new releases from each user's own artists, and leaves cover acts out", async () => {
+    const other = await createUser()
+    const day = (offset: number) => new Date(Date.now() - offset * 86_400_000).toISOString().slice(0, 10)
+    const recentBy = async (artist: { id: string; name: string }, title: string) => {
+      const album = await createAlbum({ title, artist })
+      await db.update(albums).set({ releaseDate: day(3) }).where(eq(albums.id, album.albumId))
+      return album.albumId
+    }
+    // Played, so cached: fetched music makes no one's artist (live: nine karaoke volumes on Home).
+    const karaoke = await createArtist({ name: 'Party Tyme Karaoke' })
+    const sampled = await createAlbum({ title: 'Sampled', artist: karaoke, owned: true, source: 'provider:00000000-0000-7000-8000-000000000000' })
+    // Enriched already, so the sweep test that follows finds only its own work.
+    await db.update(albums).set({ enrichedAt: new Date() }).where(eq(albums.id, sampled.albumId))
+    const karaokeRelease = await recentBy(karaoke, 'Karaoke Hits Vol. 9')
+    // Hearted by the other user only: theirs, not this user's.
+    const followed = await createArtist({ name: 'Followed Act' })
+    await db.insert(likes).values({ userId: other.id, entityType: 'artist', entityId: followed.id })
+    const followedRelease = await recentBy(followed, 'Followed Album')
+    // A cover act's release under an artist the user has is not their new music.
+    const tribute = await recentBy(owned.artist, 'A Tribute to the Library Band')
+    const quartet = await recentBy(owned.artist, 'String Quartet Performs the Library Band')
+
+    const mine = await newReleaseAlbumIds(user.id, 200)
+    expect(mine).not.toContain(karaokeRelease)
+    expect(mine).not.toContain(followedRelease)
+    expect(mine).not.toContain(tribute)
+    expect(mine).not.toContain(quartet)
+    expect(await newReleaseAlbumIds(other.id, 200)).toContain(followedRelease)
+    // Saving the album takes it out of the feed: the library has it now.
+    await db.insert(likes).values({ userId: other.id, entityType: 'album', entityId: followedRelease })
+    expect(await newReleaseAlbumIds(other.id, 200)).not.toContain(followedRelease)
   })
 
   it('leaves Various Artists out of new releases: owning a compilation adds no one\'s discography', async () => {
@@ -182,7 +215,7 @@ describe('owned music enrichment', () => {
     http.requests.length = 0
     await refreshNewReleases()
     expect(http.requests.filter((url) => url.includes('89ad4ac3-39f7-470e-963a-56509c546377'))).toEqual([])
-    expect(await newReleaseAlbumIds(200)).not.toContain(recent.albumId)
+    expect(await newReleaseAlbumIds(user.id, 200)).not.toContain(recent.albumId)
   })
 
   it('sweeps owned music that was never enriched', async () => {

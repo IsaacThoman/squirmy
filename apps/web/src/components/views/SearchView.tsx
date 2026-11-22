@@ -23,7 +23,7 @@ import { albumPresentation, canFetch, genreColor, isPlayable, UNAVAILABLE_LABEL 
 import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
-import { isLoading, usePlayer } from '@/player/player-context'
+import { usePlayer } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 /** The results for what is typed and the filter chosen, however they were found. */
@@ -297,7 +297,7 @@ function ResultRow({ id, item, active, stale, onChoose, trackMenu, resultMenu, o
     : item.type === 'artist' ? !item.artist.inLibrary && !canFetch(viewer) : unavailable
   const current = track !== null && state.current?.track.id === track.id
   const playing = current && state.playing
-  const loading = current && isLoading(state)
+  const loading = current && state.waiting
   const menu = track ? trackMenu!(track) : resultMenu(item as Exclude<SearchItem, { type: 'track' }>)
 
   const overlay = 'absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring'

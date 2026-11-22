@@ -1,4 +1,4 @@
-import { SearchQuery, type SearchKind, type SearchResults } from '@squirmy/contracts'
+import { LibrarySearchQuery, SearchQuery, type SearchKind, type SearchResults } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { requireUser } from '../../lib/auth.js'
 import { dropCachedReads } from '../../lib/read-cache.js'
@@ -44,11 +44,12 @@ const ranked = (list: Ranked[]) => list.map(({ type, id, score }) => ({ type, id
 export async function searchRoutes(app: FastifyInstance) {
   app.get('/search/library', async (request): Promise<SearchResults> => {
     const user = requireUser(request)
-    const { q, limit, type, offset } = SearchQuery.parse(request.query)
+    const { q, limit, type, offset, genre } = LibrarySearchQuery.parse(request.query)
     const key = matchKey(q)
     // Library keys are `matchKey`s too, so a query of symbols alone can find nothing there.
     if (tooShort(q, key) || key === '') return empty
-    const ids = await searchLibrary(user.id, key, limit, { offset, types: type && [type] })
+    // With a genre, a search inside the Library's genre chip stays in it.
+    const ids = await searchLibrary(user.id, key, limit, { offset, types: type && [type], genre })
     const found = distinct(await summaries(user.id, ids))
     // Every result of the library search is the viewer's own.
     const list = await rankFound(q, found, { userId: user.id, owned: [...ids.artists, ...ids.albums, ...ids.tracks] })

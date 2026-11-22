@@ -1,5 +1,5 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
-import { queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
+import { Id, queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
 import { awaitsTrackList } from '@/lib/catalog'
 import { useDebounced } from '@/lib/use-debounced'
@@ -12,6 +12,15 @@ import { useApi } from './services'
  */
 
 export const isNotFound = (error: unknown) => error instanceof ApiError && error.status === 404
+
+/**
+ * A page id that cannot be one (a link cut short when pasted) names nothing, as an unknown id
+ * does: it gets the same "Nothing here" without asking the server, which would refuse it as
+ * an invalid request.
+ */
+function byId<T>(id: string, load: () => Promise<T>): Promise<T> {
+  return Id.safeParse(id).success ? load() : Promise.reject(new ApiError(404, 'not_found', 'Nothing has this id.'))
+}
 
 /** Follows every cursor of a short list (playlists, wants) and returns all of it. */
 async function everything<T>(load: (cursor: string | undefined) => Promise<Page<T>>): Promise<Page<T>> {
@@ -36,9 +45,9 @@ export function useHome() {
   return useQuery(homeQuery(useApi()))
 }
 
-export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.album(id), queryFn: () => api.catalog.album(id), meta: silent })
-export const artistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.artist(id), queryFn: () => api.catalog.artist(id), meta: silent })
-export const playlistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.playlist(id), queryFn: () => api.userdata.playlist(id), meta: silent })
+export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.album(id), queryFn: () => byId(id, () => api.catalog.album(id)), meta: silent })
+export const artistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.artist(id), queryFn: () => byId(id, () => api.catalog.artist(id)), meta: silent })
+export const playlistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.playlist(id), queryFn: () => byId(id, () => api.userdata.playlist(id)), meta: silent })
 
 /**
  * How often, and for how many answers, an album whose songs are still being looked up asks
@@ -62,10 +71,12 @@ export function useAlbum(id: string) {
 const DISCOGRAPHY_POLL_MS = 5000
 const DISCOGRAPHY_POLLS = 120
 
-export function useArtist(id: string) {
+/** `poll: false` for a page that only borrows the artist (an album's "More by"): the invalidations are enough there. */
+export function useArtist(id: string, { enabled = true, poll = true }: { enabled?: boolean; poll?: boolean } = {}) {
   return useQuery({
     ...artistQuery(useApi(), id),
-    refetchInterval: query => (query.state.data?.detailPending && query.state.dataUpdateCount < DISCOGRAPHY_POLLS ? DISCOGRAPHY_POLL_MS : false),
+    enabled,
+    refetchInterval: query => (poll && query.state.data?.detailPending && query.state.dataUpdateCount < DISCOGRAPHY_POLLS ? DISCOGRAPHY_POLL_MS : false),
   })
 }
 
@@ -74,7 +85,7 @@ export function useArtistReleases(id: string, section: ArtistSectionKey, enabled
   const api = useApi()
   return useInfiniteQuery({
     queryKey: queryKeys.artistReleases(id, section),
-    queryFn: ({ pageParam }) => api.catalog.artistReleases(id, { section, cursor: pageParam, limit: 60 }),
+    queryFn: ({ pageParam }) => byId(id, () => api.catalog.artistReleases(id, { section, cursor: pageParam, limit: 60 })),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.nextCursor ?? undefined,
     enabled,
@@ -82,8 +93,8 @@ export function useArtistReleases(id: string, section: ArtistSectionKey, enabled
   })
 }
 
-export function usePlaylist(id: string) {
-  return useQuery(playlistQuery(useApi(), id))
+export function usePlaylist(id: string, enabled = true) {
+  return useQuery({ ...playlistQuery(useApi(), id), enabled })
 }
 
 /** Your playlists and other people's public ones, recently changed first. */
@@ -147,16 +158,16 @@ export const searchesServer = (text: string) => [...text.trim()].length >= LIBRA
 
 /**
  * Albums, artists and songs in the library matching `text`, asked of the server once typing
- * pauses, best first. Under `LIBRARY_MATCH_MIN_LENGTH` characters it asks nothing. `pending`:
- * the answer for what is typed is still on its way.
+ * pauses, best first, within `genre` when one is given. Under `LIBRARY_MATCH_MIN_LENGTH`
+ * characters it asks nothing. `pending`: the answer for what is typed is still on its way.
  */
-export function useLibraryMatches(text: string) {
+export function useLibraryMatches(text: string, genre?: string) {
   const api = useApi()
   const typed = text.trim()
   const q = useDebounced(typed, 150, '')
   const query = useQuery({
-    queryKey: [...queryKeys.search(), 'library', q, LIBRARY_MATCH_LIMIT],
-    queryFn: ({ signal }) => api.search.library({ q, limit: LIBRARY_MATCH_LIMIT }, { signal }),
+    queryKey: [...queryKeys.search(), 'library', q, LIBRARY_MATCH_LIMIT, genre ?? null],
+    queryFn: ({ signal }) => api.search.library({ q, limit: LIBRARY_MATCH_LIMIT, ...(genre && { genre }) }, { signal }),
     enabled: searchesServer(q),
     placeholderData: keepPreviousData,
     staleTime: 60_000,

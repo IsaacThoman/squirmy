@@ -5,7 +5,7 @@ import { albumPresentation } from '@/lib/catalog'
 import { toast } from '@/lib/toast'
 import { useLibrary } from './library-context'
 import { useViewer } from './on-demand-context'
-import { isLoading, usePlayer } from './player-context'
+import { usePlayer } from './player-context'
 
 type TrackActionOptions = {
   /** Plays from a row; defaults to playing `tracks` from that row on. */
@@ -20,7 +20,7 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
   const { state, controls } = usePlayer()
   const library = useLibrary()
   const current = state.current
-  const loading = isLoading(state)
+  const loading = state.waiting
 
   const nowPlaying = useMemo<NowPlaying | null>(() => current && {
     trackId: current.track.id,

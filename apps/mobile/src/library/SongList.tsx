@@ -119,24 +119,25 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
       <Pressable accessibilityRole="button"
         accessibilityLabel={`${playable ? 'Play ' : ''}${track.title} by ${track.artistCredit}${track.explicit ? ', Explicit' : ''}${
           playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`}
-        style={({ pressed }) => [styles.songInfo, !playable && styles.unavailable, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.songInfo, pressed && styles.pressed]}
         onPress={playable ? onPlay : onMenu} onLongPress={onMenu}
         accessibilityActions={playable ? [{ name: 'playNext', label: 'Play next' }] : undefined}
         onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'playNext') playNext(); }}>
-        {typeof number === 'number' ? <View style={styles.songPosition}>
+        {/* A gray song fades its artwork, and its text takes colors that stay readable (3:1). */}
+        {typeof number === 'number' ? <View style={[styles.songPosition, !playable && styles.unavailable]}>
           {current && loading !== 'none' ? <ActivityIndicator size="small" color={colors.accent} />
             : current ? <Icon name={playing === 'playing' ? 'waveform' : 'pause.fill'} size={17} color={colors.accent} /> : <Text style={styles.songNumber}>{number}</Text>}
-        </View> : <Cover artwork={track.album?.artwork} size={42} radius={8} />}
+        </View> : <Cover artwork={track.album?.artwork} size={42} radius={8} style={!playable && styles.unavailable} />}
         <View style={styles.flex}>
           <View style={styles.titleRow}>
-            <Text numberOfLines={1} style={[styles.rowTitle, styles.titleText, current && styles.currentTitle]}>{track.title}</Text>
-            {track.explicit && <Icon name="e.square.fill" size={12} color={colors.muted} />}
+            <Text numberOfLines={1} style={[styles.rowTitle, styles.titleText, !playable && styles.fadedTitle, current && styles.currentTitle]}>{track.title}</Text>
+            {track.explicit && <Icon name="e.square.fill" size={12} color={playable ? colors.muted : colors.fadedCredit} />}
           </View>
           {/* On an album page a row by the album's artist has no second line, unless it has something else to say. */}
           {(item.showArtist || mark || loading !== 'none') && <View style={styles.subtitle}>
             {typeof number !== 'number' && loading !== 'none' ? <ActivityIndicator size="small" color={colors.accent} style={styles.rowSpinner} />
               : mark && <Icon name={mark} size={11} color={colors.muted} />}
-            {(item.showArtist || loading === 'slow') && <Text numberOfLines={1} style={[styles.rowSub, styles.flex]}>
+            {(item.showArtist || loading === 'slow') && <Text numberOfLines={1} style={[styles.rowSub, styles.flex, !playable && styles.fadedCredit]}>
               {loading === 'slow' ? STILL_LOADING_LABEL : item.kind ? `${item.kind} · ${track.artistCredit}` : track.artistCredit}
             </Text>}
           </View>}
@@ -161,6 +162,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   titleText: { flexShrink: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   rowSub: { color: colors.muted, fontSize: 12 },
+  fadedTitle: { color: colors.fadedTitle },
+  fadedCredit: { color: colors.fadedCredit },
   subtitle: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 3 },
   songRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke, paddingLeft: 5, paddingRight: 2, minHeight: 58 },
   songCurrent: { backgroundColor: colors.selection, borderRadius: 11 },
