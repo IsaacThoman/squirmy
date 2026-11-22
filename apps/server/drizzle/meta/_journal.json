@@ -78,6 +78,13 @@
       "when": 1795207462357,
       "tag": "0010_drop_scan_interval",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795338726514,
+      "tag": "0011_detached_sessions",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,10 @@
-import { type AnySessionCommand, positionAt, queueChanged, reduceSession, type Session, splitSession } from '@squirmy/client-core'
 import {
-  CommandEnvelope, EngineReport,
-  type CommandAck, type DeviceInfo, type QueueEntry, type SessionCommand, type SessionHello, type SessionHelloAck, type SessionSnapshot,
+  type AnySessionCommand, bringSession, forkSession, positionAt, queueChanged, reduceSession, type Session, splitSession,
+} from '@squirmy/client-core'
+import {
+  CommandEnvelope, EngineReport, SessionAttach, SessionDetach,
+  type CommandAck, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
+  type SessionMoveAck, type SessionSnapshot,
 } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
@@ -12,10 +15,11 @@ import type { RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { lookupTracks, trustSeeds } from './entries.js'
-import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, savePlay } from './plays.js'
-import { connectedDevice, joinDevice, leaveDevice, listDevices } from './presence.js'
+import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, type OpenPlay, savePlay } from './plays.js'
+import { connectedDevice, connectedDeviceIds, deviceSockets, joinDevice, leaveDevice, listDevices } from './presence.js'
 import {
-  loadedRecord, loadedRecords, loadRecord, rememberCommand, schedulePersist, serial, type SessionRecord, snapshotOf, unloadAll,
+  createOwn, deleteStoredOwn, discardOwn, loadedOwn, loadedRecord, loadedRecords, loadRecord, persist, readOwn, recordOf, rememberCommand,
+  schedulePersist, serial, type SessionRecord, sessionKey, snapshotOf, storedOwn, unloadAll,
 } from './store.js'
 
 /** A reported position this far from the computed one re-anchors the session. */
@@ -26,6 +30,11 @@ const AUTOPLAY_BATCH = 10
 const AUTOPLAY_SEEDS = 10
 /** On-demand entries are requested while they are current or among this many next. */
 const PREPARE_AHEAD = 2
+/** Own sessions a user may keep; detaching beyond this drops the one gone longest, unless all are connected. */
+const MAX_DETACHED = 8
+/** An own session is discarded once its device has not been seen for this long. */
+const DETACHED_KEEP_MS = 7 * 24 * 60 * 60_000
+const CAPABILITIES: SessionCapability[] = ['detach']
 
 /** Schedules and cancels the grace timers. */
 export type SessionTimers = { set: (callback: () => void, ms: number) => unknown; clear: (handle: unknown) => void }
@@ -62,7 +71,11 @@ function report(error: unknown): void {
   if (getConfig().LOG_LEVEL !== 'silent') console.error('[sessions]', error)
 }
 
-const room = (userId: string) => `user:${userId}`
+/** Every authenticated socket of the user: device lists and invalidations go here. */
+const userRoom = (userId: string) => `user:${userId}`
+const SESSION_ROOM = 'session:'
+/** The sockets in a session, which its updates go to: a detached device's own, or all the other ones of the user. */
+const sessionRoom = (record: SessionRecord) => `${SESSION_ROOM}${record.key}`
 
 function load(userId: string): Promise<SessionRecord> {
   return loadRecord(userId, recheck)
@@ -80,8 +93,51 @@ async function recheck(record: SessionRecord): Promise<void> {
     if (availability !== 'on_demand') applyServer(record, { type: 'setEntryState', trackId, state: availability === 'server' ? 'ready' : 'failed' })
   }
   const active = record.session.activeDeviceId
-  if (active && !connectedDevice(record.userId, active)) startGrace(record.userId, active)
+  if (active && !connectedDevice(record.userId, active)) startGrace(record, active)
   afterChange(record)
+}
+
+/** The session a connected device is in: its own while detached, else the shared one. */
+async function sessionOf(userId: string, deviceId: string): Promise<SessionRecord> {
+  return loadedOwn(userId, deviceId) ?? await load(userId)
+}
+
+/** What `DeviceInfo.detached` says of an own session. */
+function ownSummary(session: Session): NonNullable<DeviceInfo['detached']> {
+  return { playing: session.playing && session.current !== null, trackId: session.current?.trackId ?? null, albumId: session.current?.albumId ?? null }
+}
+
+/** The user's connected devices as every client sees them. The shared session is loaded from the first hello on. */
+function deviceList(userId: string): DeviceInfo[] {
+  return listDevices(userId, loadedRecord(userId)?.session.activeDeviceId ?? null, (deviceId) => {
+    const own = loadedOwn(userId, deviceId)
+    return own ? ownSummary(own.session) : undefined
+  })
+}
+
+function emitDevices(userId: string): void {
+  io?.to(userRoom(userId)).emit('devices', deviceList(userId))
+}
+
+/** A hello's answer for a device in `record`'s session. */
+function helloAck(record: SessionRecord): SessionHelloAck {
+  return { serverTime: settings.now(), snapshot: snapshotOf(record), devices: deviceList(record.userId), capabilities: CAPABILITIES }
+}
+
+/**
+ * Puts sockets in the room of `record`'s session and takes them out of any other. Rooms
+ * are local to this process, which the store assumes is the only one.
+ */
+function joinSessionRoom(socketIds: readonly string[], record: SessionRecord): void {
+  const target = sessionRoom(record)
+  for (const socketId of socketIds) {
+    const socket = io?.of('/').sockets.get(socketId)
+    if (!socket) continue
+    for (const joined of socket.rooms) {
+      if (joined.startsWith(SESSION_ROOM) && joined !== target) void socket.leave(joined)
+    }
+    void socket.join(target)
+  }
 }
 
 function entriesOf(session: Session): QueueEntry[] {
@@ -90,7 +146,11 @@ function entriesOf(session: Session): QueueEntry[] {
 
 type Change = { queue: boolean; devices: boolean }
 
-/** Makes `next` the session: bumps versions, follows the open play and schedules a write. Null when nothing changed. */
+/**
+ * Makes `next` the session: bumps versions, follows the open play and schedules a write.
+ * Null when nothing changed. `devices`: the change shows in the device list (the shared
+ * session's active device, or what a detached device plays).
+ */
 function commit(record: SessionRecord, next: Session): Change | null {
   const previous = record.session
   if (next === previous) return null
@@ -98,25 +158,42 @@ function commit(record: SessionRecord, next: Session): Change | null {
   record.version += 1
   if (queue) record.queueVersion += 1
   record.session = next
-  const { open, closed } = followPlay(record.play, previous, next, settings.now())
+  const now = settings.now()
+  const { open, closed } = followPlay(record.play, previous, next, now)
   if (open && open !== record.play) notifyPlayStart(record.userId, open)
   record.play = open
-  if (closed) {
-    const saving = savePlay(record.userId, closed).catch(report).finally(() => savingPlays.delete(saving))
-    savingPlays.add(saving)
-  }
+  if (closed) keepSaving(record.userId, closed)
+  if (record.deviceId !== null && connectedDevice(record.userId, record.deviceId)) record.lastSeenAt = now
   schedulePersist(record, report)
-  return { queue, devices: previous.activeDeviceId !== next.activeDeviceId }
+  const devices = record.deviceId === null
+    ? previous.activeDeviceId !== next.activeDeviceId
+    : JSON.stringify(ownSummary(previous)) !== JSON.stringify(ownSummary(next))
+  return { queue, devices }
 }
 
-/** Sends a committed change to every socket of the user: the queue half first, when it changed. */
+/** Writes a closed play in the background; shutdown waits for it. */
+function keepSaving(userId: string, play: OpenPlay): void {
+  const saving = savePlay(userId, play).catch(report).finally(() => savingPlays.delete(saving))
+  savingPlays.add(saving)
+}
+
+/** Counts a session's open play up to now and writes it. */
+function closePlay(record: SessionRecord): void {
+  const { play } = record
+  if (!play) return
+  record.play = null
+  countUntil(play, record.session, settings.now())
+  keepSaving(record.userId, play)
+}
+
+/** Sends a committed change to the sockets in the session: the queue half first, when it changed. */
 function broadcast(record: SessionRecord, change: Change): void {
   if (!io) return
-  const target = io.to(room(record.userId))
+  const target = io.to(sessionRoom(record))
   const { state, queue } = splitSession(record.session)
   if (change.queue) target.emit('session:queue', { version: record.version, queueVersion: record.queueVersion, queue })
   target.emit('session:state', { version: record.version, state })
-  if (change.devices) target.emit('devices', listDevices(record.userId, record.session.activeDeviceId))
+  if (change.devices) emitDevices(record.userId)
 }
 
 /** Applies a server-issued command under a fresh command id and broadcasts the result. */
@@ -159,60 +236,269 @@ function refillAutoplay(record: SessionRecord): void {
   const exclude = [...new Set([current, ...session.queue].map(entry => entry.trackId))]
   suggestAutoplay({ userId, seeds, exclude, limit: AUTOPLAY_BATCH })
     .then(tracks => serial(userId, () => {
-      const latest = loadedRecord(userId)
+      const latest = recordOf(record.key)
       if (!tracks.length || latest !== record || !latest.session.autoplay || latest.session.autoplayQueue.length) return
       applyServer(latest, { type: 'setAutoplayQueue', tracks })
     }))
     .catch(report)
 }
 
-function startGrace(userId: string, deviceId: string): void {
-  const key = `${userId}:${deviceId}`
+/** Gives the active device of `record`'s session the grace period to come back, then applies `deviceLost`. */
+function startGrace(record: SessionRecord, deviceId: string): void {
+  const { userId } = record
+  const key = `${record.key}#${deviceId}`
   if (graceTimers.has(key)) return
   graceTimers.set(key, settings.timers.set(() => {
     graceTimers.delete(key)
     serial(userId, () => {
-      const record = loadedRecord(userId)
-      if (record && !connectedDevice(userId, deviceId)) applyServer(record, { type: 'deviceLost', deviceId })
+      // Looked up again: the session may have been unloaded and loaded since.
+      const latest = recordOf(record.key)
+      if (!latest || connectedDevice(userId, deviceId)) return
+      applyServer(latest, { type: 'deviceLost', deviceId })
     }).catch(report)
   }, settings.deviceGraceMs))
 }
 
+/** Cancels the grace period of a device in the shared session and in its own. */
 function cancelGrace(userId: string, deviceId: string): void {
-  const key = `${userId}:${deviceId}`
-  if (graceTimers.has(key)) settings.timers.clear(graceTimers.get(key))
-  graceTimers.delete(key)
+  for (const key of [`${sessionKey(userId)}#${deviceId}`, `${sessionKey(userId, deviceId)}#${deviceId}`]) {
+    if (graceTimers.has(key)) settings.timers.clear(graceTimers.get(key))
+    graceTimers.delete(key)
+  }
+}
+
+/**
+ * Discards an own session for good: its row goes, then its play closes. When the row
+ * cannot be deleted this throws and the session stays as it was.
+ */
+async function discard(record: SessionRecord): Promise<void> {
+  await discardOwn(record)
+  cancelGrace(record.userId, record.deviceId!)
+  closePlay(record)
+}
+
+/** Discards a stored own session, whether loaded or not. */
+async function discardStored(userId: string, deviceId: string): Promise<void> {
+  const loaded = loadedOwn(userId, deviceId)
+  if (loaded) await discard(loaded)
+  else await deleteStoredOwn(userId, deviceId)
+}
+
+/**
+ * Where a device whose first socket says hello goes: its stored own session, unless the
+ * hello is from a client that cannot detach (`detached` absent) or the session is past
+ * the keep time, which discards it. `ended` is set when the client believed it was
+ * detached and is not.
+ */
+async function placeReturning(userId: string, deviceId: string, believed: boolean | undefined): Promise<{ own?: SessionRecord; ended?: 'expired' | 'missing' }> {
+  await pruneExpired(userId, deviceId)
+  const loaded = loadedOwn(userId, deviceId)
+  const own = loaded ?? await readOwn(userId, deviceId)
+  if (believed === undefined) {
+    if (own) await discard(own)
+    return {}
+  }
+  if (!own) return believed ? { ended: 'missing' } : {}
+  if (settings.now() - own.lastSeenAt > DETACHED_KEEP_MS) {
+    await discard(own)
+    return believed ? { ended: 'expired' } : {}
+  }
+  if (!loaded) await recheck(own)
+  return { own }
 }
 
 // Socket protocol
 
 /**
- * `session:hello`: records the device as connected (and in `devices`), then calls `reply`
- * with the snapshot and device list, in order with the session's other updates.
+ * `session:hello`: records the device as connected (and in `devices`), puts the socket in
+ * the session the device is in (see "Detaching" in the session contract), then calls
+ * `reply` with that session's snapshot and the device list, in order with the session's
+ * other updates.
  */
 export function greet(userId: string, socketId: string, hello: SessionHello, reply: (ack: SessionHelloAck) => void): Promise<void> {
   const { device, canPlay } = hello
+  const returning = !connectedDevice(userId, device.id)
   joinDevice(userId, socketId, device, canPlay)
   cancelGrace(userId, device.id)
   return serial(userId, async () => {
     await db.insert(devices).values({ userId, id: device.id, name: device.name, kind: device.kind })
       .onConflictDoUpdate({ target: [devices.userId, devices.id], set: { name: device.name, kind: device.kind, lastSeenAt: new Date() } })
-    const record = await load(userId)
-    reply({ serverTime: settings.now(), snapshot: snapshotOf(record), devices: listDevices(userId, record.session.activeDeviceId) })
+    const shared = await load(userId)
+    // The socket may have closed while this waited; then it joins nothing.
+    if (!connectedDevice(userId, device.id)) return
+    const { own, ended } = returning ? await placeReturning(userId, device.id, hello.detached) : { own: loadedOwn(userId, device.id) }
+    const record = own ?? shared
+    if (own) {
+      own.lastSeenAt = settings.now()
+      schedulePersist(own, report)
+    }
+    joinSessionRoom([socketId], record)
+    reply({ ...helloAck(record), ...(ended ? { detachedEnded: ended } : {}) })
   }).catch(report)
 }
 
 /**
  * A socket of the device closed. When it was the device's last one, the other sockets
- * get the new device list, and an active device gets the grace period to come back.
+ * get the new device list, and an active device gets the grace period to come back. A
+ * detached device's own session stays loaded (it keeps its command ids) and notes when
+ * the device was last seen.
  */
 export function leave(userId: string, socketId: string, deviceId: string): void {
   if (!leaveDevice(userId, socketId, deviceId)) return
   serial(userId, () => {
-    const record = loadedRecord(userId)
-    io?.to(room(userId)).emit('devices', listDevices(userId, record?.session.activeDeviceId ?? null))
-    if (record?.session.activeDeviceId === deviceId && !connectedDevice(userId, deviceId)) startGrace(userId, deviceId)
+    const own = loadedOwn(userId, deviceId)
+    // Even when another socket of the device took over meanwhile: it was seen until now.
+    if (own) {
+      own.lastSeenAt = settings.now()
+      schedulePersist(own, report)
+    }
+    if (!connectedDevice(userId, deviceId)) {
+      for (const record of [loadedRecord(userId), own]) {
+        if (record?.session.activeDeviceId === deviceId) startGrace(record, deviceId)
+      }
+    }
+    emitDevices(userId)
   }).catch(report)
+}
+
+/**
+ * `session:detach` from `deviceId` over `socketId`: gives the device a session of its
+ * own, copied from the shared one (see "Detaching" in the session contract). Acks the
+ * requesting socket, sends `session:moved` to the device's other sockets, then the shared
+ * session's change and the new device list.
+ */
+export function detach(userId: string, deviceId: string | null, socketId: string, raw: unknown, ack: (reply: SessionMoveAck) => void): Promise<void> {
+  if (!SessionDetach.safeParse(raw ?? {}).success) {
+    ack({ ok: false, error: 'invalid_request' })
+    return Promise.resolve()
+  }
+  return serial(userId, async () => {
+    const device = deviceId ? connectedDevice(userId, deviceId) : undefined
+    if (!device) return ack({ ok: false, error: 'hello_required' })
+    const existing = loadedOwn(userId, device.id)
+    if (existing) return ack({ ok: true, ...helloAck(existing) })
+    if (!device.canPlay) return ack({ ok: false, error: 'cannot_play' })
+    const others = connectedDeviceIds(userId).filter(id => id !== device.id && loadedOwn(userId, id))
+    if (others.length >= MAX_DETACHED) return ack({ ok: false, error: 'too_many_detached' })
+    await makeRoom(userId, device.id)
+
+    const shared = await load(userId)
+    const now = settings.now()
+    const wasActive = shared.session.activeDeviceId === device.id
+    // Written before anything changes: if the write fails, the device stays where it was.
+    const own = await createOwn(userId, device.id, {
+      session: forkSession(shared.session, device.id, now),
+      version: shared.version,
+      queueVersion: shared.queueVersion,
+      // A command applied before the copy is in it; one re-sent after must not apply twice.
+      commandIds: new Set(shared.commandIds),
+      requested: new Set(shared.requested),
+      autoplayAskedFor: shared.autoplayAskedFor,
+      lastSeenAt: now,
+    })
+    // The play goes on, now in the device's own session.
+    if (wasActive && shared.play) {
+      countUntil(shared.play, shared.session, now)
+      own.play = shared.play
+      shared.play = null
+    }
+    const change = wasActive ? commit(shared, reduceSession(shared.session, { command: { type: 'deviceLost', deviceId: device.id }, now, commandId: newId() })) : null
+    // Written at once, so a restart never finds the shared session still playing on a detached device.
+    if (change) void persist(shared).catch(report)
+    moveDevice(own, device.id, socketId)
+    ack({ ok: true, ...helloAck(own) })
+    if (change) broadcast(shared, { ...change, devices: false })
+    emitDevices(userId)
+    afterChange(own)
+  }).catch(error => {
+    report(error)
+    ack({ ok: false, error: 'internal_error' })
+  })
+}
+
+/**
+ * Before a device detaches: discards own sessions past the keep time, then, while the user
+ * has `MAX_DETACHED` or more besides this device's, the one whose device was seen longest
+ * ago among those not connected.
+ */
+async function makeRoom(userId: string, deviceId: string): Promise<void> {
+  const kept = await pruneExpired(userId, deviceId)
+  const gone = kept.filter(row => !connectedDevice(userId, row.deviceId)).sort((a, b) => a.lastSeenAt - b.lastSeenAt)
+  for (let count = kept.length; count >= MAX_DETACHED && gone.length; count -= 1) await discardStored(userId, gone.shift()!.deviceId)
+}
+
+/**
+ * Discards the user's own sessions whose devices are not connected and were last seen
+ * over the keep time ago, other than `deviceId`'s (which its hello decides on). Runs at
+ * every detach and every returning hello. Returns the stored sessions left, `deviceId`'s aside.
+ */
+async function pruneExpired(userId: string, deviceId: string): Promise<{ deviceId: string; lastSeenAt: number }[]> {
+  const now = settings.now()
+  const kept: { deviceId: string; lastSeenAt: number }[] = []
+  for (const row of await storedOwn(userId)) {
+    if (row.deviceId === deviceId) continue
+    if (!connectedDevice(userId, row.deviceId) && now - row.lastSeenAt > DETACHED_KEEP_MS) await discardStored(userId, row.deviceId)
+    else kept.push(row)
+  }
+  return kept
+}
+
+/**
+ * `session:attach` from `deviceId` over `socketId`: puts the device back in the shared
+ * session and discards its own, bringing the own session's queue along when asked. Acks
+ * and notifies like `detach`.
+ */
+export function attach(userId: string, deviceId: string | null, socketId: string, raw: unknown, ack: (reply: SessionMoveAck) => void): Promise<void> {
+  const request = SessionAttach.safeParse(raw ?? {})
+  if (!request.success) {
+    ack({ ok: false, error: 'invalid_request' })
+    return Promise.resolve()
+  }
+  return serial(userId, async () => {
+    const device = deviceId ? connectedDevice(userId, deviceId) : undefined
+    if (!device) return ack({ ok: false, error: 'hello_required' })
+    const shared = await load(userId)
+    const own = loadedOwn(userId, device.id)
+    if (!own) return ack({ ok: true, ...helloAck(shared) })
+    const bring = request.data.bringQueue === true
+    if (bring && !own.session.current && !own.session.queue.length) return ack({ ok: false, error: 'nothing_to_bring' })
+
+    // The row goes first: if it cannot, nothing has changed.
+    await discardOwn(own)
+    cancelGrace(userId, device.id)
+    let change: Change | null = null
+    if (bring) {
+      const now = settings.now()
+      // Whatever the shared session played stops; the device's play goes on there.
+      closePlay(shared)
+      if (own.play) countUntil(own.play, own.session, now)
+      shared.play = own.play
+      own.play = null
+      for (const commandId of own.commandIds) rememberCommand(shared, commandId)
+      for (const trackId of own.requested) shared.requested.add(trackId)
+      shared.autoplayAskedFor = own.autoplayAskedFor
+      change = commit(shared, bringSession(shared.session, own.session, { now, commandId: newId(), deviceId: device.canPlay ? device.id : undefined }))
+      if (change) void persist(shared).catch(report)
+    } else {
+      closePlay(own)
+    }
+    moveDevice(shared, device.id, socketId)
+    ack({ ok: true, ...helloAck(shared) })
+    if (change) broadcast(shared, { ...change, devices: false })
+    emitDevices(userId)
+    if (change) afterChange(shared)
+  }).catch(error => {
+    report(error)
+    ack({ ok: false, error: 'internal_error' })
+  })
+}
+
+/** Puts every socket of the device in `record`'s session, and tells those other than `socketId` with `session:moved`. */
+function moveDevice(record: SessionRecord, deviceId: string, socketId: string): void {
+  const sockets = deviceSockets(record.userId, deviceId)
+  joinSessionRoom(sockets, record)
+  const others = sockets.filter(id => id !== socketId)
+  if (io && others.length) io.to(others).emit('session:moved', helloAck(record))
 }
 
 /**
@@ -229,10 +515,10 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
   }
   const { commandId } = envelope.data
   return serial(userId, async () => {
-    const record = await load(userId)
-    if (record.commandIds.has(commandId)) return ack({ ok: true, version: record.version })
     const device = deviceId ? connectedDevice(userId, deviceId) : undefined
     if (!device) return ack({ ok: false, error: 'hello_required' })
+    const record = await sessionOf(userId, device.id)
+    if (record.commandIds.has(commandId)) return ack({ ok: true, version: record.version })
     const command = await checkCommand(record, device.id, envelope.data.command)
     if (typeof command === 'string') return ack({ ok: false, error: command })
     const next = reduceSession(record.session, { command, now: settings.now(), commandId, deviceId: device.canPlay ? device.id : undefined })
@@ -254,8 +540,11 @@ async function checkCommand(record: SessionRecord, deviceId: string, command: Se
   switch (command.type) {
     case 'trackEnded':
       return session.activeDeviceId === deviceId ? command : 'not_active_device'
-    case 'transfer':
-      return connectedDevice(userId, command.deviceId)?.canPlay ? command : 'device_unavailable'
+    case 'transfer': {
+      // A detached device's own session has room for that device alone, and the shared one has none for it.
+      const inSession = record.deviceId === null ? !loadedOwn(userId, command.deviceId) : command.deviceId === record.deviceId
+      return inSession && connectedDevice(userId, command.deviceId)?.canPlay ? command : 'device_unavailable'
+    }
     case 'setVolume':
       return await isKnownDevice(userId, command.deviceId) ? command : 'unknown_device'
     case 'playTracks': {
@@ -292,7 +581,7 @@ export function applyReport(userId: string, deviceId: string | null, raw: unknow
   if (!parsed.success || !deviceId) return Promise.resolve()
   const engine = parsed.data
   return serial(userId, () => {
-    const record = loadedRecord(userId)
+    const record = loadedOwn(userId, deviceId) ?? loadedRecord(userId)
     const session = record?.session
     if (!record || !session || session.activeDeviceId !== deviceId) return
     if (session.current?.id !== engine.entryId || session.current.state !== 'ready') return
@@ -307,18 +596,21 @@ export function applyReport(userId: string, deviceId: string | null, raw: unknow
 
 // Service functions for other modules
 
-/** The user's session as `GET /me/session` and Subsonic's `getPlayQueue` see it. */
+/** The user's shared session as `GET /me/session` and Subsonic's `getPlayQueue` see it. */
 export function getSnapshot(userId: string): Promise<SessionSnapshot> {
   return serial(userId, async () => snapshotOf(await load(userId)))
 }
 
 /** The user's connected devices. */
 export function getDevices(userId: string): Promise<DeviceInfo[]> {
-  return serial(userId, async () => listDevices(userId, (await load(userId)).session.activeDeviceId))
+  return serial(userId, async () => {
+    await load(userId)
+    return deviceList(userId)
+  })
 }
 
 /**
- * Replaces the queue with `trackIds`, paused at `currentId` (default the first) and
+ * Replaces the shared session's queue with `trackIds`, paused at `currentId` (default the first) and
  * `positionMs`, for Subsonic's `savePlayQueue`. Tracks that cannot be played are dropped;
  * with none left the queue is cleared. The active device stays as it is.
  */
@@ -392,8 +684,8 @@ export function markRecordingFailed(recordingId: string): Promise<void> {
 
 async function setRecordingState(recordingId: string, state: 'ready' | 'failed'): Promise<void> {
   const holders = [...loadedRecords()].filter(record => entriesOf(record.session).some(entry => entry.trackId === recordingId))
-  await Promise.all(holders.map(({ userId }) => serial(userId, () => {
-    const record = loadedRecord(userId)
+  await Promise.all(holders.map(({ userId, key }) => serial(userId, () => {
+    const record = recordOf(key)
     if (!record) return
     record.requested.delete(recordingId)
     applyServer(record, { type: 'setEntryState', trackId: recordingId, state })
@@ -404,6 +696,11 @@ async function setRecordingState(recordingId: string, state: 'ready' | 'failed')
 export async function stopSessions(): Promise<void> {
   for (const timer of graceTimers.values()) settings.timers.clear(timer)
   graceTimers.clear()
+  for (const record of loadedRecords()) {
+    if (record.deviceId === null || !connectedDevice(record.userId, record.deviceId)) continue
+    record.lastSeenAt = settings.now()
+    schedulePersist(record, report)
+  }
   await unloadAll(async record => {
     const { play } = record
     if (!play) return

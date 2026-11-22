@@ -1,6 +1,6 @@
 import { SessionHello } from '@squirmy/contracts'
 import type { Realtime } from '../../realtime/index.js'
-import { applyReport, greet, leave, runCommand, setRealtimeServer } from './service.js'
+import { applyReport, attach, detach, greet, leave, runCommand, setRealtimeServer } from './service.js'
 
 /** Registers the `session:*` socket events. Each socket speaks for one device, named in its hello. */
 export function registerSessionSockets(realtime: Realtime): void {
@@ -23,6 +23,12 @@ export function registerSessionSockets(realtime: Realtime): void {
       if (typeof ack === 'function') void runCommand(userId, deviceId, raw, ack)
     })
     socket.on('session:report', (raw) => void applyReport(userId, deviceId, raw))
+    socket.on('session:detach', (raw, ack) => {
+      if (typeof ack === 'function') void detach(userId, deviceId, socket.id, raw, ack)
+    })
+    socket.on('session:attach', (raw, ack) => {
+      if (typeof ack === 'function') void attach(userId, deviceId, socket.id, raw, ack)
+    })
     socket.on('disconnect', () => {
       if (deviceId) leave(userId, socket.id, deviceId)
     })
