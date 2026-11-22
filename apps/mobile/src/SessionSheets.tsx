@@ -14,7 +14,8 @@ import { matches } from './library/shared';
 import { useRunTrackAction, useTrackActions } from './library/trackActions';
 import { usePlaybackState } from './playback';
 import { useVolumeSlider } from './player/volume';
-import { SheetAction, SheetField, SheetFrame, SheetRows, SheetRow, SheetScroll, SheetSlider, TrackSummary } from './SheetUI';
+import { SystemVolumeSlider } from '../modules/now-playing';
+import { SheetAction, SheetField, SheetFrame, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary } from './SheetUI';
 import { useColors } from './theme';
 
 /** Up to this many playlists the sheet fits them all; beyond, they scroll under a search field. */
@@ -44,7 +45,10 @@ export function DeviceSheet() {
             }} />
         ))}
       </SheetRows>
-      {session.activeDeviceId && <SheetSlider label={`Volume on ${output.name}`} value={shownVolume} onChange={setVolume} />}
+      {/* This phone's volume is the system's: its own slider, which the side buttons move too. */}
+      {session.activeDeviceId && (output.isThisDevice && SystemVolumeSlider
+        ? <SheetSystemVolume label={`Volume on ${output.name}`} />
+        : <SheetSlider label={`Volume on ${output.name}`} value={shownVolume} onChange={setVolume} />)}
     </Sheet>
   );
 }

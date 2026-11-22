@@ -25,6 +25,8 @@ import {
   seedOf,
 } from './player/session';
 import { watchLoading, type LoadingPhase, type LoadingWatch } from './player/loading';
+import { syncSystemVolume } from './player/systemVolume';
+import { SystemVolume } from '../modules/now-playing';
 import { useStreamingCache } from './streamingCache/context';
 import { resolvePlayback } from './streamingCache/resolve';
 import { followSession } from './streamingCache/session';
@@ -112,6 +114,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           engine,
           baseUrl: serverUrl,
           canBoost: false,
+          // On iOS this phone's volume is the system's; the player stays at full volume.
+          systemVolume: SystemVolume !== null,
           normalization: stream.current.settings?.normalization,
           onLoadError: (entry, error, willRetry) => loadFailed(entry, error, willRetry),
           resolvePlayback: entry => {
@@ -195,6 +199,20 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       };
       socket.on('event', onServerEvent);
       const loading = watchLoading(client);
+      const systemVolume = SystemVolume;
+      const stopVolume = systemVolume ? syncSystemVolume({
+        system: {
+          get: () => systemVolume.getVolume(),
+          set: volume => void systemVolume.setVolume(volume).catch(() => undefined),
+          subscribe: listener => {
+            const subscription = systemVolume.addListener('onVolumeChange', ({ volume }) => listener(volume));
+            return () => subscription.remove();
+          },
+        },
+        session: client,
+        deviceId: device.id,
+        send,
+      }) : () => undefined;
 
       // A file that will not play is skipped. When the next one fails as well, the
       // connection is the likelier cause, so playback pauses instead.
@@ -289,6 +307,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         stopWatching();
         socket.off('event', onServerEvent);
         loading.dispose();
+        stopVolume();
         stopWaiting();
         nowPlaying.disconnect();
         client.dispose();

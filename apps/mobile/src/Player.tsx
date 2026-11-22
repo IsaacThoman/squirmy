@@ -26,7 +26,7 @@ import { activeLine, lyricLines } from './player/lyrics';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
-import { RoutePicker } from '../modules/now-playing';
+import { RoutePicker, SystemVolumeSlider } from '../modules/now-playing';
 import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
@@ -528,7 +528,10 @@ function Transport({ compact, page, onToggle, onDevices }: {
       <View style={styles.volumeRow}>
         <Icon name="speaker.fill" size={13} color={colors.muted} />
         <View style={styles.volumeSlider}>
-          <TransportSlider label={`Squirmy volume, ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />
+          {/* This phone's volume is the system's, which the side buttons move too; another device's is the session's. */}
+          {!remote && SystemVolumeSlider
+            ? <SystemVolumeSlider tint={colors.accent} trackTint={colors.stroke} style={styles.systemVolume} />
+            : <TransportSlider label={`Volume, ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />}
         </View>
         <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
         {/* Where this phone's own sound goes: AirPlay, Bluetooth or the speaker. */}
@@ -596,6 +599,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   primaryButtonCompact: { width: 56, height: 56 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   volumeSlider: { flex: 1 },
+  systemVolume: { height: 34 },
   routePicker: { width: 36, height: 36, marginLeft: 2 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
   footerSide: { flex: 1, alignItems: 'center' },
