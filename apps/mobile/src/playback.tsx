@@ -441,6 +441,13 @@ export function usePlaybackState() {
     volume: session.volumes[output.id] ?? 1,
     /** Another device plays; this phone only controls it. */
     remote: isRemote(session, device?.id ?? ''),
+    /** This phone plays its own session, apart from the user's other devices. */
+    detached: snapshot.detached,
+    /** This phone can play separately: hide the control otherwise. */
+    canDetach: snapshot.canDetach,
+    /** Every device the user has connected, the detached ones included, for the "Playing separately" group. */
+    allDevices: devices,
+    thisDeviceId: device?.id ?? '',
     actions,
   };
 }

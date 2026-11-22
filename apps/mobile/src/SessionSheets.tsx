@@ -1,4 +1,5 @@
-import type { PlaylistSummary } from '@squirmy/contracts';
+import type { SessionMoveResult } from '@squirmy/client-core';
+import type { DeviceInfo, PlaylistSummary } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -15,7 +16,11 @@ import { useRunTrackAction, useTrackActions } from './library/trackActions';
 import { usePlaybackState } from './playback';
 import { useVolumeSlider } from './player/volume';
 import { SystemVolumeSlider } from '../modules/now-playing';
-import { SheetAction, SheetField, SheetFrame, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary } from './SheetUI';
+import {
+  SheetAction, SheetField, SheetFrame, SheetInfo, SheetNote, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary,
+} from './SheetUI';
+import { DETACHED_SYMBOL, detachedNotice, hasQueueToBring, moveFailure, rejoinedNotice, separateRows } from './player/detach';
+import { useNotice } from './Notice';
 import { useColors } from './theme';
 
 /** Up to this many playlists the sheet fits them all; beyond, they scroll under a search field. */
@@ -29,8 +34,42 @@ function Sheet({ title, children }: { title: string; children?: ReactNode }) {
 
 export function DeviceSheet() {
   const colors = useColors();
-  const { track, devices, output, volume, session, actions } = usePlaybackState();
+  const notify = useNotice();
+  const { track, devices, output, volume, session, queue, actions, detached, canDetach, allDevices, thisDeviceId } = usePlaybackState();
   const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
+  const [moving, setMoving] = useState(false);
+  const separate = allDevices.filter(device => device.detached && device.id !== thisDeviceId);
+  // Detaching and rejoining are undone by one press, so neither asks first; the notice says what happened.
+  const move = (run: () => Promise<SessionMoveResult>, kind: 'detach' | 'attach', done: () => string | null) => {
+    if (moving) return;
+    void Haptics.selectionAsync();
+    setMoving(true);
+    void run().then(result => {
+      setMoving(false);
+      const message = result.ok ? done() : moveFailure(kind, result.error);
+      if (message) notify(message);
+    });
+  };
+  const playingHere = session.playing && output.isThisDevice;
+
+  if (detached) {
+    return (
+      <Sheet title="Playback device">
+        <SheetInfo icon={DETACHED_SYMBOL} title="Playing only on this device" subtitle={track ? `${track.title} · ${track.artistCredit}` : 'Nothing playing'} />
+        <SheetRows>
+          <SheetRow title="Rejoin your other devices" icon="arrow.uturn.backward"
+            subtitle="This device’s queue is cleared."
+            onPress={() => move(() => actions.attach(), 'attach', () => rejoinedNotice(track?.title, session.playing))} />
+          {hasQueueToBring(session, queue) && <SheetRow title="Bring this queue with me" icon="arrow.triangle.merge"
+            subtitle="Your other devices switch to what’s playing here"
+            onPress={() => move(() => actions.attach({ bringQueue: true }), 'attach', () => null)} />}
+        </SheetRows>
+        {output.isThisDevice && SystemVolumeSlider && <SheetSystemVolume label="Volume on this iPhone" />}
+        <SeparateDevices devices={separate} />
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet title="Playback device">
       <TrackSummary track={track} subtitle={session.activeDeviceId ? `Playing on ${output.name}` : undefined} />
@@ -49,8 +88,28 @@ export function DeviceSheet() {
       {session.activeDeviceId && (output.isThisDevice && SystemVolumeSlider
         ? <SheetSystemVolume label={`Volume on ${output.name}`} />
         : <SheetSlider label={`Volume on ${output.name}`} value={shownVolume} onChange={setVolume} />)}
+      {canDetach && <SheetRows>
+        <SheetRow title="Play separately on this iPhone" icon={DETACHED_SYMBOL} subtitle="Your other devices keep their own queue."
+          onPress={() => move(() => actions.detach(), 'detach', () => detachedNotice(playingHere))} />
+      </SheetRows>}
+      <SeparateDevices devices={separate} />
     </Sheet>
   );
+}
+
+/** Devices playing their own queue: not transfer targets, listed so "why didn't the kitchen change?" has an answer. */
+function SeparateDevices({ devices }: { devices: readonly DeviceInfo[] }) {
+  if (!devices.length) return null;
+  return <>
+    <SheetNote>Playing separately</SheetNote>
+    {devices.map(device => <SeparateDevice key={device.id} device={device} />)}
+  </>;
+}
+
+function SeparateDevice({ device }: { device: DeviceInfo }) {
+  const track = useTrack(device.detached?.trackId, device.detached?.albumId);
+  const [row] = separateRows([device], '', () => track?.title);
+  return row ? <SheetInfo icon={row.icon} title={row.name} subtitle={row.subtitle} /> : null;
 }
 
 export function TrackActionSheet({ id, albumId, playlistId, itemId }: { id: string; albumId?: string; playlistId?: string; itemId?: string }) {

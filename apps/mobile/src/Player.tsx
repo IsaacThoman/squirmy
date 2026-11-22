@@ -21,6 +21,7 @@ import {
   grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type PlayerPage,
 } from './player/transition';
 import { useLoading, usePlaybackState, usePosition } from './playback';
+import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
 import { activeLine, lyricLines } from './player/lyrics';
 import { usePlayerShown } from './player/visibility';
@@ -505,7 +506,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
 }) {
   const colors = useColors();
   const styles = useStyles();
-  const { session, output, volume, actions, remote } = usePlaybackState();
+  const { session, output, volume, actions, remote, detached } = usePlaybackState();
   const loading = useLoading();
   const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
 
@@ -548,7 +549,8 @@ function Transport({ compact, page, onToggle, onDevices }: {
             onPress={() => onToggle('lyrics')} />
         </View>
         <View style={styles.output}>
-          <DeviceButton icon={output.icon} name={output.name}
+          {/* Detached, the device slot says so: the same place "Playing on …" names a remote. */}
+          <DeviceButton icon={detached ? DETACHED_SYMBOL : output.icon} name={detached ? DETACHED_LABEL : output.name}
             onPress={() => { selectionFeedback(); onDevices(); }} />
         </View>
         <View style={styles.footerSide}>

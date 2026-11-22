@@ -69,6 +69,15 @@ The app has Home, Library (playlists, albums, artists and songs: the music on yo
 - **Every song has a menu**: play next or last, like, add to or remove from your library, add to a playlist, start a radio, go to its album or artist. Songs you can't play can be added to your [wantlist](./wantlist.md), when your server has it on.
 - **Settings**, from the account sheet: **Normalize Volume**, **Streaming Quality** on **Wi-Fi** and on **Cellular**, **Storage**, and scrobbling to [ListenBrainz and Last.fm](../server/scrobbling.md). Under **Storage**, **Streaming Cache** sets the cache's size limit (**Off**, 1, 2, 5 or 10 GB; 2 GB to begin with), **Used** shows what it holds now, and **Clear** empties it; it starts filling again when the queue moves on. A lower limit takes effect at once. The limit belongs to the phone, not to your account.
 
+## Playing separately on one device
+
+To have the phone play its own music while your other devices play something else (two people on one account, or two rooms), open **Playback device** and choose **Play separately on this iPhone**. It happens at once: if the phone was playing it carries on and your other devices pause where they were; otherwise it starts from a paused copy of the queue. While it plays separately, the mini-player and Now Playing say **Only on this device** where they would name the playing device; press it to open **Playback device** again, which then offers:
+
+- **Rejoin your other devices**: the phone's own queue is cleared and it shows what your other devices play.
+- **Bring this queue with me**: your other devices switch to what the phone plays, and the phone keeps playing.
+
+Every device lists one playing like this under **Playing separately**, with the song it plays, and playback can't be moved to it. Playing separately survives a relaunch; after a week away the phone plays with your other devices again, and says so.
+
 ## On-demand songs
 
 When an admin has [connected a provider](../server/acquisition.md), songs that aren't on the server yet look and play like any other: nothing marks where a song's file is. Play one and the play button and its row show the same spinner as buffering while the server gets it, and the artist stays under the title; after eight seconds the current song's subtitle says **Still loading…**. Songs further up the queue show nothing special. If the server can't get the song playing or the next one, a short notice says **Couldn’t play “Title”. Skipped.**, playback moves on, and the song shows gray with **Not available**. When several fail in a row the server pauses instead, and one notice says **Can’t load music right now**. Members need **Can fetch missing music** for this; without it, those songs are gray (**Not available**), an album with some of them says how many songs are available, and their menu offers the wantlist instead when the server has it on. Offline, songs that would play with a connection say **Not downloaded**.
