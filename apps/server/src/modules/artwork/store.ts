@@ -8,7 +8,7 @@ import { rgbaToThumbHash } from 'thumbhash'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { albums, artists, assets } from '../../database/schema.js'
-import { enqueue } from '../../jobs/index.js'
+import { enqueue, enqueueMany } from '../../jobs/index.js'
 import { AppError, notFound } from '../../lib/errors.js'
 import { newPublicId } from '../../lib/ids.js'
 import { invalidate } from '../../realtime/index.js'
@@ -187,6 +187,8 @@ async function download(assetId: string, url: string): Promise<StoredAsset> {
  * Unassigns an asset from every album and artist that shows it, and says so: pages,
  * lists and playlist mosaics that showed it (and the API's cached reads of them) are
  * refetched. It runs in whichever process asked for the image, the worker included.
+ * Albums get `enrichment.cover` (owned by the enrichment module), which gives them a
+ * cover from another source when one has it.
  */
 async function detach(assetId: string) {
   const now = new Date()
@@ -194,6 +196,8 @@ async function detach(assetId: string) {
     .where(eq(albums.artworkAssetId, assetId)).returning({ id: albums.id })
   const unimaged = await db.update(artists).set({ imageAssetId: null, updatedAt: now })
     .where(eq(artists.imageAssetId, assetId)).returning({ id: artists.id })
+  // A process without the job system (a script) leaves it to the enrichment sweep.
+  await enqueueMany('enrichment.cover', unassigned.map((row) => ({ data: { albumId: row.id }, singletonKey: row.id }))).catch(() => {})
   const keys = [...unassigned.map((row) => queryKeys.album(row.id)), ...unimaged.map((row) => queryKeys.artist(row.id))]
   if (keys.length === 0) return
   await invalidate('all', keys).catch((error: unknown) => {
