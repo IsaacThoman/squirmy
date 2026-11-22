@@ -139,6 +139,14 @@ describe('catalog pages', () => {
     expect(detail.albums.map((album) => album.title)).toEqual(['Undated', 'Dated', 'Unknown'])
   })
 
+  it('lists an album the artist leads without credit rows', async () => {
+    const artist = await createArtist()
+    const album = await createAlbum({ artist, title: 'Bare' })
+    await db.delete(albumArtists).where(eq(albumArtists.albumId, album.albumId))
+    const detail = body(await get(`/artists/${artist.id}`), ArtistDetail)
+    expect(detail.albums.map((one) => [one.id, one.artists])).toEqual([[album.albumId, [{ id: artist.id, name: artist.name }]]])
+  })
+
   it('returns a track in an album context, and its lyrics', async () => {
     const album = await createAlbum({ owned: true })
     const other = await createAlbum({ tracks: [{ title: 'Elsewhere' }] })
