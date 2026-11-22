@@ -81,7 +81,8 @@ export const devices: DeviceInfo[] = [
   { id: thisDeviceId, name: 'This browser', kind: 'web', canPlay: true, isActive: true },
   { id: 'phone', name: 'Alex’s iPhone', kind: 'ios', canPlay: true, isActive: false },
   { id: 'living-room', name: 'Living Room', kind: 'other', canPlay: true, isActive: false },
-  { id: 'studio-mac', name: 'Studio Mac', kind: 'desktop', canPlay: true, isActive: false },
+  // Quiet for hours: the list says how long, which tells two devices of one name apart.
+  { id: 'studio-mac', name: 'Studio Mac', kind: 'desktop', canPlay: true, isActive: false, lastSeenAt: Date.now() - 3 * 3_600_000 },
   // Playing its own queue: listed apart, never a place to move playback to.
   { id: 'kitchen', name: 'Kitchen', kind: 'web', canPlay: false, isActive: false, detached: { playing: false, trackId: '00000000-0000-4000-8300-000000000001', albumId: null } },
 ]
