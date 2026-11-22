@@ -8,10 +8,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import {
-  acquisitionJobs, acquisitionMisses, albumArtists, albums, artists, externalIds, imports, libraryItems, likes, matchReviews, mediaFiles, playlistItems, playlists, plays,
-  recordingArtists, recordings, releases, releaseTracks, wants,
-} from '../../database/schema.js'
+import { acquisitionJobs, acquisitionMisses, albumArtists, albums, artists, externalIds, imports, likes, matchReviews, mediaFiles, playlistItems, playlists, plays, recordingArtists, recordings, releases, releaseTracks, wants } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
@@ -198,7 +195,7 @@ describe('repairing deliveries left on albums of their own', () => {
     const playlistId = newId()
     await db.insert(playlists).values({ id: playlistId, ownerId: fan.id, name: 'Fetched' })
     await db.insert(playlistItems).values({ id: newId(), playlistId, position: 0, recordingId: lp.tracks[0]!.recordingId, albumId: copy, addedBy: fan.id })
-    await db.insert(libraryItems).values({ userId: fan.id, entityType: 'album', entityId: copies[2]! })
+    await db.insert(likes).values({ userId: fan.id, entityType: 'album', entityId: copies[2]! })
     expect(await savedAlbums()).toContain(copies[2])
     const playId = newId()
     await db.insert(plays).values({ id: playId, userId: fan.id, recordingId: lp.tracks[2]!.recordingId, albumId: copies[1]!, msPlayed: 2000, completed: true })
@@ -312,8 +309,7 @@ describe('repairing deliveries left on albums of their own', () => {
     expect(await db.select({ albumId: playlistItems.albumId, recordingId: playlistItems.recordingId }).from(playlistItems).where(eq(playlistItems.playlistId, playlistId)))
       .toEqual([{ albumId: lp.albumId, recordingId: lp.tracks[0]!.recordingId }])
     expect(await db.select({ albumId: plays.albumId }).from(plays).where(eq(plays.id, playId))).toEqual([{ albumId: lp.albumId }])
-    // A save of a copy is a save of the album.
-    expect(await db.select({ entityId: libraryItems.entityId }).from(libraryItems).where(eq(libraryItems.userId, fan.id))).toEqual([{ entityId: lp.albumId }])
+    // A save of a copy is a save of the album (the album saves were checked above).
     expect(await savedAlbums()).toContain(lp.albumId)
     expect(await savedAlbums()).not.toContain(copies[2])
     // Only the album's real artist is left.

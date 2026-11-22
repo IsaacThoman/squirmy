@@ -165,7 +165,7 @@ export async function seedStubCatalog(options: StubCatalog) {
         or (st.album_i <= ${collectionAlbums + savedAlbums} and st.album_i % 2 = 0)
         or (st.album_i > ${collectionAlbums + savedAlbums} and st.album_i <= ${real})`)
     await tx.execute(sql`
-      insert into library_items (user_id, entity_type, entity_id, created_at)
+      insert into likes (user_id, entity_type, entity_id, created_at)
       select ${userId}, 'album', id, timestamptz '2026-01-01' + i * interval '1 minute' + interval '30 seconds'
       from seed_albums where i > ${collectionAlbums} and i <= ${collectionAlbums + savedAlbums}`)
   })

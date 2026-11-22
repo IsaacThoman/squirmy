@@ -10,7 +10,7 @@ import type { AlbumSummary, ArtistRef, ArtistSummary, Artwork, TrackLibrary, Tra
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { retryFailedAfterMs } from '../artwork/index.js'
-import { albumAvailability, inLibraryAlbum, recordingLibrary, trackAvailability } from './availability.js'
+import { albumAvailability, inLibraryAlbum, recordingLibrary, saved, trackAvailability } from './availability.js'
 import { resolveMerged } from './redirects.js'
 import { uuidArray } from './sql.js'
 
@@ -214,9 +214,9 @@ export async function albumSummaries(albumIds: readonly string[]): Promise<Album
 }
 
 /**
- * Summaries of artists, in input order. `inLibrary` is true when the artist is credited on
- * an album in `userId`'s library (without a user, on a collection album). Being featured
- * on a track, or credited on music fetched for playing, does not count.
+ * Summaries of artists, in input order. `inLibrary` is true when `userId` saved the artist,
+ * or it is credited on an album in their library (without a user, on a collection album).
+ * Being featured on a track, or credited on music fetched for playing, does not count.
  */
 export async function artistSummaries(artistIds: readonly string[], userId: string | null = null): Promise<ArtistSummary[]> {
   const resolved = await resolveMerged('artists', artistIds)
@@ -225,7 +225,9 @@ export async function artistSummaries(artistIds: readonly string[], userId: stri
   const rows = await db.execute<ArtworkColumns & { id: string; mbid: string | null; name: string; inLibrary: boolean }>(sql`
     select a.id, a.mbid, a.name,
       art.id as "artworkId", art.color as "artworkColor", art.thumbhash as "artworkThumbhash",
-      exists (select 1 from album_artists aa where aa.artist_id = a.id and ${inLibraryAlbum('aa.album_id', userId)}) as "inLibrary"
+      (${userId ? sql`${saved('artist', 'a.id', userId)} or ` : sql``}exists (
+        select 1 from album_artists aa where aa.artist_id = a.id and ${inLibraryAlbum('aa.album_id', userId)}
+      )) as "inLibrary"
     from artists a left join assets art on art.id = a.image_asset_id and ${servable('art')}
     where a.id = any(${uuidArray(ids)})`)
   const byId = new Map(rows.map((row) => [row.id, row]))

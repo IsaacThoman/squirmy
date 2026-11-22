@@ -658,6 +658,13 @@ export const detachedSessions = pgTable('detached_sessions', {
   foreignKey({ columns: [t.userId, t.deviceId], foreignColumns: [devices.userId, devices.id] }).onDelete('cascade'),
 ])
 
+/**
+ * What a user saved with the heart: a track (`recording`), album or artist. A user's library
+ * is the server's collection (files no provider delivered), which every user has, plus these
+ * saves; Liked Songs lists the saved recordings. A save needs no file: the album shows in the
+ * library at once and its files arrive later. Not deleted with the files. (Saves used to be a
+ * second table, `library_items`, beside likes; migration 0017 folded it in.)
+ */
 export const likes = pgTable('likes', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   entityType: text('entity_type').$type<LikeEntityType>().notNull(),
@@ -665,24 +672,10 @@ export const likes = pgTable('likes', {
   createdAt: createdAt(),
 }, (t) => [
   primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
-  index('likes_user_recent').on(t.userId, t.entityType, t.createdAt),
-])
-
-/**
- * What a user added to their library, beyond the server's collection (files that were not
- * delivered by a provider), which every user has. A save needs no file: the album shows in
- * the library at once and its files arrive later. Not deleted with the files.
- */
-export const libraryItems = pgTable('library_items', {
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  entityType: text('entity_type').$type<'album' | 'recording'>().notNull(),
-  entityId: uuid('entity_id').notNull(),
-  createdAt: createdAt(),
-}, (t) => [
-  primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
-  index('library_items_user_recent').on(t.userId, t.entityType, t.createdAt.desc(), t.entityId.desc()),
+  // Newest first with the id as tie-break: the keyset order of the library lists and Liked Songs.
+  index('likes_user_recent').on(t.userId, t.entityType, t.createdAt.desc(), t.entityId.desc()),
   // Who keeps an entity, whatever the user: merges and cache pinning look rows up this way.
-  index('library_items_entity').on(t.entityType, t.entityId),
+  index('likes_entity').on(t.entityType, t.entityId),
 ])
 
 /** 1..5 stars. Exists for Subsonic clients. */

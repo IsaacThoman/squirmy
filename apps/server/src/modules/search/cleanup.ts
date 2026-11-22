@@ -34,7 +34,6 @@ function unreferenced(type: 'recording' | 'album' | 'artist', table: string, ali
   return sql`${userData}
     and not exists (select 1 from acquisition_jobs j where ${fetching} and j.status not in ('completed', 'failed', 'rejected'))
     and not exists (select 1 from wants where entity_type = ${type} and entity_id = ${id})
-    and not exists (select 1 from library_items where entity_type = ${type} and entity_id = ${id})
     and not exists (select 1 from playlist_items where ${column} = ${id})
     and not exists (select 1 from plays where ${column} = ${id})`
 }

@@ -84,8 +84,8 @@ describe('userdata', () => {
       expect(target).toEqual({ user: mira.id })
       expect(keys).toEqual(expect.arrayContaining([
         queryKeys.likes(), queryKeys.track(track), queryKeys.album(album.albumId), queryKeys.artist(album.artist.id), queryKeys.history(),
-        // Songs lists and search results show the heart too.
-        queryKeys.libraryTracks(), queryKeys.search(),
+        // The heart is the library save: every library list (a prefix of Songs) and search results move.
+        queryKeys.library(), queryKeys.search(),
       ]))
       // The playlists list shows no hearts: only playlists holding the track are refreshed.
       expect(keys).not.toContainEqual(queryKeys.playlists())
@@ -100,7 +100,12 @@ describe('userdata', () => {
       expect(unliked).not.toContainEqual(queryKeys.playlist(other.id))
       invalidated.mockClear()
       await call(mira, { method: 'PUT', url: `/me/likes/album/${album.albumId}` })
-      expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.likes(), queryKeys.home(), queryKeys.album(album.albumId)])
+      // A saved album puts its tracks (their rows show `inLibrary` anywhere) and its artists in the library.
+      const [, albumKeys] = invalidated.mock.calls[0]!
+      expect(albumKeys).toEqual(expect.arrayContaining([
+        queryKeys.likes(), queryKeys.home(), queryKeys.library(), queryKeys.album(album.albumId), queryKeys.artist(album.artist.id),
+        queryKeys.track(track), queryKeys.playlists(),
+      ]))
     })
 
     it('refreshes the album a liked bonus track is filed under', async () => {

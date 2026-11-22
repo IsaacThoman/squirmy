@@ -30,7 +30,6 @@ const noUserData = (type: 'album' | 'recording' | 'artist', column: SQL) => sql`
   not exists (select 1 from likes where entity_type = ${type} and entity_id = ${column})
   and not exists (select 1 from ratings where entity_type = ${type} and entity_id = ${column})
   ${type === 'artist' ? sql`` : sql`and not exists (select 1 from wants where entity_type = ${type} and entity_id = ${column})
-  and not exists (select 1 from library_items where entity_type = ${type} and entity_id = ${column})
   and not exists (select 1 from playlist_items where ${sql.raw(`${type}_id`)} = ${column})
   and not exists (select 1 from plays where ${sql.raw(`${type}_id`)} = ${column})`}`
 
@@ -41,7 +40,7 @@ async function column(tx: Executor, query: SQL): Promise<string[]> {
 
 /**
  * Deletes local-only catalog rows (no MusicBrainz id, not a merge redirect) that no file
- * links and no user data (likes, ratings, wants, library saves, playlist items, plays) points at. Stubs
+ * links and no user data (library saves, ratings, wants, playlist items, plays) points at. Stubs
  * from catalog searches (albums and artists at `detail_level` 0, recordings with an
  * external id) are left to the search module's own cleanup:
  *
