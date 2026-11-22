@@ -4,7 +4,15 @@ Squirmy speaks the [OpenSubsonic](https://opensubsonic.netlify.app/) API, so app
 
 The API was tested against py-opensonic, py-sonic, subsonic-api (Node) and the Airsonic Refix web client. Other apps (Symfonium, Amperfy, play:Sub, Substreamer, DSub, Feishin, Supersonic and so on) speak the same API but have not been tried; reports are welcome.
 
-Subsonic apps see **your library only**: albums with at least one file on the server, the tracks you have files for, and their artists. Music Squirmy knows about but you do not own never appears, and a playlist shows only the tracks the server can play.
+Subsonic apps see **your library only**, and only the parts of it with a file on the server, because these apps sync their lists and expect to play anything in them at once:
+
+- **Albums**: the server's collection (music scanned from your folders, uploaded or imported) and the albums you added to your library in Squirmy, once at least one of their songs has a file. An album you added shows only the songs that have arrived so far.
+- **Songs**: the collection's, the songs you added, and the songs of albums you added, when they have a file.
+- **Artists**: those credited on the albums or songs above.
+
+Music the server fetched only because someone played it is not in anyone's library, so it stays out of albums, artists, search, random songs and genres. Once your server streams through a provider, Subsonic apps therefore show fewer albums than they used to: your library, not everything that was ever played. Add an album to your library in Squirmy's web or phone app to see it in Subsonic apps too. Each person sees their own additions; the collection is shared.
+
+Starred songs and playlists are your own picks, so they show every song with a file on the server, whether or not it is in your library; starred albums and artists show only when they are in it. A song that has a file can always be streamed by its id.
 
 ## Connect an app
 
@@ -55,7 +63,8 @@ Requests can be GET or form POST, with or without `.view`, and answers come as X
 - **Scrobbles are plays.** A scrobble adds the play to your history at the time the app reports, and from there to ListenBrainz or Last.fm when you have connected them. A "now playing" notice shows in `getNowPlaying` until the song would have ended.
 - **The play queue is your Squirmy queue.** Save the queue in one app and Squirmy's web and phone apps pick it up paused at the same point, and the other way round. Tracks a Subsonic app saved before its current song are remembered until the queue changes in Squirmy. Of a very long queue, 5,000 tracks from the current song on, and 5,000 before it, are kept.
 - **Music folders are library roots.** Apps that filter by folder see one folder per root.
-- **Similar songs and artists** come from Squirmy's radio, limited to music you own.
+- **Your library is Squirmy's library.** Subsonic has no "add to library" call; add albums and songs in Squirmy's apps. Starring one does not add it.
+- **Similar songs and artists** come from Squirmy's radio, limited to your library.
 - **ReplayGain** values on songs are Squirmy's loudness measurements (or the file's own tags until a file is measured), relative to -18 LUFS.
 
 ### Streaming and transcoding
@@ -83,4 +92,4 @@ Cover art is served at the original size, or with `size` as a square WebP at the
 
 ## For developers
 
-The module is `apps/server/src/modules/subsonic`. `handlers/` has one file per area of the API, named in the table above; `songs.ts`, `albums.ts` and `artists.ts` build the response objects in batches. Ids carry their kind: `ar-` artist, `al-` album, `tr-` track, `pl-` playlist, `ca-` cover art. Tests run every method in XML and JSON and compare the two; `SQUIRMY_PERF=1 npx vitest run src/modules/subsonic/performance.test.ts` times the paging methods on 150,000 tracks.
+The module is `apps/server/src/modules/subsonic`. `handlers/` has one file per area of the API, named in the table above; `songs.ts`, `albums.ts` and `artists.ts` build the response objects in batches. Ids carry their kind: `ar-` artist, `al-` album, `tr-` track, `pl-` playlist, `ca-` cover art. Tests run every method in XML and JSON and compare the two; `SQUIRMY_PERF=1 npx vitest run src/modules/subsonic/performance.test.ts` times the paging methods on 150,000 tracks, and `stubs-performance.test.ts` on a catalog of 200,000 search stubs around a small library.

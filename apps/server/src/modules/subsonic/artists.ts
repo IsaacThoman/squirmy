@@ -1,7 +1,7 @@
 /**
  * Builds Subsonic artists (`ArtistID3`, and the folder-browsing `artist`) in batches.
- * An artist is in the library when it is credited on an owned album or an owned track;
- * `albumCount` counts the owned albums it is an album artist of.
+ * An artist is in the library when it is credited on a library album or a library track
+ * (sql.ts); `albumCount` counts the library albums it is an album artist of.
  */
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
@@ -9,7 +9,7 @@ import { sortKeys, isoTime, uuidArray } from '../catalog/sql.js'
 import { sortKey } from '../../lib/text.js'
 import { artistId, coverArtId } from './ids.js'
 import type { Payload } from './protocol.js'
-import { hasPresentFile, presentFiles } from './sql.js'
+import { libraryAlbum, libraryAlbumIds, libraryRecording } from './sql.js'
 
 export type ArtistRow = {
   id: string
@@ -62,8 +62,8 @@ export async function artistRows(userId: string, ids: readonly string[], rootId?
   const rows = await db.execute<ArtistRow & { owned: boolean }>(sql`
     select ar.id, ar.mbid, ar.name, ar.sort_name as "sortName", ar.image_asset_id as "imageId",
       (select count(distinct aa.album_id)::int from album_artists aa
-        where aa.artist_id = ar.id and ${hasPresentFile('album_id', 'aa.album_id', rootId)}) as "albumCount",
-      exists (select 1 from recording_artists ra where ra.artist_id = ar.id and ${hasPresentFile('recording_id', 'ra.recording_id', rootId)}) as owned,
+        where aa.artist_id = ar.id and ${libraryAlbum('aa.album_id', userId, rootId)}) as "albumCount",
+      exists (select 1 from recording_artists ra where ra.artist_id = ar.id and ${libraryRecording('ra.recording_id', userId, rootId)}) as owned,
       ${userColumns}
     from artists ar ${userJoins(userId)}
     where ar.id = any(${uuidArray(unique)})`)
@@ -72,14 +72,12 @@ export async function artistRows(userId: string, ids: readonly string[], rootId?
 }
 
 /**
- * Every artist credited as album artist on an owned album (of the music folder, when
+ * Every artist credited as album artist on a library album (of the music folder, when
  * given), by name ignoring a leading article. One query; the album set is read once.
  */
 export async function allLibraryArtists(userId: string, rootId?: string | null): Promise<ArtistRow[]> {
   return db.execute<ArtistRow>(sql`
-    with owned as (
-      select distinct f.album_id from media_files f where f.album_id is not null and ${presentFiles('f', rootId)}
-    ),
+    with owned as (${libraryAlbumIds(userId, rootId)}),
     counted as (
       select aa.artist_id, count(distinct aa.album_id)::int as "albumCount"
       from owned join album_artists aa on aa.album_id = owned.album_id
