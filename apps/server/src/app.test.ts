@@ -121,6 +121,10 @@ describe('server kernel', () => {
         expect(page.statusCode).toBe(200)
         expect(page.body).toContain('<title>Squirmy</title>')
         expect(page.headers['cache-control']).toBe('no-cache')
+        // Scripts from this server only: the page has none inline.
+        expect(page.headers['content-security-policy']).toContain("script-src 'self';")
+        expect(page.headers['content-security-policy']).toContain("frame-ancestors 'none'")
+        expect(page.headers['content-security-policy']).not.toContain('upgrade-insecure-requests')
       }
 
       for (const url of ['/api/v1/nothing', '/socket.io/x', '/api']) {
