@@ -104,6 +104,12 @@ export const AlbumDetail = AlbumSummary.extend({
   discs: z.array(AlbumDisc),
   liked: z.boolean(),
   wanted: z.boolean(),
+  /**
+   * True when the page was answered while its detail (track list, edition) was still
+   * being fetched: what it shows is not final, and an invalidation of the album follows.
+   * Absent otherwise.
+   */
+  detailPending: z.literal(true).optional(),
 })
 export type AlbumDetail = z.infer<typeof AlbumDetail>
 
@@ -118,6 +124,8 @@ export const ArtistDetail = ArtistSummary.extend({
   /** Whole discography, newest first. Clients group by `type`. */
   albums: z.array(AlbumSummary),
   similar: z.array(ArtistSummary),
+  /** As on `AlbumDetail`: the profile and discography are still being fetched. */
+  detailPending: z.literal(true).optional(),
 })
 export type ArtistDetail = z.infer<typeof ArtistDetail>
 
