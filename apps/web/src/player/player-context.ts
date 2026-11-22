@@ -59,6 +59,9 @@ export type Player = { state: PlayerState; controls: PlayerControls }
 
 export const PlayerContext = createContext<Player | null>(null)
 
+/** The controls alone. They keep one identity, so readers that only send commands skip every session update. */
+export const PlayerControlsContext = createContext<PlayerControls | null>(null)
+
 /** The device that plays when it is not this one. One that dropped off the list during its grace period is still "another device". */
 export function playingElsewhere(state: Pick<PlayerState, 'activeDeviceId' | 'thisDeviceId' | 'devices'>): DeviceInfo | undefined {
   const { activeDeviceId, thisDeviceId, devices } = state
@@ -70,6 +73,13 @@ export function usePlayer() {
   const player = useContext(PlayerContext)
   if (!player) throw new Error('usePlayer needs a player provider')
   return player
+}
+
+/** The player's commands, for components that show nothing of the session: they do not re-render as it changes. */
+export function usePlayerControls() {
+  const controls = useContext(PlayerControlsContext)
+  if (!controls) throw new Error('usePlayerControls needs a player provider')
+  return controls
 }
 
 /**

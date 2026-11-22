@@ -1,6 +1,6 @@
 import type { AlbumDetail } from '@squirmy/contracts'
 import { CloudDownload, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal, Plus, Wand2 } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useCurrentUser } from '@/auth/session'
 import { FixMatch } from '@/components/admin/FixMatch'
@@ -16,7 +16,7 @@ import { formatDate, formatTotalDuration, plural } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
 import { useOnDemand } from '@/player/on-demand-context'
-import { usePlayer } from '@/player/player-context'
+import { usePlayerControls } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 const availabilityNote = {
@@ -31,7 +31,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   const library = useLibrary()
   const onDemand = useOnDemand()
   const user = useCurrentUser()
-  const { controls } = usePlayer()
+  const controls = usePlayerControls()
   const [fixing, setFixing] = useState(false)
   const tracks = album.discs.flatMap(disc => disc.tracks)
   const context = { type: 'album' as const, id: album.id, title: album.title }
@@ -79,7 +79,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
             liked={album.liked}
             onLike={() => library.setLiked('album', album.id, !album.liked)}
             wanted={wanted}
-            onWant={album.availability === 'full' ? undefined : want}
+            onWant={album.availability === 'full' || !library.wantlistEnabled ? undefined : want}
           >
             <DropdownMenu
               align="start"
@@ -107,29 +107,26 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
         )}
       />
 
-      <div className="px-(--gutter) pb-12">
+      <div className="px-(--gutter) pb-10">
         {album.availability === 'none' && (
-          <div className="mb-6 flex flex-col gap-3 rounded-2xl bg-surface p-4 sm:flex-row sm:items-center">
-            <Disc3 aria-hidden className="size-6 shrink-0 text-quiet" />
-            <p className="flex-1 text-sm text-muted">
-              This album is not in your library yet. {wanted ? 'It is on your Wantlist and will fill in when a matching import arrives.' : 'Add it to your Wantlist and a matching import will complete it.'}
+          <Notice icon={<Disc3 />}>
+            <p className="flex-1 text-muted-foreground">
+              This album is not in your library yet.{library.wantlistEnabled && (wanted ? ' It is on your Wantlist and will fill in when a matching import arrives.' : ' Add it to your Wantlist and a matching import will complete it.')}
             </p>
-          </div>
+          </Notice>
         )}
         {album.availability === 'on_demand' && !onDemand.canRequest && (
-          <div className="mb-6 flex flex-col gap-3 rounded-2xl bg-surface p-4 sm:flex-row sm:items-center">
-            <Disc3 aria-hidden className="size-6 shrink-0 text-quiet" />
-            <p className="flex-1 text-sm text-muted">{REQUEST_NOT_ALLOWED} {wanted ? 'It is on your Wantlist.' : 'You can add it to your Wantlist.'}</p>
-          </div>
+          <Notice icon={<Disc3 />}>
+            <p className="flex-1 text-muted-foreground">{REQUEST_NOT_ALLOWED}{library.wantlistEnabled && (wanted ? ' It is on your Wantlist.' : ' You can add it to your Wantlist.')}</p>
+          </Notice>
         )}
         {(fetching || (album.availability === 'on_demand' && onDemand.canRequest)) && (
-          <div className="mb-6 flex flex-col gap-3 rounded-2xl bg-selection p-4 text-sm text-foreground sm:flex-row sm:items-center">
-            <CloudDownload aria-hidden className="size-5 shrink-0 text-accent" />
+          <Notice icon={<CloudDownload className="text-primary" />}>
             {fetching ? (
               <div className="flex flex-1 flex-col gap-2">
                 <p className="flex justify-between gap-3 font-medium">
                   <span>Getting this album…</span>
-                  <span className="tabular text-muted">{album.ownedTrackCount} of {plural(album.trackCount, 'song')} here</span>
+                  <span className="font-normal tabular text-muted-foreground">{album.ownedTrackCount} of {plural(album.trackCount, 'song')} here</span>
                 </p>
                 <ProgressBar value={album.trackCount ? album.ownedTrackCount / album.trackCount : null} label={`Getting ${album.title}`} />
               </div>
@@ -139,20 +136,22 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
                 <Button variant="primary" size="sm" onClick={getAlbum}><CloudDownload />Get this album</Button>
               </>
             )}
-          </div>
+          </Notice>
         )}
 
-        <TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" {...actions} />
+        <div className="-mx-2"><TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" {...actions} /></div>
 
-        <footer className="mt-10 flex flex-col gap-5 md:max-w-3xl">
-          {album.description && <p className="text-[15px] leading-relaxed text-muted">{album.description}</p>}
+        <footer className="mt-8 flex flex-col gap-4 md:max-w-2xl">
+          {album.description && <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{album.description}</p>}
           {album.genres.length > 0 && (
-            <div className="flex flex-wrap gap-2">{album.genres.map(genre => <Badge key={genre} tone="outline" className="h-6 px-2.5 normal-case tracking-normal text-[12px]">{genre}</Badge>)}</div>
+            <div className="flex flex-wrap gap-1.5">{album.genres.map(genre => <Badge key={genre} tone="outline">{genre}</Badge>)}</div>
           )}
-          <div className="text-xs leading-relaxed text-quiet">
-            {album.releaseDate && <p>{formatDate(album.releaseDate)}</p>}
-            {album.label && <p>℗ {album.year} {album.label}</p>}
-          </div>
+          {(album.releaseDate || album.label) && (
+            <div className="text-xs leading-relaxed text-muted-foreground">
+              {album.releaseDate && <p>{formatDate(album.releaseDate)}</p>}
+              {album.label && <p>℗ {album.year} {album.label}</p>}
+            </div>
+          )}
         </footer>
       </div>
       {fixing && (
@@ -162,6 +161,16 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
           onDone={result => { if (result.albumId && result.albumId !== album.id) void navigate(`/album/${result.albumId}`, { replace: true }) }}
         />
       )}
+    </div>
+  )
+}
+
+/** A note above the tracks about what the library has of this album. */
+function Notice({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <div className="mb-5 flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm sm:flex-row sm:items-center">
+      <span aria-hidden className="shrink-0 text-muted-foreground [&_svg]:size-5">{icon}</span>
+      {children}
     </div>
   )
 }

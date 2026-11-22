@@ -35,7 +35,7 @@ Until the key is set, users see "An admin of this server has to add a Last.fm AP
 
 1. In the web app, open **Settings → Scrobbling** and choose **Connect** next to Last.fm. In the iOS app, open the account sheet, then **Settings**, then **Connect** under **Last.fm**.
 2. Approve Squirmy on Last.fm's page.
-3. You land on the web app's **Settings** page with a confirmation. The approval link is valid for 10 minutes.
+3. You land back in the web app, with **Settings** open on **Scrobbling** and a confirmation. The approval link is valid for 10 minutes.
 
 ## Status and problems
 

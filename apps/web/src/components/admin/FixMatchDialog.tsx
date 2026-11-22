@@ -1,17 +1,19 @@
 import { queryKeys, type AlbumDetail, type MatchActionResult, type MatchCandidate, type MatchFile } from '@squirmy/contracts'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, ExternalLink, RotateCcw, Search, Tags } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { errorMessage } from '@/api/errors'
 import { useApi } from '@/api/services'
 import { Cover } from '@/components/music/Cover'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogFrame, DialogTitle } from '@/components/ui/dialog'
 import { Badge, Skeleton, Spinner } from '@/components/ui/feedback'
 import { FormError } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
 import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
 import { CandidateComparison, CandidatePicker } from './MatchCompare'
+import { cardClass } from './Panel'
 
 export type FixMatchProps = {
   albumId: string
@@ -94,6 +96,7 @@ function identification(album: AlbumDetail, files: MatchFile[] | undefined): str
 export function FixMatchView({ album, files, candidates, searching, searchError, actionError, pending, onSearch, onAction, onOpenChange }: FixMatchViewProps) {
   const [text, setText] = useState<string | null>(null)
   const [chosen, setChosen] = useState<string | null>(null)
+  const descriptionId = useId()
   const candidate = candidates?.find(item => item.releaseMbid === chosen) ?? candidates?.[0]
   const search = (event: FormEvent) => {
     event.preventDefault()
@@ -103,59 +106,67 @@ export function FixMatchView({ album, files, candidates, searching, searchError,
   const busy = pending !== null
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent title="Fix match" description="Pick the MusicBrainz release these files are, match them automatically again, or keep them as their tags describe them." className="max-w-5xl">
-        <div className="flex items-center gap-4 rounded-2xl bg-sheet p-3 ring-1 ring-stroke">
-          {album ? (
-            <>
-              <Cover artwork={album.artwork} size={96} className="size-14 rounded-lg" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-bold">{album.title}</p>
-                <p className="truncate text-sm text-muted">{album.artistCredit}{album.year ? ` · ${album.year}` : ''}</p>
-                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-quiet">
-                  <span>{identification(album, files)}</span>
-                  {album.mbid && (
-                    <a className="inline-flex items-center gap-1 font-semibold text-accent hover:underline" href={`https://musicbrainz.org/release-group/${album.mbid}`} target="_blank" rel="noreferrer">
-                      Release group<ExternalLink className="size-3" />
-                    </a>
-                  )}
-                </p>
-              </div>
-              {files && <Badge className="max-sm:hidden">{files.length} files</Badge>}
-            </>
-          ) : <Skeleton className="h-14 flex-1" />}
+      {/* Its head and its actions stay put; what is between them scrolls. */}
+      <DialogFrame aria-describedby={descriptionId} className="flex flex-col overflow-hidden sm:max-w-5xl">
+        <div className="flex flex-col gap-2 border-b px-4 py-4 pr-12 sm:px-6 sm:py-5 sm:pr-12">
+          <DialogTitle className="text-lg font-semibold leading-none">Fix match</DialogTitle>
+          <p id={descriptionId} className="text-sm text-muted-foreground">Pick the MusicBrainz release these files are, match them automatically again, or keep them as their tags describe them.</p>
         </div>
 
-        <form onSubmit={search} className="flex gap-2">
-          <SearchField
-            value={text ?? (album ? `${album.artistCredit} - ${album.title}` : '')}
-            onValueChange={setText}
-            placeholder="Artist - album, a release link or an MBID"
-            aria-label="Search MusicBrainz"
-            className="flex-1"
-          />
-          <Button type="submit" pending={searching} disabled={busy}>{!searching && <Search />}Search</Button>
-        </form>
-
-        {searchError && <FormError message={searchError} />}
-        {!candidates && !searchError && (
-          <div className="flex flex-col items-center gap-3 rounded-2xl bg-sheet py-12 text-center ring-1 ring-stroke">
-            <Spinner />
-            <p className="max-w-sm text-sm text-muted">Searching MusicBrainz. Its public server answers one request a second, so this can take a little while.</p>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
+          <div className={cn(cardClass, 'flex items-center gap-3 p-3')}>
+            {album ? (
+              <>
+                <Cover artwork={album.artwork} size={96} className="size-12" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{album.title}</p>
+                  <p className="truncate text-xs text-muted-foreground">{album.artistCredit}{album.year ? ` · ${album.year}` : ''}</p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                    <span>{identification(album, files)}</span>
+                    {album.mbid && (
+                      <a className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline" href={`https://musicbrainz.org/release-group/${album.mbid}`} target="_blank" rel="noreferrer">
+                        Release group<ExternalLink className="size-3" />
+                      </a>
+                    )}
+                  </p>
+                </div>
+                {files && <Badge className="tabular max-sm:hidden">{files.length} files</Badge>}
+              </>
+            ) : <Skeleton className="h-12 flex-1" />}
           </div>
-        )}
-        {candidates?.length === 0 && (
-          <p className="rounded-2xl bg-sheet px-4 py-6 text-center text-sm text-muted ring-1 ring-stroke">Nothing found. Try another spelling, or paste a MusicBrainz release link.</p>
-        )}
-        {candidates && candidates.length > 0 && files && candidate && (
-          <>
-            {candidates.length > 1 && <CandidatePicker name="fix-match" candidates={candidates} selected={candidate.releaseMbid} onSelect={setChosen} />}
-            <CandidateComparison candidate={candidate} files={files} />
-          </>
-        )}
 
-        <FormError message={actionError} />
-        <div className="sticky -bottom-6 -mx-6 -mb-6 flex flex-col-reverse gap-2 border-t border-stroke bg-sheet px-6 py-4 sm:flex-row sm:items-center">
-          <div className="flex flex-wrap gap-2 sm:flex-1">
+          <form onSubmit={search} className="flex gap-2">
+            <SearchField
+              value={text ?? (album ? `${album.artistCredit} - ${album.title}` : '')}
+              onValueChange={setText}
+              placeholder="Artist - album, a release link or an MBID"
+              aria-label="Search MusicBrainz"
+              className="flex-1"
+            />
+            <Button type="submit" variant="outline" pending={searching} disabled={busy}>{!searching && <Search />}Search</Button>
+          </form>
+
+          {searchError && <FormError message={searchError} />}
+          {!candidates && !searchError && (
+            <div className={cn(cardClass, 'flex flex-col items-center gap-3 px-4 py-12 text-center')}>
+              <Spinner />
+              <p className="max-w-sm text-sm text-muted-foreground">Searching MusicBrainz. Its public server answers one request a second, so this can take a little while.</p>
+            </div>
+          )}
+          {candidates?.length === 0 && (
+            <p className={cn(cardClass, 'px-4 py-8 text-center text-sm text-muted-foreground')}>Nothing found. Try another spelling, or paste a MusicBrainz release link.</p>
+          )}
+          {candidates && candidates.length > 0 && files && candidate && (
+            <>
+              {candidates.length > 1 && <CandidatePicker name="fix-match" candidates={candidates} selected={candidate.releaseMbid} onSelect={setChosen} />}
+              <CandidateComparison candidate={candidate} files={files} />
+            </>
+          )}
+          <FormError message={actionError} />
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t px-4 py-3 sm:flex-row sm:items-center sm:px-6">
+          <div className="flex flex-wrap gap-2 max-sm:justify-between sm:flex-1">
             <Button size="sm" variant="ghost" disabled={busy} pending={pending === 'auto'} onClick={() => onAction({ kind: 'auto' })}>{pending !== 'auto' && <RotateCcw />}Match automatically</Button>
             <Button size="sm" variant="ghost" disabled={busy} pending={pending === 'unmatch'} onClick={() => onAction({ kind: 'unmatch' })}>{pending !== 'unmatch' && <Tags />}Use the tags</Button>
           </div>
@@ -163,7 +174,7 @@ export function FixMatchView({ album, files, candidates, searching, searchError,
             {pending !== 'release' && <Check />}Use this release
           </Button>
         </div>
-      </DialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }
