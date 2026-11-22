@@ -177,6 +177,12 @@ export const artists = pgTable('artists', {
   nameKey: text('name_key').notNull(),
   genres: textArray('genres'),
   imageAssetId: uuid('image_asset_id'),
+  /**
+   * When the image was last chosen knowing the artist's MusicBrainz links (its own Deezer
+   * page, fanart.tv). Null for an image taken from whichever page search linked first, which
+   * may be a namesake's; the next hydration or the release repair chooses again.
+   */
+  imagePickedAt: at('image_picked_at'),
   bio: text('bio'),
   bioSource: text('bio_source'),
   bioUrl: text('bio_url'),
@@ -192,6 +198,24 @@ export const artists = pgTable('artists', {
   // Prefix search (modules/search): byte order, so a range scan finds every name starting with the query.
   index('artists_name_key_prefix').on(sql`${t.nameKey} collate "C"`),
   index('artists_name_sort').on(sql`regexp_replace(${t.nameKey}, '^(the|a|an) ', '')`, t.id),
+])
+
+/**
+ * An artist's popular tracks in the order a source ranks them (Deezer's top tracks, else
+ * ListenBrainz), replaced as a whole on each fetch. The artist page lists them in this
+ * order: popularity columns written by search use other scales, so they cannot rank one
+ * artist's songs against each other.
+ */
+export const artistTopTracks = pgTable('artist_top_tracks', {
+  artistId: uuid('artist_id').notNull().references(() => artists.id, { onDelete: 'cascade' }),
+  position: smallint('position').notNull(),
+  recordingId: uuid('recording_id').notNull().references(() => recordings.id, { onDelete: 'cascade' }),
+  /** deezer | listenbrainz */
+  source: text('source').notNull(),
+  fetchedAt: at('fetched_at').notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.artistId, t.position] }),
+  index('artist_top_tracks_recording').on(t.recordingId),
 ])
 
 /** An album is a MusicBrainz release group: the abstract album across all its editions. */

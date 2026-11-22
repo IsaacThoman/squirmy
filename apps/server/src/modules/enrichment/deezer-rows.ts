@@ -10,11 +10,12 @@ import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { remoteImage } from '../artwork/index.js'
 import { canonicalRelease } from '../catalog/availability.js'
+import { uuidArray } from '../catalog/sql.js'
 import { lockUpserts } from '../matching/apply.js'
 import { guessAlbumType, releaseKey } from '../search/keys.js'
 import { resolveMerged } from '../matching/merge.js'
 import { deezer } from '../metadata/index.js'
-import type { DeezerAlbum, DeezerTrack } from '../metadata/deezer.js'
+import type { DeezerAlbum, DeezerArtist, DeezerTrack } from '../metadata/deezer.js'
 import { linkExternalId } from './rows.js'
 
 type DeezerArtistRef = { id: number; name: string }
@@ -48,6 +49,30 @@ async function deezerArtistRow(tx: Transaction, artist: DeezerArtistRef): Promis
   await tx.insert(artists).values({ id, name: artist.name, sortName: artist.name, nameKey: matchKey(artist.name), detailLevel: 0 })
   await tx.insert(externalIds).values({ provider: 'deezer', entityType: 'artist', externalId: String(artist.id), entityId: id })
   return id
+}
+
+/**
+ * The artist rows for Deezer artists, made as search makes them when missing (the row
+ * carrying the id, else the only one of the name, else a stub with the picture), keyed by
+ * Deezer id. For suggestions the catalog does not have yet, such as similar artists: a
+ * rail of only the artists someone happened to search was empty for Drake.
+ */
+export async function deezerArtistRows(found: readonly DeezerArtist[]): Promise<Map<number, string>> {
+  if (found.length === 0) return new Map()
+  // Registered before the transaction, like search does: no network while holding the lock.
+  const pictures = new Map<number, string>()
+  for (const artist of found) if (artist.imageUrl) pictures.set(artist.id, (await remoteImage(artist.imageUrl, { kind: 'artist' })).id)
+  return db.transaction(async (tx) => {
+    await lockUpserts(tx)
+    const rows = new Map<number, string>()
+    for (const artist of found) {
+      const id = await deezerArtistRow(tx, artist)
+      const picture = pictures.get(artist.id)
+      if (picture) await tx.update(artists).set({ imageAssetId: picture }).where(and(eq(artists.id, id), isNull(artists.imageAssetId)))
+      rows.set(artist.id, id)
+    }
+    return rows
+  })
 }
 
 /** The recording row for a Deezer track: the one carrying its id, else a new provider-only row with its credits. */
@@ -168,16 +193,35 @@ export async function linkDeezerAlbum(albumId: string, album: DeezerAlbum): Prom
 
 /**
  * Album stubs for a Deezer artist's albums, EPs and singles that no row carries yet, each
- * with its cover as a lazy remote image. For artists MusicBrainz cannot name.
+ * with its cover as a lazy remote image, and the release date (and stated type, for a row
+ * that only guessed one) of rows that carry one but lack it: search names neither, so a
+ * page built from search stubs was yearless and alphabetical. The quick first answer of
+ * an artist page (`hydrateArtist`), and the whole discography of an artist MusicBrainz
+ * cannot name. At most `max` albums, newest first as Deezer lists them. Returns the ids
+ * of the rows it created.
  */
-export async function deezerDiscography(artistId: string, deezerArtistId: string): Promise<void> {
+export async function deezerDiscography(artistId: string, deezerArtistId: string, { max }: { max?: number } = {}): Promise<string[]> {
   const [artist] = await db.select({ name: artists.name }).from(artists).where(eq(artists.id, artistId))
-  if (!artist) return
-  for (const album of await deezer.getArtistAlbums(Number(deezerArtistId))) {
+  if (!artist) return []
+  const created: string[] = []
+  for (const album of await deezer.getArtistAlbums(Number(deezerArtistId), { max })) {
     const artwork = album.coverUrl ? await remoteImage(album.coverUrl, { kind: 'cover' }) : null
+    const year = album.releaseDate ? Number(album.releaseDate.slice(0, 4)) : null
     await db.transaction(async (tx) => {
       await lockUpserts(tx)
-      if (await linked(tx, 'album', album.id)) return
+      const existing = await linked(tx, 'album', album.id)
+      if (existing) {
+        const guessed = sql`(${albums.typeGuessed} and ${albums.mbid} is null)`
+        await tx.update(albums).set({
+          releaseDate: sql`coalesce(${albums.releaseDate}, ${album.releaseDate}::text)`,
+          year: sql`coalesce(${albums.year}, ${year}::int)`,
+          type: sql`case when ${guessed} then ${album.type} else ${albums.type} end`,
+          typeGuessed: sql`${albums.typeGuessed} and not ${guessed}`,
+          artworkAssetId: sql`coalesce(${albums.artworkAssetId}, ${artwork?.id ?? null}::uuid)`,
+          updatedAt: new Date(),
+        }).where(and(eq(albums.id, existing), sql`(${albums.releaseDate} is null or ${guessed} or ${albums.artworkAssetId} is null)`))
+        return
+      }
       const credit = album.artist.name || artist.name
       const id = newId()
       await tx.insert(albums).values({
@@ -187,7 +231,7 @@ export async function deezerDiscography(artistId: string, deezerArtistId: string
         primaryArtistId: artistId,
         type: album.type,
         releaseDate: album.releaseDate,
-        year: album.releaseDate ? Number(album.releaseDate.slice(0, 4)) : null,
+        year,
         titleKey: matchKey(album.title),
         matchKey: creditKey(credit, album.title),
         artworkAssetId: artwork?.id ?? null,
@@ -195,7 +239,38 @@ export async function deezerDiscography(artistId: string, deezerArtistId: string
       })
       await tx.insert(albumArtists).values({ albumId: id, position: 0, artistId, creditedName: credit })
       await tx.insert(externalIds).values({ provider: 'deezer', entityType: 'album', externalId: String(album.id), entityId: id })
+      created.push(id)
     })
+  }
+  return created
+}
+
+/**
+ * Moves a Deezer artist page off an artist it was linked to by name alone, once MusicBrainz
+ * lists other Deezer pages for the artist: it is a namesake's (search links a page to the
+ * only artist of its name). Its page id goes to a stub of its own, with the album stubs
+ * `created` from it, which are its albums and not this artist's.
+ */
+export async function detachDeezerArtist(artistId: string, deezerArtistId: string, created: readonly string[]): Promise<void> {
+  const page = await deezer.getArtist(Number(deezerArtistId))
+  await db.transaction(async (tx) => {
+    await lockUpserts(tx)
+    const [artist] = await tx.select({ name: artists.name }).from(artists).where(eq(artists.id, artistId))
+    const name = page?.name || artist?.name
+    if (!name) return
+    const id = newId()
+    await tx.insert(artists).values({ id, name, sortName: name, nameKey: matchKey(name), detailLevel: 0 })
+    await tx.update(externalIds).set({ entityId: id })
+      .where(and(eq(externalIds.provider, 'deezer'), eq(externalIds.entityType, 'artist'), eq(externalIds.externalId, deezerArtistId), eq(externalIds.entityId, artistId)))
+    if (created.length === 0) return
+    await tx.execute(sql`update albums set primary_artist_id = ${id} where primary_artist_id = ${artistId} and id = any(${uuidArray(created)})`)
+    await tx.execute(sql`update album_artists set artist_id = ${id} where artist_id = ${artistId} and album_id = any(${uuidArray(created)})`)
+  })
+  if (page?.imageUrl) {
+    const asset = await remoteImage(page.imageUrl, { kind: 'artist' })
+    await db.execute(sql`
+      update artists a set image_asset_id = ${asset.id} from external_ids e
+      where e.provider = 'deezer' and e.entity_type = 'artist' and e.external_id = ${deezerArtistId} and a.id = e.entity_id and a.image_asset_id is null`)
   }
 }
 

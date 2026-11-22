@@ -6,7 +6,7 @@ const group = (mbid: string, title: string, artist: string, score: number, type:
   mbid, title, type, primaryType: null, secondaryTypes: [], disambiguation: '', artistCredit: [{ name: artist, mbid: `${artist}-id`, joinPhrase: '' }],
   artistName: artist, date: null, year: null, score,
 })
-const artist = (mbid: string, name: string, score: number): MbArtistSummary => ({ mbid, name, sortName: name, disambiguation: '', type: null, country: null, score })
+const artist = (mbid: string, name: string, score: number, extra: Partial<MbArtistSummary> = {}): MbArtistSummary => ({ mbid, name, sortName: name, disambiguation: '', type: null, country: null, score, ...extra })
 
 describe('confidentReleaseGroup', () => {
   const wanted = { title: 'Miraculé', artist: 'Niro', type: 'album' as const }
@@ -37,5 +37,17 @@ describe('confidentArtist', () => {
     expect(confidentArtist([artist('a', 'Alvvays', 100), artist('b', 'Always', 60)], 'alvvays')).toBe('a')
     expect(confidentArtist([artist('a', 'Nirvana', 100), artist('b', 'Nirvana', 100)], 'Nirvana')).toBeNull()
     expect(confidentArtist([artist('a', 'Nirvana UK', 100)], 'Nirvana')).toBeNull()
+  })
+
+  it('reads a Deezer namesake hint as one, not as part of the name', () => {
+    const hits = [
+      artist('us', 'Nirvana', 100, { country: 'US', disambiguation: '1980s–1990s US grunge band' }),
+      artist('uk', 'Nirvana', 98, { country: 'GB', disambiguation: '60s band from the UK' }),
+      artist('tribute', 'Nirvana UK', 95, { disambiguation: 'tribute band' }),
+    ]
+    expect(confidentArtist(hits, 'Nirvana (UK)')).toBe('uk')
+    expect(confidentArtist(hits.filter((hit) => hit.mbid !== 'uk'), 'Nirvana (UK)')).toBeNull()
+    // A name that really has the parenthetical in it is still found by that spelling.
+    expect(confidentArtist([artist('a', 'Sunn O)))', 100), artist('b', 'Earth (US)', 100)], 'Earth (US)')).toBe('b')
   })
 })
