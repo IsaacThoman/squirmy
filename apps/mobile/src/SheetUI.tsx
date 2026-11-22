@@ -15,7 +15,11 @@ export type SheetRowProps = {
 export type SheetInfoProps = { icon: string; title: string; subtitle: string };
 export type TrackSummaryProps = { track: Track | undefined; subtitle?: string };
 export type SheetSliderProps = { label: string; value: number; onChange: (value: number) => void };
-export type SheetFieldProps = { label: string; value: string; onChange: (value: string) => void; onSubmit: () => void; autoFocus?: boolean };
+export type SheetFieldProps = {
+  label: string; value: string; onChange: (value: string) => void; onSubmit: () => void; autoFocus?: boolean;
+  /** The longest text the server takes; typing stops there. */
+  maxLength?: number;
+};
 export type SheetActionProps = { title: string; disabled?: boolean; onPress: () => void };
 export type SheetScrollProps = { height: number; children: ReactNode };
 export type SheetPickerRowProps<T extends string | number> = {
@@ -143,11 +147,11 @@ export function SheetSlider({ label, value, onChange }: SheetSliderProps) {
   );
 }
 
-export function SheetField({ label, value, onChange, onSubmit, autoFocus }: SheetFieldProps) {
+export function SheetField({ label, value, onChange, onSubmit, autoFocus, maxLength }: SheetFieldProps) {
   const colors = useColors();
   const styles = useStyles();
   return <TextInput value={value} onChangeText={onChange} placeholder={label} accessibilityLabel={label} placeholderTextColor={colors.muted}
-    autoFocus={autoFocus} returnKeyType="done" onSubmitEditing={onSubmit} style={styles.field} />;
+    autoFocus={autoFocus} maxLength={maxLength} returnKeyType="done" onSubmitEditing={onSubmit} style={styles.field} />;
 }
 
 /** The sheet's one prominent button. */

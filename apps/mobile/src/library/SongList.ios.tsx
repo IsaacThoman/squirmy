@@ -1,6 +1,6 @@
 import { Button, ContextMenu, Host, HStack, Image, List, ProgressView, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityLabel, background, buttonStyle, clipShape, controlSize, dynamicTypeSize, environment, font, foregroundStyle, frame,
+  accessibilityHidden, accessibilityLabel, background, buttonStyle, clipShape, controlSize, dynamicTypeSize, environment, font, foregroundStyle, frame,
   labelStyle, lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, opacity, padding,
   scrollContentBackground, scrollDisabled, tint,
 } from '@expo/ui/swift-ui/modifiers';
@@ -51,10 +51,10 @@ type RowProps = { item: SongRowItem; run: Run; handlers: SongRowHandlers };
  * playlist being reordered. Long lists go through `useSongListItems` instead.
  */
 export function SongList(props: SongListProps) {
-  const { tracks, numbered, playlist } = props;
+  const { tracks, numbered, playlist, album } = props;
   const { run } = useTrackActionRunner();
   const handlers = useSongRowHandlers(props);
-  const rows = useMemo(() => songRows({ tracks, numbered, playlist }), [numbered, playlist, tracks]);
+  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album }), [album, numbered, playlist, tracks]);
   const onMove = ([source]: number[], destination: number) => {
     const itemId = source === undefined ? undefined : playlist?.itemIds[source];
     if (!playlist || !itemId) return;
@@ -80,10 +80,10 @@ export function SongList(props: SongListProps) {
  * screen exist.
  */
 export function useSongListItems(props: SongListProps): SongListItems {
-  const { tracks, numbered, playlist } = props;
+  const { tracks, numbered, playlist, album } = props;
   const { run } = useTrackActionRunner();
   const handlers = useSongRowHandlers(props);
-  const data = useMemo(() => songRows({ tracks, numbered, playlist }), [numbered, playlist, tracks]);
+  const data = useMemo(() => songRows({ tracks, numbered, playlist, album }), [album, numbered, playlist, tracks]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongListItem item={item} run={run} handlers={handlers} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }
@@ -95,7 +95,7 @@ const SongListItem = memo(function SongListItem(props: RowProps) {
 }, sameRowProps);
 
 const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
-  const { track, number, playlist } = item;
+  const { track, number, playlist, showArtist, album } = item;
   const colors = useColors();
   const liked = useLiked('track', track.id, track.liked);
   const playing = useCurrentTrackState(track.id);
@@ -108,7 +108,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const loading = useTrackLoading(track.id);
   const wantlist = useWantlistEnabled();
   const viewer = useViewer();
-  const options = playlist && { playlist: { ...playlist, onRemove: handlers.remove } };
+  const options = { playlist: playlist && { ...playlist, onRemove: handlers.remove }, album };
   // Described from what the row already reads; nothing runs until an item is chosen.
   const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist, viewer }, options);
   const heart = heartButton(liked, track.title);
@@ -128,9 +128,8 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
         <ContextMenu>
           <ContextMenu.Trigger>
             <Button onPress={playable ? () => handlers.play(item.index) : undefined}
-              modifiers={[buttonStyle('plain'), accessibilityLabel(playable
-                ? `Play ${track.title} by ${track.artistCredit}`
-                : `${track.title} by ${track.artistCredit}, ${unavailableReason(track, offline, viewer)}`)]}>
+              modifiers={[buttonStyle('plain'), accessibilityLabel(`${playable ? 'Play ' : ''}${track.title} by ${track.artistCredit}${
+                track.explicit ? ', Explicit' : ''}${playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`)]}>
               <HStack spacing={10} modifiers={[frame({ height: rowHeight }), hitShape, ...(playable ? [] : [opacity(unavailableOpacity)])]}>
                 {number !== undefined ? (
                   <HStack modifiers={[frame({ width: 27 })]}>
@@ -143,15 +142,19 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
                   <TrackCover track={track} />
                 )}
                 <VStack alignment="leading" spacing={3}>
-                  <Text modifiers={[foregroundStyle(current ? colors.accent : colors.text), font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
-                  <HStack spacing={3}>
+                  <HStack spacing={5}>
+                    <Text modifiers={[foregroundStyle(current ? colors.accent : colors.text), font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
+                    {track.explicit && <Image systemName="e.square.fill" color={colors.muted} size={12} modifiers={[accessibilityHidden(true)]} />}
+                  </HStack>
+                  {/* On an album page a row by the album's artist has no second line, unless it has something else to say. */}
+                  {(showArtist || mark || loading !== 'none') && <HStack spacing={3}>
                     {/* Rows with a cover have no number to swap for the spinner, so it goes before the artist. */}
                     {number === undefined && loading !== 'none' ? <ProgressView modifiers={[controlSize('mini'), tint(colors.accent)]} />
                       : mark && <Image systemName={mark as 'arrow.down.circle.fill'} color={colors.muted} size={10} />}
-                    <Text modifiers={[foregroundStyle(colors.muted), font({ textStyle: 'caption' }), lineLimit(1)]}>
+                    {(showArtist || loading === 'slow') && <Text modifiers={[foregroundStyle(colors.muted), font({ textStyle: 'caption' }), lineLimit(1)]}>
                       {loading === 'slow' ? STILL_LOADING_LABEL : track.artistCredit}
-                    </Text>
-                  </HStack>
+                    </Text>}
+                  </HStack>}
                 </VStack>
                 <Spacer minLength={5} />
               </HStack>

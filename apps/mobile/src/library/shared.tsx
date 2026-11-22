@@ -3,8 +3,8 @@ import type { AlbumSummary, ArtistSummary, Artwork, PlaylistSummary } from '@squ
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePreventZoomTransitionDismissal, type Href } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, PixelRatio, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, PixelRatio, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { loadFailure } from '../data/errors';
 import { useRealtime } from '../data/realtime';
 import { useKeptCollections, useViewer } from '../downloads/DownloadsProvider';
@@ -138,7 +138,7 @@ export function useCollectionDim() {
 export function RailPlaceholder({ size, round = false }: { size: number; round?: boolean }) {
   const styles = useStyles();
   const fontScale = Math.min(PixelRatio.getFontScale(), 1.6);
-  return <View style={styles.railContent} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+  return <View style={styles.placeholderContent} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
     <View style={styles.placeholderRow}>
       {[0, 1, 2, 3].map(index => <View key={index} style={{ width: size, gap: 8 }}>
         <View style={[styles.placeholder, { width: size, height: size, borderRadius: round ? size / 2 : 13 }]} />
@@ -169,13 +169,24 @@ export function OfflineBadge({ style }: { style?: StyleProp<ViewStyle> }) {
   </View>;
 }
 
+const railKey = (item: Collection) => item.key;
+function RailGap() {
+  return <View style={{ width: 12 }} />;
+}
+
+/**
+ * A horizontal rail of tiles. Each tile is a native view of its own, so the rail draws only
+ * those near the screen: an artist with thousands of releases mounted them all and froze.
+ */
 export function CollectionRail({ items, size = 131 }: { items: readonly Collection[]; size?: number }) {
   const styles = useStyles();
   const collectionDim = useCollectionDim();
-  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railContent}>
-    {items.map(collectionDim).map(item => <CollectionTile key={item.key} title={item.title} subtitle={item.subtitle} size={size} dim={item.dim}
-      cover={<CollectionCover item={item} size={size} />} href={item.href} />)}
-  </ScrollView>;
+  const data = useMemo(() => items.map(collectionDim), [items, collectionDim]);
+  const renderItem = useCallback(({ item }: { item: Collection }) => <CollectionTile title={item.title} subtitle={item.subtitle} size={size}
+    dim={item.dim} cover={<CollectionCover item={item} size={size} />} href={item.href} />, [size]);
+  return <FlatList horizontal data={data} renderItem={renderItem} keyExtractor={railKey} ItemSeparatorComponent={RailGap}
+    initialNumToRender={4} maxToRenderPerBatch={4} windowSize={3} showsHorizontalScrollIndicator={false}
+    contentContainerStyle={styles.railContent} />;
 }
 
 export function SectionTitle({ title, onPress }: { title: string; onPress?: () => void }) {
@@ -248,7 +259,8 @@ export function matches(query: string, ...values: string[]) {
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   sectionTitle: { marginHorizontal: gutter, marginBottom: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   sectionText: { color: colors.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.65 },
-  railContent: { paddingHorizontal: gutter, gap: 12 },
+  railContent: { paddingHorizontal: gutter },
+  placeholderContent: { paddingHorizontal: gutter, gap: 12 },
   specialCover: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   coverRing: { position: 'absolute', borderColor: '#FFF8FF50', borderWidth: StyleSheet.hairlineWidth },
   mosaic: { flexDirection: 'row', flexWrap: 'wrap', overflow: 'hidden', backgroundColor: colors.surface },

@@ -2,7 +2,7 @@ import { useRootNavigationState, type Href } from 'expo-router';
 import { tabIn, type Tab } from './tabs';
 
 export type { Tab };
-export type Page = 'album' | 'artist' | 'playlist' | 'genre';
+export type Page = 'album' | 'artist' | 'playlist' | 'genre' | 'releases' | 'songs';
 
 /** A page inside a tab's own stack, so it opens over that tab and goes back to it. */
 export function pageHref(tab: Tab, page: Page, id: string): Href {

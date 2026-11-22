@@ -42,8 +42,8 @@ const albumWork = (albumId: string) => async (usable: () => void) => {
   if (result && (await fitStrayFilesNow(result)) > 0) await changed([queryKeys.album(result)])
 }
 
-const artistWork = (artistId: string) => async () => {
-  await hydrateArtist(artistId)
+const artistWork = (artistId: string) => async (usable: () => void) => {
+  await hydrateArtist(artistId, { usable })
 }
 
 /** The shared run that completes an album's detail; jobs and pages use the same one. */
