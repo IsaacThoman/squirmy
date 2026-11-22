@@ -1,42 +1,40 @@
 import {
-  Button, Form, Host, HStack, LabeledContent, List, Picker, RNHostView, Section, Spacer, Text, Toggle, VStack,
+  Button, Form, Host, HStack, LabeledContent, List, RNHostView, Section, Spacer, Text, Toggle, VStack,
 } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, font, foregroundStyle, lineLimit, listRowBackground, listRowInsets, pickerStyle, tag, tint,
+  accessibilityLabel, font, foregroundStyle, lineLimit, scrollContentBackground, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { closeSheet } from '../closeSheet';
 import { CollectionCover } from '../library/shared';
-import { IconButton, hitShape, plainButton } from '../native/Controls';
+import { hitShape, plainButton } from '../native/Controls';
+import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
 import { useColors } from '../theme';
 import {
   capNote, capOptions, downloadQualityNote, downloadQualityOptions, useDownloadsScreen, wifiNote, type DownloadItem,
 } from './screen';
 
-const clearRow = [listRowBackground('clear'), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })];
 const coverSize = 44;
+// No limit is 0 here: a menu's values are plain numbers.
+const capChoices = capOptions.map(option => ({ value: option.value ?? 0, label: option.label }));
 
 export function DownloadsScreen() {
   const colors = useColors();
   const router = useRouter();
   const screen = useDownloadsScreen();
   const { settings, summary } = screen;
+  // Opened over the account sheet: both close before the page opens beneath.
   const open = (item: DownloadItem) => {
-    closeSheet(router);
+    router.dismissAll();
     router.navigate(item.collection.href);
   };
   const empty = summary && !summary.collections.length;
 
   return <Host style={styles.page}>
-    <Form>
-      <Section modifiers={clearRow}>
-        <HStack>
-          <Text modifiers={[font({ textStyle: 'title2', weight: 'bold' }), accessibilityAddTraits(['isHeader'])]}>Downloads</Text>
-          <Spacer />
-          <IconButton symbol="xmark.circle.fill" label="Close" size={26} color={colors.muted} onPress={() => closeSheet(router)} />
-        </HStack>
-      </Section>
+    <VStack spacing={0}>
+    <SheetFormHeader title="Downloads" onClose={() => closeSheet(router)} />
+    <Form modifiers={[scrollContentBackground('hidden'), tint(colors.accent)]}>
       <Section footer={empty ? <Text>Tap the download button on an album or playlist to keep it on this {screen.device} and play it without a connection.</Text> : undefined}>
         <LabeledContent label="Downloaded"><Text>{empty ? 'Nothing yet' : screen.used}</Text></LabeledContent>
         <LabeledContent label={`Available on ${screen.device}`}><Text>{screen.free}</Text></LabeledContent>
@@ -51,25 +49,21 @@ export function DownloadsScreen() {
       {screen.songs.length > 0 && <Items title="Songs" items={screen.songs} onOpen={open} />}
       {settings && <>
         <Section title="Download Quality" footer={<Text>{downloadQualityNote}</Text>}>
-          <Picker label="Quality" selection={settings.downloadQuality} onSelectionChange={screen.setQuality}
-            modifiers={[pickerStyle('menu'), tint(colors.accent)]}>
-            {downloadQualityOptions.map(option => <Text key={option.value} modifiers={[tag(option.value)]}>{option.label}</Text>)}
-          </Picker>
+          <SheetPickerRow label="Quality" value={settings.downloadQuality} options={downloadQualityOptions} onChange={screen.setQuality} />
         </Section>
         <Section footer={<Text>{wifiNote}</Text>}>
           <Toggle label="Wi-Fi Only" isOn={settings.downloadOnWifiOnly} onIsOnChange={screen.setWifiOnly} modifiers={[tint(colors.accent)]} />
         </Section>
       </>}
-      <Section footer={<Text>{capNote}</Text>}>
-        <Picker label="Storage Limit" selection={screen.cap ?? 0} onSelectionChange={(value: number) => screen.setCap(value || null)}
-          modifiers={[pickerStyle('menu'), tint(colors.accent)]}>
-          {capOptions.map(option => <Text key={option.label} modifiers={[tag(option.value ?? 0)]}>{option.label}</Text>)}
-        </Picker>
+      {/* The note describes a limit, so it only shows once there is one. */}
+      <Section footer={screen.cap ? <Text>{capNote}</Text> : undefined}>
+        <SheetPickerRow label="Storage Limit" value={screen.cap ?? 0} options={capChoices} onChange={value => screen.setCap(value || null)} />
       </Section>
       {!empty && <Section>
         <Button label="Remove All Downloads" role="destructive" onPress={screen.removeAll} />
       </Section>}
     </Form>
+    </VStack>
   </Host>;
 }
 
