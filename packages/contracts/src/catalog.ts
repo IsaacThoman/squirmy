@@ -82,6 +82,14 @@ export const AlbumSummary = z.object({
 export type AlbumSummary = z.infer<typeof AlbumSummary>
 
 /**
+ * Why a track is in a user's library, the first that holds. `collection`: a file the server's
+ * owner brought links it, shared by every user and not removable by them. `album`: it is on an
+ * album the user added, and leaves with that album. `saved`: the user added the track itself.
+ */
+export const TrackLibrary = z.enum(['collection', 'album', 'saved'])
+export type TrackLibrary = z.infer<typeof TrackLibrary>
+
+/**
  * A track is a recording. `id` is the recording id; `album` is the album it is being
  * shown in, which decides the artwork and which file is preferred for playback.
  */
@@ -106,6 +114,11 @@ export const TrackSummary = z.object({
    * older servers, which do not send it, still parse.
    */
   inLibrary: z.boolean().optional(),
+  /**
+   * Why the track is in the viewer's library, or null when it is not (see `TrackLibrary`).
+   * Only a `saved` track is one the viewer can remove. Optional for older servers.
+   */
+  library: TrackLibrary.nullable().optional(),
 })
 export type TrackSummary = z.infer<typeof TrackSummary>
 
