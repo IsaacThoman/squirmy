@@ -41,3 +41,16 @@ async function frontCover(entity: 'release' | 'release-group', mbid: string): Pr
   const url = front.thumbnails['1200'] ?? front.thumbnails.large ?? front.image
   return url.replace(/^http:/, 'https:')
 }
+
+const sizedFront = /^(https:\/\/coverartarchive\.org\/(?:release|release-group)\/[0-9a-f-]{36}\/front)-(?:250|500|1200)$/i
+
+/**
+ * The original front image for a sized one (`/release-group/<mbid>/front-500` gives
+ * `.../front`), or null for any other URL. The archive redirects a sized image to a
+ * thumbnail archive.org derives some time after the upload; until it has, the thumbnail
+ * answers 404 while the original is already there, which is the case for most releases of
+ * the last few days.
+ */
+export function originalFront(url: string): string | null {
+  return sizedFront.exec(url)?.[1] ?? null
+}

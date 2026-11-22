@@ -1,0 +1,14 @@
+{
+  "note": "Recorded 2026-11-22: the thumbnail is not there yet. archive.org answered through one more redirect to its storage host, trimmed to the final 404.",
+  "request": {
+    "method": "GET",
+    "url": "https://archive.org/download/mbid-d3e32178-af15-4856-aa34-7399e5e1d93c/mbid-d3e32178-af15-4856-aa34-7399e5e1d93c-46748862495_thumb500.jpg"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8"
+    },
+    "text": "Not Found"
+  }
+}
