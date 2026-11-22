@@ -6,6 +6,7 @@ import {
   AcquisitionPolicy,
   AcquisitionProvider,
   AcquisitionProviderList,
+  AcquisitionUsage,
   AlbumDetail,
   AlbumSummary,
   API_PREFIX,
@@ -47,6 +48,7 @@ import {
   type LibraryQuery,
   LibraryRoot,
   LibraryStats,
+  type LibraryEntityType,
   type LikeEntityType,
   type LoginRequest,
   Lyrics,
@@ -338,6 +340,8 @@ export function createApiClient(options: ApiClientOptions) {
       updateSettings: (body: UpdateServerSettings) => send('PATCH', '/admin/settings', ServerSettings, body),
       jobs: () => get('/admin/jobs', JobList),
       directories: (query: DirectoryQuery = {}) => get('/admin/fs', DirectoryListing, query),
+      /** How much the provider cache holds against its limit. */
+      acquisitionUsage: () => get('/admin/acquisition/usage', AcquisitionUsage),
     },
     library: {
       roots: () => get('/admin/library/roots', RootList),
@@ -346,6 +350,10 @@ export function createApiClient(options: ApiClientOptions) {
       deleteRoot: (rootId: string) => send('DELETE', `/admin/library/roots/${id(rootId)}`, Ok),
       scanRoot: (rootId: string) => send('POST', `/admin/library/roots/${id(rootId)}/scan`, ScanRootResponse),
       stats: () => get('/admin/library/stats', LibraryStats),
+      /** Adds to your library; for a requester the server also fetches what is missing. */
+      save: (type: LibraryEntityType, entityId: string) => send('PUT', `/me/library/${type}/${id(entityId)}`, Ok),
+      /** Removes the save only: files, likes and playlists stay. */
+      remove: (type: LibraryEntityType, entityId: string) => send('DELETE', `/me/library/${type}/${id(entityId)}`, Ok),
     },
     matching: {
       reviews: (query: Partial<MatchReviewQuery> = {}) => get('/admin/reviews', MatchReviewList, query),
@@ -469,7 +477,8 @@ export function createApiClient(options: ApiClientOptions) {
       jobs: (query: Partial<AcquisitionJobListQuery> = {}) => get('/admin/acquisition/jobs', AcquisitionJobList, query),
       /** Fetches a track the server lacks. Playing one does this by itself. */
       acquireTrack: (trackId: string, query: AcquireQuery = {}) => request('POST', `/tracks/${id(trackId)}/acquire`, { schema: AcquireResponse, query }),
-      acquireAlbum: (albumId: string) => send('POST', `/albums/${id(albumId)}/acquire`, AcquireResponse),
+      acquireAlbum: (albumId: string, query: Omit<AcquireQuery, 'albumId'> = {}) =>
+        request('POST', `/albums/${id(albumId)}/acquire`, { schema: AcquireResponse, query }),
     },
   }
 }
