@@ -6,10 +6,10 @@ import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
-import { isLoading, labelDevice, playingElsewhere, usePosition, type Player } from '@/player/player-context'
+import { labelDevice, playingElsewhere, usePosition, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
-import { PlayPauseButton, SeekBar, TransportButtons, VolumeControl } from './Transport'
+import { PlayPauseButton, SeekBar, touchTarget, TransportButtons, VolumeControl } from './Transport'
 
 /** The bar is the sidebar's color, so what is hovered in it takes the sidebar's hover color. */
 const barClass = '@container bg-sidebar text-sidebar-foreground [--accent:var(--sidebar-accent)]'
@@ -34,7 +34,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
   const { state, controls } = player
   const item = state.current
   const elsewhere = playingElsewhere(state)
-  const late = useStillLoading(item?.entry)
+  const late = useStillLoading(item?.entry, state.waiting)
   return (
     // A landmark, so screen readers can jump to the player and tests can find it by name.
     <section aria-label="Player" className={barClass}>
@@ -60,10 +60,10 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                 <p className="truncate text-xs text-muted-foreground">
                   {late
                     ? STILL_LOADING_LABEL
-                    : <ArtistLinks track={item.track} />}
+                    : <ArtistLinks credit={item.track} />}
                 </p>
               </div>
-              <SaveHeart liked={liked} onToggle={onToggleLike} size="sm" className="ml-1 hidden @[44rem]:inline-flex" />
+              <SaveHeart liked={liked} onToggle={onToggleLike} size="sm" className={cn('ml-1 hidden @[44rem]:inline-flex', touchTarget)} />
             </>
           ) : (
             <>
@@ -81,19 +81,19 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
         </div>
 
         <div className="flex min-w-0 items-center justify-end gap-1">
-          <IconButton label={lyricsOpen ? 'Hide lyrics' : 'Lyrics'} size="sm" pressed={lyricsOpen} disabled={!item} onClick={onToggleLyrics} className="hidden @[36rem]:inline-flex"><MessageSquareQuote /></IconButton>
-          <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue}><ListMusic /></IconButton>
+          <IconButton label={lyricsOpen ? 'Hide lyrics' : 'Lyrics'} size="sm" pressed={lyricsOpen} disabled={!item} onClick={onToggleLyrics} className={cn('hidden @[36rem]:inline-flex', touchTarget)}><MessageSquareQuote /></IconButton>
+          <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue} className={touchTarget}><ListMusic /></IconButton>
           <DevicesPopover
             player={player}
-            trigger={<IconButton label="Devices" size="sm" className={cn((elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
+            trigger={<IconButton label="Devices" size="sm" className={cn(touchTarget, (elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
           />
-          <VolumeControl volume={state.volume} onChange={controls.setVolume} className="hidden @[62rem]:flex" />
-          <IconButton label="Now Playing" size="sm" disabled={!item} onClick={onOpenNowPlaying} className="hidden @[44rem]:inline-flex"><Maximize2 /></IconButton>
+          <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} className="hidden @[62rem]:flex" />
+          <IconButton label="Now Playing" size="sm" disabled={!item} onClick={onOpenNowPlaying} className={cn('hidden @[44rem]:inline-flex', touchTarget)}><Maximize2 /></IconButton>
         </div>
       </div>
       {/* One strip at a time: a detached tab is never controlling another device. */}
       {elsewhere
-        ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="border-t" />
+        ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} onPrepare={controls.prepareHere} className="border-t" />
         : state.detached && <OnlyOnThisDevice player={player} className="border-t" />}
     </section>
   )
@@ -104,7 +104,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
   const { state, controls } = player
   const item = state.current
   const elsewhere = playingElsewhere(state)
-  const late = useStillLoading(item?.entry)
+  const late = useStillLoading(item?.entry, state.waiting)
   if (!item) return null
   return (
     <section aria-label="Player" className={cn(barClass, 'relative pb-[env(safe-area-inset-bottom)]')}>
@@ -123,7 +123,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
           trigger={<IconButton label="Devices" tooltip={false} size="lg" className={cn('size-11', (elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
         />
         {/* A 40px disc whose touch target is 44px. */}
-        <PlayPauseButton playing={state.playing} loading={isLoading(state)} onClick={controls.togglePlay} className="mx-1 size-10 after:absolute after:-inset-0.5 after:rounded-full [&_svg]:size-5" />
+        <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} className="mx-1 size-10 after:absolute after:-inset-0.5 after:rounded-full [&_svg]:size-5" />
       </div>
       <MiniProgress durationMs={item.entry.durationMs} />
     </section>

@@ -1,4 +1,5 @@
 import { Platform, useColorScheme } from 'react-native';
+import { fadedArtOpacity, fadedText } from './faded';
 
 const palettes = {
   dark: {
@@ -18,6 +19,8 @@ const palettes = {
     draggedRow: '#332A49',
     floating: '#282333D9',
     albumTint: 0.38,
+    fadedTitle: fadedText.dark.title,
+    fadedCredit: fadedText.dark.credit,
     playerGradient: ['#11101B8A', '#181322AF', '#100E18', '#0E0C15'],
   },
   light: {
@@ -37,12 +40,17 @@ const palettes = {
     draggedRow: '#E9E0F6',
     floating: '#F8F6FBE6',
     albumTint: 0.13,
+    fadedTitle: fadedText.light.title,
+    fadedCredit: fadedText.light.credit,
     playerGradient: ['#FFF9FFB8', '#FAF5FBE0', '#F8F4FC', '#F7F3FB'],
   },
 } as const;
 
-/** How far a gray (unavailable) row or tile fades, the same everywhere. */
-export const unavailableOpacity = 0.42;
+/**
+ * How far a gray (unavailable) tile, or a gray song's artwork, fades, the same everywhere.
+ * A gray song's text takes `fadedTitle` and `fadedCredit` instead, which stay readable.
+ */
+export const unavailableOpacity = fadedArtOpacity;
 
 export function useAppearance() {
   return useColorScheme() === 'dark' ? 'dark' : 'light';

@@ -1,8 +1,8 @@
 import {
-  AddPlaylistItemsRequest, CreatePlaylistRequest, Id, LibraryEntityType, LikeEntityType, MovePlaylistItemRequest, PageQuery, UpdatePlaylistRequest,
+  AddPlaylistItemsRequest, CreatePlaylistRequest, Id, LibraryEntityType, LikeEntityType, LikeQuery, MovePlaylistItemRequest, PageQuery, UpdatePlaylistRequest,
   UpdateUserSettings, WantEntityType,
   type AlbumSummary, type ArtistSummary, type HistoryPage, type Ok, type Page, type PlaylistDetail, type PlaylistPage, type PlaylistSummary,
-  type TrackSummary, type UserSettings, type WantPage,
+  type TrackSummary, type UnlikeResponse, type UserSettings, type WantPage,
 } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
@@ -41,13 +41,13 @@ export async function userdataRoutes(app: FastifyInstance) {
 
   app.put('/me/likes/:type/:id', async (request): Promise<Ok> => {
     const { type, id } = LikeParams.parse(request.params)
-    await likeEntity(requireUser(request).id, type, id)
+    await likeEntity(requireUser(request).id, type, id, LikeQuery.parse(request.query))
     return { ok: true }
   })
-  app.delete('/me/likes/:type/:id', async (request): Promise<Ok> => {
+  app.delete('/me/likes/:type/:id', async (request): Promise<UnlikeResponse> => {
     const { type, id } = LikeParams.parse(request.params)
-    await unlikeEntity(requireUser(request).id, type, id)
-    return { ok: true }
+    const savedAt = await unlikeEntity(requireUser(request).id, type, id)
+    return { ok: true, savedAt: savedAt?.toISOString() ?? null }
   })
   app.get('/me/likes/:type', async (request): Promise<Page<TrackSummary | AlbumSummary | ArtistSummary>> =>
     listLikes(requireUser(request).id, LikeTypeParams.parse(request.params).type, PageQuery.parse(request.query)))

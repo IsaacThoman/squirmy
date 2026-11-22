@@ -7,7 +7,8 @@
  * - An album counts owned recordings on its track list (`albumTrackList` in pages.ts): its
  *   canonical release, plus owned recordings filed under the album that the release does
  *   not list. All is `full`, some is `partial`. With none owned it is `on_demand` when
- *   every track is, else `none`. An album with a present, linked file is therefore never
+ *   any track is (decision 6: dimmed only when nothing on it plays; one track a provider
+ *   missed must not gray out an EP whose other songs play), else `none`. An album with a present, linked file is therefore never
  *   `none`, which is what keeps a library album from showing gray. An album with no track
  *   list yet (a search result) is `on_demand` while an `assume_available` provider is
  *   active (`albumCoveredWithoutTracks`), else `none`.
@@ -147,7 +148,7 @@ export async function albumAvailability(albumIds: readonly string[]): Promise<Ma
     let availability: AlbumAvailability
     if (row.trackCount > 0 && row.ownedTrackCount === row.trackCount) availability = 'full'
     else if (row.ownedTrackCount > 0) availability = 'partial'
-    else if (row.trackCount > 0 && row.unowned.every((id) => onDemand.has(id))) availability = 'on_demand'
+    else if (row.trackCount > 0 && row.unowned.some((id) => onDemand.has(id))) availability = 'on_demand'
     else if (row.trackCount === 0 && emptyCovered) availability = 'on_demand'
     else availability = 'none'
     return [row.id, { availability, trackCount: row.trackCount, ownedTrackCount: row.ownedTrackCount }]

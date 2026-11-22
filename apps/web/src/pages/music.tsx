@@ -7,7 +7,7 @@ import type { HomeSection, Page as ListPage, PlaylistDetail, TrackSummary } from
 import { queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
 import { CloudOff, Compass } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { moveItem } from '@/lib/reorder'
@@ -88,18 +88,12 @@ export function HomePage() {
   const home = useHome()
   const scan = useScanProgress()
   if (home.error) return <ErrorPage error={home.error} onRetry={() => void home.refetch()} />
-  const sections = home.data?.sections
-  const albums = (id: string) => {
-    const section = sections?.find(candidate => candidate.id === id)
-    return section?.kind === 'albums' ? section.albums : []
-  }
-  // What was played last leads, then what was added; the sections follow in the server's order.
-  const featured = albums('recently-played')[0] ?? albums('recently-added')[0] ?? null
+  const { featured, sections } = featuring(home.data?.sections)
   return (
     <HomeView
       featured={featured}
       sections={sections}
-      empty={Boolean(sections) && sections!.every(isEmptySection)}
+      empty={Boolean(home.data) && home.data!.sections.every(isEmptySection)}
       canAddMusic={user.role === 'admin'}
       canFindMusic={canFetch(user)}
       scan={scan}
@@ -107,6 +101,21 @@ export function HomePage() {
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
     />
   )
+}
+
+/**
+ * The album Home leads with: the one played last, else the one added last. It leaves the rail it
+ * came from, which would otherwise start with it again, and the sections keep the server's order.
+ */
+function featuring(sections: HomeSection[] | undefined) {
+  const source = ['recently-played', 'recently-added']
+    .map(id => sections?.find(section => section.id === id))
+    .find((section): section is Extract<HomeSection, { kind: 'albums' }> => section?.kind === 'albums' && section.albums.length > 0)
+  const album = source?.albums[0]
+  return {
+    featured: album ? { album, label: source!.id === 'recently-played' ? 'Jump back in' : 'Recently added' } as const : null,
+    sections: sections?.map(section => (section === source ? { ...section, albums: section.albums.slice(1) } : section)),
+  }
 }
 
 const isEmptySection = (section: HomeSection) => (
@@ -117,10 +126,26 @@ const isEmptySection = (section: HomeSection) => (
 )
 
 export function AlbumPage() {
+  const { playAlbum } = usePlayCollections()
   const id = useParams().id ?? ''
   const query = useAlbum(id)
   const summary = useCachedSummary('album', id, query.data === undefined)
-  return <Loaded query={query} skeleton={summary ? <AlbumPreview album={summary} /> : <CollectionSkeleton />}>{album => <AlbumView key={album.id} album={album} />}</Loaded>
+  // The lead artist's discography, for other versions and "More by" under the songs; asked once the album is here.
+  const leadId = query.data?.artists[0]?.id
+  const artist = useArtist(leadId ?? '', { enabled: Boolean(leadId), poll: false }).data
+  return (
+    <Loaded query={query} skeleton={summary ? <AlbumPreview album={summary} /> : <CollectionSkeleton />}>
+      {album => (
+        <AlbumView
+          key={album.id}
+          album={album}
+          artist={artist}
+          onPlayAlbum={other => void playAlbum(other)}
+          onRefresh={() => void query.refetch()}
+        />
+      )}
+    </Loaded>
+  )
 }
 
 export function ArtistPage() {
@@ -162,10 +187,18 @@ export function ArtistReleasesPage() {
 
 export function PlaylistPage() {
   const id = useParams().id ?? ''
-  return <Loaded query={usePlaylist(id)} skeleton={<CollectionSkeleton />}>{playlist => <EditablePlaylist key={playlist.id} playlist={playlist} />}</Loaded>
+  // The playlist being deleted is not asked for again: the server's invalidation of the
+  // playlists also refreshes this one, which would answer 404 while the page is still open.
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const query = usePlaylist(id, deleting !== id)
+  return (
+    <Loaded query={query} skeleton={<CollectionSkeleton />}>
+      {playlist => <EditablePlaylist key={playlist.id} playlist={playlist} onDeleting={on => setDeleting(on ? playlist.id : null)} />}
+    </Loaded>
+  )
 }
 
-function EditablePlaylist({ playlist }: { playlist: PlaylistDetail }) {
+function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; onDeleting: (deleting: boolean) => void }) {
   const api = useApi()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -184,15 +217,22 @@ function EditablePlaylist({ playlist }: { playlist: PlaylistDetail }) {
     },
     meta: { inline: true },
   })
+  const deleted = useRef(false)
   const remove = useMutation({
     mutationFn: () => api.userdata.deletePlaylist(playlist.id),
+    onMutate: () => onDeleting(true),
+    onError: () => onDeleting(false),
     onSuccess: () => {
+      deleted.current = true
       toast({ title: 'Playlist deleted', description: playlist.name })
       void navigate('/library?filter=playlists', { replace: true })
-      queryClient.removeQueries({ queryKey: key })
       return queryClient.invalidateQueries({ queryKey: queryKeys.playlists(), exact: true })
     },
   })
+  // Dropped from the cache once the page has gone: removed while it shows, the page would ask for it again.
+  useEffect(() => () => {
+    if (deleted.current) queryClient.removeQueries({ queryKey: queryKeys.playlist(playlist.id), exact: true })
+  }, [queryClient, playlist.id])
   // Moves and removals show at once; the server's answer, or a refetch after a failure, replaces them.
   const move = useMutation({
     mutationFn: ({ itemId, toIndex }: { itemId: string; toIndex: number }) => api.userdata.movePlaylistItem(playlist.id, { itemId, toIndex }),
@@ -230,7 +270,7 @@ function EditablePlaylist({ playlist }: { playlist: PlaylistDetail }) {
         open={dialog === 'delete'}
         onOpenChange={open => setDialog(open ? 'delete' : null)}
         title={`Delete “${playlist.name}”?`}
-        description="The playlist goes away for everyone. The songs stay in the library."
+        description={`${playlist.isPublic ? 'It is public, so it goes away for everyone who can see it. ' : ''}This can’t be undone. No songs are removed from your library or your other playlists.`}
         confirmLabel="Delete"
         onConfirm={() => remove.mutateAsync()}
       />
@@ -423,12 +463,18 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   // The server lists artists by name whatever the order asked for.
   const artists = useLibraryList('artists', { sort: 'recent' }, filter === 'artists')
   const songs = useLibraryList('tracks', { sort, genre }, filter === 'songs')
-  const playlists = usePlaylists().data?.items
+  const playlistList = usePlaylists()
+  const playlists = playlistList.data?.items
+  // Without the playlists, Liked Songs and the albums still show; the page says the rest failed.
+  const playlistsFailed = showsPlaylists && !playlists && Boolean(playlistList.error)
   const liked = useLikedTracks()
 
   const searchText = filter === 'playlists' ? '' : query
-  const found = useLibraryMatches(searchText)
+  // A search keeps to the genre chosen, as the lists do; the artists' list takes no genre.
+  const found = useLibraryMatches(searchText, filter === 'artists' ? undefined : genre)
   const searching = searchesServer(searchText)
+  // The search's own failure, once it is done retrying: the list behind it may well have loaded.
+  const searchFailed = searching && !found.pending && found.data === undefined && Boolean(found.error)
   const matched = searching ? found.data : undefined
   const listed = filter === 'artists' ? artists : filter === 'songs' ? songs : showsAlbums ? albums : null
 
@@ -436,9 +482,9 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
     if (filter === 'songs') return undefined
     const collections: LibraryItem[] = []
     if (showsPlaylists) {
-      if (!playlists) return undefined
+      if (!playlists && !playlistsFailed) return undefined
       collections.push(
-        ...[{ kind: 'liked' } as const, ...playlists.map(playlist => ({ kind: 'playlist', playlist }) as const)]
+        ...[{ kind: 'liked' } as const, ...(playlists ?? []).map(playlist => ({ kind: 'playlist', playlist }) as const)]
           .filter(item => matches(query, item.kind === 'liked' ? 'Liked Songs' : item.playlist.name, item.kind === 'liked' ? '' : item.playlist.ownerName)),
       )
     }
@@ -453,7 +499,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       collections.push(...list.map(artist => ({ kind: 'artist', artist }) as const))
     }
     return collections
-  }, [filter, showsPlaylists, showsAlbums, playlists, query, searching, matched, albums.data, artists.data])
+  }, [filter, showsPlaylists, showsAlbums, playlists, playlistsFailed, query, searching, matched, albums.data, artists.data])
 
   const tracks = useMemo(() => {
     if (filter !== 'songs') return undefined
@@ -468,14 +514,14 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
     if (!searching && hasNextPage && !isFetchingNextPage) void fetchNextPage?.()
   }, [searching, hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const error = listed?.error ?? (searching ? found.error : null)
-  if (error && !listed?.data) return <ErrorPage error={error} onRetry={() => void (searching ? found.refetch() : listed?.refetch())} />
+  if (listed?.error && !listed.data) return <ErrorPage error={listed.error} onRetry={() => void listed.refetch()} />
 
   const matchedCount = !matched ? 0 : filter === 'songs' ? matched.tracks.length : filter === 'artists' ? matched.artists.length : matched.albums.length
   const count = filter === 'albums' ? listCount(albums, 'album')
     : filter === 'artists' ? listCount(artists, 'artist')
       : filter === 'songs' ? listCount(songs, 'song')
-        : filter === 'playlists' && playlists ? plural(playlists.length, 'playlist') : undefined
+        // Liked Songs is listed, and labeled, as a playlist, so it counts as one.
+        : filter === 'playlists' && playlists ? plural(playlists.length + 1, 'playlist') : undefined
   const setParam = (key: string, value: string | undefined) => setParams(current => {
     const next = new URLSearchParams(current)
     if (value) next.set(key, value)
@@ -507,6 +553,10 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       onClearGenre={() => setParam('genre', undefined)}
       items={items}
       tracks={tracks}
+      // All lists collections; a search also finds songs, which follow them rather than going unsaid.
+      songMatches={filter === 'all' ? matched?.tracks : undefined}
+      playlistsFailure={playlistsFailed ? { error: playlistList.error, onRetry: () => void playlistList.refetch() } : undefined}
+      searchFailure={searchFailed ? { error: found.error, onRetry: () => void found.refetch() } : undefined}
       count={count}
       likedCount={liked.data ? listCount(liked, 'song') : undefined}
       libraryEmpty={Boolean(albums.data && !itemsOf(albums.data).length && !genre)}

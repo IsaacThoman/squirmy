@@ -8,7 +8,15 @@ export type QueueItem = { entry: QueueEntry; track: TrackSummary }
 /** What the UI shows of the user's playback session. */
 export type PlayerState = {
   current: QueueItem | null
+  /** Playback is meant to go on: the session plays, and the browser is not holding this tab's audio back. */
   playing: boolean
+  /**
+   * Playing, and nothing can be heard yet: the song is being fetched, its stream is loading or
+   * buffering, or the device that plays has stalled. It looks like buffering, a spinner.
+   */
+  waiting: boolean
+  /** This tab should play and the browser held its audio back; play (a click) starts it. */
+  blocked: boolean
   /** The volume of the device that plays: this one, or the one it controls. */
   volume: number
   /** Per-device volumes, keyed by device id. */
@@ -56,6 +64,8 @@ export type PlayerControls = {
   clearQueue: () => void
   clearHistory: () => void
   transfer: (deviceId: string) => void
+  /** Gets this tab ready to take over what another device plays, so a transfer here starts sooner. For a pointer on "Play here". */
+  prepareHere: () => void
   /** Takes this tab out of the shared session into one of its own. Resolves once the server has answered. */
   detach: () => Promise<SessionMoveResult>
   /** Puts this tab back in the shared session; `bringQueue` makes the shared session what this tab was playing. */
@@ -70,14 +80,6 @@ export const PlayerContext = createContext<Player | null>(null)
 
 /** The controls alone. They keep one identity, so readers that only send commands skip every session update. */
 export const PlayerControlsContext = createContext<PlayerControls | null>(null)
-
-/**
- * Whether the current track's music is still on its way while it should be playing: the
- * server is fetching it. It looks like buffering, a spinner, and nothing names the fetch.
- */
-export function isLoading(state: Pick<PlayerState, 'current' | 'playing'>): boolean {
-  return state.playing && state.current?.entry.state === 'preparing'
-}
 
 /**
  * How `device` is named here: "This browser", "Another tab" for this browser's other tabs,

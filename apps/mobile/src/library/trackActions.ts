@@ -3,7 +3,7 @@ import { useNavigationContainerRef, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef } from 'react';
 import { useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
 import { closeSheet } from '../closeSheet';
-import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
+import { useLibraryActions, useLiked, usePlaylistActions, useWanted } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useDownloadManager, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { songsId, type TrackDownload } from '../downloads/model';
@@ -39,13 +39,13 @@ export function useTrackActionRunner(inSheet = false) {
   const api = useSignedInApi();
   const notify = useNotice();
   const actions = usePlaybackActions();
-  const { setLiked, want } = useLibraryActions();
+  const { setLiked, setWanted } = useLibraryActions();
   const manager = useDownloadManager();
-  const live = useRef({ api, notify, actions, setLiked, want, manager, close });
-  live.current = { api, notify, actions, setLiked, want, manager, close };
+  const live = useRef({ api, notify, actions, setLiked, setWanted, manager, close });
+  live.current = { api, notify, actions, setLiked, setWanted, manager, close };
 
   const perform = useCallback((track: TrackSummary, action: TrackAction, { playlist }: TrackActionOptions = {}) => {
-    const { api, notify, actions, setLiked, want, manager } = live.current;
+    const { api, notify, actions, setLiked, setWanted, manager } = live.current;
     switch (action.id) {
       case 'play': return actions.playNow(track);
       case 'resume': return actions.play();
@@ -63,7 +63,8 @@ export function useTrackActionRunner(inSheet = false) {
           return api.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
         });
         return undefined;
-      case 'want': return want('track', track.id, track.title);
+      case 'want': return setWanted('track', track.id, true, track.title);
+      case 'unwant': return setWanted('track', track.id, false, track.title);
       case 'remove': return playlist?.onRemove?.(playlist.itemId);
       default: return undefined;
     }
@@ -110,6 +111,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
   const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
   const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
+  const wanted = useWanted(track?.id);
   const playlists = usePlaylistActions();
   const { perform } = useTrackActionRunner();
   if (!track) return [];
@@ -117,7 +119,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
     ...options.playlist,
     onRemove: options.playlist.onRemove ?? ((itemId: string) => playlists.removeItem(options.playlist!.id, itemId)),
   };
-  return trackActions(track, { liked, playable, offline, current, download, onItsOwn, wantlist, viewer }, { playlist })
+  return trackActions(track, { liked, playable, offline, current, download, onItsOwn, wantlist, wanted, viewer }, { playlist })
     .map(action => ({ ...action, run: () => perform(track, action, { playlist }) }));
 }
 

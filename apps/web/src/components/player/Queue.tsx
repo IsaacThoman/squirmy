@@ -10,11 +10,12 @@ import { dropIndex } from '@/lib/reorder'
 import { UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 import type { Player, QueueItem } from '@/player/player-context'
+import { touchTarget } from './Transport'
 
 const rowHeight = 48
 
 const labelClass = 'text-[11px] font-medium uppercase tracking-wider text-muted-foreground'
-const toggleClass = 'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary/30 aria-pressed:bg-primary/10 aria-pressed:text-primary [&_svg]:size-3.5'
+const toggleClass = 'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary/30 aria-pressed:bg-primary/10 aria-pressed:text-foreground aria-pressed:[&_svg]:text-primary [&_svg]:size-3.5'
 
 /**
  * The whole queue: what is playing, up next, autoplay and history. `modes` shows shuffle and repeat
@@ -30,7 +31,7 @@ export function QueueContent({ player, modes = true }: { player: Player; modes?:
         {state.current && (
           <section aria-labelledby={`${id}-now`}>
             <QueueHeading id={`${id}-now`}>Now playing</QueueHeading>
-            <QueueRow item={state.current} current playing={state.playing} />
+            <QueueRow item={state.current} current playing={state.playing} waiting={state.waiting} />
           </section>
         )}
         {modes && (
@@ -102,6 +103,8 @@ type QueueRowProps = {
   item: QueueItem
   current?: boolean
   playing?: boolean
+  /** Playing and not heard yet (`PlayerState.waiting`): the current row spins. */
+  waiting?: boolean
   faded?: boolean
   onPlay?: () => void
   children?: ReactNode
@@ -112,10 +115,10 @@ type QueueRowProps = {
  * while its music is on its way, shows the spinner. One that could not be had is gray, says
  * "Not available" and does not play.
  */
-function QueueRow({ item, current, playing = false, faded, onPlay: play, children }: QueueRowProps) {
+function QueueRow({ item, current, playing = false, waiting = false, faded, onPlay: play, children }: QueueRowProps) {
   const { track, entry } = item
   const failed = entry.state === 'failed'
-  const loading = current && entry.state === 'preparing'
+  const loading = current && (waiting || entry.state === 'preparing')
   const onPlay = failed ? undefined : play
   const body = (
     <>
@@ -143,6 +146,20 @@ function QueueRow({ item, current, playing = false, faded, onPlay: play, childre
   )
 }
 
+/** How close to the scroller's top or bottom edge a dragged row starts it scrolling, in px. */
+const AUTOSCROLL_EDGE = 48
+/** How far it scrolls per frame with the pointer at the very edge, in px. */
+const AUTOSCROLL_SPEED = 14
+
+/** The nearest ancestor that scrolls vertically: the queue panel's scroll area, or Now Playing's pane. */
+function scrollParent(element: HTMLElement | null): HTMLElement | null {
+  for (let node = element?.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node
+  }
+  return null
+}
+
 type SortableQueueProps = {
   items: QueueItem[]
   onMove: (entryId: string, toIndex: number) => void
@@ -156,6 +173,10 @@ type SortableQueueProps = {
  */
 export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueueProps) {
   const [drag, setDrag] = useState<{ index: number; startY: number; offset: number } | null>(null)
+  const list = useRef<HTMLUListElement>(null)
+  // Where the pointer is, and the queue's scroller with where it stood when the drag began.
+  const pointer = useRef<{ y: number; scroller: HTMLElement | null; startScroll: number } | null>(null)
+  const dragging = drag !== null
   const [announcement, setAnnouncement] = useState('')
   const helpId = useId()
   const refocus = useRef<string | null>(null)
@@ -183,15 +204,47 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
     move(items[index], to)
   }
 
+  // The row follows the pointer and whatever the list scrolled under it.
+  const offsetOf = (startY: number) => {
+    const at = pointer.current
+    return at ? at.y - startY + (at.scroller?.scrollTop ?? 0) - at.startScroll : 0
+  }
+
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>, index: number) => {
     if (event.button !== 0) return
     event.currentTarget.setPointerCapture(event.pointerId)
+    const scroller = scrollParent(list.current)
+    pointer.current = { y: event.clientY, scroller, startScroll: scroller?.scrollTop ?? 0 }
     setDrag({ index, startY: event.clientY, offset: 0 })
   }
   const onPointerMove = (event: PointerEvent) => {
-    if (drag) setDrag({ ...drag, offset: event.clientY - drag.startY })
+    if (!drag || !pointer.current) return
+    pointer.current.y = event.clientY
+    setDrag({ ...drag, offset: offsetOf(drag.startY) })
   }
+
+  // Held near the top or bottom of the queue, the list scrolls, so a row can go anywhere.
+  useEffect(() => {
+    if (!dragging) return
+    let frame = 0
+    const step = () => {
+      const at = pointer.current
+      const scroller = at?.scroller
+      if (at && scroller) {
+        const box = scroller.getBoundingClientRect()
+        const into = at.y < box.top + AUTOSCROLL_EDGE ? at.y - (box.top + AUTOSCROLL_EDGE) : at.y > box.bottom - AUTOSCROLL_EDGE ? at.y - (box.bottom - AUTOSCROLL_EDGE) : 0
+        const by = Math.round((Math.max(-AUTOSCROLL_EDGE, Math.min(AUTOSCROLL_EDGE, into)) / AUTOSCROLL_EDGE) * AUTOSCROLL_SPEED)
+        const before = scroller.scrollTop
+        if (by) scroller.scrollTop = before + by
+        if (scroller.scrollTop !== before) setDrag(current => current && { ...current, offset: offsetOf(current.startY) })
+      }
+      frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [dragging])
   const onPointerUp = () => {
+    pointer.current = null
     if (!drag) return
     if (target !== drag.index) move(items[drag.index], target)
     setDrag(null)
@@ -199,21 +252,21 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
 
   return (
     <>
-      <ul className="relative">
+      <ul ref={list} className="relative">
         {items.map((item, index) => {
-          const dragging = drag?.index === index
+          const held = drag?.index === index
           let shift = 0
-          if (drag && !dragging) {
+          if (drag && !held) {
             if (index > drag.index && index <= target) shift = -rowHeight
             if (index < drag.index && index >= target) shift = rowHeight
           }
           return (
             <li
               key={item.entry.id}
-              style={{ transform: `translateY(${dragging ? drag.offset : shift}px)` }}
+              style={{ transform: `translateY(${held ? drag.offset : shift}px)` }}
               className={cn(
                 'relative rounded-lg',
-                dragging ? 'z-10 bg-accent shadow-md' : 'transition-transform duration-150 ease-out',
+                held ? 'z-10 bg-accent shadow-md' : 'transition-transform duration-150 ease-out',
               )}
             >
               <QueueRow item={item} onPlay={() => onPlay(item.entry.id)}>
@@ -233,8 +286,11 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
                   onPointerDown={event => onPointerDown(event, index)}
                   onPointerMove={onPointerMove}
                   onPointerUp={onPointerUp}
-                  onPointerCancel={() => setDrag(null)}
-                  className={cn('flex h-8 w-6 touch-none items-center justify-center rounded-md pointer-coarse:h-11 pointer-coarse:w-9 text-muted-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring', dragging ? 'cursor-grabbing text-foreground' : 'cursor-grab')}
+                  onPointerCancel={() => {
+                    pointer.current = null
+                    setDrag(null)
+                  }}
+                  className={cn('flex h-8 w-6 touch-none items-center justify-center rounded-md pointer-coarse:h-11 pointer-coarse:w-9 text-muted-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring', held ? 'cursor-grabbing text-foreground' : 'cursor-grab')}
                 >
                   <GripVertical aria-hidden className="size-4" />
                 </button>
@@ -255,7 +311,7 @@ export function QueuePanel({ player, onClose }: { player: Player; onClose: () =>
     <div className="flex h-full w-full flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between border-b pl-4 pr-2">
         <h2 className="text-sm font-semibold">Queue</h2>
-        <IconButton label="Close queue" size="sm" onClick={onClose}><X /></IconButton>
+        <IconButton label="Close queue" size="sm" onClick={onClose} className={touchTarget}><X /></IconButton>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-2 pb-4 pt-3"><QueueContent player={player} /></div>

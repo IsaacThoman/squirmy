@@ -177,7 +177,7 @@ These run on their own; nothing needs configuring. Times are UTC.
 | Merge an artist's duplicate album rows (one release listed twice), and give popular songs without one their album and cover | daily at 04:50, and when the server starts |
 | Remove files missing longer than the grace period | daily at 05:30 |
 | Remove search results nobody kept (catalog stubs older than 30 days) | daily at 05:45 |
-| New releases from artists in your library | Mondays at 06:00 |
+| New releases from the artists in each user's library | Mondays at 06:00 |
 | Retry identification of albums still waiting | every 10 minutes |
 | Measure loudness of files that have none | every 10 minutes |
 | Fill in covers, images and lyrics still missing | every 30 minutes |

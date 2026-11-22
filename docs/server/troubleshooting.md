@@ -97,7 +97,7 @@ The web app shows "Reconnecting to the server…" when its live connection is do
 - **Starts late, especially for converted streams**: the proxy is buffering responses. Turn buffering off (`proxy_buffering off` in nginx, `flush_interval -1` in Caddy).
 - **Seeking restarts the track or does not work**: the proxy strips the `Range` header or rewrites `206` responses. Pass them through unchanged.
 - **Other devices do not follow, or "Reconnecting…" stays**: WebSockets are not reaching `/socket.io`.
-- **Plays in the browser after a click only**: browsers block audio until you interact with the page; use **Enable audio** in the notice.
+- **Plays in the browser after a click only**: browsers block audio until you interact with the page; press play, or use **Enable audio** in the notice.
 
 Test the stream path from outside with `curl -I https://music.example.com/health`, then play a track with the browser's network panel open: the stream request should answer `206 Partial Content`.
 
