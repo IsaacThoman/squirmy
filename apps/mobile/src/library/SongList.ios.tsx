@@ -8,7 +8,7 @@ import { librarySave } from '@squirmy/client-core';
 import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { useWantlistEnabled } from '../account/AccountProvider';
-import { useLiked } from '../data/library';
+import { useLiked, useWanted } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { downloadSymbol, unavailableReason } from '../downloads/model';
@@ -107,10 +107,11 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const mark = downloadSymbol(download);
   const loading = useTrackLoading(track.id);
   const wantlist = useWantlistEnabled();
+  const wanted = useWanted(track.id);
   const viewer = useViewer();
   const options = { playlist: playlist && { ...playlist, onRemove: handlers.remove }, album };
   // Described from what the row already reads; nothing runs until an item is chosen.
-  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist, viewer }, options);
+  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist, wanted, viewer }, options);
   const heart = heartButton(liked, track.title);
   const perform = (action: TrackAction) => run(track, action, options);
 
