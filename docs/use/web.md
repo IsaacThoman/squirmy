@@ -48,7 +48,7 @@ Click a song, or the play button on an album or playlist. The player bar along t
 On a phone the player is a small bar at the bottom with the song, **Devices** and play or pause. Tap it for **Now Playing**, which is where the queue and the lyrics are.
 
 - **Song menus** (right-click or the **⋯** button): **Play next**, **Add to queue**, **Add to playlist** (or **New playlist…**), **Start radio**, **Save to library** or **Remove from library** (the same as the song's heart), **Go to album**, **Go to** each of its artists, and **Add to Wantlist** for music that is not available (when the Wantlist is turned on). You can also drag songs onto a playlist, or onto Liked Songs (which saves them), in the sidebar.
-- **Queue**: reorder by dragging, or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history. The queue holds up to 10,000 songs; adding more than fit does nothing. **Autoplay** keeps music going with similar songs from your library when the queue runs out.
+- **Queue**: click a song in **Up next** to jump to it (the songs above it are skipped, except those you added yourself); reorder by dragging, or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history. How Previous, Shuffle and Repeat treat the list a song was played from is in [The queue](../server/playback.md#the-queue). The queue holds up to 10,000 songs; adding more than fit does nothing. **Autoplay** keeps music going with similar songs from your library when the queue runs out.
 - **Your settings** in **Settings → Playback**: **Volume normalization**, **Streaming quality**, **Cellular quality** (for the iOS app), and **This browser's name**. See [Playback](../server/playback.md).
 
 ## Your library
