@@ -14,9 +14,10 @@ import { failImport } from './service.js'
 import { stagingRoot } from './staging.js'
 
 export {
-  addImportFile, commitImport, createImport, failImport, getImport,
+  addImportFile, commitImport, createImport, failImport, getImport, importCopies,
   type CreateImportInput, type ImportFileInput,
 } from './service.js'
+export { refileImport } from './process.js'
 
 const retryLimit = 3
 /** Imports that receive nothing for this long are expired. */

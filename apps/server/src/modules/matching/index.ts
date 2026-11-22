@@ -5,6 +5,7 @@ import { retryWithFingerprints } from './retry.js'
 import { matchingRoutes } from './routes.js'
 
 export { mergeAlbum, mergeArtist, mergeRecording, resolveMerged } from './merge.js'
+export { placeFiles, type PlaceInput, type PlaceResult, type Placement } from './place.js'
 export { matchJobKey }
 
 /** Payload of `matching.match-album`, enqueued by the library module once a group is ingested. */

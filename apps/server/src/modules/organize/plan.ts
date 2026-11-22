@@ -19,6 +19,14 @@ export type PlanOptions = {
   rootId: string
   /** Only files linked to these albums. */
   albumIds?: string[]
+  /**
+   * Only files this import brought in that are still in its `_Incoming/<importId>/` folder.
+   * Imports of one album often run side by side (every on-demand track is one), and each
+   * files its own: a file moved by another import's batch would leave its own import
+   * waiting for a row that never appears in its folder, and a file filed before (perhaps
+   * where its owner moved it) is not the import's to move again.
+   */
+  importId?: string
   /** Also file untrusted files, named from their tags. */
   includeUnmatched?: boolean
   /** Write catalog tags while applying. Files already in place are then planned as tag-only moves. */
@@ -88,6 +96,7 @@ export async function planOrganize(options: PlanOptions): Promise<string> {
       eq(mediaFiles.rootId, root.id),
       isNull(mediaFiles.missingSince),
       options.albumIds ? inArray(mediaFiles.albumId, options.albumIds) : undefined,
+      options.importId ? and(eq(mediaFiles.importId, options.importId), sql`starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/${options.importId}/`})`) : undefined,
       options.includeIncoming ? undefined : sql`not starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/`})`,
     ))
     .orderBy(mediaFiles.relPath)
