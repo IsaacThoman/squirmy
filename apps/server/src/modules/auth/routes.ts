@@ -5,6 +5,7 @@ import {
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
+import { getConfig } from '../../config.js'
 import { db, type Executor } from '../../database/client.js'
 import { invites, users } from '../../database/schema.js'
 import { requireUser, SESSION_COOKIE, type AuthUser } from '../../lib/auth.js'
@@ -41,12 +42,25 @@ function tooMany(seconds: number): AppError {
 
 const isWeb = (request: FastifyRequest) => request.headers['x-squirmy-client'] === 'web'
 
+/**
+ * Whether the browser reached the server over HTTPS. A proxy or tunnel that terminates TLS
+ * and does not forward the protocol makes the request look like plain HTTP, so an https
+ * PUBLIC_URL also counts for requests to its host name. Other names (a LAN address over
+ * plain HTTP) keep a cookie browsers accept there.
+ */
+function isHttps(request: FastifyRequest): boolean {
+  if (request.protocol === 'https') return true
+  const publicUrl = getConfig().PUBLIC_URL
+  if (!publicUrl?.startsWith('https://')) return false
+  return new URL(publicUrl).hostname === request.hostname.toLowerCase()
+}
+
 function setSessionCookie(request: FastifyRequest, reply: FastifyReply, token: string) {
   reply.setCookie(SESSION_COOKIE, token, {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
-    secure: request.protocol === 'https',
+    secure: isHttps(request),
     maxAge: cookieMaxAgeSeconds,
   })
 }

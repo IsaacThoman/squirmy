@@ -3,6 +3,7 @@ import type { FastifyInstance, InjectOptions } from 'fastify'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
+import { resetConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { appPasswords, authSessions, devices, invites, users } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
@@ -92,6 +93,25 @@ describe('auth', () => {
     const logout = await call({ method: 'POST', url: '/api/v1/auth/logout', headers: { ...headers, 'x-squirmy-request': '1' } })
     expect(logout.cookies.find((entry) => entry.name === 'squirmy_session')?.value).toBe('')
     expect((await call({ url: '/api/v1/auth/me', headers })).statusCode).toBe(401)
+  })
+
+  it('marks the cookie Secure for HTTPS, including behind a tunnel that drops the protocol', async () => {
+    const cookieFor = async (headers: Record<string, string>) => {
+      const login = await call({ method: 'POST', url: '/api/v1/auth/login', headers: { ...web, ...headers }, payload: { username: 'admin', password: 'correct horse' } })
+      return login.cookies.find((entry) => entry.name === 'squirmy_session')!
+    }
+    expect((await cookieFor({ host: 'music.example.com' })).secure).toBeUndefined()
+    process.env.PUBLIC_URL = 'https://Music.Example.com'
+    resetConfig()
+    try {
+      expect((await cookieFor({ host: 'music.example.com' })).secure).toBe(true)
+      expect((await cookieFor({ host: 'music.example.com:443' })).secure).toBe(true)
+      // Plain HTTP on the LAN keeps working: browsers drop Secure cookies there.
+      expect((await cookieFor({ host: '192.168.1.20:4747' })).secure).toBeUndefined()
+    } finally {
+      delete process.env.PUBLIC_URL
+      resetConfig()
+    }
   })
 
   it('rate limits login per username and per address', async () => {
