@@ -74,13 +74,44 @@ type TrackRow = ArtworkColumns & {
  * that do not exist. Duplicates are kept, so this hydrates queues and playlists as they are.
  *
  * A track's `album` is the album passed with it; else the album of one of its present
- * files; else the album of its first release track; else its `album_hint_id` (a stub
- * from a catalog search). `disc` and `position` are its place on that album, preferring
- * the canonical release.
+ * files; else the album of a release it is on, its artist's own album before a single or
+ * a compilation (`albumCandidates`); else its `album_hint_id` (a stub from a catalog
+ * search or a popular track). `disc` and `position` are its place on that album,
+ * preferring the canonical release. Its artwork is that album's cover, else the cover of
+ * another album it could be shown on, so a row is never blank while any of them has one.
  */
 export async function trackSummaries(userId: string, refs: readonly TrackRef[]): Promise<TrackSummary[]> {
   return (await alignedTrackSummaries(userId, refs)).filter((summary) => summary !== null)
 }
+
+/**
+ * The albums a track could be shown on, for `alignedTrackSummaries` (a lateral over `req`
+ * and `r`): the album asked for; albums of its present files; albums of releases it is on;
+ * its search hint. Release albums carry a preference, so a song on an album and on its
+ * single shows the album: the artist's own release first, then albums, EPs, singles,
+ * soundtracks, live albums and compilations, the album's canonical edition, the earliest year.
+ */
+const albumCandidates = sql`(
+  select context.id as album_id, 0 as rank, 0 as own, 0 as kind, 0 as edition, 0 as year, null::uuid as tiebreak
+  from albums context where context.id = req.album_id
+  union all
+  select f.album_id, 1, 0, 0, 0, 0, f.id from media_files f
+  where f.recording_id = r.id and f.missing_since is null and f.album_id is not null
+  union all
+  select rl.album_id, 2,
+    case when ra.primary_artist_id = r.primary_artist_id then 0 else 1 end,
+    case ra.type when 'album' then 0 when 'ep' then 1 when 'single' then 2 when 'soundtrack' then 3 when 'live' then 4
+      when 'compilation' then 5 else 6 end,
+    case when rl.id = ra.canonical_release_id then 0 else 1 end,
+    coalesce(ra.year, 9999), rt.id
+  from release_tracks rt join releases rl on rl.id = rt.release_id join albums ra on ra.id = rl.album_id
+  where rt.recording_id = r.id
+  union all
+  -- Merges do not rewrite hints. A merge points every row that redirected to the
+  -- loser straight at the winner, so one hop reaches the current album.
+  select coalesce(hint.merged_into_id, hint.id), 3, 0, 0, 0, 0, null from albums hint where hint.id = r.album_hint_id
+) candidate`
+const candidateOrder = sql`candidate.rank, candidate.own, candidate.kind, candidate.edition, candidate.year, candidate.tiebreak`
 
 /** `trackSummaries`, but with null in place of each id that does not exist, so results line up with `refs`. */
 export async function alignedTrackSummaries(userId: string, refs: readonly TrackRef[]): Promise<(TrackSummary | null)[]> {
@@ -105,27 +136,23 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
         r.explicit,
         exists (select 1 from lyrics l where l.recording_id = r.id and (l.synced is not null or l.plain is not null)) as "hasLyrics",
         al.id as "albumId", al.title as "albumTitle", place.disc, place.position,
-        art.id as "artworkId", art.color as "artworkColor", art.thumbhash as "artworkThumbhash"
+        coalesce(own.id, other.id) as "artworkId", coalesce(own.color, other.color) as "artworkColor",
+        coalesce(own.thumbhash, other.thumbhash) as "artworkThumbhash"
       from unnest(${uuidArray(pairs.map((pair) => pair.id))}, ${uuidArray(pairs.map((pair) => pair.albumId))}) as req(id, album_id)
       join recordings r on r.id = req.id
       left join lateral (
-        select candidate.album_id from (
-          select context.id as album_id, 0 as rank, null::uuid as tiebreak from albums context where context.id = req.album_id
-          union all
-          select f.album_id, 1, f.id from media_files f
-          where f.recording_id = r.id and f.missing_since is null and f.album_id is not null
-          union all
-          select rl.album_id, 2, rt.id from release_tracks rt join releases rl on rl.id = rt.release_id
-          where rt.recording_id = r.id
-          union all
-          -- Merges do not rewrite hints. A merge points every row that redirected to the
-          -- loser straight at the winner, so one hop reaches the current album.
-          select coalesce(hint.merged_into_id, hint.id), 3, null from albums hint where hint.id = r.album_hint_id
-        ) candidate
-        order by candidate.rank, candidate.tiebreak limit 1
+        select candidate.album_id from ${albumCandidates} order by ${candidateOrder} limit 1
       ) chosen on true
       left join albums al on al.id = chosen.album_id
-      left join assets art on art.id = al.artwork_asset_id and ${servable('art')}
+      left join assets own on own.id = al.artwork_asset_id and ${servable('own')}
+      -- A track whose album has no cover shows another album it is on that has one.
+      left join lateral (
+        select fallback.id, fallback.color, fallback.thumbhash from ${albumCandidates}
+        join albums ca on ca.id = candidate.album_id
+        join assets fallback on fallback.id = ca.artwork_asset_id and ${servable('fallback')}
+        where own.id is null
+        order by ${candidateOrder} limit 1
+      ) other on true
       left join lateral (
         select rt.disc, rt.position, rt.duration_ms from release_tracks rt join releases rl on rl.id = rt.release_id
         where rt.recording_id = r.id and rl.album_id = al.id
