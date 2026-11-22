@@ -581,6 +581,27 @@ describe('acquisition end to end', () => {
     }
   })
 
+  it('hands a job back to a provider that took it and then failed as rate limited: no miss, no failure counted', async () => {
+    configureAcquisition({ slotWaitSeconds: 1 })
+    try {
+      mock.settings.rateLimitedTimes = 2
+      const album = await createAlbum({ title: 'Rate Limited', tracks: [{ title: 'Third Time', durationMs: 3000 }] })
+      const wanted = album.tracks[0]!.recordingId
+      const phone = await device(fan)
+      play(phone, [wanted], album.albumId)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }), 30_000)
+      await settle(wanted)
+      expect(mock.settings.rateLimitedTimes).toBe(0)
+      // One job throughout: the provider ran it again rather than the server starting another.
+      expect(await jobsFor(wanted)).toMatchObject([{ status: 'completed', error: null }])
+      expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, wanted))).toEqual([])
+      const [provider] = await db.execute<{ failing: string[] }>(sql`select failing_recordings as failing from acquisition_providers where id = ${providerId}`)
+      expect(provider!.failing).not.toContain(wanted)
+    } finally {
+      configureAcquisition({ slotWaitSeconds: 5 })
+    }
+  })
+
   it('starts the track being played before prefetches and library saves that were asked for earlier', async () => {
     const admin = await signIn({ role: 'admin' })
     const refresh = async () => expect((await app.inject({ method: 'POST', url: `/api/v1/admin/acquisition/providers/${providerId}/test`, headers: admin.headers })).statusCode).toBe(200)

@@ -183,5 +183,6 @@ These run on their own; nothing needs configuring. Times are UTC.
 | Trim the [fetched-music cache](./acquisition.md#the-cache) to its limit | hourly at :17 |
 | Clean up stale imports | every 15 minutes |
 | Send scrobbles; check acquisition jobs | every minute |
+| Ask enabled [providers](./acquisition.md#tracks-a-provider-could-not-supply) for their capabilities, noticing new versions | every 5 minutes |
 
 The **Jobs** page in **Admin** shows every queue with its queued, active and failed counts.

@@ -13,12 +13,49 @@ import type { z } from 'zod'
 import { AppError } from '../../lib/errors.js'
 import { userAgent } from '../../lib/http.js'
 
-/** A provider could not be reached or answered something unusable. */
+/**
+ * A provider could not be reached or answered something unusable. `busy`: it refused for
+ * now (HTTP 429, or 503 with `Retry-After`): it is up and says to come back later, which
+ * is neither a miss nor a failure it answers for.
+ */
 export class ProviderCallError extends AppError {
-  constructor(message: string) {
+  constructor(message: string, readonly busy = false, readonly retryAfterSeconds: number | null = null) {
     super(502, 'provider_unavailable', message)
     this.name = 'ProviderCallError'
   }
+}
+
+/**
+ * Wording that says a refusal is temporary: the protocol's busy wording ("Provider is
+ * busy", sent before `reason` existed) and the usual ways of saying a source is rate
+ * limiting. A provider passing on its source's rate limit as a failed job is busy, not
+ * missing the track.
+ */
+const busyWording = /^provider is busy\b|\brate[- ]?limit|\btoo many requests\b/i
+
+/** Whether a provider's refusal or failure is a busy one: `reason: "busy"`, or busy wording. */
+export function saysBusy(answer: { reason?: string | null; error?: string | null }): boolean {
+  return answer.reason === 'busy' || busyWording.test(answer.error?.trim() ?? '')
+}
+
+/**
+ * How long to wait before asking a busy provider again: `firstSeconds` doubling with each
+ * attempt up to `maxSeconds`, or longer when the provider said how long (`Retry-After`, up
+ * to five minutes).
+ */
+export function busyWaitSeconds(attempt: number, retryAfterSeconds: number | null, options: { firstSeconds?: number; maxSeconds?: number } = {}): number {
+  const { firstSeconds = 5, maxSeconds = 60 } = options
+  const backoff = Math.min(maxSeconds, firstSeconds * 2 ** attempt)
+  return Math.max(backoff, Math.min(300, retryAfterSeconds ?? 0))
+}
+
+/** `Retry-After` in seconds: a number, or an HTTP date. Null when absent or unreadable. */
+function retryAfter(response: Response): number | null {
+  const value = response.headers.get('retry-after')?.trim()
+  if (!value) return null
+  if (/^\d+$/.test(value)) return Number(value)
+  const at = Date.parse(value)
+  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - Date.now()) / 1000))
 }
 
 /** Where to reach a provider and how to sign in to it. */
@@ -86,7 +123,12 @@ async function call<Schema extends z.ZodType>(
       }
       const text = await readLimited(response)
       if (response.status === 401 || response.status === 403) throw new ProviderCallError('The provider refused the shared secret')
-      if (!response.ok) throw new ProviderCallError(`HTTP ${response.status} from ${path}: ${text.slice(0, 200)}`)
+      if (!response.ok) {
+        const wait = retryAfter(response)
+        // A bare 503 is often a proxy in front of a provider that is down: that is an outage.
+        const busy = response.status === 429 || (response.status === 503 && wait !== null)
+        throw new ProviderCallError(`HTTP ${response.status} from ${path}: ${text.slice(0, 200)}`, busy, wait)
+      }
       let json: unknown
       try {
         json = JSON.parse(text)

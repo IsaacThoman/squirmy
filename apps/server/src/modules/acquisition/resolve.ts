@@ -6,7 +6,7 @@
  *   recent row for.
  * - `acquisition_misses` holds what a provider could not supply: an empty resolve, a failed
  *   or mismatched delivery. A miss hides the recording from that provider for a day, then
- *   it is asked again.
+ *   it is asked again; sooner when the provider changes (misses.ts).
  * - Recordings a `must_resolve` provider has never answered for are batched into
  *   `acquisition.resolve` jobs, and the screens showing them are invalidated when the
  *   answer arrives.
@@ -16,14 +16,14 @@ import { and, eq, gt, inArray, lt, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { acquisitionMisses, acquisitionOffers } from '../../database/schema.js'
-import { enqueueMany } from '../../jobs/index.js'
+import { enqueue, enqueueMany } from '../../jobs/index.js'
 import { invalidate } from '../../realtime/index.js'
 import { uuidArray } from '../catalog/sql.js'
-import { ProviderCallError, resolveItems, type ProviderEndpoint } from './client.js'
+import { busyWaitSeconds, ProviderCallError, resolveItems, type ProviderEndpoint } from './client.js'
+import { currentMisses, expireMisses, recordMisses } from './misses.js'
 import { activeProviders, noteProviderError, type ActiveProvider } from './providers.js'
 
-/** A miss keeps a recording gray for this long. */
-export const MISS_TTL_MS = 24 * 60 * 60_000
+export { MISS_TTL_MS, recordMisses } from './misses.js'
 /** A positive resolve counts for coverage this long. */
 export const OFFER_TTL_MS = 30 * 24 * 60 * 60_000
 /** Offers younger than this are acquired without resolving again. */
@@ -31,7 +31,13 @@ export const FRESH_OFFER_MS = 60 * 60_000
 /** Items per `POST /resolve`, the protocol's limit. */
 export const RESOLVE_BATCH = 100
 
-const timing = { debounceMs: 250, reaskMs: 10 * 60_000 }
+const timing = {
+  debounceMs: 250,
+  reaskMs: 10 * 60_000,
+  /** A resolve the provider was too busy for is asked again after this, doubling, a few times. */
+  busyWaitSeconds: 5,
+  busyRetries: 5,
+}
 const pending = new Map<string, Set<string>>()
 /** `<provider>:<recording>` → when a resolve was last queued for it, so lists do not queue it again. */
 const asked = new Map<string, number>()
@@ -57,11 +63,7 @@ export async function coveredRecordings(providers: readonly ActiveProvider[], id
   const mustResolve = providers.filter((provider) => provider.coverage === 'must_resolve')
   const now = Date.now()
   const [misses, offers] = await Promise.all([
-    db.select({ providerId: acquisitionMisses.providerId, id: acquisitionMisses.entityId }).from(acquisitionMisses).where(and(
-      eq(acquisitionMisses.entityType, 'recording'),
-      sql`${acquisitionMisses.entityId} = any(${uuidArray(ids)})`,
-      gt(acquisitionMisses.createdAt, new Date(now - MISS_TTL_MS)),
-    )),
+    currentMisses(ids),
     mustResolve.length === 0 ? [] : db.select({ providerId: acquisitionOffers.providerId, id: acquisitionOffers.recordingId }).from(acquisitionOffers).where(and(
       sql`${acquisitionOffers.recordingId} = any(${uuidArray(ids)})`,
       inArray(acquisitionOffers.providerId, mustResolve.map((provider) => provider.id)),
@@ -123,6 +125,14 @@ export async function flushResolves() {
   }
 }
 
+/**
+ * Forgets which of a provider's recordings were asked about recently (in this process), so
+ * lists queue them again at once: its answers no longer count (misses.ts).
+ */
+export function forgetAsked(providerId: string) {
+  for (const key of asked.keys()) if (key.startsWith(`${providerId}:`)) asked.delete(key)
+}
+
 /** Forgets queued and remembered resolves. Called on shutdown and between tests. */
 export function resetResolveQueue() {
   if (flushTimer) clearTimeout(flushTimer)
@@ -131,13 +141,14 @@ export function resetResolveQueue() {
   asked.clear()
 }
 
-export type ResolveJob = { providerId: string; recordingIds: string[] }
+/** `attempt` counts the times the provider was too busy to answer, for the backoff. */
+export type ResolveJob = { providerId: string; recordingIds: string[]; attempt?: number }
 
 /**
  * `acquisition.resolve`: asks a `must_resolve` provider about recordings nobody has asked
  * it about, stores the answers and invalidates whatever shows the ones that lit up.
  */
-export async function runResolveJob({ providerId, recordingIds }: ResolveJob) {
+export async function runResolveJob({ providerId, recordingIds, attempt = 0 }: ResolveJob) {
   const provider = (await activeProviders()).find((candidate) => candidate.id === providerId)
   if (!provider) return
   const owned = await db.execute<{ id: string }>(sql`
@@ -149,6 +160,15 @@ export async function runResolveJob({ providerId, recordingIds }: ResolveJob) {
   } catch (error) {
     // Unanswered recordings stay gray and are asked about again when a list next shows them.
     if (!(error instanceof ProviderCallError)) throw error
+    if (error.busy) {
+      // Rate limited: not a fault to show the admin, and the answer is wanted soon, not in ten minutes.
+      if (attempt < timing.busyRetries) {
+        await enqueue<ResolveJob>('acquisition.resolve', { providerId, recordingIds, attempt: attempt + 1 }, {
+          startAfter: busyWaitSeconds(attempt, error.retryAfterSeconds, { firstSeconds: timing.busyWaitSeconds }),
+        })
+      }
+      return
+    }
     await noteProviderError(provider.id, error.message)
     return
   }
@@ -195,19 +215,6 @@ async function storeAnswers(providerId: string, answers: Map<string, ProviderOff
   })
 }
 
-/**
- * Remembers that a provider cannot supply these, so they turn gray for a day, and drops
- * any cached offers for them.
- */
-export async function recordMisses(executor: Pick<typeof db, 'insert' | 'delete'>, providerId: string, entityType: 'recording' | 'album', ids: readonly string[], reason: string) {
-  if (ids.length === 0) return
-  await executor.insert(acquisitionMisses).values(ids.map((entityId) => ({ providerId, entityType, entityId, reason: reason.slice(0, 500), createdAt: new Date() })))
-    .onConflictDoUpdate({ target: [acquisitionMisses.providerId, acquisitionMisses.entityType, acquisitionMisses.entityId], set: { reason: sql`excluded.reason`, createdAt: sql`excluded.created_at` } })
-  if (entityType === 'recording') {
-    await executor.delete(acquisitionOffers).where(and(eq(acquisitionOffers.providerId, providerId), inArray(acquisitionOffers.recordingId, [...ids])))
-  }
-}
-
 /** Usable offers a provider returned for a recording within the last hour. */
 export async function freshOffers(providerId: string, recordingId: string): Promise<ProviderOffer[] | null> {
   const [row] = await db.select().from(acquisitionOffers).where(and(
@@ -219,7 +226,7 @@ export async function freshOffers(providerId: string, recordingId: string): Prom
 
 /** Deletes misses and offers too old to count. */
 export async function expireCaches(now = Date.now()) {
-  await db.delete(acquisitionMisses).where(lt(acquisitionMisses.createdAt, new Date(now - MISS_TTL_MS)))
+  await expireMisses(now)
   await db.delete(acquisitionOffers).where(lt(acquisitionOffers.resolvedAt, new Date(now - OFFER_TTL_MS)))
 }
 

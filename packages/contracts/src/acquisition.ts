@@ -31,6 +31,12 @@ export const ProviderCapabilities = z.object({
   formats: z.array(z.string()).default([]),
   /** How many acquire jobs the provider wants to run at once. */
   maxConcurrent: z.number().int().min(1).max(32).default(2),
+  /**
+   * The provider's own software version. Optional; when it changes (or, without one, when
+   * anything else here changes) the server stops counting the tracks this provider could
+   * not supply before, since the new version may well supply them.
+   */
+  version: z.string().trim().min(1).max(80).nullable().optional(),
 })
 export type ProviderCapabilities = z.infer<typeof ProviderCapabilities>
 
@@ -147,6 +153,8 @@ export const ProviderJobStatus = z.object({
   status: z.enum(['queued', 'running', 'completed', 'failed']),
   progress: z.number().min(0).max(1).nullable().optional(),
   error: z.string().nullable().optional(),
+  /** Why a `failed` job failed, as in `ProviderAcquireResponse.reason`: `busy` is asked again later. */
+  reason: z.string().max(40).nullable().optional(),
 })
 export type ProviderJobStatus = z.infer<typeof ProviderJobStatus>
 
@@ -162,6 +170,11 @@ export type ProviderUploadResponse = z.infer<typeof ProviderUploadResponse>
 export const ProviderDeliveryComplete = z.object({
   status: z.enum(['completed', 'failed']),
   error: z.string().nullable().optional(),
+  /**
+   * Why it failed, as in `ProviderAcquireResponse.reason`. `busy` (rate limited, or out of
+   * capacity at the source) gets the job again later without counting it against the tracks.
+   */
+  reason: z.string().max(40).nullable().optional(),
 })
 export type ProviderDeliveryComplete = z.infer<typeof ProviderDeliveryComplete>
 
@@ -186,8 +199,23 @@ export const AcquisitionProvider = z.object({
    * nothing delivered since this time (`lastError` says why). Null while it delivers.
    */
   failingSince: IsoDateTime.nullable(),
+  /**
+   * Tracks this provider could not supply that are unavailable from it now: misses from its
+   * current version and configuration, less than a day old.
+   */
+  unavailableTracks: z.number().int().nonnegative(),
 })
 export type AcquisitionProvider = z.infer<typeof AcquisitionProvider>
+
+/**
+ * `POST /admin/acquisition/providers/:id/clear-misses`: the provider is asked again for every
+ * track it could not supply. `cleared` is how many were unavailable from it.
+ */
+export const ClearProviderMissesResponse = z.object({
+  cleared: z.number().int().nonnegative(),
+  provider: AcquisitionProvider,
+})
+export type ClearProviderMissesResponse = z.infer<typeof ClearProviderMissesResponse>
 
 /** `GET /admin/acquisition/providers`: every provider, with `nextCursor: null`. */
 export const AcquisitionProviderList = page(AcquisitionProvider)

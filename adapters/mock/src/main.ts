@@ -9,6 +9,7 @@
  *   MOCK_PROVIDER_FAIL        1: accept jobs, then fail them
  *   MOCK_PROVIDER_WRONG_FILE  1: deliver a different tone than asked for
  *   MOCK_PROVIDER_PRICED      1: put a price on every offer
+ *   MOCK_PROVIDER_VERSION     the version it reports in capabilities
  */
 import { createMockProvider } from './index.js'
 
@@ -23,6 +24,7 @@ const provider = createMockProvider({
   fail: flag('MOCK_PROVIDER_FAIL'),
   wrongFile: flag('MOCK_PROVIDER_WRONG_FILE'),
   priced: flag('MOCK_PROVIDER_PRICED'),
+  ...(env.MOCK_PROVIDER_VERSION ? { version: env.MOCK_PROVIDER_VERSION } : {}),
 })
 const url = await provider.listen(Number(env.PORT ?? 4801), env.HOST ?? '0.0.0.0')
 console.log(`Mock provider listening on ${url} (${coverage})`)

@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto'
 import {
   Id, ProviderCapabilities,
-  type AcquisitionProvider, type CreateAcquisitionProviderRequest, type ProviderCoverage, type UpdateAcquisitionProviderRequest,
+  type AcquisitionProvider, type ClearProviderMissesResponse, type CreateAcquisitionProviderRequest, type ProviderCoverage, type UpdateAcquisitionProviderRequest,
 } from '@squirmy/contracts'
 import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { acquisitionProviders } from '../../database/schema.js'
 import { decrypt, encrypt } from '../../lib/crypto.js'
@@ -10,6 +12,8 @@ import { notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
 import { dropCachedReads } from '../../lib/read-cache.js'
 import { fetchCapabilities, ProviderCallError, type ProviderEndpoint } from './client.js'
+import { forgetMisses, unavailableCounts } from './misses.js'
+import { forgetAsked, invalidateRecordings } from './resolve.js'
 
 type ProviderRow = typeof acquisitionProviders.$inferSelect
 
@@ -40,7 +44,24 @@ function coverageOf(row: Pick<ProviderRow, 'coverage' | 'coverageOverride'>): Pr
   return (row.coverageOverride ?? row.coverage) as ProviderCoverage
 }
 
-export function toProvider(row: ProviderRow): AcquisitionProvider {
+/** Sorted keys all the way down, so the same answer always hashes the same. */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, item]) => [key, canonical(item)]))
+  return value
+}
+
+/**
+ * Which build of a provider answered: its declared version (the protocol has none of its
+ * own, and the field is optional) and a hash of everything it declared. A provider that
+ * declares no version still changes identity when an update changes what it declares.
+ */
+export function providerIdentity(capabilities: ProviderCapabilities): string {
+  const hash = createHash('sha256').update(JSON.stringify(canonical(capabilities))).digest('hex').slice(0, 16)
+  return `${capabilities.version ?? 'unversioned'}#${hash}`
+}
+
+export function toProvider(row: ProviderRow, unavailableTracks = 0): AcquisitionProvider {
   const capabilities = ProviderCapabilities.safeParse(row.capabilities)
   return {
     id: row.id,
@@ -53,7 +74,13 @@ export function toProvider(row: ProviderRow): AcquisitionProvider {
     lastOkAt: row.lastOkAt?.toISOString() ?? null,
     lastError: row.lastError,
     failingSince: isFailing(row) ? row.failingSince!.toISOString() : null,
+    unavailableTracks,
   }
+}
+
+/** One provider as the admin API shows it, with its unavailable tracks counted. */
+async function shown(row: ProviderRow): Promise<AcquisitionProvider> {
+  return toProvider(row, (await unavailableCounts()).get(row.id) ?? 0)
 }
 
 /**
@@ -92,8 +119,11 @@ async function loadRow(providerId: string): Promise<ProviderRow> {
 
 /** Every provider, highest priority first. */
 export async function listProviders(): Promise<AcquisitionProvider[]> {
-  const rows = await db.select().from(acquisitionProviders).orderBy(desc(acquisitionProviders.priority), acquisitionProviders.id)
-  return rows.map(toProvider)
+  const [rows, counts] = await Promise.all([
+    db.select().from(acquisitionProviders).orderBy(desc(acquisitionProviders.priority), acquisitionProviders.id),
+    unavailableCounts(),
+  ])
+  return rows.map((row) => toProvider(row, counts.get(row.id) ?? 0))
 }
 
 /** The provider and its decrypted secret, for calls to it. */
@@ -113,9 +143,16 @@ export async function createProvider(input: CreateAcquisitionProviderRequest): P
   return testProvider(id)
 }
 
-/** Applies a partial update. A new address or secret is tested again. */
+/**
+ * Applies a partial update. A new address or secret is tested again. Turning the provider
+ * back on, or pointing the server at it anew, is how an admin says it changed: what it
+ * could not supply before is asked for again.
+ */
 export async function updateProvider(providerId: string, patch: UpdateAcquisitionProviderRequest): Promise<AcquisitionProvider> {
-  await loadRow(providerId)
+  const before = await loadRow(providerId)
+  const reconfigured = (patch.enabled === true && !before.enabled)
+    || (patch.baseUrl !== undefined && patch.baseUrl !== before.baseUrl)
+    || patch.secret !== undefined
   const [row] = await db.update(acquisitionProviders).set({
     ...(patch.name === undefined ? {} : { name: patch.name }),
     ...(patch.baseUrl === undefined ? {} : { baseUrl: patch.baseUrl }),
@@ -125,9 +162,33 @@ export async function updateProvider(providerId: string, patch: UpdateAcquisitio
     ...(patch.coverage === undefined ? {} : { coverageOverride: patch.coverage }),
     updatedAt: new Date(),
   }).where(eq(acquisitionProviders.id, providerId)).returning()
+  if (reconfigured) await missesForgotten(providerId, await forgetMisses(db, providerId, { resetHealth: true }))
   invalidateProviders()
   if (patch.baseUrl !== undefined || patch.secret !== undefined) return testProvider(providerId)
-  return toProvider(row!)
+  return shown(reconfigured ? await loadRow(providerId) : row!)
+}
+
+/**
+ * Once a provider's misses stop counting: its tracks' screens are refreshed, and a
+ * `must_resolve` provider is asked about them again as soon as a list shows them.
+ */
+async function missesForgotten(providerId: string, recordingIds: readonly string[]) {
+  forgetAsked(providerId)
+  await invalidateRecordings(recordingIds)
+}
+
+/**
+ * The admin's "Retry unavailable tracks": every miss the provider has recorded stops
+ * counting (the rows stay for the history), so its tracks are on demand again and the next
+ * request asks it again. Its failing streak, if any, is left alone: that is about whether
+ * it delivers, which this does not change.
+ */
+export async function clearProviderMisses(providerId: string): Promise<ClearProviderMissesResponse> {
+  await loadRow(providerId)
+  const cleared = await forgetMisses(db, providerId)
+  invalidateProviders()
+  await missesForgotten(providerId, cleared)
+  return { cleared: cleared.length, provider: await shown(await loadRow(providerId)) }
 }
 
 /** Deletes a provider with its jobs, offers and misses. */
@@ -138,25 +199,61 @@ export async function deleteProvider(providerId: string): Promise<void> {
 }
 
 /**
- * `GET {baseUrl}/capabilities`: stores the capabilities and declared coverage with
- * `last_ok_at`, or the failure as `last_error`. An admin's coverage override is kept: it
- * is the operator's word on what this provider can fetch, whatever it says of itself.
- * Never throws for a provider's fault.
+ * Stores a `capabilities` answer: the capabilities, declared coverage and identity. When the
+ * identity differs from the last one (another version, or other capabilities; also the
+ * first answer since servers began recording it), the provider's misses stop counting and
+ * its failing streak ends: they describe the provider it was.
+ */
+async function storeCapabilities(providerId: string, capabilities: ProviderCapabilities, extra: Partial<ProviderRow> = {}): Promise<ProviderRow> {
+  const identity = providerIdentity(capabilities)
+  const forgotten = await db.transaction(async (tx) => {
+    // The lock keeps two checks of the same new version from both moving the epoch on.
+    const [before] = await tx.select({ identity: acquisitionProviders.identity }).from(acquisitionProviders).where(eq(acquisitionProviders.id, providerId)).for('update')
+    const changed = before !== undefined && before.identity !== identity
+    await tx.update(acquisitionProviders).set({ capabilities, coverage: capabilities.coverage, identity, ...extra, updatedAt: new Date() })
+      .where(eq(acquisitionProviders.id, providerId))
+    return changed ? forgetMisses(tx, providerId, { resetHealth: true }) : null
+  })
+  invalidateProviders()
+  if (forgotten) await missesForgotten(providerId, forgotten)
+  return loadRow(providerId)
+}
+
+/**
+ * `GET {baseUrl}/capabilities`: stores the answer (`storeCapabilities`) with `last_ok_at`,
+ * or the failure as `last_error`. An admin's coverage override is kept: it is the
+ * operator's word on what this provider can fetch, whatever it says of itself. Never
+ * throws for a provider's fault.
  */
 export async function testProvider(providerId: string): Promise<AcquisitionProvider> {
   const row = await providerEndpoint(providerId)
-  let update: Partial<ProviderRow>
   try {
     const capabilities = await fetchCapabilities(row)
-    update = { capabilities, coverage: capabilities.coverage, lastOkAt: new Date(), lastError: null }
+    return shown(await storeCapabilities(providerId, capabilities, { lastOkAt: new Date(), lastError: null }))
   } catch (error) {
     if (!(error instanceof ProviderCallError)) throw error
-    update = { lastError: error.message }
+    const [updated] = await db.update(acquisitionProviders).set({ lastError: error.message, updatedAt: new Date() })
+      .where(eq(acquisitionProviders.id, providerId)).returning()
+    invalidateProviders()
+    return shown(updated!)
   }
-  const [updated] = await db.update(acquisitionProviders).set({ ...update, updatedAt: new Date() })
-    .where(eq(acquisitionProviders.id, providerId)).returning()
-  invalidateProviders()
-  return toProvider(updated!)
+}
+
+/**
+ * `acquisition.check` (every five minutes and at worker start): asks each enabled provider
+ * for its capabilities, so an updated provider is noticed without an admin pressing Test,
+ * and its misses stop counting. Only the answer is stored: `last_ok_at` and `last_error`
+ * stay about fetches (health.ts), and a provider that does not answer is left as it was.
+ */
+export async function checkProviders() {
+  const rows = await db.select({ id: acquisitionProviders.id }).from(acquisitionProviders).where(eq(acquisitionProviders.enabled, true))
+  for (const { id } of rows) {
+    try {
+      await storeCapabilities(id, await fetchCapabilities(await providerEndpoint(id)))
+    } catch (error) {
+      if (!(error instanceof ProviderCallError) && getConfig().LOG_LEVEL !== 'silent') console.error('[acquisition] Could not check a provider', error)
+    }
+  }
 }
 
 /** Records a failed call to a provider for the admin page. */

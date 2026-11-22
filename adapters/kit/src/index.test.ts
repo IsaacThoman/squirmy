@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createProviderServer, textKey, titleKey, type ProviderServer } from './index.js'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { createProviderServer, ProviderBusyError, textKey, titleKey, type ProviderServer } from './index.js'
 
 describe('provider kit', () => {
   let provider: ProviderServer
@@ -61,6 +63,60 @@ describe('provider kit', () => {
     busy = false
     expect(await (await request('/acquire', { body })).json()).toEqual({ accepted: true, providerJobId: '01937f0e-0000-7000-8000-000000000456' })
     await provider.jobs.get('01937f0e-0000-7000-8000-000000000456')!.done
+  })
+
+  it('answers a busy resolve with 429 and Retry-After, and reports a busy fetch so the server sends it again', async () => {
+    // Stands in for the server's delivery URLs: records what the provider reports.
+    const reports: unknown[] = []
+    const server = createServer((request, response) => {
+      let text = ''
+      request.on('data', (chunk) => (text += chunk))
+      request.on('end', () => {
+        reports.push(JSON.parse(text))
+        response.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const delivery = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    let limited = 1
+    let fetched = 0
+    const busyProvider = createProviderServer({
+      secret: 'kit-secret-value',
+      capabilities: { name: 'Limited', coverage: 'must_resolve', kinds: ['recording'], formats: [], maxConcurrent: 1, version: '2.1.0' },
+      resolve: () => {
+        throw new ProviderBusyError('Rate limited', 30)
+      },
+      fetch: async () => {
+        fetched += 1
+        if (limited-- > 0) throw new ProviderBusyError('Rate limited by the source')
+        return { files: [] }
+      },
+      onError: () => {},
+    })
+    const url = await busyProvider.listen()
+    const call = (route: string, body?: string) => fetch(`${url}${route}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: 'Bearer kit-secret-value' }, body })
+    try {
+      expect(await (await call('/capabilities')).json()).toMatchObject({ version: '2.1.0' })
+      const resolved = await call('/resolve', JSON.stringify({ items: [{ ref: '1', kind: 'recording', recording: { mbid: null, isrcs: [], title: 'T', artist: 'A', durationMs: null, album: null } }] }))
+      expect(resolved.status).toBe(429)
+      expect(resolved.headers.get('retry-after')).toBe('30')
+
+      const jobId = '01937f0e-0000-7000-8000-000000000789'
+      const body = JSON.stringify({ jobId, offerId: 'x', delivery: { uploadUrl: `${delivery}/files`, completeUrl: `${delivery}/complete`, token: 't' } })
+      expect(await (await call('/acquire', body)).json()).toEqual({ accepted: true, providerJobId: jobId })
+      await busyProvider.jobs.get(jobId)!.done
+      expect(reports).toEqual([{ status: 'failed', error: 'Rate limited by the source', reason: 'busy' }])
+      expect(await (await call(`/jobs/${jobId}`)).json()).toEqual({ status: 'failed', error: 'Rate limited by the source', reason: 'busy' })
+
+      // Sent again: a busy failure runs again, where any other failure would not.
+      expect(await (await call('/acquire', body)).json()).toEqual({ accepted: true, providerJobId: jobId })
+      await busyProvider.jobs.get(jobId)!.done
+      expect(fetched).toBe(2)
+      expect(reports.at(-1)).toEqual({ status: 'completed' })
+    } finally {
+      await busyProvider.close()
+      server.close()
+    }
   })
 
   it('compares text without case, accents or punctuation', () => {

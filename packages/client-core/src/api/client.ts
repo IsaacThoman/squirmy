@@ -21,6 +21,7 @@ import {
   type Artwork,
   AuthResponse,
   CatalogIndexStatus,
+  ClearProviderMissesResponse,
   type AddPlaylistItemsRequest,
   type ChangePasswordRequest,
   type ConnectListenBrainzRequest,
@@ -469,6 +470,9 @@ export function createApiClient(options: ApiClientOptions) {
       deleteProvider: (providerId: string) => send('DELETE', `/admin/acquisition/providers/${id(providerId)}`, Ok),
       /** Calls `capabilities` again and records the answer or the error. */
       testProvider: (providerId: string) => send('POST', `/admin/acquisition/providers/${id(providerId)}/test`, AcquisitionProvider),
+      /** "Retry unavailable tracks": the provider's misses stop counting, so its tracks are asked for again. */
+      clearProviderMisses: (providerId: string) =>
+        send('POST', `/admin/acquisition/providers/${id(providerId)}/clear-misses`, ClearProviderMissesResponse),
       policy: () => get('/admin/acquisition/policy', AcquisitionPolicy),
       updatePolicy: (body: UpdateAcquisitionPolicy) => send('PATCH', '/admin/acquisition/policy', AcquisitionPolicy, body),
       jobs: (query: Partial<AcquisitionJobListQuery> = {}) => get('/admin/acquisition/jobs', AcquisitionJobList, query),
