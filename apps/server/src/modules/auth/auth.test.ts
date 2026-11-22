@@ -97,10 +97,28 @@ describe('auth', () => {
   it('rate limits login per username and per address', async () => {
     const limited = await buildApp()
     try {
-      const attempt = (username: string, ip: string) => limited.inject({ method: 'POST', url: '/api/v1/auth/login', remoteAddress: ip, payload: { username, password: 'nope' } })
-      const perUser = []
-      for (let index = 0; index < 6; index++) perUser.push((await attempt('admin', `10.0.0.${index}`)).statusCode)
-      expect(perUser).toEqual([401, 401, 401, 401, 401, 429])
+      const attempt = (username: string, ip: string, password = 'nope') =>
+        limited.inject({ method: 'POST', url: '/api/v1/auth/login', remoteAddress: ip, payload: { username, password } })
+
+      // Correct sign-ins use up nobody's budget.
+      for (let index = 0; index < 8; index++) expect((await attempt('admin', '10.0.2.1', 'correct horse')).statusCode).toBe(200)
+
+      // Failures lock that username out from that address only.
+      const guesses = []
+      for (let index = 0; index < 6; index++) guesses.push((await attempt('ADMIN', '10.0.3.1')).statusCode)
+      expect(guesses).toEqual([401, 401, 401, 401, 401, 429])
+      expect((await attempt('admin', '10.0.3.1', 'correct horse')).statusCode).toBe(429)
+      expect((await attempt('admin', '10.0.3.2', 'correct horse')).statusCode).toBe(200)
+      expect((await attempt('admin', '2001:db8:1:1::5', 'correct horse')).statusCode).toBe(200)
+      // IPv6 counts per /64.
+      for (let index = 0; index < 5; index++) await attempt('admin', `2001:db8:1:1::${index + 10}`)
+      expect((await attempt('admin', '2001:db8:1:1::99', 'correct horse')).statusCode).toBe(429)
+
+      // A looser ceiling across every address.
+      const spread = []
+      for (let index = 0; index < 31; index++) spread.push((await attempt('spread', `10.0.4.${index}`)).statusCode)
+      expect(spread.slice(0, 30).every((status) => status === 401)).toBe(true)
+      expect(spread[30]).toBe(429)
 
       const perIp = []
       for (let index = 0; index < 20; index++) perIp.push((await attempt(`someone${index}`, '10.0.1.1')).statusCode)
@@ -109,6 +127,9 @@ describe('auth', () => {
       expect(last.statusCode).toBe(429)
       expect(last.json().error.code).toBe('rate_limited')
       expect(Number(last.headers['retry-after'])).toBeGreaterThan(0)
+
+      const huge = await attempt('admin', '10.0.5.1', 'x'.repeat(201))
+      expect(huge.statusCode).toBe(400)
     } finally {
       await limited.close()
     }

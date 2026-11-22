@@ -9,6 +9,7 @@ import { db, type Executor } from '../../database/client.js'
 import { invites, users } from '../../database/schema.js'
 import { requireUser, SESSION_COOKIE, type AuthUser } from '../../lib/auth.js'
 import { AppError, badRequest, conflict, forbidden, notFound, unauthorized } from '../../lib/errors.js'
+import { FailureCounter } from '../../lib/failures.js'
 import { addressKey } from '../../lib/proxy.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { getVersion } from '../../lib/version.js'
@@ -30,8 +31,12 @@ function limiter(app: FastifyInstance, name: string, max: number, key: (request:
     const result = await check(request)
     if (result.isAllowed || !result.isExceeded) return
     reply.header('retry-after', result.ttlInSeconds)
-    throw new AppError(429, 'rate_limited', `Too many attempts. Try again in ${result.ttlInSeconds} seconds.`)
+    throw tooMany(result.ttlInSeconds)
   }
+}
+
+function tooMany(seconds: number): AppError {
+  return new AppError(429, 'rate_limited', `Too many attempts. Try again in ${seconds} seconds.`)
 }
 
 const isWeb = (request: FastifyRequest) => request.headers['x-squirmy-client'] === 'web'
@@ -60,8 +65,11 @@ async function signIn(request: FastifyRequest, reply: FastifyReply, executor: Ex
 
 export async function authRoutes(app: FastifyInstance) {
   const loginPerIp = limiter(app, 'login-ip', 20, (request) => addressKey(request.ip))
-  const loginPerUsername = limiter(app, 'login-user', 5, (request) =>
-    usernameKey(String((request.body as { username?: unknown } | undefined)?.username ?? '')))
+  // Failed sign-ins only. Per username and address, so someone guessing from one place
+  // cannot lock the owner out from another; per username across every address, a looser
+  // ceiling against guessing from many places at once.
+  const failuresHere = new FailureCounter(5, 60_000)
+  const failuresAnywhere = new FailureCounter(30, 60_000)
   const setupPerIp = limiter(app, 'setup-ip', 10, (request) => addressKey(request.ip))
   const registerPerIp = limiter(app, 'register-ip', 10, (request) => addressKey(request.ip))
   const passwordPerUser = limiter(app, 'password-user', 10, (request) => request.user?.id ?? addressKey(request.ip))
@@ -88,10 +96,22 @@ export async function authRoutes(app: FastifyInstance) {
     })
   })
 
-  app.post('/auth/login', { preHandler: [loginPerIp, loginPerUsername] }, async (request, reply): Promise<AuthResponse> => {
+  app.post('/auth/login', { preHandler: loginPerIp }, async (request, reply): Promise<AuthResponse> => {
     const body = LoginRequest.parse(request.body)
+    const name = usernameKey(body.username)
+    const here = `${name}\n${addressKey(request.ip)}`
+    const wait = Math.max(failuresHere.blockedFor(here), failuresAnywhere.blockedFor(name))
+    if (wait > 0) {
+      reply.header('retry-after', wait)
+      throw tooMany(wait)
+    }
     const user = await verifyCredentials(body.username, body.password)
-    if (!user) throw unauthorized('Wrong username or password', 'invalid_credentials')
+    if (!user) {
+      failuresHere.fail(here)
+      failuresAnywhere.fail(name)
+      throw unauthorized('Wrong username or password', 'invalid_credentials')
+    }
+    failuresHere.clear(here)
     if (user.disabledAt) throw forbidden('This account is disabled', 'account_disabled')
     return signIn(request, reply, db, user, body.device)
   })
