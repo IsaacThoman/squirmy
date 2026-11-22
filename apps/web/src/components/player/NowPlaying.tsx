@@ -38,7 +38,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   const artwork = item?.track.album?.artwork ?? null
   const elsewhere = playingElsewhere(state)
   const label = contextLabel(state.context)
-  const late = useStillLoading(item?.entry)
+  const late = useStillLoading(item?.entry, state.waiting)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
 
   return (
@@ -59,7 +59,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
           </div>
 
           {elsewhere
-            ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />
+            ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} onPrepare={controls.prepareHere} className="relative" />
             : state.detached && <OnlyOnThisDevice player={player} className="relative" />}
 
           <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-5">

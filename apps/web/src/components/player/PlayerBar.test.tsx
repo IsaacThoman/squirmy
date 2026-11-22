@@ -10,13 +10,17 @@ import { MiniPlayer, PlayerBar } from './PlayerBar'
 
 const song = track('night-swimming-demo')
 
-function player(state: 'preparing' | 'ready', entryId = 'entry-1', current = song): Player {
+function player(state: 'preparing' | 'ready', entryId = 'entry-1', current = song, overrides: Partial<PlayerState> = {}): Player {
   const value: PlayerState = {
     current: { track: current, entry: { id: entryId, trackId: current.id, albumId: current.album?.id ?? null, durationMs: current.durationMs, state } },
-    playing: true, volume: 1, volumes: {}, shuffle: false, repeat: 'off', autoplay: false, context: null,
+    playing: true, waiting: state === 'preparing', blocked: false, volume: 1, volumes: {}, shuffle: false, repeat: 'off', autoplay: false, context: null,
     queue: [], history: [], autoplayQueue: [], devices, thisDeviceId, activeDeviceId: thisDeviceId, lyrics: null, detached: false, canDetach: false,
+    ...overrides,
   }
-  return { state: value, controls: new Proxy({}, { get: () => vi.fn() }) as PlayerControls }
+  // One mock per control, so a test can ask what was called.
+  const mocks = new Map<PropertyKey, ReturnType<typeof vi.fn>>()
+  const controls = new Proxy({}, { get: (_, key) => mocks.get(key) ?? mocks.set(key, vi.fn()).get(key) }) as PlayerControls
+  return { state: value, controls }
 }
 
 const bar = (value: Player) => (
@@ -71,11 +75,30 @@ describe('PlayerBar while the music is on its way', () => {
     expect(screen.queryByRole('status', { name: 'Loading' })).toBeNull()
   })
 
+  it('spins too while a song the server has is still loading or buffering, and says so after eight seconds', () => {
+    renderWithApp(bar(player('ready', 'entry-stream', song, { waiting: true })))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(within(within(region).getByRole('button', { name: 'Pause' })).getByRole('status', { name: 'Loading' })).toBeInTheDocument()
+    act(() => { vi.advanceTimersByTime(STILL_LOADING_MS + 100) })
+    expect(within(region).getByText('Still loading…')).toBeInTheDocument()
+  })
+
   it('does the same on a phone', () => {
     renderWithApp(<MiniPlayer player={player('preparing', 'entry-phone')} onOpenNowPlaying={() => {}} />)
     const region = screen.getByRole('region', { name: 'Player' })
     expect(within(region).getByText(song.artistCredit)).toBeInTheDocument()
     act(() => { vi.advanceTimersByTime(STILL_LOADING_MS + 100) })
     expect(within(region).getByText('Still loading…')).toBeInTheDocument()
+  })
+})
+
+describe('PlayerBar while the browser holds the audio back', () => {
+  it('shows Play, which plays', () => {
+    const value = player('ready', 'entry-blocked', song, { playing: false, blocked: true })
+    renderWithApp(bar(value))
+    const region = screen.getByRole('region', { name: 'Player' })
+    act(() => within(region).getByRole('button', { name: 'Play' }).click())
+    expect(value.controls.togglePlay).toHaveBeenCalled()
+    expect(within(region).queryByRole('button', { name: 'Pause' })).toBeNull()
   })
 })

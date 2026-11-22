@@ -6,7 +6,7 @@ import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
-import { isLoading, labelDevice, playingElsewhere, usePosition, type Player } from '@/player/player-context'
+import { labelDevice, playingElsewhere, usePosition, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
 import { PlayPauseButton, SeekBar, TransportButtons, VolumeControl } from './Transport'
@@ -34,7 +34,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
   const { state, controls } = player
   const item = state.current
   const elsewhere = playingElsewhere(state)
-  const late = useStillLoading(item?.entry)
+  const late = useStillLoading(item?.entry, state.waiting)
   return (
     // A landmark, so screen readers can jump to the player and tests can find it by name.
     <section aria-label="Player" className={barClass}>
@@ -93,7 +93,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
       </div>
       {/* One strip at a time: a detached tab is never controlling another device. */}
       {elsewhere
-        ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="border-t" />
+        ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} onPrepare={controls.prepareHere} className="border-t" />
         : state.detached && <OnlyOnThisDevice player={player} className="border-t" />}
     </section>
   )
@@ -104,7 +104,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
   const { state, controls } = player
   const item = state.current
   const elsewhere = playingElsewhere(state)
-  const late = useStillLoading(item?.entry)
+  const late = useStillLoading(item?.entry, state.waiting)
   if (!item) return null
   return (
     <section aria-label="Player" className={cn(barClass, 'relative pb-[env(safe-area-inset-bottom)]')}>
@@ -123,7 +123,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
           trigger={<IconButton label="Devices" tooltip={false} size="lg" className={cn('size-11', (elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
         />
         {/* A 40px disc whose touch target is 44px. */}
-        <PlayPauseButton playing={state.playing} loading={isLoading(state)} onClick={controls.togglePlay} className="mx-1 size-10 after:absolute after:-inset-0.5 after:rounded-full [&_svg]:size-5" />
+        <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} className="mx-1 size-10 after:absolute after:-inset-0.5 after:rounded-full [&_svg]:size-5" />
       </div>
       <MiniProgress durationMs={item.entry.durationMs} />
     </section>

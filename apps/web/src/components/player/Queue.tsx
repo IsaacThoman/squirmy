@@ -30,7 +30,7 @@ export function QueueContent({ player, modes = true }: { player: Player; modes?:
         {state.current && (
           <section aria-labelledby={`${id}-now`}>
             <QueueHeading id={`${id}-now`}>Now playing</QueueHeading>
-            <QueueRow item={state.current} current playing={state.playing} />
+            <QueueRow item={state.current} current playing={state.playing} waiting={state.waiting} />
           </section>
         )}
         {modes && (
@@ -102,6 +102,8 @@ type QueueRowProps = {
   item: QueueItem
   current?: boolean
   playing?: boolean
+  /** Playing and not heard yet (`PlayerState.waiting`): the current row spins. */
+  waiting?: boolean
   faded?: boolean
   onPlay?: () => void
   children?: ReactNode
@@ -112,10 +114,10 @@ type QueueRowProps = {
  * while its music is on its way, shows the spinner. One that could not be had is gray, says
  * "Not available" and does not play.
  */
-function QueueRow({ item, current, playing = false, faded, onPlay: play, children }: QueueRowProps) {
+function QueueRow({ item, current, playing = false, waiting = false, faded, onPlay: play, children }: QueueRowProps) {
   const { track, entry } = item
   const failed = entry.state === 'failed'
-  const loading = current && entry.state === 'preparing'
+  const loading = current && (waiting || entry.state === 'preparing')
   const onPlay = failed ? undefined : play
   const body = (
     <>

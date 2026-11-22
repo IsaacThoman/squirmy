@@ -6,7 +6,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Slider } from '@/components/ui/slider'
 import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { isLoading, usePosition, type Player } from '@/player/player-context'
+import { usePosition, type Player } from '@/player/player-context'
 
 type TransportButtonsProps = {
   player: Player
@@ -27,7 +27,7 @@ export function TransportButtons({ player, large, disabled, modeClassName }: Tra
       <IconButton label="Previous" size={large ? 'xl' : 'sm'} shape="round" disabled={disabled} onClick={controls.previous} className="text-foreground">
         <SkipBack fill="currentColor" />
       </IconButton>
-      <PlayPauseButton playing={state.playing} loading={isLoading(state)} onClick={controls.togglePlay} large={large} disabled={disabled} className={large ? 'mx-2' : 'mx-1'} />
+      <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} large={large} disabled={disabled} className={large ? 'mx-2' : 'mx-1'} />
       <IconButton label="Next" size={large ? 'xl' : 'sm'} shape="round" disabled={disabled} onClick={controls.next} className="text-foreground">
         <SkipForward fill="currentColor" />
       </IconButton>

@@ -22,7 +22,7 @@ function player(state: Partial<PlayerState>, moves: { detach?: SessionMoveResult
   }
   const value: PlayerState = {
     current: { track: song, entry: { id: 'e1', trackId: song.id, albumId: null, durationMs: song.durationMs, state: 'ready' } },
-    playing: true, volume: 1, volumes: {}, shuffle: false, repeat: 'off', autoplay: false, context: null,
+    playing: true, waiting: false, blocked: false, volume: 1, volumes: {}, shuffle: false, repeat: 'off', autoplay: false, context: null,
     queue: [], history: [], autoplayQueue: [], devices, thisDeviceId, activeDeviceId: thisDeviceId, lyrics: null,
     detached: false, canDetach: true,
     ...state,
