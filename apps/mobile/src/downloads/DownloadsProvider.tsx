@@ -10,6 +10,7 @@ import { useTrackStore } from '../data/library';
 import { useUserSettings } from '../data/queries';
 import { useRealtime } from '../data/realtime';
 import { codecsFor } from '../player/session';
+import { useCached, useCachedArtwork, useCacheFilesVersion, useStreamingCache } from '../streamingCache/context';
 import { downloadIndex } from './database';
 import { downloadFiles, downloadNetwork } from './files';
 import { DownloadManager, type CollectionContent, type DownloadSource } from './manager';
@@ -171,34 +172,40 @@ export function useDownloadsSummary() {
 }
 
 /**
- * Whether the server can be reached, and what can be played: with no connection only
- * downloads; otherwise what the server has, and downloads. Re-renders when that changes,
- * not on download progress.
+ * Whether the server can be reached, and what can be played: with no connection only what
+ * is on the device, as a download or in the streaming cache; otherwise what the server
+ * has as well. Re-renders when that changes, not on download progress.
  */
 export function useAvailability() {
   const { manager, offline, canRequest } = useContext(DownloadsContext);
   const version = useFilesVersion(manager);
+  const cache = useStreamingCache();
+  const cacheVersion = useCacheFilesVersion();
   return useMemo(() => {
     const downloaded = (trackId: string) => manager?.isDownloaded(trackId) ?? false;
+    const onDevice = (trackId: string) => downloaded(trackId) || (cache?.has(trackId) ?? false);
     return {
       offline, canRequest, downloaded,
-      canPlay: (track: Pick<TrackSummary, 'id' | 'availability'>) => canPlay(track, { offline, downloaded, canRequest }),
+      canPlay: (track: Pick<TrackSummary, 'id' | 'availability'>) => canPlay(track, { offline, downloaded: onDevice, canRequest }),
     };
-  }, [canRequest, manager, offline, version]);
+  }, [cache, cacheVersion, canRequest, manager, offline, version]);
 }
 
 /** Whether one track can be played now; re-renders only when the answer changes. */
 export function useCanPlay(track: Pick<TrackSummary, 'id' | 'availability'> | undefined): boolean {
   const { manager, offline, canRequest } = useContext(DownloadsContext);
   const subject = track ?? noTrack;
+  const cached = useCached(track?.id);
   return useSyncExternalStore(manager?.subscribe ?? noSubscription,
-    () => canPlay(subject, { offline, canRequest, downloaded: trackId => manager?.isDownloaded(trackId) ?? false }));
+    () => canPlay(subject, { offline, canRequest, downloaded: trackId => cached || (manager?.isDownloaded(trackId) ?? false) }));
 }
 
-/** The local copy of a cover, when one was kept with a download. */
+/** The local copy of a cover, when one was kept with a download or a cached track. */
 export function useKeptArtwork(artworkId: string | undefined): string | null {
   const manager = useDownloadManager();
-  return useSyncExternalStore(manager?.subscribe ?? noSubscription, () => artworkId ? manager?.artworkUri(artworkId) ?? null : null);
+  const cached = useCachedArtwork(artworkId);
+  const downloaded = useSyncExternalStore(manager?.subscribe ?? noSubscription, () => artworkId ? manager?.artworkUri(artworkId) ?? null : null);
+  return downloaded ?? cached;
 }
 
 /** An album's page as last downloaded, for opening it with no connection. */

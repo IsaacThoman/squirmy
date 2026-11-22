@@ -55,7 +55,7 @@ To change servers or sign out, open the account sheet and choose **Switch server
 
 ## Using it
 
-The app has Home, Library (playlists, albums, artists and songs: the music on your server plus what you added, not songs fetched only because you played them), and Search, with album, artist and playlist pages, and Now Playing with lyrics and the queue. The library is cached on the phone, so it opens at once and stays browsable while offline. Without a connection, only downloaded music plays.
+The app has Home, Library (playlists, albums, artists and songs: the music on your server plus what you added, not songs fetched only because you played them), and Search, with album, artist and playlist pages, and Now Playing with lyrics and the queue. The library is cached on the phone, so it opens at once and stays browsable while offline. Without a connection, downloaded music plays, and so does what the streaming cache holds.
 
 - **Playback is your shared session.** Whatever plays in the web app or on another device shows here too, and the phone becomes a remote without sound of its own. The playback device button, in the mini-player or Now Playing, opens **Playback device**: move playback to another device, and set the playing device's volume. Pressing play when nothing is playing makes this phone the player. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
 - **Background audio** keeps playing with the app closed, with lock screen and Control Center controls.
@@ -63,8 +63,9 @@ The app has Home, Library (playlists, albums, artists and songs: the music on yo
 - **Queue.** Pull the list down for your listening history. Drag to reorder, or swipe a track for Play Next and Remove.
 - **Search** leads with the **Top result**, the best match for what you typed: an artist or album opens its page (an album also has a play button), a song plays. Below it, **In your library** lists your artists, albums and songs, and **More to discover** the ones from the catalog that you don't have, in the same order.
 - **Downloads.** The download button on an album, a playlist or Liked Songs keeps it on the phone, and a song's menu has **Download**. Downloaded music always plays from the phone. **Downloads**, in the Library header and the account sheet, shows what is kept and sets the download quality, Wi-Fi only and a storage limit.
+- **Streaming cache.** The app keeps the songs you played most recently on the phone, and gets the next two in your queue ahead of time. They start at once, keep playing when the connection drops, and use no data the second time. It is separate from Downloads: you choose what to download, and downloads stay until you remove them, while the cache fills by itself and removes the songs played longest ago to stay under its limit. On Wi-Fi the song you are streaming is kept too. On cellular only the songs coming up are kept, at your **Cellular** quality, and nothing is when that quality is **Data Saver**. Signing out or switching server empties it (a session that expired keeps it for when you sign in again), and iOS may empty it when the phone runs short of storage.
 - **Every song has a menu**: play next or last, like, add to a playlist, start a radio, go to its album or artist. Songs not in your library can be added to your [wantlist](./wantlist.md), when your server has it on.
-- **Settings**, from the account sheet: **Normalize Volume**, **Streaming Quality** on **Wi-Fi** and on **Cellular**, and scrobbling to [ListenBrainz and Last.fm](../server/scrobbling.md).
+- **Settings**, from the account sheet: **Normalize Volume**, **Streaming Quality** on **Wi-Fi** and on **Cellular**, **Storage**, and scrobbling to [ListenBrainz and Last.fm](../server/scrobbling.md). Under **Storage**, **Streaming Cache** sets the cache's size limit (**Off**, 1, 2, 5 or 10 GB; 2 GB to begin with), **Used** shows what it holds now, and **Clear** empties it; it starts filling again when the queue moves on. A lower limit takes effect at once. The limit belongs to the phone, not to your account.
 
 ## On-demand songs
 
@@ -77,4 +78,6 @@ When an admin has [connected a provider](../server/acquisition.md), songs that a
 - **Volume normalization only turns loud tracks down.** It never boosts quiet ones on iOS.
 - **Fetching a whole album** (**Get this album**) is only in the web app.
 - **A paused phone drops off other devices' lists** once iOS suspends the app, and comes back when you open it.
+- **The streaming cache does not know about Low Data Mode.** It follows the kind of network and your **Cellular** quality only. Choose **Data Saver** for cellular, or set the cache to **Off**, to stop it using cellular data.
+- **Albums and artists stay gray offline unless something of theirs is downloaded**, even when the cache holds some of their songs. The songs themselves are lit wherever they are listed.
 - **Android** keeps compiling but is not a focus. On Android, use a [Subsonic client](../server/subsonic.md).

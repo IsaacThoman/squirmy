@@ -121,7 +121,7 @@ export function OfflineBadge({ style }: { style?: StyleProp<ViewStyle> }) {
   const styles = useStyles();
   const { offline } = useRealtime();
   if (!offline) return null;
-  return <View style={[styles.offline, style]} accessibilityRole="text" accessibilityLabel="Offline. Only downloaded music plays.">
+  return <View style={[styles.offline, style]} accessibilityRole="text" accessibilityLabel="Offline. Only downloaded and cached music plays.">
     <Icon name="wifi.slash" size={13} color={colors.muted} />
     <Text style={styles.offlineText}>Offline</Text>
   </View>;
