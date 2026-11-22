@@ -14,7 +14,7 @@
  * (`fs.inotify.max_user_watches`) stops watching that root with one warning.
  */
 import { watch, type FSWatcher } from 'node:fs'
-import { readdir, realpath, stat, statfs } from 'node:fs/promises'
+import { lstat, readdir, realpath, statfs } from 'node:fs/promises'
 import path from 'node:path'
 import { db } from '../../database/client.js'
 import { libraryRoots } from '../../database/schema.js'
@@ -120,7 +120,9 @@ class RootWatcher {
     this.firstChangeAt = undefined
     const scopes: string[] = []
     for (const relPath of changed) {
-      const info = await stat(path.join(this.root, relPath)).catch(() => null)
+      // Not following links: a linked folder is never watched, and a link is a scope the
+      // walk decides on like any other entry.
+      const info = await lstat(path.join(this.root, relPath)).catch(() => null)
       if (info?.isDirectory()) {
         if (perFolder) await this.watchTree(relPath)
         scopes.push(relPath)

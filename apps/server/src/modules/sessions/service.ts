@@ -1,6 +1,6 @@
 import { type AnySessionCommand, positionAt, queueChanged, reduceSession, type Session, splitSession } from '@squirmy/client-core'
 import {
-  CommandEnvelope, EngineReport,
+  COMMAND_TRACK_LIMIT, CommandEnvelope, EngineReport, QUEUE_LIMIT,
   type CommandAck, type DeviceInfo, type QueueEntry, type SessionCommand, type SessionHello, type SessionHelloAck, type SessionSnapshot,
 } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
@@ -10,6 +10,7 @@ import { devices } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { publish, type RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
+import { rememberDevice } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { lookupTracks, trustSeeds } from './entries.js'
 import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, savePlay } from './plays.js'
@@ -290,8 +291,7 @@ export function greet(userId: string, socketId: string, hello: SessionHello, rep
   joinDevice(userId, socketId, device, canPlay)
   cancelGrace(userId, device.id)
   return serial(userId, async () => {
-    await db.insert(devices).values({ userId, id: device.id, name: device.name, kind: device.kind })
-      .onConflictDoUpdate({ target: [devices.userId, devices.id], set: { name: device.name, kind: device.kind, lastSeenAt: new Date() } })
+    await rememberDevice(db, userId, device)
     const record = await load(userId)
     reply({ serverTime: settings.now(), snapshot: snapshotOf(record), devices: listDevices(userId, record.session.activeDeviceId) })
   }).catch(report)
@@ -365,7 +365,9 @@ async function checkCommand(record: SessionRecord, deviceId: string, command: Se
     }
     case 'enqueue': {
       const { seeds } = await trustSeeds(userId, command.tracks)
-      return seeds.length ? { ...command, tracks: seeds } : 'nothing_playable'
+      if (!seeds.length) return 'nothing_playable'
+      // Checked here as well as in the reducer, which would only ignore it, so the client can say why.
+      return session.queue.length + seeds.length > QUEUE_LIMIT ? 'queue_full' : { ...command, tracks: seeds }
     }
     default:
       return command
@@ -417,14 +419,19 @@ export function getDevices(userId: string): Promise<DeviceInfo[]> {
 /**
  * Replaces the queue with `trackIds`, paused at `currentId` (default the first) and
  * `positionMs`, for Subsonic's `savePlayQueue`. Tracks that cannot be played are dropped;
- * with none left the queue is cleared. The active device stays as it is.
+ * with none left the queue is cleared. At most `COMMAND_TRACK_LIMIT` ids from the current
+ * one on are considered. The active device stays as it is.
  */
 export function replaceQueue(userId: string, request: { trackIds: readonly string[]; currentId?: string | null; positionMs?: number }): Promise<SessionSnapshot> {
   return serial(userId, async () => {
     const record = await load(userId)
-    const requested = request.trackIds.map(trackId => ({ trackId, durationMs: 0 }))
+    // A client may save more ids than one playTracks carries or one query can bind. Tracks
+    // before the current one are not queued, so the window starts there.
+    const from = Math.max(0, request.currentId ? request.trackIds.indexOf(request.currentId) : 0)
+    const trackIds = request.trackIds.slice(from, from + COMMAND_TRACK_LIMIT)
+    const requested = trackIds.map(trackId => ({ trackId, durationMs: 0 }))
     const { seeds, indexes } = requested.length ? await trustSeeds(userId, requested) : { seeds: [], indexes: [] }
-    const start = Math.max(0, indexes.findIndex(index => request.trackIds[index] === request.currentId))
+    const start = Math.max(0, indexes.findIndex(index => trackIds[index] === request.currentId))
     const commands: AnySessionCommand[] = seeds.length
       ? [
           { type: 'playTracks', tracks: seeds, startIndex: start, shuffle: false, seed: 0 },

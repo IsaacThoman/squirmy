@@ -1,5 +1,5 @@
 import type { Dirent } from 'node:fs'
-import { readdir, realpath, stat } from 'node:fs/promises'
+import { lstat, readdir, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 export const audioExtensions = new Set(['mp3', 'flac', 'm4a', 'mp4', 'aac', 'ogg', 'oga', 'opus', 'wav', 'aiff', 'aif', 'wv', 'ape', 'wma', 'dsf'])
@@ -45,10 +45,17 @@ const join = (parent: string, name: string) => (parent ? `${parent}/${name}` : n
  * same order. Memory holds one directory listing per level, never the whole tree.
  *
  * Symbolic links are followed only to files inside the root; linked folders are skipped,
- * which also rules out loops.
+ * which also rules out loops. The same holds for `start` itself.
  */
 export async function* walk(start: string, options: WalkOptions): AsyncGenerator<WalkEntry> {
   const absolute = path.join(options.root, start)
+  if (start) {
+    // A scope (from the watcher, say) gets the rule the full walk applies to its entries: a
+    // link only to an audio file, and nothing whose real path, through a linked parent
+    // folder too, is outside the root.
+    const own = await lstat(absolute).catch(() => null)
+    if (!own || (own.isSymbolicLink() && !isAudioFile(start)) || !(await linksInside(absolute, options.root))) return
+  }
   const info = await stat(absolute).catch(() => null)
   if (!info) return
   if (info.isDirectory()) yield* walkDirectory(start, options)

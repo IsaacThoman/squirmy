@@ -4,6 +4,7 @@
  * the hidden tracks: `songIndexToRemove=1` removes the second playable track, and an
  * overwrite (createPlaylist with `playlistId`) fills the playable slots in order.
  */
+import { CreatePlaylistRequest, PLAYLIST_ITEM_LIMIT } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
 import { isoTime, uuidArray } from '../../catalog/sql.js'
@@ -11,7 +12,7 @@ import { resolveMerged } from '../../catalog/redirects.js'
 import { trackAvailability } from '../../catalog/availability.js'
 import { usernameKey } from '../../auth/service.js'
 import {
-  addPlaylistItems, createPlaylist, deletePlaylist, replacePlaylistItems, updatePlaylist, type PlaylistItemSlot,
+  addPlaylistItems, createPlaylist, deletePlaylist, playlistFull, replacePlaylistItems, updatePlaylist, type PlaylistItemSlot,
 } from '../../userdata/playlists.js'
 import { coverArtId, expectId, playlistId } from '../ids.js'
 import { invalidParameter, missingParameter, notAuthorized, notFound, type Context, type Handler, type Payload } from '../protocol.js'
@@ -108,7 +109,24 @@ export function mergeVisible(items: readonly { itemId: string; visible: boolean 
   return [...merged, ...pending]
 }
 
-const songIds = (values: readonly string[]) => values.map((value) => expectId(value, 'track').id)
+/** Refuses more ids than a playlist holds before any of them reaches a query. */
+function songIds(values: readonly string[]): string[] {
+  if (values.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
+  return values.map((value) => expectId(value, 'track').id)
+}
+
+/** Names and comments within the native API's limits, so both kinds of client can show what either saved. */
+function playlistName(value: string): string {
+  const parsed = CreatePlaylistRequest.shape.name.safeParse(value)
+  if (!parsed.success) throw invalidParameter('name')
+  return parsed.data
+}
+
+function playlistComment(value: string): string | null {
+  const parsed = CreatePlaylistRequest.shape.description.safeParse(value || null)
+  if (!parsed.success) throw invalidParameter('comment')
+  return parsed.data ?? null
+}
 
 async function createOrOverwrite({ user, params }: Context): Promise<Payload> {
   const tracks = songIds(params.all('songId'))
@@ -117,7 +135,7 @@ async function createOrOverwrite({ user, params }: Context): Promise<Payload> {
     const row = await readPlaylist(user.id, existing)
     if (row.ownerId !== user.id) throw notAuthorized()
     const name = params.string('name')
-    if (name) await updatePlaylist(user.id, row.id, { name })
+    if (name) await updatePlaylist(user.id, row.id, { name: playlistName(name) })
     // Tracks already in the playlist keep their items, and with them when they were added.
     const items = await playlistItems(row.id)
     const reusable = new Map<string, string[]>()
@@ -135,7 +153,7 @@ async function createOrOverwrite({ user, params }: Context): Promise<Payload> {
   }
   const name = params.string('name')
   if (!name) throw missingParameter('name')
-  const created = await createPlaylist(user.id, { name: name.slice(0, 120) })
+  const created = await createPlaylist(user.id, { name: playlistName(name) })
   if (tracks.length > 0) await addPlaylistItems(user.id, created.id, tracks.map((trackId) => ({ trackId })))
   return { playlist: await playlistWithSongs(user.id, created.id) }
 }
@@ -146,18 +164,18 @@ async function updatePlaylistHandler({ user, params }: Context): Promise<Payload
   const name = params.string('name')
   const comment = params.string('comment')
   const isPublic = params.bool('public')
-  if (name !== undefined || comment !== undefined || isPublic !== undefined) {
-    await updatePlaylist(user.id, row.id, {
-      name: name ? name.slice(0, 120) : undefined,
-      description: comment === undefined ? undefined : comment || null,
-      isPublic,
-    })
-  }
   const added = songIds(params.all('songIdToAdd'))
   const removed = new Set(params.all('songIndexToRemove').map((value) => {
     if (!/^\d+$/.test(value)) throw invalidParameter('songIndexToRemove')
     return Number(value)
   }))
+  if (name !== undefined || comment !== undefined || isPublic !== undefined) {
+    await updatePlaylist(user.id, row.id, {
+      name: name ? playlistName(name) : undefined,
+      description: comment === undefined ? undefined : playlistComment(comment),
+      isPublic,
+    })
+  }
   if (added.length > 0 || removed.size > 0) {
     const items = await playlistItems(row.id)
     const visible = items.filter((item) => item.visible)
