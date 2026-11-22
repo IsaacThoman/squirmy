@@ -64,6 +64,14 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
       clearQueue: () => dispatch({ type: 'patch', patch: () => ({ queue: [] }) }),
       clearHistory: () => dispatch({ type: 'patch', patch: () => ({ history: [] }) }),
       transfer: deviceId => dispatch({ type: 'patch', patch: state => ({ activeDeviceId: deviceId, devices: state.devices.map(device => ({ ...device, isActive: device.id === deviceId })) }) }),
+      detach: async () => {
+        dispatch({ type: 'patch', patch: () => ({ detached: true }) })
+        return { ok: true }
+      },
+      attach: async () => {
+        dispatch({ type: 'patch', patch: () => ({ detached: false }) })
+        return { ok: true }
+      },
       renameDevice: () => {},
     }
   }, [])
@@ -235,6 +243,8 @@ function init(initial?: Partial<PlayerState>): Clock {
       thisDeviceId,
       activeDeviceId: thisDeviceId,
       lyrics: null,
+      detached: false,
+      canDetach: true,
     }, current),
     ...initial,
   }

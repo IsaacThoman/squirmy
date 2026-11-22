@@ -1,16 +1,17 @@
 import { TrackStore } from '@squirmy/client-core';
 import {
-  queryKeys, type AlbumDetail, type LikeEntityType, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
+  queryKeys, type AlbumDetail, type LikeEntityType, type Page, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
   type WantEntityType,
 } from '@squirmy/contracts';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
 import { useAccountKey, useSignedInApi, type Api } from '../account/AccountProvider';
 import { useNotice } from '../Notice';
 import { accountItem } from './accountStorage';
 import { LikeQueue, type QueuedLike } from './likeQueue';
+import { findTrack, patchEntity, withLikedTrack } from './likePatch';
 import { useRealtime } from './realtime';
 
 type LikeKey = `${LikeEntityType}:${string}`;
@@ -26,6 +27,35 @@ type LibraryValue = {
 const LibraryContext = createContext<LibraryValue | null>(null);
 
 const noSummaries = () => Promise.reject(new Error('Signed out'));
+/** Likes the server could not take (a 5xx, a dropped request) are sent again after this, then twice as long each time. */
+const retryFirstMs = 15_000;
+const retryMaxMs = 4 * 60_000;
+const likedTracksKey = [...queryKeys.likes(), 'track'];
+
+/**
+ * Shows a like everywhere at once: every cached answer that carries the item gets the new
+ * flag, and Liked Songs gains or loses the track, so nothing has to be fetched again.
+ */
+function patchLike(queryClient: QueryClient, type: LikeEntityType, id: string, liked: boolean) {
+  const queries = queryClient.getQueryCache().getAll();
+  for (const query of queries) {
+    const data = query.state.data;
+    const patched = patchEntity(data, id, { liked });
+    // Keeps the time the data was loaded, so the patch does not make old data look fresh.
+    if (patched !== data) queryClient.setQueryData(query.queryKey, patched, { updatedAt: query.state.dataUpdatedAt });
+  }
+  if (type !== 'track') return;
+  const list = queryClient.getQueryState(likedTracksKey);
+  if (!list?.data) return;
+  let track: TrackSummary | undefined;
+  for (const query of queries) if (liked && !track) track = findTrack(query.state.data, id);
+  if (liked && !track) {
+    void queryClient.invalidateQueries({ queryKey: likedTracksKey, refetchType: 'none' });
+    return;
+  }
+  queryClient.setQueryData<InfiniteData<Page<TrackSummary>>>(likedTracksKey,
+    data => data && withLikedTrack(data, id, track ?? null), { updatedAt: list.dataUpdatedAt });
+}
 
 /**
  * What the user keeps: likes, the wantlist and the track summaries every screen shares.
@@ -37,11 +67,19 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   const account = useAccountKey();
   const queryClient = useQueryClient();
   const notify = useNotice();
-  const { onInvalidate, offline } = useRealtime();
-  const tracks = useMemo(() => new TrackStore(api ? body => api.catalog.trackSummaries(body) : noSummaries), [api]);
+  const { onInvalidate, offline, expectEcho } = useRealtime();
+  // One store per account, reading the current client: a new client (a token or server
+  // update) must not drop the cached summaries or rebuild what is built on the store.
+  const apiRef = useRef(api);
+  useEffect(() => {
+    apiRef.current = api;
+  }, [api]);
+  const tracks = useMemo(() => new TrackStore(body => apiRef.current?.catalog.trackSummaries(body) ?? noSummaries()), [account]);
   const queue = useMemo(() => api && account ? new LikeQueue(likeStorage(account), async ({ type, id, liked }) => {
+    // The server tells this phone too; it already shows the change, so that echo is not refetched.
+    expectEcho([type, id]);
     await (liked ? api.userdata.like(type, id) : api.userdata.unlike(type, id));
-  }) : null, [account, api]);
+  }) : null, [account, api, expectEcho]);
   const [likes, setLikes] = useState<ReadonlyMap<LikeKey, boolean>>(new Map());
   useEffect(() => setLikes(new Map(queue?.pending.map(like => [`${like.type}:${like.id}`, like.liked] as const))), [queue]);
 
@@ -53,33 +91,49 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   }), []);
 
   // Another device changed a like: the pages refetch on their own, so only the cached
-  // track summaries (queue rows, Now Playing) need the new value.
-  useEffect(() => onInvalidate(keys => {
-    for (const key of keys) {
-      if (key[0] === 'track' && typeof key[1] === 'string' && api) {
-        const id = key[1];
+  // track summaries (queue rows, Now Playing) need the new value, and what this device
+  // remembered for albums and artists gives way to the server's.
+  useEffect(() => onInvalidate((keys, { own }) => {
+    if (own) return;
+    for (const [root, id] of keys) {
+      if (typeof id !== 'string') continue;
+      if (root === 'track' && api) {
         api.catalog.track(id).then(track => {
           tracks.prime([track]);
           remember(`track:${id}`, track.liked);
         }, () => undefined);
-      } else if (key[0] === 'album' && typeof key[1] === 'string') {
-        remember(`album:${key[1]}`, undefined);
+      } else if (root === 'album' || root === 'artist') {
+        remember(`${root}:${id}`, undefined);
       }
     }
   }), [api, onInvalidate, remember, tracks]);
 
+  const isOffline = useRef(offline);
+  isOffline.current = offline;
+  const retry = useRef<{ timer?: ReturnType<typeof setTimeout>; delayMs: number }>({ delayMs: retryFirstMs });
   const flush = useCallback(() => {
-    void queue?.flush().then(({ applied, refused }) => {
-      if (applied.length) void queryClient.invalidateQueries({ queryKey: queryKeys.likes() });
+    if (!queue) return;
+    clearTimeout(retry.current.timer);
+    void queue.flush().then(({ refused }) => {
       for (const like of refused) {
         remember(`${like.type}:${like.id}`, undefined);
+        patchLike(queryClient, like.type, like.id, !like.liked);
         notify(like.liked ? 'Couldn’t add that to your likes.' : 'Couldn’t remove that from your likes.');
+      }
+      // Offline, the reconnect sends what is left; online, the server failed, so try again later.
+      if (queue.pending.length && !isOffline.current) {
+        clearTimeout(retry.current.timer);
+        retry.current.timer = setTimeout(flush, retry.current.delayMs);
+        retry.current.delayMs = Math.min(retry.current.delayMs * 2, retryMaxMs);
+      } else if (!queue.pending.length) {
+        retry.current.delayMs = retryFirstMs;
       }
     });
   }, [notify, queryClient, queue, remember]);
   useEffect(() => {
     if (!offline) flush();
   }, [flush, offline]);
+  useEffect(() => () => clearTimeout(retry.current.timer), [queue]);
 
   const value = useMemo<LibraryValue>(() => ({
     tracks,
@@ -87,6 +141,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
     setLiked: (type, id, liked) => {
       if (!queue) return;
       remember(`${type}:${id}`, liked);
+      patchLike(queryClient, type, id, liked);
       queue.add({ type, id, liked });
       flush();
     },

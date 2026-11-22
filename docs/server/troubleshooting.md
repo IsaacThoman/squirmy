@@ -12,6 +12,8 @@ docker compose logs -f app
 
 HTTP requests and errors are JSON lines; the library, watchers and imports add plain lines such as `Not watching /music: it is a network mount.`. For more detail, set `LOG_LEVEL: debug` under the `app` service's `environment:` in `compose.yaml` and run `docker compose up -d`. Valid levels are `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` and `silent`.
 
+Request lines show the URL with the values of credential parameters replaced by `[redacted]`: Subsonic `p`, `t`, `s` and `apiKey`, stream signatures (`sig`) and Last.fm's `token` and `state`. Logs kept from earlier versions may hold them in clear: treat those logs as secret, or delete them and have users replace their app passwords if the logs were shared.
+
 **Jobs.** **Admin → Jobs** lists every background queue with its **Queued**, **Active** and **Failed** counts, refreshed every few seconds. The names say what they do:
 
 | Queue | Work |
@@ -102,6 +104,8 @@ Test the stream path from outside with `curl -I https://music.example.com/health
 
 - **413 from the proxy** (an HTML error page, often nginx's; the web app says the upload was refused "before it reached Squirmy"): the proxy's body size limit. Set `client_max_body_size 0;` in nginx, or the equivalent; see [Reverse proxies](./reverse-proxy.md).
 - **413 from Squirmy** (JSON with `file_too_large` or `import_too_large`): the file or the whole import is over `importMaxFileBytes` (4 GiB) or `importMaxBytes` (64 GiB). Raise them in **Admin → Server settings → Imports** ([Configuration](./configuration.md#server-settings)).
+- **507 `insufficient_storage`**: the upload (or a zip in it) would leave the server's staging disk with less than 1 GiB free. Free some space, or move `SQUIRMY_DATA_DIR` to a bigger disk.
+- **429 `too_many_imports`**: a member already has `importMaxActivePerUser` (3) uploads receiving or processing. Let one finish, or cancel an unfinished one under **Add music**.
 - **Large uploads cut off after a minute behind Traefik**: Traefik v3's 60 second read timeout. Set `respondingTimeouts.readTimeout=0` on the entry point.
 - **`no_managed_root` or `import_root_not_set`**: imports need a managed folder to file into. See [Adding music](./adding-music.md#before-you-start-a-managed-folder-to-file-into).
 

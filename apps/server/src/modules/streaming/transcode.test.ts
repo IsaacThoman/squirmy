@@ -15,7 +15,7 @@ import { mediaFiles, transcodes } from '../../database/schema.js'
 import { enqueue, getQueueStats, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
-import { makeTone } from '../../test/audio.js'
+import { makeTone, writeHostileInputs } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { evictTranscodes } from './cache.js'
@@ -205,6 +205,15 @@ describe('transcodes', () => {
     const retried = await fetch(file.id, 'opus_128')
     expect(retried.statusCode).toBe(200)
     expect(await row(file.id, 'opus_128')).toMatchObject({ status: 'ready', error: null })
+  })
+
+  it('refuses a file whose content makes ffmpeg read another file', async () => {
+    await makeTone(root, { path: 'h/real.flac', durationSec: 1 })
+    await writeHostileInputs(path.join(root, 'h'), { target: 'real.flac', url: 'http://127.0.0.1:9' })
+    const file = await addFile('h/concat.flac', { copy: false })
+    const response = await fetch(file.id, 'opus_128')
+    expect(response.statusCode).toBe(500)
+    expect(response.json().error.code).toBe('transcode_failed')
   })
 
   it('answers HEAD without encoding and 404s a vanished source', async () => {

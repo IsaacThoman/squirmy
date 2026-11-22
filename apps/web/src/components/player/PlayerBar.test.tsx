@@ -14,7 +14,7 @@ function player(state: 'preparing' | 'ready', entryId = 'entry-1'): Player {
   const value: PlayerState = {
     current: { track: song, entry: { id: entryId, trackId: song.id, albumId: song.album?.id ?? null, durationMs: song.durationMs, state } },
     playing: true, volume: 1, volumes: {}, shuffle: false, repeat: 'off', autoplay: false, context: null,
-    queue: [], history: [], autoplayQueue: [], devices, thisDeviceId, activeDeviceId: thisDeviceId, lyrics: null,
+    queue: [], history: [], autoplayQueue: [], devices, thisDeviceId, activeDeviceId: thisDeviceId, lyrics: null, detached: false, canDetach: false,
   }
   return { state: value, controls: new Proxy({}, { get: () => vi.fn() }) as PlayerControls }
 }

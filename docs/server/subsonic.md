@@ -8,7 +8,7 @@ Subsonic apps see **your library only**: albums with at least one file on the se
 
 ## Connect an app
 
-1. In Squirmy, open **Settings → App passwords** and choose **Create**. Name it after the app ("Symfonium on my phone") and choose **Create**.
+1. In Squirmy, open **Settings → App passwords** and choose **Create**. Name it after the app ("Symfonium on my phone"), enter your account password, and choose **Create**.
 2. Copy the password. It is shown once.
 3. In the app, add a Subsonic (or OpenSubsonic, or Navidrome) server:
    - **Server address**: the address you open Squirmy at, such as `https://music.example.com`. Do not add `/rest`.
@@ -16,7 +16,7 @@ Subsonic apps see **your library only**: albums with at least one file on the se
    - **Password**: the app password. Your account password does not work here, on purpose.
 4. Apps that support **API keys** can use the app password as the key, with no username.
 
-Give each app its own app password. Settings shows when each was last used; revoke one to sign that app out without touching the others or your account. An admin resetting your account password leaves app passwords working.
+Give each app its own app password. Settings shows when each was last used; revoke one to sign that app out without touching the others or your account. Changing your account password, or an admin resetting or disabling it, deletes your app passwords: create new ones for your apps afterwards.
 
 Use HTTPS when the server is reachable from the internet. Older Subsonic apps send the password, or a hash of it, in the URL of every request.
 
@@ -53,7 +53,7 @@ Requests can be GET or form POST, with or without `.view`, and answers come as X
 - **Stars are likes.** Starring a song, album or artist in an app likes it in Squirmy, and the other way round.
 - **Ratings** (1 to 5 stars) are kept for Subsonic apps; Squirmy's own apps do not show them.
 - **Scrobbles are plays.** A scrobble adds the play to your history at the time the app reports, and from there to ListenBrainz or Last.fm when you have connected them. A "now playing" notice shows in `getNowPlaying` until the song would have ended.
-- **The play queue is your Squirmy queue.** Save the queue in one app and Squirmy's web and phone apps pick it up paused at the same point, and the other way round. Tracks a Subsonic app saved before its current song are remembered until the queue changes in Squirmy.
+- **The play queue is your Squirmy queue.** Save the queue in one app and Squirmy's web and phone apps pick it up paused at the same point, and the other way round. Tracks a Subsonic app saved before its current song are remembered until the queue changes in Squirmy. Of a very long queue, 5,000 tracks from the current song on, and 5,000 before it, are kept.
 - **Music folders are library roots.** Apps that filter by folder see one folder per root.
 - **Similar songs and artists** come from Squirmy's radio, limited to music you own.
 - **ReplayGain** values on songs are Squirmy's loudness measurements (or the file's own tags until a file is measured), relative to -18 LUFS.
@@ -65,6 +65,7 @@ By default an app gets the original file, with byte ranges, so seeking works.
 - `maxBitRate` caps the bitrate. A file above it is transcoded to MP3 at 320 or 192 kbps; lower caps are encoded live at that bitrate.
 - `format=mp3`, `opus` (or `ogg`) and `aac` (or `m4a`) pick the codec. `format=raw` always sends the original.
 - Transcodes at the standard bitrates are cached, so the second play seeks like an original. Live encodes (below 192 kbps, or from a `timeOffset`) are not cached.
+- Live encodes share the server's encoders with the other transcodes (at most half the CPU cores, at least two) and do not wait for one: when all are busy, `stream` answers a Subsonic error (code 0) asking to try again shortly. One user runs at most three live encodes at a time.
 - `timeOffset` starts a transcode that many seconds in, for apps that seek while transcoding.
 - `estimateContentLength=true` sends a Content-Length for transcodes, estimated from the duration and bitrate.
 
@@ -77,6 +78,7 @@ Cover art is served at the original size, or with `size` as a square WebP at the
 - **Downloading a whole album or artist** with `download`. Download songs one by one, or let the app do it.
 - **The `transcoding` extension** (`getTranscodeDecision`), **`playbackReport`**, **`sonicSimilarity`** and the karaoke timing of `songLyrics` version 2.
 - **Album and artist sort names, moods, BPM, comments and contributors** are not stored, so songs do not carry them.
+- **Playlist limits** are the web app's: names up to 120 characters, comments up to 2,000, 10,000 songs per playlist and 1,000 playlists per person. An app that goes past one gets an error, and the songs stay as they were.
 - **Clearing the play queue** from an app keeps the current song: a Squirmy session always has something it is on.
 
 ## For developers

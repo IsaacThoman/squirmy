@@ -289,7 +289,7 @@ function ResetPasswordDialog({ user, onOpenChange, onReset }: { user: User; onOp
   }
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent title={`New password for @${user.username}`} description="They are signed out everywhere. App passwords keep working.">
+      <DialogContent title={`New password for @${user.username}`} description="They are signed out everywhere, and their app passwords are deleted.">
         <DialogForm onSubmit={() => void submit()} errors={form.errors} pending={form.pending} submitLabel="Set password">
           <Field label="New password" htmlFor="reset-password" error={form.errors.password} hint="At least 8 characters.">
             <Input id="reset-password" type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} aria-invalid={!!form.errors.password} autoFocus />

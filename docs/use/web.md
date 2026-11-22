@@ -19,7 +19,7 @@ Most pages have a bar across the top with the page's name and, on some, links to
 - **Home** shows a featured album (what you played last, else what you added last) and the rows the server sends, in its order: what you played recently and most, your playlists, what you added to your library, liked albums, new releases by artists you have or like, and your [wantlist](./wantlist.md) (when it is turned on). With nothing to show yet it says how to start: **Find music** opens the search page when the server can fetch music for you, and admins get **Add a music folder**, which opens **Admin → Library**.
 - **Albums**, **Artists** and **Songs** are sections of the **Library** page, with **Playlists** beside them in its bar. They hold [your library](#your-library), load as you scroll, and albums and songs can be sorted and filtered by genre (artists are listed by name). Counts read "60+" until the last page arrives.
 - **Album, artist and playlist pages** play from the header. Artist pages can start a radio. An album page shows its cover, title and artist at once; when the server is still looking up its songs, the list fills in a moment later, and **Play** can be pressed already.
-- **Playlists** you own can be renamed, made public or private, reordered by dragging or with **Move up** and **Move down**, and deleted.
+- **Playlists** you own can be renamed, made public or private, reordered by dragging or with **Move up** and **Move down**, and deleted. A playlist holds up to 10,000 songs, and you can have up to 1,000 playlists.
 
 ## Search
 
@@ -48,7 +48,7 @@ Click a song, or the play button on an album or playlist. The player bar along t
 On a phone the player is a small bar at the bottom with the song, **Devices** and play or pause. Tap it for **Now Playing**, which is where the queue and the lyrics are.
 
 - **Song menus** (right-click or the **⋯** button): **Play next**, **Add to queue**, **Add to playlist** (or **New playlist…**), **Start radio**, **Add to library** or **Remove from library**, **Go to album**, and **Add to Wantlist** for music that is not available (when the Wantlist is turned on). You can also drag songs onto a playlist, or onto Liked Songs, in the sidebar.
-- **Queue**: reorder by dragging, or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history. **Autoplay** keeps music going with similar songs from your library when the queue runs out.
+- **Queue**: reorder by dragging, or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history. The queue holds up to 10,000 songs; adding more than fit does nothing. **Autoplay** keeps music going with similar songs from your library when the queue runs out.
 - **Your settings** in **Settings → Playback**: **Volume normalization**, **Streaming quality**, **Cellular quality** (for the iOS app), and **This browser's name**. See [Playback](../server/playback.md).
 
 ## Your library

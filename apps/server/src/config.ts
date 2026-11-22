@@ -1,6 +1,5 @@
 import { z } from 'zod'
-
-const boolean = z.enum(['true', 'false', '1', '0']).transform((value) => value === 'true' || value === '1')
+import { parseTrustProxy } from './lib/proxy.js'
 
 const Env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -27,11 +26,31 @@ const Env = z.object({
   SQUIRMY_INBOX_PATH: z.string().optional(),
   /**
    * Public origin, e.g. https://music.example.com, for absolute links and the delivery
-   * addresses given to acquisition providers. Empty counts as unset, because compose.yaml
-   * passes it through as `${PUBLIC_URL:-}`.
+   * addresses given to acquisition providers; an https origin also marks the session cookie
+   * Secure for requests to its host. Empty counts as unset, because compose.yaml passes it
+   * through as `${PUBLIC_URL:-}`.
    */
   PUBLIC_URL: z.preprocess((value) => (value === '' ? undefined : value), z.string().url().optional()),
-  TRUST_PROXY: boolean.default(false),
+  /**
+   * Which proxies may report the client's address and protocol: `false`; `true` for one
+   * proxy on this machine or a private network; a number of proxies; or a comma separated
+   * list of addresses, CIDR ranges and `loopback`, `linklocal`, `uniquelocal`, `private`.
+   * See docs/server/reverse-proxy.md.
+   */
+  TRUST_PROXY: z.string().default('false').transform((value, context) => {
+    try {
+      return parseTrustProxy(value)
+    } catch (error) {
+      context.addIssue({ code: 'custom', message: `TRUST_PROXY: ${(error as Error).message}` })
+      return z.NEVER
+    }
+  }),
+  /**
+   * A header the outermost proxy sets to the client's address, such as CF-Connecting-IP
+   * behind Cloudflare. Read only from a peer TRUST_PROXY trusts.
+   */
+  CLIENT_IP_HEADER: z.string().trim().toLowerCase().regex(/^[a-z0-9-]*$/, 'CLIENT_IP_HEADER must be a header name')
+    .transform((value) => value || undefined).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   FFMPEG_PATH: z.string().default('ffmpeg'),
   FFPROBE_PATH: z.string().default('ffprobe'),
@@ -42,17 +61,29 @@ const Env = z.object({
   SQUIRMY_VERSION: z.string().optional(),
   /** The commit an image was built from (build argument, or set at run time by Coolify). Without SQUIRMY_VERSION the version is dev+<its first 7 characters>. */
   SOURCE_COMMIT: z.string().optional(),
+}).superRefine((env, context) => {
+  // Ignored silently, everyone would share the proxy's address and its limits.
+  if (env.CLIENT_IP_HEADER && env.TRUST_PROXY.kind === 'none') {
+    context.addIssue({ code: 'custom', path: ['CLIENT_IP_HEADER'], message: 'CLIENT_IP_HEADER needs TRUST_PROXY to trust the proxy that sets it' })
+  }
 })
 
-export type Config = z.infer<typeof Env>
+export type Config = z.infer<typeof Env> & {
+  /**
+   * Whether the Vite dev server's origins may call with credentials. Only when NODE_ENV is
+   * set to development, not when it is merely unset: a bare-metal install that forgot
+   * NODE_ENV must not trust whatever runs on localhost:5173 of a visitor's machine.
+   */
+  devCors: boolean
+}
 
-/** Origins of the Vite dev server, the only cross-origin callers allowed outside production. */
+/** Origins of the Vite dev server, the only cross-origin callers allowed in development. */
 export const devOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173']
 
 let cached: Config | undefined
 
 export function getConfig(): Config {
-  cached ??= Env.parse(process.env)
+  cached ??= { ...Env.parse(process.env), devCors: process.env.NODE_ENV === 'development' }
   return cached
 }
 

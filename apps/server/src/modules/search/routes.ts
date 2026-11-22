@@ -16,7 +16,7 @@ const minQueryLength = 2
 
 async function respond(userId: string, query: string, ids: StubIds, provider: string | null): Promise<SearchResults> {
   const [artists, albums, tracks] = await Promise.all([
-    artistSummaries(ids.artists),
+    artistSummaries(ids.artists, userId),
     albumSummaries(ids.albums),
     trackSummaries(userId, ids.tracks.map((id) => ({ id }))),
   ])

@@ -1,0 +1,14 @@
+{
+  "note": "Hand-written: a redirect fetchImage may follow, to a public https URL.",
+  "request": {
+    "method": "GET",
+    "url": "https://images.example.test/redirect-moved.png"
+  },
+  "response": {
+    "status": 302,
+    "headers": {
+      "location": "/pixel.png"
+    },
+    "text": ""
+  }
+}

@@ -97,4 +97,14 @@ describe('sign-in redirects', () => {
     expect(safeNext('https://evil.example')).toBe('/')
     expect(safeNext(null)).toBe('/')
   })
+
+  it('read the path as the browser would, so no trick reaches another origin', () => {
+    // Browsers treat a backslash as a slash and drop tabs and newlines, which makes these `//evil.example`.
+    for (const next of ['/\\evil.example', '/\\/evil.example', '\\\\evil.example', '/\t/evil.example', '/\n/evil.example', '\n//evil.example', 'javascript:alert(1)', 'https:evil.example']) {
+      expect(safeNext(next), JSON.stringify(next)).toBe('/')
+    }
+    expect(safeNext('/library/albums?sort=title#top')).toBe('/library/albums?sort=title#top')
+    expect(safeNext(`${window.location.origin}/search?q=a`)).toBe('/search?q=a')
+    expect(safeNext('/a/../settings')).toBe('/settings')
+  })
 })

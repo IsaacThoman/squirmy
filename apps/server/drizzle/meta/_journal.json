@@ -78,6 +78,20 @@
       "when": 1795207462357,
       "tag": "0010_drop_scan_interval",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795338854320,
+      "tag": "0011_library_membership",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795343824277,
+      "tag": "0012_detached_sessions",
+      "breakpoints": true
     }
   ]
 }

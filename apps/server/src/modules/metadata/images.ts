@@ -1,4 +1,4 @@
-import { ProviderError, request } from '../../lib/http.js'
+import { ProviderError, RefusedUrlError, requestPublic } from '../../lib/http.js'
 import { getServerSettings } from '../../lib/settings.js'
 
 /** Downloaded image bytes. */
@@ -32,8 +32,9 @@ export async function imageSourceEnabled(url: string): Promise<boolean> {
 
 /**
  * Downloads an image for any provider. Null when the URL is gone, is not an image,
- * exceeds `maxBytes` (default 20 MB), or belongs to a source that is switched off;
- * network failures and 5xx throw ProviderError.
+ * exceeds `maxBytes` (default 20 MB), belongs to a source that is switched off, or is one
+ * `requestPublic` refuses (not https, not a public address, too many redirects); network
+ * failures and 5xx throw ProviderError.
  */
 export async function fetchImage(url: string, options: { maxBytes?: number } = {}): Promise<FetchedImage | null> {
   return (await downloadImage(url, options)).image
@@ -47,7 +48,12 @@ export async function fetchImage(url: string, options: { maxBytes?: number } = {
 export async function downloadImage(url: string, options: { maxBytes?: number } = {}): Promise<{ image: FetchedImage | null; gone: boolean }> {
   if (!(await imageSourceEnabled(url))) return { image: null, gone: false }
   const maxBytes = options.maxBytes ?? defaultMaxBytes
-  const response = await request('image', url, { headers: { Accept: 'image/*' }, timeoutMs: 30_000 })
+  const response = await requestPublic('image', url, { headers: { Accept: 'image/*' }, timeoutMs: 30_000 }).catch((error: unknown) => {
+    // Refused once is refused for good, so it is not an outage worth retrying.
+    if (error instanceof RefusedUrlError) return null
+    throw error
+  })
+  if (!response) return { image: null, gone: false }
   if (response.status === 404 || response.status === 410) {
     await response.body?.cancel()
     return { image: null, gone: true }

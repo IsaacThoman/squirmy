@@ -26,17 +26,29 @@ export function stagingDir(importId: string): string {
 /** Thrown by {@link writeLimited} when a stream passes its byte limit. */
 export class TooLargeError extends Error {}
 
+export type WriteCheck = {
+  /** Bytes between calls of `check`. */
+  everyBytes: number
+  /** Called with the bytes written so far; a rejection stops the write with that error. */
+  check: (bytes: number) => Promise<void>
+}
+
 /**
  * Streams into a new file, failing with {@link TooLargeError} once more than `limit` bytes
- * arrive. The file is created exclusively (`wx`), so an existing file or symbolic link at
- * `file` is never written through. Returns the bytes written; on failure the file is removed.
+ * arrive, or with whatever `periodic.check` throws. The file is created exclusively (`wx`),
+ * so an existing file or symbolic link at `file` is never written through. Returns the bytes
+ * written; on failure the file is removed.
  */
-export async function writeLimited(source: Readable, file: string, limit: number): Promise<number> {
+export async function writeLimited(source: Readable, file: string, limit: number, periodic?: WriteCheck): Promise<number> {
   let bytes = 0
+  let nextCheck = periodic?.everyBytes ?? Infinity
   const counter = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
       bytes += chunk.length
-      callback(bytes > limit ? new TooLargeError(`More than ${limit} bytes`) : null, chunk)
+      if (bytes > limit) return callback(new TooLargeError(`More than ${limit} bytes`))
+      if (!periodic || bytes < nextCheck) return callback(null, chunk)
+      nextCheck = bytes + periodic.everyBytes
+      periodic.check(bytes).then(() => callback(null, chunk), callback)
     },
   })
   try {

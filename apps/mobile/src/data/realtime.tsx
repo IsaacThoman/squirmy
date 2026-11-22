@@ -7,8 +7,12 @@ import { AppState } from 'react-native';
 import { io } from 'socket.io-client';
 import { useAccount } from '../account/AccountProvider';
 import { socketAddress } from '../account/address';
+import { Echoes } from './echoes';
+import { refreshAfterReconnect } from './reconnect';
 
 type Keys = readonly (readonly unknown[])[];
+/** `own`: the echo of a change this device made, whose result it already shows. */
+type InvalidateListener = (keys: Keys, info: { own: boolean }) => void;
 
 type Realtime = {
   /** The signed-in user's socket, shared with the session client. Null while signed out. */
@@ -16,7 +20,12 @@ type Realtime = {
   /** The server has not been reachable for a few seconds; only downloads play. False while signed out. */
   offline: boolean;
   /** Calls `listener` with the keys of every `invalidate` the server sends. */
-  onInvalidate: (listener: (keys: Keys) => void) => () => void;
+  onInvalidate: (listener: InvalidateListener) => () => void;
+  /**
+   * A request this device sends will make the server invalidate `key`. Its echo only marks
+   * the cached data stale: the caller has already updated it.
+   */
+  expectEcho: (key: readonly unknown[]) => void;
 };
 
 /** Retry delay after the server refused the handshake, which socket.io does not retry itself. */
@@ -26,28 +35,35 @@ const staleAfterMs = 30_000;
 /** A socket that has been down this long counts as offline; shorter drops are reconnects. */
 const offlineAfterMs = 2500;
 
-const RealtimeContext = createContext<Realtime>({ socket: null, offline: false, onInvalidate: () => () => undefined });
+const RealtimeContext = createContext<Realtime>({
+  socket: null, offline: false, onInvalidate: () => () => undefined, expectEcho: () => undefined,
+});
 
 /**
  * One socket.io connection while signed in, authenticated with the session token.
- * `invalidate` messages refresh the matching queries; every reconnect refreshes all of
- * them. The connection is renewed when the app returns from being suspended and when
+ * `invalidate` messages refresh the matching queries; a reconnect refreshes what is on
+ * screen, since messages may have been missed meanwhile. The connection is renewed when the app returns from being suspended and when
  * the network changes, since iOS drops sockets silently in both cases. While it stays
- * down the app is offline: at once when launch could not reach the server.
+ * down the app is offline.
  */
 export function RealtimeProvider({ children }: PropsWithChildren) {
-  const { state, startedOffline } = useAccount();
+  const { state } = useAccount();
   const queryClient = useQueryClient();
   const serverUrl = state.status === 'signedIn' ? state.server.url : null;
   const token = state.status === 'signedIn' ? state.token : null;
   const [socket, setSocket] = useState<SquirmySocket | null>(null);
   const [offline, setOffline] = useState(false);
-  const [listeners] = useState(() => new Set<(keys: Keys) => void>());
+  const [listeners] = useState(() => new Set<InvalidateListener>());
+  const [echoes] = useState(() => new Echoes());
 
   useEffect(() => {
     if (!serverUrl || !token) return;
     const { origin, path } = socketAddress(serverUrl);
-    const next: SquirmySocket = io(origin, { path, auth: { token }, transports: ['websocket'], autoConnect: false });
+    // WebSocket first; long-polling when it cannot open, e.g. behind a proxy that does not
+    // pass on the upgrade. The web app gets the same fallback from socket.io's defaults.
+    const next: SquirmySocket = io(origin, {
+      path, auth: { token }, transports: ['websocket', 'polling'], tryAllTransports: true, autoConnect: false,
+    });
     let everConnected = false;
     let lastHeard = Date.now();
     let retry: ReturnType<typeof setTimeout> | undefined;
@@ -68,7 +84,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       heard();
       clearTimeout(goingOffline);
       setOffline(false);
-      if (everConnected) void queryClient.invalidateQueries();
+      if (everConnected) void refreshAfterReconnect(queryClient);
       everConnected = true;
     });
     next.on('disconnect', reason => {
@@ -85,8 +101,11 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       retry = setTimeout(() => next.connect(), refusedRetryMs);
     });
     next.on('invalidate', ({ keys }) => {
-      for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
-      for (const listener of [...listeners]) listener(keys);
+      const own = echoes.isOwn(keys);
+      // Stale either way, so the next screen to show the data refetches it; only another
+      // device's change is refetched at once.
+      for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey, refetchType: own ? 'none' : 'active' });
+      for (const listener of [...listeners]) listener(keys, { own });
     });
     next.io.on('ping', heard);
 
@@ -104,7 +123,6 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       else if (changed) renew();
     });
 
-    setOffline(startedOffline);
     waitForConnection();
     next.connect();
     setSocket(next);
@@ -119,8 +137,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       next.disconnect();
       setSocket(null);
     };
-    // Launch's guess (`startedOffline`) only counts for the first connection.
-  }, [listeners, queryClient, serverUrl, token]);
+  }, [echoes, listeners, queryClient, serverUrl, token]);
 
   const value = useMemo<Realtime>(() => ({
     socket,
@@ -129,7 +146,8 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-  }), [listeners, offline, socket]);
+    expectEcho: echoes.expect,
+  }), [echoes, listeners, offline, socket]);
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
 }

@@ -1,4 +1,4 @@
-import { type QueueEntry, type QueueSeed, SessionQueue, SessionState } from '@squirmy/contracts'
+import { COMMAND_TRACK_LIMIT, type QueueEntry, QUEUE_LIMIT, type QueueSeed, SessionQueue, SessionState } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
 import {
   type AnySessionCommand,
@@ -413,6 +413,32 @@ describe('reduceSession', () => {
       let session = run(playing(1), { type: 'setAutoplayQueue', tracks: seeds(50, 51, 52) })
       session = run(session, { type: 'moveInQueue', entryId: session.autoplayQueue[2]!.id, toIndex: 0 })
       expect(trackNumbers(session.autoplayQueue)).toEqual([52, 50, 51])
+    })
+
+    it('enqueue changes nothing once the queue would grow past QUEUE_LIMIT', () => {
+      const many = (count: number) => Array.from({ length: count }, (_, index) => seed(index + 1))
+      let session = run(playing(1), { type: 'enqueue', tracks: many(COMMAND_TRACK_LIMIT), placement: 'last' })
+      session = run(session, { type: 'enqueue', tracks: many(QUEUE_LIMIT - COMMAND_TRACK_LIMIT - 1), placement: 'next' })
+      expect(session.queue).toHaveLength(QUEUE_LIMIT - 1)
+      const full = run(session, { type: 'enqueue', tracks: seeds(7), placement: 'last' })
+      expect(full.queue).toHaveLength(QUEUE_LIMIT)
+      expect(run(full, { type: 'enqueue', tracks: seeds(8), placement: 'last' })).toBe(full)
+      expect(run(full, { type: 'enqueue', tracks: seeds(8), placement: 'next' })).toBe(full)
+      // Refused as a whole, never cut short.
+      expect(run(session, { type: 'enqueue', tracks: seeds(8, 9), placement: 'last' })).toBe(session)
+      const shuffled = run(session, { type: 'setShuffle', value: true, seed: 3 })
+      expect(run(shuffled, { type: 'enqueue', tracks: seeds(8, 9), placement: 'next' })).toBe(shuffled)
+    })
+
+    it('playTracks and setAutoplayQueue never hold more than QUEUE_LIMIT entries', () => {
+      const many = (count: number) => Array.from({ length: count }, (_, index) => seed(index + 1))
+      expect(COMMAND_TRACK_LIMIT).toBeLessThanOrEqual(QUEUE_LIMIT)
+      const replaced = run(playing(1), { type: 'playTracks', tracks: many(COMMAND_TRACK_LIMIT), seed: 1 })
+      expect(replaced.queue).toHaveLength(COMMAND_TRACK_LIMIT - 1)
+      expect(run(replaced, { type: 'playTracks', tracks: many(COMMAND_TRACK_LIMIT + 1), seed: 1 })).toBe(replaced)
+      const suggested = run(playing(1), { type: 'setAutoplayQueue', tracks: many(QUEUE_LIMIT + 5) })
+      expect(suggested.autoplayQueue).toHaveLength(QUEUE_LIMIT)
+      expect(currentTrack(suggested)).toBe(1)
     })
 
     it('clearQueue and clearHistory', () => {

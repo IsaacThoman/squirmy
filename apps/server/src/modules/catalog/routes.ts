@@ -27,12 +27,14 @@ export async function catalogRoutes(app: FastifyInstance) {
   })
 
   app.get('/library/albums', async (request, reply) => {
+    const userId = requireUser(request).id
     const query = LibraryQuery.parse(request.query)
-    return cachedRead(request, reply, { userId: requireUser(request).id, tags: lists }, () => listLibraryAlbums(query))
+    return cachedRead(request, reply, { userId, tags: lists }, () => listLibraryAlbums(userId, query))
   })
   app.get('/library/artists', async (request, reply) => {
+    const userId = requireUser(request).id
     const query = LibraryQuery.parse(request.query)
-    return cachedRead(request, reply, { userId: requireUser(request).id, tags: lists }, () => listLibraryArtists(query))
+    return cachedRead(request, reply, { userId, tags: lists }, () => listLibraryArtists(userId, query))
   })
   app.get('/library/tracks', async (request, reply) => {
     const userId = requireUser(request).id
@@ -40,8 +42,9 @@ export async function catalogRoutes(app: FastifyInstance) {
     return cachedRead(request, reply, { userId, tags: lists }, () => listLibraryTracks(userId, query))
   })
   app.get('/library/genres', async (request, reply) => {
+    const userId = requireUser(request).id
     const query = PageQuery.parse(request.query)
-    return cachedRead(request, reply, { userId: requireUser(request).id, tags: lists }, () => listLibraryGenres(query))
+    return cachedRead(request, reply, { userId, tags: lists }, () => listLibraryGenres(userId, query))
   })
 
   app.get('/home', async (request, reply) => {

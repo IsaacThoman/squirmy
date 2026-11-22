@@ -1,4 +1,5 @@
 import { realpath, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import path from 'node:path'
 import type { UpdateServerSettings } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
@@ -8,6 +9,31 @@ import { libraryRoots } from '../../database/schema.js'
 import { badRequest } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 
+/** System folders: never an inbox, and neither is anything inside them. */
+const systemTrees = ['/bin', '/boot', '/dev', '/etc', '/lib', '/lib32', '/lib64', '/libx32', '/proc', '/run', '/sbin', '/sys', '/usr', '/System', '/Library', '/Applications', '/private/etc']
+/** Folders of other programs, people or disks: never an inbox, and neither is a folder directly in them. */
+const sharedParents = ['/var', '/private', '/private/var', '/opt', '/home', '/Users', '/Volumes']
+/** Never an inbox themselves; a folder made for it inside them is fine. */
+const mountPoints = ['/mnt', '/media', '/srv', '/tmp', '/private/tmp', '/root']
+
+/**
+ * Whether an inbox at `folder` would empty folders that are not there for it: the file
+ * system root, the home folder (or one around it), a system folder or a folder around
+ * one. The inbox moves every top-level item with a music, log or cue file in it, so `/`,
+ * `/var` or a home folder would be taken apart. A dedicated folder such as `/inbox`,
+ * `/srv/music/inbox` or `/var/lib/squirmy/inbox` is fine.
+ */
+export function isSystemFolder(folder: string): boolean {
+  const target = path.resolve(folder)
+  if (path.parse(target).root === target) return true
+  const within = (base: string) => target === base || target.startsWith(base + path.sep)
+  const around = (base: string) => base === target || base.startsWith(target + path.sep)
+  return around(path.resolve(homedir()))
+    || systemTrees.some(within)
+    || sharedParents.some((base) => around(base) || path.dirname(target) === base)
+    || mountPoints.some(around)
+}
+
 const overlaps = (a: string, b: string) => {
   const relative = path.relative(a, b)
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
@@ -15,13 +41,16 @@ const overlaps = (a: string, b: string) => {
 
 /**
  * Resolves an inbox folder to its real path and checks it can be one: an existing folder
- * that is neither inside nor around a library root (moving music out of the inbox would
+ * that is not a system folder ({@link isSystemFolder}), neither inside nor around a library root (moving music out of the inbox would
  * take it out of the library) nor the server's data folder (staging lives there).
  */
 export async function checkInboxPath(requested: string): Promise<string> {
   if (!path.isAbsolute(requested)) throw badRequest('Give the inbox as an absolute path', 'relative_path')
   const resolved = await realpath(requested).catch(() => null)
   if (!resolved || !(await stat(resolved)).isDirectory()) throw badRequest('The inbox folder does not exist', 'inbox_not_found')
+  if (isSystemFolder(requested) || isSystemFolder(resolved)) {
+    throw badRequest('The inbox must be a folder of its own, not the root, a home folder or a system folder', 'inbox_system_folder')
+  }
   for (const root of await db.select({ path: libraryRoots.path }).from(libraryRoots)) {
     const rootPath = await realpath(root.path).catch(() => root.path)
     if (overlaps(rootPath, resolved) || overlaps(resolved, rootPath)) {
