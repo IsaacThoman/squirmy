@@ -8,6 +8,7 @@ import { AppState, Platform } from 'react-native';
 import { removeAccountItems } from '../data/accountStorage';
 import { cacheBuster, cacheMaxAgeMs, removeCache, restoreCache, saveCache } from '../data/cache';
 import { useNotice } from '../Notice';
+import { removeStreamingCache } from '../streamingCache/database';
 import { reduceAuth, type AuthEvent, type AuthState } from './auth';
 import { clientName, fetchWithTimeout, serverFrom, type Server } from './server';
 import { clientDevice, keychain, loadAccount, saveAccount } from './storage';
@@ -139,7 +140,10 @@ export function AccountProvider({ children }: PropsWithChildren) {
       if (token) void api?.auth.logout().catch(() => undefined);
       queryClient.clear();
       removeCache();
-      if (buster) removeAccountItems(buster);
+      if (buster) {
+        removeAccountItems(buster);
+        removeStreamingCache(buster);
+      }
       dispatch(event);
     };
     return {

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { closeSheet } from '../closeSheet';
 import { SheetFrame, SheetRow, SheetRows } from '../SheetUI';
+import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
 import {
   normalizationNote, normalizationOptions, qualityNote, qualityOptions, scrobbleDetail, useSettingsScreen,
@@ -35,6 +36,7 @@ export function SettingsScreen() {
         </SheetRows>
         <Text style={styles.note}>{qualityNote}</Text>
       </> : <ActivityIndicator />}
+      <StorageSection />
       {screen.listenBrainz && <ListenBrainz service={screen.listenBrainz} busy={screen.connectingListenBrainz}
         onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
       {screen.lastFm && <>

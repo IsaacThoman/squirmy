@@ -9,6 +9,7 @@ import { searchLibrary } from './library.js'
 import { materialize, type StubIds } from './materialize.js'
 import { searchCatalog } from './providers.js'
 import { topResult } from './top.js'
+import { warmAlbums } from './warm.js'
 
 /** Queries whose `matchKey` is shorter than this many characters answer nothing. */
 const minQueryLength = 2
@@ -54,11 +55,14 @@ export async function searchRoutes(app: FastifyInstance) {
       albums: without(ids.albums, library.albums),
       tracks: without(ids.tracks, library.tracks),
     }, provider.name)
-    // A catalog result's page fetches its detail when opened, which can take seconds; start
-    // on the one the user is most likely to open (the top result, else the first album).
-    const top = answer.top?.type === 'track' ? null : answer.top
-    if (top) warmDetail(top.type as 'album' | 'artist', top.id)
-    else if (answer.albums[0]) warmDetail('album', answer.albums[0].id)
+    // A catalog result's page fetches its detail when opened, which can take seconds, and a
+    // stub album is gray until its track list arrives. Start on what the user is likely to
+    // open: the top result, then the first albums without a track list (warm.ts).
+    if (answer.top?.type === 'artist') warmDetail('artist', answer.top.id)
+    warmAlbums([
+      ...(answer.top?.type === 'album' ? [answer.top.id] : []),
+      ...answer.albums.filter((album) => album.trackCount === 0).map((album) => album.id),
+    ])
     return answer
   })
 }

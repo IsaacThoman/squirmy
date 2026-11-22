@@ -35,8 +35,16 @@ export type SessionRecord = {
   commandIds: Set<string>
   /** The play being listened to, written to `plays` when it ends. */
   play: OpenPlay | null
-  /** Recordings `requestRecording` was called for while they were preparing. */
-  requested: Set<string>
+  /**
+   * Recordings `requestRecording` was called for while they were preparing, with the
+   * origin of the latest request: `play` once the entry was current, else `prefetch`.
+   */
+  requested: Map<string, 'play' | 'prefetch'>
+  /**
+   * Current entries skipped because their fetch failed since a current entry was last
+   * ready (or the user started something new). Enough in a row pause the session.
+   */
+  failedInARow: number
   /** The current entry autoplay suggestions were last asked for, so an empty answer is not asked again. */
   autoplayAskedFor: string | null
   persistTimer: ReturnType<typeof setTimeout> | null
@@ -93,7 +101,8 @@ export async function loadRecord(userId: string, onLoad: (record: SessionRecord)
     queueVersion: row?.queueVersion ?? 0,
     commandIds: new Set(stored?.success ? stored.data.commandIds : []),
     play: play && play.entryId === session.current?.id ? play : null,
-    requested: new Set(),
+    requested: new Map(),
+    failedInARow: 0,
     autoplayAskedFor: null,
     persistTimer: null,
     writing: Promise.resolve(),
