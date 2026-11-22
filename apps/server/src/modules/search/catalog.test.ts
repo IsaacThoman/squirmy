@@ -1,3 +1,4 @@
+import { mergeSearch } from '@squirmy/client-core'
 import { SearchResults } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -107,7 +108,11 @@ describe('GET /search/catalog', () => {
       ['The Tourist', 'none', owned.albumId],
       ['Fitter Happier', 'none', owned.albumId],
     ])
-    expect(results.top).toMatchObject({ type: 'album', id: results.albums[0]!.id })
+    expect(results.top).toEqual({ type: 'album', id: results.albums[0]!.id, score: 1 })
+    // Both hints are scored alike, so the merged list leads with the user's exact match
+    // rather than the catalog's prefix one.
+    expect(library.top).toEqual({ type: 'album', id: owned.albumId, score: 3 })
+    expect(mergeSearch(library, results, { role: 'member', canAcquire: false }).top).toMatchObject({ type: 'album', album: { id: owned.albumId } })
   })
 
   it('writes stubs with the whole contract', async () => {
