@@ -55,6 +55,14 @@ describe('rank', () => {
     expect(top('tate', answer)).toEqual({ type: 'artist', id: 'tate-mcrae', score: 1 })
   })
 
+  it('never buries an exact name under a famous artist\'s songs found through the artist alone', () => {
+    const mcrae = ['tate-mcrae', 'Tate McRae'] as [string, string]
+    const build = fixture().artist('tate-mcrae', 'Tate McRae', 2_100_000).artist('tate', 'TATE', 120)
+    for (let n = 0; n < 12; n++) build.track(`song-${n}`, `Song ${n}`, mcrae, 950_000 - n * 10_000)
+    const list = order('tate', build.done())
+    expect(list.slice(0, 2)).toEqual(['tate-mcrae', 'tate'])
+  })
+
   it('lists an artist found by name, then their music, then near misses (mgmt)', () => {
     const mgmt = ['mgmt', 'MGMT'] as [string, string]
     const answer = fixture()

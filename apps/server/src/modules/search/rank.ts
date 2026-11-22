@@ -4,7 +4,7 @@
  *
  * A result's score is how well its name matches the query, scaled by how prominent it is:
  *
- *   score = relevance × (0.4 + 0.6 × prominence)
+ *   score = relevance × (0.5 + 0.5 × prominence)
  *
  * Relevance runs from 1 (the whole name) down through a leading-word prefix (0.8), any
  * prefix (0.7), a later word (0.6), the artist of an album or song (0.62 to 0.45) and one
@@ -16,9 +16,12 @@
  * since every source already orders by it.
  *
  * The scale is what makes an exact name lose to a far more prominent prefix: for "tate",
- * Tate McRae (prefix, 0.8, two million fans) scores 0.72 and the artist named TATE (exact,
- * a few thousand fans) 0.56. Between two results of similar prominence the better match
- * still wins: an exact name needs about forty times the prefix match's fans to lose.
+ * Tate McRae (prefix, 0.8, two million fans) scores 0.75 and the artist named TATE (exact,
+ * a few thousand fans) 0.65. Prominence can at most double a score, so between results of
+ * similar prominence the better match wins (an exact name loses to a prefix match only
+ * about a hundred times better known), and a famous artist's songs, found through the
+ * start of the artist's name alone (relevance 0.5), score at most 0.5, so they never bury
+ * another artist named exactly as typed.
  */
 import type { SearchKind, SearchRanked, SearchTopResult } from '@squirmy/contracts'
 import { matchKey } from '../../lib/text.js'
@@ -198,7 +201,7 @@ export function rank(query: string, items: readonly RankInput[], signals: RankSi
   const scored = new Map<string, Ranked & { position: number }>()
   for (const item of items) {
     const match = matchOf(query, item)
-    const score = Math.min(1, match.total * (0.4 + 0.6 * prominent.get(item.id)!))
+    const score = Math.min(1, match.total * (0.5 + 0.5 * prominent.get(item.id)!))
     const key = `${item.type}:${item.id}`
     const before = scored.get(key)
     if (!before || score > before.score) {

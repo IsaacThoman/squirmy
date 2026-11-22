@@ -148,7 +148,7 @@ export function playlistScore(query: string, name: string): number {
   const key = searchKey(name)
   if (!q || !key) return 0
   const match = key === q ? 1 : key.startsWith(`${q} `) ? 0.8 : key.startsWith(q) ? 0.7 : ` ${key}`.includes(` ${q}`) ? 0.6 : 0
-  return match * (0.4 + 0.6 * 0.55)
+  return match * (0.5 + 0.5 * 0.55)
 }
 
 /** The same album listed twice under different ids: one title, credit, type and year. */
