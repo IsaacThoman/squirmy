@@ -4,7 +4,7 @@ import {
 } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, autocorrectionDisabled, buttonStyle, controlSize, disabled, font, foregroundStyle,
-  frame, keyboardType, lineLimit, listRowBackground, listRowInsets, multilineTextAlignment, onSubmit, padding,
+  frame, keyboardType, lineLimit, listRowBackground, listRowInsets, minimumScaleFactor, multilineTextAlignment, onSubmit, padding,
   scrollDismissesKeyboard, submitLabel, textContentType, textInputAutocapitalization, tint, truncationMode,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -111,7 +111,7 @@ export function AuthLink({ title, icon, onPress }: AuthLinkProps) {
 export function AuthServer({ server, onChange }: AuthServerProps) {
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
-  // At accessibility sizes the card stacks, so the address can wrap whole: it is how the
+  // At accessibility sizes the card stacks, so the address gets the full width: it is how the
   // person knows which server is asking for their password.
   if (isAccessibilitySize(fontScale)) {
     return <Section title="Server">
@@ -120,7 +120,9 @@ export function AuthServer({ server, onChange }: AuthServerProps) {
           <Symbol name="server.rack" size={20} color={colors.accent} />
           <Text modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}>{server.name}</Text>
         </HStack>
-        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>{displayAddress(server.url)}</Text>
+        {/* On one line, shrunk to fit: wrapped, SwiftUI hyphenates it ("death-grips.org"), which misnames the host. */}
+        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), lineLimit(1), minimumScaleFactor(0.5),
+          truncationMode('middle')]}>{displayAddress(server.url)}</Text>
         <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>{serverVersion(server.version)}</Text>
       </VStack>
       <Button label="Change Server" onPress={onChange} modifiers={[tint(colors.accent)]} />
