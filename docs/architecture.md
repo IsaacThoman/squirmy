@@ -56,6 +56,7 @@ apps/server/src/
 
 - **Boot.** `index.ts` migrates, starts jobs, then in API roles builds the app and attaches realtime, calls each module's `jobs`, `realtime` and `start` hooks for its role, and listens last. SIGTERM undoes those steps in reverse. A worker-only process opens no HTTP port.
 - **HTTP.** Helmet without CSP, cookies, multipart (streamed, up to 16 GiB per file), and CORS only for the Vite dev origins outside production. Each module's `routes` is registered in its own encapsulated scope under `/api/v1`.
+- **Compression and revalidation.** `@fastify/compress` sends brotli (quality 4) or gzip for JSON, XML, JavaScript, CSS, SVG and text of 1 KiB or more; audio, images and ranged responses go as they are. `lib/conditional.ts` gives every successful JSON GET under `/api/v1` a weak `ETag` (a hash of the body) and `Cache-Control: private, no-cache`, unless the route set its own, and answers a matching `If-None-Match` (compared weakly) with an empty 304.
 - **Web app.** When `SQUIRMY_WEB_DIST` is set the built app is served, with `index.html` as the fallback for unknown GET paths outside `/api`, `/rest`, `/socket.io`, `/health` and `/ready`. Hashed files under `assets/` are cached as immutable.
 - `GET /health` answers without touching anything; `GET /ready` checks the database.
 
@@ -129,7 +130,7 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 
 ### Artwork
 
-Images are rows in `assets`. `storeImage(bytes)` stores an image now and de-duplicates by content. `remoteImage(url)` only records where an image lives; it is downloaded the first time `GET /art/:id/:size` asks for it, so search results for music you do not own can show covers without downloading every one. A failed download answers 404, is not cached, and is retried after an hour.
+Images are rows in `assets`. `storeImage(bytes)` stores an image now, de-duplicates by content, and queues `artwork.render` for a new one, which writes the 96, 300 and 600 px renditions from one read of the original. `GET /art/:id/:size` also answers `:size.webp`, which the web app uses so a CDN that caches by extension (Cloudflare) keeps art at the edge; responses are `public, max-age=31536000, immutable` with an `ETag` matched weakly. `remoteImage(url)` only records where an image lives; it is downloaded the first time `GET /art/:id/:size` asks for it, so search results for music you do not own can show covers without downloading every one. A failed download answers 404, is not cached, and is retried after an hour.
 
 Lost originals rebuild themselves (`artwork/recover.ts`). When a file under `assets/` is gone, `readOriginal` (used by renditions and Subsonic's `getCoverArt`) reads it back from disk while the request waits: the folder image of a `folder:` source, or the pictures of the source file and of any present file whose `embedded_art_asset_id` it is. Only bytes with the stored SHA-256 are accepted, so an id never shows a different picture. A URL source is queued as `artwork.recover` and the request answers 404 without cache headers; the job downloads it again (a `remote_url` asset goes back to `remote` and is fetched as on its first request; any other must match its hash). An asset nothing rebuilds is `missing`, answers 404 at once, and is left alone. `artwork.sweep` (daily, 04:40) queues assets whose file is gone, `missing` assets whose file is back, and `missing` assets last tried a week ago.
 
@@ -172,12 +173,12 @@ await schedule('library.scan-all', '0 4 * * *')
 
 `realtime/` owns the socket.io server. The session protocol is specified in `packages/contracts/src/session.ts`.
 
-- `startRealtime(app)` attaches to the Fastify server before it listens; closing the app closes the socket server.
+- `startRealtime(app)` attaches to the Fastify server before it listens; closing the app closes the socket server. Messages of 1 KiB or more are deflated (`perMessageDeflate`), mostly for `session:queue`, which carries the whole queue.
 - The handshake takes the session token from `auth.token` or the `squirmy_session` cookie and is refused without a valid one.
 - Each socket joins the room `user:<id>`. Admin sockets also join `admins`. Handlers passed to `onConnection` run after that; register socket listeners before the first `await`.
 - `publish(target, event)` and `invalidate(target, keys)` are callable from any process. They `NOTIFY squirmy_events` with a JSON payload; the API process `LISTEN`s on a dedicated connection and forwards to rooms. `target` is `{ user: id }`, `'admins'`, `'all'`, or a list of them, which reaches each socket once however many of them it is in (an admin is in their own room and in `admins`). Keys that do not fit in one notification (8000 bytes) are split across several. `disconnectSockets(userId, { only | except })` closes sockets of revoked sessions the same way.
 - `time:sync` is answered here; the `session:*` events belong to the `sessions` module.
-- Every mutation that changes what another open screen shows calls `invalidate` with keys from `queryKeys`.
+- Every mutation that changes what another open screen shows calls `invalidate` with keys from `queryKeys`. The same call drops the API process's cached reads (see "Catalog read side"): at once in the calling process, and in the API process when the NOTIFY arrives, before the clients are told.
 
 ### HTTP API
 
@@ -198,7 +199,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `POST /tracks/summaries` | catalog | hydrate queue entries |
 | `GET /tracks/:id/playback` | streaming | `PlaybackDescriptor` |
 | `GET /stream/:fileId`, `/stream/:fileId/:profile` | streaming | signed URL or session; Range |
-| `GET /art/:assetId/:size` | artwork | no auth; immutable cache headers |
+| `GET /art/:assetId/:size` | artwork | no auth; immutable cache headers; `:size` may end in `.webp` |
 | `PUT/DELETE /me/likes/:type/:id`, `GET /me/likes/:type` | userdata | |
 | `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/:id`, `POST /playlists/:id/items`, `POST /playlists/:id/items/move`, `DELETE /playlists/:id/items/:itemId` | userdata | |
 | `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | while `wantlistEnabled` is off, `GET /me/wants` is empty, `PUT`/`DELETE` are 404 `wantlist_disabled`, album pages say `wanted: false` and imports skip refreshing wants; stored wants are kept |
@@ -226,7 +227,8 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 ### Catalog read side
 
 - `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, userdata) use these rather than writing their own. Subsonic builds its own, because its objects describe files (size, codec, path), but takes availability and redirects from the catalog.
-- Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
+- Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`, one primary-key lookup per hop, at most 16); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
+- **Cached reads** (`lib/read-cache.ts`). `GET /home`, `/library/*`, `/albums/:id`, `/artists/:id`, `/playlists` and `/playlists/:id` keep their serialized answer and its ETag in the API process, per user and URL, within `SQUIRMY_READ_CACHE_MB` (default 64, least recently used out first; off under test unless set). Each route names the `queryKeys` roots it depends on; an `invalidate` for one of them drops that user's entries (a user target) or everyone's (`all`, `admins`), a root the cache does not know drops everything, and `admin`, `settings`, `scrobbling`, `me` and `lyrics` drop nothing. A read that overlaps a drop is not stored. Entries expire after five minutes, which bounds what nothing announces; catalog searches (stubs credit artists and fill covers) and provider changes drop everything explicitly. Home is computed again two seconds after a drop when it was read in the last 15 minutes.
 - Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
 - A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
 - An album's track list is `albumTrackList` (`catalog/pages.ts`), for the album page and Subsonic's `getAlbum`: the canonical release's tracks, then owned recordings filed under the album that the release does not list (bonus tracks, files matched with no track) in path order on the last disc, with no position. Subsonic numbers those after the disc's last track. Availability still counts only the canonical tracks.
