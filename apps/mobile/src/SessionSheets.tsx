@@ -72,7 +72,7 @@ export function DeviceSheet() {
 
   return (
     <Sheet title="Playback device">
-      <TrackSummary track={track} subtitle={session.activeDeviceId ? `Playing on ${output.name}` : undefined} />
+      <TrackSummary track={track} subtitle={session.activeDeviceId ? `${session.playing ? 'Playing' : 'Paused'} on ${output.name}` : undefined} />
       <SheetRows>
         {devices.map(device => (
           <SheetRow key={device.id} title={device.name} icon={device.icon} subtitle={device.subtitle}

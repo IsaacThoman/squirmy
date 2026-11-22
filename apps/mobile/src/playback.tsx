@@ -441,8 +441,8 @@ export function usePlaybackState() {
   const device = runtime?.device;
   const rows = useMemo(() => {
     const self: DeviceInfo = { id: device?.id ?? '', name: device?.name ?? 'iPhone', kind: device?.kind ?? 'ios', canPlay: true, isActive: false };
-    return deviceRows(devices, self, session.activeDeviceId);
-  }, [device, devices, session.activeDeviceId]);
+    return deviceRows(devices, self, { activeDeviceId: session.activeDeviceId, playing: session.playing });
+  }, [device, devices, session.activeDeviceId, session.playing]);
   const output = outputDevice(rows);
   return {
     session,
