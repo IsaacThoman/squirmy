@@ -10,6 +10,7 @@ import { Cover, Icon } from '../ui';
 import { BrowseButton, CollectionTile } from './BrowseControls';
 import type { Page } from './links';
 import { mosaicCovers } from './mosaic';
+import { displayFontScale } from '../fontScale';
 import { createThemedStyles, useColors } from '../theme';
 
 export const gutter = 22;
@@ -140,7 +141,7 @@ export function CollectionRail({ items, size = 131 }: { items: readonly Collecti
 export function SectionTitle({ title, onPress }: { title: string; onPress?: () => void }) {
   const styles = useStyles();
   return <View style={styles.sectionTitle}>
-    <Text accessibilityRole="header" style={styles.sectionText}>{title}</Text>
+    <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.sectionText}>{title}</Text>
     {onPress && <BrowseButton label={`See ${title.toLowerCase()}`} title="See all" icon="chevron.right" onPress={onPress} />}
   </View>;
 }

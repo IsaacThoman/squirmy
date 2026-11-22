@@ -28,12 +28,13 @@ import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
+import { metadataHeight as metadataHeightFor } from './player/layout';
+import { displayFontScale, secondaryFontScale } from './fontScale';
 import { createThemedStyles, useColors } from './theme';
 
 const artworkRadius = 21;
 const artworkGap = 14;
 const grabberHeight = 32;
-const metadataHeight = 60;
 const compactArtworkSize = 54;
 const compactArtworkRadius = 11;
 const artworkInset = 24;
@@ -80,7 +81,8 @@ export default function Player() {
   const [seenLyrics, setSeenLyrics] = useState(false);
   const [seenQueue, setSeenQueue] = useState(false);
   const [availableHeight, setAvailableHeight] = useState(0);
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
+  const metadataHeight = metadataHeightFor(fontScale);
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
@@ -263,8 +265,9 @@ export default function Player() {
   const trackDetails = (compact: boolean) => (
     <>
       <View style={styles.trackCopy}>
-        <Text numberOfLines={1} style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{title}</Text>
-        <Text numberOfLines={1} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>
+        <Text numberOfLines={1} maxFontSizeMultiplier={displayFontScale}
+          style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{title}</Text>
+        <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>
       </View>
       {track && <PlayerButton
         icon={isFavorite ? 'heart.fill' : 'heart'}
@@ -303,7 +306,7 @@ export default function Player() {
                   pointerEvents={artworkPage ? 'auto' : 'none'} accessibilityElementsHidden={!artworkPage}
                   importantForAccessibility={artworkPage ? 'auto' : 'no-hide-descendants'}>
                   <View style={{ height: artSize }} />
-                  <Animated.View style={[styles.metadata, artworkDetailsStyle]}>{trackDetails(false)}</Animated.View>
+                  <Animated.View style={[styles.metadata, { minHeight: metadataHeight }, artworkDetailsStyle]}>{trackDetails(false)}</Animated.View>
                 </View>
               </GestureDetector>
               {(seenLyrics || seenQueue) && <Animated.View style={[styles.details, compactDetailsStyle]} pointerEvents={artworkPage ? 'none' : 'auto'}
@@ -482,8 +485,8 @@ function Scrubber() {
         onPreview={setDraft}
       />
       <View style={styles.timeRow}>
-        <Text style={styles.time}>{elapsed}</Text>
-        <Text style={styles.time}>−{formatDuration(Math.max(0, duration - shown))}</Text>
+        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>{elapsed}</Text>
+        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>−{formatDuration(Math.max(0, duration - shown))}</Text>
       </View>
     </>
   );
@@ -565,7 +568,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     marginLeft: artworkInset + compactArtworkSize + 12, marginRight: artworkInset, marginBottom: 9 },
   compactTrackTitle: { color: colors.text, fontWeight: '700', fontSize: 18 },
   compactTrackArtist: { color: colors.muted, marginTop: 2, fontSize: 14 },
-  metadata: { width: '100%', maxWidth: 440, minHeight: metadataHeight, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metadata: { width: '100%', maxWidth: 440, flexDirection: 'row', alignItems: 'center', gap: 5 },
   trackCopy: { minWidth: 0, flex: 1 },
   trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: colors.text },
   compactTitle: { fontSize: 25 },

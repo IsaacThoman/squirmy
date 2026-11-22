@@ -1,5 +1,5 @@
 import { Button, Host, HStack, ProgressView, RNHostView, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
-import { accessibilityHidden, accessibilityLabel, font, foregroundStyle, frame, lineLimit, padding, tint } from '@expo/ui/swift-ui/modifiers';
+import { accessibilityHidden, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, padding, tint } from '@expo/ui/swift-ui/modifiers';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { IconButton, hitShape, plainButton } from '../native/Controls';
@@ -38,7 +38,8 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
                     </View>
                   </RNHostView>
                 )}
-                <VStack alignment="leading" spacing={1}>
+                {/* The bubble has a fixed height, so its two lines stop growing before they overflow it. */}
+                <VStack alignment="leading" spacing={1} modifiers={[dynamicTypeSize({ max: 'xxLarge' })]}>
                   <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>
                   {!compact && <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>}
                 </VStack>

@@ -20,6 +20,7 @@ import { isEmptyGroup, searchSections, type SearchGroup, type SearchSections } f
 import type { Page } from './library/links';
 import { useStartGuard } from './library/pending';
 import { underStatusBar, useRefreshControl } from './library/refresh';
+import { displayFontScale } from './fontScale';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
   onScrollNearEnd, playlistCollection, QueryState, SectionTitle, tapFeedback, useOfflineDim, type Collection,
@@ -125,7 +126,7 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
     <ScrollView contentInsetAdjustmentBehavior="never" refreshControl={refreshControl} {...statusBar.props}
       contentContainerStyle={{ paddingTop: statusBar.contentTop + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       <View style={[styles.pageHeader, styles.homeHeader]}>
-        <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Listen now</Text>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Listen now</Text>
         {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
         {onOpenAccount && <BrowseButton label="Account" icon="person.crop.circle" glass onPress={onOpenAccount} />}
       </View>
@@ -193,7 +194,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
 
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
-      <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Library</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Library</Text>
       <OfflineBadge />
       {onOpenDownloads && <BrowseButton glass icon="arrow.down.circle" label="Downloads" onPress={() => { tapFeedback(); onOpenDownloads(); }} />}
       <BrowseButton glass icon={showFilter ? 'xmark' : 'magnifyingglass'} label={showFilter ? 'Close library search' : 'Search library'} onPress={() => {
@@ -276,7 +277,7 @@ function SearchGroupView({ title, note, group, link, onTrackMenu }: {
   if (isEmptyGroup(group)) return null;
   return <View style={styles.resultGroup}>
     <View style={styles.groupTitle}>
-      <Text accessibilityRole="header" style={styles.groupText}>{title}</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.groupText}>{title}</Text>
       {note && <Text style={styles.groupNote}>{note}</Text>}
     </View>
     {group.artists.length > 0 && <View style={styles.resultSection}>
@@ -345,7 +346,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
 
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
-      <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Search</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Search</Text>
       {active && search.pending && !offline && <ActivityIndicator color={colors.muted} />}
       <OfflineBadge />
     </View>

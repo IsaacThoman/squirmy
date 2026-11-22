@@ -31,6 +31,7 @@ import {
 } from './shared';
 import { useStartGuard } from './pending';
 import { underStatusBar, useRefreshControl } from './refresh';
+import { displayFontScale } from '../fontScale';
 import { SongList } from './SongList';
 import { ZoomTarget } from './ZoomLink';
 
@@ -148,7 +149,7 @@ function TrackSection({ title, detail, children }: { title: string; detail?: str
   const styles = useStyles();
   return <>
     <View style={styles.trackListHeader}>
-      <Text accessibilityRole="header" style={styles.trackListTitle}>{title}</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.trackListTitle}>{title}</Text>
       {detail && <Text style={styles.trackCount}>{detail}</Text>}
     </View>
     <View style={styles.trackList}>{children}</View>
@@ -431,7 +432,7 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
     <View style={styles.fallbackNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
     <Animated.ScrollView contentContainerStyle={[styles.genreBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
       onScroll={onScroll} scrollEventThrottle={100} refreshControl={refreshControl}>
-      <Text accessibilityRole="header" style={styles.genreTitle}>{id}</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.genreTitle}>{id}</Text>
       {!albums.data && <QueryState query={albums} what={id} />}
       <CollectionGrid columns={columns} items={albums.items.map(album => {
         const item = offlineDim(albumCollection(album, link));
