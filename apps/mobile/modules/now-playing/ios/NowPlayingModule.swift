@@ -25,6 +25,15 @@ public class NowPlayingModule: Module {
 
     Events("onRemoteCommand")
 
+    View(RoutePickerView.self) {
+      Prop("tint") { (view: RoutePickerView, color: UIColor?) in
+        view.picker.tintColor = color
+      }
+      Prop("activeTint") { (view: RoutePickerView, color: UIColor?) in
+        view.picker.activeTintColor = color
+      }
+    }
+
     AsyncFunction("setItem") { (item: NowPlayingItem) in
       self.enableCommands()
       var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]

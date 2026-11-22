@@ -1,5 +1,5 @@
 import { Button, Host, HStack, ProgressView, RNHostView, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
-import { accessibilityHidden, accessibilityLabel, font, foregroundStyle, frame, lineLimit, padding, tint } from '@expo/ui/swift-ui/modifiers';
+import { accessibilityHidden, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, padding, tint } from '@expo/ui/swift-ui/modifiers';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { IconButton, hitShape, plainButton } from '../native/Controls';
@@ -14,8 +14,9 @@ import { useColors } from '../theme';
 
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
   const colors = useColors();
-  const { track, output, session, actions, preparing, remote } = usePlaybackState();
-  const title = track?.title ?? 'Not Playing';
+  const { current, track, output, session, actions, preparing, remote } = usePlaybackState();
+  // Until the current song's details load, say nothing rather than claim nothing is playing.
+  const title = track?.title ?? (current ? '' : 'Not Playing');
   const subtitle = preparing ? 'Preparing…' : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
@@ -40,14 +41,15 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
                     </View>
                   </RNHostView>
                 )}
-                <VStack alignment="leading" spacing={1}>
+                {/* The bubble has a fixed height, so its two lines stop growing before they overflow it. */}
+                <VStack alignment="leading" spacing={1} modifiers={[dynamicTypeSize({ max: 'xxLarge' })]}>
                   <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>
                   {!compact && <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>}
                 </VStack>
                 <Spacer minLength={4} />
               </HStack>
             </Button>
-            {!compact && <IconButton symbol="airplay.audio" label={`Playback device, ${output.name}`}
+            {!compact && <IconButton symbol="laptopcomputer.and.iphone" label={`Playback device, ${output.name}`}
               size={20} color={colors.accent} onPress={onDevices} />}
             <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={session.playing ? 'Pause' : 'Play'}
               size={22} onPress={preview ? undefined : actions.playPause} />

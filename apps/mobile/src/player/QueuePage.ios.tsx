@@ -253,7 +253,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
       </HStack>
     </Button>
     <IconButton symbol={favorite ? 'heart.fill' : 'heart'} size={17}
-      label={favorite ? `Remove ${title} from favorites` : `Favorite ${title}`}
+      label={favorite ? `Unlike ${title}` : `Like ${title}`}
       color={favorite ? colors.accent : colors.muted} selected={favorite}
       onPress={() => track && handlers.run(track, { id: favorite ? 'unlike' : 'like', title, icon: 'heart' })} />
     <TrackActionsMenu actions={actions} onRun={action => track && handlers.run(track, action)} label={`More options for ${title || 'this song'}`}>

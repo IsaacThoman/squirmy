@@ -1,6 +1,6 @@
 import { Button, Host, HStack, Image, ProgressView, Text } from '@expo/ui/swift-ui';
 import {
-  accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, font, foregroundStyle, frame,
+  accessibilityHidden, accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, font, foregroundStyle, frame,
   progressViewStyle, shapes, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -22,7 +22,8 @@ export function AlbumNavButton({ icon, label, onPress, selected, busy }: AlbumNa
         : [buttonStyle('plain'), background(colors.surface), clipShape('circle'), accessibilityLabel(label)]}>
         {busy
           ? <ProgressView modifiers={[progressViewStyle('circular'), tint(colors.text), size, hitShape]} />
-          : <Image systemName={icon as SymbolName} size={20} color={selected ? colors.accent : colors.text} modifiers={[size, hitShape]} />}
+          // The button carries the label; left alone, the image would announce its symbol's name.
+          : <Image systemName={icon as SymbolName} size={20} color={selected ? colors.accent : colors.text} modifiers={[size, hitShape, accessibilityHidden(true)]} />}
       </Button>
     </Host>
   );

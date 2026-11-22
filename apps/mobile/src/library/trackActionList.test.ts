@@ -23,7 +23,7 @@ describe('trackActions', () => {
 
   it('unlikes a liked track', () => {
     const like = trackActions(track(), state({ liked: true })).find(action => action.id === 'unlike');
-    expect(like?.title).toBe('Remove from Liked Songs');
+    expect(like?.title).toBe('Unlike');
   });
 
   it('lets a gray track only be liked, wanted and opened', () => {

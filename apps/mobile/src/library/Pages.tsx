@@ -3,7 +3,7 @@ import { formatTotalDuration } from '@squirmy/client-core';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, FlatList, Platform, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, FlatList, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue,
 } from 'react-native-reanimated';
@@ -25,12 +25,16 @@ import { usePlaybackActions } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
 import { AlbumStatusBlur } from './AlbumStatusBlur';
-import { AlbumMetadata, CollectionGridRow } from './BrowseControls';
+import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
+import { CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useOfflineDim, type Collection,
 } from './shared';
+import { useStartGuard } from './pending';
+import { underStatusBar, useRefreshControl } from './refresh';
+import { displayFontScale } from '../fontScale';
 import { SongList, useSongListItems, type SongListProps } from './SongList';
 import { chunk, type SongListItems, type SongRowItem } from './rows';
 import { ZoomTarget } from './ZoomLink';
@@ -60,6 +64,7 @@ type DetailProps = {
   tint: string | null;
   title: string;
   artist?: string;
+  artistLinks?: AlbumMetadataProps['artistLinks'];
   info: string;
   buttons?: AlbumPlaybackProps['actions'];
   nav: readonly (AlbumNavProps | false)[];
@@ -68,6 +73,8 @@ type DetailProps = {
   description?: string | null;
   onBack: () => void;
   onEndReached?: () => void;
+  /** Reloads what the page shows, for pull to refresh. */
+  onRefresh: () => Promise<unknown>;
   bottomInset: number;
   /** Shown under the header; with `list`, above its rows. */
   children?: ReactNode;
@@ -77,41 +84,55 @@ type DetailProps = {
 
 /**
  * The page a collection zooms open into: its cover over the collection's tint, the title,
- * the play buttons, and the content below. Scrolling past the cover blurs the status bar.
+ * the play buttons, and the content below. Scrolling past the cover blurs the status bar;
+ * once the title scrolls under the buttons, they get a bar of their own with the title in it.
  */
-function DetailPage({ item, tint, title, artist, info, buttons, nav, status, description, onBack, onEndReached, bottomInset, children, list }: DetailProps) {
+function DetailPage({
+  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, onRefresh, bottomInset, children, list,
+}: DetailProps) {
   const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const scrollOffset = useSharedValue(0);
+  const refreshControl = useRefreshControl(onRefresh, top);
+  const statusBar = underStatusBar(top);
+  const inset = statusBar.inset;
   const onScroll = useAnimatedScrollHandler(event => {
-    scrollOffset.value = event.contentOffset.y;
+    // Measured from the page's top edge, so it reads the same with or without a content inset.
+    scrollOffset.value = event.contentOffset.y + inset;
     if (onEndReached && nearEnd(event)) scheduleOnRN(onEndReached);
   });
   // Leave the gradient uninterrupted until the artwork approaches the status bar.
   const blurStyle = useAnimatedStyle(() => ({
     opacity: interpolate(scrollOffset.value, [albumNavSize, albumNavSize + 20], [0, 1], Extrapolation.CLAMP),
   }));
-  const overscrollStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: scrollOffset.value < 0 ? 1 - scrollOffset.value : 0 }],
-  }));
+  // Fill whatever shows above the header (the status bar inset, an overscroll) with its tint.
+  const overscrollStyle = useAnimatedStyle(() => {
+    const visible = inset - scrollOffset.value;
+    return { transform: [{ translateY: visible > 0 ? visible + 1 : 0 }] };
+  });
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const artRadius = item.round ? artSize / 2 : 17;
+  // How far the page scrolls before the header's title (below the cover's margins) reaches the bar.
+  const titleUnderBar = styles.art.marginTop + artSize + styles.art.marginBottom;
+  const barStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollOffset.value, [titleUnderBar, titleUnderBar + 24], [0, 1], Extrapolation.CLAMP),
+  }));
   const headerColor = tint ? interpolateColor(colors.albumTint, [0, 1], [colors.background, tint], 'RGB', { gamma: 1 }) : colors.background;
   const renderRow = list?.renderItem;
   const renderItem = useCallback((info: { item: SongRowItem }) => <View style={styles.trackList}>{renderRow!(info)}</View>, [renderRow, styles]);
   const header = <>
-    <View style={[styles.header, { paddingTop: top + albumNavSize + 12 }]}>
+    <View style={[styles.header, { paddingTop: statusBar.contentTop + albumNavSize + 12 }]}>
       {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
         locations={[0, 1]} style={StyleSheet.absoluteFill} />}
       {/* The shadow needs the cover's shape and an opaque fill to be drawn efficiently. */}
       <ZoomTarget style={StyleSheet.flatten([styles.art, { borderRadius: artRadius }])}><CollectionCover item={item} size={artSize} radius={artRadius} /></ZoomTarget>
-      <AlbumMetadata title={title} artist={artist} info={info} />
+      <AlbumMetadata title={title} artist={artist} artistLinks={artistLinks} info={info} />
       {buttons && buttons.length > 0 && <AlbumPlaybackButtons title={title} actions={buttons} />}
       {status}
     </View>
-    {description ? <Text style={styles.description} numberOfLines={6}>{description}</Text> : null}
+    {description ? <ExpandableText text={description} lines={6} /> : null}
     {children}
   </>;
 
@@ -120,8 +141,14 @@ function DetailPage({ item, tint, title, artist, info, buttons, nav, status, des
     <Animated.View pointerEvents="none" style={[styles.status, { height: top }, blurStyle]}>
       <AlbumStatusBlur />
     </Animated.View>
+    <Animated.View pointerEvents="none" style={[styles.status, styles.bar, { height: top + albumNavSize + 12 }, barStyle]}>
+      <AlbumStatusBlur solid />
+    </Animated.View>
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
       <AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} />
+      {/* Hidden from VoiceOver: the header's own title already names the page. */}
+      <Animated.Text numberOfLines={1} maxFontSizeMultiplier={displayFontScale} accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants" style={[styles.barTitle, barStyle]}>{title}</Animated.Text>
       <View style={styles.navActions}>
         {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
       </View>
@@ -131,16 +158,31 @@ function DetailPage({ item, tint, title, artist, info, buttons, nav, status, des
         ListHeaderComponent={header} ListFooterComponent={list.footer || undefined}
         initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
         contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
-        contentContainerStyle={{ paddingBottom: bottomInset }}
+        refreshControl={refreshControl} {...statusBar.props} contentContainerStyle={{ paddingBottom: bottomInset }}
         showsVerticalScrollIndicator={false} />
     ) : (
       <Animated.ScrollView contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
-        contentContainerStyle={{ paddingBottom: bottomInset }}
+        refreshControl={refreshControl} {...statusBar.props} contentContainerStyle={{ paddingBottom: bottomInset }}
         showsVerticalScrollIndicator={false}>
         {header}
       </Animated.ScrollView>
     )}
   </View>;
+}
+
+/** A bio or description cut at `lines`; when it is cut, a tap shows all of it and another cuts it again. */
+function ExpandableText({ text, lines }: { text: string; lines: number }) {
+  const styles = useStyles();
+  const [expanded, setExpanded] = useState(false);
+  const [cut, setCut] = useState(false);
+  return <Pressable disabled={!cut} onPress={() => { tapFeedback(); setExpanded(!expanded); }} style={styles.descriptionBlock}
+    accessibilityRole={cut ? 'button' : 'text'} accessibilityHint={cut ? (expanded ? 'Shows less' : 'Shows the whole text') : undefined}>
+    <Text style={styles.description} numberOfLines={expanded ? undefined : lines}>{text}</Text>
+    {cut && <Text style={styles.moreLabel}>{expanded ? 'Less' : 'More'}</Text>}
+    {/* The whole text, laid out unseen, to tell whether the visible copy is cut. */}
+    <Text style={[styles.description, styles.measure]} onTextLayout={event => setCut(event.nativeEvent.lines.length > lines)}
+      accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{text}</Text>
+  </Pressable>;
 }
 
 /** A page whose data has not arrived: the back button, then loading or the failure. */
@@ -159,7 +201,7 @@ function TrackSection({ title, detail, children }: { title: string; detail?: str
   const styles = useStyles();
   return <>
     <View style={styles.trackListHeader}>
-      <Text accessibilityRole="header" style={styles.trackListTitle}>{title}</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.trackListTitle}>{title}</Text>
       {detail && <Text style={styles.trackCount}>{detail}</Text>}
     </View>
     {children && <View style={styles.trackList}>{children}</View>}
@@ -184,7 +226,7 @@ function playButtons(tracks: readonly TrackSummary[], canPlay: (track: TrackSumm
   ];
 }
 
-export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }: PageProps) {
+export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const album = useAlbum(id);
   const queryClient = useQueryClient();
   const kept = useDownloadedAlbum(id);
@@ -217,7 +259,10 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
       want('album', data.id, data.title);
     } }];
 
-  return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title} artist={data.artistCredit}
+  const artistLinks = data.artists.map(artist => ({ name: artist.name, open: () => { tapFeedback(); onOpen(link('artist', artist.id)); } }));
+
+  return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
+    artist={data.artistCredit} artistLinks={artistLinks}
     info={[typeNames[data.type], data.genres[0], data.year, owned].filter(Boolean).join('  ·  ')}
     buttons={buttons.length || expanding ? buttons : wantButton} status={control.status}
     nav={[
@@ -229,7 +274,7 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
         onPress: () => { tapFeedback(); want('album', data.id, data.title); } },
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
-    description={data.description} onBack={onBack} bottomInset={bottomInset}>
+    description={data.description} onBack={onBack} onRefresh={album.refetch} bottomInset={bottomInset}>
     <TrackSection title="Tracklist" detail={tracks.length ? songCount(tracks, data.durationMs) : undefined}>
       {tracks.length ? <SongList tracks={tracks} numbered onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
         : expanding ? <ActivityIndicator style={{ marginVertical: 28 }} accessibilityLabel="Loading songs" />
@@ -245,7 +290,7 @@ export function PlaylistScreen(props: PageProps) {
   return <UserPlaylistScreen {...props} />;
 }
 
-function TrackListPage({ item, title, info, tracks, context, empty, loadMore, loadingMore, download, props }: {
+function TrackListPage({ item, title, info, tracks, context, empty, loadMore, loadingMore, refresh, download, props }: {
   item: Collection;
   title: string;
   info: string;
@@ -254,6 +299,7 @@ function TrackListPage({ item, title, info, tracks, context, empty, loadMore, lo
   empty: { title: string; description: string };
   loadMore: () => void;
   loadingMore: boolean;
+  refresh: () => Promise<unknown>;
   download?: ReturnType<typeof useDownloadControl>;
   props: PageProps;
 }) {
@@ -266,7 +312,7 @@ function TrackListPage({ item, title, info, tracks, context, empty, loadMore, lo
   const songs = useSongListItems({ tracks, onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) });
   return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play)}
     nav={download ? [download.nav] : []} status={download?.status}
-    onBack={props.onBack} onEndReached={loadMore} bottomInset={props.bottomInset ?? 155}
+    onBack={props.onBack} onEndReached={loadMore} onRefresh={refresh} bottomInset={props.bottomInset ?? 155}
     list={tracks.length ? { ...songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)} />
       : <EmptyState icon={item.special === 'liked' ? 'heart' : 'clock.arrow.circlepath'} {...empty} />}
@@ -283,8 +329,8 @@ function LikedScreen(props: PageProps) {
   useBackSwipeOnly();
   if (!tracks) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
   return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={tracks} download={control}
-    context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage}
-    empty={{ title: 'Your favorites go here', description: 'Tap a heart next to any song to save it here.' }} props={props} />;
+    context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage} refresh={liked.refetch}
+    empty={{ title: 'No liked songs yet', description: 'Tap the heart on any song to add it to Liked Songs.' }} props={props} />;
 }
 
 function HistoryScreen(props: PageProps) {
@@ -293,7 +339,7 @@ function HistoryScreen(props: PageProps) {
   if (!history.data) return <PageFallback query={history} what="your history" onBack={props.onBack} />;
   return <TrackListPage item={recentCollection(props.link)} title="Recently Played" info="Listening history"
     tracks={history.items.map(item => item.track)} context={{ type: 'history', id: null, title: 'Recently Played' }}
-    loadMore={history.loadMore} loadingMore={history.isFetchingNextPage}
+    loadMore={history.loadMore} loadingMore={history.isFetchingNextPage} refresh={history.refetch}
     empty={{ title: 'Nothing played yet', description: 'Play a song and it will appear in your history.' }} props={props} />;
 }
 
@@ -369,7 +415,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
     // Reordering drags rows within one native list, so while editing every row is drawn.
-    onBack={onBack} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
+    onBack={onBack} onRefresh={playlist.refetch} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)}>
       {editing && <SongList {...songListProps} />}
     </TrackSection> : <EmptyState icon="music.note.list" title="No songs yet"
@@ -386,6 +432,7 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
   const { canPlay, offline } = useAvailability();
   const liked = useLiked('artist', id, artist.data?.liked);
   const { setLiked } = useLibraryActions();
+  const starts = useStartGuard();
   useBackSwipeOnly();
   if (!artist.data) return <PageFallback query={artist} what="this artist" onBack={onBack} />;
   const data = artist.data;
@@ -397,9 +444,11 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
   };
   const owned = (album: AlbumSummary) => album.availability === 'full' || album.availability === 'partial';
   const radio = () => {
+    if (!api) return;
     tapFeedback();
-    api?.radio.artist(data.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${data.name}.`));
+    starts.run('radio', () => api.radio.artist(data.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${data.name}.`)));
   };
+  const startingRadio = starts.pending('radio');
   const groups = discography
     .map(group => ({ title: group.title, albums: data.albums.filter(album => group.types.includes(album.type)) }))
     .filter(group => group.albums.length);
@@ -410,10 +459,11 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
     nav={[
       { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.name}` : `Like ${data.name}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked); } },
-      data.inLibrary && !offline && { icon: 'dot.radiowaves.left.and.right', label: `Start a radio for ${data.name}`, onPress: radio },
+      data.inLibrary && !offline && { icon: 'dot.radiowaves.left.and.right', busy: startingRadio, onPress: radio,
+        label: startingRadio ? `Starting a radio for ${data.name}` : `Start a radio for ${data.name}` },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
-    onBack={onBack} bottomInset={bottomInset}>
+    onBack={onBack} onRefresh={artist.refetch} bottomInset={bottomInset}>
     {top.length > 0 && <TrackSection title="Top songs">
       <SongList tracks={top.slice(0, 5)} onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
     </TrackSection>}
@@ -438,6 +488,7 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
   const { width } = useWindowDimensions();
   const albums = useGenreAlbums(id);
   const offlineDim = useOfflineDim();
+  const refreshControl = useRefreshControl(albums.refetch);
   const columns = width >= 650 ? 4 : 3;
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   const rows = useMemo(() => chunk(albums.items.map(album => offlineDim(albumCollection(album, link))), columns), [albums.items, columns, link, offlineDim]);
@@ -446,12 +497,12 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
   }))} />, [size]);
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
     <View style={styles.fallbackNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
-    <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey}
+    <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey} refreshControl={refreshControl}
       initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
       contentContainerStyle={[styles.genreBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
       onEndReached={albums.loadMore} onEndReachedThreshold={1.5}
       ListHeaderComponent={<>
-        <Text accessibilityRole="header" style={styles.genreTitle}>{id}</Text>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.genreTitle}>{id}</Text>
         {!albums.data && <QueryState query={albums} what={id} />}
       </>}
       ListFooterComponent={albums.isFetchingNextPage ? <ActivityIndicator style={styles.more} /> : undefined} />
@@ -460,14 +511,20 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { flex: 1, overflow: 'hidden', backgroundColor: colors.background },
-  nav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: gutter },
+  nav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: gutter },
+  barTitle: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
+  // Android has no blur here, so its bar is the page colour.
+  bar: Platform.OS === 'android' ? { backgroundColor: colors.background } : {},
   navActions: { flexDirection: 'row', gap: 10 },
   fallbackNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
   overscrollFill: { position: 'absolute', bottom: '100%', height: '100%', left: 0, right: 0 },
   status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
   header: { alignItems: 'center', paddingHorizontal: gutter },
   art: { marginTop: 8, marginBottom: 21, backgroundColor: colors.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
-  description: { marginHorizontal: gutter, color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
+  descriptionBlock: { marginHorizontal: gutter, marginTop: 18 },
+  description: { color: colors.muted, fontSize: 14, lineHeight: 21 },
+  moreLabel: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 4 },
+  measure: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
   trackListHeader: { marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 8 },
   trackListTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   trackCount: { color: colors.quiet, fontSize: 12, fontWeight: '600' },

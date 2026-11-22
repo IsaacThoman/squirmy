@@ -12,9 +12,13 @@ import { useIsCurrentTrack, usePlaybackActions } from '../playback';
 import { usePlayerTransition } from '../player/transition';
 import { pageHref } from './links';
 import { tabIn } from './tabs';
+import { createStartGuard } from './pending';
 import { trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
 
 export { trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
+
+/** Radios started from a song's menu, which closes before the radio arrives. */
+const radioStarts = createStartGuard();
 
 /** Whether the track was downloaded on its own, as opposed to with an album or playlist. */
 export function useDownloadedOnItsOwn(trackId: string | undefined, download: TrackDownload | undefined) {
@@ -53,7 +57,12 @@ export function useTrackActionRunner(inSheet = false) {
       case 'retryDownload': return void manager?.retry();
       case 'removeDownload': return void manager?.removeTrack(track.id);
       case 'radio':
-        return void api?.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
+        // The menu closes at once, so the notice is what shows the radio is on its way.
+        if (api) radioStarts.run('radio', () => {
+          notify('Starting radio…');
+          return api.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
+        });
+        return undefined;
       case 'want': return want('track', track.id, track.title);
       case 'remove': return playlist?.onRemove?.(playlist.itemId);
       default: return undefined;

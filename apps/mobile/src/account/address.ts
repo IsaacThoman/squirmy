@@ -39,6 +39,11 @@ export function displayAddress(url: string): string {
   return url.replace(/^https:\/\//, '');
 }
 
+/** The server's version for display: `Version 1.4.0`. A server built from source reports `dev`. */
+export function serverVersion(version: string): string {
+  return version === 'dev' ? 'Development build' : `Version ${version}`;
+}
+
 /**
  * The server is reached over plain HTTP on something other than this device or a private
  * network, so passwords and tokens cross the internet unencrypted.

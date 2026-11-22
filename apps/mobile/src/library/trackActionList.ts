@@ -58,8 +58,8 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     playable && { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward' },
     playable && { id: 'last', title: 'Play last', icon: 'text.badge.plus' },
     liked
-      ? { id: 'unlike', title: 'Remove from Liked Songs', icon: 'heart.slash' }
-      : { id: 'like', title: 'Add to Liked Songs', icon: 'heart' },
+      ? { id: 'unlike', title: 'Unlike', icon: 'heart.slash' }
+      : { id: 'like', title: 'Like', icon: 'heart' },
     downloadAction,
     playable && online && { id: 'playlist', title: 'Add to playlist', icon: 'text.badge.plus', sheet: true,
       href: { pathname: '/add-to-playlist', params: { trackId: track.id, albumId: track.album?.id ?? '' } } },
