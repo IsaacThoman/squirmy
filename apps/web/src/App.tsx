@@ -59,7 +59,7 @@ export function AppRoutes() {
               <Route path="album/:id" element={<AlbumPage />} />
               <Route path="artist/:id" element={<ArtistPage />} />
               <Route path="playlist/:id" element={<PlaylistPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/:section?" element={<SettingsPage />} />
               <Route path="imports" element={<Loading><ImportsPage /></Loading>} />
               <Route path="imports/:id" element={<Loading><ImportPage /></Loading>} />
               <Route path="admin" element={<AdminOnly />}>

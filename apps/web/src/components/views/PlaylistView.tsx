@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { DropdownMenu } from '@/components/ui/menu'
+import { useArtUrl } from '@/lib/artwork'
 import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
 import type { PlayOptions } from '@/player/player-context'
@@ -29,12 +30,15 @@ type PlaylistViewProps = {
 
 export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove }: PlaylistViewProps) {
   const tracks = playlist.items.map(item => item.track)
+  const artUrl = useArtUrl()
+  const lead = playlist.artworks[0]
   return (
     <TrackCollection
       kind={playlist.isPublic ? 'Public playlist' : 'Playlist'}
       title={playlist.name}
       art={<PlaylistCover artworks={playlist.artworks} />}
-      tint={playlist.artworks[0]?.color}
+      tint={lead?.color}
+      backdrop={lead ? artUrl(lead, 96) : undefined}
       byline={<span className="text-muted">{playlist.ownerName}</span>}
       description={playlist.description}
       tracks={tracks}
@@ -101,6 +105,7 @@ type TrackCollectionProps = {
   title: string
   art: ReactNode
   tint?: string | null
+  backdrop?: string
   byline?: ReactNode
   description?: string | null
   tracks: TrackSummary[]
@@ -120,7 +125,7 @@ type TrackCollectionProps = {
   empty: ReactNode
 }
 
-function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, count, durationMs, context, onPlay, onMove, onRemove, virtual, menu, empty }: TrackCollectionProps) {
+function TrackCollection({ kind, title, art, tint, backdrop, byline, description, tracks, addedAt, count, durationMs, context, onPlay, onMove, onRemove, virtual, menu, empty }: TrackCollectionProps) {
   const { controls } = usePlayer()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
   const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove })
@@ -134,6 +139,7 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
         title={title}
         art={art}
         tint={tint}
+        backdrop={backdrop}
         byline={byline}
         meta={[size]}
         actions={(

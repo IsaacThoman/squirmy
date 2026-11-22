@@ -1,8 +1,9 @@
 import { Briefcase, DatabaseZap, FolderTree, HardDrive, ListChecks, PlugZap, SlidersHorizontal, Users } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { Outlet } from 'react-router'
 import type { FormErrors } from '@/api/errors'
 import { Page } from '@/components/layout/Page'
+import { WorkspaceNav } from '@/components/layout/WorkspaceNav'
 import { PageTitle } from '@/components/music/SectionHeader'
 import { Button } from '@/components/ui/button'
 import { DialogClose, DialogFooter } from '@/components/ui/dialog'
@@ -11,7 +12,7 @@ import { FormError } from '@/components/ui/input'
 const groups = [
   {
     label: 'Music',
-    sections: [
+    links: [
       { to: '/admin/library', label: 'Library', icon: HardDrive },
       { to: '/admin/reviews', label: 'Review queue', icon: ListChecks },
       { to: '/admin/organize', label: 'Organize', icon: FolderTree },
@@ -21,7 +22,7 @@ const groups = [
   },
   {
     label: 'Server',
-    sections: [
+    links: [
       { to: '/admin/users', label: 'Users & invites', icon: Users },
       { to: '/admin/settings', label: 'Server settings', icon: SlidersHorizontal },
       { to: '/admin/jobs', label: 'Jobs', icon: Briefcase },
@@ -32,29 +33,19 @@ const groups = [
 /** `counts` puts a small number beside a section, keyed by its path: open reviews, say. `version` is the server's. */
 export function AdminLayout({ counts, version }: { counts?: Record<string, number | undefined>; version?: string }) {
   return (
-    <Page className="flex flex-col gap-6">
-      <PageTitle>Admin</PageTitle>
-      <div className="flex flex-col gap-8 lg:flex-row">
-        <div className="shrink-0 lg:w-52">
-          <nav aria-label="Admin sections" className="-mx-(--gutter) flex gap-1 overflow-x-auto px-(--gutter) [scrollbar-width:none] lg:mx-0 lg:flex-col lg:gap-5 lg:px-0">
-            {groups.map(group => (
-              <div key={group.label} className="flex shrink-0 gap-1 lg:flex-col">
-                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-quiet max-lg:hidden">{group.label}</p>
-                {group.sections.map(({ to, label, icon: Icon }) => (
-                  <NavLink key={to} to={to} className="group flex h-10 shrink-0 items-center gap-2.5 rounded-xl px-3 text-sm font-semibold text-muted transition-colors hover:bg-overlay hover:text-foreground aria-[current=page]:bg-selection aria-[current=page]:text-accent">
-                    <Icon aria-hidden className="size-[18px]" />{label}
-                    {counts?.[to] ? <span aria-label={`, ${counts[to]} open`} className="ml-auto min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] font-bold leading-5 tabular text-on-accent max-lg:ml-0.5">{counts[to] > 99 ? '99+' : counts[to]}</span> : null}
-                  </NavLink>
-                ))}
-              </div>
-            ))}
-          </nav>
-          {version && <p className="mt-6 px-3 text-xs text-quiet max-lg:hidden">Squirmy {version}</p>}
-        </div>
-        <div className="min-w-0 flex-1"><Outlet /></div>
-      </div>
-      {/* Below the page on narrow screens, where the sections are one scrolling row. */}
-      {version && <p className="text-xs text-quiet lg:hidden">Squirmy {version}</p>}
+    <Page className="mx-auto flex max-w-7xl flex-col gap-6">
+      <header className="flex flex-wrap items-end justify-between gap-2">
+        <PageTitle>Admin</PageTitle>
+        {version && <p className="pb-1 text-xs text-quiet">Squirmy {version}</p>}
+      </header>
+      <WorkspaceNav
+        label="Admin sections"
+        groups={groups.map(group => ({
+          ...group,
+          links: group.links.map(link => ({ ...link, count: counts?.[link.to] })),
+        }))}
+      />
+      <div className="min-w-0"><Outlet /></div>
     </Page>
   )
 }

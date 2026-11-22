@@ -132,9 +132,17 @@ describe('setup wizard', () => {
 })
 
 describe('account', () => {
+  it('returns from Last.fm to Scrobbling without leaving the callback query in the URL', async () => {
+    renderWithApp(app, '/settings?lastfm=connected', fakeServices().services)
+    expect(await screen.findByRole('heading', { name: 'Scrobbling' })).toBeInTheDocument()
+    expect(where()).toBe('/settings/scrobbling')
+  })
+
   it('shows a new app password once and revokes after confirming', async () => {
     const { services, api } = fakeServices()
     renderWithApp(app, '/settings', services)
+    await userEvent.click(await screen.findByRole('link', { name: 'App passwords' }))
+    expect(where()).toBe('/settings/app-passwords')
     await userEvent.click(await screen.findByRole('button', { name: 'Create' }))
     await userEvent.type(screen.getByLabelText('Name'), 'Phone')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -149,7 +157,7 @@ describe('account', () => {
   it('puts a wrong current password on its field', async () => {
     const { services, api } = fakeServices()
     api.auth.changePassword.mockRejectedValueOnce(new ApiError(403, 'invalid_credentials', 'The current password is wrong'))
-    renderWithApp(app, '/settings', services)
+    renderWithApp(app, '/settings/account', services)
     await userEvent.click(await screen.findByRole('button', { name: 'Change password' }))
     await userEvent.type(screen.getByLabelText('Current password'), 'nope')
     await userEvent.type(screen.getByLabelText('New password'), 'a new password')

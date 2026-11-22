@@ -18,20 +18,20 @@ export type PlayerChromeProps = {
   onOpenNowPlaying: () => void
 }
 
-/** The desktop player along the bottom of the window, over a blur of whatever scrolls behind it. */
+/** The desktop player: a compact rounded panel in the workspace's bottom row, matching the panes above it. */
 export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueue, lyricsOpen, onToggleLyrics, onOpenNowPlaying }: PlayerChromeProps) {
   const { state, controls } = player
   const item = state.current
   const elsewhere = playingElsewhere(state)
   return (
-    <div className="border-t border-stroke bg-floating backdrop-blur-2xl backdrop-saturate-150">
-      <div className="grid h-[5.5rem] grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-4 px-4">
+    <div className="overflow-hidden rounded-[0.875rem] border border-stroke bg-background">
+      <div className="grid h-20 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-4 pl-3 pr-2.5">
         <div className="flex min-w-0 items-center gap-3">
           {item && (
             <>
-              <button type="button" aria-label="Open Now Playing" onClick={onOpenNowPlaying} className="group relative shrink-0 rounded-lg">
-                <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-14 rounded-lg shadow-cover" />
-                <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+              <button type="button" aria-label="Open Now Playing" onClick={onOpenNowPlaying} className="group relative shrink-0 rounded-[0.625rem]">
+                <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-14 rounded-[0.625rem] ring-1 ring-stroke" />
+                <span className="absolute inset-0 flex items-center justify-center rounded-[0.625rem] bg-black/40 text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
                   <Maximize2 className="size-4" />
                 </span>
               </button>
@@ -54,12 +54,12 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
           )}
         </div>
 
-        <div className="flex min-w-0 flex-col items-center gap-1">
+        <div className="flex min-w-0 flex-col items-center gap-0.5">
           <TransportButtons player={player} disabled={!item} />
           <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} className="max-w-[40rem]" />
         </div>
 
-        <div className="flex items-center justify-end gap-0.5">
+        <div className="flex min-w-0 items-center justify-end gap-0.5">
           <IconButton label={lyricsOpen ? 'Hide lyrics' : 'Lyrics'} size="sm" pressed={lyricsOpen} disabled={!item} onClick={onToggleLyrics}><Quote /></IconButton>
           <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue}><ListMusic /></IconButton>
           <DevicesPopover
@@ -82,7 +82,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
   const elsewhere = playingElsewhere(state)
   if (!item) return null
   return (
-    <div className="relative mx-2 overflow-hidden rounded-2xl bg-floating shadow-float backdrop-blur-2xl backdrop-saturate-150">
+    <div className="relative mx-2 overflow-hidden rounded-[0.875rem] border border-stroke bg-floating shadow-float backdrop-blur-2xl backdrop-saturate-150">
       <div className="flex h-14 items-center gap-1 pl-2 pr-1">
         <button type="button" aria-label={`Open Now Playing, ${item.track.title}`} onClick={onOpenNowPlaying} className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch rounded-xl text-left">
           <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-10 rounded-lg" />

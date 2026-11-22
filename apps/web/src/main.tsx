@@ -4,11 +4,14 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import { createQueryClient } from '@/api/query-client'
 import { createServices, ServicesContext } from '@/api/services'
+import { initializeAppearance } from '@/components/layout/appearance'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toast'
 import { EngineProvider } from '@/player/engine/EngineProvider'
 import { AppRoutes } from './App'
 import './index.css'
+
+initializeAppearance()
 
 const queryClient = createQueryClient()
 const services = createServices()

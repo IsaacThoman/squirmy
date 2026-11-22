@@ -44,11 +44,11 @@ type UploadPanelProps = {
 
 /** Choosing music to upload and sending it, with progress for each file and for all of them. */
 export function UploadPanel({ options, isAdmin, upload, reading, onDrop, onPick, onStart, onPause, onCancel, onClear }: UploadPanelProps) {
-  if (!options) return <Skeleton className="h-72 rounded-3xl" />
+  if (!options) return <Skeleton className="h-72 rounded-xl" />
   if (options.unavailable) {
     const text = unavailableText[options.unavailable]
     return (
-      <div className="rounded-3xl bg-sheet ring-1 ring-stroke">
+      <div className="rounded-xl bg-sheet ring-1 ring-stroke">
         <EmptyState icon={<FolderUp />} title="Uploads have nowhere to go yet" description={isAdmin ? undefined : text.member} action={isAdmin ? <p className="max-w-md text-sm leading-relaxed text-muted">{text.admin}</p> : undefined} />
       </div>
     )
@@ -78,9 +78,9 @@ function DropZone({ options, reading, onDrop, onPick }: { options: ImportOptions
         setOver(false)
         onDrop(event.dataTransfer)
       }}
-      className={cn('flex flex-col items-center rounded-3xl border-2 border-dashed px-6 py-14 text-center transition-colors duration-150', over ? 'border-accent bg-selection' : 'border-stroke bg-sheet')}
+      className={cn('flex flex-col items-center rounded-xl border border-dashed px-6 py-12 text-center transition-colors duration-150', over ? 'border-accent bg-selection' : 'border-stroke bg-sheet')}
     >
-      <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-selection text-accent [&_svg]:size-6">
+      <div className="mb-4 flex size-14 items-center justify-center rounded-xl bg-selection text-accent [&_svg]:size-6">
         {reading ? <Spinner label="Reading the folder" className="size-6" /> : <Upload />}
       </div>
       <h2 className="text-[19px] font-bold tracking-tight">{reading ? 'Reading the folder…' : 'Drop music here'}</h2>
@@ -109,7 +109,7 @@ function UploadQueue({ options, upload, onStart, onPause, onCancel, onClear, onD
   const sending = phase === 'sending' || phase === 'paused' || (phase === 'failed' && sentBytes > 0)
   return (
     <div
-      className="rounded-3xl bg-sheet p-5 ring-1 ring-stroke"
+      className="rounded-xl bg-sheet p-5 ring-1 ring-stroke"
       onDragOver={event => { if (phase === 'ready' && event.dataTransfer.types.includes('Files')) event.preventDefault() }}
       onDrop={event => {
         if (phase !== 'ready') return

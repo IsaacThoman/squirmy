@@ -14,13 +14,12 @@ import { formatRelative, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { FolderPicker } from './FolderPicker'
 
-/** A centered card over a soft wash of the accent color. */
 function AuthFrame({ title, description, children, footer }: { title: string; description?: ReactNode; children: ReactNode; footer?: ReactNode }) {
   return (
-    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-12">
-      <div aria-hidden className="absolute -top-40 left-1/2 -z-10 size-[44rem] -translate-x-1/2 rounded-full bg-accent opacity-[0.12] blur-[120px]" />
-      <Logo className="mb-8" />
-      <main className="w-full max-w-sm animate-slide-in rounded-3xl bg-sheet p-7 shadow-float">
+    <div className="relative isolate flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-background px-4 py-12">
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_50%_0%,var(--selection),transparent_68%)]" />
+      <Logo className="mb-7" />
+      <main className="w-full max-w-[29rem] animate-enter rounded-2xl border border-stroke bg-sheet p-6 shadow-cover sm:p-8">
         <h1 className="text-2xl font-extrabold tracking-[-0.03em]">{title}</h1>
         {description && <p className="mt-1.5 text-sm leading-relaxed text-muted">{description}</p>}
         <div className="mt-6">{children}</div>

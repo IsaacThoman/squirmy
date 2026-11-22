@@ -55,7 +55,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
 
           <div className="relative flex h-16 shrink-0 items-center justify-between px-4 pt-[env(safe-area-inset-top)] md:px-8">
             <DialogPrimitive.Close asChild>
-              <IconButton label="Close Now Playing" tooltip={false} variant="solid" className="bg-overlay"><ChevronDown /></IconButton>
+              <IconButton label="Close Now Playing" tooltip={false} variant="solid" className="rounded-xl border border-stroke bg-overlay backdrop-blur-xl"><ChevronDown /></IconButton>
             </DialogPrimitive.Close>
             <div className="min-w-0 px-4 text-center">
               {state.context?.title && (
@@ -68,7 +68,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             <DevicesPopover
               side="bottom"
               player={player}
-              trigger={<IconButton label="Devices" variant="solid" className={cn('bg-overlay', elsewhere && 'text-accent')}><MonitorSpeaker /></IconButton>}
+              trigger={<IconButton label="Devices" variant="solid" className={cn('rounded-xl border border-stroke bg-overlay backdrop-blur-xl', elsewhere && 'text-accent')}><MonitorSpeaker /></IconButton>}
             />
           </div>
 
@@ -81,42 +81,44 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
               </div>
             </div>
             {pane !== 'art' && (
-              <div className="min-h-0 overflow-clip">
+              <div className="min-h-0 overflow-clip rounded-[1.125rem] border border-stroke bg-overlay backdrop-blur-xl">
                 {pane === 'lyrics'
                   ? <LyricsPane lyrics={state.lyrics} onSeek={controls.seek} />
-                  : <div className="h-full overflow-y-auto pr-1 [scrollbar-width:thin]"><QueueContent player={player} /></div>}
+                  : <div className="h-full overflow-y-auto p-2 pt-3 [scrollbar-width:thin]"><QueueContent player={player} /></div>}
               </div>
             )}
           </div>
 
           <div className="relative mx-auto w-full max-w-3xl shrink-0 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:px-8">
-            <div className="mb-3 flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-2xl font-bold tracking-[-0.03em] md:text-[28px]">{item?.track.title ?? 'Nothing playing'}</h2>
+            <div className="md:rounded-[1.125rem] md:border md:border-stroke md:bg-overlay md:px-5 md:pb-4 md:pt-4 md:backdrop-blur-xl">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-2xl font-bold tracking-[-0.03em] md:text-[28px]">{item?.track.title ?? 'Nothing playing'}</h2>
+                  {item && (
+                    <p className="truncate text-base font-medium text-muted">
+                      {item.entry.state === 'preparing'
+                        ? <span className="text-accent">Preparing…</span>
+                        : item.track.artists[0]
+                          ? <Link to={`/artist/${item.track.artists[0].id}`} onClick={() => onOpenChange(false)} className="hover:text-foreground hover:underline">{item.track.artistCredit}</Link>
+                          : item.track.artistCredit}
+                    </p>
+                  )}
+                </div>
                 {item && (
-                  <p className="truncate text-base font-medium text-muted">
-                    {item.entry.state === 'preparing'
-                      ? <span className="text-accent">Preparing…</span>
-                      : item.track.artists[0]
-                        ? <Link to={`/artist/${item.track.artists[0].id}`} onClick={() => onOpenChange(false)} className="hover:text-foreground hover:underline">{item.track.artistCredit}</Link>
-                        : item.track.artistCredit}
-                  </p>
+                  <IconButton label={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'} size="lg" onClick={onToggleLike} className={cn(liked && 'text-accent hover:text-accent')}>
+                    <Heart fill={liked ? 'currentColor' : 'none'} />
+                  </IconButton>
                 )}
               </div>
-              {item && (
-                <IconButton label={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'} size="lg" onClick={onToggleLike} className={cn(liked && 'text-accent hover:text-accent')}>
-                  <Heart fill={liked ? 'currentColor' : 'none'} />
-                </IconButton>
-              )}
-            </div>
-            <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} className="[&>span]:text-xs" />
-            <div className="mt-4 flex flex-col items-center gap-3 md:flex-row md:justify-between">
-              <div className="order-2 flex gap-6 md:order-1 md:w-40 md:gap-1">
-                <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')}><Quote /></IconButton>
-                <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} pressed={pane === 'queue'} onClick={() => toggle('queue')}><ListMusic /></IconButton>
+              <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} className="[&>span]:text-xs" />
+              <div className="mt-4 flex flex-col items-center gap-3 md:flex-row md:justify-between">
+                <div className="order-2 flex gap-6 md:order-1 md:w-40 md:gap-1">
+                  <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="rounded-xl"><Quote /></IconButton>
+                  <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} pressed={pane === 'queue'} onClick={() => toggle('queue')} className="rounded-xl"><ListMusic /></IconButton>
+                </div>
+                <div className="order-1 md:order-2"><TransportButtons player={player} large disabled={!item} /></div>
+                <VolumeControl volume={state.volume} onChange={controls.setVolume} className="order-3 hidden w-40 justify-end md:flex" />
               </div>
-              <div className="order-1 md:order-2"><TransportButtons player={player} large disabled={!item} /></div>
-              <VolumeControl volume={state.volume} onChange={controls.setVolume} className="order-3 hidden w-40 justify-end md:flex" />
             </div>
           </div>
         </DialogPrimitive.Content>

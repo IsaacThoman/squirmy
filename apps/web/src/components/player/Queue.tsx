@@ -19,7 +19,7 @@ const rowHeight = 56
 export function QueueContent({ player }: { player: Player }) {
   const { state, controls } = player
   return (
-    <div className="flex flex-col gap-6 pb-6">
+    <div className="flex flex-col gap-5 pb-5">
       {state.current && (
         <section aria-labelledby="queue-now">
           <QueueHeading id="queue-now">Now playing</QueueHeading>
@@ -28,10 +28,10 @@ export function QueueContent({ player }: { player: Player }) {
       )}
 
       <div className="flex flex-wrap gap-2 px-1">
-        <button type="button" aria-pressed={state.shuffle} onClick={() => controls.setShuffle(!state.shuffle)} className={cn(pillClass, 'aria-pressed:bg-accent aria-pressed:text-on-accent')}>
+        <button type="button" aria-pressed={state.shuffle} onClick={() => controls.setShuffle(!state.shuffle)} className={cn(pillClass, 'rounded-lg aria-pressed:bg-accent aria-pressed:text-on-accent')}>
           <Shuffle className="size-4" />Shuffle
         </button>
-        <button type="button" aria-pressed={state.repeat !== 'off'} onClick={controls.cycleRepeat} className={cn(pillClass, 'aria-pressed:bg-accent aria-pressed:text-on-accent')}>
+        <button type="button" aria-pressed={state.repeat !== 'off'} onClick={controls.cycleRepeat} className={cn(pillClass, 'rounded-lg aria-pressed:bg-accent aria-pressed:text-on-accent')}>
           {state.repeat === 'one' ? <Repeat1 className="size-4" /> : <Repeat className="size-4" />}{state.repeat === 'one' ? 'Repeat one' : 'Repeat'}
         </button>
       </div>
@@ -59,10 +59,10 @@ export function QueueContent({ player }: { player: Player }) {
       )}
 
       <section aria-labelledby="queue-autoplay">
-        <div className="flex items-center justify-between gap-3 px-2">
+        <div className="flex min-h-8 items-center justify-between gap-3 px-2">
           <div className="flex items-center gap-2">
             <InfinityIcon aria-hidden className={cn('size-4', state.autoplay ? 'text-accent' : 'text-quiet')} />
-            <h3 id="queue-autoplay" className="text-[15px] font-bold">Autoplay</h3>
+            <h3 id="queue-autoplay" className="text-xs font-bold uppercase tracking-[0.08em] text-quiet">Autoplay</h3>
           </div>
           <Switch checked={state.autoplay} onCheckedChange={controls.setAutoplay} aria-label="Autoplay" />
         </div>
@@ -75,8 +75,8 @@ export function QueueContent({ player }: { player: Player }) {
 
 function QueueHeading({ id, children, detail, action }: { id: string; children: ReactNode; detail?: string; action?: ReactNode }) {
   return (
-    <div className="mb-1.5 flex min-h-8 items-center gap-2 px-2">
-      <h3 id={id} className="mr-auto text-[15px] font-bold">{children}</h3>
+    <div className="mb-1 flex min-h-8 items-center gap-2 px-2">
+      <h3 id={id} className="mr-auto text-xs font-bold uppercase tracking-[0.08em] text-quiet">{children}</h3>
       {detail && <span className="text-xs font-semibold text-quiet">{detail}</span>}
       {action}
     </div>
@@ -84,7 +84,7 @@ function QueueHeading({ id, children, detail, action }: { id: string; children: 
 }
 
 function ClearButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return <button type="button" aria-label={label} onClick={onClick} className="-mr-1 rounded-full px-2.5 py-1 text-xs font-semibold text-accent hover:bg-selection">Clear</button>
+  return <button type="button" aria-label={label} onClick={onClick} className="-mr-1 rounded-md px-2 py-1 text-xs font-semibold text-accent hover:bg-selection">Clear</button>
 }
 
 type QueueRowProps = {
@@ -105,7 +105,7 @@ function QueueRow({ item, current, playing = false, faded, onPlay, children }: Q
   const body = (
     <>
       <div className="relative size-10 shrink-0">
-        <Cover artwork={track.album?.artwork ?? null} size={96} className="size-10 rounded-md" />
+        <Cover artwork={track.album?.artwork ?? null} size={96} className="size-10 rounded-md ring-1 ring-stroke" />
         {(current || preparing) && (
           <div className="absolute inset-0 flex items-center justify-center rounded-md bg-black/45">
             {preparing ? <Spinner label="Preparing" className="size-4 text-white" /> : <Equalizer playing={playing} className="text-white" />}
@@ -122,9 +122,9 @@ function QueueRow({ item, current, playing = false, faded, onPlay, children }: Q
     </>
   )
   return (
-    <div className={cn('group/queue flex h-14 items-center gap-1 rounded-lg pr-1 transition-colors duration-100 hover:bg-overlay', faded && 'opacity-80 hover:opacity-100')}>
+    <div className={cn('group/queue flex h-14 items-center gap-1 rounded-[0.625rem] pr-1 transition-colors duration-100 hover:bg-overlay', current && 'bg-selection hover:bg-selection', faded && 'opacity-80 hover:opacity-100')}>
       {onPlay
-        ? <button type="button" aria-label={`Play ${track.title}`} onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2">{body}</button>
+        ? <button type="button" aria-label={`Play ${track.title}`} onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-[0.625rem] px-2">{body}</button>
         : <div className="flex min-w-0 flex-1 items-center gap-3 px-2">{body}</div>}
       {children}
     </div>
@@ -199,7 +199,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
               key={item.entry.id}
               style={{ transform: `translateY(${dragging ? drag.offset : shift}px)` }}
               className={cn(
-                'relative rounded-lg',
+                'relative rounded-[0.625rem]',
                 dragging ? 'z-10 bg-dragged shadow-float' : 'transition-transform duration-150 ease-out',
               )}
             >
@@ -238,12 +238,12 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
 /** The queue as a column beside the main view on wide screens and a sheet over it on narrower ones. */
 export function QueuePanel({ player, onClose }: { player: Player; onClose: () => void }) {
   return (
-    <aside aria-label="Queue" className="flex h-full w-full flex-col bg-sheet">
-      <div className="flex h-16 shrink-0 items-center justify-between px-5">
-        <h2 className="text-lg font-bold tracking-tight">Queue</h2>
-        <IconButton label="Close queue" size="sm" onClick={onClose}><X /></IconButton>
+    <aside aria-label="Queue" className="flex h-full w-full flex-col bg-background">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-stroke pl-4 pr-2.5">
+        <h2 className="text-[15px] font-bold tracking-tight">Queue</h2>
+        <IconButton label="Close queue" size="sm" onClick={onClose} className="rounded-lg"><X /></IconButton>
       </div>
-      <ScrollArea className="min-h-0 flex-1 px-3">
+      <ScrollArea className="min-h-0 flex-1 px-2 pt-3">
         <QueueContent player={player} />
       </ScrollArea>
     </aside>

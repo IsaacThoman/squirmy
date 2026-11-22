@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Badge, ProgressBar } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
+import { useArtUrl } from '@/lib/artwork'
 import { albumTypeLabel, isPlayable } from '@/lib/catalog'
 import { formatDate, formatTotalDuration, plural } from '@/lib/format'
 import { toast } from '@/lib/toast'
@@ -33,6 +34,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   const user = useCurrentUser()
   const { controls } = usePlayer()
   const [fixing, setFixing] = useState(false)
+  const artUrl = useArtUrl()
   const tracks = album.discs.flatMap(disc => disc.tracks)
   const context = { type: 'album' as const, id: album.id, title: album.title }
   const actions = useTrackActions(tracks, context)
@@ -59,6 +61,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
         kind={albumTypeLabel(album.type)}
         title={album.title}
         tint={album.artwork?.color}
+        backdrop={album.artwork ? artUrl(album.artwork, 96) : undefined}
         art={<Cover artwork={album.artwork} size={600} alt={`${album.title} cover`} dimmed={album.availability === 'none'} />}
         byline={album.artists.map((artist, index) => (
           <Fragment key={artist.id}>

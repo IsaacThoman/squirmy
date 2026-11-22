@@ -383,7 +383,7 @@ The catalog is a lazy cache of MusicBrainz. `enrichment/detail.ts` completes a r
 - `TrackStore`: batched, cached `TrackSummary` hydration for queue entries.
 - Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork and stream URL helpers.
 
-**Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. Colors and type follow the mobile theme in `apps/mobile/src/theme.ts`. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
+**Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. The web palette is user-selectable and saved in the browser. Components use semantic color tokens for every palette and color mode. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
 
 ```
 apps/web/src/

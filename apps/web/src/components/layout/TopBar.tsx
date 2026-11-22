@@ -1,28 +1,26 @@
 import type { User } from '@squirmy/contracts'
-import { ChevronLeft, ChevronRight, LogOut, Settings, Shield, Upload } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { IconButton } from '@/components/ui/icon-button'
-import { DropdownMenu } from '@/components/ui/menu'
 import { SearchField } from '@/components/ui/search-field'
-import { canUploadMusic } from '@/lib/catalog'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { cn } from '@/lib/utils'
+import { AccountMenu } from './AccountMenu'
 import { useScrollContainer } from './scroll-context'
 
-/** History buttons, search and the account menu. Clear until the page scrolls under it. */
-export function TopBar({ user, onLogout }: { user: User; onLogout: () => void }) {
+export function TopBar({ user, onLogout, mobileNavigation }: { user: User; onLogout: () => void; mobileNavigation: ReactNode }) {
   const navigate = useNavigate()
-  const location = useLocation()
+  const { pathname } = useLocation()
   const [params] = useSearchParams()
   const scroller = useScrollContainer()
   const [scrolled, setScrolled] = useState(false)
-  const onSearch = location.pathname === '/search'
+  const onSearch = pathname === '/search'
   const [query, setQuery] = useUrlDraft(onSearch ? params.get('q') ?? '' : '')
 
   useEffect(() => {
     if (!scroller) return
-    const update = () => setScrolled(scroller.scrollTop > 24)
+    const update = () => setScrolled(scroller.scrollTop > 8)
     update()
     scroller.addEventListener('scroll', update, { passive: true })
     return () => scroller.removeEventListener('scroll', update)
@@ -31,15 +29,14 @@ export function TopBar({ user, onLogout }: { user: User; onLogout: () => void })
   const canGoBack = (window.history.state as { idx?: number } | null)?.idx !== 0
 
   return (
-    <header
-      className={cn(
-        'sticky top-0 z-20 -mb-14 flex h-14 items-center gap-2 px-(--gutter) transition-[background-color,backdrop-filter,box-shadow] duration-200 md:-mb-16 md:h-16',
-        scrolled && 'bg-background/80 shadow-[0_1px_0_var(--stroke)] backdrop-blur-xl backdrop-saturate-150',
-      )}
-    >
-      <div className="flex gap-1.5">
-        <IconButton label="Go back" variant="solid" size="sm" disabled={!canGoBack} onClick={() => navigate(-1)} className="bg-overlay backdrop-blur-md"><ChevronLeft /></IconButton>
-        <IconButton label="Go forward" variant="solid" size="sm" onClick={() => navigate(1)} className="bg-overlay backdrop-blur-md max-md:hidden"><ChevronRight /></IconButton>
+    <header className={cn(
+      'workspace-header sticky top-0 z-20 -mb-14 flex h-14 items-center gap-2 px-(--gutter) md:-mb-16 md:h-16',
+      scrolled && 'workspace-header-scrolled',
+    )}>
+      <div className="flex items-center gap-1">
+        {mobileNavigation}
+        <IconButton label="Go back" size="sm" disabled={!canGoBack} onClick={() => navigate(-1)} className="rounded-lg"><ChevronLeft /></IconButton>
+        <IconButton label="Go forward" size="sm" onClick={() => navigate(1)} className="rounded-lg max-md:hidden"><ChevronRight /></IconButton>
       </div>
       <SearchField
         value={query}
@@ -47,35 +44,13 @@ export function TopBar({ user, onLogout }: { user: User; onLogout: () => void })
           setQuery(value)
           void navigate(`/search${value ? `?q=${encodeURIComponent(value)}` : ''}`, { replace: onSearch })
         }}
-        placeholder="Songs, albums, artists"
+        placeholder="Search songs, albums, artists"
         aria-label="Search"
-        className="ml-1 w-full max-w-sm max-md:hidden"
+        className="workspace-search ml-1 w-full max-w-sm max-md:hidden"
       />
-      <div className="ml-auto">
-        <UserMenu user={user} onLogout={onLogout} />
+      <div className="ml-auto md:hidden">
+        <AccountMenu user={user} onLogout={onLogout} />
       </div>
     </header>
-  )
-}
-
-function UserMenu({ user, onLogout }: { user: User; onLogout: () => void }) {
-  const navigate = useNavigate()
-  const name = user.displayName ?? user.username
-  return (
-    <DropdownMenu
-      entries={[
-        { kind: 'label', label: `${name} · ${user.role === 'admin' ? 'Admin' : 'Member'}` },
-        { label: 'Settings', icon: <Settings />, onSelect: () => navigate('/settings') },
-        ...(canUploadMusic(user) ? [{ label: 'Add music', icon: <Upload />, onSelect: () => navigate('/imports') }] : []),
-        ...(user.role === 'admin' ? [{ label: 'Admin', icon: <Shield />, onSelect: () => navigate('/admin') }] : []),
-        { kind: 'separator' },
-        { label: 'Log out', icon: <LogOut />, onSelect: onLogout },
-      ]}
-      trigger={(
-        <button type="button" aria-label={`Account, ${name}`} className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-on-accent ring-4 ring-transparent transition hover:ring-selection data-[state=open]:ring-selection">
-          {name.slice(0, 1).toUpperCase()}
-        </button>
-      )}
-    />
   )
 }

@@ -6,7 +6,9 @@ The web app is served by your Squirmy server at its own address, such as `https:
 
 The sidebar has **Home**, **Search**, your **Library** (**Albums**, **Artists**, **Songs**), the **Wantlist**, **Add music** (for admins and people who may upload), and your **Playlists** with **Liked Songs** at the top. **New playlist** (the **+** next to Playlists) makes one. Admins also see **Admin**.
 
-The menu under your name, top right, has **Settings**, **Add music** (for people who may upload), **Admin** (for admins) and **Log out**.
+Use the button beside the Squirmy logo to collapse or expand the sidebar. On a phone, open the full sidebar from the menu button at the top left.
+
+The account menu is at the bottom of the desktop sidebar or in the top-right corner on a phone. It has **Settings**, **Add music** (for people who may upload), **Admin** (for admins) and **Log out**.
 
 - **Home** shows a featured album (what you played last, else what was added last) and rows of recently added and recently played albums, most played songs, your playlists, liked albums, your wantlist and new releases by artists in your library. On a server with no music yet it says so; admins get **Add a music folder**, which opens **Admin → Library**.
 - **Library** pages load as you scroll and can be sorted and filtered by genre. Counts read "60+" until the last page arrives.
@@ -49,6 +51,8 @@ If the browser refuses to start audio on its own (after a transfer or a reload),
 
 ## Settings
 
+**Settings → Appearance** lets you choose a theme and follow your device's light or dark appearance, or choose a mode yourself. **Squirmy** is the default purple theme. **Pulpo** uses the original Pulpo colors. **Ocean**, **Forest**, and **Ember** are also available. Theme and mode are saved in this browser.
+
 **Settings** also holds **Scrobbling** ([ListenBrainz and Last.fm](../server/scrobbling.md)), **App passwords** for [Subsonic apps](../server/subsonic.md), and **Account**: **Edit name**, **Change password** and **Log out**.
 
 ## Admin
@@ -66,7 +70,7 @@ Admins manage the server here. Each page has its own guide:
 | **Server settings** | [Configuration](../server/configuration.md#server-settings) |
 | **Jobs** | [Troubleshooting](../server/troubleshooting.md#logs-and-the-jobs-page) |
 
-The server's version is under the admin sections (at the bottom of the page on a phone) and on the sign-in page.
+The server’s version appears at the top of Admin and on the sign-in page.
 
 ## Not there yet
 

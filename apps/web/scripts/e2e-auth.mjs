@@ -149,7 +149,7 @@ await step('register with the invite', async () => {
 })
 
 await step('change password', async () => {
-  await page.goto(`${base}/settings`)
+  await page.goto(`${base}/settings/account`)
   await page.getByRole('button', { name: 'Change password' }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Current password').fill('wrong current password')
@@ -167,6 +167,7 @@ await step('change password', async () => {
 })
 
 await step('app passwords', async () => {
+  await page.getByRole('link', { name: 'App passwords', exact: true }).click()
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await page.getByLabel('Name', { exact: true }).fill('Car stereo')
   await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()

@@ -1,10 +1,12 @@
 import type { AlbumSummary, TrackSummary } from '@squirmy/contracts'
-import { Bookmark } from 'lucide-react'
+import { Bookmark, Search } from 'lucide-react'
+import { Link } from 'react-router'
 import { Page } from '@/components/layout/Page'
 import { AlbumCard, CardGrid } from '@/components/music/Cards'
 import { PageTitle, SectionHeader } from '@/components/music/SectionHeader'
 import { GridSkeleton } from '@/components/music/Skeletons'
 import { TrackList } from '@/components/music/TrackList'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
 
@@ -20,7 +22,14 @@ export function WantlistView({ albums, tracks }: { albums: AlbumSummary[] | unde
       </div>
       {(!albums || !tracks) && <GridSkeleton count={6} />}
       {albums && tracks && albums.length + tracks.length === 0 && (
-        <EmptyState icon={<Bookmark />} title="Nothing wanted yet" description="Gray albums and songs in search and on artist pages can be added to your Wantlist." />
+        <div className="rounded-xl border border-stroke bg-sheet">
+          <EmptyState
+            icon={<Bookmark />}
+            title="Nothing wanted yet"
+            description="Save albums and songs you don’t have from search or an artist page."
+            action={<Button asChild variant="outline"><Link to="/search"><Search />Search music</Link></Button>}
+          />
+        </div>
       )}
       {albums && albums.length > 0 && (
         <section>

@@ -1,0 +1,88 @@
+:root {
+  color-scheme: light dark;
+}
+
+:root[data-color-mode="light"] {
+  color-scheme: light;
+}
+
+:root[data-color-mode="dark"] {
+  color-scheme: dark;
+}
+
+:root,
+[data-theme="squirmy"] {
+  --background: light-dark(#fbf9ff, #1d1929);
+  --sheet: light-dark(#f4f0fc, #272139);
+  --surface: light-dark(#f1edf9, #383443);
+  --foreground: light-dark(#1d1929, #fffaff);
+  --muted: light-dark(#6b6480, #b3aabd);
+  --accent: light-dark(#6e4bc7, #c0aaff);
+  --on-accent: light-dark(#fff, #211537);
+  --stroke: light-dark(#e2dbf0, #4d4366);
+  --overlay: light-dark(#ebe5f7, #454250);
+  --selection: light-dark(#e6ddf8, #433766);
+}
+
+[data-theme="pulpo"] {
+  --background: light-dark(#fff, #0d0d0f);
+  --sheet: light-dark(#fafafa, #111114);
+  --surface: light-dark(#f4f4f5, #212124);
+  --foreground: light-dark(#09090b, #fafafa);
+  --muted: light-dark(#686872, #9f9fa9);
+  --accent: light-dark(#18181b, #e4e4e7);
+  --on-accent: light-dark(#fafafa, #18181b);
+  --stroke: light-dark(#e4e4e7, #ffffff1f);
+  --overlay: light-dark(#f4f4f5, #262629);
+  --selection: light-dark(#eaeaed, #2b2b30);
+}
+
+[data-theme="ocean"] {
+  --background: light-dark(#f7fbfe, #0f1720);
+  --sheet: light-dark(#eef5fb, #0c131b);
+  --surface: light-dark(#e6eff7, #192737);
+  --foreground: light-dark(#0f1d2b, #e6f1fa);
+  --muted: light-dark(#4d6073, #a9bacd);
+  --accent: light-dark(#0966ad, #4fb0ee);
+  --on-accent: light-dark(#fff, #0f1720);
+  --stroke: light-dark(#cbdcea, #2d4155);
+  --overlay: light-dark(#dfeefa, #233649);
+  --selection: light-dark(#dcebf8, #1b3249);
+}
+
+[data-theme="forest"] {
+  --background: light-dark(#f8fbf8, #121a16);
+  --sheet: light-dark(#eef5ef, #0f1612);
+  --surface: light-dark(#e6f0e7, #202d25);
+  --foreground: light-dark(#14231a, #e7f2ea);
+  --muted: light-dark(#4b6554, #a3b8aa);
+  --accent: light-dark(#197545, #5cc48a);
+  --on-accent: light-dark(#fff, #0f1612);
+  --stroke: light-dark(#cee1d4, #34493c);
+  --overlay: light-dark(#e1eee4, #293b30);
+  --selection: light-dark(#dcefe2, #1f3a2b);
+}
+
+[data-theme="ember"] {
+  --background: light-dark(#fffaf6, #1c1512);
+  --sheet: light-dark(#fbf1ea, #18110e);
+  --surface: light-dark(#f4e8df, #30241e);
+  --foreground: light-dark(#2a1a12, #fbefe8);
+  --muted: light-dark(#755547, #c8aca0);
+  --accent: light-dark(#a94315, #f08a4b);
+  --on-accent: light-dark(#fff, #1c1512);
+  --stroke: light-dark(#ead7c9, #50382e);
+  --overlay: light-dark(#f5e4d7, #3c2d25);
+  --selection: light-dark(#f9e2d3, #3d2619);
+}
+
+:root {
+  --quiet: var(--muted);
+  --grabber: color-mix(in srgb, var(--foreground) 48%, transparent);
+  --dragged-row: var(--selection);
+  --floating: color-mix(in srgb, var(--sheet) 90%, transparent);
+  --album-tint: 0.23;
+  --player-gradient: color-mix(in srgb, var(--background) 58%, transparent), var(--background);
+  --danger: light-dark(#b4233c, #ff8fa0);
+  --shadow-color: 264deg 30% 8%;
+}

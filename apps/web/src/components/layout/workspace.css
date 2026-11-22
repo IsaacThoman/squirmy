@@ -1,0 +1,148 @@
+.workspace-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--background);
+}
+
+.workspace-main {
+  background: var(--background);
+}
+
+.workspace-header {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--background) 76%, transparent), transparent);
+  transition: background-color 150ms, box-shadow 150ms;
+}
+
+.workspace-header-scrolled {
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  box-shadow: 0 1px 0 var(--stroke);
+  backdrop-filter: blur(18px);
+}
+
+.workspace-search input {
+  height: 2.25rem;
+  border-color: var(--stroke);
+  border-radius: 0.625rem;
+  background: var(--sheet);
+}
+
+.workspace-search input:focus-visible {
+  border-color: var(--accent);
+}
+
+.workspace-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 14.25rem;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.workspace-drawer .workspace-sidebar {
+  width: 100%;
+}
+
+.sidebar-link,
+.sidebar-collection {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.625rem;
+  border-radius: 0.625rem;
+  transition: background-color 150ms, color 150ms;
+}
+
+.sidebar-link {
+  min-height: 2.125rem;
+  padding-inline: 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sidebar-collection {
+  min-height: 2.625rem;
+  padding: 0.3125rem 0.375rem;
+}
+
+.sidebar-link:hover,
+.sidebar-collection:hover {
+  background: var(--overlay);
+  color: var(--foreground);
+}
+
+.sidebar-link[aria-current="page"],
+.sidebar-collection[aria-current="page"] {
+  background: var(--selection);
+  color: var(--accent);
+}
+
+.sidebar-link > svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.sidebar-caption {
+  padding-inline: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--quiet);
+}
+
+.sidebar-playlists-icon {
+  display: none;
+}
+
+.workspace-sidebar[data-collapsed] {
+  width: 3.75rem;
+}
+
+[data-collapsed] .sidebar-brand,
+[data-collapsed] .sidebar-playlist-header {
+  flex-direction: column;
+  justify-content: center;
+}
+
+[data-collapsed] .sidebar-label,
+[data-collapsed] .sidebar-wordmark > span:last-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+[data-collapsed] .sidebar-playlists-link,
+[data-collapsed] .sidebar-link,
+[data-collapsed] .sidebar-collection,
+[data-collapsed] .sidebar-account {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+[data-collapsed] .sidebar-playlists-icon {
+  display: block;
+}
+
+@media (width >= 48rem) {
+  .workspace-shell {
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--sheet);
+  }
+
+  .workspace-main,
+  .workspace-queue {
+    border: 1px solid var(--stroke);
+    border-radius: 0.875rem;
+  }
+}
+
+@media (48rem <= width < 64rem) {
+  .workspace-sidebar:not([data-collapsed]) {
+    width: 12.25rem;
+  }
+}

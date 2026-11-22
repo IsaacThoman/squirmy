@@ -139,7 +139,8 @@ if (status.needsSetup) {
 }
 const a = await signedIn(browser, admin)
 await api(a.context, 'PATCH', '/admin/settings', { musicBrainzEnabled: false, deezerEnabled: false, coverArtArchiveEnabled: false, wikidataEnabled: false, lrclibEnabled: false })
-const scanned = await until(() => api(a.context, 'GET', '/admin/library/stats'), stats => stats.tracks >= 117 && stats.pending === 0, 180_000, 1000)
+// Local tracks are playable as soon as tags are ingested. With MusicBrainz off, matches can remain pending.
+const scanned = await until(() => api(a.context, 'GET', '/admin/library/stats'), stats => stats.tracks >= 117, 180_000, 1000)
 check('the demo library is scanned', scanned.tracks >= 117, `${scanned.albums} albums, ${scanned.tracks} tracks`)
 const blueHour = (await api(a.context, 'GET', '/library/albums?sort=title&limit=200')).items.find(album => album.title === 'Blue Hour')
 const page = a.page
@@ -289,6 +290,7 @@ const b = await signedIn(browser, admin)
 await step('a second device', async () => {
   await a.page.getByRole('button', { name: /^Account/ }).click()
   await a.page.getByRole('menuitem', { name: 'Settings' }).click()
+  await a.page.getByRole('link', { name: 'Playback', exact: true }).click()
   await a.page.getByLabel('This browser’s name').fill('E2E Speaker')
   await a.page.getByLabel('This browser’s name').press('Enter')
   await b.page.goto(`${base}/`)

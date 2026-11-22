@@ -1,5 +1,5 @@
 import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
-import { Bookmark, Disc3, House, ListMusic, MicVocal, Plus, Search, Shield, Upload } from 'lucide-react'
+import { Bookmark, Disc3, House, LibraryBig, ListMusic, MicVocal, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Shield, Upload } from 'lucide-react'
 import { useState, type DragEvent, type ReactNode } from 'react'
 import { NavLink } from 'react-router'
 import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
@@ -11,6 +11,7 @@ import { draggedTracks } from '@/lib/drag'
 import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
+import { AccountMenu } from './AccountMenu'
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -24,94 +25,119 @@ export function Logo({ className }: { className?: string }) {
   )
 }
 
-const linkClass = 'flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted transition-colors duration-150 hover:bg-overlay hover:text-foreground aria-[current=page]:bg-selection aria-[current=page]:text-accent max-lg:justify-center max-lg:px-0 [&>svg]:size-5 [&>svg]:shrink-0'
-
-function SidebarLink({ to, icon, children, end }: { to: string; icon: ReactNode; children: string; end?: boolean }) {
+function SidebarLink({ to, icon, children, end, onNavigate }: { to: string; icon: ReactNode; children: string; end?: boolean; onNavigate?: () => void }) {
   return (
     <Tooltip label={children} side="right">
-      <NavLink to={to} end={end} className={linkClass}>
-        {icon}<span className="max-lg:sr-only">{children}</span>
+      <NavLink to={to} end={end} onClick={onNavigate} className="sidebar-link">
+        {icon}<span className="sidebar-label">{children}</span>
       </NavLink>
     </Tooltip>
   )
 }
 
-type SidebarProps = {
+export type SidebarProps = {
   user: User
   playlists: PlaylistSummary[]
-  /** "24 songs" under Liked Songs. */
   likedCount: string
 }
 
-/** Full width from 1024px; icons only between 768 and 1024. Songs dragged onto a playlist are added to it. */
-export function Sidebar({ user, playlists, likedCount }: SidebarProps) {
+export function Sidebar({ user, playlists, likedCount, collapsed, onCollapse, onNavigate, onLogout, closeButton }: SidebarProps & {
+  collapsed?: boolean
+  onCollapse?: () => void
+  onNavigate?: () => void
+  onLogout?: () => void
+  closeButton?: ReactNode
+}) {
   const library = useLibrary()
   return (
-    <nav aria-label="Main" className="flex h-full w-[4.75rem] shrink-0 flex-col border-r border-stroke bg-sheet pb-(--player-height) lg:w-64">
-      <div className="flex h-16 items-center px-5 max-lg:justify-center max-lg:px-0">
-        <NavLink to="/" aria-label="Squirmy home" className="rounded-lg"><Logo className="max-lg:[&>span:last-child]:hidden" /></NavLink>
-      </div>
-      <div className="flex flex-col gap-0.5 px-3">
-        <SidebarLink to="/" end icon={<House />}>Home</SidebarLink>
-        <SidebarLink to="/search" icon={<Search />}>Search</SidebarLink>
-      </div>
-
-      <p className="mt-6 px-6 pb-1.5 text-xs font-bold uppercase tracking-[0.1em] text-quiet max-lg:hidden">Library</p>
-      <div className="flex flex-col gap-0.5 px-3 max-lg:mt-4 max-lg:border-t max-lg:border-stroke max-lg:pt-4">
-        <SidebarLink to="/library/albums" icon={<Disc3 />}>Albums</SidebarLink>
-        <SidebarLink to="/library/artists" icon={<MicVocal />}>Artists</SidebarLink>
-        <SidebarLink to="/library/songs" icon={<ListMusic />}>Songs</SidebarLink>
-        <SidebarLink to="/wantlist" icon={<Bookmark />}>Wantlist</SidebarLink>
-        {canUploadMusic(user) && <SidebarLink to="/imports" icon={<Upload />}>Add music</SidebarLink>}
+    <nav id={onCollapse ? 'desktop-sidebar' : undefined} aria-label="Main" className="workspace-sidebar" data-collapsed={collapsed || undefined}>
+      <div className="sidebar-brand flex items-center justify-between gap-2 px-3 py-3.5">
+        <NavLink to="/" aria-label="Squirmy home" onClick={onNavigate} className="sidebar-logo min-w-0 rounded-md"><Logo className="sidebar-wordmark" /></NavLink>
+        {onCollapse && (
+          <IconButton
+            label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+            aria-controls="desktop-sidebar"
+            size="sm"
+            onClick={onCollapse}
+            className="sidebar-collapse rounded-lg"
+          >{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}</IconButton>
+        )}
+        {closeButton}
       </div>
 
-      <div className="mt-6 flex items-center justify-between pl-6 pr-3 max-lg:mt-4 max-lg:justify-center max-lg:border-t max-lg:border-stroke max-lg:px-0 max-lg:pt-4">
-        <p className="text-xs font-bold uppercase tracking-[0.1em] text-quiet max-lg:hidden">Playlists</p>
-        <IconButton label="New playlist" size="sm" onClick={() => library.newPlaylist()}><Plus /></IconButton>
-      </div>
       <ScrollArea className="min-h-0 flex-1">
-        <ul className="flex flex-col gap-0.5 px-3 py-1.5">
-          <li>
-            <PlaylistLink
-              to="/liked"
-              title="Liked Songs"
-              subtitle={likedCount}
-              art={<LikedCover className="size-10 rounded-lg" />}
-              onDropTracks={tracks => tracks.filter(track => !track.liked).forEach(track => library.setLiked('track', track.id, true))}
-            />
-          </li>
-          {playlists.map(playlist => (
-            <li key={playlist.id}>
-              <PlaylistLink
-                to={`/playlist/${playlist.id}`}
-                title={playlist.name}
-                subtitle={`Playlist · ${plural(playlist.trackCount, 'song')}`}
-                art={<PlaylistCover artworks={playlist.artworks} className="size-10 rounded-lg" />}
-                onDropTracks={playlist.ownerId === user.id ? tracks => library.addToPlaylist(playlist, tracks) : undefined}
-              />
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-5 px-2.5 pb-3">
+          <div className="flex flex-col gap-0.5">
+            <SidebarLink to="/" end icon={<House />} onNavigate={onNavigate}>Home</SidebarLink>
+            <SidebarLink to="/search" icon={<Search />} onNavigate={onNavigate}>Search</SidebarLink>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <p className="sidebar-label sidebar-caption">Library</p>
+            <SidebarLink to="/library/albums" icon={<Disc3 />} onNavigate={onNavigate}>Albums</SidebarLink>
+            <SidebarLink to="/library/artists" icon={<MicVocal />} onNavigate={onNavigate}>Artists</SidebarLink>
+            <SidebarLink to="/library/songs" icon={<ListMusic />} onNavigate={onNavigate}>Songs</SidebarLink>
+            <SidebarLink to="/wantlist" icon={<Bookmark />} onNavigate={onNavigate}>Wantlist</SidebarLink>
+            {canUploadMusic(user) && <SidebarLink to="/imports" icon={<Upload />} onNavigate={onNavigate}>Add music</SidebarLink>}
+          </div>
+
+          <div>
+            <div className="sidebar-playlist-header flex items-center justify-between">
+              <Tooltip label="All playlists" side="right">
+                <NavLink to="/library/playlists" aria-label="All playlists" onClick={onNavigate} className="sidebar-caption sidebar-playlists-link flex min-h-8 items-center gap-2 rounded-md hover:text-foreground aria-[current=page]:text-accent">
+                  <LibraryBig aria-hidden className="sidebar-playlists-icon size-4" />
+                  <span className="sidebar-label">Playlists</span>
+                </NavLink>
+              </Tooltip>
+              <IconButton label="New playlist" size="sm" className="rounded-lg" onClick={() => { onNavigate?.(); library.newPlaylist() }}><Plus /></IconButton>
+            </div>
+            <ul className="mt-1 flex flex-col gap-0.5">
+              <li>
+                <PlaylistLink
+                  to="/liked"
+                  title="Liked Songs"
+                  subtitle={likedCount}
+                  art={<LikedCover className="size-8 rounded-md" />}
+                  onNavigate={onNavigate}
+                  onDropTracks={tracks => tracks.filter(track => !track.liked).forEach(track => library.setLiked('track', track.id, true))}
+                />
+              </li>
+              {playlists.map(playlist => (
+                <li key={playlist.id}>
+                  <PlaylistLink
+                    to={`/playlist/${playlist.id}`}
+                    title={playlist.name}
+                    subtitle={plural(playlist.trackCount, 'song')}
+                    art={<PlaylistCover artworks={playlist.artworks} className="size-8 rounded-md" />}
+                    onNavigate={onNavigate}
+                    onDropTracks={playlist.ownerId === user.id ? tracks => library.addToPlaylist(playlist, tracks) : undefined}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </ScrollArea>
 
-      {user.role === 'admin' && (
-        <div className="border-t border-stroke px-3 pt-3">
-          <SidebarLink to="/admin" icon={<Shield />}>Admin</SidebarLink>
-        </div>
-      )}
+      <div className="flex shrink-0 flex-col gap-0.5 border-t border-stroke px-2.5 py-2">
+        <SidebarLink to="/settings" icon={<Settings />} onNavigate={onNavigate}>Settings</SidebarLink>
+        {user.role === 'admin' && <SidebarLink to="/admin" icon={<Shield />} onNavigate={onNavigate}>Admin</SidebarLink>}
+        {onLogout && <AccountMenu user={user} onLogout={onLogout} inSidebar />}
+      </div>
     </nav>
   )
 }
 
-type PlaylistLinkProps = { to: string; title: string; subtitle: string; art: ReactNode; onDropTracks?: (tracks: TrackSummary[]) => void }
+type PlaylistLinkProps = { to: string; title: string; subtitle: string; art: ReactNode; onNavigate?: () => void; onDropTracks?: (tracks: TrackSummary[]) => void }
 
-function PlaylistLink({ to, title, subtitle, art, onDropTracks }: PlaylistLinkProps) {
+function PlaylistLink({ to, title, subtitle, art, onNavigate, onDropTracks }: PlaylistLinkProps) {
   const [over, setOver] = useState(false)
   const accepts = (event: DragEvent) => Boolean(onDropTracks && draggedTracks(event))
   return (
     <Tooltip label={title} side="right">
       <NavLink
         to={to}
+        onClick={onNavigate}
         onDragOver={event => {
           if (!accepts(event)) return
           event.preventDefault()
@@ -126,14 +152,11 @@ function PlaylistLink({ to, title, subtitle, art, onDropTracks }: PlaylistLinkPr
           event.preventDefault()
           onDropTracks(drag.tracks)
         }}
-        className={cn(
-          'flex items-center gap-3 rounded-xl p-1.5 transition-colors duration-150 hover:bg-overlay aria-[current=page]:bg-selection max-lg:justify-center',
-          over && 'bg-selection ring-2 ring-accent',
-        )}
+        className={cn('sidebar-collection', over && 'bg-selection ring-2 ring-inset ring-accent')}
       >
         {art}
-        <span className="min-w-0 max-lg:sr-only">
-          <span className="block truncate text-sm font-semibold">{title}</span>
+        <span className="sidebar-label min-w-0">
+          <span className="block truncate text-[13px] font-semibold">{title}</span>
           <span className="block truncate text-xs text-muted">{subtitle}</span>
         </span>
       </NavLink>

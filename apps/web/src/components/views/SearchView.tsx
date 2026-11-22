@@ -82,7 +82,7 @@ function Results({ title, note, results, onPlayAlbum }: { title: string; note?: 
   const wants = useAlbumWants()
   return (
     <section aria-label={title} className="flex flex-col gap-7">
-      <div className="flex items-baseline gap-3 border-b border-stroke pb-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-stroke pb-3">
         <h2 className="text-[26px] font-extrabold tracking-[-0.04em]">{title}</h2>
         {note && <p className="text-[13px] font-medium text-quiet">{note}</p>}
       </div>
@@ -97,9 +97,9 @@ function Results({ title, note, results, onPlayAlbum }: { title: string; note?: 
         </Rail>
       )}
       {results.tracks.length > 0 && (
-        <div>
-          <SectionHeader title="Songs" />
-          <div className="-mx-2"><TrackList label={`${title}: songs`} tracks={results.tracks.slice(0, 6)} variant="compact" header={false} {...actions} /></div>
+        <div className="rounded-xl border border-stroke bg-sheet p-3 md:p-4">
+          <SectionHeader title="Songs" className="mb-1.5 px-1" />
+          <TrackList label={`${title}: songs`} tracks={results.tracks.slice(0, 6)} variant="compact" header={false} {...actions} />
         </div>
       )}
     </section>
@@ -145,11 +145,11 @@ function TopResult({ top, onPlayAlbum }: { top: Top; onPlayAlbum: (album: AlbumS
   return (
     <section aria-labelledby="search-top">
       <SectionHeader id="search-top" title="Top result" />
-      <div className="group/top relative flex max-w-xl items-center gap-5 rounded-2xl bg-sheet p-4 ring-1 ring-stroke transition-colors hover:bg-overlay focus-within:bg-overlay sm:p-5">
-        <div className="w-20 shrink-0 sm:w-28">{art}</div>
+      <div className="group/top relative flex max-w-xl items-center gap-3 rounded-xl border border-stroke bg-sheet p-3 transition-colors hover:bg-overlay focus-within:bg-overlay focus-within:ring-1 focus-within:ring-accent sm:gap-5 sm:p-5">
+        <div className="w-16 shrink-0 sm:w-28">{art}</div>
         <div className="min-w-0 flex-1">
           {item.to
-            ? <Link to={item.to} title={item.title} className={cn('block truncate text-2xl font-extrabold tracking-[-0.03em] after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none sm:text-[28px]', !item.owned && 'text-muted')}>{item.title}</Link>
+            ? <Link to={item.to} title={item.title} className={cn('block truncate text-2xl font-extrabold tracking-[-0.03em] after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none sm:text-[28px]', !item.owned && 'text-muted')}>{item.title}</Link>
             : <p title={item.title} className="truncate text-2xl font-extrabold tracking-[-0.03em] sm:text-[28px]">{item.title}</p>}
           <p className="mt-1 flex min-w-0 items-center gap-2 text-sm text-muted">
             <span className="shrink-0 rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-foreground">{item.kind}</span>
@@ -161,7 +161,7 @@ function TopResult({ top, onPlayAlbum }: { top: Top; onPlayAlbum: (album: AlbumS
             type="button"
             aria-label={`Play ${item.title}`}
             onClick={item.play}
-            className="relative z-10 flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent shadow-cover transition duration-150 hover:scale-105"
+            className="relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full bg-accent sm:size-12 text-on-accent shadow-cover transition duration-150 hover:scale-105"
           >
             <Play className="size-5 translate-x-px" fill="currentColor" />
           </button>

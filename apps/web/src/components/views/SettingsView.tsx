@@ -5,8 +5,11 @@ import {
 import { AlertTriangle, KeyRound, LogOut, Pencil, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useFormSubmit } from '@/api/errors'
+import { AppearanceSettings } from '@/components/layout/AppearanceSettings'
 import { Page } from '@/components/layout/Page'
 import { SettingRow, SettingsSection } from '@/components/layout/Settings'
+import { settingsSections, type SettingsSectionId } from '@/components/layout/settings-sections'
+import { WorkspaceNav } from '@/components/layout/WorkspaceNav'
 import { PageTitle } from '@/components/music/SectionHeader'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
@@ -31,6 +34,7 @@ const qualityOptions: SelectOption<StreamQuality>[] = [
 ]
 
 type SettingsViewProps = {
+  section: SettingsSectionId
   user: User
   /** Undefined while loading. */
   settings: UserSettings | undefined
@@ -57,7 +61,7 @@ type SettingsViewProps = {
 }
 
 export function SettingsView({
-  user, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange, scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect,
+  section, user, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange, scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect,
   appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout,
 }: SettingsViewProps) {
   const [dialog, setDialog] = useState<'app-password' | 'password' | 'rename' | 'listenbrainz' | null>(null)
@@ -65,10 +69,16 @@ export function SettingsView({
   const [disconnecting, setDisconnecting] = useState<ScrobbleService | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   return (
-    <Page className="flex max-w-3xl flex-col gap-9">
+    <Page className="mx-auto flex max-w-5xl flex-col gap-6">
       <PageTitle>Settings</PageTitle>
+      <WorkspaceNav
+        label="Settings sections"
+        groups={[{ links: settingsSections.map(({ id, label, icon }) => ({ to: `/settings/${id}`, label, icon, end: true })) }]}
+      />
 
-      <SettingsSection title="Playback">
+      {section === 'appearance' && <AppearanceSettings />}
+
+      {section === 'playback' && <SettingsSection title="Playback">
         {settings ? (
           <>
             <SettingRow htmlFor="normalization" label="Volume normalization" description="Evens out loudness between songs. Automatic uses album levels when you play an album in order.">
@@ -85,9 +95,9 @@ export function SettingsView({
         <SettingRow htmlFor="device-name" label="This browser’s name" description="How your other devices list it when you move playback.">
           <DeviceNameField key={deviceName} name={deviceName} placeholder={defaultDeviceName} onChange={onDeviceNameChange} />
         </SettingRow>
-      </SettingsSection>
+      </SettingsSection>}
 
-      <SettingsSection title="Scrobbling" description="Send what you listen to to other services. Songs count once you have heard half of them, or four minutes.">
+      {section === 'scrobbling' && <SettingsSection title="Scrobbling" description="Send what you listen to to other services. Songs count once you have heard half of them, or four minutes.">
         {scrobbling
           ? scrobbling.services.map(service => (
             <ScrobbleRow
@@ -99,9 +109,9 @@ export function SettingsView({
             />
           ))
           : <LoadingRows rows={2} />}
-      </SettingsSection>
+      </SettingsSection>}
 
-      <SettingsSection
+      {section === 'app-passwords' && <SettingsSection
         title="App passwords"
         description="For Subsonic apps, which need a password of their own. Revoke one to sign that app out."
         action={<Button size="sm" onClick={() => setDialog('app-password')}><Plus />Create</Button>}
@@ -117,9 +127,9 @@ export function SettingsView({
             <Button size="sm" variant="outline" onClick={() => setRevoking(password)}>Revoke</Button>
           </SettingRow>
         ))}
-      </SettingsSection>
+      </SettingsSection>}
 
-      <SettingsSection title="Account">
+      {section === 'account' && <SettingsSection title="Account">
         <SettingRow label={user.displayName ?? user.username} description={`@${user.username} · joined ${formatDate(user.createdAt)}`}>
           <Badge tone={user.role === 'admin' ? 'accent' : 'neutral'}>{user.role}</Badge>
           {onRename && <Button size="sm" variant="outline" onClick={() => setDialog('rename')}><Pencil />Edit name</Button>}
@@ -130,7 +140,7 @@ export function SettingsView({
         <SettingRow label="Sign out of this browser">
           <Button size="sm" variant="outline" onClick={onLogout}><LogOut />Log out</Button>
         </SettingRow>
-      </SettingsSection>
+      </SettingsSection>}
 
       <CreateAppPasswordDialog open={dialog === 'app-password'} onOpenChange={close} onCreate={onCreateAppPassword} />
       <ChangePasswordDialog open={dialog === 'password'} onOpenChange={close} onChange={onChangePassword} />

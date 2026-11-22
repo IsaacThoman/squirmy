@@ -136,10 +136,10 @@ function AddMusic() {
   }
 
   return (
-    <Page className="flex max-w-4xl flex-col gap-9">
+    <Page className="mx-auto flex max-w-5xl flex-col gap-8">
       <div>
         <PageTitle>Add music</PageTitle>
-        <p className="mt-1 max-w-xl text-[15px] text-muted">Upload albums from this computer. The server identifies them and files them into the library, and anything it cannot place waits for review.</p>
+        <p className="mt-1 max-w-xl text-[15px] text-muted">Upload albums, tracks or archives from this device. Squirmy files identified albums into your library.</p>
       </div>
 
       {committed && live.item.data ? (
@@ -188,7 +188,7 @@ export function ImportPage() {
   const cancelImport = useCancelImport()
   if (item.error) return isNotFound(item.error) || (item.error instanceof ApiError && item.error.code === 'invalid_request') ? <NotFoundPage /> : <Page><EmptyState icon={<UploadIcon />} title="This import did not load" description={item.error.message} className="pt-24" /></Page>
   return (
-    <Page className="flex max-w-4xl flex-col gap-6">
+    <Page className="mx-auto flex max-w-5xl flex-col gap-6">
       <div>
         <Link to="/imports" className="mb-2 inline-flex items-center gap-1 text-[13px] font-semibold text-muted hover:text-foreground"><ChevronLeft className="size-4" />Add music</Link>
         <PageTitle>Import</PageTitle>

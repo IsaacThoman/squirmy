@@ -172,7 +172,7 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 
 **Web**
 
-- Layout: sidebar, main view, bottom player bar, queue panel.
+- Layout: collapsible sidebar, music workspace, bottom player dock and queue panel. Personal settings include a browser-local theme and color mode.
 - Audio: `HTMLAudioElement`, the Media Session API, and Web Audio gain.
 - Admin: setup wizard, library roots, job status, review queue, organize preview, users and invites, providers.
 - Upload by dragging in a folder or zip.

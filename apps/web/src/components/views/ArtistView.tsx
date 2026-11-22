@@ -11,6 +11,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
 import { albumTypeLabel, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import { useOnDemand } from '@/player/on-demand-context'
 import { usePlayer } from '@/player/player-context'
@@ -32,6 +33,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
   const groups = typeOrder
     .map(type => ({ type, albums: artist.albums.filter(album => album.type === type) }))
     .filter(group => group.albums.length)
+  const about = Boolean(artist.bio) || artist.genres.length > 0
 
   return (
     <div>
@@ -39,7 +41,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
         {artist.image && <img aria-hidden alt="" src={artUrl(artist.image, 600)} className="absolute inset-0 -z-10 size-full scale-110 object-cover opacity-60 blur-xl saturate-125" />}
         <div aria-hidden className="absolute inset-0 -z-10 bg-linear-to-b from-[#100D1630] via-[#100D1660] to-[#100D16D8]" />
         <div className="flex flex-col items-center gap-5 text-center text-[#F5F2FF] md:flex-row md:items-end md:gap-7 md:text-left">
-          <div className="w-36 shrink-0 shadow-cover md:w-44">
+          <div className="w-36 shrink-0 rounded-full shadow-[0_24px_48px_-12px_rgb(0_0_0/0.55)] ring-4 ring-white/10 md:w-52">
             {artist.image ? <Cover artwork={artist.image} round size={600} alt={artist.name} /> : <Monogram name={artist.name} className="bg-white/15 text-white" />}
           </div>
           <div className="min-w-0">
@@ -67,11 +69,29 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
           </PlayActions>
         </div>
 
-        {artist.topTracks.length > 0 && (
-          <section>
-            <SectionHeader title="Top songs" />
-            <div className="-mx-2"><TrackList label="Top songs" tracks={artist.topTracks} variant="compact" header={false} {...actions} /></div>
-          </section>
+        {(artist.topTracks.length > 0 || about) && (
+          <div className={cn('grid items-start gap-6', artist.topTracks.length > 0 && about && 'xl:grid-cols-[minmax(0,1.65fr)_minmax(18rem,1fr)]')}>
+            {artist.topTracks.length > 0 && (
+              <section aria-label="Top songs" className="min-w-0 rounded-[22px] bg-surface/60 p-3 pt-2 shadow-[inset_0_0_0_1px_var(--stroke)] md:p-4 md:pt-3">
+                <SectionHeader title="Top songs" className="mb-1.5 px-1" />
+                <TrackList label="Top songs" tracks={artist.topTracks} variant="compact" header={false} {...actions} />
+              </section>
+            )}
+            {about && (
+              <section aria-label="About" className="min-w-0 max-w-3xl xl:pt-3">
+                <SectionHeader title="About" />
+                {artist.bio && <p className="text-[15px] leading-relaxed text-muted">{artist.bio}</p>}
+                {artist.bioUrl && (
+                  <a href={artist.bioUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">
+                    Read more<ExternalLink className="size-3.5" />
+                  </a>
+                )}
+                {artist.genres.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">{artist.genres.map(genre => <Badge key={genre} tone="outline" className="h-6 px-2.5 text-[12px] normal-case tracking-normal">{genre}</Badge>)}</div>
+                )}
+              </section>
+            )}
+          </div>
         )}
 
         {groups.map(group => (
@@ -90,21 +110,6 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
             </CardGrid>
           </section>
         ))}
-
-        {(artist.bio || artist.genres.length > 0) && (
-          <section className="max-w-3xl">
-            <SectionHeader title="About" />
-            {artist.bio && <p className="text-[15px] leading-relaxed text-muted">{artist.bio}</p>}
-            {artist.bioUrl && (
-              <a href={artist.bioUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">
-                Read more<ExternalLink className="size-3.5" />
-              </a>
-            )}
-            {artist.genres.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">{artist.genres.map(genre => <Badge key={genre} tone="outline" className="h-6 px-2.5 text-[12px] normal-case tracking-normal">{genre}</Badge>)}</div>
-            )}
-          </section>
-        )}
 
         {artist.similar.length > 0 && (
           <Rail title="Similar artists">

@@ -52,15 +52,15 @@ export type LibraryListProps<T> = {
 function LibraryPage({ count, controls, children }: { count?: string; controls?: ReactNode; children: ReactNode }) {
   return (
     <Page className="flex flex-col gap-5">
-      <PageTitle>Library</PageTitle>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav aria-label="Library sections" className="flex gap-2 overflow-x-auto [scrollbar-width:none]">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
+        <PageTitle>Library</PageTitle>
+        {count && <span className="pb-1.5 text-[13px] font-medium text-muted">{count}</span>}
+      </header>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface/60 p-1.5 shadow-[inset_0_0_0_1px_var(--stroke)]">
+        <nav aria-label="Library sections" className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
           {tabs.map(tab => <NavLink key={tab.to} to={tab.to} className={pillClass}>{tab.label}</NavLink>)}
         </nav>
-        <div className="flex flex-wrap items-center gap-3">
-          {count && <span className="text-[13px] font-medium text-quiet">{count}</span>}
-          {controls}
-        </div>
+        {controls && <div className="flex flex-wrap items-center gap-2">{controls}</div>}
       </div>
       <div className="mt-2">{children}</div>
     </Page>

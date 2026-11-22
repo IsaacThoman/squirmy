@@ -5,7 +5,7 @@ import {
 } from '@squirmy/contracts'
 import { notifyManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { useFolderListing } from '@/api/folders'
 import { useScrobbling, useUserSettings } from '@/api/queries'
@@ -13,6 +13,7 @@ import { useApi } from '@/api/services'
 import { useLogout } from '@/auth/actions'
 import { setSetupDone, setSignedInUser, useCurrentUser, useMe, useSetupStatus } from '@/auth/session'
 import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView } from '@/components/auth/AuthViews'
+import { isSettingsSection } from '@/components/layout/settings-sections'
 import { SettingsView } from '@/components/views/SettingsView'
 import { browserName, deviceName, webDevice } from '@/lib/device'
 import { toast } from '@/lib/toast'
@@ -63,7 +64,9 @@ export function SettingsPage() {
   const user = useCurrentUser()
   const logout = useLogout()
   const { controls } = usePlayer()
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
+  const { section } = useParams()
+  const navigate = useNavigate()
   const settings = useUserSettings().data
   const scrobbling = useScrobbling().data
   const update = useSettingsUpdate()
@@ -74,9 +77,9 @@ export function SettingsPage() {
     if (lastFmReturn === null) return
     const message = lastFmReturns[lastFmReturn] ?? lastFmReturns.error
     toast(message)
-    setParams({}, { replace: true })
-  }, [lastFmReturn, setParams])
-  const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords() })
+    void navigate('/settings/scrobbling', { replace: true })
+  }, [lastFmReturn, navigate])
+  const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords(), enabled: section === 'app-passwords' })
   const refreshPasswords = () => queryClient.invalidateQueries({ queryKey: appPasswordsKey })
   const createPassword = useMutation({ mutationFn: api.auth.createAppPassword, onSuccess: refreshPasswords, meta: { inline: true } })
   const revokePassword = useMutation({
@@ -97,8 +100,12 @@ export function SettingsPage() {
     onSuccess: updated => queryClient.setQueryData(queryKeys.me(), updated),
     meta: { inline: true },
   })
+  if (lastFmReturn !== null) return null
+  if (!isSettingsSection(section)) return <Navigate to="/settings/appearance" replace />
   return (
     <SettingsView
+      key={section}
+      section={section}
       user={user}
       settings={settings}
       onSettingsChange={patch => update.mutate(patch)}

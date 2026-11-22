@@ -1,49 +1,11 @@
 @import 'tailwindcss';
 
-/* The palette mirrors apps/mobile/src/theme.ts. Keep the two in step. */
-:root {
-  color-scheme: light;
-  --background: #ffffff;
-  --surface: #f0edf5;
-  --sheet: #f8f6fb;
-  --foreground: #211b2d;
-  --muted: #625a70;
-  --quiet: #6c627a;
-  --accent: #5b439e;
-  --on-accent: #ffffff;
-  --stroke: #30213b26;
-  --overlay: #30213b0d;
-  --selection: #5b439e17;
-  --grabber: #30213b75;
-  --dragged-row: #e9e0f6;
-  --floating: #f8f6fbe6;
-  --album-tint: 0.13;
-  --player-gradient: #fff9ffb8, #faf5fbe0 39%, #f8f4fc 85%, #f7f3fb;
-  --danger: #b4233c;
-  --shadow-color: 270deg 30% 20%;
-}
+@import './components/layout/palettes.css';
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --background: #111014;
-    --surface: #24212b;
-    --sheet: #201c29;
-    --foreground: #f5f2ff;
-    --muted: #a9a2b4;
-    --quiet: #938b9f;
-    --accent: #cbc1ff;
-    --on-accent: #19142b;
-    --stroke: #ffffff22;
-    --overlay: #ffffff0d;
-    --selection: #cbc1ff1f;
-    --grabber: #ffffff66;
-    --dragged-row: #332a49;
-    --floating: #282333d9;
-    --album-tint: 0.38;
-    --player-gradient: #11101b8a, #181322af 39%, #100e18 85%, #0e0c15;
-    --danger: #ff8fa0;
-    --shadow-color: 0deg 0% 0%;
+@custom-variant dark {
+  &:where([data-color-mode="dark"] *) { @slot; }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-color-mode="light"]) *) { @slot; }
   }
 }
 

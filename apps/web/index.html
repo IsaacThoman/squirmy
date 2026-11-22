@@ -4,10 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#111014" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <title>Squirmy</title>
+    <script>
+      try {
+        const theme = JSON.parse(localStorage.getItem('squirmy.appearance') || '{}')
+        if (typeof theme?.theme === 'string') document.documentElement.dataset.theme = theme.theme
+        if (theme?.mode === 'light' || theme?.mode === 'dark') document.documentElement.dataset.colorMode = theme.mode
+      } catch {
+        // The default follows the browser's color scheme.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
