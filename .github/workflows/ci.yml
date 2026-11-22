@@ -188,7 +188,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: main
+          # The commit this run tested. If main has moved on meanwhile, semantic-release sees
+          # the local commit is behind and publishes nothing; the newer push's run releases
+          # once its own checks pass.
+          ref: ${{ github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -204,10 +207,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          # main can advance while this run waits for the concurrency lock.
-          git pull --ff-only origin main
-          npm run release
+        run: npm run release
 
   publish:
     name: Publish image
