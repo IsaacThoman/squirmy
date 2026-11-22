@@ -36,15 +36,15 @@ features:
 
 ## A running server in a minute
 
-You need Docker with Compose, and Git to fetch the source (the image is built locally until releases are published).
+You need Docker with Compose. The image is published for amd64 and arm64, so all you download is the Compose file.
 
 ```sh
-git clone https://github.com/IsaacThoman/squirmy.git
-cd squirmy
-MUSIC_DIR=/path/to/your/music docker compose up -d --build
+mkdir squirmy && cd squirmy
+curl -fsSLO https://raw.githubusercontent.com/IsaacThoman/squirmy/main/compose.yaml
+MUSIC_DIR=/path/to/your/music docker compose up -d
 ```
 
-Open `http://localhost:4747`, create the admin account, and choose **Skip for now** at the folder step: your music folder is already added and scanning. The [quick start](/server/quick-start) explains every step, what the first scan does and how long identification takes.
+Open `http://localhost:4747`, create the admin account, and choose **Continue** at the folder step: your music folder is already listed there, added and scanning. The [quick start](/server/quick-start) explains every step, what the first scan does and how long identification takes.
 
 ## Where to go next
 

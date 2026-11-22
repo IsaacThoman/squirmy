@@ -106,7 +106,7 @@ Every call to a provider has a timeout, sends the shared secret, follows redirec
 
 The cold-storage provider is for music you own but keep off the server's library: an archive disk, a slow NAS, a bucket mounted as a folder. It indexes the tags of every audio file under one folder (read-only) and matches requests by MusicBrainz recording id, then ISRC, then artist, title and length. Delivery uploads the file as it is, unconverted.
 
-1. Add a service to your `compose.yaml`. The image is built from the repository:
+1. Add a service to the `compose.yaml` in a clone of the repository. The provider's image is not published, so Compose builds it from the source:
 
    ```yaml
    services:
@@ -122,7 +122,7 @@ The cold-storage provider is for music you own but keep off the server's library
          - /mnt/archive/music:/archive:ro
    ```
 
-2. Put a secret of at least 8 characters in `.env` as `COLD_STORAGE_SECRET=…`, and run `docker compose up -d --build`. The log (`docker compose logs cold-storage`) says how many files it indexed.
+2. Put a secret of at least 8 characters in `.env` as `COLD_STORAGE_SECRET=…`, and run `docker compose up -d --build cold-storage`, which builds and starts only the provider. The log (`docker compose logs cold-storage`) says how many files it indexed.
 3. Add it with base URL `http://cold-storage:4800` and the same secret, and set `deliveryBaseUrl` to `http://app:4747`, as in [Connecting a provider](#connecting-a-provider).
 4. Open an album that is in the archive but not in the library. Within a few seconds it shows "Plays on demand". Press play.
 

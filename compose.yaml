@@ -1,4 +1,6 @@
-# Squirmy with its database. Set MUSIC_DIR (in .env or the shell) and run `docker compose up -d --build`.
+# Squirmy with its database. Set MUSIC_DIR (in .env or the shell) and run `docker compose up -d`,
+# which pulls the released image. In a clone of the repository, `docker compose up -d --build`
+# builds the image from the source instead.
 # Then open http://localhost:4747 and create the admin account. Guide: docs/server/quick-start.md
 name: squirmy
 
