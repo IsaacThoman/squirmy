@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TrackSummary as Track } from '@squirmy/contracts';
+import { BrandMark } from './BrandMark';
 import TransportSlider from './player/TransportSlider';
 import { Cover, Icon } from './ui';
 import { createThemedStyles, useColors } from './theme';
@@ -13,6 +14,8 @@ export type SheetRowProps = {
   selected?: boolean; destructive?: boolean; onPress: () => void;
 };
 export type SheetInfoProps = { icon: string; title: string; subtitle: string };
+/** `mark` puts the mascot above the text, for the app's own version. */
+export type SheetNoteProps = { mark?: boolean; children: string };
 export type TrackSummaryProps = { track: Track | undefined; subtitle?: string };
 export type SheetSliderProps = { label: string; value: number; onChange: (value: number) => void };
 export type SheetFieldProps = {
@@ -84,9 +87,13 @@ export function SheetRow({ title, subtitle, icon, color, selected, destructive, 
 }
 
 /** Small print at the foot of a sheet, such as the app's version. */
-export function SheetNote({ children }: { children: string }) {
+export function SheetNote({ mark, children }: SheetNoteProps) {
   const styles = useStyles();
-  return <Text style={styles.note}>{children}</Text>;
+  if (!mark) return <Text style={styles.note}>{children}</Text>;
+  return <View style={styles.markedNote}>
+    <BrandMark size={44} />
+    <Text style={styles.note}>{children}</Text>
+  </View>;
 }
 
 /** A row that picks one of a few values; the choices open in an action sheet. */
@@ -180,6 +187,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   rowTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
   rowSubtitle: { color: colors.muted, fontSize: 13, fontWeight: '500' },
   note: { color: colors.muted, fontSize: 12, textAlign: 'center' },
+  markedNote: { alignItems: 'center', gap: 6 },
   slider: { gap: 4, paddingHorizontal: 4 },
   sliderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   field: { minHeight: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: colors.surface, color: colors.text, fontSize: 16 },

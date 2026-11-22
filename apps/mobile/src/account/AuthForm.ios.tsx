@@ -1,5 +1,5 @@
 import {
-  Button, Form, Host, HStack, ProgressView, Section, SecureField, Spacer, Text, TextField, VStack, useNativeState,
+  Button, Form, Host, HStack, ProgressView, RNHostView, Section, SecureField, Spacer, Text, TextField, VStack, useNativeState,
   type SecureFieldRef, type TextFieldRef,
 } from '@expo/ui/swift-ui';
 import {
@@ -9,7 +9,8 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useImperativeHandle, useRef, useState } from 'react';
-import { KeyboardAvoidingView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, StyleSheet, View } from 'react-native';
+import { BrandMark } from '../BrandMark';
 import { Symbol } from '../native/Controls';
 import { useColors } from '../theme';
 import { displayAddress, serverVersion } from './address';
@@ -18,6 +19,8 @@ import type {
 } from './AuthForm';
 
 export type { FieldHandle } from './AuthForm';
+
+const markSize = 84;
 
 const clearRow = [listRowBackground('clear'), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })];
 
@@ -29,7 +32,7 @@ const fieldModifiers: Record<FieldKind, ReturnType<typeof textContentType>[]> = 
   code: [textContentType('oneTimeCode'), submitLabel('next')],
 };
 
-export function AuthPage({ icon, title, message, children }: AuthPageProps) {
+export function AuthPage({ title, message, children }: AuthPageProps) {
   const colors = useColors();
   // The form is hosted in a React Native view, which is what has to make room for the keyboard.
   return <KeyboardAvoidingView behavior="padding" style={styles.page}>
@@ -37,7 +40,11 @@ export function AuthPage({ icon, title, message, children }: AuthPageProps) {
       <Form modifiers={[scrollDismissesKeyboard('interactively')]}>
         <Section modifiers={clearRow}>
           <VStack spacing={8} modifiers={[frame({ maxWidth: Infinity }), padding({ top: 28, bottom: 4 })]}>
-            <VStack modifiers={[padding({ bottom: 8 })]}><Symbol name={icon} size={46} color={colors.accent} /></VStack>
+            <VStack modifiers={[padding({ bottom: 4 })]}>
+              <RNHostView matchContents>
+                <View style={styles.mark}><BrandMark size={markSize} /></View>
+              </RNHostView>
+            </VStack>
             <Text modifiers={[font({ textStyle: 'title', weight: 'bold' }), multilineTextAlignment('center'),
               accessibilityAddTraits(['isHeader'])]}>{title}</Text>
             <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(colors.muted), multilineTextAlignment('center')]}>{message}</Text>
@@ -127,4 +134,5 @@ export function AuthServer({ server, onChange }: AuthServerProps) {
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
+  mark: { width: markSize, height: markSize },
 });
