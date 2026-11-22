@@ -12,6 +12,7 @@ import type {
   SheetActionProps, SheetFieldProps, SheetFrameProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps,
   TrackSummaryProps,
 } from './SheetUI';
+import { isAccessibilitySize } from './fontScale';
 import { useColors } from './theme';
 
 const sheetTop = 22;
@@ -107,15 +108,26 @@ export function SheetNote({ children }: { children: string }) {
  */
 export function SheetPickerRow<T extends string | number>({ label, value, options, onChange }: SheetPickerRowProps<T>) {
   const colors = useColors();
+  const { fontScale } = useWindowDimensions();
   const current = options.find(option => option.value === value)?.label ?? '';
+  // At accessibility sizes the label and the value do not fit side by side, so the value goes under the label.
+  const stacked = isAccessibilitySize(fontScale);
+  const choice = <HStack spacing={5}>
+    <Text modifiers={[foregroundStyle(colors.muted), ...(stacked ? [] : [lineLimit(1)])]}>{current}</Text>
+    <Symbol name="chevron.up.chevron.down" size={12} color={colors.muted} />
+  </HStack>;
   // The whole row opens the menu, as a native picker's does.
   return <Menu modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(`${label}, ${current}`)]}
-    label={<HStack spacing={5} modifiers={[frame({ maxWidth: Infinity, minHeight: 32 }), hitShape]}>
-      <Text modifiers={[foregroundStyle(colors.text)]}>{label}</Text>
-      <Spacer minLength={8} />
-      <Text modifiers={[foregroundStyle(colors.muted), lineLimit(1)]}>{current}</Text>
-      <Symbol name="chevron.up.chevron.down" size={12} color={colors.muted} />
-    </HStack>}>
+    label={stacked
+      ? <VStack alignment="leading" spacing={4} modifiers={[frame({ maxWidth: Infinity, minHeight: 44, alignment: 'leading' }), hitShape]}>
+        <Text modifiers={[foregroundStyle(colors.text)]}>{label}</Text>
+        {choice}
+      </VStack>
+      : <HStack spacing={5} modifiers={[frame({ maxWidth: Infinity, minHeight: 32 }), hitShape]}>
+        <Text modifiers={[foregroundStyle(colors.text)]}>{label}</Text>
+        <Spacer minLength={8} />
+        {choice}
+      </HStack>}>
     {options.map(option => <Button key={String(option.value)} label={option.label}
       systemImage={option.value === value ? 'checkmark' : undefined} onPress={() => onChange(option.value)} />)}
   </Menu>;
