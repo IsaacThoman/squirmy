@@ -10,9 +10,10 @@ export function usesNativeTabs(): boolean {
 /**
  * The glass tab bar and the mini-player above it, measured from the top of the home
  * indicator's inset to the top of the mini-player. Neither grows with Dynamic Type: the tab
- * bar shows large labels in a popover instead, and the accessory has a fixed height.
+ * bar shows large labels in a popover instead, and the accessory has a fixed height. On iPad
+ * the tab bar is at the top of the screen and only the mini-player is down here.
  */
-const nativeChromeHeight = 105;
+const nativeChromeHeight = Platform.OS === 'ios' && Platform.isPad ? 64 : 105;
 /** Room left between a page's last row and the top of the mini-player. */
 const clearance = 16;
 /** How far above the mini-player the soft edge under the bars begins. */
