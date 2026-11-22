@@ -6,7 +6,7 @@ import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, playlistItems, recordings, users, wants } from '../../database/schema.js'
+import { albums, assets, playlistItems, recordings, users, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { invalidate } from '../../realtime/index.js'
 import { body, errorCode, signIn } from '../../test/api.js'
@@ -229,6 +229,21 @@ describe('userdata', () => {
       const order = [0, 0, 1, 1, 2, 3, 4].map((index, position) => ({ trackId: made[index]!.album.tracks[position % 2]!.recordingId }))
       const detail = body(await add(mira, playlist.id, { tracks: order }), PlaylistDetail)
       expect(detail.artworks.map((art) => art.id)).toEqual(made.slice(0, 4).map((entry) => entry.cover.id))
+    })
+
+    it('leaves out covers the art route cannot serve, taking the next album instead', async () => {
+      const made: { album: Awaited<ReturnType<typeof createAlbum>>; cover: Awaited<ReturnType<typeof createAsset>> }[] = []
+      for (let index = 0; index < 3; index++) {
+        const album = await createAlbum({ tracks: [{ title: 'A' }] })
+        const cover = await createAsset()
+        await db.update(albums).set({ artworkAssetId: cover.id }).where(eq(albums.id, album.albumId))
+        made.push({ album, cover })
+      }
+      await db.update(assets).set({ status: 'missing' }).where(eq(assets.id, made[0]!.cover.id))
+      await db.update(assets).set({ status: 'failed', checkedAt: new Date() }).where(eq(assets.id, made[1]!.cover.id))
+      const playlist = await create(mira, { name: 'Broken covers' })
+      const detail = body(await add(mira, playlist.id, { tracks: made.map((entry) => ({ trackId: entry.album.tracks[0]!.recordingId })) }), PlaylistDetail)
+      expect(detail.artworks.map((art) => art.id)).toEqual([made[2]!.cover.id])
     })
 
     it('keeps positions dense under concurrent adds, moves and removals', async () => {

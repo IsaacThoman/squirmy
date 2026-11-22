@@ -24,7 +24,7 @@ type ArtworkColumns = { artworkId: string | null; artworkColor: string | null; a
  * failed download it will not try again yet answer 404, so handing out their ids only
  * gets a broken image requested on every render.
  */
-function servable(asset: string): SQL {
+export function servable(asset: string): SQL {
   return sql.raw(`${asset}.status <> 'missing' and not (${asset}.status = 'failed' and ${asset}.checked_at > now() - interval '${retryFailedAfterMs} milliseconds')`)
 }
 
