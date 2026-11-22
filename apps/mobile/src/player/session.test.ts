@@ -31,6 +31,15 @@ describe('deviceRows', () => {
     expect(deviceRows([], phone, null).map(row => row.id)).toEqual(['phone']);
   });
 
+  it('names a player the device list does not know yet instead of falling back to this device', () => {
+    const rows = deviceRows([phone], phone, 'new');
+    expect(rows.map(row => [row.id, row.name, row.subtitle, row.active])).toEqual([
+      ['phone', 'This iPhone', 'This device', false],
+      ['new', 'Another device', 'Playing', true],
+    ]);
+    expect(outputDevice(rows).id).toBe('new');
+  });
+
   it('names the active device as the output, or this one when nothing plays', () => {
     expect(outputDevice(deviceRows([web, phone], phone, 'web')).id).toBe('web');
     expect(outputDevice(deviceRows([web, phone], phone, null)).id).toBe('phone');
