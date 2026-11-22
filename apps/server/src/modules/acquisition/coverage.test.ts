@@ -4,7 +4,8 @@ import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { resetConfig } from '../../config.js'
 import { closeDb, db, getSql } from '../../database/client.js'
-import { acquisitionMisses, acquisitionOffers, acquisitionProviders } from '../../database/schema.js'
+import { acquisitionMisses, acquisitionOffers, acquisitionProviders, albums } from '../../database/schema.js'
+import { newId } from '../../lib/ids.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
@@ -12,7 +13,7 @@ import { createFile } from '../../test/catalog.js'
 import { albumAvailability, trackAvailability } from '../catalog/availability.js'
 import { acquisitionModule } from './index.js'
 import { onDemandRecordings } from './coverage.js'
-import { createProvider, invalidateProviders } from './providers.js'
+import { createProvider, invalidateProviders, testProvider, updateProvider } from './providers.js'
 import { configureResolve, flushResolves, MISS_TTL_MS, resetResolveQueue } from './resolve.js'
 
 /** Collects `invalidate` keys published on the realtime channel. */
@@ -50,6 +51,13 @@ describe('on-demand coverage', () => {
     await stopJobs()
     await mock.close()
   })
+
+  /** An album as a catalog search leaves it: no release, so no track list yet. */
+  const createStubAlbum = async () => {
+    const id = newId()
+    await db.insert(albums).values({ id, title: `Stub ${id}`, artistCredit: 'Someone', titleKey: 'stub', matchKey: `someone|stub ${id}`, type: 'album', detailLevel: 0 })
+    return id
+  }
 
   const provider = async (coverage: 'assume_available' | 'must_resolve', enabled = true) => {
     mock.settings.coverage = coverage
@@ -137,6 +145,28 @@ describe('on-demand coverage', () => {
     await onDemandRecordings(ids)
     await flushResolves()
     await drainJobs()
+    expect(mock.resolved).toEqual([])
+  })
+
+  it('takes the coverage an admin sets over the declared one, also after capabilities are asked again', async () => {
+    const declared = await provider('must_resolve')
+    const album = await createAlbum({ tracks: [{ title: 'Never Resolved' }] })
+    const stub = await createStubAlbum()
+    const id = album.tracks[0]!.recordingId
+    expect(await onDemandRecordings([id])).toEqual(new Set())
+    expect((await albumAvailability([stub])).get(stub)?.availability).toBe('none')
+    resetResolveQueue()
+
+    expect(await updateProvider(declared.id, { coverage: 'assume_available' })).toMatchObject({ coverage: 'assume_available' })
+    expect(await onDemandRecordings([id])).toEqual(new Set([id]))
+    // An album search found, with no track list yet, plays too.
+    expect((await albumAvailability([stub])).get(stub)).toEqual({ availability: 'on_demand', trackCount: 0, ownedTrackCount: 0 })
+
+    const refreshed = await testProvider(declared.id)
+    expect(refreshed).toMatchObject({ coverage: 'assume_available', capabilities: { coverage: 'must_resolve' }, lastError: null })
+    expect(await onDemandRecordings([id])).toEqual(new Set([id]))
+    const [row] = await db.select().from(acquisitionProviders).where(eq(acquisitionProviders.id, declared.id))
+    expect(row).toMatchObject({ coverage: 'must_resolve', coverageOverride: 'assume_available' })
     expect(mock.resolved).toEqual([])
   })
 

@@ -36,16 +36,13 @@ const acquireRateLimit = 120
 /**
  * What one job may receive in all: room for each requested track at the per-file limit with
  * a quarter to spare, and four files per track (audio, cover, lyrics, cue sheet) plus two.
- * Never more than the cache limit itself, when there is one. Past either the delivery is
- * refused with 413 and the job fails, so a provider cannot fill the disk through one job.
+ * Past either the delivery is refused with 413 and the job fails, so a provider cannot fill
+ * the disk through one job. The cache limit is not part of it: a delivery someone is
+ * waiting for is always taken, and the cache is brought back under its limit by eviction.
  */
-export function deliveryBudget(job: Pick<JobRow, 'recordingIds'>, policy: Pick<AcquisitionPolicy, 'maxFileBytes' | 'storageQuotaBytes'>) {
+export function deliveryBudget(job: Pick<JobRow, 'recordingIds'>, policy: Pick<AcquisitionPolicy, 'maxFileBytes'>) {
   const tracks = Math.max(1, job.recordingIds.length)
-  const bytes = Math.ceil(tracks * policy.maxFileBytes * 1.25)
-  return {
-    maxImportBytes: policy.storageQuotaBytes > 0 ? Math.min(bytes, policy.storageQuotaBytes) : bytes,
-    maxFiles: tracks * 4 + 2,
-  }
+  return { maxImportBytes: Math.ceil(tracks * policy.maxFileBytes * 1.25), maxFiles: tracks * 4 + 2 }
 }
 
 /** Jobs as the admin API shows them, newest first. */

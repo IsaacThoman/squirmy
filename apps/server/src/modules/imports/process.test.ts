@@ -459,4 +459,24 @@ describe('import processing', () => {
     // The scan it queued still brings the file into the library.
     expect(await db.select({ importId: mediaFiles.importId }).from(mediaFiles).where(and(eq(mediaFiles.rootId, root.id)))).toHaveLength(1)
   })
+
+  it('keeps an upload whose audio the server has only as a provider delivery', async () => {
+    const root = await managedRoot()
+    // A delivery, hashed, in the root's cache folder.
+    const tone = await makeTone(fixtures, { path: 'cached/again.flac', durationSec: 1, frequency: 523, tags: { title: 'Heard Before', artist: 'Cache Act' } })
+    await mkdir(path.join(root.path, '_Fetched'), { recursive: true })
+    await link(tone, path.join(root.path, '_Fetched', 'again.flac'))
+    await scanRoot({ rootId: root.id })
+    await drainJobs({ timeoutMs: 60_000 })
+    const [delivered] = await db.select().from(mediaFiles).where(eq(mediaFiles.rootId, root.id))
+    expect(delivered).toMatchObject({ source: 'provider:unknown', cached: true, probeStage: 2 })
+
+    const id = await receive([{ from: tone, to: 'mine.flac' }])
+    const done = await run(id)
+    // Cache may be evicted at any time; the owner's copy is never the one dropped for it.
+    expect(done.counts).toMatchObject({ audioFiles: 1, duplicatesSkipped: 0 })
+    const kept = await rowsOf(id)
+    expect(kept).toHaveLength(1)
+    expect(kept[0]).toMatchObject({ source: 'upload', cached: false, audioHash: delivered!.audioHash })
+  })
 })

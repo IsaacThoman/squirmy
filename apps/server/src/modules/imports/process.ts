@@ -358,7 +358,8 @@ async function scanQueued(rootId: string): Promise<boolean> {
  * library's own file (not part of an import still processing), the file of an older import
  * still processing, or a copy within this import with an earlier path. So the library's
  * file always wins, then the older import, then the first path, whatever order the hashes
- * arrived in.
+ * arrived in. A provider delivery (cache, which eviction may delete) never wins over an
+ * upload or an inbox file: the owner's own copy is kept beside it.
  *
  * The decision, its paths, the count and the rows' deletion commit together, and matching
  * starts on the import's files once it is recorded. Returns the paths whose files are to be
@@ -391,6 +392,7 @@ async function decideDuplicates(tx: Transaction, row: ImportRow, root: Root, sta
     sql`exists (
       select 1 from media_files other
       where other.audio_hash = ${mediaFiles.audioHash} and other.id <> ${mediaFiles.id} and other.missing_since is null
+        ${row.kind === 'acquisition' ? sql`` : sql`and not other.cached`}
         and case when other.import_id = ${row.id} then other.rel_path collate "C" < ${mediaFiles.relPath} collate "C"
           else other.import_id is null or other.import_id < ${row.id}
             or not exists (select 1 from imports i where i.id = other.import_id and i.status = 'processing') end

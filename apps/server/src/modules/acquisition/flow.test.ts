@@ -15,7 +15,7 @@ import { io as connect } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { acquisitionJobs, acquisitionMisses, imports, matchReviews, mediaFiles, recordings } from '../../database/schema.js'
+import { acquisitionJobs, acquisitionMisses, imports, libraryItems, matchReviews, mediaFiles, recordings } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
@@ -405,6 +405,30 @@ describe('acquisition end to end', () => {
     expect((await jobsFor(second))[0]).toMatchObject({ status: 'completed' })
   })
 
+  it('holds a delivery to what its job may receive: no empty audio, and no more files than the request needs', async () => {
+    const album = await createAlbum({ tracks: [{ title: 'Budgeted', durationMs: 3000 }] })
+    const wanted = album.tracks[0]!.recordingId
+    mock.settings.delayMs = 120_000
+    body(await acquire(fan, wanted), AcquireResponse, 202)
+    await eventually(async () => expect((await jobsFor(wanted))[0]?.status).toBe('queued'), 10_000)
+    const [job] = await jobsFor(wanted)
+    const { delivery } = mock.jobs.get(job!.id)!
+    const upload = async (name: string, content: string) => {
+      const form = new FormData()
+      form.append('relativePath', name)
+      form.append('file', new Blob([content]), name)
+      const response = await fetch(delivery.uploadUrl, { method: 'POST', headers: { authorization: `Bearer ${delivery.token}` }, body: form })
+      return { status: response.status, body: await response.json() as { files?: { status: string; reason: string | null }[]; error?: { code: string } } }
+    }
+
+    expect(await upload('Empty.flac', '')).toMatchObject({ status: 200, body: { files: [{ status: 'rejected', reason: 'empty_file' }] } })
+    // One track: its audio, a cover, lyrics and a cue sheet, and two more.
+    for (const index of [1, 2, 3, 4, 5, 6]) expect((await upload(`notes ${index}.lrc`, 'lyrics')).status).toBe(200)
+    expect(await upload('notes 7.lrc', 'lyrics')).toMatchObject({ status: 413, body: { error: { code: 'import_too_many_files' } } })
+    expect((await jobsFor(wanted))[0]).toMatchObject({ status: 'failed' })
+    expect((await jobsFor(wanted))[0]!.error).toMatch(/over the limit: An import may hold at most 6 files/)
+  })
+
   it('finishes jobs that were in flight when the server restarted, so no session waits forever', async () => {
     const album = await createAlbum({ tracks: [{ title: 'Interrupted', durationMs: 3000 }, { title: 'Stuck Resolving', durationMs: 3000 }, { title: 'Gone Quiet', durationMs: 3000 }] })
     const [interrupted, stuck, quiet] = album.tracks.map((track) => track.recordingId) as [string, string, string]
@@ -502,12 +526,16 @@ describe('acquisition end to end', () => {
       const wanted = album.tracks[0]!.recordingId
       const phone = await device(fan)
       play(phone, [wanted], album.albumId)
+      // The client shows its own entry first; the server's answer makes it preparing.
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
       await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }))
       await settle(wanted)
       expect(await jobsFor(wanted)).toMatchObject([{ status: 'completed', origin: 'play' }])
       expect(await db.select().from(acquisitionJobs).where(eq(acquisitionJobs.status, 'rejected'))).toEqual([])
       // Completing over the limit queued an eviction; the new file is too young to go.
       expect((await trackAvailability([wanted])).get(wanted)).toBe('server')
+      // Playing is not adding: the fetched track serves playback and is in nobody's library.
+      expect(await db.select().from(libraryItems)).toEqual([])
     } finally {
       await updateAcquisitionPolicy({ storageQuotaBytes: 0 })
     }
@@ -520,19 +548,20 @@ describe('acquisition end to end', () => {
       const album = await createAlbum({ title: 'Busy Signal', tracks: [{ title: 'Second Try', durationMs: 3000 }] })
       const wanted = album.tracks[0]!.recordingId
       const phone = await device(fan)
-      const states = new Set<string>()
+      const states: string[] = []
       const unsubscribe = phone.client.subscribe(() => {
         const current = phone.client.getSnapshot().session.current
-        if (current?.trackId === wanted) states.add(current.state)
+        if (current?.trackId === wanted && current.state !== states.at(-1)) states.push(current.state)
       })
       play(phone, [wanted], album.albumId)
-      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }), 30_000)
+      await eventually(() => expect(states).toContain('preparing'), 5000)
+      await eventually(() => expect(states.at(-1)).toBe('ready'), 30_000)
       unsubscribe()
       await settle(wanted)
       expect(mock.settings.busyTimes).toBe(0)
       expect(await jobsFor(wanted)).toMatchObject([{ status: 'completed', error: null }])
       expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, wanted))).toEqual([])
-      expect(states.has('failed')).toBe(false)
+      expect(states).not.toContain('failed')
     } finally {
       configureAcquisition({ slotWaitSeconds: 5 })
     }
@@ -582,20 +611,21 @@ describe('acquisition end to end', () => {
   })
 
   it('caps how many fetches a member may have running, but not an admin', async () => {
-    configureAcquisition({ memberJobLimit: 2 })
-    mock.settings.delayMs = 2000
+    // Two jobs at most: each import holds one of the test database's four connections.
+    configureAcquisition({ memberJobLimit: 1 })
+    mock.settings.delayMs = 1000
     try {
-      const album = await createAlbum({ title: 'Many At Once', tracks: ['One', 'Two', 'Three'].map((title) => ({ title, durationMs: 2000 })) })
-      const ids = album.tracks.map((track) => track.recordingId)
+      const album = await createAlbum({ title: 'Many At Once', tracks: ['One', 'Two'].map((title) => ({ title, durationMs: 2000 })) })
+      const [first, second] = album.tracks.map((track) => track.recordingId) as [string, string]
       const member = await signIn({ canAcquire: true })
-      body(await acquire(member, ids[0]!), AcquireResponse, 202)
-      body(await acquire(member, ids[1]!), AcquireResponse, 202)
-      expect(errorCode(await acquire(member, ids[2]!), 429)).toBe('acquire_limit_reached')
+      body(await acquire(member, first), AcquireResponse, 202)
+      expect(errorCode(await acquire(member, second), 429)).toBe('acquire_limit_reached')
       // Joining a job already running costs nothing.
-      expect(body(await acquire(member, ids[0]!), AcquireResponse, 202).items).toHaveLength(1)
+      expect(body(await acquire(member, first), AcquireResponse, 202).items).toHaveLength(1)
       const admin = await signIn({ role: 'admin' })
-      body(await acquire(admin, ids[2]!), AcquireResponse, 202)
-      for (const id of ids) await settle(id)
+      body(await acquire(admin, second), AcquireResponse, 202)
+      for (const id of [first, second]) await settle(id)
+      expect((await jobsFor(second))[0]).toMatchObject({ status: 'completed', requestedBy: admin.id })
     } finally {
       configureAcquisition({ memberJobLimit: 100 })
     }

@@ -127,6 +127,33 @@ describe('the provider cache', () => {
     expect(await present([justArrived.fileId, liked.fileId])).toEqual([])
   })
 
+  it('never deletes in a read-only root, and holds a saved album\'s tracks wherever their files sit', async () => {
+    const fan = await createUser()
+    const backupDir = await realpath(await mkdtemp(path.join(tmpdir(), 'squirmy-backup-')))
+    try {
+      const backup = await createLibraryRoot({ path: backupDir, mode: 'read_only' })
+      const old = await cached('In A Backup')
+      await db.update(mediaFiles).set({ rootId: backup.id }).where(eq(mediaFiles.id, old.fileId))
+      await mkdir(path.dirname(path.join(backupDir, old.relPath)), { recursive: true })
+      await writeFile(path.join(backupDir, old.relPath), 'audio')
+
+      // The saved album lists the song; its delivered file was placed on a single.
+      const saved = await createAlbum({ title: 'Saved Album', mbid: crypto.randomUUID(), tracks: [{ title: 'On The Single' }] })
+      await db.insert(libraryItems).values({ userId: fan.id, entityType: 'album', entityId: saved.albumId })
+      const single = await cached('On The Single')
+      await db.update(mediaFiles).set({ recordingId: saved.tracks[0]!.recordingId }).where(eq(mediaFiles.id, single.fileId))
+
+      const loose = await cached('Nobody Keeps This')
+      await updateAcquisitionPolicy({ storageQuotaBytes: 1 })
+      expect(await evictCache()).toEqual({ files: 1, bytes: MB })
+      expect(await present([old.fileId, single.fileId, loose.fileId])).toEqual(expect.arrayContaining([old.fileId, single.fileId]))
+      expect(await present([loose.fileId])).toEqual([])
+      expect(await access(path.join(backupDir, old.relPath)).then(() => true, () => false)).toBe(true)
+    } finally {
+      await rm(backupDir, { recursive: true, force: true })
+    }
+  })
+
   it('deletes what a delivery brought that was not asked for, and leaves everything else', async () => {
     const asked = await cached('Asked For', 0)
     const extra = await cached('Bonus Track', 0)
@@ -141,5 +168,27 @@ describe('the provider cache', () => {
     expect((await present([asked.fileId, extra.fileId, other.fileId])).sort()).toEqual([asked.fileId, other.fileId].sort())
     expect(await onDisk(extra.relPath)).toBe(false)
     expect(await discardUnrequested({ recordingIds: [asked.recordingId], importId })).toBe(0)
+  })
+
+  it('keeps an unrequested extra that is already in use, and drops one for a track the server has', async () => {
+    const fan = await createUser()
+    const asked = await cached('Track One', 0)
+    // The provider sent the next track too; it became playable and is now up next.
+    const queuedExtra = await cached('Track Two', 0)
+    await db.insert(playbackSessions).values({
+      userId: fan.id, state: { state: { current: null }, queue: { queue: [{ id: 'a', trackId: queuedExtra.recordingId, albumId: null, durationMs: 1, state: 'ready' }] } },
+    })
+    // And a file tagged as a track the server already has.
+    const owned = await createAlbum({ rootId, owned: true, mbid: crypto.randomUUID(), tracks: [{ title: 'Already Here' }] })
+    const planted = await cached('Planted', 0)
+    await db.update(mediaFiles).set({ recordingId: owned.tracks[0]!.recordingId }).where(eq(mediaFiles.id, planted.fileId))
+    await db.insert(likes).values({ userId: fan.id, entityType: 'recording', entityId: owned.tracks[0]!.recordingId })
+    const importId = newId()
+    await db.insert(imports).values({ id: importId, kind: 'acquisition', source: 'provider:test', status: 'completed', stagingPath: path.join(rootDir, 'staging'), targetRootId: rootId })
+    await db.update(mediaFiles).set({ importId }).where(inArray(mediaFiles.id, [asked.fileId, queuedExtra.fileId, planted.fileId]))
+
+    expect(await discardUnrequested({ recordingIds: [asked.recordingId], importId })).toBe(1)
+    expect((await present([asked.fileId, queuedExtra.fileId, planted.fileId])).sort()).toEqual([asked.fileId, queuedExtra.fileId].sort())
+    expect(await present([owned.tracks[0]!.fileId!])).toHaveLength(1)
   })
 })
