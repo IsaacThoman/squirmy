@@ -3,8 +3,8 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createMockProvider, type MockProvider, type MockTrack } from '@squirmy/adapter-mock'
-import { AcquireResponse, AlbumDetail, AlbumPage, ArtistDetail, MatchReviewList } from '@squirmy/contracts'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { AcquireResponse, AlbumDetail, ArtistDetail, MatchReviewList } from '@squirmy/contracts'
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
@@ -20,6 +20,7 @@ import { body, errorCode, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
 import { resolveOne } from '../catalog/redirects.js'
+import { albumSummaries } from '../catalog/summaries.js'
 import { importsModule } from '../imports/index.js'
 import { libraryModule } from '../library/index.js'
 import { insertRoot } from '../library/roots.js'
@@ -113,8 +114,16 @@ describe('acquired tracks and their album', () => {
     const job = (await jobsFor(recordingId)).at(-1)!
     return job
   }
-  const libraryAlbums = async (artistId: string) => body(await app.inject({ url: '/api/v1/library/albums?limit=200', headers: fan.headers }), AlbumPage)
-    .items.filter((album) => album.artists.some((artist) => artist.id === artistId))
+  /**
+   * The artist's albums that hold a present file, in title order. Deliveries are cache, so
+   * they are in nobody's library; this is where they show on artist pages and in search.
+   */
+  const libraryAlbums = async (artistId: string) => {
+    const held = await db.selectDistinct({ id: mediaFiles.albumId }).from(mediaFiles).where(and(isNull(mediaFiles.missingSince), isNotNull(mediaFiles.albumId)))
+    return (await albumSummaries(held.map((row) => row.id!)))
+      .filter((album) => album.artists.some((artist) => artist.id === artistId))
+      .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
+  }
   const albumPage = async (albumId: string) => body(await app.inject({ url: `/api/v1/albums/${albumId}`, headers: fan.headers }), AlbumDetail)
   const filesOf = (recordingId: string) => db.select().from(mediaFiles).where(and(eq(mediaFiles.recordingId, recordingId), isNull(mediaFiles.missingSince)))
   const albumsNamed = (title: string, artistName: string) => db.select().from(albums).where(and(eq(albums.matchKey, creditKey(artistName, title)), isNull(albums.mergedIntoId)))

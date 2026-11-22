@@ -2,8 +2,8 @@ import { createReadStream } from 'node:fs'
 import { access, mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { AlbumDetail, AlbumPage } from '@squirmy/contracts'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { AlbumDetail } from '@squirmy/contracts'
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
@@ -21,6 +21,7 @@ import { makeTone } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
 import { resolveOne } from '../catalog/redirects.js'
+import { albumSummaries } from '../catalog/summaries.js'
 import { addImportFile, commitImport, createImport, importsModule } from '../imports/index.js'
 import { libraryModule } from '../library/index.js'
 import { insertRoot } from '../library/roots.js'
@@ -152,8 +153,16 @@ describe('repairing deliveries left on albums of their own', () => {
 
   const fileRow = async (id: string) => (await db.select().from(mediaFiles).where(eq(mediaFiles.id, id)))[0]!
   const albumRow = async (id: string) => (await db.select().from(albums).where(eq(albums.id, id)))[0]
-  const libraryAlbums = async (artistId: string) => body(await app.inject({ url: '/api/v1/library/albums?limit=200', headers: fan.headers }), AlbumPage)
-    .items.filter((album) => album.artists.some((artist) => artist.id === artistId))
+  /**
+   * The artist's albums that hold a present file, in title order. Deliveries are cache, so
+   * they are in nobody's library; this is where they show on artist pages and in search.
+   */
+  const libraryAlbums = async (artistId: string) => {
+    const held = await db.selectDistinct({ id: mediaFiles.albumId }).from(mediaFiles).where(and(isNull(mediaFiles.missingSince), isNotNull(mediaFiles.albumId)))
+    return (await albumSummaries(held.map((row) => row.id!)))
+      .filter((album) => album.artists.some((artist) => artist.id === artistId))
+      .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
+  }
   const albumPage = async (albumId: string) => body(await app.inject({ url: `/api/v1/albums/${albumId}`, headers: fan.headers }), AlbumDetail)
   const exists = (relPath: string) => access(path.join(rootDir, relPath)).then(() => true, () => false)
 
