@@ -400,14 +400,17 @@ async function setRecordingState(recordingId: string, state: 'ready' | 'failed')
   })))
 }
 
-/** Closes open plays, writes every session and play and forgets them, and cancels device timers. */
+/**
+ * Writes every session and the plays still open, forgets them, and cancels device timers.
+ * An open play stays open in the stored session: after a restart it goes on as the same
+ * row, so a listen across the restart is one play.
+ */
 export async function stopSessions(): Promise<void> {
   for (const timer of graceTimers.values()) settings.timers.clear(timer)
   graceTimers.clear()
   await unloadAll(async record => {
     const { play } = record
     if (!play) return
-    record.play = null
     countUntil(play, record.session, settings.now())
     await savePlay(record.userId, play).catch(report)
   })

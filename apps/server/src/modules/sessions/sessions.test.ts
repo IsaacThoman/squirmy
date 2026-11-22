@@ -496,6 +496,24 @@ describe('sessions', () => {
     ]))
   })
 
+  it('keeps one play row for a listen that spans a restart', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0019')
+    await a.send(playAlbum(), 'span')
+    await a.state(1)
+    clock.advance(60_000)
+    await sessionsModule.stop!()
+    clock.advance(30_000)
+    // The device kept playing; its next report re-anchors the reloaded session.
+    expect(await a.send({ type: 'seek', positionMs: 90_000 })).toEqual({ ok: true, version: 2 })
+    clock.advance(30_000)
+    await a.send({ type: 'next' })
+    await a.state(3)
+    await sessionsModule.stop!()
+    expect(await db.select({ recordingId: plays.recordingId, msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id)))
+      .toEqual([{ recordingId: album.tracks[0]!.recordingId, msPlayed: 120_000 }])
+  })
+
   it('waits for the write of a play that closed just before shutdown', async () => {
     const clock = stoppedClock()
     const a = await device('device-a-0017')

@@ -1,5 +1,6 @@
 import { positionAt, type Session } from '@squirmy/client-core'
 import { queryKeys } from '@squirmy/contracts'
+import { z } from 'zod'
 import { db } from '../../database/client.js'
 import { plays } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
@@ -18,17 +19,24 @@ const SKIP_MS = 5000
 /** A play counts as completed after half the track or this much, whichever is less. */
 const COMPLETE_CAP_MS = 4 * 60_000
 
-export type OpenPlay = {
-  entryId: string
-  recordingId: string
-  albumId: string | null
-  deviceId: string | null
-  durationMs: number
-  startedAt: number
-  msPlayed: number
+/**
+ * A play still being listened to. It is stored with the session, so a listen that spans a
+ * restart stays one play; `id` is its row's id, so a write at shutdown and the final one
+ * after the restart are the same row.
+ */
+export const OpenPlay = z.object({
+  id: z.string(),
+  entryId: z.string(),
+  recordingId: z.string(),
+  albumId: z.string().nullable(),
+  deviceId: z.string().nullable(),
+  durationMs: z.number(),
+  startedAt: z.number(),
+  msPlayed: z.number(),
   /** Server time up to which `msPlayed` is counted. */
-  countedTo: number
-}
+  countedTo: z.number(),
+})
+export type OpenPlay = z.infer<typeof OpenPlay>
 
 type PlayStartListener = (userId: string, play: Readonly<OpenPlay>) => void
 const playStartListeners = new Set<PlayStartListener>()
@@ -73,6 +81,7 @@ export function followPlay(play: OpenPlay | null, previous: Session, next: Sessi
   if (!play && isRunning(next)) {
     const entry = next.current!
     play = {
+      id: newId(),
       entryId: entry.id,
       recordingId: entry.trackId,
       albumId: entry.albumId,
@@ -100,7 +109,8 @@ export function isCompleted(msPlayed: number, durationMs: number): boolean {
 }
 
 /**
- * Writes a closed play unless it was a skip, then refreshes the user's history screens.
+ * Writes a play (closed, or still open at shutdown) unless it is a skip so far, then
+ * refreshes the user's history screens.
  *
  * The play is filed under the recording and album the track resolves to now, not the ids
  * of its queue entry: an on-demand track queued from a catalog stub album lands on the
@@ -112,6 +122,7 @@ export async function savePlay(userId: string, play: OpenPlay): Promise<void> {
   const msPlayed = Math.round(play.msPlayed)
   const [track] = await alignedTrackSummaries(userId, [{ id: play.recordingId }])
   await insertPlay({
+    id: play.id,
     userId,
     recordingId: track?.id ?? play.recordingId,
     albumId: track ? track.album?.id ?? null : play.albumId,
@@ -123,7 +134,11 @@ export async function savePlay(userId: string, play: OpenPlay): Promise<void> {
   })
 }
 
-export async function insertPlay(values: Omit<typeof plays.$inferInsert, 'id'>): Promise<void> {
-  await db.insert(plays).values({ id: newId(), ...values })
+/** Inserts a play, or updates the row with the same `id` (a play written again after a restart). */
+export async function insertPlay({ id = newId(), ...values }: Omit<typeof plays.$inferInsert, 'id'> & { id?: string }): Promise<void> {
+  await db.insert(plays).values({ id, ...values }).onConflictDoUpdate({
+    target: plays.id,
+    set: { recordingId: values.recordingId, albumId: values.albumId, msPlayed: values.msPlayed, completed: values.completed },
+  })
   await invalidate({ user: values.userId }, [queryKeys.history(), queryKeys.home()])
 }

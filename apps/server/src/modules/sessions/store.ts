@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../database/client.js'
 import { playbackSessions } from '../../database/schema.js'
-import type { OpenPlay } from './plays.js'
+import { OpenPlay } from './plays.js'
 
 /**
  * In-memory sessions, one per user, loaded lazily and written back to
@@ -38,7 +38,7 @@ export type SessionRecord = {
   writing: Promise<void>
 }
 
-const StoredSession = z.object({ state: SessionState, queue: SessionQueue })
+const StoredSession = z.object({ state: SessionState, queue: SessionQueue, play: OpenPlay.nullish() })
 
 const records = new Map<string, SessionRecord>()
 const chains = new Map<string, Promise<unknown>>()
@@ -78,13 +78,15 @@ export async function loadRecord(userId: string, onLoad: (record: SessionRecord)
   if (loaded) return loaded
   const [row] = await db.select().from(playbackSessions).where(eq(playbackSessions.userId, userId))
   const stored = row ? StoredSession.safeParse(row.state) : null
+  const session = stored?.success ? joinSession(stored.data.state, stored.data.queue) : createInitialSession()
+  const play = stored?.success ? stored.data.play : null
   const record: SessionRecord = {
     userId,
-    session: stored?.success ? joinSession(stored.data.state, stored.data.queue) : createInitialSession(),
+    session,
     version: row?.version ?? 0,
     queueVersion: row?.queueVersion ?? 0,
     commandIds: new Set(),
-    play: null,
+    play: play && play.entryId === session.current?.id ? play : null,
     requested: new Set(),
     autoplayAskedFor: null,
     persistTimer: null,
@@ -118,7 +120,7 @@ export function schedulePersist(record: SessionRecord, onError: (error: unknown)
 /** Writes the session now, after any write already in flight. */
 export function persist(record: SessionRecord): Promise<void> {
   const { state, queue } = splitSession(record.session)
-  const values = { state: { state, queue }, version: record.version, queueVersion: record.queueVersion, updatedAt: new Date() }
+  const values = { state: { state, queue, play: record.play }, version: record.version, queueVersion: record.queueVersion, updatedAt: new Date() }
   record.writing = record.writing.catch(() => undefined).then(async () => {
     await db.insert(playbackSessions).values({ userId: record.userId, ...values })
       .onConflictDoUpdate({ target: playbackSessions.userId, set: values })
@@ -127,20 +129,21 @@ export function persist(record: SessionRecord): Promise<void> {
 }
 
 /**
- * Waits for queued tasks, writes every session with unsaved changes, and forgets them all.
+ * Waits for queued tasks, runs `beforeUnload`, writes every session with unsaved changes
+ * or an open play, and forgets them all.
  * The next use loads from the database again.
  */
 export async function unloadAll(beforeUnload: (record: SessionRecord) => Promise<void>): Promise<void> {
   await Promise.all(chains.values())
   for (const record of records.values()) {
-    if (record.persistTimer) {
-      clearTimeout(record.persistTimer)
-      record.persistTimer = null
-      await persist(record)
-    }
+    const unsaved = Boolean(record.persistTimer) || record.play !== null
+    if (record.persistTimer) clearTimeout(record.persistTimer)
+    record.persistTimer = null
+    await beforeUnload(record)
+    // The open play's count moved on in `beforeUnload`, so it is stored as it is now.
+    if (unsaved) await persist(record)
     // A failed scheduled write was already reported.
     await record.writing.catch(() => undefined)
-    await beforeUnload(record)
   }
   records.clear()
 }
