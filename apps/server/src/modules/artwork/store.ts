@@ -9,7 +9,7 @@ import { db } from '../../database/client.js'
 import { albums, assets } from '../../database/schema.js'
 import { AppError, notFound } from '../../lib/errors.js'
 import { newPublicId } from '../../lib/ids.js'
-import { fetchImage } from '../metadata/coverart.js'
+import { fetchImage, imageSourceEnabled } from '../metadata/index.js'
 
 export type Asset = typeof assets.$inferSelect
 
@@ -141,6 +141,8 @@ export async function ensureStored(assetId: string): Promise<StoredAsset> {
   if (asset.status === 'failed' && asset.checkedAt && Date.now() - asset.checkedAt.getTime() < retryFailedAfterMs) {
     throw notFound('The artwork could not be fetched')
   }
+  // Not marked failed: it downloads as soon as its source is switched back on.
+  if (!(await imageSourceEnabled(asset.remoteUrl))) throw notFound('The artwork comes from a source that is switched off')
   let pending = fetching.get(assetId)
   if (!pending) {
     pending = download(asset.id, asset.remoteUrl).finally(() => fetching.delete(assetId))

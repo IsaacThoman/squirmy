@@ -10,7 +10,7 @@ import { enqueueMany } from '../../jobs/index.js'
 import { matchKey } from '../../lib/text.js'
 import { assignAlbumArtwork, storeImage } from '../artwork/index.js'
 import { canonicalRelease } from '../catalog/availability.js'
-import { coverart, deezer, musicbrainz, wikidata } from '../metadata/index.js'
+import { coverart, deezer, fetchImage, musicbrainz, wikidata } from '../metadata/index.js'
 import type { DeezerAlbum } from '../metadata/deezer.js'
 import { linkDeezerAlbum } from './deezer-rows.js'
 import { albumDetailRun } from './detail.js'
@@ -119,7 +119,7 @@ async function ownedCover(albumId: string, sources: { releaseMbid: string | null
   for (const candidate of candidates) {
     if (best.side >= goodCoverPx) break
     const url = await candidate()
-    const image = url ? await coverart.fetchImage(url) : null
+    const image = url ? await fetchImage(url) : null
     const asset = url && image ? await storeImage(image.bytes, { kind: 'cover', source: url }).catch(() => null) : null
     if (asset && side(asset) > best.side) best = { id: asset.id, side: side(asset) }
   }

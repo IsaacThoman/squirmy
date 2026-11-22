@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { assets } from '../../database/schema.js'
+import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { remoteImage, storeImage } from './store.js'
 
@@ -104,5 +105,26 @@ describe('remote images', () => {
     const asset = await remoteImage(url, { kind: 'cover' })
     expect((await art(asset.id)).statusCode).toBe(404)
     expect((await row(asset.id)).status).toBe('failed')
+  })
+
+  // metadata-and-privacy.md: turning a service off stops requests to it.
+  it('downloads nothing from a source that has been turned off since the image was listed', async () => {
+    const deezerCover = 'https://cdn-images.dzcdn.net/images/cover/abc/500x500.jpg'
+    const caaCover = 'https://coverartarchive.org/release-group/1b022e01-4da6-387b-8658-8678046e4cef/front-500'
+    const wikimediaPhoto = 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Artist.jpg'
+    const fanartPhoto = 'https://assets.fanart.tv/fanart/music/x/artistthumb/a.jpg'
+    for (const url of [deezerCover, caaCover, wikimediaPhoto, fanartPhoto]) served[url] = await picture('#3366cc')
+    const listed = await Promise.all([deezerCover, caaCover, wikimediaPhoto, fanartPhoto].map((url) => remoteImage(url, { kind: 'cover' })))
+
+    // fanart.tv has no key in a fresh install, which is the same as off.
+    await updateServerSettings({ deezerEnabled: false, coverArtArchiveEnabled: false, wikidataEnabled: false })
+    for (const asset of listed) expect((await art(asset.id)).statusCode).toBe(404)
+    expect(fetches).toEqual([])
+    // Not a failed download: it is fetched as soon as the source is back on.
+    expect((await row(listed[0]!.id)).status).toBe('remote')
+
+    await updateServerSettings({ deezerEnabled: true, coverArtArchiveEnabled: true, wikidataEnabled: true })
+    expect((await art(listed[0]!.id)).statusCode).toBe(200)
+    expect(fetches).toEqual([deezerCover])
   })
 })

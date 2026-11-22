@@ -31,7 +31,7 @@ Responses are cached in the database (`http_cache`), so the same question is not
 | **MetaBrainz data** (`data.metabrainz.org`) | Only when an admin starts a **Search index** import | Nothing beyond the download request | Off | Do not start an import |
 | **Acquisition providers** (addresses you add) | Only after an admin adds one | Title, artist, length, album and ids of tracks being shown or requested | Off | See [Acquisition providers](./acquisition.md) |
 
-Turning a service off stops new requests to it. What it already provided (covers, ids, lyrics) stays.
+Turning a service off stops new requests to it, including downloads of covers and photos it listed earlier that nobody had opened yet; those show no image until the service is back on. What it already provided (downloaded covers, ids, lyrics) stays.
 
 To run a server that sends nothing about your library anywhere, turn off all five sources under **Metadata sources** and add no keys. Music then stays as its tags describe it ("From tags only"), with embedded and folder artwork, embedded and `.lrc` lyrics, and search over your own library.
 
