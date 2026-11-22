@@ -1,4 +1,4 @@
-import { ApiError, createApiClient } from '@squirmy/client-core';
+import { createApiClient } from '@squirmy/client-core';
 import { queryKeys } from '@squirmy/contracts';
 import { focusManager, QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,8 +14,6 @@ import { clientDevice, keychain, loadAccount, saveAccount } from './storage';
 
 export type Api = ReturnType<typeof createApiClient>;
 
-/** How long launch waits for the server to confirm the stored session before trusting it. */
-const restoreTimeoutMs = 3000;
 const requestTimeoutMs = 15_000;
 const unsavedNotice = `This ${Platform.OS === 'ios' ? 'iPhone' : 'phone'} couldn’t save your sign-in. You’ll need to sign in again next time.`;
 
@@ -41,31 +39,23 @@ function apiFor(server: Server, token: string | null, timeoutMs: number, onUnaut
 }
 
 /**
- * Reads the stored session and, when there is one, asks the server whether it still
- * holds. An unreachable server keeps the stored user so the app opens offline. The saved
- * library is loaded meanwhile, so the first screen shows it at once.
+ * Reads the stored session and the saved library, so the first screen shows them at once.
+ * The server is not asked here: the `me` query confirms the session in the background, and
+ * a 401 from it sends the app to sign-in. An unreachable server leaves the app open
+ * offline instead of holding the splash screen until a request times out.
  */
-async function restore(queryClient: QueryClient): Promise<{ event: AuthEvent; offline: boolean }> {
+async function restore(queryClient: QueryClient): Promise<AuthEvent> {
   const stored = await loadAccount();
-  if (!stored.server || !stored.token) return { event: { type: 'restored', ...stored }, offline: false };
-  if (stored.user) await restoreCache(queryClient, cacheBuster(stored.server.url, stored.user.id));
-  try {
-    const user = await apiFor(stored.server, stored.token, restoreTimeoutMs).auth.me();
-    return { event: { type: 'restored', ...stored, user }, offline: false };
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      return { event: { type: 'restored', server: stored.server, token: null, user: null, expired: true }, offline: false };
-    }
-    return { event: { type: 'restored', ...stored }, offline: true };
+  if (stored.server && stored.token && stored.user) {
+    await restoreCache(queryClient, cacheBuster(stored.server.url, stored.user.id));
   }
+  return { type: 'restored', ...stored };
 }
 
 type AccountContextValue = {
   state: AuthState;
   /** Talks to the chosen server, with the session's token once signed in. */
   api: Api | null;
-  /** Launch could not reach the server, so the app opened from what it had saved. */
-  startedOffline: boolean;
   connect: (server: Server) => void;
   signIn: (username: string, password: string) => Promise<void>;
   register: (inviteCode: string, username: string, password: string) => Promise<void>;
@@ -78,15 +68,11 @@ const AccountContext = createContext<AccountContextValue | null>(null);
 export function AccountProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const [state, dispatch] = useReducer(reduceAuth, { status: 'restoring' });
-  const [startedOffline, setStartedOffline] = useState(false);
   const server = state.status === 'signIn' || state.status === 'signedIn' ? state.server : null;
   const token = state.status === 'signedIn' ? state.token : null;
 
   useEffect(() => {
-    void restore(queryClient).then(({ event, offline }) => {
-      setStartedOffline(offline);
-      dispatch(event);
-    });
+    void restore(queryClient).then(dispatch);
   }, [queryClient]);
 
   // A keychain that refuses keeps the session for this launch only. Say so once, when signed in.
@@ -145,7 +131,6 @@ export function AccountProvider({ children }: PropsWithChildren) {
     return {
       state,
       api,
-      startedOffline,
       connect: next => dispatch({ type: 'connected', server: next }),
       signIn: async (username, password) => {
         const response = await api!.auth.login({ username: username.trim(), password, device: await clientDevice() });
@@ -163,7 +148,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
       signOut: () => leave({ type: 'signedOut' }),
       switchServer: () => leave({ type: 'switchServer' }),
     };
-  }, [api, buster, queryClient, startedOffline, state, token]);
+  }, [api, buster, queryClient, state, token]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

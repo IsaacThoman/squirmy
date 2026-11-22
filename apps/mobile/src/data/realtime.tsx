@@ -33,10 +33,10 @@ const RealtimeContext = createContext<Realtime>({ socket: null, offline: false, 
  * `invalidate` messages refresh the matching queries; every reconnect refreshes all of
  * them. The connection is renewed when the app returns from being suspended and when
  * the network changes, since iOS drops sockets silently in both cases. While it stays
- * down the app is offline: at once when launch could not reach the server.
+ * down the app is offline.
  */
 export function RealtimeProvider({ children }: PropsWithChildren) {
-  const { state, startedOffline } = useAccount();
+  const { state } = useAccount();
   const queryClient = useQueryClient();
   const serverUrl = state.status === 'signedIn' ? state.server.url : null;
   const token = state.status === 'signedIn' ? state.token : null;
@@ -104,7 +104,6 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       else if (changed) renew();
     });
 
-    setOffline(startedOffline);
     waitForConnection();
     next.connect();
     setSocket(next);
@@ -119,7 +118,6 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       next.disconnect();
       setSocket(null);
     };
-    // Launch's guess (`startedOffline`) only counts for the first connection.
   }, [listeners, queryClient, serverUrl, token]);
 
   const value = useMemo<Realtime>(() => ({
