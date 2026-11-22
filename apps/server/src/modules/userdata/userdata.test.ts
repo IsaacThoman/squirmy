@@ -82,6 +82,8 @@ describe('userdata', () => {
       expect(target).toEqual({ user: mira.id })
       expect(keys).toEqual(expect.arrayContaining([
         queryKeys.likes(), queryKeys.track(track), queryKeys.album(album.albumId), queryKeys.artist(album.artist.id), queryKeys.playlists(), queryKeys.history(),
+        // Songs lists and search results show the heart too.
+        queryKeys.libraryTracks(), queryKeys.search(),
       ]))
       invalidated.mockClear()
       await call(mira, { method: 'PUT', url: `/me/likes/album/${album.albumId}` })
