@@ -636,11 +636,23 @@ export class SessionClient {
     engine.load({
       entryId: entry.id,
       url: streamUrl(baseUrl, descriptor),
-      startMs: positionAt(session, this.serverNow()),
+      startMs: this.startPosition(session),
       autoplay: session.playing,
       gain: this.gain,
     })
     this.preloadNext()
+  }
+
+  /**
+   * Where a load starts: where the session clock is, except for an entry that has only just
+   * started. Its clock has run the few milliseconds the load took to begin, but an exact
+   * seek that short makes a streaming player drop its buffer (a preloaded one included)
+   * and fetch again, which costs a second or two of silence. Starting at 0 is inaudibly
+   * different, and the engine's first report puts the clock right.
+   */
+  private startPosition(session: Session): number {
+    const expected = positionAt(session, this.serverNow())
+    return session.positionMs === 0 && expected < this.driftThresholdMs ? 0 : expected
   }
 
   /** Preloads the entry `trackEnded` would start, so the engine can continue without a gap. */
@@ -669,7 +681,11 @@ export class SessionClient {
         this.hold(next.id, descriptor)
         engine.preload({ entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted) })
       },
-      () => {
+      error => {
+        // A refusal is the server's answer for this entry; asking again on every session
+        // change would get the same one. It stays the target, so only a new target or
+        // `forgetPlayback` asks again, and the entry's own load reports the refusal.
+        if (isRefusal(error)) return
         if (token === this.preloadToken && this.preloadTarget === next.id) this.preloadTarget = null
       },
     )
