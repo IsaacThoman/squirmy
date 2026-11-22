@@ -150,7 +150,8 @@ describe('sessions end to end', () => {
     const first = current(a)!
     expect(first).toMatchObject({ trackId: album.tracks[0]!.recordingId, durationMs: 200_000 })
     expect(b.client.getSnapshot()).toMatchObject({ isActiveDevice: false, session: { activeDeviceId: 'device-a-e2e1', playing: true } })
-    expect(b.client.getSnapshot().devices.find((item) => item.isActive)?.id).toBe('device-a-e2e1')
+    // Device lists reach the user's sockets separately from session updates, so `settled` does not cover them.
+    await eventually(() => expect(b.client.getSnapshot().devices.find((item) => item.isActive)?.id).toBe('device-a-e2e1'))
     await eventually(() => expect(engineState(a)).toEqual({ entryId: first.id, state: 'playing', positionMs: 0 }))
     expect(engineState(b).state).toBe('idle')
 
@@ -189,7 +190,7 @@ describe('sessions end to end', () => {
     await eventually(() => expect(engineState(a)).toEqual({ entryId: null, state: 'idle', positionMs: 0 }))
     await eventually(() => expect(engineState(b)).toEqual({ entryId: second, state: 'playing', positionMs: 15_000 }))
     expect(b.client.getSnapshot().isActiveDevice).toBe(true)
-    expect(a.client.getSnapshot().devices.find((item) => item.isActive)?.id).toBe('device-b-e2e1')
+    await eventually(() => expect(a.client.getSnapshot().devices.find((item) => item.isActive)?.id).toBe('device-b-e2e1'))
   })
 
   it('lets a device advance while offline and applies its commands when it returns', async () => {
