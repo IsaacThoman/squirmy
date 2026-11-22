@@ -1,12 +1,12 @@
 import { createMockProvider, type MockProvider } from '@squirmy/adapter-mock'
-import { queryKeys } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { resetConfig } from '../../config.js'
-import { closeDb, db, getSql } from '../../database/client.js'
+import { closeDb, db } from '../../database/client.js'
 import { acquisitionMisses, acquisitionOffers, acquisitionProviders, albums } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
+import { listenRealtime } from '../../test/realtime.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
 import { createFile } from '../../test/catalog.js'
@@ -15,16 +15,6 @@ import { acquisitionModule } from './index.js'
 import { onDemandRecordings } from './coverage.js'
 import { createProvider, invalidateProviders, testProvider, updateProvider } from './providers.js'
 import { configureResolve, flushResolves, MISS_TTL_MS, recordMisses, resetResolveQueue } from './resolve.js'
-
-/** Collects `invalidate` keys published on the realtime channel. */
-async function invalidations() {
-  const keys: unknown[][] = []
-  const listener = await getSql().listen('squirmy_events', (payload) => {
-    const message = JSON.parse(payload) as { kind: string; keys?: unknown[][] }
-    if (message.kind === 'invalidate') keys.push(...message.keys!)
-  })
-  return { keys, stop: () => listener.unlisten() }
-}
 
 describe('on-demand coverage', () => {
   useTestDatabase()
@@ -120,7 +110,7 @@ describe('on-demand coverage', () => {
     // Asked again before the answer: queued once only.
     expect(await onDemandRecordings(ids)).toEqual(new Set())
 
-    const events = await invalidations()
+    const events = await listenRealtime()
     await flushResolves()
     const queued = await db.execute<{ size: number }>(sql`
       select jsonb_array_length(data->'recordingIds') as size from pgboss.job where name = 'acquisition.resolve' order by size desc`)
@@ -136,9 +126,12 @@ describe('on-demand coverage', () => {
     expect(await onDemandRecordings(ids)).toEqual(new Set(odd))
     expect(await db.$count(acquisitionOffers, eq(acquisitionOffers.providerId, created.id))).toBe(125)
     expect(await db.$count(acquisitionMisses, eq(acquisitionMisses.providerId, created.id))).toBe(125)
-    expect(events.keys).toContainEqual([...queryKeys.track(odd[0]!)])
-    expect(events.keys).toContainEqual([...queryKeys.album(album.albumId)])
-    expect(events.keys).not.toContainEqual([...queryKeys.track(ids[1]!)])
+    // What lit up is patched where it shows; no list or search is fetched again for it.
+    expect(events.availability.get(odd[0]!)).toBe('on_demand')
+    // Half its songs are covered, so the album stays unavailable, and says so.
+    expect(events.availability.get(album.albumId)).toBe('none')
+    expect(events.availability.has(ids[1]!)).toBe(false)
+    expect(events.keys).toEqual([])
 
     // Answered recordings are not asked about again.
     mock.resolved.length = 0

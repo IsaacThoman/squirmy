@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { queryKeys } from '@squirmy/contracts'
+import { INCOMING_FOLDER, queryKeys } from '@squirmy/contracts'
 import { and, asc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import {
@@ -67,7 +67,12 @@ export async function ingestGroup({ rootId, groupKey }: IngestJob) {
   if (!outcome) return
 
   await attachFileExtras(root.path, outcome.albumId, outcome.files, outcome.recordings)
-  invalidateSoon([queryKeys.library(), queryKeys.home(), queryKeys.album(outcome.albumId), ...outcome.artistIds.map((id) => queryKeys.artist(id))])
+  // Files a provider delivered are in no library (acquisition announces the saves they
+  // reach). Files of an import are not known to be either until the import marks them, and
+  // a finished upload announces the lists itself.
+  const collection = outcome.files.some((file) => !file.cached && !file.relPath.startsWith(`${INCOMING_FOLDER}/`))
+  const lists = collection ? [queryKeys.library(), queryKeys.home()] : []
+  invalidateSoon([...lists, queryKeys.album(outcome.albumId), ...outcome.artistIds.map((id) => queryKeys.artist(id))])
   // Owned by the matching module, which keys the job by `<rootId>:<groupKey>`.
   await enqueue('matching.match-album', { rootId, groupKey }, { singletonKey: `${rootId}:${groupKey}` })
 }

@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net'
-import { queryKeys, type ClientToServerEvents, type ServerEvent, type ServerToClientEvents } from '@squirmy/contracts'
+import { queryKeys, type ClientToServerEvents, type EntityChange, type ServerEvent, type ServerToClientEvents } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect, type Socket } from 'socket.io-client'
@@ -9,7 +9,7 @@ import { db } from '../database/client.js'
 import { authSessions } from '../database/schema.js'
 import { hashToken } from '../lib/crypto.js'
 import { useTestDatabase } from '../test/database.js'
-import { disconnectSockets, invalidate, publish, startRealtime } from './index.js'
+import { changeKeys, disconnectSockets, invalidate, publish, publishChanges, startRealtime } from './index.js'
 import type { RealtimeSocket } from './types.js'
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>
@@ -145,6 +145,39 @@ describe('realtime', () => {
     await invalidate({ user: member.id }, keys)
     await all
     expect(received).toEqual(keys)
+  })
+
+  it('delivers changes to the target only, splitting large ones, and drops the cached reads they make stale', async () => {
+    const memberClient = await open({ token: member.token })
+    const adminClient = await open({ token: admin.token })
+    const toAdmin: EntityChange[] = []
+    adminClient.on('changes', (update) => toAdmin.push(...update.changes))
+    const id = (n: number) => `0190d3a6-0000-7000-8000-${String(n).padStart(12, '0')}`
+
+    const patched = next(memberClient, 'changes')
+    await publishChanges({ user: member.id }, [{ kind: 'patch', entity: 'track', id: id(1), fields: { liked: true } }])
+    expect(await patched).toEqual({ changes: [{ kind: 'patch', entity: 'track', id: id(1), fields: { liked: true } }] })
+
+    // Availability of a whole box set reaches everyone, cut to fit in notifications.
+    const tracks = Array.from({ length: 300 }, (_, index) => ({ id: id(index), availability: 'server' as const }))
+    const received: string[] = []
+    const all = new Promise<void>((resolve) => memberClient.on('changes', (update) => {
+      for (const change of update.changes) if (change.kind === 'availability') received.push(...change.tracks.map((track) => track.id))
+      if (received.length >= tracks.length) resolve()
+    }))
+    await publishChanges('all', [{ kind: 'availability', tracks, albums: [] }])
+    await all
+    expect(received).toEqual(tracks.map((track) => track.id))
+    // The admin never saw the member's patch.
+    expect(toAdmin.some((change) => change.kind === 'patch')).toBe(false)
+  })
+
+  it('names the cached reads a change makes stale', () => {
+    expect(changeKeys([{ kind: 'deleted', entity: 'playlist', ids: ['p1'] }])).toEqual([queryKeys.playlist('p1'), queryKeys.playlists()])
+    expect(changeKeys([{ kind: 'updated', entity: 'album', ids: ['a1'] }])).toEqual([queryKeys.album('a1')])
+    const availability = changeKeys([{ kind: 'availability', tracks: [], albums: [] }]).map((key) => key[0])
+    expect(availability).toEqual(expect.arrayContaining(['album', 'artist', 'library', 'home', 'playlists']))
+    expect(availability).not.toContain('search')
   })
 
   it('answers time:sync with the server clock', async () => {

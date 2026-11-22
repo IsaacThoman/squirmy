@@ -11,13 +11,14 @@
  *   `acquisition.resolve` jobs, and the screens showing them are invalidated when the
  *   answer arrives.
  */
-import { queryKeys, type ProviderOffer, type ProviderRecordingQuery } from '@squirmy/contracts'
+import { type ProviderOffer, type ProviderRecordingQuery } from '@squirmy/contracts'
 import { and, eq, gt, inArray, lt, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { acquisitionMisses, acquisitionOffers } from '../../database/schema.js'
 import { enqueue, enqueueMany } from '../../jobs/index.js'
-import { invalidate } from '../../realtime/index.js'
+import { publishChanges } from '../../realtime/index.js'
+import { albumAvailability, trackAvailability } from '../catalog/availability.js'
 import { uuidArray } from '../catalog/sql.js'
 import { busyWaitSeconds, ProviderCallError, resolveItems, type ProviderEndpoint } from './client.js'
 import { currentMisses, expireMisses, recordMisses } from './misses.js'
@@ -173,7 +174,7 @@ export async function runResolveJob({ providerId, recordingIds, attempt = 0 }: R
     return
   }
   const lit = [...answers].filter(([, offers]) => offers.length > 0).map(([id]) => id)
-  if (lit.length > 0) await invalidateRecordings(lit)
+  if (lit.length > 0) await announceAvailability(lit)
 }
 
 /**
@@ -261,12 +262,25 @@ export async function recordingQueries(ids: readonly string[], albumId: string |
   }]))
 }
 
-/** Tells clients to refetch the tracks, the albums they are on, and searches. */
-export async function invalidateRecordings(ids: readonly string[]) {
-  if (ids.length === 0) return
+/**
+ * Tells every client how available the recordings are now, and the albums they are on, so
+ * rows turn gray or playable where they are. Nothing is refetched: a delivery or a miss
+ * changes no list's members (cache is in no library), and searches are never run again
+ * for it, which used to send every open search to the providers once per track.
+ */
+export async function announceAvailability(ids: readonly string[]) {
+  const recordingIds = [...new Set(ids)]
+  if (recordingIds.length === 0) return
   const albums = await db.execute<{ id: string }>(sql`
-    select distinct rel.album_id as id from release_tracks rt join releases rel on rel.id = rt.release_id where rt.recording_id = any(${uuidArray(ids)})
+    select distinct rel.album_id as id from release_tracks rt join releases rel on rel.id = rt.release_id where rt.recording_id = any(${uuidArray(recordingIds)})
     union
-    select album_hint_id from recordings where id = any(${uuidArray(ids)}) and album_hint_id is not null`)
-  await invalidate('all', [...ids.map((id) => queryKeys.track(id)), ...albums.map((album) => queryKeys.album(album.id)), queryKeys.search()])
+    select album_id from media_files where recording_id = any(${uuidArray(recordingIds)}) and album_id is not null and missing_since is null
+    union
+    select album_hint_id from recordings where id = any(${uuidArray(recordingIds)}) and album_hint_id is not null`)
+  const [tracks, albumInfo] = await Promise.all([trackAvailability(recordingIds), albumAvailability(albums.map((album) => album.id))])
+  await publishChanges('all', [{
+    kind: 'availability',
+    tracks: [...tracks].map(([id, availability]) => ({ id, availability })),
+    albums: [...albumInfo].map(([id, info]) => ({ id, ...info })),
+  }])
 }

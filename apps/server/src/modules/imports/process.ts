@@ -126,7 +126,8 @@ async function advance(row: ImportRow, stats: Stats, work: ImportWork): Promise<
   }).where(and(eq(imports.id, row.id), eq(imports.status, 'processing'), eq(imports.step, row.step!))).returning()
   if (!updated) return null
   await announceImport(updated)
-  if (!step) await invalidate('all', [queryKeys.library(), queryKeys.home()])
+  // A provider's delivery is cache, in no library; placing it announces what it changed.
+  if (!step && updated.kind !== 'acquisition') await invalidate('all', [queryKeys.library(), queryKeys.home()])
   return updated
 }
 
@@ -508,7 +509,7 @@ export async function refileImport(importId: string, options: ProcessOptions = {
       .where(and(eq(imports.id, importId), eq(imports.status, 'completed'))).returning()
     if (!updated) return
     await announceImport(updated)
-    await invalidate('all', [queryKeys.library(), queryKeys.home()])
+    if (updated.kind !== 'acquisition') await invalidate('all', [queryKeys.library(), queryKeys.home()])
   })
 }
 

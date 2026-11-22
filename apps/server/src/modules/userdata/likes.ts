@@ -4,53 +4,18 @@
  * puts something in a user's library, beside the server's collection.
  */
 import {
-  queryKeys,
   type AlbumPage, type AlbumSummary, type ArtistPage, type ArtistSummary, type LikeEntityType, type Page, type PageQuery, type TrackPage, type TrackSummary,
 } from '@squirmy/contracts'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { likes, ratings } from '../../database/schema.js'
 import { badRequest } from '../../lib/errors.js'
-import { invalidate } from '../../realtime/index.js'
 import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pagination.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { albumSummaries, artistSummaries, trackSummaries } from '../catalog/summaries.js'
-import { entityKey, entityTable, resolveEntity, storedType } from './entities.js'
+import { announceUserChange } from './changes.js'
+import { entityTable, resolveEntity, storedType } from './entities.js'
 import { fetchMissingOf } from './library.js'
-
-/**
- * Everything that shows the heart or library membership the save changes, for the user's
- * other devices. Library lists and Home move for every type; a track's heart also shows on
- * its album and artist pages and in the playlists that hold it; an album's save puts its
- * tracks (wherever they are listed) and its artists in the library.
- */
-async function invalidateSave(userId: string, type: LikeEntityType, id: string) {
-  const keys: (readonly unknown[])[] = [queryKeys.likes(), queryKeys.home(), queryKeys.library(), queryKeys.search(), entityKey(type, id)]
-  if (type === 'track') {
-    const pages = await db.execute<{ kind: 'album' | 'artist'; id: string }>(sql`
-      select distinct 'album' as kind, rl.album_id as id from release_tracks rt join releases rl on rl.id = rt.release_id where rt.recording_id = ${id}
-      union
-      -- Album pages also list owned recordings filed under them that the release does not.
-      select 'album', album_id from media_files where recording_id = ${id} and album_id is not null
-      union
-      select 'artist', artist_id from recording_artists where recording_id = ${id}`)
-    // Only the playlists the user can open that hold the track: the playlists list shows
-    // no hearts, and refreshing it on every save refetched it for nothing.
-    const holding = await db.execute<{ id: string }>(sql`
-      select distinct p.id from playlist_items i join playlists p on p.id = i.playlist_id
-      where i.recording_id = ${id} and (p.owner_id = ${userId} or p.is_public)`)
-    keys.push(queryKeys.history(), queryKeys.wants(),
-      ...holding.map((playlist) => queryKeys.playlist(playlist.id)), ...pages.map((page) => entityKey(page.kind, page.id)))
-  } else if (type === 'album') {
-    // Every row of the album's tracks carries `inLibrary`, wherever it is listed.
-    const pages = await db.execute<{ kind: 'artist' | 'track'; id: string }>(sql`
-      select 'artist' as kind, artist_id as id from album_artists where album_id = ${id}
-      union select 'track', recording_id from media_files where album_id = ${id} and recording_id is not null
-      union select 'track', rt.recording_id from release_tracks rt join releases rl on rl.id = rt.release_id where rl.album_id = ${id}`)
-    keys.push(queryKeys.playlists(), queryKeys.history(), queryKeys.wants(), ...pages.map((page) => entityKey(page.kind, page.id)))
-  }
-  await invalidate({ user: userId }, keys)
-}
 
 /**
  * Saves an entity with the heart (idempotent): the one way into a user's library. Follows
@@ -66,7 +31,7 @@ export async function likeEntity(userId: string, type: LikeEntityType, id: strin
   const now = new Date()
   const savedAt = options.savedAt ? new Date(Math.min(new Date(options.savedAt).getTime(), now.getTime())) : now
   await db.insert(likes).values({ userId, entityType: storedType[type], entityId, createdAt: savedAt }).onConflictDoNothing()
-  await invalidateSave(userId, type, entityId)
+  await announceUserChange(userId, type, entityId)
   if (type !== 'artist') await fetchMissingOf(userId, type, entityId)
   return entityId
 }
@@ -82,7 +47,7 @@ export async function unlikeEntity(userId: string, type: LikeEntityType, id: str
   const removed = await db.delete(likes)
     .where(and(eq(likes.userId, userId), eq(likes.entityType, storedType[type]), inArray(likes.entityId, ids)))
     .returning({ createdAt: likes.createdAt })
-  await invalidateSave(userId, type, resolved ?? id)
+  await announceUserChange(userId, type, resolved ?? id)
   const times = removed.map((row) => row.createdAt.getTime())
   return times.length > 0 ? new Date(Math.min(...times)) : null
 }
