@@ -17,6 +17,14 @@ export const SearchQuery = z.object({
 export type SearchQuery = z.infer<typeof SearchQuery>
 
 /**
+ * Query of `GET /search/library`. `genre`: only albums with that genre (matched ignoring
+ * case), the tracks on them and the artists credited on them, so a search inside a genre of
+ * the Library stays inside it.
+ */
+export const LibrarySearchQuery = SearchQuery.extend({ genre: z.string().trim().min(1).optional() })
+export type LibrarySearchQuery = z.infer<typeof LibrarySearchQuery>
+
+/**
  * The single result a client can lead with, one of the items in `artists`, `albums` or
  * `tracks`. Chosen by how exactly its name matches the query (the whole name, or artist
  * and title together, also with edition suffixes such as "(Deluxe Edition)" or a leading
