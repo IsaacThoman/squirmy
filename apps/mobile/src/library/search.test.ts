@@ -49,6 +49,14 @@ describe('searchSections', () => {
     });
   });
 
+  it('does not lead with an album or song nobody can play', () => {
+    const library = results({ albums: [album('the-money-store')] });
+    expect(searchSections(library, results({ albums: [album('money-store', 'none')], top: { type: 'album', id: 'money-store' } })).top).toBeNull();
+    expect(searchSections(library, results({ tracks: [track('song', 'none')], top: { type: 'track', id: 'song' } })).top).toBeNull();
+    expect(searchSections(library, results({ albums: [album('fetchable', 'on_demand')], top: { type: 'album', id: 'fetchable' } })).top)
+      .toEqual({ group: 'catalog', type: 'album', album: album('fetchable', 'on_demand') });
+  });
+
   it('knows an empty group', () => {
     expect(isEmptyGroup({ artists: [], albums: [], tracks: [] })).toBe(true);
     expect(isEmptyGroup({ artists: [], albums: [], tracks: [track('a')] })).toBe(false);

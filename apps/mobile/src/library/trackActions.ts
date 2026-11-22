@@ -1,6 +1,6 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { useRouter, type Href } from 'expo-router';
-import { useSignedInApi } from '../account/AccountProvider';
+import { useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
 import { closeSheet } from '../closeSheet';
 import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
 import { useRealtime } from '../data/realtime';
@@ -28,8 +28,9 @@ export type TrackActionOptions = {
 };
 
 /**
- * What can be done with `track`, in menu order. Gray tracks can only be liked, wanted and
- * opened. Offline, what needs the server is left out, and likes wait for it.
+ * What can be done with `track`, in menu order. Gray tracks can only be liked, wanted (when
+ * the server has the wantlist on) and opened. Offline, what needs the server is left out,
+ * and likes wait for it.
  */
 export function useTrackActions(track: TrackSummary | undefined, { playlist }: TrackActionOptions = {}): TrackAction[] {
   const api = useSignedInApi();
@@ -38,6 +39,7 @@ export function useTrackActions(track: TrackSummary | undefined, { playlist }: T
   const { session, actions } = usePlaybackState();
   const liked = useLiked('track', track?.id, track?.liked);
   const { setLiked, want } = useLibraryActions();
+  const wantlist = useWantlistEnabled();
   const playlists = usePlaylistActions();
   const { offline } = useRealtime();
   const playable = useCanPlay(track);
@@ -70,7 +72,7 @@ export function useTrackActions(track: TrackSummary | undefined, { playlist }: T
       api?.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
     } },
     // Gray tracks, including on-demand ones this user may not have fetched.
-    !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star', run: () => want('track', track.id, track.title) },
+    wantlist && !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star', run: () => want('track', track.id, track.title) },
     Boolean(track.album) && { id: 'album', title: 'Go to album', icon: 'square.stack', href: link('album', track.album!.id) },
     Boolean(track.artists[0]) && { id: 'artist', title: 'Go to artist', icon: 'music.mic', href: link('artist', track.artists[0]!.id) },
     playlist !== undefined && online && { id: 'remove', title: 'Remove from playlist', icon: 'minus.circle', destructive: true,

@@ -285,6 +285,8 @@ export interface ServerToClientEvents {
  */
 export const queryKeys = {
   me: () => ['me'] as const,
+  /** `GET /setup/status`. Clients may add the server's URL after it. */
+  setupStatus: () => ['setup-status'] as const,
   home: () => ['home'] as const,
   libraryAlbums: () => ['library', 'albums'] as const,
   libraryArtists: () => ['library', 'artists'] as const,

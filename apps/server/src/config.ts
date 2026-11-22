@@ -33,6 +33,8 @@ const Env = z.object({
   FPCALC_PATH: z.string().default('fpcalc'),
   /** Set by release builds; otherwise the version is dev, with the git commit when there is one. */
   SQUIRMY_VERSION: z.string().optional(),
+  /** The commit an image was built from (build argument, or set at run time by Coolify). Without SQUIRMY_VERSION the version is dev+<its first 7 characters>. */
+  SOURCE_COMMIT: z.string().optional(),
 })
 
 export type Config = z.infer<typeof Env>

@@ -1,6 +1,7 @@
 import type { HomeResponse, HomeSection } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
+import { getServerSettings } from '../../lib/settings.js'
 import { newReleaseAlbumIds } from '../enrichment/releases.js'
 import { listLikes } from '../userdata/likes.js'
 import { listPlaylists } from '../userdata/playlists.js'
@@ -20,11 +21,12 @@ const RECENT_PLAYS = 500
  * - `most-played`: the user's most played tracks over the last 90 days.
  * - `playlists`: the user's own playlists, recently updated first.
  * - `liked-albums`: albums the user liked, newest first.
- * - `wantlist`: albums on the user's wantlist, newest first.
+ * - `wantlist`: albums on the user's wantlist, newest first. Only while the wantlist is on.
  * - `new-releases`: recent albums by library artists that the library lacks, newest first.
  */
 export async function home(userId: string): Promise<HomeResponse> {
-  await refreshWants(userId)
+  const { wantlistEnabled } = await getServerSettings()
+  if (wantlistEnabled) await refreshWants(userId)
   const [recentlyAdded, recentlyPlayed, mostPlayed, playlists, liked, wanted, newReleases] = await Promise.all([
     listLibraryAlbums({ sort: 'recent', limit: RAIL }),
     db.execute<{ id: string }>(sql`
@@ -39,7 +41,7 @@ export async function home(userId: string): Promise<HomeResponse> {
       group by recording_id order by count(*) desc, max(started_at) desc limit ${RAIL}`).then((rows) => trackSummaries(userId, rows)),
     listPlaylists(userId, { limit: RAIL }, { ownOnly: true }),
     listLikes(userId, 'album', { limit: RAIL }),
-    wantedAlbumIds(userId, RAIL).then(albumSummaries),
+    wantlistEnabled ? wantedAlbumIds(userId, RAIL).then(albumSummaries) : [],
     newReleaseAlbumIds(RAIL).then(albumSummaries),
   ])
   const sections: HomeSection[] = [
