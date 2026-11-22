@@ -3,7 +3,7 @@ import {
   type AcquisitionJob, type AcquisitionPolicy, type AcquisitionProvider, type AcquisitionUsage, type LibraryRoot,
 } from '@squirmy/contracts'
 import { CircleAlert, CircleCheck, CircleSlash, HardDrive, History, MoreHorizontal, Pencil, PlugZap, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { z } from 'zod'
 import { useFormSubmit } from '@/api/errors'
@@ -41,6 +41,8 @@ type ProvidersAdminProps = {
   /** Asks the provider again for every track it could not supply ("Retry unavailable tracks"). */
   onClearMisses: (providerId: string) => Promise<unknown>
   onSavePolicy: SavePatch<UpdateAcquisitionPolicy>
+  /** Said in place of each part whose first read failed; the parts that loaded stay usable. */
+  failures?: Partial<Record<'providers' | 'policy' | 'usage' | 'jobs', ReactNode>>
 }
 
 type ProviderDialog = { kind: 'add' } | { kind: 'edit' | 'delete'; provider: AcquisitionProvider }
@@ -48,7 +50,7 @@ type ProviderDialog = { kind: 'add' } | { kind: 'edit' | 'delete'; provider: Acq
 const coverageLabels = { assume_available: 'Offers everything', must_resolve: 'Checks each track' } as const
 
 /** Acquisition providers: the services that can supply missing music, how they are used, and what they were asked for. */
-export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, jobStatus, onJobStatusChange, onCreate, onUpdate, onDelete, onTest, onClearMisses, onSavePolicy }: ProvidersAdminProps) {
+export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, jobStatus, onJobStatusChange, onCreate, onUpdate, onDelete, onTest, onClearMisses, onSavePolicy, failures }: ProvidersAdminProps) {
   const [dialog, setDialog] = useState<ProviderDialog | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   return (
@@ -62,7 +64,7 @@ export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, j
 
       <div className="flex flex-col gap-7">
         <section aria-label="Providers">
-          {!providers && <Skeleton className="h-24 rounded-xl" />}
+          {!providers && (failures?.providers ?? <Skeleton className="h-24 rounded-xl" />)}
           {providers?.length === 0 && (
             <EmptyState
               className={cn(cardClass, 'py-10')}
@@ -89,9 +91,9 @@ export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, j
           )}
         </section>
 
-        <CacheUsage usage={usage} />
-        <PolicySettings policy={policy} managedRoots={managedRoots} onSave={onSavePolicy} />
-        <JobsList jobs={jobs} status={jobStatus} onStatusChange={onJobStatusChange} />
+        <CacheUsage usage={usage} failure={failures?.usage} />
+        <PolicySettings policy={policy} managedRoots={managedRoots} onSave={onSavePolicy} failure={failures?.policy} />
+        <JobsList jobs={jobs} status={jobStatus} onStatusChange={onJobStatusChange} failure={failures?.jobs} />
       </div>
 
       <ProviderFormDialog open={dialog?.kind === 'add'} onOpenChange={close} onAdd={onCreate} />
@@ -291,8 +293,8 @@ function ProviderFormDialog({ open, provider, onOpenChange, onAdd, onSave }: Pro
  * pinned (saved, liked, in a playlist or a queue, or played in the last day) and so never
  * evicted, and the limit eviction works to.
  */
-function CacheUsage({ usage }: { usage: AcquisitionUsage | undefined }) {
-  if (!usage) return <Skeleton className="h-32 rounded-xl" />
+function CacheUsage({ usage, failure }: { usage: AcquisitionUsage | undefined; failure?: ReactNode }) {
+  if (!usage) return failure ? <Panel title="Cache">{failure}</Panel> : <Skeleton className="h-32 rounded-xl" />
   const { cachedFiles, cachedBytes, pinnedBytes, limitBytes } = usage
   const evictable = Math.max(cachedBytes - pinnedBytes, 0)
   return (
@@ -329,8 +331,8 @@ function CacheUsage({ usage }: { usage: AcquisitionUsage | undefined }) {
 const SAME_AS_IMPORTS = 'imports'
 const MINUTE = 60
 
-function PolicySettings({ policy, managedRoots, onSave }: { policy: AcquisitionPolicy | undefined; managedRoots: LibraryRoot[] | undefined; onSave: SavePatch<UpdateAcquisitionPolicy> }) {
-  if (!policy) return <Skeleton className="h-80 rounded-xl" />
+function PolicySettings({ policy, managedRoots, onSave, failure }: { policy: AcquisitionPolicy | undefined; managedRoots: LibraryRoot[] | undefined; onSave: SavePatch<UpdateAcquisitionPolicy>; failure?: ReactNode }) {
+  if (!policy) return failure ? <Section title="Policy">{failure}</Section> : <Skeleton className="h-80 rounded-xl" />
   const roots = managedRoots ?? []
   const draft = { schema: UpdateAcquisitionPolicy, onSave }
   return (
@@ -383,7 +385,7 @@ const jobStatusLabels: Record<AcquisitionJobStatus, string> = {
 const runningStatuses = new Set<AcquisitionJobStatus>(['resolving', 'queued', 'downloading', 'importing'])
 const ALL = 'all'
 
-function JobsList({ jobs, status, onStatusChange }: { jobs: AcquisitionJob[] | undefined; status: AcquisitionJobStatus | null; onStatusChange: (status: AcquisitionJobStatus | null) => void }) {
+function JobsList({ jobs, status, onStatusChange, failure }: { jobs: AcquisitionJob[] | undefined; status: AcquisitionJobStatus | null; onStatusChange: (status: AcquisitionJobStatus | null) => void; failure?: ReactNode }) {
   return (
     <Panel
       title="Requests"
@@ -399,7 +401,7 @@ function JobsList({ jobs, status, onStatusChange }: { jobs: AcquisitionJob[] | u
         />
       )}
     >
-      {!jobs && <Skeleton className="h-24 rounded-xl" />}
+      {!jobs && (failure ?? <Skeleton className="h-24 rounded-xl" />)}
       {jobs?.length === 0 && <EmptyState icon={<History />} title={status ? `Nothing ${jobStatusLabels[status].toLowerCase()}` : 'No requests yet'} description="Requests appear here as soon as someone plays or asks for music the server does not have." className={cn(cardClass, 'py-10')} />}
       {jobs && jobs.length > 0 && (
         <ul aria-label="Requests" className={cn(cardClass, 'divide-y')}>

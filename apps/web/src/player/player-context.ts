@@ -34,11 +34,20 @@ export type PlayerState = {
   /** The active device while it is gone and the session waits for it to come back; see `SessionClientSnapshot.away`. */
   away: AwayDevice | null
   lyrics: Lyrics | null
+  /**
+   * Where the current track's lyrics are: `none` when it has none, else on their way, failed or
+   * there. Left out by fixtures, which then read as `ready` with lyrics and `none` without.
+   */
+  lyricsStatus?: LyricsStatus
+  /** Asks for the lyrics again after they failed. */
+  retryLyrics?: () => void
   /** This tab plays on its own: everything above is its own session, not the one the user's other devices share. */
   detached: boolean
   /** `detach` can work: this tab plays and the server supports it. */
   canDetach: boolean
 }
+
+export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'
 
 export type PlayOptions = { shuffle?: boolean }
 export type RadioSeed = { type: 'track' | 'artist'; id: string }

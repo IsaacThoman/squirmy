@@ -48,7 +48,8 @@ describe('pages', () => {
     renderWithApp(<AppRoutes />, route)
     // The dev pages are the largest lazy chunks, and under a full parallel run their first import can take a while.
     const wait = route.startsWith('/dev/') ? { timeout: LAZY_DEV_PAGE_MS } : undefined
-    expect(await screen.findByRole('heading', { level: heading === 'Nothing here' ? 3 : 1, name: heading }, wait)).toBeInTheDocument()
+    // "Nothing here" is the whole page, so it is the page's level 1 heading too.
+    expect(await screen.findByRole('heading', { level: 1, name: heading }, wait)).toBeInTheDocument()
   }, LAZY_DEV_PAGE_MS + 2000)
 
   it('/wantlist goes home while the server has the wantlist off', async () => {
@@ -78,7 +79,7 @@ describe('pages', () => {
   it.each(['/artist/not-a-uuid', '/album/01a2048d-b138', '/playlist/after-dark'])('%s, an id cut short, is “Nothing here” without asking the server', async route => {
     const { services, api } = fakeServices()
     renderWithApp(<AppRoutes />, route, services)
-    expect(await screen.findByRole('heading', { level: 3, name: 'Nothing here' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Nothing here' })).toBeInTheDocument()
     expect(screen.queryByText('This page did not load')).toBeNull()
     expect(api.catalog.artist).not.toHaveBeenCalled()
     expect(api.catalog.album).not.toHaveBeenCalled()

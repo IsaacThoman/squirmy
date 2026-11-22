@@ -38,10 +38,17 @@ const revealed = 'translate-y-1 opacity-0 focus-visible:translate-y-0 focus-visi
 /** The ⋯ button: shown while the card is hovered, it or the menu has focus, or the menu is open; always on touch screens. */
 const menuRevealed = 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/card:opacity-100 md:pointer-fine:focus-visible:opacity-100 md:pointer-fine:data-[state=open]:opacity-100'
 
+/**
+ * A finger cannot hover, so a revealed button would be an invisible target over the artwork, and
+ * a tap there would play instead of open. Touch screens leave it out: the art opens the page,
+ * which has its own Play.
+ */
+const hoverOnly = 'hidden pointer-fine:flex'
+
 /** The round play button over a card's artwork, and over a row's in the list layout. */
 function PlayButton({ title, onPlay, className }: { title: string; onPlay: () => void; className?: string }) {
   return (
-    <button type="button" aria-label={`Play ${title}`} onClick={onPlay} className={cn(overArt, revealed, 'bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95', className)}>
+    <button type="button" aria-label={`Play ${title}`} onClick={onPlay} className={cn(overArt, revealed, hoverOnly, 'bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95', className)}>
       <Play className="size-4 translate-x-px" fill="currentColor" />
     </button>
   )
@@ -77,7 +84,7 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, round, prefetch,
               aria-label={want.wanted ? `Remove ${title} from Wantlist` : `Add ${title} to Wantlist`}
               aria-pressed={want.wanted}
               onClick={() => want.onChange(!want.wanted)}
-              className={cn(overArt, 'border bg-popover shadow-md hover:bg-accent', want.wanted ? 'text-primary' : cn(revealed, 'text-popover-foreground'))}
+              className={cn(overArt, 'border bg-popover shadow-md hover:bg-accent', want.wanted ? 'text-primary' : cn(revealed, hoverOnly, 'text-popover-foreground'))}
             >
               {want.wanted ? <BookmarkCheck className="size-4" /> : <BookmarkPlus className="size-4" />}
             </button>

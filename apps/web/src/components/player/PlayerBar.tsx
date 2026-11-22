@@ -62,7 +62,8 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                     : <ArtistLinks credit={item.track} />}
                 </p>
               </div>
-              <SaveHeart liked={liked} onToggle={onToggleLike} size="sm" className={cn('ml-1 hidden @[44rem]:inline-flex', touchTarget)} />
+              {/* The heart stays at every width; the title is what gives way. */}
+              <SaveHeart liked={liked} onToggle={onToggleLike} size="sm" className={cn('ml-1 shrink-0', touchTarget)} />
             </>
           ) : (
             <>

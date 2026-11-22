@@ -282,6 +282,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     activeDeviceId: session.activeDeviceId,
     away: snapshot.away,
     lyrics: lyrics.data ?? null,
+    // "No lyrics" only once the server said so: before the answer, or after a failure, they may
+    // exist. A retry after a failure shows as loading again.
+    lyricsStatus: !track?.hasLyrics ? 'none' : lyrics.data ? 'ready' : lyrics.error && !lyrics.isFetching ? 'failed' : 'loading',
+    retryLyrics: () => void lyrics.refetch(),
     detached: snapshot.detached,
     canDetach: snapshot.canDetach,
   }
