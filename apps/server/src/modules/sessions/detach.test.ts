@@ -373,8 +373,17 @@ describe('detached sessions', () => {
   })
 
   it('keeps a playing detached device through the grace period, then pauses it', async () => {
-    const pending: (() => void)[] = []
-    configureSessions({ timers: { set: (callback) => pending.push(callback), clear: () => {} } })
+    const pending = new Map<number, () => void>()
+    let handles = 0
+    configureSessions({
+      timers: {
+        set: (callback) => {
+          pending.set(++handles, callback)
+          return handles
+        },
+        clear: (handle) => void pending.delete(handle as number),
+      },
+    })
     const a = await device('device-a-14')
     const b = await device('device-b-14')
     await a.send(play())
@@ -386,10 +395,12 @@ describe('detached sessions', () => {
 
     await close(again, b)
     time += 5_000
-    for (const callback of pending.splice(0)) callback()
-    await eventually(() => storedRows(), (rows) => expect(rows[0]?.state).toMatchObject({ state: { playing: false, activeDeviceId: null, positionMs: 20_000 } }))
+    // It pauses where it was when the device left, not when the grace period ran out.
+    expect(pending.size).toBe(1)
+    for (const callback of pending.values()) callback()
+    await eventually(() => storedRows(), (rows) => expect(rows[0]?.state).toMatchObject({ state: { playing: false, activeDeviceId: null, positionMs: 15_000 } }))
     const last = await open('device-a-14')
-    expect((await last.hello({ detached: true })).snapshot.state).toMatchObject({ playing: false, activeDeviceId: null, positionMs: 20_000 })
+    expect((await last.hello({ detached: true })).snapshot.state).toMatchObject({ playing: false, activeDeviceId: null, positionMs: 15_000 })
   })
 
   it('keeps at most eight own sessions, making room from the one gone longest', async () => {
