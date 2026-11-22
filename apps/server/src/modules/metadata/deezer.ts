@@ -131,13 +131,13 @@ async function getUrl<T>(url: string): Promise<T | null> {
   return result.json as T
 }
 
-/** Fetches every page of a list, following `next`. */
-async function getAll<T>(path: string, params: Record<string, string> = {}): Promise<T[] | null> {
+/** Fetches every page of a list, following `next`, or the pages holding the first `max` items. */
+async function getAll<T>(path: string, params: Record<string, string> = {}, max = Infinity): Promise<T[] | null> {
   const first = await get<RawList<T>>(path, { ...params, limit: '100' })
   if (!first) return null
   const items = [...first.data]
   let next = first.next
-  while (next) {
+  while (next && items.length < max) {
     const page = await getUrl<RawList<T>>(next)
     if (!page) break
     items.push(...page.data)
@@ -319,9 +319,19 @@ export async function getRelatedArtists(id: number, options: { limit?: number } 
   return (raw?.data ?? []).map(artist)
 }
 
+/**
+ * Deezer's radio for an artist: a few of its own tracks mixed with popular tracks of
+ * artists like it, in play order. Deezer draws a new mix per request; the cache keeps one
+ * for a day.
+ */
+export async function getArtistRadio(id: number, options: { limit?: number } = {}): Promise<DeezerTrack[]> {
+  const raw = await get<RawList<RawTrack>>(`artist/${id}/radio`, { limit: String(options.limit ?? 25) })
+  return (raw?.data ?? []).map((one) => track(one))
+}
+
 /** Every album, EP, single and compilation Deezer lists for the artist, across all pages. */
-export async function getArtistAlbums(id: number): Promise<DeezerAlbumSummary[]> {
+export async function getArtistAlbums(id: number, options: { max?: number } = {}): Promise<DeezerAlbumSummary[]> {
   // The album list leaves out the artist, so it is fetched alongside.
-  const [owner, raw] = await Promise.all([get<RawArtist>(`artist/${id}`), getAll<RawAlbum>(`artist/${id}/albums`)])
-  return (raw ?? []).map((one) => albumSummary(one, owner ?? { id, name: '' }))
+  const [owner, raw] = await Promise.all([get<RawArtist>(`artist/${id}`), getAll<RawAlbum>(`artist/${id}/albums`, {}, options.max)])
+  return (raw ?? []).slice(0, options.max).map((one) => albumSummary(one, owner ?? { id, name: '' }))
 }

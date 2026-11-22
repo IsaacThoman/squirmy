@@ -1,0 +1,46 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/search/album?q=Alvvays+Antisocialites&limit=10"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 369493327,
+          "title": "Antisocialites",
+          "link": "https://www.deezer.com/album/369493327",
+          "cover": "https://api.deezer.com/album/369493327/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/0a035b7aa9478337c283d121c02537c5/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/0a035b7aa9478337c283d121c02537c5/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/0a035b7aa9478337c283d121c02537c5/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/0a035b7aa9478337c283d121c02537c5/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "0a035b7aa9478337c283d121c02537c5",
+          "genre_id": 85,
+          "nb_tracks": 10,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/369493327/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 5298885,
+            "name": "Alvvays",
+            "link": "https://www.deezer.com/artist/5298885",
+            "picture": "https://api.deezer.com/artist/5298885/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/d510615ee7ec09d1bf602b633ff1659a/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/5298885/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        }
+      ],
+      "total": 1
+    }
+  }
+}

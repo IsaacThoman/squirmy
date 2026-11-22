@@ -1,9 +1,23 @@
-import type { AlbumDetail, User } from '@squirmy/contracts'
+import { ARTIST_SECTION_KEYS, type AlbumDetail, type AlbumSummary, type ArtistSectionKey, type User } from '@squirmy/contracts'
 
 // What plays and how it looks is one rule shared with the iOS app, so the two cannot drift.
 export {
   albumNote, albumPresentation, albumTypeLabel, canFetch, isPlayable, librarySave, releaseSubtitle, UNAVAILABLE_LABEL, type Viewer,
 } from '@squirmy/client-core'
+
+/** The headings of an artist page's sections. */
+const sectionTitles: Record<ArtistSectionKey, string> = {
+  album: 'Albums', mixtape: 'Mixtapes', ep: 'EPs', single: 'Singles', live: 'Live albums', compilation: 'Compilations',
+  soundtrack: 'Soundtracks', other: 'Other releases', appears_on: 'Appears on',
+}
+
+export const isArtistSectionKey = (key: string): key is ArtistSectionKey => (ARTIST_SECTION_KEYS as readonly string[]).includes(key)
+
+/** A section's heading in the app's words; a key a newer server adds shows the server's own title. */
+export const artistSectionTitle = (key: string, title = key) => (isArtistSectionKey(key) ? sectionTitles[key] : title)
+
+/** Where "See all" leads for one section of an artist page. */
+export const artistReleasesPath = (artistId: string, section: ArtistSectionKey) => `/artist/${artistId}/releases/${section}`
 
 /**
  * An album whose songs the server is still looking up: it said so (`detailPending`), or it is

@@ -3,28 +3,39 @@ import { db } from '../../database/client.js'
 import { artists, externalIds } from '../../database/schema.js'
 import { matchKey } from '../../lib/text.js'
 import { uuidArray } from '../catalog/sql.js'
+import { deezerArtistRows } from '../enrichment/deezer-rows.js'
 import { deezer, listenbrainz } from '../metadata/index.js'
+import type { DeezerArtist } from '../metadata/deezer.js'
 
 /** A catalog artist similar to another, with a score from 0 (barely) to 1 (most similar). */
 export type SimilarArtist = { artistId: string; name: string; score: number }
 
-/** One source's answer: an artist it names, and how similar (0..1) it ranks it. */
-type Suggested = { mbid: string | null; name: string; score: number }
+/** One source's answer: an artist it names, and how similar (0..1) it ranks it. Deezer's come with their page. */
+type Suggested = { mbid: string | null; name: string; score: number; deezer?: DeezerArtist }
 
 type Artist = { id: string; name: string; mbid: string | null; nameKey: string }
 
-/** Deezer's related artists, ranked by position. Resolves the Deezer id from `external_ids`, else by exact name. */
+/**
+ * Deezer's related artists, ranked by position. The artist's Deezer page is the one of
+ * its pages with the most fans (search can link a namesake's page by name, and a metal
+ * band's related artists are not Drake's), else found by exact name.
+ */
 async function fromDeezer(artist: Artist): Promise<Suggested[]> {
-  const [known] = await db.select({ externalId: externalIds.externalId }).from(externalIds)
+  const known = await db.select({ externalId: externalIds.externalId }).from(externalIds)
     .where(and(eq(externalIds.provider, 'deezer'), eq(externalIds.entityType, 'artist'), eq(externalIds.entityId, artist.id)))
-  let deezerId = known ? Number(known.externalId) : null
-  if (!deezerId) {
+  let deezerId: number | null = null
+  if (known.length === 1) deezerId = Number(known[0]!.externalId)
+  else if (known.length > 1) {
+    const pages = await Promise.all(known.map((one) => deezer.getArtist(Number(one.externalId))))
+    deezerId = pages.reduce<DeezerArtist | null>((best, page) => (page && (!best || (page.fans ?? -1) > (best.fans ?? -1)) ? page : best), null)?.id
+      ?? Number(known[0]!.externalId)
+  } else {
     const found = await deezer.search(artist.name, { types: ['artist'], limit: 5 })
     deezerId = found.artists.find((candidate) => matchKey(candidate.name) === artist.nameKey)?.id ?? null
   }
   if (!deezerId) return []
   const related = await deezer.getRelatedArtists(deezerId, { limit: 20 })
-  return related.map((one, index) => ({ mbid: null, name: one.name, score: 1 - index / related.length }))
+  return related.map((one, index) => ({ mbid: null, name: one.name, score: 1 - index / related.length, deezer: one }))
 }
 
 /** ListenBrainz's session-based similar artists, scored relative to the best match. Needs the artist's MBID. */
@@ -35,13 +46,16 @@ async function fromListenBrainz(artist: Artist): Promise<Suggested[]> {
   return similar.map((one) => ({ mbid: one.mbid, name: one.name, score: one.score / best }))
 }
 
+type Row = { id: string; name: string; mbid: string | null; nameKey: string }
+
 /**
  * Artists similar to a catalog artist, most similar first, from Deezer's related
  * artists and (when the operator set a token) ListenBrainz. Each source's answers are
  * mapped back to catalog artists by MBID, else by `name_key`, preferring artists with
- * music in the library; artists missing from the catalog are left out. Sources that
- * are off or fail are skipped, so the result may be empty but the call does not throw.
- * An artist both sources name ranks above one only a single source names.
+ * music in the library. Deezer's suggestions the catalog lacks become artist stubs, as
+ * search results do; ListenBrainz's are left out, having no picture or page to build one
+ * from. Sources that are off or fail are skipped, so the result may be empty but the call
+ * does not throw. An artist both sources name ranks above one only a single source names.
  */
 export async function similarArtists(artistId: string, options: { limit?: number } = {}): Promise<SimilarArtist[]> {
   const [artist] = await db.select({ id: artists.id, name: artists.name, mbid: artists.mbid, nameKey: artists.nameKey })
@@ -53,7 +67,7 @@ export async function similarArtists(artistId: string, options: { limit?: number
 
   const mbids = [...new Set(answers.flat().flatMap((one) => (one.mbid ? [one.mbid] : [])))]
   const keys = [...new Set(answers.flat().map((one) => matchKey(one.name)))]
-  const rows = await db.execute<{ id: string; name: string; mbid: string | null; nameKey: string }>(sql`
+  const rows = await db.execute<Row>(sql`
     select a.id, a.name, a.mbid::text as mbid, a.name_key as "nameKey" from artists a
     where a.merged_into_id is null and a.id <> ${artist.id}
       and (a.mbid = any(${uuidArray(mbids)}) or a.name_key = any(${`{${keys.map((key) => JSON.stringify(key)).join(',')}}`}::text[]))
@@ -62,8 +76,17 @@ export async function similarArtists(artistId: string, options: { limit?: number
       where aa.artist_id = a.id and mf.missing_since is null
     ) desc, a.id`)
   const byMbid = new Map(rows.flatMap((row) => (row.mbid ? [[row.mbid, row] as const] : [])))
-  const byKey = new Map<string, (typeof rows)[number]>()
+  const byKey = new Map<string, Row>()
   for (const row of rows) if (!byKey.has(row.nameKey)) byKey.set(row.nameKey, row)
+
+  const missing = answers.flat().flatMap((one) => (one.deezer && !byKey.has(matchKey(one.name)) && matchKey(one.name) !== artist.nameKey ? [one.deezer] : []))
+  if (missing.length > 0) {
+    const made = await deezerArtistRows(missing).catch(() => new Map<number, string>())
+    for (const one of missing) {
+      const id = made.get(one.id)
+      if (id && id !== artist.id) byKey.set(matchKey(one.name), { id, name: one.name, mbid: null, nameKey: matchKey(one.name) })
+    }
+  }
 
   const scores = new Map<string, SimilarArtist>()
   for (const answer of answers) {
