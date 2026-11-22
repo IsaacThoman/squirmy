@@ -458,6 +458,8 @@ function Music() {
       </Group>
 
       <Group title="Player">
+        {/* A song the server fetches: the spinner, then "Still loading…", then it plays. */}
+        <Button size="sm" className="self-start" onClick={() => player.controls.playTracks([track('night-swimming-demo')], 0)}>Play a song that is fetched</Button>
         <div className="overflow-hidden rounded-xl border">
           <PlayerBar player={player} liked onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} />
         </div>

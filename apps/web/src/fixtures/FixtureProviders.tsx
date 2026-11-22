@@ -4,6 +4,7 @@ import { LibraryContext, type LibraryActions } from '@/player/library-context'
 import { OnDemandContext, type OnDemand } from '@/player/on-demand-context'
 import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem } from '@/player/player-context'
 import { ArtUrlContext } from '@/lib/artwork'
+import { STILL_LOADING_MS } from '@/player/use-still-loading'
 import { toast } from '@/lib/toast'
 import { fixtureArtUrl, lyricsFor, playlistSummaries, track } from './catalog'
 import { devices, thisDeviceId } from './server'
@@ -30,11 +31,13 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
     return () => clearInterval(timer)
   }, [advancing])
 
-  // An on-demand track is fetched by the server; pretend it arrives a few seconds later.
-  const preparing = [state.current, ...state.queue].some(item => item?.entry.state === 'preparing')
+  // An on-demand track is fetched by the server; pretend it arrives some seconds later, after
+  // the player has said "Still loading…", so the dev pages show that too.
+  // Keyed by the entries waiting, so a song played later waits its own full time.
+  const preparing = [state.current, ...state.queue].flatMap(item => (item?.entry.state === 'preparing' ? [item.entry.id] : [])).join()
   useEffect(() => {
     if (!preparing) return
-    const timer = setTimeout(() => dispatch({ type: 'ready' }), 4000)
+    const timer = setTimeout(() => dispatch({ type: 'ready' }), STILL_LOADING_MS + 2000)
     return () => clearTimeout(timer)
   }, [preparing])
 
