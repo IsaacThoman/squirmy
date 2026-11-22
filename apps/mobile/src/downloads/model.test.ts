@@ -54,7 +54,7 @@ describe('download rules', () => {
     expect(canRequestMusic({ role: 'member', canAcquire: false })).toBe(false);
     expect(unavailableReason({ availability: 'on_demand' }, false)).toMatch(/ask an admin/);
     expect(unavailableReason({ availability: 'none' }, false)).toBe('not in your library');
-    expect(unavailableReason({ availability: 'server' }, true)).toBe('not downloaded');
+    expect(unavailableReason({ availability: 'server' }, true)).toBe('not downloaded or cached');
   });
 
   it('marks downloads, and on-demand tracks that can be fetched', () => {

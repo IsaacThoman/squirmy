@@ -1,7 +1,7 @@
 import 'expo-sqlite/localStorage/install';
 
 /** Things kept for one account (a server and user) in app storage, and the device's own settings. */
-type ItemName = 'likes' | 'session' | 'downloadCap';
+type ItemName = 'likes' | 'session' | 'downloadCap' | 'cacheLimit';
 const accountNames: readonly ItemName[] = ['likes', 'session'];
 
 /** JSON kept for one account, or for the device as `account`. Reads that fail return null; writes that fail are dropped. */
