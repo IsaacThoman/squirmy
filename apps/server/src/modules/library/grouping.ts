@@ -158,12 +158,16 @@ const variousArtists = (): Credit[] => [{ name: VARIOUS_ARTISTS, joinPhrase: '',
 /**
  * The album artist of a group: the album artist tag when present; Various Artists when a
  * file is flagged as part of a compilation; the track artist when every track agrees (in
- * full, or else on the main artist); Various Artists otherwise.
+ * full, or else on the main artist); Various Artists otherwise. An album artist tag that
+ * is a track's several artists run together ("Tiga, Fcukers", where the track names Tiga
+ * and Fcukers) credits those artists: split by the track's names, never by punctuation.
  */
 function albumCredits(files: readonly GroupFile[], trackCredits: readonly Credit[][]): Credit[] {
   const tagged = mostCommon(files.map((file) => file.tags.albumArtist), matchKey)
   if (tagged) {
     if (matchKey(tagged) === matchKey(VARIOUS_ARTISTS)) return variousArtists()
+    const named = trackCredits.find((credits) => credits.length > 1 && matchKey(creditText(credits)) === matchKey(tagged))
+    if (named) return named
     const mbids = mostCommon(files.map((file) => file.tags.mbAlbumArtistIds), (ids) => ids.join(',')) ?? []
     return parseCredits(tagged, undefined, mbids)
   }

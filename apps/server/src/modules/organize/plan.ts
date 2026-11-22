@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { DEFAULT_ORGANIZE_TEMPLATE, INCOMING_FOLDER } from '@squirmy/contracts'
+import { DEFAULT_ORGANIZE_TEMPLATE, FETCHED_FOLDER, INCOMING_FOLDER } from '@squirmy/contracts'
 import { and, eq, inArray, isNull, max, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import {
@@ -19,6 +19,14 @@ export type PlanOptions = {
   rootId: string
   /** Only files linked to these albums. */
   albumIds?: string[]
+  /**
+   * Only files this import brought in that are still in its `_Incoming/<importId>/` folder.
+   * Imports of one album often run side by side (every on-demand track is one), and each
+   * files its own: a file moved by another import's batch would leave its own import
+   * waiting for a row that never appears in its folder, and a file filed before (perhaps
+   * where its owner moved it) is not the import's to move again.
+   */
+  importId?: string
   /** Also file untrusted files, named from their tags. */
   includeUnmatched?: boolean
   /** Write catalog tags while applying. Files already in place are then planned as tag-only moves. */
@@ -73,6 +81,7 @@ export async function planOrganize(options: PlanOptions): Promise<string> {
     tags: mediaFiles.tags,
     matchStatus: mediaFiles.matchStatus,
     matchLocked: mediaFiles.matchLocked,
+    cached: mediaFiles.cached,
     releaseId: releaseTracks.releaseId,
     disc: releaseTracks.disc,
     position: releaseTracks.position,
@@ -88,6 +97,7 @@ export async function planOrganize(options: PlanOptions): Promise<string> {
       eq(mediaFiles.rootId, root.id),
       isNull(mediaFiles.missingSince),
       options.albumIds ? inArray(mediaFiles.albumId, options.albumIds) : undefined,
+      options.importId ? and(eq(mediaFiles.importId, options.importId), sql`starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/${options.importId}/`})`) : undefined,
       options.includeIncoming ? undefined : sql`not starts_with(${mediaFiles.relPath}, ${`${INCOMING_FOLDER}/`})`,
     ))
     .orderBy(mediaFiles.relPath)
@@ -136,6 +146,9 @@ export async function planOrganize(options: PlanOptions): Promise<string> {
       ? catalogValues(file as CatalogFile, shapes.get(file.releaseId!) ?? { discs: 1, positions: 1 }, extension)
       : tagValues(file.tags, file.relPath, extension)
     const rendered = renderTemplate(template, values)
+    // Provider deliveries are cache: they live under `_Fetched/` with the root's own layout
+    // inside, so the root's top-level folders hold only music someone brought.
+    if (file.cached) rendered.directories = [FETCHED_FOLDER, ...rendered.directories]
     const directory = await canonicalDirectories(rendered.directories)
     const name = fileName(rendered.stem, rendered.extension)
     const to = directory ? `${directory}/${name}` : name

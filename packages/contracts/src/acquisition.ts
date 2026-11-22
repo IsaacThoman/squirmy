@@ -66,6 +66,11 @@ export const ProviderAlbumQuery = z.object({
     durationMs: z.number().int().nonnegative().nullable(),
     recordingMbid: z.string().nullable(),
     isrcs: z.array(z.string()),
+    /**
+     * False for a track the server already has: it is listed so the provider can tell the
+     * edition apart, but must not be delivered. Absent means wanted.
+     */
+    wanted: z.boolean().optional(),
   })),
 })
 export type ProviderAlbumQuery = z.infer<typeof ProviderAlbumQuery>
@@ -128,6 +133,12 @@ export const ProviderAcquireResponse = z.object({
   /** The provider's own id, used for status polling and cancellation. */
   providerJobId: z.string().nullable().optional(),
   error: z.string().nullable().optional(),
+  /**
+   * Why a job was declined, when the provider knows. `busy`: it cannot take the job now
+   * (too many at once); the server tries again later and does not count it against the
+   * tracks. Any other value, or none, is a definite refusal.
+   */
+  reason: z.string().max(40).nullable().optional(),
 })
 export type ProviderAcquireResponse = z.infer<typeof ProviderAcquireResponse>
 
@@ -268,7 +279,8 @@ export type AcquireQuery = z.infer<typeof AcquireQuery>
  * the request: an existing job when one is already in flight, one job for an album the
  * provider takes whole, or one per missing track otherwise. Error codes: `acquire_not_allowed`
  * (the user may not trigger fetches), `already_available`, `not_available` (no enabled
- * provider covers it), `storage_quota_reached`.
+ * provider covers it), `acquire_limit_reached` (429: a member has too many fetches
+ * running). The cache limit never refuses a request; it evicts instead.
  */
 export const AcquireResponse = z.object({ items: z.array(AcquisitionJob) })
 export type AcquireResponse = z.infer<typeof AcquireResponse>

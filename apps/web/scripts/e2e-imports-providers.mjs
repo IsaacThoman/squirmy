@@ -2,7 +2,7 @@
 // not been set up yet: uploads of a folder and a zip that end up filed on disk, a duplicate,
 // a refused file, an album nobody can identify, pausing and cancelling, the inbox setting,
 // and the state without a managed folder. Then providers: the mock provider is added and
-// tested, the policy set, missing music plays on demand (preparing, then playing), an album
+// tested, the policy set, missing music plays on demand (the loading spinner, then playing), an album
 // is fetched whole, the mock's failing, wrong-file and priced switches are flipped, a member
 // without the permission is refused, and Fix match opens from an album page.
 // Identification and catalog search talk to MusicBrainz and Deezer, so a run takes minutes.
@@ -96,8 +96,7 @@ await context.addInitScript(instrumentAudio)
 const heading = (name, scope = page) => scope.getByRole('heading', { name, exact: true })
 const button = (name, scope = page) => scope.getByRole('button', { name, exact: true }).filter({ visible: true }).first()
 const toastText = text => page.getByText(text, { exact: true }).first()
-// The desktop player bar is the row along the bottom with the Devices button; it has no landmark of its own.
-const playerBar = (on = page) => on.locator('div.\\@container', { has: on.getByRole('button', { name: 'Devices', exact: true }) }).first()
+const playerBar = (on = page) => on.getByRole('region', { name: 'Player', exact: true })
 
 async function api(method, route, data, on = context) {
   const response = await on.request.fetch(`${base}/api/v1${route}`, { method, headers, data })
@@ -410,13 +409,14 @@ await step('play missing music on demand', async () => {
   const track = await missingTrack(query)
   check('a track the library lacks shows on demand', track.availability === 'on_demand', `${track.title} · ${track.artistCredit}`)
   const row = await playFromSearch(query, track)
-  await row.getByText('Preparing…').waitFor({ timeout: 10_000 })
-  check('the track shows as preparing in the list', true)
-  check('and in the player bar', await playerBar().getByText('Preparing…').first().isVisible())
+  await row.getByRole('status', { name: 'Loading' }).waitFor({ timeout: 10_000 })
+  check('the track shows the loading spinner in the list', true)
+  check('and in the player bar, under its artist as always', await playerBar().getByRole('status', { name: 'Loading' }).isVisible() && await playerBar().getByText(track.artistCredit).first().isVisible())
+  check('nothing says it is being fetched', !(await page.getByText(/Preparing|on demand/).count()))
   for (let press = 0; press < 3; press++) await page.locator('body').press('ArrowDown')
-  await shoot('on-demand-preparing')
+  await shoot('on-demand-loading')
   await button('Queue').click()
-  await page.getByRole('complementary', { name: 'Queue' }).getByText('Preparing…').first().waitFor()
+  await page.getByRole('complementary', { name: 'Queue' }).getByRole('status', { name: 'Loading' }).waitFor()
   await shoot('on-demand-queue')
   await button('Hide queue').click()
   await until(() => jobsFor(track.id), jobs => jobs[0]?.status === 'completed', minutes(4), 1000)
@@ -426,23 +426,23 @@ await step('play missing music on demand', async () => {
   await button('Pause').click()
 })
 
-await step('get an album', async () => {
+await step('add an album to the library', async () => {
   // Catalog albums know their tracks once opened; the smallest kind keeps the run short.
   const results = await until(() => catalog(query), value => value?.albums?.length > 0, 20_000, 1000)
   const unowned = results.albums.filter(album => album.availability === 'none' || album.availability === 'on_demand')
   const pick = unowned.find(album => ['single', 'ep'].includes(album.type)) ?? unowned[0]
   if (!pick) throw new Error('no album the library lacks')
   await page.goto(`${base}/album/${pick.id}`)
-  const get_ = button('Get this album')
-  await get_.waitFor({ timeout: minutes(1) })
+  const add = button('Add to library')
+  await add.waitFor({ timeout: minutes(1) })
+  check('the album page says nothing of where its music is', !(await page.getByText(/on demand|Get this album|library yet/i).count()), pick.title)
   await shoot('album-on-demand')
-  await get_.click()
-  await page.getByText('Getting this album…').waitFor()
-  await shoot('album-fetching')
-  check('the album shows its progress while it arrives', true, pick.title)
+  await add.click()
+  check('Add to library turns into a check at once', await button('Remove from library').isVisible())
+  await shoot('album-added')
   const detail = await until(() => get(`/albums/${pick.id}`), value => value.availability === 'full' || value.availability === 'partial', minutes(6), 2000)
-  await page.getByText('Getting this album…').waitFor({ state: 'detached', timeout: minutes(2) })
-  check('its tracks light up as they arrive', detail.availability === 'full', `${detail.ownedTrackCount} of ${detail.trackCount}`)
+  check('the server fetches its songs behind it', detail.availability === 'full', `${detail.ownedTrackCount} of ${detail.trackCount}`)
+  check('and it is in the library', (await get('/library/albums?sort=recent&limit=50')).items.some(album => album.id === pick.id))
 })
 
 await step('a provider that fails', async () => {
@@ -450,7 +450,7 @@ await step('a provider that fails', async () => {
   const track = await missingTrack('Aphex Twin')
   try {
     await playFromSearch('Aphex Twin', track)
-    await toastText(`Couldn’t get “${track.title}”`).waitFor({ timeout: minutes(2) })
+    await toastText(`Couldn’t play “${track.title}”`).waitFor({ timeout: minutes(2) })
     check('a failed fetch shows a brief notice', true, track.title)
     await button('Pause').click()
     await shoot('on-demand-failed', { toasts: true })
@@ -471,7 +471,7 @@ await step('a provider that delivers the wrong file', async () => {
   const track = await missingTrack('Autechre')
   try {
     await playFromSearch('Autechre', track)
-    await toastText(`Couldn’t get “${track.title}”`).waitFor({ timeout: minutes(4) })
+    await toastText(`Couldn’t play “${track.title}”`).waitFor({ timeout: minutes(4) })
     check('a wrong delivery shows the notice too', true, track.title)
     await button('Pause').click()
   } finally {

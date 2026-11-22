@@ -180,6 +180,7 @@ These run on their own; nothing needs configuring. Times are UTC.
 | Measure loudness of files that have none | every 10 minutes |
 | Fill in covers, images and lyrics still missing | every 30 minutes |
 | Trim the transcode cache to its size | hourly |
+| Trim the [fetched-music cache](./acquisition.md#the-cache) to its limit | hourly at :17 |
 | Clean up stale imports | every 15 minutes |
 | Send scrobbles; check acquisition jobs | every minute |
 

@@ -1,7 +1,7 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
-  ArrowDown, ArrowUp, BookmarkCheck, BookmarkPlus, Clock3, CloudDownload, Disc3, Heart, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal,
+  ArrowDown, ArrowUp, BookmarkCheck, BookmarkPlus, CircleCheck, CirclePlus, Clock3, Disc3, Heart, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal,
   Pause, Play, Plus, Radio, Trash2,
 } from 'lucide-react'
 import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
@@ -10,22 +10,23 @@ import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
-import { Tooltip } from '@/components/ui/tooltip'
+import { isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useViewer } from '@/player/on-demand-context'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
 import { PrefetchLink } from './PrefetchLink'
 import { useEndReached } from './use-end-reached'
 
 /** `add-to:<playlist id>` adds the track to a playlist; `add-to:new` starts one with it. */
-export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}`
+export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'library' | 'radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}`
 
 export type PlaylistChoice = { id: string; name: string }
 
-/** What is playing, so the list can mark its row. */
-export type NowPlaying = { trackId: string; playing: boolean; preparing: boolean; onTogglePlay: () => void }
+/** What is playing, so the list can mark its row. `loading`: its music is on its way (a fetch looks like buffering). */
+export type NowPlaying = { trackId: string; playing: boolean; loading: boolean; onTogglePlay: () => void }
 
 /**
  * - `album`: track numbers, no artwork; for album pages.
@@ -38,10 +39,8 @@ type SharedProps = {
   variant?: TrackListVariant
   nowPlaying?: NowPlaying | null
   isWanted?: (track: TrackSummary) => boolean
-  /** Tracks the server is fetching on demand show as preparing. */
-  isPreparing?: (track: TrackSummary) => boolean
-  /** Whether this user may have on-demand tracks fetched; without it they show as unavailable. */
-  canRequest?: boolean
+  /** Songs whose file the server's owner brought: they are in everyone's library, and no one removes them. */
+  inCollection?: boolean
   onPlay: (index: number) => void
   onAction?: (action: TrackAction, track: TrackSummary, index: number) => void
   /** Playlists the track menu offers to add to. */
@@ -99,22 +98,24 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
   style?: CSSProperties
 }
 
-/** Why a track that a provider could supply does not play for this user. */
-export const REQUEST_NOT_ALLOWED = 'Not on the server yet. Ask an admin to let you fetch missing music.'
-
-export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted, isPreparing, canRequest = true, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
+/**
+ * One song. A song that plays looks the same wherever its file is (on the server, or fetched
+ * as it plays); one that does not is gray and says "Not available".
+ */
+export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted, inCollection, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
   const navigate = useNavigate()
+  const viewer = useViewer()
   const { liked } = track
-  const notAllowed = track.availability === 'on_demand' && !canRequest
-  const unavailable = track.availability === 'none' || notAllowed
+  const unavailable = !isPlayable(track, viewer)
   const current = nowPlaying?.trackId === track.id
   const playing = current && nowPlaying.playing
-  const preparing = (current && nowPlaying.preparing) || (isPreparing?.(track) ?? false)
+  const loading = current && nowPlaying.loading
   const play = current ? nowPlaying.onTogglePlay : onPlay
   const act = (action: TrackAction) => onAction?.(action, track, index)
+  // Servers that know who saved what send `inLibrary`; a collection song is in it for good.
+  const library = track.inLibrary === undefined || (inCollection && track.inLibrary) ? null : track.inLibrary
 
   const menu: MenuEntry[] = [
-    ...(notAllowed ? [{ kind: 'label' as const, label: REQUEST_NOT_ALLOWED }] : []),
     { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), disabled: unavailable },
     { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), disabled: unavailable },
     ...(playlists ? [{
@@ -129,9 +130,10 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
     }] : []),
     { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
     { kind: 'separator' },
+    ...(library === null ? [] : [{ label: library ? 'Remove from library' : 'Add to library', icon: library ? <CircleCheck /> : <CirclePlus />, onSelect: () => act('library') }]),
     { label: liked ? 'Remove from Liked Songs' : 'Save to Liked Songs', icon: <Heart />, onSelect: () => act('like') },
-    // Undefined `wanted` means the server has the wantlist off.
-    ...(track.availability === 'server' || wanted === undefined ? [] : [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: () => act('want') }]),
+    // Undefined `wanted` means the server has the wantlist off. It is for music that does not play.
+    ...(!unavailable || wanted === undefined ? [] : [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: () => act('want') }]),
     { kind: 'separator' },
     ...(track.album ? [{ label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(`/album/${track.album!.id}`) }] : []),
     ...track.artists.map(artist => ({ label: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
@@ -177,28 +179,26 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
       {playing ? <Pause className="size-3.5" fill="currentColor" /> : <Play className="size-3.5" fill="currentColor" />}
     </button>
   )
-  const marker = (overArt: boolean) => (preparing
-    ? <Spinner label="Preparing" className={cn('size-4', overArt ? 'text-white' : 'text-primary')} />
+  const marker = (overArt: boolean) => (loading
+    ? <Spinner label="Loading" className={cn('size-4', overArt ? 'text-white' : 'text-primary')} />
     : current ? <Equalizer playing={playing} className={cn(overArt && 'text-white')} /> : null)
-  /** What the play button replaces while the row is hovered or the button has focus. */
-  const resting = cn('transition-opacity', !unavailable && 'group-hover/row:opacity-0 peer-focus-visible:opacity-0')
+  /**
+   * What the play button replaces while the row is hovered or the button has focus. Faded out it
+   * still paints over the button (its opacity makes it a layer of its own), so it lets clicks through.
+   */
+  const resting = cn('pointer-events-none transition-opacity', !unavailable && 'group-hover/row:opacity-0 peer-focus-visible:opacity-0')
 
   const title = (
     <div className="flex min-w-0 items-center gap-1.5">
       <span title={track.title} className={cn('truncate text-sm font-medium', current && 'text-primary', unavailable && 'text-muted-foreground')}>{track.title}</span>
       {track.explicit && <ExplicitBadge />}
-      {track.availability === 'on_demand' && !notAllowed && (
-        <Tooltip label="Plays on demand">
-          <CloudDownload tabIndex={0} aria-label="Plays on demand" className="size-3.5 shrink-0 rounded-sm text-muted-foreground outline-none focus-visible:text-primary" />
-        </Tooltip>
-      )}
-      {unavailable && <span className="sr-only">{notAllowed ? `(${REQUEST_NOT_ALLOWED})` : '(not in your library)'}</span>}
+      {unavailable && <span className="sr-only">({UNAVAILABLE_LABEL})</span>}
     </div>
   )
   // Under the title, except on album pages, where a wide row gives the artists a column of their own.
   const artists = (
     <div className={cn('min-w-0 truncate text-xs text-muted-foreground', album && '@max-xl:col-start-2 @xl:text-sm')}>
-      {preparing ? <span className="text-primary">Preparing…</span> : <ArtistLinks track={track} plain={unavailable} />}
+      <ArtistLinks track={track} plain={unavailable} />
     </div>
   )
 
@@ -206,8 +206,9 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
     <ContextMenu entries={menu}>
       <li
         aria-current={current ? 'true' : undefined}
-        // Only playing is unavailable: the name says so, and the heart and the menu still work.
-        title={notAllowed ? REQUEST_NOT_ALLOWED : unavailable ? 'Not in your library' : undefined}
+        // Playing is what is unavailable: the heart and the menu still work.
+        aria-disabled={unavailable || undefined}
+        title={unavailable ? UNAVAILABLE_LABEL : undefined}
         onDoubleClick={unavailable ? undefined : play}
         draggable
         onDragStart={event => startTrackDrag(event, { tracks: [track], list: reorder?.list ?? null, index })}
@@ -238,7 +239,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
               <div className="relative size-8 shrink-0">
                 <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-8 rounded-[5px]" />
                 {variant === 'compact' && (
-                  <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current || preparing ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
+                  <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
                     {playButton(true)}
                     <span className={resting}>{marker(true)}</span>
                   </div>

@@ -1,11 +1,12 @@
 import type { RepeatMode } from '@squirmy/contracts'
 import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from 'lucide-react'
 import { useState } from 'react'
+import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { Slider } from '@/components/ui/slider'
 import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { usePosition, type Player } from '@/player/player-context'
+import { isLoading, usePosition, type Player } from '@/player/player-context'
 
 type TransportButtonsProps = {
   player: Player
@@ -26,7 +27,7 @@ export function TransportButtons({ player, large, disabled, modeClassName }: Tra
       <IconButton label="Previous" size={large ? 'xl' : 'sm'} shape="round" disabled={disabled} onClick={controls.previous} className="text-foreground">
         <SkipBack fill="currentColor" />
       </IconButton>
-      <PlayPauseButton playing={state.playing} onClick={controls.togglePlay} large={large} disabled={disabled} className={large ? 'mx-2' : 'mx-1'} />
+      <PlayPauseButton playing={state.playing} loading={isLoading(state)} onClick={controls.togglePlay} large={large} disabled={disabled} className={large ? 'mx-2' : 'mx-1'} />
       <IconButton label="Next" size={large ? 'xl' : 'sm'} shape="round" disabled={disabled} onClick={controls.next} className="text-foreground">
         <SkipForward fill="currentColor" />
       </IconButton>
@@ -35,8 +36,13 @@ export function TransportButtons({ player, large, disabled, modeClassName }: Tra
   )
 }
 
-/** The one round, filled button of the player. */
-export function PlayPauseButton({ playing, onClick, large, disabled, className }: { playing: boolean; onClick: () => void; large?: boolean; disabled?: boolean; className?: string }) {
+type PlayPauseButtonProps = { playing: boolean; loading?: boolean; onClick: () => void; large?: boolean; disabled?: boolean; className?: string }
+
+/**
+ * The one round, filled button of the player. While the music is on its way it spins, as for
+ * buffering; it still pauses.
+ */
+export function PlayPauseButton({ playing, loading = false, onClick, large, disabled, className }: PlayPauseButtonProps) {
   return (
     <IconButton
       label={playing ? 'Pause' : 'Play'}
@@ -44,10 +50,11 @@ export function PlayPauseButton({ playing, onClick, large, disabled, className }
       shape="round"
       size={large ? 'xl' : 'md'}
       disabled={disabled}
+      aria-busy={loading || undefined}
       onClick={onClick}
       className={cn(large && 'size-14', className)}
     >
-      {playing ? <Pause fill="currentColor" /> : <Play className="translate-x-px" fill="currentColor" />}
+      {loading ? <Spinner label="Loading" className="text-current" /> : playing ? <Pause fill="currentColor" /> : <Play className="translate-x-px" fill="currentColor" />}
     </IconButton>
   )
 }

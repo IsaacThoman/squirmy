@@ -38,6 +38,7 @@ function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, ...pr
     isWanted: () => false,
     setLiked: vi.fn<LibraryActions['setLiked']>(),
     setWanted: vi.fn<LibraryActions['setWanted']>(),
+    setInLibrary: vi.fn<LibraryActions['setInLibrary']>(),
     playlists: playlistSummaries,
     addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(),
     newPlaylist: vi.fn<LibraryActions['newPlaylist']>(),

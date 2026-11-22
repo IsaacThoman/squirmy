@@ -1,4 +1,4 @@
-import { CloudDownload, GripVertical, Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
+import { GripVertical, Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
@@ -6,10 +6,9 @@ import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
-import { Tooltip } from '@/components/ui/tooltip'
 import { dropIndex } from '@/lib/reorder'
+import { UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
-import { useOnDemand } from '@/player/on-demand-context'
 import type { Player, QueueItem } from '@/player/player-context'
 
 const rowHeight = 48
@@ -108,33 +107,34 @@ type QueueRowProps = {
   children?: ReactNode
 }
 
-function QueueRow({ item, current, playing = false, faded, onPlay, children }: QueueRowProps) {
+/**
+ * A song in the queue. Songs still being fetched look like any other: only the current one,
+ * while its music is on its way, shows the spinner. One that could not be had is gray, says
+ * "Not available" and does not play.
+ */
+function QueueRow({ item, current, playing = false, faded, onPlay: play, children }: QueueRowProps) {
   const { track, entry } = item
-  const onDemand = useOnDemand()
-  // Upcoming on-demand entries all wait as `preparing`; only those the server is fetching say so.
-  const preparing = entry.state === 'preparing' && onDemand.isPreparing(track)
-  const waiting = entry.state === 'preparing' && !preparing
+  const failed = entry.state === 'failed'
+  const loading = current && entry.state === 'preparing'
+  const onPlay = failed ? undefined : play
   const body = (
     <>
       <div className="relative size-9 shrink-0">
-        <Cover artwork={track.album?.artwork ?? null} size={96} className="size-9 rounded-[5px]" />
-        {(current || preparing) && (
+        <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={failed} className="size-9 rounded-[5px]" />
+        {current && (
           <div className="absolute inset-0 flex items-center justify-center rounded-[5px] bg-black/50">
-            {preparing ? <Spinner label="Preparing" className="size-4 text-white" /> : <Equalizer playing={playing} className="h-3 text-white" />}
+            {loading ? <Spinner label="Loading" className="size-4 text-white" /> : <Equalizer playing={playing} className="h-3 text-white" />}
           </div>
         )}
       </div>
       <span className="min-w-0 flex-1 text-left">
-        <span className="flex items-center gap-1.5">
-          <span title={track.title} className={cn('truncate text-sm font-medium', current && 'text-primary')}>{track.title}</span>
-          {waiting && <Tooltip label="Plays on demand"><CloudDownload aria-label="Plays on demand" className="size-3.5 shrink-0 text-muted-foreground" /></Tooltip>}
-        </span>
-        <span className={cn('block truncate text-xs', entry.state === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>{preparing ? 'Preparing…' : entry.state === 'failed' ? 'Could not be fetched' : track.artistCredit}</span>
+        <span title={track.title} className={cn('block truncate text-sm font-medium', current && 'text-primary', failed && 'text-muted-foreground')}>{track.title}</span>
+        <span className="block truncate text-xs text-muted-foreground">{failed ? UNAVAILABLE_LABEL : track.artistCredit}</span>
       </span>
     </>
   )
   return (
-    <div className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-[background-color,opacity]', onPlay && 'hover:bg-accent/60', faded && 'opacity-70 focus-within:opacity-100 hover:opacity-100')}>
+    <div title={failed ? UNAVAILABLE_LABEL : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-[background-color,opacity]', onPlay && 'hover:bg-accent/60', faded && 'opacity-70 focus-within:opacity-100 hover:opacity-100')}>
       {onPlay
         ? <button type="button" aria-label={`Play ${track.title}`} onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">{body}</button>
         : <div className="flex min-w-0 flex-1 items-center gap-3 px-2">{body}</div>}

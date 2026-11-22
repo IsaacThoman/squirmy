@@ -59,9 +59,7 @@ async function isRequester(userId: string): Promise<boolean> {
  * 404 when it does not exist. Returns the id saved.
  */
 export async function saveToLibrary(userId: string, type: LibraryEntityType, id: string): Promise<string> {
-  const entityId = await resolveEntity(type, id)
-  await db.insert(libraryItems).values({ userId, entityType: storedType[type], entityId }).onConflictDoNothing()
-  await invalidateLibrary(userId, type, entityId)
+  const entityId = await recordSave(userId, type, id)
   try {
     if ((await activeProviders()).length > 0 && await isRequester(userId)) {
       await enqueue<FetchSavedJob>('userdata.fetch-saved', { userId, type, id: entityId }, { singletonKey: `${userId}:${type}:${entityId}` })
@@ -69,6 +67,18 @@ export async function saveToLibrary(userId: string, type: LibraryEntityType, id:
   } catch (error) {
     warn(`Could not ask for the files of saved ${type} ${entityId}`, error)
   }
+  return entityId
+}
+
+/**
+ * Records a save without asking for files: for a caller that is fetching them already
+ * (acquisition, when a user asks for an album). Idempotent; follows merge redirects, 404
+ * when the entity does not exist. Returns the id saved.
+ */
+export async function recordSave(userId: string, type: LibraryEntityType, id: string): Promise<string> {
+  const entityId = await resolveEntity(type, id)
+  await db.insert(libraryItems).values({ userId, entityType: storedType[type], entityId }).onConflictDoNothing()
+  await invalidateLibrary(userId, type, entityId)
   return entityId
 }
 
@@ -91,12 +101,12 @@ export async function fetchSaved({ userId, type, id }: FetchSavedJob): Promise<v
     .where(and(eq(libraryItems.userId, userId), eq(libraryItems.entityType, storedType[type]), eq(libraryItems.entityId, id)))
   if (!kept) return
   try {
-    // Acquisition records no origin for a request yet; once it does, these are `library` ones.
+    // `library` jobs start after anything being played or fetched ahead.
     if (type === 'album') {
       await albumDetailRun(id).catch((error: unknown) => warn(`Could not complete album ${id} before fetching it`, error))
-      await requestAlbum(userId, id)
+      await requestAlbum(userId, id, 'library')
     } else {
-      await requestTrack(userId, id, null)
+      await requestTrack(userId, id, null, 'library')
     }
   } catch (error) {
     if (!(error instanceof AppError)) throw error

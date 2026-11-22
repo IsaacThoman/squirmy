@@ -353,10 +353,14 @@ async function matchRound(rootId: string, groupKey: string): Promise<string[] | 
     // Applying merges and relinks catalog rows, as ingest does for the same group; without
     // the catalog lock, taken before any row lock, the two deadlock.
     await lockCatalog(tx)
-    // Files locked while the network calls ran are no longer ours to change.
+    // Files locked while the network calls ran are no longer ours to change, and neither are
+    // files identified meanwhile: an acquisition delivery is placed on the album it was
+    // requested from as soon as it is checked (`place.ts`).
     const ids = files.map((file) => file.id)
-    const open = new Set((await tx.select({ id: mediaFiles.id }).from(mediaFiles)
-      .where(and(inArray(mediaFiles.id, ids), eq(mediaFiles.matchLocked, false))).for('update')).map((row) => row.id))
+    const before = new Map(files.map((file) => [file.id, file.matchStatus]))
+    const open = new Set((await tx.select({ id: mediaFiles.id, matchStatus: mediaFiles.matchStatus }).from(mediaFiles)
+      .where(and(inArray(mediaFiles.id, ids), eq(mediaFiles.matchLocked, false))).for('update'))
+      .filter((row) => row.matchStatus !== 'matched' || before.get(row.id) === 'matched').map((row) => row.id))
     for (const unit of decided) {
       const fileIds = unit.files.map((file) => file.id).filter((id) => open.has(id))
       if (fileIds.length === 0) continue
@@ -364,8 +368,10 @@ async function matchRound(rootId: string, groupKey: string): Promise<string[] | 
       const plausible = unit.best && score >= reviewFloor && unit.best.evaluation.pairs.length > 0
       if (unit.best && plausible && score >= settings.matchAutoAcceptScore) {
         applied.push(await applyMatch(tx, { ...unit.best, fileIds, locked: false, attachExtras: unit.attachExtras }))
-      } else if (plausible && units.length === 1) {
-        // A review belongs to a whole group, so loose tracks sharing a folder get none.
+      } else if (plausible && units.length === 1 && !unit.files.every((file) => file.cached)) {
+        // A review belongs to a whole group, so loose tracks sharing a folder get none. A
+        // group of provider deliveries gets none either: acquisition places what was asked
+        // for and deletes the rest, so no admin is ever needed for what listening fetched.
         await tx.update(mediaFiles).set({ matchStatus: 'review', matchConfidence: score, updatedAt: new Date() }).where(inArray(mediaFiles.id, fileIds))
         await upsertReview(tx, rootId, groupKey, files, unit.candidates.slice(0, reviewCandidates).map((found) => toCandidate(found.release, found.evaluation)))
         reviewOpened = true

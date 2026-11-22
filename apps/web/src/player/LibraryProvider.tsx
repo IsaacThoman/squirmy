@@ -9,7 +9,7 @@ import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
 import { plural } from '@/lib/format'
 import { toast } from '@/lib/toast'
-import { LibraryContext, type LibraryActions, type WantTarget } from './library-context'
+import { LibraryContext, type LibraryActions, type LibraryTarget, type WantTarget } from './library-context'
 
 /** Sets fields of one entity in every cached answer that shows it. */
 function patchCache(client: QueryClient, id: string, patch: Record<string, unknown>) {
@@ -21,7 +21,7 @@ const playlistTracks = (tracks: TrackSummary[]) => tracks.slice(0, 1000).map(tra
 const songs = (tracks: TrackSummary[]) => (tracks.length === 1 ? tracks[0].title : plural(tracks.length, 'song'))
 
 /**
- * Likes, wants and playlists against the API. Likes and wants are optimistic: every
+ * Likes, wants, the library and playlists against the API. Likes, wants and the library are optimistic: every
  * cached answer that shows the entity changes at once, and goes back if the server says
  * no. The server's invalidations then bring the lists that gained or lost it.
  */
@@ -62,6 +62,29 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     },
   })
 
+  // A track carries `inLibrary`, an album page `library`; patching both fields reaches each where it shows.
+  const libraryPatch = (inLibrary: boolean) => ({ inLibrary, library: inLibrary ? 'saved' : null })
+  const save = useMutation({
+    mutationFn: ({ target, inLibrary }: { target: LibraryTarget; inLibrary: boolean; undoing?: boolean }) =>
+      (inLibrary ? api.library.save(target.type, target.id) : api.library.remove(target.type, target.id)),
+    onMutate: ({ target, inLibrary, undoing }) => {
+      patchCache(queryClient, target.id, libraryPatch(inLibrary))
+      // Undo puts it back as it was, quietly: the toast that offered it already said what happened.
+      if (undoing) return
+      toast({
+        title: inLibrary ? 'Added to your library' : 'Removed from your library',
+        description: target.title,
+        action: { label: 'Undo', onClick: () => save.mutate({ target, inLibrary: !inLibrary, undoing: true }) },
+      })
+    },
+    onError: (_error, { target, inLibrary }) => patchCache(queryClient, target.id, libraryPatch(!inLibrary)),
+    // The library's lists and Home's "Recently added" gain or lose it.
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.library() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.home() }),
+    ]),
+  })
+
   const add = useMutation({
     mutationFn: ({ playlist, tracks }: { playlist: Pick<PlaylistSummary, 'id' | 'name'>; tracks: TrackSummary[] }) =>
       api.userdata.addPlaylistItems(playlist.id, { tracks: playlistTracks(tracks) }),
@@ -89,6 +112,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const playlists = useMemo(() => allPlaylists?.items.filter(playlist => playlist.ownerId === user.id) ?? [], [allPlaylists, user.id])
   const { mutate: setLiked } = like
   const { mutate: setWanted } = want
+  const { mutate: setSaved } = save
   const { mutate: addTo } = add
 
   const actions = useMemo<LibraryActions>(() => ({
@@ -96,10 +120,11 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     isWanted: (id, fromServer = false) => fromServer || wantedIds.has(id),
     setLiked: (type, id, liked) => setLiked({ type, id, liked }),
     setWanted: (target, wanted) => setWanted({ target, wanted }),
+    setInLibrary: (target, inLibrary) => setSaved({ target, inLibrary }),
     playlists,
     addToPlaylist: (playlist, tracks) => { if (tracks.length) addTo({ playlist, tracks }) },
     newPlaylist: (tracks = []) => setDraft({ tracks }),
-  }), [wantlistEnabled, wantedIds, playlists, setLiked, setWanted, addTo])
+  }), [wantlistEnabled, wantedIds, playlists, setLiked, setWanted, setSaved, addTo])
 
   return (
     <LibraryContext value={actions}>

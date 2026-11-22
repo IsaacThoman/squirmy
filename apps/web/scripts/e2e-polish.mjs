@@ -3,7 +3,7 @@
 // configuration: the setup wizard starting from that folder, the version, a managed
 // folder's naming template and Organize's mention of it, search leading with its top
 // result (typing into the search page's field), the server's ListenBrainz key described as a lookup
-// key, and the queue saying "Preparing…" only for entries being fetched. Identification and
+// key, and the queue showing a fetch as loading on the current song only. Identification and
 // catalog search talk to MusicBrainz and Deezer, so a run takes a few minutes.
 //
 // Usage: node scripts/e2e-polish.mjs <baseUrl> --api <serverUrl> --library <dir> [--mock-port <port>] [--shots <dir>]
@@ -211,7 +211,6 @@ await step('Organize names the template a preview used', async () => {
 })
 
 /** The headings of a results group, in order. */
-const groupHeadings = async name => page.getByRole('region', { name }).getByRole('heading', { level: 2 }).allTextContents()
 
 await step('search leads with the top result', async () => {
   // The scan must have read the album's tags before the library can find it.
@@ -231,15 +230,12 @@ await step('search leads with the top result', async () => {
   await top.waitFor()
   check('the top result is the server\'s', await top.getByRole('link', { name: 'OK Computer' }).getAttribute('href') === `/album/${expected.top.id}` && await top.getByText('Album').isVisible())
   check('an owned album can be played from it', await top.getByRole('button', { name: 'Play OK Computer' }).isVisible())
-  const library = page.getByRole('region', { name: 'In your library' })
-  check('it comes before the library\'s results', await top.evaluate((element, other) => !!(element.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING), await library.elementHandle()))
-  const order = ['Artists', 'Albums', 'Songs']
-  const inOrder = names => names.filter(name => order.includes(name)).every((name, index, list) => index === 0 || order.indexOf(list[index - 1]) < order.indexOf(name))
-  const libraryOrder = await groupHeadings('In your library')
-  check('the library lists artists, then albums, then songs', inOrder(libraryOrder), libraryOrder.join(' · '))
-  await page.getByRole('region', { name: 'More to discover' }).waitFor({ timeout: 30_000 })
-  const catalogOrder = await groupHeadings('More to discover')
-  check('so does "More to discover"', inOrder(catalogOrder) && catalogOrder.length > 2, catalogOrder.join(' · '))
+  // One set of results, the library's and the catalog's merged: no section says where music is.
+  await page.waitForFunction(() => !document.querySelector('main [aria-busy]'), null, { timeout: 30_000 })
+  const headings = await page.getByRole('main').getByRole('heading', { level: 2 }).allTextContents()
+  const order = ['Top result', 'Artists', 'Albums', 'Songs']
+  check('the top result leads, then artists, albums and songs', headings[0] === 'Top result' && headings.filter(name => order.includes(name)).join(' · ') === order.filter(name => headings.includes(name)).join(' · '), headings.join(' · '))
+  check('no section is named for the library or the catalog', !headings.some(name => /library|discover/i.test(name)), headings.join(' · '))
   await shoot('search-top')
 
   await page.goto(`${base}/search?q=${encodeURIComponent('Radiohead')}`)
@@ -263,7 +259,7 @@ await step('ListenBrainz setting', async () => {
 const mock = createMockProvider({ secret: 'mock-provider-secret', delayMs: minutes(5) })
 await mock.listen(mockPort, '127.0.0.1')
 
-await step('queue says Preparing only for what is being fetched', async () => {
+await step('the queue shows fetching as loading, on the current song only', async () => {
   await send('POST', '/admin/acquisition/providers', { name: 'Shelf', baseUrl: `http://127.0.0.1:${mockPort}`, secret: 'mock-provider-secret' })
   await send('PATCH', '/admin/acquisition/policy', { deliveryBaseUrl: server })
   const results = await until(() => get('/search/catalog?q=Boards%20of%20Canada&limit=20'), value => value.albums?.length > 0, 30_000, 1000)
@@ -283,16 +279,16 @@ await step('queue says Preparing only for what is being fetched', async () => {
   await button('Queue').click()
   const queue = page.getByRole('complementary', { name: 'Queue' })
   const upNext = queue.getByRole('region', { name: 'Up next' })
-  await until(async () => upNext.getByText('Preparing…').count(), count => count === 2, 30_000, 500)
+  await queue.getByRole('region', { name: 'Now playing' }).getByRole('status', { name: 'Loading' }).waitFor({ timeout: 30_000 })
   const rows = await upNext.getByRole('listitem').count()
-  const preparing = await upNext.getByText('Preparing…').count()
-  const quiet = await upNext.getByLabel('Plays on demand').count()
-  check('the next two say Preparing…', preparing === 2, `${preparing} of ${rows}`)
-  check('the rest show the quiet on-demand marker', quiet === rows - 2, `${quiet} of ${rows}`)
-  const jobs = (await get('/admin/acquisition/jobs?limit=50')).items
-  check('and those are the ones being fetched', jobs.filter(job => album.tracks.slice(0, 3).some(track => track.id === job.trackId)).length === 3, `${jobs.length} jobs`)
+  check('the current song shows the loading spinner', true)
+  check('upcoming songs show nothing special', !(await upNext.getByRole('status').count()) && !(await upNext.getByText(/Preparing|on demand/).count()), `${rows} rows`)
+  // The server fetches the current song and the next five.
+  const ahead = album.tracks.slice(0, 6)
+  const jobs = await until(async () => (await get('/admin/acquisition/jobs?limit=50')).items, items => items.filter(job => ahead.some(track => track.id === job.trackId)).length === ahead.length, 30_000, 1000)
+  check('and those are being fetched behind it', true, `${jobs.length} jobs`)
   // On a phone the queue is a pane of Now Playing.
-  await shoot('queue-preparing', async () => {
+  await shoot('queue-loading', async () => {
     const phone = page.viewportSize().width < 768
     if (phone && !(await button('Hide queue').isVisible())) {
       await page.getByRole('button', { name: /^Open Now Playing, / }).click()

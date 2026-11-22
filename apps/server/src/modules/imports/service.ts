@@ -7,7 +7,7 @@ import {
   type Import, type ImportAlbum, type ImportCounts, type ImportFileRejection, type ImportFileResult, type ImportKind, type ImportList, type ImportListQuery,
   type ImportOptions,
 } from '@squirmy/contracts'
-import { and, desc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { acquisitionJobs, imports, libraryRoots, mediaFiles, users } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
@@ -31,6 +31,13 @@ export type ImportWork = {
   archives?: Record<string, { target?: string; rejected?: string; extracted?: number; skipped?: number; done?: boolean }>
   /** The files identification decided were duplicates, by path, so a rerun can finish removing them. */
   duplicates?: string[]
+  /**
+   * The library files those duplicates were copies of, by id. Whoever asked for the import's
+   * music (an acquisition job) checks them in place of the deleted files.
+   */
+  copies?: string[]
+  /** When `refileImport` last filed what was identified after the import finished. */
+  refiledAt?: string
   /** The organize batch that files the import's identified albums. */
   batchId?: string
   /** The inbox an inbox import came from, so a failed one can be put back. */
@@ -50,6 +57,7 @@ export const incomingFolder = (importId: string) => `${INCOMING_FOLDER}/${import
 
 export const fileTooLarge = (limit: number) => new AppError(413, 'file_too_large', `Files may be at most ${limit} bytes`, { limit })
 export const importTooLarge = (limit: number) => new AppError(413, 'import_too_large', `An import may be at most ${limit} bytes`, { limit })
+export const tooManyFiles = (limit: number) => new AppError(413, 'import_too_many_files', `An import may hold at most ${limit} files`, { limit })
 const notReceiving = () => conflict('The import is no longer receiving files', 'import_not_receiving')
 
 /** The API shape of an import row. */
@@ -187,6 +195,12 @@ export type ImportFileInput = {
   stream: Readable
   /** A per-file limit stricter than `importMaxFileBytes`, such as the acquisition policy's. */
   maxFileBytes?: number
+  /** A whole-import limit stricter than `importMaxBytes`: an acquisition job's delivery budget. */
+  maxImportBytes?: number
+  /** At most this many accepted files in the import; one more is 413 `import_too_many_files`. */
+  maxFiles?: number
+  /** Refuses an empty audio file (`empty_file`); a provider has no reason to send one. */
+  rejectEmptyAudio?: boolean
 }
 
 /**
@@ -217,8 +231,13 @@ export async function addImportFile(importId: string, input: ImportFileInput): P
     return reject(checked.reason, requested)
   }
 
+  if (input.maxFiles !== undefined && row.receivedFiles >= input.maxFiles) {
+    input.stream.resume()
+    await finished(input.stream).catch(() => {})
+    throw tooManyFiles(input.maxFiles)
+  }
   const settings = await getServerSettings()
-  const importMaxBytes = settings.importMaxBytes
+  const importMaxBytes = Math.min(settings.importMaxBytes, input.maxImportBytes ?? Infinity)
   const importMaxFileBytes = Math.min(settings.importMaxFileBytes, input.maxFileBytes ?? Infinity)
   const temp = path.join(row.stagingPath, `${TEMP_PREFIX}upload-${newId()}.part`)
   await mkdir(row.stagingPath, { recursive: true })
@@ -237,15 +256,21 @@ export async function addImportFile(importId: string, input: ImportFileInput): P
     throw importMaxBytes - row.receivedBytes < importMaxFileBytes ? importTooLarge(importMaxBytes) : fileTooLarge(importMaxFileBytes)
   }
 
+  if (input.rejectEmptyAudio && bytes === 0 && checked.kind === 'audio') {
+    await rm(temp, { force: true })
+    return reject('empty_file', checked.path)
+  }
   const target = path.join(row.stagingPath, checked.path)
   try {
     return await db.transaction(async (tx) => {
       const [updated] = await tx.update(imports)
         .set({ receivedFiles: sql`${imports.receivedFiles} + 1`, receivedBytes: sql`${imports.receivedBytes} + ${bytes}`, updatedAt: new Date() })
         .where(and(eq(imports.id, importId), eq(imports.status, 'receiving')))
-        .returning({ receivedBytes: imports.receivedBytes })
+        .returning({ receivedBytes: imports.receivedBytes, receivedFiles: imports.receivedFiles })
       if (!updated) throw notReceiving()
       if (updated.receivedBytes > importMaxBytes) throw importTooLarge(importMaxBytes)
+      // Uploads racing past the check above are counted here, under the import's row lock.
+      if (input.maxFiles !== undefined && updated.receivedFiles > input.maxFiles) throw tooManyFiles(input.maxFiles)
       try {
         await mkdir(path.dirname(target), { recursive: true })
         await placeNew(temp, target)
@@ -344,6 +369,12 @@ export async function getImport(importId: string): Promise<Import> {
   return toImport(await loadImport(importId))
 }
 
+/** The library files an import's duplicates were copies of: see `ImportWork.copies`. Empty when the import is gone. */
+export async function importCopies(importId: string): Promise<string[]> {
+  const [row] = await db.select({ work: imports.work }).from(imports).where(eq(imports.id, importId))
+  return ((row?.work ?? {}) as ImportWork).copies ?? []
+}
+
 /** Uploading is for admins and members with the upload flag. */
 export function canImport(user: AuthUser): boolean {
   return user.role === 'admin' || user.canUpload
@@ -363,6 +394,8 @@ export async function listImports(user: AuthUser, query: ImportListQuery): Promi
   const rows = await db.select().from(imports).where(and(
     user.role === 'admin' ? undefined : eq(imports.userId, user.id),
     query.status ? eq(imports.status, query.status) : undefined,
+    // Deliveries are cache filled by listening; they are listed only when asked for by kind.
+    query.kind ? eq(imports.kind, query.kind) : ne(imports.kind, 'acquisition'),
     query.cursor ? lt(imports.id, query.cursor) : undefined,
   )).orderBy(desc(imports.id)).limit(query.limit + 1)
   const page = rows.slice(0, query.limit)

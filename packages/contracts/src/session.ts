@@ -345,7 +345,7 @@ export type SessionAttach = z.infer<typeof SessionAttach>
 /**
  * Answer to `session:detach` and `session:attach`: on success, the session the device is
  * in now. Errors: `hello_required`, `cannot_play`, `too_many_detached`,
- * `nothing_to_bring`, `invalid_request`, `internal_error`.
+ * `nothing_to_bring`, `invalid_request`, `rate_limited`, `internal_error`.
  */
 export const SessionMoveAck = z.union([
   SessionHelloAck.extend({ ok: z.literal(true) }),
