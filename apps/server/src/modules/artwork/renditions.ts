@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import { ART_SIZES, type ArtSize } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import sharp from 'sharp'
@@ -10,8 +10,14 @@ import { dataPath, writeAtomic } from './store.js'
 
 const Params = z.object({
   assetId: z.uuid(),
-  size: z.coerce.number().pipe(z.union(ART_SIZES.map((size) => z.literal(size)))),
+  // `300` or `300.webp`. The extension lets a CDN in front keep renditions at the edge
+  // (Cloudflare caches by file extension); the web app asks with it.
+  size: z.string().regex(/^\d+(\.webp)?$/).transform((size) => Number.parseInt(size, 10))
+    .pipe(z.union(ART_SIZES.map((size) => z.literal(size)))),
 })
+
+/** The sizes grids and lists ask for, rendered as soon as an image is stored (`artwork.render`). */
+export const PRERENDERED_SIZES: readonly ArtSize[] = [96, 300, 600]
 
 /** Renders in progress, so concurrent requests for one rendition share a single render. */
 const rendering = new Map<string, Promise<Buffer>>()
@@ -34,8 +40,25 @@ export async function rendition(assetId: string, size: ArtSize): Promise<Buffer>
   return pending
 }
 
-async function render(assetId: string, size: ArtSize, file: string) {
-  const { bytes: original } = await readOriginal(assetId)
+export type RenderJob = { assetId: string }
+
+/**
+ * `artwork.render`: writes the common renditions of a newly stored image, so the first
+ * grid that shows it reads files instead of waiting on a resize per cover. The original is
+ * read once for all sizes; sizes already on disk are skipped.
+ */
+export async function prerender({ assetId }: RenderJob) {
+  let original: Buffer | undefined
+  for (const size of PRERENDERED_SIZES) {
+    const file = dataPath('art', assetId, `${size}.webp`)
+    if (await access(file).then(() => true, () => false)) continue
+    original ??= (await readOriginal(assetId)).bytes
+    await render(assetId, size, file, original)
+  }
+}
+
+async function render(assetId: string, size: ArtSize, file: string, original?: Buffer) {
+  original ??= (await readOriginal(assetId)).bytes
   const output = await sharp(original).autoOrient().resize(size, size, { fit: 'cover' }).webp({ quality: 82 }).toBuffer()
   await writeAtomic(file, output)
   return output

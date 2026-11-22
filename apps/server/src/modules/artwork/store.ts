@@ -7,6 +7,7 @@ import { rgbaToThumbHash } from 'thumbhash'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { albums, assets } from '../../database/schema.js'
+import { enqueue } from '../../jobs/index.js'
 import { AppError, notFound } from '../../lib/errors.js'
 import { newPublicId } from '../../lib/ids.js'
 import { fetchImage } from '../metadata/coverart.js'
@@ -97,7 +98,11 @@ export async function storeImage(bytes: Uint8Array, { kind, source }: { kind: As
   const [inserted] = await db.insert(assets).values({ id: newPublicId(), kind, source, ...inspected })
     .onConflictDoNothing({ target: assets.sha256, where: isNull(assets.remoteUrl) })
     .returning()
-  if (inserted) return inserted
+  if (inserted) {
+    // A process without the job system (a script) leaves it to the first request.
+    await enqueue('artwork.render', { assetId: inserted.id }, { singletonKey: inserted.id }).catch(() => {})
+    return inserted
+  }
   // Another job stored the same image a moment ago.
   const [winner] = await db.select().from(assets).where(localBySha(sha256))
   return winner!
