@@ -89,9 +89,23 @@ public class SystemVolumeModule: Module {
   }
 }
 
-/** The system volume slider, drawn in the app's colors. It follows the side buttons by itself. */
+/**
+ * The system volume slider, drawn like Apple Music's: no thumb, a thin rounded track that
+ * thickens while a finger drags it, and the whole bar to drag on. It follows the side
+ * buttons by itself, and moving it moves the system volume.
+ *
+ * The slider's own thumb is replaced by a clear image in every state, rather than covered.
+ * With no thumb to grab, a pan over the whole view moves the volume by how far the finger
+ * travels from where it started, as Apple Music's does.
+ */
 class SystemVolumeView: ExpoView {
+  /** Track heights at rest and while dragging. */
+  static let restHeight: CGFloat = 6
+  static let activeHeight: CGFloat = 10
+
   let volumeView = MPVolumeView(frame: .zero)
+  private var dragging = false
+  private var dragStart: Float = 0
 
   var tint: UIColor? {
     didSet { style() }
@@ -105,6 +119,9 @@ class SystemVolumeView: ExpoView {
     // The output picker sits beside the slider as its own view.
     volumeView.showsRouteButton = false
     addSubview(volumeView)
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(drag(_:)))
+    pan.maximumNumberOfTouches = 1
+    addGestureRecognizer(pan)
   }
 
   override func layoutSubviews() {
@@ -113,13 +130,66 @@ class SystemVolumeView: ExpoView {
     style()
   }
 
-  private func style() {
-    guard let slider = volumeView.volumeSlider else {
+  @objc private func drag(_ pan: UIPanGestureRecognizer) {
+    guard let slider = volumeView.volumeSlider, bounds.width > 0 else {
       return
     }
-    slider.minimumTrackTintColor = tint
-    slider.maximumTrackTintColor = trackTint
-    slider.thumbTintColor = tint
+    switch pan.state {
+    case .began:
+      dragStart = slider.value
+      setDragging(true)
+    case .changed:
+      let moved = Float(pan.translation(in: self).x / bounds.width)
+      let direction: Float = effectiveUserInterfaceLayoutDirection == .rightToLeft ? -1 : 1
+      // Setting the volume view's slider is what moves the system volume.
+      slider.value = min(1, max(0, dragStart + moved * direction))
+      slider.sendActions(for: .valueChanged)
+    default:
+      setDragging(false)
+    }
+  }
+
+  private func setDragging(_ value: Bool) {
+    guard dragging != value else {
+      return
+    }
+    dragging = value
+    if let slider = volumeView.volumeSlider {
+      UIView.transition(with: slider, duration: 0.15, options: [.transitionCrossDissolve, .allowUserInteraction]) {
+        self.style()
+      }
+    }
+  }
+
+  /** What the slider was last drawn with; layout comes often, and the images need not be made again. */
+  private var styled: (tint: UIColor?, trackTint: UIColor?, dragging: Bool, slider: UISlider?)?
+
+  private func style() {
+    let slider = volumeView.volumeSlider
+    if let styled, styled.tint == tint, styled.trackTint == trackTint, styled.dragging == dragging, styled.slider === slider {
+      return
+    }
+    styled = (tint, trackTint, dragging, slider)
+    let clear = SystemVolumeView.image(color: .clear, height: 1)
+    for state: UIControl.State in [.normal, .highlighted, .selected, .disabled, [.highlighted, .selected]] {
+      volumeView.setVolumeThumbImage(clear, for: state)
+    }
+    let height = dragging ? SystemVolumeView.activeHeight : SystemVolumeView.restHeight
+    volumeView.setMinimumVolumeSliderImage(SystemVolumeView.image(color: tint ?? .white, height: height), for: .normal)
+    volumeView.setMaximumVolumeSliderImage(SystemVolumeView.image(color: trackTint ?? .gray, height: height), for: .normal)
+  }
+
+  /** A capsule `height` tall that stretches in width: the slider draws its track parts with these. */
+  static func image(color: UIColor, height: CGFloat) -> UIImage {
+    let width = max(height, 1) + 2
+    let format = UIGraphicsImageRendererFormat()
+    format.opaque = false
+    let image = UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format).image { _ in
+      color.setFill()
+      UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: width, height: height), cornerRadius: height / 2).fill()
+    }
+    let cap = height / 2
+    return image.resizableImage(withCapInsets: UIEdgeInsets(top: 0, left: cap, bottom: 0, right: cap), resizingMode: .stretch)
   }
 }
 
