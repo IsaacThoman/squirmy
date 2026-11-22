@@ -70,6 +70,39 @@ export async function enqueueMany<T extends object>(name: string, items: readonl
   })))
 }
 
+/** A job that holds its singleton key: waiting to run (`created`, `retry`) or running. */
+export type HeldJob<T> = { id: string; state: 'created' | 'retry' | 'active'; data: T }
+
+/** The job of `name` that holds this singleton key, if any. */
+export async function findJob<T extends object>(name: string, singletonKey: string): Promise<HeldJob<T> | null> {
+  const [row] = await db.execute<HeldJob<T>>(sql`
+    select id, state, data from pgboss.job
+    where name = ${name} and singleton_key = ${singletonKey} and state in ('created', 'retry', 'active')
+    limit 1`)
+  return row ?? null
+}
+
+/** Replaces the data of a job that has not started yet. False when it has started or is gone. */
+export async function replaceQueuedData<T extends object>(name: string, id: string, data: T): Promise<boolean> {
+  const rows = await db.execute<{ id: string }>(sql`
+    update pgboss.job set data = ${JSON.stringify(data)}::jsonb
+    where name = ${name} and id = ${id} and state in ('created', 'retry')
+    returning id`)
+  return rows.length > 0
+}
+
+/**
+ * Deletes the job of `name` with this singleton key if it has not started, so a running job
+ * can do its work instead. Returns whether there was one.
+ */
+export async function takeQueued(name: string, singletonKey: string): Promise<boolean> {
+  const rows = await db.execute<{ id: string }>(sql`
+    delete from pgboss.job
+    where name = ${name} and singleton_key = ${singletonKey} and state in ('created', 'retry')
+    returning id`)
+  return rows.length > 0
+}
+
 /** Runs `name` on a cron expression (UTC). Call it from a module's `jobs` hook or after `startJobs`. */
 export async function schedule(name: string, cron: string) {
   schedules.set(name, cron)
