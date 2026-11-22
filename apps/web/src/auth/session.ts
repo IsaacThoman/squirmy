@@ -55,5 +55,12 @@ export function useCurrentUser(): User {
 
 /** Where to go after signing in: a path inside the app, never another origin. */
 export function safeNext(next: string | null): string {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
+  if (!next) return '/'
+  try {
+    // Parsed as the browser will, so backslashes, tabs and newlines cannot turn it into another origin.
+    const url = new URL(next, window.location.origin)
+    return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : '/'
+  } catch {
+    return '/'
+  }
 }
