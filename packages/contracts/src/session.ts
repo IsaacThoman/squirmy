@@ -122,7 +122,8 @@ const seeds = z.array(QueueSeed).min(1).max(5000)
  *   `playOrder`; off restores that order.
  * - `playTracks`: replace the queue with `tracks` and start playing. `startIndex` indexes
  *   `tracks`; when omitted, the first track, or with shuffle the first of the shuffled
- *   order. Without shuffle the tracks before the start are not queued.
+ *   order. Without shuffle the tracks before the start are not queued. The autoplay
+ *   queue is emptied, so the server suggests tracks for the new ones.
  * - `enqueue`: `next` inserts before the queue, `last` appends.
  * - `playQueueEntry`: play an entry of the queue or the autoplay queue now; the entries
  *   before it stay queued.

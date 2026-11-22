@@ -59,6 +59,13 @@ describe('reduceSession', () => {
       expect(currentTrack(playing(3, { startIndex: 10 }))).toBe(3)
     })
 
+    it('drops the suggestions made for what played before', () => {
+      let session = run(playing(1), { type: 'setAutoplayQueue', tracks: seeds(50, 51) })
+      session = run(session, { type: 'playTracks', tracks: seeds(50, 60), seed: 1 })
+      expect(currentTrack(session)).toBe(50)
+      expect(session.autoplayQueue).toEqual([])
+    })
+
     it('derives entry ids from the command id', () => {
       const session = reduceSession(createInitialSession(), { command: { type: 'playTracks', tracks: seeds(1, 2), seed: 1 }, now: 0, commandId: 'abc' })
       expect([session.current!.id, ...session.queue.map(entry => entry.id)]).toEqual(['abc.0', 'abc.1'])
