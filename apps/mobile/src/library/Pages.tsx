@@ -39,7 +39,7 @@ import {
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
 import { underStatusBar, useRefreshControl } from './refresh';
-import { displayFontScale } from '../fontScale';
+import { displayFontScale, secondaryFontScale } from '../fontScale';
 import { SongList, useSongListItems, type SongListProps } from './SongList';
 import { chunk, type SongListItems, type SongRowItem } from './rows';
 import { usePlayAll } from './usePlayAll';
@@ -344,8 +344,8 @@ function AlbumFooter({ album }: { album: Pick<AlbumDetail, 'releaseDate' | 'year
   const label = album.label ? ['℗', year, album.label].filter(Boolean).join(' ') : null;
   if (!date && !label) return null;
   return <View style={styles.albumFooter}>
-    {date && <Text style={styles.albumFooterText}>{date}</Text>}
-    {label && <Text style={styles.albumFooterText}>{label}</Text>}
+    {date && <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.albumFooterText}>{date}</Text>}
+    {label && <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.albumFooterText}>{label}</Text>}
   </View>;
 }
 
