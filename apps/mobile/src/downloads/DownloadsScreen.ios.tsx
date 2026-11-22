@@ -36,7 +36,7 @@ export function DownloadsScreen() {
     <VStack spacing={0}>
     <SheetFormHeader title="Downloads" onClose={() => closeSheet(router)} />
     <Form modifiers={[scrollContentBackground('hidden'), tint(colors.accent)]}>
-      <Section footer={empty ? <Text>Tap the download button on an album or playlist to keep it on this {screen.device} and play it without a connection.</Text> : undefined}>
+      <Section footer={empty ? <Text>Tap the download button on an album, a playlist or Liked Songs, or choose Download in a song’s menu, to keep it on this {screen.device} and play it without a connection.</Text> : undefined}>
         <LabeledContent label="Downloaded"><Text>{empty ? 'Nothing yet' : screen.used}</Text></LabeledContent>
         <LabeledContent label={`Available on ${screen.device}`}><Text>{screen.free}</Text></LabeledContent>
         {screen.status && <HStack>

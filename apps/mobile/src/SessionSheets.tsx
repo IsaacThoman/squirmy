@@ -20,7 +20,7 @@ import { SystemVolumeSlider } from '../modules/now-playing';
 import {
   SheetAction, SheetField, SheetFrame, SheetInfo, SheetNote, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary,
 } from './SheetUI';
-import { DETACHED_SYMBOL, detachedNotice, hasQueueToBring, moveFailure, rejoinedNotice, separateRows } from './player/detach';
+import { DETACHED_SYMBOL, detachedHeader, detachedNotice, hasQueueToBring, moveFailure, rejoinedNotice, separateRows } from './player/detach';
 import { useNotice } from './Notice';
 import { useColors } from './theme';
 
@@ -56,7 +56,7 @@ export function DeviceSheet() {
   if (detached) {
     return (
       <Sheet title="Playback device">
-        <SheetInfo icon={DETACHED_SYMBOL} title="Playing only on this device" subtitle={track ? `${track.title} · ${track.artistCredit}` : 'Nothing playing'} />
+        <SheetInfo icon={DETACHED_SYMBOL} {...detachedHeader(track, session.playing)} />
         <SheetRows>
           <SheetRow title="Rejoin your other devices" icon="arrow.uturn.backward"
             subtitle="This device’s queue is cleared."

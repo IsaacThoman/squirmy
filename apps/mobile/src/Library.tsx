@@ -29,7 +29,7 @@ import { useStartGuard } from './library/pending';
 import { underStatusBar, useRefreshControl } from './library/refresh';
 import { displayFontScale } from './fontScale';
 import {
-  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
+  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, largeTextScale, likedCollection, matches, OfflineBadge,
   playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './library/shared';
 import { useRealtime } from './data/realtime';
@@ -201,7 +201,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const collectionDim = useCollectionDim();
   const { offline } = useRealtime();
   const { top } = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const actions = usePlaybackActions();
   const router = useRouter();
   const [filter, setFilter] = useState<LibraryFilter>('All');
@@ -213,7 +213,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const [query, setQuery] = useState('');
   const sorts = sortsFor(filter);
   const sort = sortOptions[sortName];
-  const columns = width >= 650 ? 4 : 3;
+  const columns = gridColumns(width, fontScale);
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   const showsPlaylists = filter === 'All' || filter === 'Playlists';
   const showsAlbums = filter === 'All' || filter === 'Albums';
@@ -386,14 +386,16 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<SearchFilter>('all');
   const searchInput = useRef<SearchHandle>(null);
   const list = useSearchList(query, filter);
   const recents = useRecentSearches();
   const genres = useGenres();
-  const genreWidth = Math.floor((width - gutter * 2 - 12) / 2);
+  // One genre a row at accessibility text sizes, so its name fits on the tile.
+  const genreColumns = fontScale >= largeTextScale ? 1 : 2;
+  const genreWidth = Math.floor((width - gutter * 2 - 12 * (genreColumns - 1)) / genreColumns);
   const { offline } = useRealtime();
   const actions = usePlaybackActions();
   const { canPlay } = useAvailability();
@@ -519,7 +521,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     : <View style={styles.searchGenres}>
       <SectionTitle title="Browse by genre" />
       <View style={styles.genres}>
-        <GenreGrid items={genreNames.map((name, index) => {
+        <GenreGrid columns={genreColumns} items={genreNames.map((name, index) => {
           const artwork = genreCovers[index]?.artwork;
           return {
             id: name, title: name, width: genreWidth, color: shade(artwork?.color),

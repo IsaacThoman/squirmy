@@ -1,7 +1,7 @@
 import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  codecsFor, deviceRows, isPlayable, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
+  codecsFor, deviceRows, isPlayable, pendingQueueRow, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
   seedOf,
 } from './session';
 
@@ -164,5 +164,12 @@ describe('queueRow', () => {
 
   it('does not gray an entry whose summary is still loading', () => {
     expect(queueRow(entry('a', 'ready'), undefined, { playable: false, offline: true, viewer: requester })).toEqual({ detail: '', unavailable: false });
+  });
+});
+
+describe('pendingQueueRow', () => {
+  it('says a missing summary is loading, or offline that it needs a connection', () => {
+    expect(pendingQueueRow(false)).toEqual({ title: 'Loading…', detail: '' });
+    expect(pendingQueueRow(true)).toEqual({ title: 'Song not loaded', detail: 'Needs a connection' });
   });
 });

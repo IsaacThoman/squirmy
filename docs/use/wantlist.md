@@ -19,9 +19,9 @@ The iOS app shows or hides it right away. Turning it off keeps everyone's wants,
 ## Adding to it
 
 - **Web app.** Albums you do not have show a bookmark on their cards, and album pages and song menus have **Add to Wantlist**. Search results below "your library" and gray albums on artist pages are the usual places to find them.
-- **iOS app.** Album pages for albums you do not fully own have **Add to wantlist**, and song menus for songs you do not have offer **Add to wantlist**.
+- **iOS app.** Album pages for albums you do not fully own have **Add to wantlist**, and song menus for songs you do not have offer **Add to wantlist**. Once an item is on your wantlist, the same button and menu entry read **Remove from wantlist**.
 
-In the web app, remove an item with **Remove from Wantlist** in the same places; the iOS app cannot remove items yet. Each person has their own wantlist.
+Remove an item with **Remove from Wantlist** in the same places, in the web app and the iOS app alike. Each person has their own wantlist.
 
 ## Seeing it
 

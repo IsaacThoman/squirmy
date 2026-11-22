@@ -40,7 +40,7 @@ export function DownloadsScreen() {
 
   return <ScrollView>
     <SheetFrame title="Downloads" onClose={() => closeSheet(router)}>
-      <Text style={styles.note}>{empty ? `Nothing downloaded yet. Tap the download button on an album or playlist to keep it on this ${screen.device}.`
+      <Text style={styles.note}>{empty ? `Nothing downloaded yet. Tap the download button on an album, a playlist or Liked Songs, or choose Download in a song’s menu, to keep it on this ${screen.device}.`
         : `${screen.used} · ${screen.free} available`}</Text>
       {screen.status && <SheetRows>
         <SheetRow title={screen.status.text} icon={screen.status.retry ? 'exclamationmark.circle' : 'arrow.down.circle.dotted'}

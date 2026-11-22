@@ -15,7 +15,7 @@ import { useAccount, useSignedInApi, useWantlistEnabled, type Api } from '../acc
 import { albumExpanding } from '../data/albums';
 import { fallbackTint } from '../data/color';
 import { isNotFound } from '../data/errors';
-import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
+import { useLibraryActions, useLiked, usePlaylistActions, useWanted } from '../data/library';
 import { appearsOnKey, isArtistSectionKey, releaseGroups } from '../data/artists';
 import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
@@ -34,7 +34,7 @@ import { BrowseButton, CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
 import { heartButton } from './heart';
 import {
-  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
+  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, likedCollection, nearEnd, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useCollectionDim, type Collection,
 } from './shared';
 import { uniqueTracks } from './loadAll';
@@ -148,7 +148,8 @@ function DetailPage({
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
       <AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} />
       {/* Hidden from VoiceOver: the header's own title already names the page. */}
-      <Animated.Text numberOfLines={1} maxFontSizeMultiplier={displayFontScale} accessibilityElementsHidden
+      {/* Cut in the middle: an edition's name ends its title ("… The Anthology"), and the bar is narrow. */}
+      <Animated.Text numberOfLines={1} ellipsizeMode="middle" maxFontSizeMultiplier={displayFontScale} accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants" style={[styles.barTitle, barStyle]}>{title}</Animated.Text>
       <View style={styles.navActions}>
         {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
@@ -205,7 +206,7 @@ function TrackSection({ title, detail, onSeeAll, children }: { title: string; de
     {/* A native button has no text baseline to line up with, so a row with one is centred instead. */}
     <View style={[styles.trackListHeader, onSeeAll && styles.trackListHeaderButton]}>
       <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.trackListTitle}>{title}</Text>
-      {detail && <Text style={styles.trackCount}>{detail}</Text>}
+      {detail && <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.trackCount}>{detail}</Text>}
       {onSeeAll && <BrowseButton label={`See all ${title.toLowerCase()}`} title="See all" icon="chevron.right" onPress={onSeeAll} />}
     </View>
     {children && <View style={styles.trackList}>{children}</View>}
@@ -238,11 +239,12 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const queryClient = useQueryClient();
   const kept = useDownloadedAlbum(id);
   const data = album.data ?? kept;
+  const wanted = useWanted(id, data?.wanted);
   const actions = usePlaybackActions();
   const { canPlay, offline, viewer } = useAvailability();
   const download = useDownloadActions();
   const liked = useLiked('album', id, data?.liked);
-  const { setLiked, want } = useLibraryActions();
+  const { setLiked, setWanted } = useLibraryActions();
   const wantlist = useWantlistEnabled();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
     album.data?.discs.flatMap(disc => disc.tracks), () => download.album(album.data!));
@@ -274,11 +276,11 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const buttons = waitButtons ?? playButtons(tracks, canPlay, play);
   // The wantlist is for music this viewer can't play; for someone who may fetch music nothing is.
   const unavailable = !expanding && !buttons.length;
-  const wantButton = offline || !wantlist || !unavailable ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
+  // Added and removed alike, worded as on web.
+  const wantButton = offline || !wantlist || !unavailable ? [] : [{ label: wanted ? 'Remove from wantlist' : 'Add to wantlist', symbol: wanted ? 'star.fill' : 'star',
     onPress: () => {
-      if (data.wanted) return;
       tapFeedback();
-      want('album', data.id, data.title);
+      setWanted('album', data.id, !wanted, data.title);
     } }];
 
   const artistLinks = data.artists.map(artist => ({ name: artist.name, open: () => { tapFeedback(); onOpen(link('artist', artist.id)); } }));
@@ -668,10 +670,10 @@ function CollectionGridPage({ title, detail, items, header, onBack, onRefresh, o
 }) {
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const collectionDim = useCollectionDim();
   const refreshControl = useRefreshControl(onRefresh);
-  const columns = width >= 650 ? 4 : 3;
+  const columns = gridColumns(width, fontScale);
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   const rows = useMemo(() => chunk(items.map(collectionDim), columns), [items, columns, collectionDim]);
   const renderRow = useCallback(({ item: row }: { item: Collection[] }) => <CollectionGridRow items={row.map(item => ({
@@ -708,7 +710,11 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   description: { color: colors.muted, fontSize: 14, lineHeight: 21 },
   moreLabel: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 4 },
   measure: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
-  trackListHeader: { marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 8 },
+  // Wraps, so at large text sizes the song count goes under the heading instead of off the screen.
+  trackListHeader: {
+    marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between',
+    columnGap: 10, rowGap: 2, paddingBottom: 8,
+  },
   trackListHeaderButton: { alignItems: 'center', paddingBottom: 2 },
   trackListTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   trackCount: { color: colors.quiet, fontSize: 12, fontWeight: '600' },
