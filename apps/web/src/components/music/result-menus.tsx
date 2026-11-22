@@ -7,6 +7,7 @@ import { errorMessage } from '@/api/errors'
 import { albumQuery } from '@/api/queries'
 import { useApi } from '@/api/services'
 import type { MenuEntry } from '@/components/ui/menu'
+import { librarySaveEntry } from './library-save-entry'
 import { albumPresentation, isPlayable } from '@/lib/catalog'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
@@ -16,8 +17,9 @@ import { usePlayCollections } from '@/player/use-play-collections'
 
 /**
  * Menus for an album, an artist or a playlist shown as a row (search results), with what
- * their pages' menus offer that needs no more than the row: an album's songs are fetched
- * when an entry needs them. Songs use `trackMenuEntries`.
+ * their pages' menus offer that needs no more than the row, the heart's Save to library or
+ * Remove from library included: an album's songs are fetched when an entry needs them. Songs
+ * use `trackMenuEntries`. Playlists are the viewer's own, so there is nothing to save.
  */
 export function useResultMenus() {
   const api = useApi()
@@ -43,8 +45,10 @@ export function useResultMenus() {
   return (item: Exclude<SearchItem, { type: 'track' }>): MenuEntry[] => {
     if (item.type === 'artist') {
       const { artist } = item
+      const save = artist.liked === undefined ? [] : [librarySaveEntry({ liked: artist.liked }, () => library.setSaved({ type: 'artist', id: artist.id, title: artist.name }, !artist.liked))]
       return [
         { label: 'Start radio', icon: <Radio />, onSelect: () => controls.startRadio({ type: 'artist', id: artist.id }) },
+        ...save,
         { kind: 'separator' },
         { label: 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) },
       ]
@@ -78,6 +82,8 @@ export function useResultMenus() {
           ...library.playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => withTracks(album, tracks => library.addToPlaylist(playlist, tracks)) })),
         ],
       },
+      // The heart's entry, as on the album page; an answer from an older server says nothing to show.
+      ...(album.liked === undefined ? [] : [librarySaveEntry({ liked: album.liked }, () => library.setSaved({ type: 'album', id: album.id, title: album.title }, !album.liked))]),
       // The Wantlist is for music that does not play, while the server has it on.
       ...(library.wantlistEnabled && !plays ? [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: want }] : []),
       { kind: 'separator' },
