@@ -120,6 +120,13 @@
       "when": 1795362676066,
       "tag": "0016_provider_miss_epoch",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795372420187,
+      "tag": "0017_release_integrity",
+      "breakpoints": true
     }
   ]
 }

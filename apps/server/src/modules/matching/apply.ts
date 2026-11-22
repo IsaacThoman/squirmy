@@ -165,6 +165,7 @@ export async function upsertRelease(tx: Transaction, release: MbRelease, adoptio
     artistCredit: group.artistName,
     primaryArtistId: primaryArtist(group.artistCredit),
     type: group.type,
+    typeGuessed: false,
     secondaryTypes: group.secondaryTypes,
     releaseDate: group.date,
     year: group.year,
