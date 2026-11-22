@@ -3,11 +3,10 @@ import { ProviderError } from '../../lib/http.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { useHttpFixtures } from '../../test/http.js'
-import { recordingPopularity, similarArtists, submitListens, topRecordingsForArtist, validateToken } from './listenbrainz.js'
+import { similarArtists, submitListens, topRecordingsForArtist, validateToken } from './listenbrainz.js'
 
 const radiohead = 'a74b1b7f-71a5-4011-9441-d0b5e4122711'
 const uptownFunk = '33b6b148-9dce-4894-902d-d218ecc30666'
-const unknownRecording = '11111111-2222-4333-8444-555555555555'
 
 const listen = {
   listenedAt: new Date('2026-11-20T12:00:00Z'),
@@ -25,7 +24,6 @@ describe('listenbrainz', () => {
 
   it('stays off until the operator sets a token', async () => {
     expect(await topRecordingsForArtist(radiohead)).toEqual([])
-    expect(await recordingPopularity([uptownFunk])).toEqual([])
     expect(await similarArtists(radiohead)).toEqual([])
     expect(http.requests).toEqual([])
     await updateServerSettings({ listenBrainzToken: 'operator-token' })
@@ -37,13 +35,6 @@ describe('listenbrainz', () => {
     expect(top[0]).toMatchObject({ artistName: 'Radiohead', artistMbids: [radiohead] })
     expect(top[0]!.listenCount).toBeGreaterThanOrEqual(top[9]!.listenCount)
     expect(top.map((recording) => recording.title)).toContain('Creep')
-  })
-
-  it('returns popularity in the order asked, with nulls for unknown recordings', async () => {
-    const counts = await recordingPopularity([uptownFunk, unknownRecording])
-    expect(counts.map((count) => count.recordingMbid)).toEqual([uptownFunk, unknownRecording])
-    expect(counts[0]!.listenCount).toBeGreaterThan(0)
-    expect(counts[1]).toEqual({ recordingMbid: unknownRecording, listenCount: null, userCount: null })
   })
 
   it('lists similar artists without the artist itself', async () => {

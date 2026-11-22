@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
-import { db } from '../../database/client.js'
-import { albumArtists, albums, artists, externalIds } from '../../database/schema.js'
-import { newId } from '../../lib/ids.js'
-import { creditKey, matchKey } from '../../lib/text.js'
+import { db } from '../database/client.js'
+import { albumArtists, albums, artists, externalIds } from '../database/schema.js'
+import { newId } from '../lib/ids.js'
+import { creditKey, matchKey } from '../lib/text.js'
 
 /** Stub rows as the search module stores catalog results (`detail_level` 0), for enrichment tests. */
 

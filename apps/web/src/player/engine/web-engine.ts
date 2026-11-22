@@ -15,10 +15,23 @@ export type WebEngineOptions = {
   resumeTimeoutMs?: number
   /** Playing without the position moving for this long counts as buffering. */
   stallMs?: number
+  /** How long before the current entry's end the preloaded one starts playing. */
+  handoffLeadMs?: number
 }
 
 const HAVE_METADATA = 1
+const HAVE_FUTURE_DATA = 3
 const WATCHDOG_MS = 250
+/**
+ * Starting the next entry only on `ended` leaves a gap of that event's delay plus the time the
+ * element takes to produce sound, and the first grows with whatever else the page is doing. So
+ * the next entry starts on a timer just before the end instead, and `ended` swaps the voices.
+ */
+const HANDOFF_LEAD_MS = 4
+/** `timeupdate` comes at least every 250 ms; within this much of the end it schedules the start. */
+const HANDOFF_WINDOW_MS = 1000
+/** Still not ended this long after the next entry started: the length was wrong, so undo the start. */
+const HANDOFF_GRACE_MS = 250
 
 /**
  * `PlayerEngine` on `HTMLAudioElement`s routed through Web Audio.
@@ -48,6 +61,12 @@ export class WebPlayerEngine implements PlayerEngine {
   /** Bumped by every load and stop, so late callbacks of an earlier entry do nothing. */
   private generation = 0
   private watchdog: ReturnType<typeof setInterval> | null = null
+  /** Starts the preloaded entry just before the current one ends, then gives up if it does not end. */
+  private handoffTimer: ReturnType<typeof setTimeout> | null = null
+  /** The preloaded entry is already playing, ahead of the current one's end. */
+  private handedOff = false
+  /** The generation whose end came later than its length said; it waits for `ended` instead. */
+  private handoffMissed = -1
   private lastProgress = { position: 0, at: 0 }
   private readonly listeners = new Set<(event: EngineEvent) => void>()
   private readonly detach: (() => void)[] = []
@@ -60,6 +79,7 @@ export class WebPlayerEngine implements PlayerEngine {
 
   load(request: EngineLoad): void {
     this.generation += 1
+    this.cancelHandoff()
     const reuse = this.spare.entry?.entryId === request.entryId
     if (reuse) {
       [this.current, this.spare] = [this.spare, this.current]
@@ -87,11 +107,12 @@ export class WebPlayerEngine implements PlayerEngine {
 
   preload(request: EnginePreload | null): void {
     const spare = this.spare
-    if (!request) return this.clear(spare)
-    if (spare.entry?.entryId === request.entryId && spare.entry.url === request.url) {
+    if (request && spare.entry?.entryId === request.entryId && spare.entry.url === request.url) {
       spare.entry.gain = request.gain
       return this.applyGain(spare)
     }
+    this.cancelHandoff()
+    if (!request) return this.clear(spare)
     spare.entry = { ...request }
     this.applyGain(spare)
     spare.audio.src = request.url
@@ -109,6 +130,7 @@ export class WebPlayerEngine implements PlayerEngine {
   pause(): void {
     if (!this.current.entry) return
     this.wantPlay = false
+    this.cancelHandoff()
     this.current.audio.pause()
     if (this.state === 'loading') return this.continueLoading()
     if (this.state === 'error' && !this.blocked) return
@@ -119,6 +141,7 @@ export class WebPlayerEngine implements PlayerEngine {
   seek(positionMs: number): void {
     const { audio, entry } = this.current
     if (!entry || (this.state === 'error' && !this.blocked)) return
+    this.cancelHandoff()
     this.target = clampPosition(positionMs, audio.duration)
     if (this.state === 'loading') {
       this.targetPending = true
@@ -136,6 +159,7 @@ export class WebPlayerEngine implements PlayerEngine {
 
   stop(): void {
     this.generation += 1
+    this.cancelHandoff()
     this.clear(this.current)
     this.clear(this.spare)
     this.target = null
@@ -201,6 +225,9 @@ export class WebPlayerEngine implements PlayerEngine {
     on('waiting', whenCurrent(() => { if (this.state === 'playing' && !audio.seeking) this.setState('buffering') }))
     on('pause', whenCurrent(() => this.onPaused()))
     on('ended', whenCurrent(() => this.onEnded()))
+    on('timeupdate', whenCurrent(() => this.scheduleHandoff()))
+    // A length that changes while playing (an estimate corrected) moves the end.
+    on('durationchange', whenCurrent(() => this.cancelHandoff()))
     on('error', () => this.onError(voice))
     return voice
   }
@@ -250,6 +277,9 @@ export class WebPlayerEngine implements PlayerEngine {
   private onEnded(): void {
     const finished = this.current.entry!.entryId
     const next = this.spare
+    if (this.handoffTimer) clearTimeout(this.handoffTimer)
+    this.handoffTimer = null
+    this.handedOff = false
     if (next.entry) {
       [this.current, this.spare] = [next, this.current]
       this.clear(this.spare)
@@ -257,6 +287,7 @@ export class WebPlayerEngine implements PlayerEngine {
       this.target = null
       this.wantPlay = true
       this.state = 'playing'
+      // Usually already playing since the hand-off; this still watches for the browser refusing it.
       this.startAudio()
       this.emit({ type: 'ended', entryId: finished })
       this.syncWatchdog()
@@ -316,6 +347,7 @@ export class WebPlayerEngine implements PlayerEngine {
 
   private fail(message: string): void {
     if (this.state === 'error') return
+    this.cancelHandoff()
     const entryId = this.current.entry!.entryId
     this.state = 'error'
     this.syncWatchdog()
@@ -350,6 +382,43 @@ export class WebPlayerEngine implements PlayerEngine {
     }
   }
 
+  /** Near the end of a playing entry, times the start of the preloaded one; each `timeupdate` refines it. */
+  private scheduleHandoff(): void {
+    const { audio } = this.current
+    const spare = this.spare
+    const entry = spare.entry
+    if (this.handedOff || this.handoffMissed === this.generation || this.state !== 'playing' || audio.seeking || this.context?.state !== 'running') return
+    if (!entry || spare.audio.readyState < HAVE_FUTURE_DATA || spare.audio.seeking) return
+    const remainingMs = ((audio.duration - audio.currentTime) * 1000) / (audio.playbackRate || 1)
+    if (!Number.isFinite(remainingMs) || remainingMs > HANDOFF_WINDOW_MS) return
+    const lead = this.options.handoffLeadMs ?? HANDOFF_LEAD_MS
+    const generation = this.generation
+    if (this.handoffTimer) clearTimeout(this.handoffTimer)
+    this.handoffTimer = setTimeout(() => {
+      this.handoffTimer = null
+      if (generation !== this.generation || this.state !== 'playing' || this.spare.entry !== entry || this.current.audio.paused) return
+      this.handedOff = true
+      // A refusal shows again when `ended` starts it the usual way.
+      spare.audio.play().catch(() => {})
+      this.handoffTimer = setTimeout(() => {
+        this.handoffTimer = null
+        this.handoffMissed = generation
+        this.cancelHandoff()
+      }, lead + HANDOFF_GRACE_MS)
+    }, Math.max(0, remainingMs - lead))
+  }
+
+  /** Undoes an early start: the preloaded entry waits at its beginning again. */
+  private cancelHandoff(): void {
+    if (this.handoffTimer) clearTimeout(this.handoffTimer)
+    this.handoffTimer = null
+    if (!this.handedOff) return
+    this.handedOff = false
+    const { audio, entry } = this.spare
+    audio.pause()
+    if (entry) audio.currentTime = 0
+  }
+
   /** While playing, a position that stops moving means a stall the element did not announce. */
   private syncWatchdog(): void {
     const watching = this.state === 'playing' || this.state === 'buffering'
@@ -378,6 +447,7 @@ export class WebPlayerEngine implements PlayerEngine {
 
   private setState(state: EngineState): void {
     if (state === this.state) return
+    if (state !== 'playing') this.cancelHandoff()
     this.state = state
     this.syncWatchdog()
     this.emitStatus()

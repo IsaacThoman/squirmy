@@ -25,7 +25,7 @@ import { db } from '../../database/client.js'
 import { assets, libraryRoots, mediaFiles } from '../../database/schema.js'
 import { enqueue, enqueueMany } from '../../jobs/index.js'
 import { notFound } from '../../lib/errors.js'
-import { fetchImage } from '../metadata/coverart.js'
+import { fetchImage } from '../metadata/index.js'
 import { dataPath, ensureStored, writeAtomic, type Asset, type StoredAsset } from './store.js'
 
 export type RecoverJob = { assetId: string }

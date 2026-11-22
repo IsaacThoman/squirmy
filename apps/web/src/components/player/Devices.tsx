@@ -21,7 +21,17 @@ export function DevicesPopover({ player, trigger, side = 'top' }: { player: Play
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent side={side} align="end" aria-label="Playback devices">
+      <PopoverContent
+        side={side}
+        align="end"
+        aria-label="Playback devices"
+        className="w-72 p-1"
+        // Focus goes to the popover, not to its first button: that would raise the mute button's tooltip over the list.
+        onOpenAutoFocus={event => {
+          event.preventDefault()
+          if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus()
+        }}
+      >
         <DeviceList player={player} onTransferred={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
@@ -39,14 +49,14 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
   }
   return (
     <div>
-      <div className="rounded-2xl bg-selection p-3.5">
-        <div className="flex items-center gap-3.5">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-accent text-on-accent">
-            {active ? <DeviceIcon kind={active.kind} className="size-5" /> : <MonitorSpeaker className="size-5" />}
+      <div className="px-2 pb-1.5 pt-2">
+        <div className="flex items-center gap-3">
+          <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-md', active ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground')}>
+            {active ? <DeviceIcon kind={active.kind} className="size-4" /> : <MonitorSpeaker aria-hidden className="size-4" />}
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-muted">Listening on</p>
-            <p className="truncate text-[15px] font-bold text-accent">{active ? deviceName(active, thisDeviceId) : 'Nothing right now'}</p>
+            <p className="text-xs text-muted-foreground">Listening on</p>
+            <p className={cn('truncate text-sm font-medium', active && 'text-primary')}>{active ? deviceName(active, thisDeviceId) : 'Nothing right now'}</p>
           </div>
         </div>
         {active && (
@@ -55,29 +65,33 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
             volume={volumes[active.id] ?? 1}
             onChange={volume => player.controls.setVolume(volume, active.id)}
             fill
-            className="-mb-1 -ml-1.5 mt-2.5 pr-1"
+            className="-ml-1.5 mt-1.5 gap-2.5 pr-1"
           />
         )}
       </div>
-      {others.length > 0 && <p className="px-3 pb-1 pt-3.5 text-xs font-semibold text-quiet">Play on another device</p>}
-      <ul className="flex flex-col">
-        {others.map(device => (
-          <li key={device.id}>
-            <button
-                type="button"
-                disabled={!device.canPlay}
-                onClick={() => onTransfer(device.id)}
-                className="flex w-full items-center gap-3.5 rounded-xl px-3 py-2.5 text-left transition-colors duration-100 hover:bg-overlay disabled:opacity-45"
-              >
-                <DeviceIcon kind={device.kind} className={cn('size-5 shrink-0', device.id === thisDeviceId ? 'text-accent' : 'text-muted')} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold" title={deviceName(device, thisDeviceId)}>{deviceName(device, thisDeviceId)}</span>
-                  <span className="block truncate text-xs text-muted">{device.id === thisDeviceId ? 'Play in this tab' : device.canPlay ? deviceKind(device.kind) : 'Remote control only'}</span>
-                </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      {others.length > 0 && (
+        <div className="mt-1 border-t pt-1">
+          <p className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Play on another device</p>
+          <ul>
+            {others.map(device => (
+              <li key={device.id}>
+                <button
+                  type="button"
+                  disabled={!device.canPlay}
+                  onClick={() => onTransfer(device.id)}
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:opacity-50"
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"><DeviceIcon kind={device.kind} className="size-4" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm" title={deviceName(device, thisDeviceId)}>{deviceName(device, thisDeviceId)}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{device.id === thisDeviceId ? 'Play in this tab' : device.canPlay ? deviceKind(device.kind) : 'Remote control only'}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
@@ -89,10 +103,10 @@ function deviceKind(kind: DeviceInfo['kind']) {
 /** Shown while another device plays: where the sound is, and a way to bring it here. */
 export function PlayingElsewhere({ device, onPlayHere, className }: { device: DeviceInfo; onPlayHere: () => void; className?: string }) {
   return (
-    <div className={cn('flex h-7 items-center justify-center gap-2 bg-accent px-4 text-[12px] font-semibold text-on-accent', className)}>
-      <DeviceIcon kind={device.kind} className="size-3.5" />
+    <div className={cn('flex h-8 items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-primary', className)}>
+      <DeviceIcon kind={device.kind} className="size-3.5 shrink-0" />
       <span className="truncate">Playing on {device.name}</span>
-      <button type="button" onClick={onPlayHere} className="ml-1 rounded-full px-2 py-0.5 font-bold underline-offset-2 hover:underline focus-visible:outline-on-accent">
+      <button type="button" onClick={onPlayHere} className="ml-1.5 h-6 shrink-0 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
         Play here
       </button>
     </div>

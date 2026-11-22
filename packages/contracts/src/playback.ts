@@ -9,9 +9,6 @@ export type StreamProfile = z.infer<typeof StreamProfile>
 export const StreamQuality = z.enum(['original', 'high', 'data_saver'])
 export type StreamQuality = z.infer<typeof StreamQuality>
 
-/** Codec names the client can decode: flac, mp3, aac, alac, opus, vorbis, wav, aiff. */
-export const AudioCodec = z.string().min(2).max(16)
-
 export const PlaybackQuery = z.object({
   /** Album context; prefers the file that belongs to this album. */
   albumId: Id.optional(),

@@ -7,14 +7,15 @@ import { analyzeFile, type AnalyzeJob } from './analyze.js'
 import { ingestGroup, type IngestJob } from './ingest.js'
 import { probeFile, type ProbeJob } from './probe.js'
 import { stopProgress } from './progress.js'
-import { addConfiguredRoots, requestScan } from './roots.js'
+import { addConfiguredRoots, requestScan, runScan, runScanAfter } from './roots.js'
 import { libraryRoutes } from './routes.js'
-import { purgeMissing, scanRoot, type ScanJob } from './scan.js'
+import { purgeMissing, type ScanJob } from './scan.js'
 import { startWatching, stopWatching } from './watch.js'
 
 /**
  * Jobs, in pipeline order:
  *   library.scan     { rootId, paths? }   one at a time per root
+ *   library.scan-after { rootId }        a full scan waiting for a partial one to finish
  *   library.probe    { fileId }           tags and technical details
  *   library.ingest   { rootId, groupKey } catalog rows for an album group
  *   library.analyze  { fileId }           audio hash and move detection, low priority
@@ -24,9 +25,8 @@ export const libraryModule: ServerModule = {
   name: 'library',
   routes: libraryRoutes,
   async jobs(jobs) {
-    jobs.define<ScanJob>('library.scan', { concurrency: 2, timeoutSeconds: 6 * 60 * 60 }, async (data) => {
-      await scanRoot(data)
-    })
+    jobs.define<ScanJob>('library.scan', { concurrency: 2, timeoutSeconds: 6 * 60 * 60 }, runScan)
+    jobs.define<{ rootId: string }>('library.scan-after', { retryLimit: 10 }, runScanAfter)
     jobs.define<ProbeJob>('library.probe', { concurrency: 4 }, probeFile)
     // Stately: a file probed while its group is being ingested queues one more pass.
     jobs.define<IngestJob>('library.ingest', { concurrency: 2, policy: 'stately' }, ingestGroup)

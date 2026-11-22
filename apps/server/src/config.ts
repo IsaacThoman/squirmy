@@ -6,7 +6,8 @@ const Env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().default('0.0.0.0'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4747),
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  // The same message whether the variable is missing or empty; troubleshooting.md quotes it.
+  DATABASE_URL: z.string({ error: 'DATABASE_URL is required' }).min(1, 'DATABASE_URL is required'),
   /** Artwork, transcodes, staging and the generated secret live here. `art/`, `transcodes/` and most of `assets/` are rebuilt on their own. */
   SQUIRMY_DATA_DIR: z.string().default('./data'),
   /**
@@ -18,14 +19,18 @@ const Env = z.object({
   SQUIRMY_ROLE: z.enum(['all', 'api', 'worker']).default('all'),
   /** Built web app to serve. Empty disables static serving (the Vite dev server proxies instead). */
   SQUIRMY_WEB_DIST: z.string().optional(),
-  /** Comma separated paths added as read-only library roots on first boot. */
+  /** Comma separated paths added as read-only library roots at start, unless a root already has the path. */
   SQUIRMY_LIBRARY_PATHS: z.string().optional(),
-  /** Comma separated paths added as managed library roots (organized by the server) on first boot. */
+  /** Comma separated paths added as managed library roots (organized by the server) at start, unless a root already has the path. */
   SQUIRMY_MANAGED_LIBRARY_PATHS: z.string().optional(),
   /** Folder watched for music to import, used while the `inboxPath` server setting is unset. */
   SQUIRMY_INBOX_PATH: z.string().optional(),
-  /** Public origin, e.g. https://music.example.com. Used for absolute links only. */
-  PUBLIC_URL: z.string().url().optional(),
+  /**
+   * Public origin, e.g. https://music.example.com, for absolute links and the delivery
+   * addresses given to acquisition providers. Empty counts as unset, because compose.yaml
+   * passes it through as `${PUBLIC_URL:-}`.
+   */
+  PUBLIC_URL: z.preprocess((value) => (value === '' ? undefined : value), z.string().url().optional()),
   TRUST_PROXY: boolean.default(false),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   FFMPEG_PATH: z.string().default('ffmpeg'),

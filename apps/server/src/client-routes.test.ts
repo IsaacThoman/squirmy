@@ -39,8 +39,6 @@ const notForClients = new Set([
  * the route deletes its line.
  */
 const awaitingServer = new Set([
-  'PUT /me/library/:/:',
-  'DELETE /me/library/:/:',
   'GET /admin/acquisition/usage',
 ])
 

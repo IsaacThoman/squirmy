@@ -103,7 +103,7 @@ Music plays the whole time, whatever its state.
 
 ## The review queue and Fix match
 
-**Admin → Review queue** lists the albums the matcher was not sure about, with a count in the admin menu. Pick an album to see its files ("The tags say") beside each candidate release, with a track-by-track comparison and a score.
+**Admin → Review queue** lists the albums the matcher was not sure about, with a count beside its link at the top of the admin panel. Pick an album to see its files ("The tags say") beside each candidate release, with a track-by-track comparison and a score.
 
 - **Use this release** applies the candidate.
 - **Keep as it is** keeps the album as its tags describe it.

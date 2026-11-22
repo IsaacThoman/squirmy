@@ -48,16 +48,16 @@ function PlaylistForm({ playlist, description, onSubmit, onDone }: Omit<Playlist
         <Field label="Description" htmlFor="playlist-description" hint="Optional" error={form.errors.description}>
           <Input id="playlist-description" value={about} onChange={event => setAbout(event.target.value)} placeholder="What it's for" maxLength={2000} />
         </Field>
-        <label className="flex items-center justify-between gap-4 rounded-xl bg-surface px-3.5 py-3">
-          <span>
-            <span className="block text-sm font-semibold">Visible to everyone on this server</span>
-            <span className="block text-xs text-muted">Other members can find and play it.</span>
+        <label className="flex items-center justify-between gap-4 rounded-lg border px-3 py-2.5">
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">Visible to everyone on this server</span>
+            <span className="block text-xs text-muted-foreground">Other members can find and play it.</span>
           </span>
           <Switch checked={isPublic} onCheckedChange={setPublic} aria-label="Visible to everyone on this server" />
         </label>
         <FormError message={form.errors.form} />
         <DialogFooter>
-          <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+          <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
           <Button type="submit" variant="primary" pending={form.pending} disabled={!name.trim()}>{playlist ? 'Save' : 'Create'}</Button>
         </DialogFooter>
       </form>

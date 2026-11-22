@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "license": "GPL-3.0-or-later",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -16,8 +17,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
@@ -34,7 +35,6 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^24.13.2",
     "typescript": "~6.0.3",
     "vitest": "^4.1.11",
     "socket.io": "^4.8.1",

@@ -14,7 +14,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createUser } from '../../test/factories.js'
 import { seedLargeLibrary } from '../../test/library-seed.js'
 import { createAppPassword } from '../auth/service.js'
-import { subsonicClient, type SubsonicClient } from './test-client.js'
+import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.js'
 
 describe.skipIf(!process.env.SQUIRMY_PERF)('subsonic performance', () => {
   useTestDatabase()

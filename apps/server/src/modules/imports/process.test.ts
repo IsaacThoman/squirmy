@@ -29,7 +29,7 @@ import { wantEntity } from '../userdata/wants.js'
 import { processImport, runStep, type ProcessOptions } from './process.js'
 import { addImportFile, commitImport, createImport, getImport, importAlbums, type ImportWork } from './service.js'
 import { stagingDir, stagingRoot } from './staging.js'
-import { writeZip } from './test-zip.js'
+import { writeZip } from '../../test/zip.js'
 
 const okComputerGroup = 'b1392450-e666-3926-a536-22c65f834433'
 const karmaPolice = '9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3'
