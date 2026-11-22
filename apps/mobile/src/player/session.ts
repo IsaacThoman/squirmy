@@ -21,7 +21,7 @@ export type DeviceRow = {
   name: string;
   subtitle: string;
   icon: string;
-  /** Plays the session's audio now. */
+  /** The session's audio is on this device, playing or paused. */
   active: boolean;
   canPlay: boolean;
   isThisDevice: boolean;
@@ -33,7 +33,9 @@ export type DeviceRow = {
  * server lists a device only while it is connected, so this one is added when the list has
  * not caught up with it yet (or the app is offline).
  */
-export function deviceRows(devices: readonly DeviceInfo[], thisDevice: DeviceInfo, activeDeviceId: string | null, now = Date.now()): DeviceRow[] {
+export function deviceRows(
+  devices: readonly DeviceInfo[], thisDevice: DeviceInfo, { activeDeviceId, playing }: Pick<SessionState, 'activeDeviceId' | 'playing'>, now = Date.now(),
+): DeviceRow[] {
   const listed = listedDevices(devices, thisDevice.id);
   const others = listed.filter(device => device.id !== thisDevice.id && device.canPlay);
   // The session can name a player before the device list has caught up with it (it just
@@ -49,7 +51,8 @@ export function deviceRows(devices: readonly DeviceInfo[], thisDevice: DeviceInf
     return {
       id: device.id,
       name: label.name,
-      subtitle: active ? 'Playing' : isThisDevice ? 'This device' : [kindName(device.kind), idleHint(device.lastSeenAt, now), label.hint].filter(Boolean).join(' · '),
+      // The active device keeps the session while paused, so its row says which it is, as the web app's device menu does.
+      subtitle: active ? playing ? 'Playing' : 'Paused' : isThisDevice ? 'This device' : [kindName(device.kind), idleHint(device.lastSeenAt, now), label.hint].filter(Boolean).join(' · '),
       icon: deviceIcon(device.kind),
       active,
       canPlay: device.canPlay,

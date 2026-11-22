@@ -1,4 +1,4 @@
-import { artworkUrl, streamUrl, type Viewer } from '@squirmy/client-core';
+import { artworkUrl, canFetch, streamUrl, type Viewer } from '@squirmy/client-core';
 import type { AlbumDetail, PlaylistDetail, TrackSummary } from '@squirmy/contracts';
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
@@ -25,6 +25,12 @@ const syncIntervalMs = 6 * 3600_000;
 const resyncAfterMs = 10 * 60_000;
 /** Server changes come in bursts (a scan, a playlist edit); collections are re-read once they settle. */
 const invalidateDelayMs = 3000;
+/**
+ * Songs the server was getting are looked up this long after the first word that one
+ * arrived, gathering the rest of a burst without waiting for the burst to end: an album
+ * fetched song by song announces one every few seconds.
+ */
+const arrivalDelayMs = 1000;
 
 /** `viewer`: the signed-in user, whose role and `canAcquire` decide what plays (client-core's `isPlayable`). */
 type DownloadsValue = { manager: DownloadManager | null; offline: boolean; viewer: Viewer | null };
@@ -65,6 +71,8 @@ function source(current: () => Api, serverUrl: string): DownloadSource {
       return { tracks };
     },
     summaries: async tracks => (await current().catalog.trackSummaries({ tracks: tracks.map(track => ({ id: track.id, albumId: track.albumId })) })).tracks,
+    acquireTrack: (trackId, query) => current().acquisition.acquireTrack(trackId, query),
+    acquireAlbum: (albumId, query) => current().acquisition.acquireAlbum(albumId, query),
   };
 }
 
@@ -85,6 +93,13 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
   const online = Boolean(socket) && !offline;
   const apiRef = useRef(api);
   apiRef.current = api;
+  const { state } = useAccount();
+  const user = state.status === 'signedIn' ? state.user : null;
+  const role = user?.role;
+  const canAcquire = user?.canAcquire;
+  // Rebuilt only when what decides playability changes, not on every new user object.
+  const viewer = useMemo(() => role === undefined ? null : { role, canAcquire: canAcquire ?? false }, [canAcquire, role]);
+  const fetches = canFetch(viewer);
 
   // Built once per account: rebuilding would cancel the downloads in flight and start them over.
   useEffect(() => {
@@ -95,7 +110,9 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
         if (!apiRef.current) throw new Error('Signed out');
         return apiRef.current;
       }, serverUrl),
-      options: { quality: settings?.downloadQuality ?? 'original', wifiOnly: settings?.downloadOnWifiOnly ?? true, capBytes: capItem.read() },
+      options: {
+        quality: settings?.downloadQuality ?? 'original', wifiOnly: settings?.downloadOnWifiOnly ?? true, capBytes: capItem.read(), canFetch: fetches,
+      },
     });
     next.start();
     tracks.prime(next.tracks());
@@ -110,6 +127,10 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (settings) manager?.setOptions({ quality: settings.downloadQuality, wifiOnly: settings.downloadOnWifiOnly });
   }, [manager, settings?.downloadQuality, settings?.downloadOnWifiOnly]);
+
+  useEffect(() => {
+    manager?.setOptions({ canFetch: fetches });
+  }, [manager, fetches]);
 
   // Coming back online re-reads everything at most every few minutes: a phone on a weak
   // network can drop and regain its connection many times in that time.
@@ -130,14 +151,25 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!manager) return;
     const kinds = new Set<CollectionKind>();
+    const arrived = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let arrivalTimer: ReturnType<typeof setTimeout> | undefined;
     const stop = onInvalidate((keys, { own }) => {
       for (const [root, id] of keys) {
+        // The server invalidates a song when it has it, or when it could not get it.
+        if (root === 'track' && typeof id === 'string' && manager.awaits(id)) arrived.add(id);
         // A like made here changes which songs are liked, not what a playlist or album holds.
         if (root === 'likes' && manager.collectionRow(likedId)) kinds.add('liked');
         if (own) continue;
         if (root === 'playlists') kinds.add('playlist');
         if (root === 'library' || (root === 'album' && typeof id === 'string' && manager.collectionRow(albumCollectionId(id)))) kinds.add('album');
+      }
+      if (arrived.size && !arrivalTimer) {
+        arrivalTimer = setTimeout(() => {
+          arrivalTimer = undefined;
+          void manager.refreshTracks([...arrived]);
+          arrived.clear();
+        }, arrivalDelayMs);
       }
       if (!kinds.size) return;
       clearTimeout(timer);
@@ -148,16 +180,11 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
     });
     return () => {
       clearTimeout(timer);
+      clearTimeout(arrivalTimer);
       stop();
     };
   }, [manager, onInvalidate]);
 
-  const { state } = useAccount();
-  const user = state.status === 'signedIn' ? state.user : null;
-  const role = user?.role;
-  const canAcquire = user?.canAcquire;
-  // Rebuilt only when what decides playability changes, not on every new user object.
-  const viewer = useMemo(() => role === undefined ? null : { role, canAcquire: canAcquire ?? false }, [canAcquire, role]);
   const value = useMemo(() => ({ manager, offline, viewer }), [manager, offline, viewer]);
   return <DownloadsContext.Provider value={value}>{children}</DownloadsContext.Provider>;
 }

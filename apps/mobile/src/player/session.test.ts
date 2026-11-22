@@ -20,29 +20,41 @@ function track(id: string, availability: TrackSummary['availability'] = 'server'
 const entry = (id: string, state: QueueEntry['state']): QueueEntry => ({ id, trackId: id, albumId: null, durationMs: 1, state });
 
 describe('deviceRows', () => {
+  const playingOn = (activeDeviceId: string) => ({ activeDeviceId, playing: true });
+  const idle = { activeDeviceId: null, playing: false };
+
   it('puts this device first, keeps only other devices that can play, and marks the active one', () => {
-    const rows = deviceRows([web, phone, remote], phone, 'web');
+    const rows = deviceRows([web, phone, remote], phone, playingOn('web'));
     expect(rows.map(row => [row.id, row.name, row.subtitle, row.icon, row.active])).toEqual([
       ['phone', 'This iPhone', 'This device', 'iphone', false],
       ['web', 'Firefox on Mac', 'Playing', 'laptopcomputer', true],
     ]);
   });
 
+  it('says the active device is paused while the session is', () => {
+    const rows = deviceRows([web, phone], phone, { activeDeviceId: 'web', playing: false });
+    expect(rows.map(row => [row.id, row.subtitle, row.active])).toEqual([
+      ['phone', 'This device', false],
+      ['web', 'Paused', true],
+    ]);
+    expect(deviceRows([web, phone], phone, { activeDeviceId: 'phone', playing: false })[0]!.subtitle).toBe('Paused');
+  });
+
   it('says how long a quiet device has been idle, so two of the same name can be told apart', () => {
     const now = Date.UTC(2026, 10, 22, 12);
     const tab = (id: string, minutes: number): DeviceInfo => ({ id, name: 'Chrome on macOS', kind: 'web', canPlay: true, isActive: false, lastSeenAt: now - minutes * 60_000 });
-    const rows = deviceRows([tab('now', 1), tab('minutes', 20), tab('hours', 180), tab('days', 3 * 24 * 60), { ...web, isActive: false }], phone, null, now);
+    const rows = deviceRows([tab('now', 1), tab('minutes', 20), tab('hours', 180), tab('days', 3 * 24 * 60), { ...web, isActive: false }], phone, idle, now);
     expect(rows.slice(1).map(row => row.subtitle)).toEqual([
       'Web browser', 'Web browser · Active 20 min ago', 'Web browser · Active 3 h ago', 'Web browser · Active 3 days ago', 'Web browser',
     ]);
   });
 
   it('lists this device even before the server has', () => {
-    expect(deviceRows([], phone, null).map(row => row.id)).toEqual(['phone']);
+    expect(deviceRows([], phone, idle).map(row => row.id)).toEqual(['phone']);
   });
 
   it('names a player the device list does not know yet instead of falling back to this device', () => {
-    const rows = deviceRows([phone], phone, 'new');
+    const rows = deviceRows([phone], phone, playingOn('new'));
     expect(rows.map(row => [row.id, row.name, row.subtitle, row.active])).toEqual([
       ['phone', 'This iPhone', 'This device', false],
       ['new', 'Another device', 'Playing', true],
@@ -51,8 +63,8 @@ describe('deviceRows', () => {
   });
 
   it('names the active device as the output, or this one when nothing plays', () => {
-    expect(outputDevice(deviceRows([web, phone], phone, 'web')).id).toBe('web');
-    expect(outputDevice(deviceRows([web, phone], phone, null)).id).toBe('phone');
+    expect(outputDevice(deviceRows([web, phone], phone, playingOn('web'))).id).toBe('web');
+    expect(outputDevice(deviceRows([web, phone], phone, idle)).id).toBe('phone');
   });
 });
 

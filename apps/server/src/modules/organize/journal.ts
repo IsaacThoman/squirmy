@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { and, eq, inArray } from 'drizzle-orm'
-import { db, getSql } from '../../database/client.js'
+import { db } from '../../database/client.js'
+import { withSessionLock } from '../../database/locks.js'
 import { fileMoves, libraryRoots, organizeBatches } from '../../database/schema.js'
 import { badRequest, conflict, notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
@@ -35,23 +36,13 @@ export function assertManaged(root: typeof libraryRoots.$inferSelect) {
 
 /**
  * Runs `work` while holding a Postgres advisory lock for the root, so only one batch
- * moves files in a root at a time, across every process. The lock belongs to a
- * reserved connection and is released if the process dies.
+ * moves files in a root at a time, across every process. The lock is a session lock
+ * (locks.ts), released if the process dies.
  */
 export async function withRootLock<T>(rootId: string, work: () => Promise<T>): Promise<T> {
-  const connection = await getSql().reserve()
-  const key = `squirmy.organize:${rootId}`
-  try {
-    const [row] = await connection<{ locked: boolean }[]>`select pg_try_advisory_lock(hashtext(${key})) as locked`
-    if (!row?.locked) throw conflict('Another organize batch is running in this library root', 'organize_busy')
-    try {
-      return await work()
-    } finally {
-      await connection`select pg_advisory_unlock(hashtext(${key}))`
-    }
-  } finally {
-    connection.release()
-  }
+  const outcome = await withSessionLock(`squirmy.organize:${rootId}`, work)
+  if (!outcome.locked) throw conflict('Another organize batch is running in this library root', 'organize_busy')
+  return outcome.value
 }
 
 /**
