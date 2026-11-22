@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editionFreeKey, editionFreeTitle, guessAlbumType, prefixEnd, releaseKey } from './keys.js'
+import { editionFreeKey, editionFreeTitle, guessAlbumType, labelFreeKey, prefixEnd, releaseKey } from './keys.js'
 
 describe('editionFreeTitle', () => {
   it('drops edition suffixes in brackets or after a dash', () => {
@@ -65,6 +65,15 @@ describe('releaseKey', () => {
     expect(releaseKey('Realiti (Demo)')).not.toBe(releaseKey('Realiti'))
     // Nothing is left of a title that is only a label.
     expect(releaseKey('EP')).toBe('ep')
+  })
+})
+
+describe('labelFreeKey', () => {
+  it('drops store labels but keeps edition words', () => {
+    expect(labelFreeKey('Just Keep Watching (From F1® The Movie)')).toBe('just keep watching')
+    expect(labelFreeKey('New Gold (feat. Tame Impala and Bootie Brown)')).toBe('new gold')
+    expect(labelFreeKey('Miss Anthropocene (Deluxe Edition)')).toBe('miss anthropocene deluxe edition')
+    expect(labelFreeKey('Midnights (3am Edition)')).not.toBe(labelFreeKey('Midnights'))
   })
 })
 

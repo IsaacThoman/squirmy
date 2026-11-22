@@ -1,0 +1,384 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/477673195"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 477673195,
+      "title": "Watch The Throne (Deluxe)",
+      "upc": "602458447699",
+      "link": "https://www.deezer.com/album/477673195",
+      "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+      "genres": {
+        "data": [
+          {
+            "id": 116,
+            "name": "Rap/Hip Hop",
+            "type": "genre"
+          }
+        ]
+      },
+      "label": "Roc Nation/RocAFella/IDJ",
+      "nb_tracks": 16,
+      "duration": 3890,
+      "release_date": "2023-08-25",
+      "record_type": "album",
+      "explicit_lyrics": true,
+      "contributors": [
+        {
+          "id": 1309,
+          "name": "JAŸ-Z",
+          "link": "https://www.deezer.com/artist/1309",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/a59aabd18e84d732ce3b9f6f5c4e5f50/1000x1000-000000-80-0-0.jpg",
+          "type": "artist",
+          "role": "Main"
+        },
+        {
+          "id": 230,
+          "name": "Kanye West",
+          "link": "https://www.deezer.com/artist/230",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/bb76c2ee3b068726ab4c37b0aabdb57a/1000x1000-000000-80-0-0.jpg",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 1309,
+        "name": "JAŸ-Z",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/a59aabd18e84d732ce3b9f6f5c4e5f50/1000x1000-000000-80-0-0.jpg",
+        "type": "artist"
+      },
+      "type": "album",
+      "tracks": {
+        "data": [
+          {
+            "id": 2416719665,
+            "title": "No Church In The Wild",
+            "link": "https://www.deezer.com/track/2416719665",
+            "duration": 272,
+            "rank": 590494,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719675,
+            "title": "Lift Off",
+            "link": "https://www.deezer.com/track/2416719675",
+            "duration": 266,
+            "rank": 424297,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719685,
+            "title": "Ni**as In Paris",
+            "link": "https://www.deezer.com/track/2416719685",
+            "duration": 219,
+            "rank": 524745,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719695,
+            "title": "Otis",
+            "link": "https://www.deezer.com/track/2416719695",
+            "duration": 180,
+            "rank": 453505,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719705,
+            "title": "Gotta Have It",
+            "link": "https://www.deezer.com/track/2416719705",
+            "duration": 140,
+            "rank": 412231,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719715,
+            "title": "New Day",
+            "link": "https://www.deezer.com/track/2416719715",
+            "duration": 272,
+            "rank": 353880,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719725,
+            "title": "That's My Bitch",
+            "link": "https://www.deezer.com/track/2416719725",
+            "duration": 202,
+            "rank": 382230,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719735,
+            "title": "Welcome To The Jungle",
+            "link": "https://www.deezer.com/track/2416719735",
+            "duration": 174,
+            "rank": 339869,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719745,
+            "title": "Who Gon Stop Me",
+            "link": "https://www.deezer.com/track/2416719745",
+            "duration": 256,
+            "rank": 345765,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719755,
+            "title": "Murder To Excellence",
+            "link": "https://www.deezer.com/track/2416719755",
+            "duration": 300,
+            "rank": 334331,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719765,
+            "title": "Made In America",
+            "link": "https://www.deezer.com/track/2416719765",
+            "duration": 292,
+            "rank": 328894,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719775,
+            "title": "Why I Love You",
+            "link": "https://www.deezer.com/track/2416719775",
+            "duration": 201,
+            "rank": 447862,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719785,
+            "title": "Illest Motherf***** Alive",
+            "link": "https://www.deezer.com/track/2416719785",
+            "duration": 323,
+            "rank": 325427,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719795,
+            "title": "H•A•M (Album Version Explicit)",
+            "link": "https://www.deezer.com/track/2416719795",
+            "duration": 277,
+            "rank": 375247,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 230,
+              "name": "Kanye West",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719805,
+            "title": "Primetime",
+            "link": "https://www.deezer.com/track/2416719805",
+            "duration": 199,
+            "rank": 325255,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 2416719815,
+            "title": "The Joy",
+            "link": "https://www.deezer.com/track/2416719815",
+            "duration": 317,
+            "rank": 297109,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 1309,
+              "name": "JAŸ-Z",
+              "type": "artist"
+            },
+            "album": {
+              "id": 477673195,
+              "title": "Watch The Throne (Deluxe)",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5ff776f44edc5f7fbef5fa2169006f29/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          }
+        ]
+      }
+    }
+  }
+}

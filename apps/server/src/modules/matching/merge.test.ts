@@ -148,6 +148,20 @@ describe('merges', () => {
     expect(await snapshot()).toEqual(after)
   })
 
+  it('carries the explicit flag, year and date a winner lacks', async () => {
+    const mb = await createAlbum({ title: 'Marraine', tracks: [{ title: 'Song' }] })
+    const deezer = await createAlbum({ title: 'Marraine', year: 2022, tracks: [{ title: 'Song' }] })
+    await db.update(albums).set({ year: null, releaseDate: null }).where(eq(albums.id, mb.albumId))
+    await db.update(albums).set({ releaseDate: '2022-03-04' }).where(eq(albums.id, deezer.albumId))
+    await db.update(recordings).set({ explicit: true }).where(eq(recordings.id, deezer.tracks[0]!.recordingId))
+    await mergeRecording(deezer.tracks[0]!.recordingId, mb.tracks[0]!.recordingId)
+    await mergeAlbum(deezer.albumId, mb.albumId)
+    const [album] = await db.select({ year: albums.year, releaseDate: albums.releaseDate }).from(albums).where(eq(albums.id, mb.albumId))
+    expect(album).toEqual({ year: 2022, releaseDate: '2022-03-04' })
+    const [song] = await db.select({ explicit: recordings.explicit }).from(recordings).where(eq(recordings.id, mb.tracks[0]!.recordingId))
+    expect(song!.explicit).toBe(true)
+  })
+
   it('merges an artist and every credit to it', async () => {
     const local = await createArtist({ name: 'Daft Punk' })
     const matched = await createArtist({ name: 'Daft Punk', mbid: newId() })

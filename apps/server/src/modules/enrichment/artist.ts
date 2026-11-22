@@ -16,7 +16,7 @@ import { uuidArray } from '../catalog/sql.js'
 import { mergeAlbum, resolveMerged } from '../matching/merge.js'
 import { deezer, fanart, listenbrainz, musicbrainz, wikidata } from '../metadata/index.js'
 import type { MbReleaseGroupSummary, MbUrl } from '../metadata/musicbrainz.js'
-import { editionFreeKey } from '../search/keys.js'
+import { labelFreeKey, releaseKey } from '../search/keys.js'
 import { genreNames } from './album.js'
 import { bridgeArtist } from './bridge.js'
 import { deezerDiscography, deezerTopTrackRow } from './deezer-rows.js'
@@ -183,8 +183,9 @@ const compatibleTypes = (a: string, b: string) => a === b || a === 'other' || b 
 
 /**
  * Album rows search or Deezer created for the discography's release groups: no MBID, no
- * files, the same primary artist, the same title once edition suffixes are dropped
- * (`editionFreeKey`) and a compatible type (any, for a guessed one). A title two groups of the artist share
+ * files, not an edition row, the same primary artist, the same title once store labels are
+ * dropped (`labelFreeKey`: a deluxe or 3am edition is another edition, not this one) and a
+ * compatible type (any, for a guessed one). A title two groups of the artist share
  * ("Weezer") names neither, so its stubs are left alone. Keyed by group MBID.
  */
 async function stubsByGroup(tx: Transaction, groups: readonly MbReleaseGroupSummary[], artistIds: Map<string, string>): Promise<Map<string, string[]>> {
@@ -193,12 +194,12 @@ async function stubsByGroup(tx: Transaction, groups: readonly MbReleaseGroupSumm
   if (primaries.length === 0) return new Map()
   const rows = await tx.execute<{ id: string; title: string; type: string; typeGuessed: boolean; artistId: string }>(sql`
     select a.id, a.title, a.type, a.type_guessed as "typeGuessed", a.primary_artist_id as "artistId" from albums a
-    where a.mbid is null and a.merged_into_id is null and a.primary_artist_id = any(${uuidArray(primaries)})
+    where a.mbid is null and a.merged_into_id is null and a.edition_of_id is null and a.primary_artist_id = any(${uuidArray(primaries)})
       and not exists (select 1 from media_files f where f.album_id = a.id)`)
   const result = new Map<string, string[]>()
-  const groupKeys = groups.map((group) => ({ group, artistId: primaryOf(group), key: editionFreeKey(group.title) }))
+  const groupKeys = groups.map((group) => ({ group, artistId: primaryOf(group), key: labelFreeKey(group.title) }))
   for (const row of rows) {
-    const key = editionFreeKey(row.title)
+    const key = labelFreeKey(row.title)
     if (!key) continue
     // A guessed type (a track's album reference) fits any group of the title.
     const fits = groupKeys.filter((one) => one.artistId === row.artistId && one.key === key && (row.typeGuessed || compatibleTypes(one.group.type, row.type)))
@@ -269,6 +270,7 @@ async function topTracks(artistId: string, sources: { mbid: string | null; deeze
   const listened = sources.mbid ? await listenbrainz.topRecordingsForArtist(sources.mbid, { limit: topTrackCount }) : []
   if (listened.length > 0) {
     const max = Math.max(...listened.map((one) => one.listenCount))
+    const ranked: string[] = []
     for (const one of listened) {
       const [inserted] = await db.insert(recordings).values({
         id: newId(),
@@ -283,15 +285,51 @@ async function topTracks(artistId: string, sources: { mbid: string | null; deeze
       const [existing] = inserted ? [inserted] : await db.select({ id: recordings.id }).from(recordings).where(eq(recordings.mbid, one.recordingMbid))
       const id = await resolveMerged(db, recordings, existing!.id)
       await db.update(recordings).set({ popularity: share(one.listenCount, max) }).where(eq(recordings.id, id))
+      if (one.releaseName) await hintReleaseByName(artistId, id, one.releaseName)
+      ranked.push(id)
     }
+    await clearStalePopularity(artistId, ranked)
     return
   }
   if (!sources.deezerId) return
   const top = await deezer.getArtistTopTracks(Number(sources.deezerId), { limit: topTrackCount })
   const max = Math.max(0, ...top.map((track) => track.rank ?? 0))
+  const ranked: string[] = []
   for (const [index, track] of top.entries()) {
     const id = await deezerTopTrackRow(artistId, sources.deezerId, track)
     const popularity = track.rank ? share(track.rank, max) : share(top.length - index, top.length)
     await db.update(recordings).set({ popularity }).where(eq(recordings.id, id))
+    ranked.push(id)
   }
+  if (top.length > 0) await clearStalePopularity(artistId, ranked)
+}
+
+/**
+ * Popularity is the last ranking's: the artist's recordings that left it lose theirs. A
+ * song the source ranked under another id last time (Deezer lists one song under several
+ * track ids) otherwise stayed among the top songs twice, once without an album.
+ */
+async function clearStalePopularity(artistId: string, ranked: readonly string[]) {
+  await db.execute(sql`
+    update recordings set popularity = null
+    where primary_artist_id = ${artistId} and popularity is not null and not (id = any(${uuidArray([...ranked])}))`)
+}
+
+/**
+ * Gives a popular recording ListenBrainz names without a release group the artist's album
+ * of the release's name, when it is on no release and has no album yet, so it shows a cover.
+ */
+async function hintReleaseByName(artistId: string, recordingId: string, releaseName: string) {
+  const key = releaseKey(releaseName)
+  if (!key) return
+  const rows = await db.execute<{ id: string; title: string }>(sql`
+    select a.id, a.title from albums a
+    where a.primary_artist_id = ${artistId} and a.merged_into_id is null
+    order by a.mbid is not null desc, a.edition_of_id is null desc, a.detail_level desc, a.id`)
+  const album = rows.find((row) => releaseKey(row.title) === key)
+  if (!album) return
+  await db.execute(sql`
+    update recordings r set album_hint_id = ${album.id}
+    where r.id = ${recordingId} and r.album_hint_id is null
+      and not exists (select 1 from release_tracks rt where rt.recording_id = r.id)`)
 }

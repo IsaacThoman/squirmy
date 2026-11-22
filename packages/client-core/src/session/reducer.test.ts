@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type AnySessionCommand,
   createInitialSession,
+  CYCLE_LIMIT,
   HISTORY_LIMIT,
   joinSession,
   positionAt,
@@ -49,10 +50,12 @@ describe('reduceSession', () => {
       expect(session).toMatchObject({ playing: true, positionMs: 0, anchorAt: 0, activeDeviceId: 'phone', playOrder: [], context: { id: album } })
     })
 
-    it('starts at startIndex and drops earlier tracks without shuffle', () => {
+    it('starts at startIndex with the earlier tracks behind it, unplayed, without shuffle', () => {
       const session = playing(5, { startIndex: 2 })
       expect(currentTrack(session)).toBe(3)
       expect(trackNumbers(session.queue)).toEqual([4, 5])
+      expect(trackNumbers(session.playedInCycle)).toEqual([1, 2])
+      expect(session.history).toEqual([])
     })
 
     it('clamps startIndex', () => {
@@ -76,7 +79,9 @@ describe('reduceSession', () => {
       expect(currentTrack(session)).toBe(4)
       expect(trackNumbers(session.queue).sort()).toEqual([1, 2, 3, 5, 6])
       expect(session.shuffle).toBe(true)
-      expect(session.playOrder).toEqual([...session.queue].sort((a, b) => a.trackId.localeCompare(b.trackId)).map(entry => entry.id))
+      expect(session.playedInCycle).toEqual([])
+      const collection = [session.current!, ...session.queue].sort((a, b) => a.trackId.localeCompare(b.trackId))
+      expect(session.playOrder).toEqual(collection.map(entry => entry.id))
     })
 
     it('with shuffle and no start index, starts at the first of the shuffled order', () => {
@@ -258,10 +263,14 @@ describe('reduceSession', () => {
       expect(new Set(ids).size).toBe(ids.length)
     })
 
-    it('repeat all with shuffle keeps playOrder in step with the queue', () => {
+    it('repeat all with shuffle keeps the new cycle in playOrder, in collection order', () => {
       let session = run(playing(4, { shuffle: true }), { type: 'setRepeat', value: 'all' })
       for (let i = 0; i < 4; i += 1) session = run(session, { type: 'next' })
-      expect(session.playOrder).toEqual(session.queue.map(entry => entry.id))
+      const cycle = [session.current!, ...session.queue]
+      expect(trackNumbers(cycle).sort()).toEqual([1, 2, 3, 4])
+      expect(session.playOrder).toEqual([...cycle].sort((a, b) => a.trackId.localeCompare(b.trackId)).map(entry => entry.id))
+      session = run(session, { type: 'setShuffle', value: false, seed: 0 })
+      expect(trackNumbers([...session.playedInCycle, session.current!, ...session.queue])).toEqual([1, 2, 3, 4])
     })
 
     it('history is bounded', () => {
@@ -292,17 +301,139 @@ describe('reduceSession', () => {
       expect(run(playing(3), { type: 'previous' }, 1000)).toMatchObject({ positionMs: 0, anchorAt: 1000 })
     })
 
-    it('puts the current entry at the front of playOrder with shuffle', () => {
+    it('keeps the entry it puts back in the queue in playOrder with shuffle', () => {
       let session = run(playing(4, { shuffle: true }), { type: 'next' }, 1000)
       const current = session.current!
       session = run(session, { type: 'previous' }, 1500)
       expect(session.queue[0]).toBe(current)
-      expect(session.playOrder[0]).toBe(current.id)
+      expect(session.playOrder.filter(id => id === current.id)).toHaveLength(1)
     })
 
     it('with nothing current and no history is a no-op', () => {
       const session = createInitialSession()
       expect(run(session, { type: 'previous' })).toBe(session)
+    })
+  })
+
+  describe('a collection started from one of its tracks', () => {
+    const album11 = () => playing(11, { startIndex: 2, context: { type: 'album', id: album, title: 'Dummy' } })
+
+    it('previous goes back to the track before the start, then the one before that', () => {
+      let session = album11()
+      session = run(session, { type: 'previous' }, 1000)
+      expect(currentTrack(session)).toBe(2)
+      expect(trackNumbers(session.queue)).toEqual(range(3, 11))
+      session = run(session, { type: 'previous' }, 1500)
+      expect(currentTrack(session)).toBe(1)
+      // The first track restarts rather than going back to what played before the album.
+      expect(run(session, { type: 'previous' }, 2000)).toMatchObject({ positionMs: 0, anchorAt: 2000, current: session.current })
+    })
+
+    it('previous never goes back past the start of the collection into what played before', () => {
+      let session = playing(3)
+      session = run(session, { type: 'next' })
+      session = run(session, { type: 'playTracks', tracks: seeds(20, 21), seed: 1 }, 5000)
+      session = run(session, { type: 'previous' }, 6000)
+      expect(currentTrack(session)).toBe(20)
+      expect(session).toMatchObject({ positionMs: 0, anchorAt: 6000 })
+      expect(trackNumbers(session.history)).toEqual([1, 2])
+    })
+
+    it('repeat all comes round to the first track after the last', () => {
+      let session = run(playing(11, { startIndex: 10 }), { type: 'setRepeat', value: 'all' })
+      expect(session.queue).toEqual([])
+      session = run(session, { type: 'trackEnded', entryId: session.current!.id })
+      expect(currentTrack(session)).toBe(1)
+      expect(trackNumbers(session.queue)).toEqual(range(2, 11))
+    })
+
+    it('repeat all after starting in the middle plays the whole collection in order', () => {
+      let session = run(album11(), { type: 'setRepeat', value: 'all' })
+      const heard: number[] = [currentTrack(session)!]
+      for (let i = 0; i < 12; i += 1) {
+        session = run(session, { type: 'trackEnded', entryId: session.current!.id })
+        heard.push(currentTrack(session)!)
+      }
+      expect(heard).toEqual([...range(3, 11), ...range(1, 4)])
+    })
+
+    it('repeat all leaves out what was added with Play next', () => {
+      let session = run(playing(2), { type: 'setRepeat', value: 'all' })
+      session = run(session, { type: 'enqueue', tracks: seeds(9), placement: 'next' })
+      for (let i = 0; i < 3; i += 1) session = run(session, { type: 'trackEnded', entryId: session.current!.id })
+      expect(currentTrack(session)).toBe(1)
+      expect(trackNumbers(session.queue)).toEqual([2])
+    })
+
+    it('shuffle on takes in the tracks before the start, and shuffle off puts them back behind', () => {
+      let session = album11()
+      session = run(session, { type: 'setShuffle', value: true, seed: 11 })
+      expect(trackNumbers(session.queue).sort((a, b) => a - b)).toEqual([1, 2, ...range(4, 11)])
+      expect(session.playedInCycle).toEqual([])
+      session = run(session, { type: 'setShuffle', value: false, seed: 0 })
+      expect(currentTrack(session)).toBe(3)
+      expect(trackNumbers(session.queue)).toEqual(range(4, 11))
+      expect(trackNumbers(session.playedInCycle)).toEqual([1, 2])
+    })
+
+    it('shuffle on leaves the tracks already heard behind', () => {
+      let session = playing(5)
+      session = run(session, { type: 'next' })
+      session = run(session, { type: 'next' })
+      session = run(session, { type: 'setShuffle', value: true, seed: 4 })
+      expect(trackNumbers(session.playedInCycle)).toEqual([1, 2])
+      expect(trackNumbers(session.queue).sort()).toEqual([4, 5])
+    })
+
+    it('shuffle off continues in collection order after the current track', () => {
+      let session = playing(8, { shuffle: true, seed: 5 })
+      for (let i = 0; i < 3; i += 1) session = run(session, { type: 'next' })
+      const at = currentTrack(session)!
+      session = run(session, { type: 'setShuffle', value: false, seed: 0 })
+      expect(currentTrack(session)).toBe(at)
+      expect(trackNumbers(session.queue)).toEqual(range(at + 1, 8))
+      expect(trackNumbers(session.playedInCycle).sort((a, b) => a - b)).toEqual(range(1, at - 1))
+      const ids = [session.current, ...session.queue, ...session.history, ...session.autoplayQueue].map(entry => entry!.id)
+      expect(new Set(ids).size).toBe(ids.length)
+    })
+
+    it('shuffle keeps Play next entries where they are', () => {
+      let session = run(playing(8), { type: 'enqueue', tracks: seeds(20), placement: 'next' })
+      session = run(session, { type: 'setShuffle', value: true, seed: 8 })
+      expect(currentTrack({ ...session, current: session.queue[0]! })).toBe(20)
+      session = run(session, { type: 'setShuffle', value: false, seed: 0 })
+      expect(trackNumbers(session.queue)).toEqual([20, ...range(2, 8)])
+    })
+  })
+
+  describe('updateTracks', () => {
+    it('rewrites every entry of a merged track, keeping entry ids and states', () => {
+      let session = run(playing(3), { type: 'enqueue', tracks: seeds(1), placement: 'last' })
+      const before = session
+      session = run(session, { type: 'updateTracks', tracks: [{ trackId: track(1), id: track(40), durationMs: 209_226 }], albums: [{ albumId: album, id: track(41) }] })
+      expect(session.current).toEqual({ ...before.current!, trackId: track(40), durationMs: 209_226, albumId: track(41) })
+      expect(session.queue.at(-1)).toMatchObject({ id: before.queue.at(-1)!.id, trackId: track(40), queued: true })
+      expect(session.queue[0]).toMatchObject({ trackId: track(2), albumId: track(41) })
+    })
+
+    it('caps the position at a shorter length and is a no-op when nothing changes', () => {
+      let session = run(run(playing(1), { type: 'seek', positionMs: 150_000 }, 1000), { type: 'pause' }, 1000)
+      session = run(session, { type: 'updateTracks', tracks: [{ trackId: track(1), id: track(1), durationMs: 100_000 }] })
+      expect(session.positionMs).toBe(100_000)
+      expect(run(session, { type: 'updateTracks', tracks: [{ trackId: track(1), id: track(1), durationMs: 100_000 }] })).toBe(session)
+      expect(run(session, { type: 'updateTracks', tracks: [{ trackId: track(7), id: track(8), durationMs: 1 }] })).toBe(session)
+    })
+  })
+
+  describe('older sessions', () => {
+    it('reads a session stored before the tracks before the start were kept behind it', () => {
+      // An older server dropped them, and entries had no `queued`.
+      const legacy: Session = { ...playing(4, { startIndex: 1 }), playedInCycle: [] }
+      expect(legacy.queue.some(entry => 'queued' in entry)).toBe(false)
+      expect(run(legacy, { type: 'previous' }, 1000)).toMatchObject({ positionMs: 0, anchorAt: 1000 })
+      const jumped = run(legacy, { type: 'playQueueEntry', entryId: legacy.queue[1]!.id })
+      expect(currentTrack(jumped)).toBe(4)
+      expect(trackNumbers(jumped.playedInCycle)).toEqual([2, 3])
     })
   })
 
@@ -326,7 +457,7 @@ describe('reduceSession', () => {
       const original = session.queue
       session = run(session, { type: 'setShuffle', value: true, seed: 42 })
       expect(trackNumbers(session.queue)).not.toEqual(trackNumbers(original))
-      expect(session.playOrder).toEqual(original.map(entry => entry.id))
+      expect(session.playOrder).toEqual([session.current!, ...original].map(entry => entry.id))
       session = run(session, { type: 'setShuffle', value: false, seed: 0 })
       expect(session.queue).toEqual(original)
       expect(session.playOrder).toEqual([])
@@ -367,19 +498,37 @@ describe('reduceSession', () => {
       expect(session.playOrder.at(-1)).toBe(session.queue.at(-1)!.id)
     })
 
-    it('playQueueEntry plays the entry and keeps the ones before it', () => {
+    it('playQueueEntry jumps to the entry, putting the ones before it behind, unplayed', () => {
       let session = playing(4)
       session = run(session, { type: 'playQueueEntry', entryId: session.queue[1]!.id })
       expect(currentTrack(session)).toBe(3)
-      expect(trackNumbers(session.queue)).toEqual([2, 4])
+      expect(trackNumbers(session.queue)).toEqual([4])
       expect(trackNumbers(session.history)).toEqual([1])
+      expect(trackNumbers(session.playedInCycle)).toEqual([1, 2])
+      expect(currentTrack(run(session, { type: 'previous' }, 1000))).toBe(2)
     })
 
-    it('playQueueEntry plays from the autoplay queue', () => {
-      let session = run(playing(2), { type: 'setAutoplayQueue', tracks: seeds(50, 51) })
+    it('playQueueEntry keeps Play next entries it jumps past queued', () => {
+      let session = run(playing(5), { type: 'enqueue', tracks: seeds(8, 9), placement: 'next' })
+      expect(session.queue.slice(0, 2).every(entry => entry.queued)).toBe(true)
+      session = run(session, { type: 'playQueueEntry', entryId: session.queue[4]!.id })
+      expect(currentTrack(session)).toBe(4)
+      expect(trackNumbers(session.queue)).toEqual([8, 9, 5])
+      expect(trackNumbers(session.playedInCycle)).toEqual([1, 2, 3])
+      // A Play next entry itself is played without skipping anything.
+      session = run(session, { type: 'playQueueEntry', entryId: session.queue[1]!.id })
+      expect(currentTrack(session)).toBe(9)
+      expect(trackNumbers(session.queue)).toEqual([8, 5])
+    })
+
+    it('playQueueEntry plays from the autoplay queue, skipping the queue and the suggestions before it', () => {
+      let session = run(playing(3), { type: 'setAutoplayQueue', tracks: seeds(50, 51, 52) })
+      session = run(session, { type: 'enqueue', tracks: seeds(9), placement: 'last' })
       session = run(session, { type: 'playQueueEntry', entryId: session.autoplayQueue[1]!.id })
       expect(currentTrack(session)).toBe(51)
-      expect(trackNumbers(session.autoplayQueue)).toEqual([50])
+      expect(trackNumbers(session.autoplayQueue)).toEqual([52])
+      expect(trackNumbers(session.queue)).toEqual([9])
+      expect(trackNumbers(session.playedInCycle)).toEqual([1, 2, 3])
       expect(run(session, { type: 'playQueueEntry', entryId: 'missing' })).toBe(session)
     })
 
@@ -405,7 +554,7 @@ describe('reduceSession', () => {
       let session = run(playing(5), { type: 'setShuffle', value: true, seed: 9 })
       session = run(session, { type: 'moveInQueue', entryId: session.queue[3]!.id, toIndex: 0 })
       const order = session.queue
-      expect(session.playOrder).toEqual(order.map(entry => entry.id))
+      expect(session.playOrder).toEqual([session.current!, ...order].map(entry => entry.id))
       expect(run(session, { type: 'setShuffle', value: false, seed: 0 }).queue).toEqual(order)
     })
 
@@ -588,6 +737,7 @@ describe('reduceSession under random commands', () => {
       () => ({ type: 'setAutoplayQueue', tracks: random() < 0.2 ? [] : someSeeds() }),
       () => ({ type: 'deviceLost', deviceId: device() }),
       () => ({ type: 'syncPosition', entryId: anEntry(), positionMs: int(400_000), stalled: random() < 0.3 }),
+      () => ({ type: 'updateTracks', tracks: [{ trackId: track(1 + int(12)), id: track(1 + int(12)), durationMs: int(400_000) }] }),
     ]
     return pick(commands)()
   }
@@ -601,7 +751,9 @@ describe('reduceSession under random commands', () => {
     if (new Set(ids).size !== ids.length) problems.push('duplicate entry ids')
     const queueIds = session.queue.map(entry => entry.id)
     if (session.shuffle) {
-      if ([...session.playOrder].sort().join() !== [...queueIds].sort().join()) problems.push('playOrder is not a permutation of the queue')
+      const order = new Set(session.playOrder)
+      if (order.size !== session.playOrder.length) problems.push('playOrder repeats an id')
+      if (!queueIds.every(id => order.has(id))) problems.push('playOrder misses a queued entry')
     } else if (session.playOrder.length) {
       problems.push('playOrder set without shuffle')
     }
@@ -610,6 +762,8 @@ describe('reduceSession under random commands', () => {
     if (session.playing && (!session.current || session.current.state === 'failed')) problems.push('playing nothing')
     if (session.playing && session.activeDeviceId === null) problems.push('playing without an active device')
     if (session.history.length > HISTORY_LIMIT) problems.push('history too long')
+    if (session.playedInCycle.length > CYCLE_LIMIT) problems.push('cycle too long')
+    if (session.current && session.playedInCycle.some(entry => entry.id === session.current!.id)) problems.push('current entry behind itself')
     return problems
   }
 

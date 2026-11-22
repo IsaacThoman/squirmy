@@ -1,3 +1,4 @@
+import { contextLabel } from '@squirmy/client-core'
 import { ChevronDown, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
@@ -36,6 +37,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   const item = state.current
   const artwork = item?.track.album?.artwork ?? null
   const elsewhere = playingElsewhere(state)
+  const label = contextLabel(state.context)
   const late = useStillLoading(item?.entry)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
 
@@ -65,10 +67,10 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
               <IconButton label="Close Now Playing" tooltip={false} className="text-foreground max-md:size-11"><ChevronDown /></IconButton>
             </DialogPrimitive.Close>
             <div className="min-w-0 text-center">
-              {state.context?.title && (
+              {label && (
                 <>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Playing from {state.context.type}</p>
-                  <p className="truncate text-sm font-medium">{state.context.title}</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label.heading}</p>
+                  <p className="truncate text-sm font-medium">{label.title}</p>
                 </>
               )}
             </div>
