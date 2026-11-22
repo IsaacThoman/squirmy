@@ -1,7 +1,7 @@
 import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  codecsFor, deviceRows, failureNotices, isPlayable, outageNotice, queueRow, isRemote, newlyFailed, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
+  codecsFor, deviceRows, failureNotices, isPlayable, outageNotice, queueRow, isRemote, newlyFailed, newlyReady, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
   seedOf,
 } from './session';
 
@@ -111,6 +111,13 @@ describe('availability', () => {
     const after = { current: entry('c', 'ready'), queue: [entry('b', 'preparing')], history: [entry('a', 'failed')], autoplayQueue: [] };
     expect(newlyFailed(before, after).map(item => item.id)).toEqual(['a']);
     expect(newlyFailed(after, after)).toEqual([]);
+  });
+
+  it('reports entries the server fetched, once, so their summaries are read again', () => {
+    const before = { current: entry('a', 'preparing'), queue: [entry('b', 'preparing'), entry('c', 'ready')], history: [], autoplayQueue: [] };
+    const after = { current: entry('a', 'ready'), queue: [entry('b', 'failed'), entry('c', 'ready')], history: [], autoplayQueue: [] };
+    expect(newlyReady(before, after).map(item => item.id)).toEqual(['a']);
+    expect(newlyReady(after, after)).toEqual([]);
   });
 
   it('announces a failed current or next entry, not failed prefetches further down', () => {

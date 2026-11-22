@@ -150,6 +150,16 @@ export function newlyFailed(before: Entries, after: Entries): QueueEntry[] {
   return allEntries(after).filter(entry => entry.state === 'failed' && preparing.has(entry.id));
 }
 
+/**
+ * Entries that were preparing before and are ready now: the server fetched them. Their
+ * summaries were taken before the fetch, which is when an on-demand track gains its album
+ * and cover, so they are read again.
+ */
+export function newlyReady(before: Entries, after: Entries): QueueEntry[] {
+  const preparing = new Set(allEntries(before).filter(entry => entry.state === 'preparing').map(entry => entry.id));
+  return allEntries(after).filter(entry => entry.state === 'ready' && preparing.has(entry.id));
+}
+
 /** A notice: a short line, and an optional quieter one under it. */
 export type NoticeText = { message: string; detail?: string };
 

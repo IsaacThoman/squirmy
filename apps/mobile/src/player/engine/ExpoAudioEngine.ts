@@ -1,7 +1,7 @@
 import type {
   EngineEvent, EngineLoad, EnginePreload, EngineState, EngineStatus, PlayerEngine,
 } from '@squirmy/client-core';
-import { engineState, playbackErrorMessage } from './state';
+import { engineState, playbackErrorMessage, stillClockMs } from './state';
 
 /** The part of an `expo-audio` `AudioPlayer` the engine uses. Times are seconds. */
 export type NativePlayer = {
@@ -60,6 +60,9 @@ type Slot = {
   started: boolean;
   finished: boolean;
   failed: boolean;
+  /** The player's position when last read, and when it was last seen to change. */
+  lastTime: number;
+  movedAt: number;
 };
 
 /**
@@ -242,7 +245,7 @@ export class ExpoAudioEngine implements PlayerEngine {
   private createSlot(entryId: string, url: string, gain: number): Slot {
     const player = this.options.createPlayer(url);
     const slot: Slot = {
-      entryId, url, gain, player, startMs: 0, seeking: false, ready: false, started: false, finished: false, failed: false,
+      entryId, url, gain, player, startMs: 0, seeking: false, ready: false, started: false, finished: false, failed: false, lastTime: 0, movedAt: -Infinity,
       subscription: { remove: () => undefined },
     };
     slot.subscription = player.addListener('playbackStatusUpdate', status => this.onNativeStatus(slot, status));
@@ -287,15 +290,24 @@ export class ExpoAudioEngine implements PlayerEngine {
       }
     }
     if (!this.wantsPlay && player.playing) player.pause();
-    if (player.playing) slot.started = true;
+    const now = this.now();
+    if (player.currentTime !== slot.lastTime) {
+      slot.lastTime = player.currentTime;
+      slot.movedAt = now;
+    }
+    // A player that says it plays while its clock has stood still since play() is waiting for
+    // data, not playing: reported as playing, its position would pin the session at 0:00 with
+    // the pause button up and no sign of loading.
+    const playing = player.playing && now - Math.max(slot.movedAt, this.playCalledAt) < stillClockMs;
+    if (playing) slot.started = true;
     this.setState(engineState({
       failed: slot.failed,
       finished: slot.finished,
       ready: slot.ready,
       wantsPlay: this.wantsPlay,
       started: slot.started,
-      sincePlay: this.now() - this.playCalledAt,
-      playing: player.playing,
+      sincePlay: now - this.playCalledAt,
+      playing,
     }));
   }
 

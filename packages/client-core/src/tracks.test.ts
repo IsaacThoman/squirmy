@@ -124,4 +124,41 @@ describe('TrackStore', () => {
     expect(legacy.get(uuid(2))?.id).toBe(uuid(2))
     expect(legacy.get(uuid(3))).toBeUndefined()
   })
+
+  it('refreshes a cached summary, keeping the old one until the new one arrives', async () => {
+    // The first answer has no album; the second (after an on-demand fetch) has one.
+    let fetched = false
+    const api = vi.fn(async (request: TrackSummariesRequest) => ({
+      tracks: request.tracks.map(track => summary(Number(track.id.slice(-12)), fetched ? uuid(9) : null)),
+    }))
+    const store = new TrackStore(api)
+    store.get(uuid(1))
+    await vi.runAllTimersAsync()
+    const before = store.get(uuid(1))
+    expect(before?.album).toBeNull()
+
+    fetched = true
+    const listener = vi.fn()
+    store.subscribe(listener)
+    store.refresh(uuid(1))
+    store.refresh(uuid(1))
+    expect(store.get(uuid(1))).toBe(before)
+    await vi.runAllTimersAsync()
+    expect(api).toHaveBeenCalledTimes(2)
+    expect(listener).toHaveBeenCalledOnce()
+    expect(store.get(uuid(1))?.album?.id).toBe(uuid(9))
+  })
+
+  it('asks again for a track the server had no summary for when refreshed', async () => {
+    let known = false
+    const api = vi.fn(async (request: TrackSummariesRequest) => ({ tracks: known ? request.tracks.map(track => summary(Number(track.id.slice(-12)))) : [] }))
+    const store = new TrackStore(api)
+    store.get(uuid(4))
+    await vi.runAllTimersAsync()
+    expect(store.get(uuid(4))).toBeUndefined()
+    known = true
+    store.refresh(uuid(4))
+    await vi.runAllTimersAsync()
+    expect(store.get(uuid(4))?.id).toBe(uuid(4))
+  })
 })

@@ -67,7 +67,8 @@ export default function TransportSlider({
 }
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
-  touch: { height: 28, justifyContent: 'center' },
+  // A 44pt touch target around a thin track, without taking 44pt of the layout.
+  touch: { height: 44, marginVertical: -8, justifyContent: 'center' },
   track: { height: 6, borderRadius: 3, backgroundColor: colors.stroke, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3, backgroundColor: colors.accent },
 }));
