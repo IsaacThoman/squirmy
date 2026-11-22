@@ -5,7 +5,7 @@ import {
 } from '@squirmy/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
 import { useAccountKey, useSignedInApi, type Api } from '../account/AccountProvider';
 import { useNotice } from '../Notice';
@@ -38,7 +38,11 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const notify = useNotice();
   const { onInvalidate, offline } = useRealtime();
-  const tracks = useMemo(() => new TrackStore(api ? body => api.catalog.trackSummaries(body) : noSummaries), [api]);
+  // One store per account, reading the current client: a new client (a token or server
+  // update) must not drop the cached summaries or rebuild what is built on the store.
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  const tracks = useMemo(() => new TrackStore(body => apiRef.current?.catalog.trackSummaries(body) ?? noSummaries()), [account]);
   const queue = useMemo(() => api && account ? new LikeQueue(likeStorage(account), async ({ type, id, liked }) => {
     await (liked ? api.userdata.like(type, id) : api.userdata.unlike(type, id));
   }) : null, [account, api]);

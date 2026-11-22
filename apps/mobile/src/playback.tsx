@@ -69,11 +69,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   // Read when a track is resolved, so a change applies from the next track on.
   const stream = useRef({ settings, network: network.type });
   stream.current = { settings, network: network.type };
-  const live = useRef({ downloads, offline });
-  live.current = { downloads, offline };
+  // Read through refs so the runtime outlives a new API client, store or notice function:
+  // rebuilding it stops the music.
+  const live = useRef({ downloads, offline, api, tracks, notify });
+  live.current = { downloads, offline, api, tracks, notify };
 
   useEffect(() => {
-    if (!socket || !api || !account) return;
+    if (!socket || !live.current.api || !account) return;
+    const { tracks } = live.current;
+    const notify = (message: string) => live.current.notify(message);
     let cancelled = false;
     let teardown: (() => void) | undefined;
     void clientDevice().then(device => {
@@ -96,6 +100,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
             if (local) return local;
             const { settings: current, network: type } = stream.current;
             const kind = type === Network.NetworkStateType.CELLULAR ? 'cellular' : type === Network.NetworkStateType.WIFI ? 'wifi' : 'other';
+            const { api } = live.current;
+            if (!api) throw new Error('Signed out');
             return api.streaming.playback(entry.trackId, {
               albumId: entry.albumId ?? undefined,
               quality: qualityFor(current ?? defaultQuality, kind),
@@ -215,7 +221,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       teardown?.();
       setRuntime(null);
     };
-  }, [account, api, notify, serverUrl, socket, tracks]);
+  }, [account, serverUrl, socket]);
 
   // Where a track plays from changed: resolve entries again.
   useEffect(() => {
