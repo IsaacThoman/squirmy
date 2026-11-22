@@ -50,7 +50,7 @@ function Toasts() {
           </ToastPrimitive.Close>
         </ToastPrimitive.Root>
       ))}
-      <ToastPrimitive.Viewport className="fixed bottom-[calc(var(--player-height,0px)+1rem)] left-1/2 z-[60] flex w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 outline-none" />
+      <ToastPrimitive.Viewport className="fixed bottom-[calc(var(--player-height,0px)+var(--notices-height,0px)+1rem)] left-1/2 z-[60] flex w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 outline-none" />
     </ToastPrimitive.Provider>
   )
 }

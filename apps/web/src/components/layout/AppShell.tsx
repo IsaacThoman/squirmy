@@ -402,8 +402,28 @@ function QueueDock({ open, onClose }: { open: boolean; onClose: () => void }) {
     const frame = requestAnimationFrame(() => setPresent(false))
     return () => cancelAnimationFrame(frame)
   }, [open])
+  // Floating over the page (768 to 1279px), the queue is modal: the page dims and stops taking
+  // presses, and a press on it or Escape closes the queue. Docked from 1280px the page stays live.
+  useEffect(() => {
+    if (!open) return
+    const floating = window.matchMedia('(min-width: 768px) and (max-width: 1279.98px)')
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && floating.matches && !event.defaultPrevented) onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, onClose])
   if (!present) return null
   return (
+    <>
+    <button
+      type="button"
+      // A pointer target only, as the drawer's: Escape and the queue's own Close button close it from the keyboard.
+      aria-hidden
+      tabIndex={-1}
+      onClick={onClose}
+      className={cn('absolute inset-0 z-10 hidden bg-black/30 transition-opacity duration-200 md:block xl:hidden', open ? 'opacity-100' : 'pointer-events-none opacity-0')}
+    />
     <aside
       ref={panel}
       aria-label="Queue"
@@ -415,6 +435,7 @@ function QueueDock({ open, onClose }: { open: boolean; onClose: () => void }) {
     >
       <ShellQueue onClose={onClose} />
     </aside>
+    </>
   )
 }
 

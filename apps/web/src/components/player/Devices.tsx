@@ -26,7 +26,8 @@ export function DevicesPopover({ player, trigger, side = 'top' }: { player: Play
         side={side}
         align="end"
         aria-label="Playback devices"
-        className="w-72 p-1"
+        // On a short screen (a phone on its side) the list scrolls inside the room there is, so its last action stays reachable.
+        className="max-h-(--radix-popover-content-available-height) w-72 overflow-y-auto overscroll-contain p-1"
         // Focus goes to the popover, not to its first button: that would raise the mute button's tooltip over the list.
         onOpenAutoFocus={event => {
           event.preventDefault()
@@ -75,6 +76,7 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
           <VolumeControl
             label={`${name(active)} volume`}
             volume={volumes[active.id] ?? 1}
+            deviceId={active.id}
             onChange={volume => player.controls.setVolume(volume, active.id)}
             fill
             className="-ml-1.5 mt-1.5 gap-2.5 pr-1"
@@ -91,6 +93,7 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
                   type="button"
                   disabled={!device.canPlay}
                   onClick={() => onTransfer(device.id)}
+                  {...(device.id === thisDeviceId && { onPointerEnter: player.controls.prepareHere, onPointerDown: player.controls.prepareHere, onFocus: player.controls.prepareHere })}
                   className={rowClass}
                 >
                   <span className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"><DeviceIcon kind={device.kind} className="size-4" /></span>
@@ -152,6 +155,7 @@ function DetachedList({ player, separate, onDone }: { player: Player; separate: 
         <VolumeControl
           label="This browser volume"
           volume={volumes[thisDeviceId] ?? 1}
+          deviceId={thisDeviceId}
           onChange={volume => player.controls.setVolume(volume, thisDeviceId)}
           fill
           className="-ml-1.5 mt-1.5 gap-2.5 pr-1"
@@ -248,13 +252,15 @@ function deviceKind(kind: DeviceInfo['kind']) {
 }
 
 /** Shown while another device plays: where the sound is, and a way to bring it here. */
-export function PlayingElsewhere({ player, device, onPlayHere, className }: { player: Player; device: DeviceInfo; onPlayHere: () => void; className?: string }) {
+export function PlayingElsewhere({ player, device, onPlayHere, onPrepare, className }: { player: Player; device: DeviceInfo; onPlayHere: () => void; onPrepare?: () => void; className?: string }) {
   return (
     // The words are in the text color: the action color on its own tint is under 4.5:1 in several light themes.
     <div className={cn('flex h-8 items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-foreground', className)}>
       <DeviceIcon kind={device.kind} className="size-3.5 shrink-0 text-primary" />
-      <span className="truncate">{playingOnText(labelDevice(player.state, device))}</span>
-      <button type="button" onClick={onPlayHere} className="ml-1.5 h-6 shrink-0 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
+      <span className="truncate">{playingOnText(labelDevice(player.state, device), player.state.playing)}</span>
+      {/* Pointing at it is reason enough to get the music ready: it is usually pressed next. Its
+          hit area reaches past the 32px strip to a 44px target for a finger. */}
+      <button type="button" onClick={onPlayHere} onPointerEnter={onPrepare} onPointerDown={onPrepare} onFocus={onPrepare} className="relative ml-1.5 h-6 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-2.5 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
         Play here
       </button>
     </div>

@@ -259,9 +259,13 @@ export class SessionClient {
   private normalization: NormalizationMode
   private loadToken = 0
   private loadingEntryId: string | null = null
+  /** The entry whose stream could not be had yet (offline), and where its first try would have started. */
+  private unloaded: { entryId: string; anchorAt: number; anchorMs: number; startMs: number } | null = null
   /** The entry whose descriptor the server refused; not loaded again until play or a seek. */
   private refusedEntryId: string | null = null
   private preloadTarget: string | null = null
+  /** The entry `prepareTakeover` buffered while another device played. */
+  private takeover: string | null = null
   private preloadTrackId: string | null = null
   /** Bumped each time the preload is aimed; a resolve begun for an earlier aim is dropped. */
   private preloadToken = 0
@@ -469,6 +473,30 @@ export class SessionClient {
     if (name === this.device.name) return
     this.device = { ...this.device, name }
     if (this.transport.isConnected()) this.connect()
+  }
+
+  /**
+   * Gets this device ready to take playback over: resolves the current entry and has the
+   * engine buffer it, so a `transfer` here starts without waiting for either. For a pointer
+   * on "Play here", which is most often pressed next. Does nothing while this device plays,
+   * or when it has nothing to play.
+   */
+  prepareTakeover(): void {
+    const player = this.player
+    const current = this.local.current
+    if (!player || this.isActive() || !current || current.state !== 'ready' || this.takeover === current.id) return
+    this.takeover = current.id
+    this.describe(current).then(
+      descriptor => {
+        // The engine keeps what it buffers as the preload, which `load` reuses when the entry is the same.
+        if (this.isActive() || this.local.current?.id !== current.id || this.takeover !== current.id) return
+        player.engine.preload({ entryId: current.id, url: streamUrl(player.baseUrl, descriptor), gain: this.gainOf(current, descriptor, this.local) })
+      },
+      () => {
+        // The load after a transfer asks again and reports what fails.
+        if (this.takeover === current.id) this.takeover = null
+      },
+    )
   }
 
   /** Changes the normalization mode (the user's setting) and applies it at once. */
@@ -825,6 +853,7 @@ export class SessionClient {
     const session = this.local
     const current = session.current
     if (!this.isActive() || !current || current.state !== 'ready') return this.stopEngine()
+    this.takeover = null
 
     const status = engine.getStatus()
     if (status.entryId !== current.id) {
@@ -854,6 +883,11 @@ export class SessionClient {
 
   private stopEngine(): void {
     if (!this.player) return
+    // What was buffered for a takeover is dropped once another entry plays elsewhere.
+    if (this.takeover !== null && this.takeover !== this.local.current?.id) {
+      this.takeover = null
+      this.player.engine.preload(null)
+    }
     this.loadToken += 1
     this.loadingEntryId = null
     this.preloadTarget = null
@@ -868,6 +902,8 @@ export class SessionClient {
     const token = ++this.loadToken
     this.loadingEntryId = entry.id
     this.refusedEntryId = null
+    const asked = this.local
+    const startMs = this.startPosition(asked)
     let descriptor: PlaybackDescriptor
     try {
       descriptor = await this.describe(entry)
@@ -878,6 +914,9 @@ export class SessionClient {
       // Whatever the engine still holds is the entry before this one; it must not go on playing.
       if (engine.getStatus().entryId !== entry.id && engine.getStatus().state !== 'idle') engine.stop()
       this.reportLoadFailure(entry, willRetry ? 'buffering' : 'error')
+      if (willRetry && this.unloaded?.entryId !== entry.id) {
+        this.unloaded = { entryId: entry.id, anchorAt: asked.anchorAt, anchorMs: asked.positionMs, startMs }
+      }
       if (willRetry) {
         setTimer(() => {
           if (token === this.loadToken) this.syncEngine(this.local, false)
@@ -894,10 +933,15 @@ export class SessionClient {
     if (session.current?.id !== entry.id) return
     this.hold(entry.id, descriptor)
     this.gain = this.gainOf(entry, descriptor, session)
+    // Time spent unable to load (offline) is not time played: a retry starts where the first
+    // try would have, unless the session was moved meanwhile (a seek, or another device's clock).
+    const unloaded = this.unloaded
+    this.unloaded = null
+    const waited = unloaded?.entryId === entry.id && unloaded.anchorAt === session.anchorAt && unloaded.anchorMs === session.positionMs
     engine.load({
       entryId: entry.id,
       url: streamUrl(baseUrl, descriptor),
-      startMs: this.startPosition(session),
+      startMs: waited ? unloaded.startMs : this.startPosition(session),
       autoplay: session.playing,
       gain: this.gain,
     })
