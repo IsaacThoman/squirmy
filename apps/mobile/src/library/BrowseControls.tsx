@@ -1,6 +1,6 @@
 import type { Href } from 'expo-router';
 import { useImperativeHandle, useRef, type ComponentRef, type ReactElement, type Ref } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '../ui';
 import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
 import { ZoomLink } from './ZoomLink';
@@ -22,7 +22,8 @@ export type CollectionButtonProps = { title: string; subtitle: string; cover: Re
 /** The button a `ZoomLink` wraps. The link supplies `onPress`. */
 export type LinkedButtonProps<T> = Omit<T, 'href'> & { onPress?: () => void };
 export type GenreCardProps = { title: string; color: string; width: number; cover: ReactElement; onPress: () => void };
-export type HeroActionsProps = { title: string; artist: string; onOpen: () => void; onPlay: () => void };
+/** `busy` shows that a play is waiting on the server; the play button ignores taps meanwhile. */
+export type HeroActionsProps = { title: string; artist: string; onOpen: () => void; onPlay: () => void; busy?: boolean };
 export type CollectionGridProps = { items: readonly (CollectionButtonProps & { id: string })[]; columns: number };
 export type GenreGridProps = { items: readonly (GenreCardProps & { id: string })[] };
 /** `artistLinks` makes the artist line open those artists' pages: one directly, several from a choice. */
@@ -33,7 +34,7 @@ export type AlbumMetadataProps = { title: string; info: string; artist?: string;
  */
 export type TopResultProps = {
   title: string; subtitle: string; cover: ReactElement; size: number; href?: Href; dim?: boolean;
-  onPress?: () => void; onPlay?: () => void;
+  onPress?: () => void; onPlay?: () => void; busy?: boolean;
 };
 
 export function SearchField({ value, onChange, placeholder, autoFocus, inputRef }: SearchFieldProps) {
@@ -135,27 +136,33 @@ export function GenreGrid({ items }: GenreGridProps) {
   </View>;
 }
 
-export function HeroActions({ title, artist, onOpen, onPlay }: HeroActionsProps) {
+export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActionsProps) {
   const styles = useStyles();
+  const colors = useColors();
   return <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onOpen} style={[StyleSheet.absoluteFill, styles.heroOpen]}>
       <Text style={styles.heroTitle}>{title}</Text>
       <Text style={[styles.subtitle, styles.heroSubtitle]}>{artist}</Text>
     </Pressable>
-    <View style={styles.heroPlay}><BrowseButton icon="play.fill" label={`Play ${title}`} onPress={onPlay} glass /></View>
+    <View style={styles.heroPlay}>{busy
+      ? <ActivityIndicator accessibilityLabel={`Starting ${title}`} color={colors.text} style={styles.busy} />
+      : <BrowseButton icon="play.fill" label={`Play ${title}`} onPress={onPlay} glass />}</View>
   </View>;
 }
 
-export function TopResult({ href, onPlay, ...props }: TopResultProps) {
+export function TopResult({ href, onPlay, busy, ...props }: TopResultProps) {
   const styles = useStyles();
+  const colors = useColors();
   return <View style={styles.topResult}>
     {href ? <ZoomLink href={href}><TopResultButton {...props} playable={Boolean(onPlay)} /></ZoomLink>
       : <TopResultButton {...props} playable={Boolean(onPlay)} />}
-    {onPlay && <View style={styles.topPlay}><BrowseButton icon="play.fill" label={`Play ${props.title}`} onPress={onPlay} glass /></View>}
+    {onPlay && <View style={styles.topPlay}>{busy
+      ? <ActivityIndicator accessibilityLabel={`Starting ${props.title}`} color={colors.text} style={styles.busy} />
+      : <BrowseButton icon="play.fill" label={`Play ${props.title}`} onPress={onPlay} glass />}</View>}
   </View>;
 }
 
-function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay'> & { playable: boolean }) {
+function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay' | 'busy'> & { playable: boolean }) {
   const colors = useColors();
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
@@ -169,7 +176,9 @@ function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omi
   </Pressable>;
 }
 
-export function AlbumMetadata({ title, info, artist, artistLinks = [] }: AlbumMetadataProps) {
+const noArtistLinks: NonNullable<AlbumMetadataProps['artistLinks']> = [];
+
+export function AlbumMetadata({ title, info, artist, artistLinks = noArtistLinks }: AlbumMetadataProps) {
   const styles = useStyles();
   const openArtist = () => {
     if (artistLinks.length === 1) artistLinks[0].open();
@@ -219,6 +228,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   topPlayable: { paddingRight: 72 },
   topTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   topPlay: { position: 'absolute', right: 14 },
+  busy: { width: 44, height: 44 },
   metadata: { alignItems: 'center', gap: 3 },
   albumTitle: { color: colors.text, fontWeight: '800', fontSize: 31, textAlign: 'center' },
   artist: { color: colors.text, fontSize: 17, textAlign: 'center' },

@@ -10,6 +10,7 @@ import { useNotice } from '../Notice';
 import { usePlaybackState } from '../playback';
 import { usePlayerTransition } from '../player/transition';
 import { usePageLinks } from './links';
+import { createStartGuard } from './pending';
 
 /** One thing to do with a track: a command, a page to open, or a sheet to open. */
 export type TrackAction = {
@@ -26,6 +27,9 @@ export type TrackActionOptions = {
   /** The playlist the track is shown in, for "Remove from playlist". */
   playlist?: { id: string; itemId: string };
 };
+
+/** Radios started from a song's menu, which closes before the radio arrives. */
+const radioStarts = createStartGuard();
 
 /**
  * What can be done with `track`, in menu order. Gray tracks can only be liked, wanted (when
@@ -68,8 +72,12 @@ export function useTrackActions(track: TrackSummary | undefined, { playlist }: T
     downloadAction,
     playable && online && { id: 'playlist', title: 'Add to playlist', icon: 'text.badge.plus', sheet: true,
       href: { pathname: '/add-to-playlist', params: { trackId: track.id, albumId: track.album?.id ?? '' } } },
-    playable && online && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right', run: () => {
-      api?.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
+    playable && online && Boolean(api) && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right', run: () => {
+      // The menu closes at once, so the notice is what shows the radio is on its way.
+      radioStarts.run('radio', () => {
+        notify('Starting radio…');
+        return api!.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
+      });
     } },
     // Gray tracks, including on-demand ones this user may not have fetched.
     wantlist && !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star', run: () => want('track', track.id, track.title) },

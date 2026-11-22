@@ -29,6 +29,7 @@ import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useOfflineDim, type Collection,
 } from './shared';
+import { useStartGuard } from './pending';
 import { underStatusBar, useRefreshControl } from './refresh';
 import { SongList } from './SongList';
 import { ZoomTarget } from './ZoomLink';
@@ -364,6 +365,7 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
   const { canPlay, offline } = useAvailability();
   const liked = useLiked('artist', id, artist.data?.liked);
   const { setLiked } = useLibraryActions();
+  const starts = useStartGuard();
   useBackSwipeOnly();
   if (!artist.data) return <PageFallback query={artist} what="this artist" onBack={onBack} />;
   const data = artist.data;
@@ -375,9 +377,11 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
   };
   const owned = (album: AlbumSummary) => album.availability === 'full' || album.availability === 'partial';
   const radio = () => {
+    if (!api) return;
     tapFeedback();
-    api?.radio.artist(data.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${data.name}.`));
+    starts.run('radio', () => api.radio.artist(data.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${data.name}.`)));
   };
+  const startingRadio = starts.pending('radio');
   const groups = discography
     .map(group => ({ title: group.title, albums: data.albums.filter(album => group.types.includes(album.type)) }))
     .filter(group => group.albums.length);
@@ -388,7 +392,8 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
     nav={[
       { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.name}` : `Like ${data.name}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked); } },
-      data.inLibrary && !offline && { icon: 'dot.radiowaves.left.and.right', label: `Start a radio for ${data.name}`, onPress: radio },
+      data.inLibrary && !offline && { icon: 'dot.radiowaves.left.and.right', busy: startingRadio, onPress: radio,
+        label: startingRadio ? `Starting a radio for ${data.name}` : `Start a radio for ${data.name}` },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
     onBack={onBack} onRefresh={artist.refetch} bottomInset={bottomInset}>

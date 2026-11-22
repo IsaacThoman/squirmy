@@ -1,9 +1,12 @@
 import { Fragment, useImperativeHandle, useRef } from 'react';
-import { Button, Divider, Grid, Host, HStack, Menu, Picker, RNHostView, Spacer, Text, TextField, VStack, ZStack, useNativeState, type TextFieldRef } from '@expo/ui/swift-ui';
+import {
+  Button, Divider, Grid, Host, HStack, Menu, Picker, ProgressView, RNHostView, Spacer, Text, TextField, VStack, ZStack, useNativeState,
+  type TextFieldRef,
+} from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, autocorrectionDisabled, background, buttonBorderShape, buttonStyle, clipShape,
   font, foregroundStyle, frame, lineLimit, menuIndicator, multilineTextAlignment, offset, padding, pickerStyle,
-  opacity, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
+  opacity, progressViewStyle, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { StyleSheet, View } from 'react-native';
@@ -174,8 +177,21 @@ function GenreTileButton({ title, color, width, cover, onPress }: GenreCardProps
   </Button>;
 }
 
-export function HeroActions({ title, artist, onOpen, onPlay }: HeroActionsProps) {
+/** The round play button of a card. While `busy` it spins and ignores taps, so one tap starts one play. */
+function CardPlayButton({ title, size, symbolSize, busy, onPress }: { title: string; size: number; symbolSize: number; busy?: boolean; onPress: () => void }) {
   const colors = useColors();
+  return <Button modifiers={[
+    buttonStyle(isLiquidGlassAvailable() ? 'glassProminent' : 'borderedProminent'), buttonBorderShape('circle'),
+    tint(colors.accent), accessibilityLabel(busy ? `Starting ${title}` : `Play ${title}`),
+  ]} onPress={busy ? () => undefined : onPress}>
+    <HStack modifiers={[frame({ width: size, height: size })]}>
+      {busy ? <ProgressView modifiers={[progressViewStyle('circular'), tint(colors.onAccent)]} />
+        : <Symbol name="play.fill" size={symbolSize} color={colors.onAccent} />}
+    </HStack>
+  </Button>;
+}
+
+export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActionsProps) {
   return <Host style={StyleSheet.absoluteFill}>
     <ZStack alignment="bottomTrailing">
       <Button modifiers={[plainButton, accessibilityLabel(`Open ${title}`)]} onPress={onOpen}>
@@ -188,36 +204,26 @@ export function HeroActions({ title, artist, onOpen, onPlay }: HeroActionsProps)
         </VStack>
       </Button>
       <VStack modifiers={[padding({ bottom: 17, trailing: 17 })]}>
-        <Button modifiers={[
-          buttonStyle(isLiquidGlassAvailable() ? 'glassProminent' : 'borderedProminent'), buttonBorderShape('circle'),
-          tint(colors.accent), accessibilityLabel(`Play ${title}`),
-        ]} onPress={onPlay}>
-          <HStack modifiers={[frame({ width: 34, height: 34 })]}><Symbol name="play.fill" size={20} color={colors.onAccent} /></HStack>
-        </Button>
+        <CardPlayButton title={title} size={34} symbolSize={20} busy={busy} onPress={onPlay} />
       </VStack>
     </ZStack>
   </Host>;
 }
 
-export function TopResult({ href, onPlay, ...props }: TopResultProps) {
+export function TopResult({ href, onPlay, busy, ...props }: TopResultProps) {
   const colors = useColors();
   return <Host matchContents={{ vertical: true }}>
     <ZStack alignment="trailing" modifiers={[background(colors.surface), clipShape('roundedRectangle', 18)]}>
       {href ? <ZoomLink href={href}><TopResultButton {...props} playable={Boolean(onPlay)} zoom /></ZoomLink>
         : <TopResultButton {...props} playable={Boolean(onPlay)} />}
       {onPlay && <VStack modifiers={[padding({ trailing: 16 })]}>
-        <Button modifiers={[
-          buttonStyle(isLiquidGlassAvailable() ? 'glassProminent' : 'borderedProminent'), buttonBorderShape('circle'),
-          tint(colors.accent), accessibilityLabel(`Play ${props.title}`),
-        ]} onPress={onPlay}>
-          <HStack modifiers={[frame({ width: 30, height: 30 })]}><Symbol name="play.fill" size={17} color={colors.onAccent} /></HStack>
-        </Button>
+        <CardPlayButton title={props.title} size={30} symbolSize={17} busy={busy} onPress={onPlay} />
       </VStack>}
     </ZStack>
   </Host>;
 }
 
-function TopResultButton({ title, subtitle, cover, size, dim, zoom, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay'> & {
+function TopResultButton({ title, subtitle, cover, size, dim, zoom, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay' | 'busy'> & {
   zoom?: boolean; playable: boolean;
 }) {
   const colors = useColors();
@@ -237,7 +243,9 @@ function TopResultButton({ title, subtitle, cover, size, dim, zoom, playable, on
   </Button>;
 }
 
-export function AlbumMetadata({ title, info, artist, artistLinks = [] }: AlbumMetadataProps) {
+const noArtistLinks: NonNullable<AlbumMetadataProps['artistLinks']> = [];
+
+export function AlbumMetadata({ title, info, artist, artistLinks = noArtistLinks }: AlbumMetadataProps) {
   const colors = useColors();
   const artistFont = font({ textStyle: 'title3', weight: artistLinks.length ? 'semibold' : 'medium' });
   const artistLine = artist ? <Text modifiers={[artistFont, multilineTextAlignment('center'),
