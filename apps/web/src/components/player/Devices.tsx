@@ -203,7 +203,9 @@ function SeparateTrack({ state }: { state: NonNullable<DeviceInfo['detached']> }
     meta: { silent: true },
   }).data
   if (!trackId) return <>Nothing playing</>
-  return <>{track?.title ?? '…'}{!state.playing && ' · Paused'}</>
+  // Until (or unless) the song is known, what it is doing still says something.
+  if (!track) return <>{state.playing ? 'Playing' : 'Paused'}</>
+  return <>{track.title}{!state.playing && ' · Paused'}</>
 }
 
 const rowClass = 'flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:opacity-50'
