@@ -17,14 +17,18 @@ export type Api = ReturnType<typeof createApiClient>;
 const requestTimeoutMs = 15_000;
 const unsavedNotice = `This ${Platform.OS === 'ios' ? 'iPhone' : 'phone'} couldn’t save your sign-in. You’ll need to sign in again next time.`;
 
-// Refetch on returning to the app, the native counterpart of a browser tab regaining focus.
+// The app in the background counts as unfocused, so interval refetches pause there.
 focusManager.setEventListener(setFocused => {
   const subscription = AppState.addEventListener('change', state => setFocused(state === 'active'));
   return () => subscription.remove();
 });
 
 export function createQueryClient() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000, gcTime: cacheMaxAgeMs } } });
+  // No refetch on returning to the app: the realtime socket says what changed, and when it
+  // was dropped meanwhile, its reconnect refreshes what is on screen.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: 1, staleTime: 30_000, gcTime: cacheMaxAgeMs, refetchOnWindowFocus: false } },
+  });
   // Pages of one item pile up as the user browses; they are kept for a shorter time than the lists.
   for (const root of ['album', 'artist', 'track', 'playlists']) queryClient.setQueryDefaults([root], { gcTime: detailMaxAgeMs });
   queryClient.setQueryDefaults(['playlists', 'list'], { gcTime: cacheMaxAgeMs });

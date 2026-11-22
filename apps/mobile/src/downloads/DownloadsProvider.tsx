@@ -1,7 +1,7 @@
 import { artworkUrl, streamUrl } from '@squirmy/client-core';
 import type { AlbumDetail, PlaylistDetail, TrackSummary } from '@squirmy/contracts';
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
 import { Platform } from 'react-native';
 import { useAccount, useAccountKey, useServerUrl, useSignedInApi, type Api } from '../account/AccountProvider';
@@ -21,6 +21,7 @@ import {
 const keptArtSize = 600;
 const likedPageSize = 200;
 const syncIntervalMs = 6 * 3600_000;
+const resyncAfterMs = 10 * 60_000;
 /** Server changes come in bursts (a scan, a playlist edit); collections are re-read once they settle. */
 const invalidateDelayMs = 3000;
 
@@ -102,12 +103,19 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
     if (settings) manager?.setOptions({ quality: settings.downloadQuality, wifiOnly: settings.downloadOnWifiOnly });
   }, [manager, settings?.downloadQuality, settings?.downloadOnWifiOnly]);
 
+  // Coming back online re-reads everything at most every few minutes: a phone on a weak
+  // network can drop and regain its connection many times in that time.
+  const lastSync = useRef({ manager: null as DownloadManager | null, at: -Infinity });
   useEffect(() => {
     if (!manager) return;
     manager.setOnline(online);
     if (!online) return;
-    void manager.sync();
-    const timer = setInterval(() => void manager.sync(), syncIntervalMs);
+    const sync = () => {
+      lastSync.current = { manager, at: Date.now() };
+      void manager.sync();
+    };
+    if (lastSync.current.manager !== manager || Date.now() - lastSync.current.at >= resyncAfterMs) sync();
+    const timer = setInterval(sync, syncIntervalMs);
     return () => clearInterval(timer);
   }, [manager, online]);
 

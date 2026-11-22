@@ -8,6 +8,7 @@ import { io } from 'socket.io-client';
 import { useAccount } from '../account/AccountProvider';
 import { socketAddress } from '../account/address';
 import { Echoes } from './echoes';
+import { refreshAfterReconnect } from './reconnect';
 
 type Keys = readonly (readonly unknown[])[];
 /** `own`: the echo of a change this device made, whose result it already shows. */
@@ -40,8 +41,8 @@ const RealtimeContext = createContext<Realtime>({
 
 /**
  * One socket.io connection while signed in, authenticated with the session token.
- * `invalidate` messages refresh the matching queries; every reconnect refreshes all of
- * them. The connection is renewed when the app returns from being suspended and when
+ * `invalidate` messages refresh the matching queries; a reconnect refreshes what is on
+ * screen, since messages may have been missed meanwhile. The connection is renewed when the app returns from being suspended and when
  * the network changes, since iOS drops sockets silently in both cases. While it stays
  * down the app is offline.
  */
@@ -79,7 +80,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       heard();
       clearTimeout(goingOffline);
       setOffline(false);
-      if (everConnected) void queryClient.invalidateQueries();
+      if (everConnected) void refreshAfterReconnect(queryClient);
       everConnected = true;
     });
     next.on('disconnect', reason => {
