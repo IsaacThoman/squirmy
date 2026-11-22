@@ -163,6 +163,16 @@ describe('SearchDialog', () => {
     expect(screen.getByRole('status', { name: 'Searching' })).toBeInTheDocument()
   })
 
+  it('says when the search failed and offers to try again, instead of searching forever', async () => {
+    const onRetry = vi.fn()
+    renderDialog({ query: 'radiohead', results: mergeSearch(null, null, requester), failed: true, onRetry })
+    expect(screen.getByRole('alert')).toHaveTextContent('Search didn’t work')
+    expect(screen.queryByRole('status', { name: 'Searching' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/No results/)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
   it('does not say it is searching once the answer is in', () => {
     renderDialog({ query: 'night', results: found })
     expect(screen.queryByRole('status', { name: 'Searching' })).not.toBeInTheDocument()

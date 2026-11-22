@@ -29,6 +29,9 @@ type SearchDialogProps = {
   /** The results answer the start of what is typed; the answer for all of it is on its way. */
   stale?: boolean
   loading: boolean
+  /** Neither search could be made: the dialog says so and offers to try again. */
+  failed?: boolean
+  onRetry?: () => void
   destinations: SearchDestination[]
   /** Whether a song plays when chosen (otherwise its album opens); and which artists and albums show dimmed. */
   canPlay: (track: TrackSummary) => boolean
@@ -56,7 +59,7 @@ function choicesOf(results: MergedSearch | null): SearchChoice[] {
  * Quick search from anywhere: type, move with the arrow keys, Enter opens an artist or an album
  * and plays a song. With nothing typed it lists places to go. The search page has everything else.
  */
-export function SearchDialog({ open, onOpenChange, query, onQueryChange, results, stale = false, loading, destinations, canPlay, isDimmed, onChoose, onIntent }: SearchDialogProps) {
+export function SearchDialog({ open, onOpenChange, query, onQueryChange, results, stale = false, loading, failed = false, onRetry, destinations, canPlay, isDimmed, onChoose, onIntent }: SearchDialogProps) {
   const listboxId = useId()
   // The row the arrow keys or the pointer picked since the last change, by key: rows the catalog
   // adds later must not move the highlight off it. Until one is picked, Enter takes the best match.
@@ -136,7 +139,14 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
         </div>
         <div className="min-h-0 overflow-y-auto p-1.5">
           {!term && <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Go to</p>}
-          {settledEmpty && <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">{tooShortToSearch(term) ? 'Keep typing to search.' : `No results for “${term}”.`}</p>}
+          {/* A long unbroken query wraps rather than widening the dialog. */}
+          {settledEmpty && !failed && <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">{tooShortToSearch(term) ? 'Keep typing to search.' : `No results for “${term}”.`}</p>}
+          {term && failed && (
+            <p role="alert" className="flex items-center gap-2 px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">
+              Search didn’t work. Check your connection.
+              {onRetry && <button type="button" onClick={onRetry} className="font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:underline">Try again</button>}
+            </p>
+          )}
           <div id={listboxId} role="listbox" aria-label={term ? 'Results' : 'Go to'}>
             {choices.map((choice, index) => (
               <Option

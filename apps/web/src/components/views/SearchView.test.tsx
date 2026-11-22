@@ -176,6 +176,13 @@ describe('search page', () => {
     expect(rows()).toEqual(before)
   })
 
+  it('wraps a long query in the no-results message rather than widening the page', async () => {
+    const long = 'a'.repeat(110)
+    renderWithApp(<AppRoutes />, `/search?q=${long}`)
+    const title = await screen.findByRole('heading', { name: `No results for “${long}”` })
+    expect(title).toHaveClass('[overflow-wrap:anywhere]', 'max-w-full')
+  })
+
   it('says a single letter is too short to search', async () => {
     renderWithApp(<AppRoutes />, '/search?q=a')
     expect(await screen.findByText(/Keep typing/)).toBeInTheDocument()

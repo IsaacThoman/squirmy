@@ -174,7 +174,9 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
       onQueryChange={setQuery}
       results={search.results}
       stale={search.stale}
-      loading={typed.length > 0 && (!search.results || search.stale || search.catalogPending)}
+      loading={typed.length > 0 && !search.failed && (!search.results || search.stale || search.catalogPending)}
+      failed={search.failed}
+      onRetry={search.retry}
       destinations={destinations}
       canPlay={track => isPlayable(track, viewer)}
       isDimmed={item => (item.type === 'album' ? albumPresentation(item.album, viewer) === 'dimmed' : !item.artist.inLibrary && !canFetch(viewer))}
