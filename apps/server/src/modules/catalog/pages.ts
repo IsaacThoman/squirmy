@@ -1,10 +1,15 @@
 /** Artist, album and track pages. Ids from clients may be stale; each page follows merge redirects. */
-import type { AlbumDetail, AlbumDisc, ArtistDetail, Lyrics, TrackSummary } from '@squirmy/contracts'
+import {
+  ARTIST_SECTION_KEYS, ARTIST_SECTION_PREVIEW,
+  type AlbumDetail, type AlbumDisc, type AlbumPage, type ArtistDetail, type ArtistReleasesQuery, type ArtistSection, type ArtistSectionKey, type Lyrics, type TrackSummary,
+} from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
+import { z } from 'zod'
 import { db } from '../../database/client.js'
-import { notFound } from '../../lib/errors.js'
+import { badRequest, notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
+import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
 import { releaseKey } from '../search/keys.js'
 import { canonicalRelease, collectionFile } from './availability.js'
@@ -19,6 +24,7 @@ type DiscographyRow = {
   title: string
   type: string
   typeGuessed: boolean
+  secondaryTypes: string[]
   hasMbid: boolean
   detailLevel: number
   year: number | null
@@ -150,61 +156,209 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
   return { ...summary, ...extra, wanted: wantlistEnabled && extra.wanted, durationMs, discs, ...(settled ? {} : { detailPending: true as const }) }
 }
 
+/** Headings of the artist page's sections, for clients that do not know a key. */
+const sectionTitles: Record<ArtistSectionKey, string> = {
+  album: 'Albums', mixtape: 'Mixtapes', ep: 'EPs', single: 'Singles', live: 'Live albums', compilation: 'Compilations',
+  soundtrack: 'Soundtracks', other: 'Other releases', appears_on: 'Appears on',
+}
+
+const hasSecondary = (row: DiscographyRow, type: string) => row.secondaryTypes.some((one) => one.toLowerCase() === type)
+
 /**
- * The artist page: profile, the albums the artist leads and those of others that credit it
- * (newest first, each release once, `standingRows`), and
- * top tracks ranked by completed plays on this server, then popularity, and similar
- * artists from the radio module, which also says whether an artist radio would start.
- * Fetches missing detail first.
+ * The section each release of the page is listed under. Releases of others are "Appears
+ * on". Mixtapes (MusicBrainz's "Mixtape/Street") are albums by type but listed apart, as
+ * stores do. A soundtrack is listed among the albums of an artist whose albums are mostly
+ * not soundtracks: The Beatles' Help! is one of their albums, Hans Zimmer's scores are
+ * his soundtracks.
+ */
+export function sectionOf(rows: readonly DiscographyRow[]): (row: DiscographyRow) => ArtistSectionKey {
+  const led = rows.filter((row) => row.led)
+  const soundtracks = led.filter((row) => row.type === 'soundtrack').length
+  const albums = led.filter((row) => row.type === 'album').length
+  const soundtracksAreAlbums = soundtracks > 0 && soundtracks < albums
+  return (row) => {
+    if (!row.led) return 'appears_on'
+    if (row.type === 'album' && hasSecondary(row, 'mixtape/street')) return 'mixtape'
+    if (row.type === 'soundtrack' && soundtracksAreAlbums) return 'album'
+    return (ARTIST_SECTION_KEYS as readonly string[]).includes(row.type) ? row.type as ArtistSectionKey : 'other'
+  }
+}
+
+/**
+ * An artist's discography as the page lists it: the releases the artist leads (primary
+ * artist or first credit) and those of others that credit it, on the release or on a track
+ * of one of its editions ("Appears on"), newest first, each release once (`standingRows`),
+ * with the section of each.
+ */
+async function discography(artistId: string): Promise<{ rows: DiscographyRow[]; section: (row: DiscographyRow) => ArtistSectionKey }> {
+  const [artist] = await db.execute<{ hasMbid: boolean }>(sql`select mbid is not null as "hasMbid" from artists where id = ${artistId}`)
+  const rows = await db.execute<DiscographyRow>(sql`
+    select a.id, a.title, a.type, a.type_guessed as "typeGuessed", a.secondary_types as "secondaryTypes", a.mbid is not null as "hasMbid",
+      a.detail_level as "detailLevel", a.year, a.artwork_asset_id is not null as "hasArtwork",
+      exists (select 1 from media_files f where f.album_id = a.id and f.missing_since is null) as owned,
+      a.primary_artist_id = ${artistId} or exists (
+        select 1 from album_artists lead where lead.album_id = a.id and lead.position = 0 and lead.artist_id = ${artistId}) as led
+    from albums a
+    where a.merged_into_id is null
+      -- Credited, or led without credit rows (the summary then credits the primary artist),
+      -- or featured on a track of one of its editions.
+      and a.id in (
+        select aa.album_id from album_artists aa where aa.artist_id = ${artistId}
+        union select led.id from albums led where led.primary_artist_id = ${artistId}
+        union select rl.album_id from recording_artists ra
+          join release_tracks rt on rt.recording_id = ra.recording_id
+          join releases rl on rl.id = rt.release_id
+          where ra.artist_id = ${artistId}
+      )
+    -- Many rows know only a year (catalog stubs, tags with a year). A full date and a
+    -- bare year compare as text, so '2020' still sorts above '2001-05-01'.
+    order by coalesce(a.release_date, a.year::text) desc nulls last, a.year desc nulls last, a.title_key, a.id`)
+  const standing = standingRows(rows, { fromMusicBrainz: artist?.hasMbid ?? false })
+  return { rows: standing, section: sectionOf(standing) }
+}
+
+/**
+ * The artist page: profile, the release sections (the first `ARTIST_SECTION_PREVIEW` of
+ * each, with counts; `artistReleases` pages the rest), top tracks, and similar artists
+ * from the radio module, which also says whether an artist radio would start. Fetches
+ * missing detail first.
+ *
+ * Top tracks are the artist's stored list (`artist_top_tracks`) in its order; an artist
+ * without one (music only in the library) ranks its tracks by completed plays on this
+ * server, then popularity. MusicBrainz's placeholders (Various Artists) have none, no
+ * radio and no similar artists: they stand for no one in particular.
  */
 export async function artistDetail(userId: string, id: string): Promise<ArtistDetail> {
   const settled = await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
   const artistId = await resolveOrThrow('artists', id, 'artist')
-  const [artist] = await db.execute<{ hasMbid: boolean }>(sql`select mbid is not null as "hasMbid" from artists where id = ${artistId}`)
-  const hasMbid = artist?.hasMbid ?? false
-  const [[summary], [profile], albums, top, similar, radio] = await Promise.all([
+  const [artist] = await db.execute<{ mbid: string | null }>(sql`select mbid::text as mbid from artists where id = ${artistId}`)
+  const placeholder = Boolean(artist?.mbid && specialPurposeArtists.has(artist.mbid))
+  const [[summary], [profile], { rows, section }, top, similar, radio] = await Promise.all([
     artistSummaries([artistId], userId),
     db.execute<{ sortName: string | null; disambiguation: string | null; bio: string | null; bioUrl: string | null; genres: string[]; liked: boolean }>(sql`
       select a.sort_name as "sortName", a.disambiguation, a.bio, a.bio_url as "bioUrl", a.genres,
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'artist' and l.entity_id = a.id) as liked
       from artists a where a.id = ${artistId}`),
-    db.execute<DiscographyRow>(sql`
-      select a.id, a.title, a.type, a.type_guessed as "typeGuessed", a.mbid is not null as "hasMbid", a.detail_level as "detailLevel",
-        a.year, a.artwork_asset_id is not null as "hasArtwork",
-        exists (select 1 from media_files f where f.album_id = a.id and f.missing_since is null) as owned,
-        a.primary_artist_id = ${artistId} or exists (
-          select 1 from album_artists lead where lead.album_id = a.id and lead.position = 0 and lead.artist_id = ${artistId}) as led
-      from albums a
-      where a.merged_into_id is null
-        -- Credited, or led without credit rows (the summary then credits the primary artist).
-        and a.id in (
-          select aa.album_id from album_artists aa where aa.artist_id = ${artistId}
-          union select led.id from albums led where led.primary_artist_id = ${artistId}
-        )
-      -- Many rows know only a year (catalog stubs, tags with a year). A full date and a
-      -- bare year compare as text, so '2020' still sorts above '2001-05-01'.
-      order by coalesce(a.release_date, a.year::text) desc nulls last, a.year desc nulls last, a.title_key, a.id`)
-      .then((rows) => standingRows(rows, { fromMusicBrainz: hasMbid })),
-    db.execute<{ id: string }>(sql`
-      select r.id from recordings r
-      where r.merged_into_id is null
-        and r.id in (
-          select ra.recording_id from recording_artists ra where ra.artist_id = ${artistId}
-          union select led.id from recordings led where led.primary_artist_id = ${artistId}
-        )
-      order by (select count(*) from plays p where p.recording_id = r.id and p.completed) desc,
-        r.popularity desc nulls last, r.title_key, r.id
-      limit ${TOP_TRACKS}`),
-    similarArtists(artistId, { limit: SIMILAR }).then((rows) => artistSummaries(rows.map((row) => row.artistId), userId)),
-    canStartArtistRadio(userId, artistId),
+    discography(artistId),
+    placeholder ? [] : topTrackIds(artistId),
+    placeholder ? [] : similarArtists(artistId, { limit: SIMILAR }).then((found) => artistSummaries(found.map((row) => row.artistId), userId)),
+    placeholder ? false : canStartArtistRadio(userId, artistId),
   ])
   if (!summary || !profile) throw notFound('No such artist', 'artist_not_found')
-  const [albumList, appearsOn, topTracks] = await Promise.all([
-    albumSummaries(albums.filter((row) => row.led).map((row) => row.id)),
-    albumSummaries(albums.filter((row) => !row.led).map((row) => row.id)),
-    trackSummaries(userId, top.map((row) => ({ id: row.id }))),
+
+  const bySection = new Map<ArtistSectionKey, DiscographyRow[]>()
+  for (const row of rows) {
+    const key = section(row)
+    const list = bySection.get(key)
+    if (list) list.push(row)
+    else bySection.set(key, [row])
+  }
+  const keys = ARTIST_SECTION_KEYS.filter((key) => bySection.has(key))
+  const previewed = new Set(keys.flatMap((key) => bySection.get(key)!.slice(0, ARTIST_SECTION_PREVIEW).map((row) => row.id)))
+  const shown = rows.filter((row) => previewed.has(row.id))
+  const [summaries, topTracks] = await Promise.all([
+    albumSummaries(shown.map((row) => row.id)),
+    trackSummaries(userId, top.map((trackId) => ({ id: trackId }))),
   ])
-  return { ...summary, ...profile, topTracks, albums: albumList, appearsOn, similar, radio, ...(settled ? {} : { detailPending: true as const }) }
+  const byId = new Map(summaries.map((album) => [album.id, album]))
+  const sections: ArtistSection[] = keys.map((key) => ({
+    key,
+    title: sectionTitles[key],
+    total: bySection.get(key)!.length,
+    items: bySection.get(key)!.slice(0, ARTIST_SECTION_PREVIEW).flatMap((row) => byId.get(row.id) ?? []),
+  }))
+  const led = rows.filter((row) => row.led)
+  // Older clients read `albums` and `appearsOn`: the same previews, newest first.
+  const albums = shown.filter((row) => row.led).flatMap((row) => byId.get(row.id) ?? [])
+  const appearsOn = shown.filter((row) => !row.led).flatMap((row) => byId.get(row.id) ?? [])
+  return {
+    ...summary,
+    ...profile,
+    topTracks,
+    albums,
+    appearsOn,
+    sections,
+    releaseCount: led.length,
+    ownedReleaseCount: led.filter((row) => row.owned).length,
+    similar,
+    radio,
+    ...(settled ? {} : { detailPending: true as const }),
+  }
+}
+
+/**
+ * The artist's top tracks: its stored list in rank order (rows merged since followed to
+ * the row they became, a title listed twice shown once), else its tracks ranked by
+ * completed plays on this server, then popularity.
+ */
+async function topTrackIds(artistId: string): Promise<string[]> {
+  const listed = await db.execute<{ id: string; titleKey: string }>(sql`
+    select coalesce(r.merged_into_id, r.id) as id, r.title_key as "titleKey" from artist_top_tracks t
+    join recordings r on r.id = t.recording_id
+    -- A list stored under a row merged into this one counts until the artist is fetched again.
+    where t.artist_id in (select ${artistId}::uuid union select id from artists where merged_into_id = ${artistId})
+    order by t.artist_id = ${artistId} desc, t.position`)
+  if (listed.length > 0) {
+    const seen = new Set<string>()
+    const ids: string[] = []
+    for (const row of listed) {
+      if (seen.has(row.id) || seen.has(`title:${row.titleKey}`)) continue
+      seen.add(row.id)
+      seen.add(`title:${row.titleKey}`)
+      ids.push(row.id)
+      if (ids.length === TOP_TRACKS) break
+    }
+    return ids
+  }
+  const rows = await db.execute<{ id: string }>(sql`
+    select r.id from recordings r
+    where r.merged_into_id is null
+      and r.id in (
+        select ra.recording_id from recording_artists ra where ra.artist_id = ${artistId}
+        union select led.id from recordings led where led.primary_artist_id = ${artistId}
+      )
+    order by (select count(*) from plays p where p.recording_id = r.id and p.completed) desc,
+      r.popularity desc nulls last, r.title_key, r.id
+    limit ${TOP_TRACKS}`)
+  return rows.map((row) => row.id)
+}
+
+/** A cursor into one section of an artist page: the id of the last release listed. */
+const ReleasesCursor = z.object({ s: z.string(), id: z.uuid() })
+
+function invalidCursor() {
+  return badRequest('The cursor is not valid for this list', 'invalid_cursor')
+}
+
+/**
+ * One section of an artist page, paged ("See all"): `limit` releases newest first, in the
+ * page's order. The cursor names the last release listed, so a page continues after it
+ * however many releases the discography gained meanwhile; one merged away since is
+ * followed to the row it became. Does not fetch detail: the artist page did.
+ */
+export async function artistReleases(id: string, query: ArtistReleasesQuery): Promise<AlbumPage> {
+  const artistId = await resolveOrThrow('artists', id, 'artist')
+  const { rows, section } = await discography(artistId)
+  const listed = rows.filter((row) => section(row) === query.section)
+  let start = 0
+  if (query.cursor) {
+    let cursor: z.infer<typeof ReleasesCursor>
+    try {
+      cursor = ReleasesCursor.parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')))
+    } catch {
+      throw invalidCursor()
+    }
+    if (cursor.s !== query.section) throw invalidCursor()
+    const last = await resolveOne('albums', cursor.id)
+    const index = listed.findIndex((row) => row.id === last)
+    // A release that left the section (retyped, merged elsewhere) ends the list rather than restarting it.
+    start = index === -1 ? listed.length : index + 1
+  }
+  const slice = listed.slice(start, start + query.limit)
+  const items = await albumSummaries(slice.map((row) => row.id))
+  const more = start + query.limit < listed.length
+  const nextCursor = more ? Buffer.from(JSON.stringify({ s: query.section, id: slice.at(-1)!.id })).toString('base64url') : null
+  return { items, nextCursor }
 }
 
 /** One track, in the given album's context when there is one. */

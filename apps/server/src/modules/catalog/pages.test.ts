@@ -1,10 +1,10 @@
-import { AlbumDetail, ArtistDetail, HomeResponse, Lyrics, TrackPage, TrackSummariesResponse, TrackSummary } from '@squirmy/contracts'
+import { AlbumDetail, AlbumPage, ARTIST_SECTION_PREVIEW, ArtistDetail, HomeResponse, Lyrics, TrackPage, TrackSummariesResponse, TrackSummary } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, artists, likes, lyrics, mediaFiles, playlistItems, playlists, recordings, releaseTracks, wants } from '../../database/schema.js'
+import { albumArtists, albums, artistTopTracks, artists, likes, lyrics, mediaFiles, playlistItems, playlists, recordingArtists, recordings, releaseTracks, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
@@ -136,6 +136,63 @@ describe('catalog pages', () => {
     ])
   })
 
+  it('lists the discography in sections, with the first releases of each and counts', async () => {
+    const artist = await createArtist({ name: 'Weezy' })
+    await createAlbum({ artist, title: 'Tha Carter', year: 2004, owned: true })
+    const mixtape = await createAlbum({ artist, title: 'Dedication 2', year: 2006 })
+    await db.update(albums).set({ secondaryTypes: ['Mixtape/Street'] }).where(eq(albums.id, mixtape.albumId))
+    // One soundtrack beside two albums is one of the albums (Help!).
+    await createAlbum({ artist, title: 'Rebirth', year: 2010 })
+    await createAlbum({ artist, title: 'Help!', year: 1965, type: 'soundtrack' })
+    for (let index = 0; index < ARTIST_SECTION_PREVIEW + 3; index++) await createAlbum({ artist, title: `Single ${index}`, year: 2000 + index, type: 'single' })
+    // Featured on a track of someone else's album, with no credit on the album itself.
+    const feature = await createAlbum({ title: 'Miami', year: 2023 })
+    await db.insert(recordingArtists).values({ recordingId: feature.tracks[0]!.recordingId, position: 1, artistId: artist.id, creditedName: 'Weezy' })
+
+    const detail = body(await get(`/artists/${artist.id}`), ArtistDetail)
+    expect(detail.sections!.map((section) => [section.key, section.title, section.total, section.items.length])).toEqual([
+      ['album', 'Albums', 3, 3], ['mixtape', 'Mixtapes', 1, 1], ['single', 'Singles', ARTIST_SECTION_PREVIEW + 3, ARTIST_SECTION_PREVIEW], ['appears_on', 'Appears on', 1, 1],
+    ])
+    expect(detail.sections![0]!.items.map((album) => album.title)).toEqual(['Rebirth', 'Tha Carter', 'Help!'])
+    expect(detail.sections![2]!.items[0]!.title).toBe(`Single ${ARTIST_SECTION_PREVIEW + 2}`)
+    expect(detail).toMatchObject({ releaseCount: ARTIST_SECTION_PREVIEW + 3 + 4, ownedReleaseCount: 1 })
+    // Older clients get the same previews.
+    expect(detail.albums).toHaveLength(3 + 1 + ARTIST_SECTION_PREVIEW)
+    expect(detail.appearsOn!.map((album) => album.title)).toEqual(['Miami'])
+
+    // "See all" pages the rest of a section, in the page's order, and stops.
+    const first = body(await get(`/artists/${artist.id}/releases?section=single&limit=10`), AlbumPage)
+    expect(first.items.map((album) => album.title)).toEqual(Array.from({ length: 10 }, (_, index) => `Single ${ARTIST_SECTION_PREVIEW + 2 - index}`))
+    // A release added meanwhile does not repeat or skip one.
+    await createAlbum({ artist, title: 'Single new', year: 2030, type: 'single' })
+    const rest = body(await get(`/artists/${artist.id}/releases?section=single&limit=10&cursor=${first.nextCursor}`), AlbumPage)
+    expect(rest.items.map((album) => album.title)).toEqual(Array.from({ length: 5 }, (_, index) => `Single ${4 - index}`))
+    expect(rest.nextCursor).toBeNull()
+    expect(errorCode(await get(`/artists/${artist.id}/releases?section=album&cursor=${first.nextCursor}`), 400)).toBe('invalid_cursor')
+    expect(errorCode(await get(`/artists/${artist.id}/releases?section=nope`), 400)).toBe('invalid_request')
+  })
+
+  it('lists the stored top tracks in their order, each song once', async () => {
+    const artist = await createArtist({ name: 'Creep Band' })
+    const album = await createAlbum({ artist, title: 'Pablo Honey', tracks: [{ title: 'You' }, { title: 'Creep' }, { title: 'Creep' }, { title: 'Lurgee' }] })
+    const [you, creep, creepAgain, lurgee] = album.tracks
+    // Plays here and a popularity from search no longer outrank the artist's hits.
+    for (let index = 0; index < 5; index++) await createPlay({ userId: user.id, recordingId: lurgee!.recordingId })
+    await db.update(recordings).set({ popularity: 1 }).where(eq(recordings.id, you!.recordingId))
+    await db.insert(artistTopTracks).values([creep, creepAgain, you].map((track, position) => ({ artistId: artist.id, position, recordingId: track!.recordingId, source: 'deezer' })))
+    const detail = body(await get(`/artists/${artist.id}`), ArtistDetail)
+    expect(detail.topTracks.map((track) => track.id)).toEqual([creep!.recordingId, you!.recordingId])
+  })
+
+  it('gives Various Artists no top tracks, radio or similar artists', async () => {
+    const various = await createArtist({ name: 'Various Artists', mbid: '89ad4ac3-39f7-470e-963a-56509c546377' })
+    const compilation = await createAlbum({ artist: various, title: 'Now 1', owned: true })
+    await db.insert(artistTopTracks).values({ artistId: various.id, position: 0, recordingId: compilation.tracks[0]!.recordingId, source: 'listenbrainz' })
+    const detail = body(await get(`/artists/${various.id}`), ArtistDetail)
+    expect(detail).toMatchObject({ topTracks: [], radio: false, similar: [] })
+    expect(detail.sections!.map((section) => section.key)).toEqual(['album'])
+  })
+
   it('orders a discography by year when an album has no release date', async () => {
     const artist = await createArtist()
     await createAlbum({ artist, title: 'Dated', year: 2001 })
@@ -245,7 +302,7 @@ describe('catalog pages', () => {
 
 describe('standingRows', () => {
   const row = (id: string, title: string, type: string, extra: Partial<Parameters<typeof standingRows>[0][number]> = {}) => ({
-    id, title, type, typeGuessed: false, hasMbid: true, detailLevel: 1, year: 2025, hasArtwork: true, owned: false, led: true, ...extra,
+    id, title, type, typeGuessed: false, secondaryTypes: [] as string[], hasMbid: true, detailLevel: 1, year: 2025, hasArtwork: true, owned: false, led: true, ...extra,
   })
 
   it('lists each release once, in the given order', () => {
