@@ -1,4 +1,4 @@
-import { UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
+import { type SessionOutage, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
 import type {
   DeviceInfo, QueueEntry, QueueSeed, RepeatMode, SessionQueue, SessionState, StreamQuality, TrackSummary,
   UserSettings,
@@ -150,23 +150,38 @@ export function newlyFailed(before: Entries, after: Entries): QueueEntry[] {
   return allEntries(after).filter(entry => entry.state === 'failed' && preparing.has(entry.id));
 }
 
+/** A notice: a short line, and an optional quieter one under it. */
+export type NoticeText = { message: string; detail?: string };
+
+/**
+ * The notice for a session that paused because music could not be had, worded as the web
+ * app's: with the server's reason when it gave one (its provider is failing).
+ */
+export function outageNotice(outage: Pick<SessionOutage, 'reason'> | null | undefined): NoticeText {
+  return { message: 'Can’t load music right now', detail: outage?.reason ? `${outage.reason} Playback is paused.` : 'Playback is paused.' };
+}
+
+type Watched = Entries & Pick<SessionState, 'playing'> & { outage?: SessionOutage | null };
+
 /**
  * What to tell the listener after a session change. `skipped`: entries that just failed and
  * were the current entry or the next one, one notice each. A failure further down is only
  * shown gray in the queue and skipped quietly when reached; announcing every failed
  * prefetch would turn a provider outage into a stream of notices. `outage`: the session
  * paused on a current entry that failed (the server does that after several failures in a
- * row), which gets the one "Can't load music right now" instead of a notice per track.
+ * row, or at once when its provider is failing), which gets the one "Can't load music right
+ * now" instead of a notice per track. The session client hands over the server's reason
+ * (`outage`) with the pause itself, so it is told then; one that comes later still is.
  */
-export function failureNotices(before: Entries & Pick<SessionState, 'playing'>, after: Entries & Pick<SessionState, 'playing'>): {
-  skipped: QueueEntry[]; outage: boolean;
-} {
+export function failureNotices(before: Watched, after: Watched): { skipped: QueueEntry[]; outage: NoticeText | null } {
   const failed = newlyFailed(before, after);
   const heldOn = after.current?.state === 'failed' && !after.playing ? after.current.id : null;
   const near = new Set([before.current?.id, before.queue[0]?.id ?? before.autoplayQueue[0]?.id].filter(Boolean));
+  const told = after.outage && after.outage !== before.outage ? after.outage : null;
+  const paused = heldOn !== null && failed.some(entry => entry.id === heldOn);
   return {
     skipped: failed.filter(entry => near.has(entry.id) && entry.id !== heldOn),
-    outage: heldOn !== null && failed.some(entry => entry.id === heldOn),
+    outage: told || paused ? outageNotice(told ?? after.outage) : null,
   };
 }
 

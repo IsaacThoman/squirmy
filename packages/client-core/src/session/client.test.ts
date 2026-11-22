@@ -87,6 +87,22 @@ class FakeServer implements Held {
     }
   }
 
+  /**
+   * As the server does after failures in a row: tells the sockets why with
+   * `playback.unavailable` (`eventFirst`, as it does now, or after the state as it used to),
+   * and pauses on the current entry marked failed.
+   */
+  pauseOnFailure(reason: string | null, eventFirst = true): void {
+    const trackId = this.session.current!.trackId
+    const tell = () => {
+      for (const transport of this.transports) transport.push('event', { type: 'playback.unavailable', trackId, reason })
+    }
+    if (eventFirst) tell()
+    const paused = reduceSession(this.session, { command: { type: 'pause' }, now: this.now(), commandId: `server-${(this.serial += 1)}` })
+    this.replace(this, { ...paused, current: { ...paused.current!, state: 'failed' } })
+    if (!eventFirst) tell()
+  }
+
   devices(): DeviceInfo[] {
     return [...new Set([...this.transports].flatMap(transport => transport.deviceId ?? []))].map((id) => {
       const own = this.own.get(id)?.session
@@ -453,6 +469,70 @@ describe('SessionClient sync', () => {
     transport.connect()
     await settle()
     expect(names).toEqual(['Phone', 'Kitchen', 'Kitchen'])
+  })
+})
+
+describe('SessionClient outage', () => {
+  const REASON = 'The server can’t fetch music on demand right now.'
+
+  async function paused(eventFirst: boolean) {
+    const context = setup({ canPlay: false })
+    await context.settle()
+    context.server.apply({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await context.settle()
+    const seen: { playing: boolean; outage: unknown }[] = []
+    context.client.subscribe(() => {
+      const { session, outage } = context.client.getSnapshot()
+      seen.push({ playing: session.playing, outage })
+    })
+    context.server.pauseOnFailure(REASON, eventFirst)
+    await context.settle()
+    return { ...context, seen }
+  }
+
+  it('shows the pause and its reason in the same snapshot', async () => {
+    const { client, seen } = await paused(true)
+    // Told before the pause arrived, the outage waited for it.
+    expect(seen).toEqual([{ playing: false, outage: { trackId: track(1), reason: REASON } }])
+    expect(client.getSnapshot().outage).toEqual({ trackId: track(1), reason: REASON })
+  })
+
+  it('takes a reason that comes after the pause, as from an older server', async () => {
+    const { seen } = await paused(false)
+    expect(seen).toEqual([{ playing: false, outage: null }, { playing: false, outage: { trackId: track(1), reason: REASON } }])
+  })
+
+  it('forgets the outage once the session plays again, here or elsewhere', async () => {
+    const here = await paused(true)
+    here.client.dispatch({ type: 'play' })
+    expect(here.client.getSnapshot().outage).toBeNull()
+    await here.settle()
+    expect(here.client.getSnapshot().outage).toBeNull()
+
+    const elsewhere = await paused(true)
+    elsewhere.server.apply({ type: 'next' })
+    await elsewhere.settle()
+    expect(elsewhere.client.getSnapshot().outage).toBeNull()
+    // Paused on the failed entry again, without being told why, is not the outage again.
+    elsewhere.server.apply({ type: 'previous' })
+    elsewhere.server.apply({ type: 'pause' })
+    elsewhere.server.apply({ type: 'setEntryState', trackId: track(1), state: 'failed' })
+    await elsewhere.settle()
+    expect(elsewhere.client.getSnapshot().outage).toBeNull()
+  })
+
+  it('keeps a missing reason as null and ignores other events', async () => {
+    const { server, client, transport, settle } = setup({ canPlay: false })
+    await settle()
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await settle()
+    const before = client.getSnapshot()
+    transport.push('event', { type: 'import.updated', importId: track(50), status: 'done' })
+    await settle()
+    expect(client.getSnapshot()).toBe(before)
+    server.pauseOnFailure(null)
+    await settle()
+    expect(client.getSnapshot().outage).toEqual({ trackId: track(1), reason: null })
   })
 })
 

@@ -132,9 +132,16 @@ describe('sessions with on-demand tracks', () => {
     mock.settings.fail = true
     const album = await remoteAlbum(20)
     const phone = await device(await signIn({ canAcquire: true }))
+    // The event comes before the state that pauses, so the pause is never seen without its reason.
+    const pauses: unknown[] = []
+    phone.client.subscribe(() => {
+      const { session, outage } = phone.client.getSnapshot()
+      if (!session.playing && session.current?.state === 'failed') pauses.push(outage)
+    })
     play(phone, album)
     await eventually(() => expect(phone.client.getSnapshot().session).toMatchObject({ playing: false, current: { state: 'failed' } }))
     const { session: { current }, queue: { queue } } = phone.client.getSnapshot()
+    expect(pauses[0]).toEqual({ trackId: current!.trackId, reason: OUTAGE_REASON })
     const at = album.ids.indexOf(current!.trackId)
     // Entries that failed as prefetches were passed quietly; the ones after the pause stay.
     expect(queue.length).toBeGreaterThan(0)

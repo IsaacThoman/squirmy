@@ -42,7 +42,16 @@ export type SessionClientSnapshot = {
   detached: boolean
   /** Detaching is possible: this device can play and the server said it supports it. False until a hello has. */
   canDetach: boolean
+  /**
+   * Why the session paused on its failed current entry, when the server said so with
+   * `playback.unavailable`. Set in the same snapshot as the pause (the server sends the
+   * event first), and null again once the session plays or moves on.
+   */
+  outage: SessionOutage | null
 }
+
+/** What a `playback.unavailable` said: the track playback paused on, and the server's sentence for why, if it knows one. */
+export type SessionOutage = { trackId: string | null; reason: string | null }
 
 /**
  * How `detach` and `attach` end. Errors from this client: `offline` (they need the
@@ -219,6 +228,8 @@ export class SessionClient {
   private local: Session = createInitialSession()
   private devices: DeviceInfo[] = []
   private connection: ConnectionStatus = 'offline'
+  /** The last `playback.unavailable`, and whether the pause it explains has been shown. */
+  private told: { outage: SessionOutage; shown: boolean } | null = null
   private snapshot: SessionClientSnapshot
   private readonly listeners = new Set<() => void>()
   private readonly cleanup: (() => void)[] = []
@@ -270,7 +281,7 @@ export class SessionClient {
     const { state, queue } = splitSession(this.local)
     this.snapshot = {
       session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive(),
-      detached: this.detached, canDetach: this.canDetach(),
+      detached: this.detached, canDetach: this.canDetach(), outage: null,
     }
   }
 
@@ -287,6 +298,11 @@ export class SessionClient {
       }),
       transport.on('devices', devices => {
         this.devices = devices
+        this.publish()
+      }),
+      transport.on('event', event => {
+        if (event.type !== 'playback.unavailable') return
+        this.told = { outage: { trackId: event.trackId, reason: event.reason ?? null }, shown: false }
         this.publish()
       }),
     )
@@ -702,13 +718,36 @@ export class SessionClient {
     const queueHalf = shallowEqual(previous.queue, queue) ? previous.queue : queue
     const isActiveDevice = this.isActive()
     const canDetach = this.canDetach()
+    const outage = this.outage()
     if (
       session === previous.session && queueHalf === previous.queue && this.devices === previous.devices
       && this.connection === previous.connection && isActiveDevice === previous.isActiveDevice
-      && this.detached === previous.detached && canDetach === previous.canDetach
+      && this.detached === previous.detached && canDetach === previous.canDetach && outage === previous.outage
     ) return
-    this.snapshot = { session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach }
+    this.snapshot = {
+      session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach, outage,
+    }
     for (const listener of [...this.listeners]) listener()
+  }
+
+  /**
+   * The outage told by the server while the session is still paused on it. The server sends
+   * `playback.unavailable` just before the state that pauses, so a listener sees the pause
+   * and its reason together; until that state arrives the outage is kept, not shown. Once
+   * the session plays again (here or elsewhere) or moves to another entry, it is forgotten.
+   */
+  private outage(): SessionOutage | null {
+    const told = this.told
+    if (!told) return null
+    const { current, playing } = this.local
+    const on = told.outage.trackId === null || current?.trackId === told.outage.trackId
+    if (on && !playing && current?.state === 'failed') {
+      told.shown = true
+      return told.outage
+    }
+    if (!told.shown && on) return null
+    this.told = null
+    return null
   }
 
   private setConnection(connection: ConnectionStatus): void {
