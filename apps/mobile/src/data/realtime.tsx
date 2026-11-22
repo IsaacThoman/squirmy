@@ -8,6 +8,7 @@ import { io } from 'socket.io-client';
 import { useAccount } from '../account/AccountProvider';
 import { socketAddress } from '../account/address';
 import { Echoes } from './echoes';
+import { offlineAt, type SocketLink } from './reachability';
 import { refreshAfterReconnect } from './reconnect';
 
 type Keys = readonly (readonly unknown[])[];
@@ -17,7 +18,10 @@ type InvalidateListener = (keys: Keys, info: { own: boolean }) => void;
 type Realtime = {
   /** The signed-in user's socket, shared with the session client. Null while signed out. */
   socket: SquirmySocket | null;
-  /** The server has not been reachable for a few seconds; only downloads play. False while signed out. */
+  /**
+   * The socket has been down for a few seconds and no request since was answered; only
+   * downloads play. False while signed out.
+   */
   offline: boolean;
   /** Calls `listener` with the keys of every `invalidate` the server sends. */
   onInvalidate: (listener: InvalidateListener) => () => void;
@@ -32,8 +36,6 @@ type Realtime = {
 const refusedRetryMs = 5000;
 /** The server pings every 25 seconds; a socket silent for longer was suspended with the app. */
 const staleAfterMs = 30_000;
-/** A socket that has been down this long counts as offline; shorter drops are reconnects. */
-const offlineAfterMs = 2500;
 
 const RealtimeContext = createContext<Realtime>({
   socket: null, offline: false, onInvalidate: () => () => undefined, expectEcho: () => undefined,
@@ -44,10 +46,11 @@ const RealtimeContext = createContext<Realtime>({
  * `invalidate` messages refresh the matching queries; a reconnect refreshes what is on
  * screen, since messages may have been missed meanwhile. The connection is renewed when the app returns from being suspended and when
  * the network changes, since iOS drops sockets silently in both cases. While it stays
- * down the app is offline.
+ * down the app is offline, unless the server answers requests meanwhile (`offlineAt`):
+ * a cold start's first connection can take seconds while requests already succeed.
  */
 export function RealtimeProvider({ children }: PropsWithChildren) {
-  const { state } = useAccount();
+  const { state, reach } = useAccount();
   const queryClient = useQueryClient();
   const serverUrl = state.status === 'signedIn' ? state.server.url : null;
   const token = state.status === 'signedIn' ? state.token : null;
@@ -64,14 +67,18 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     const next: SquirmySocket = io(origin, {
       path, auth: { token }, transports: ['websocket', 'polling'], tryAllTransports: true, autoConnect: false,
     });
-    let everConnected = false;
+    let link: SocketLink = { connected: false, downSince: Date.now(), everConnected: false };
     let lastHeard = Date.now();
     let retry: ReturnType<typeof setTimeout> | undefined;
     let goingOffline: ReturnType<typeof setTimeout> | undefined;
     const heard = () => { lastHeard = Date.now(); };
-    const waitForConnection = () => {
+    // Runs whenever the socket or a request says something new, and again when the wait runs out.
+    const updateOffline = () => {
       clearTimeout(goingOffline);
-      goingOffline = setTimeout(() => setOffline(true), offlineAfterMs);
+      const at = offlineAt(link, reach);
+      const wait = at === null ? null : at - Date.now();
+      setOffline(wait !== null && wait <= 0);
+      if (wait !== null && wait > 0) goingOffline = setTimeout(updateOffline, wait);
     };
     // A refused handshake usually means the session ended; asking for `me` lets a 401 sign out.
     const recheckSession = () => void queryClient.invalidateQueries({ queryKey: queryKeys.me() });
@@ -82,13 +89,13 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
 
     next.on('connect', () => {
       heard();
-      clearTimeout(goingOffline);
-      setOffline(false);
-      if (everConnected) void refreshAfterReconnect(queryClient);
-      everConnected = true;
+      if (link.everConnected) void refreshAfterReconnect(queryClient);
+      link = { ...link, connected: true, everConnected: true };
+      updateOffline();
     });
     next.on('disconnect', reason => {
-      waitForConnection();
+      link = { ...link, connected: false, downSince: Date.now() };
+      updateOffline();
       if (reason === 'io server disconnect') {
         recheckSession();
         next.connect();
@@ -123,13 +130,15 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       else if (changed) renew();
     });
 
-    waitForConnection();
+    const answers = reach.subscribe(updateOffline);
+    updateOffline();
     next.connect();
     setSocket(next);
     return () => {
       clearTimeout(retry);
       clearTimeout(goingOffline);
       setOffline(false);
+      answers();
       app.remove();
       network.remove();
       next.removeAllListeners();
@@ -137,7 +146,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       next.disconnect();
       setSocket(null);
     };
-  }, [echoes, listeners, queryClient, serverUrl, token]);
+  }, [echoes, listeners, queryClient, reach, serverUrl, token]);
 
   const value = useMemo<Realtime>(() => ({
     socket,

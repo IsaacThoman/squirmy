@@ -7,6 +7,7 @@ import {
 import { AppState, Platform } from 'react-native';
 import { removeAccountItems } from '../data/accountStorage';
 import { cacheBuster, cacheMaxAgeMs, detailMaxAgeMs, removeCache, restoreCache, restorePages, saveCache } from '../data/cache';
+import { HttpReach } from '../data/reachability';
 import { useNotice } from '../Notice';
 import { removeStreamingCache } from '../streamingCache/database';
 import { reduceAuth, type AuthEvent, type AuthState } from './auth';
@@ -36,12 +37,13 @@ export function createQueryClient() {
   return queryClient;
 }
 
-function apiFor(serverUrl: string, token: string | null, timeoutMs: number, onUnauthorized?: () => void): Api {
+function apiFor(serverUrl: string, token: string | null, timeoutMs: number, onUnauthorized?: () => void, reach?: HttpReach): Api {
+  const fetch = fetchWithTimeout(timeoutMs);
   return createApiClient({
     baseUrl: serverUrl,
     getToken: () => token,
     client: clientName,
-    fetch: fetchWithTimeout(timeoutMs),
+    fetch: reach ? reach.watch(fetch) : fetch,
     onUnauthorized,
   });
 }
@@ -71,6 +73,8 @@ type AccountContextValue = {
   state: AuthState;
   /** Talks to the chosen server, with the session's token once signed in. */
   api: Api | null;
+  /** What came of the requests `api` sent, so an answered request counts as the server being there. */
+  reach: HttpReach;
   connect: (server: Server) => void;
   signIn: (username: string, password: string) => Promise<void>;
   register: (inviteCode: string, username: string, password: string) => Promise<void>;
@@ -83,6 +87,7 @@ const AccountContext = createContext<AccountContextValue | null>(null);
 export function AccountProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const [state, dispatch] = useReducer(reduceAuth, { status: 'restoring' });
+  const [reach] = useState(() => new HttpReach());
   const server = state.status === 'signIn' || state.status === 'signedIn' ? state.server : null;
   const token = state.status === 'signedIn' ? state.token : null;
 
@@ -121,7 +126,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
   // since playback and downloads are built on it.
   const serverUrl = server?.url ?? null;
   const api = useMemo(() => serverUrl === null ? null : apiFor(serverUrl, token, requestTimeoutMs,
-    token ? () => dispatch({ type: 'unauthorized', token }) : undefined), [serverUrl, token]);
+    token ? () => dispatch({ type: 'unauthorized', token }) : undefined, reach), [reach, serverUrl, token]);
 
   // Keeps the user fresh and notices a revoked session (a 401 signs out through `onUnauthorized`).
   const me = useQuery({
@@ -160,6 +165,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
     return {
       state,
       api,
+      reach,
       connect: next => dispatch({ type: 'connected', server: next }),
       signIn: async (username, password) => {
         const response = await api!.auth.login({ username: username.trim(), password, device: await clientDevice() });
@@ -177,7 +183,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
       signOut: () => leave({ type: 'signedOut' }),
       switchServer: () => leave({ type: 'switchServer' }),
     };
-  }, [api, buster, queryClient, state, token]);
+  }, [api, buster, queryClient, reach, state, token]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }
