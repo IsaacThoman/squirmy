@@ -12,7 +12,7 @@ import { Cover, Icon } from '../ui';
 import { BrowseButton, CollectionTile } from './BrowseControls';
 import type { Page } from './links';
 import { mosaicCovers } from './mosaic';
-import { displayFontScale } from '../fontScale';
+import { displayFontScale, secondaryFontScale } from '../fontScale';
 import { createThemedStyles, useColors } from '../theme';
 
 export const gutter = 22;
@@ -158,7 +158,7 @@ export function OfflineBadge({ style }: { style?: StyleProp<ViewStyle> }) {
   if (!offline) return null;
   return <View style={[styles.offline, style]} accessibilityRole="text" accessibilityLabel="Offline. Only downloaded and cached music plays.">
     <Icon name="wifi.slash" size={13} color={colors.muted} />
-    <Text style={styles.offlineText}>Offline</Text>
+    <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.offlineText}>Offline</Text>
   </View>;
 }
 
@@ -261,6 +261,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   emptyDescription: { color: colors.muted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
   emptyAction: { marginTop: 4 },
   loading: { paddingVertical: 60, alignItems: 'center' },
-  offline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, height: 28, borderRadius: 14, backgroundColor: colors.surface },
+  // At least 28 tall, taller when the text is large, so the word is never cut.
+  offline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, minHeight: 28, borderRadius: 14, backgroundColor: colors.surface },
   offlineText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
 }));
