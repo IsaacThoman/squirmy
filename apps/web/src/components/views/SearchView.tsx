@@ -339,7 +339,8 @@ function ResultRow({ id, item, active, stale, onChoose, trackMenu, resultMenu, o
         // Not disabled: a song that does not play still opens its album, and its heart and menu work.
         // Its button's name says "Not available".
         title={unavailable ? UNAVAILABLE_LABEL : undefined}
-        className={cn('group/row relative h-14', searchRowClass(active, stale))}
+        // Its own size container: the duration shows when the row, not the window, has room for it.
+        className={cn('group/row @container relative h-14', searchRowClass(active, stale))}
       >
         <div className="relative size-10 shrink-0">
           <SearchItemArt item={item} dimmed={dimmed} className="size-10" />
@@ -359,7 +360,7 @@ function ResultRow({ id, item, active, stale, onChoose, trackMenu, resultMenu, o
           {track && onLike && (
             <SaveHeart liked={track.liked} onToggle={onLike} title={title} tooltip={false} size="sm" className={cn('pointer-coarse:size-11', !track.liked && revealed)} />
           )}
-          {track && <span className={cn('hidden w-10 text-right text-xs tabular sm:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>}
+          {track && <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @md:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>}
           <DropdownMenu
             entries={menu}
             trigger={<IconButton label={`More options for ${title}`} tooltip={false} size="sm" className={cn('pointer-coarse:size-11', revealed)}><MoreHorizontal /></IconButton>}

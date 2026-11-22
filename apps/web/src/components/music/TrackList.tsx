@@ -52,13 +52,15 @@ type SharedProps = {
 
 /**
  * A row is its own size container, and its columns follow its width rather than the window's: the
- * sidebar, the queue and a page's own columns all change how much room a list has. From 36rem an
- * album's artists and a compact row's album get a column; a playlist's album does from 42rem and
- * its date added from 56rem. The duration shows from 28rem.
+ * sidebar, the queue and a page's own columns all change how much room a list has. As a row
+ * narrows it gives up the album first, then the date added, then the duration; the title and
+ * artist truncate; the heart and the menu never go. From 36rem an album's artists and a compact
+ * row's album get a column; a playlist's date added does from 42rem and its album from 56rem (from
+ * 42rem when it has no dates). The duration shows from 28rem.
  */
 const columns: Record<TrackListVariant, string> = {
   album: 'grid-cols-[2rem_minmax(0,1fr)_auto] @xl:grid-cols-[2rem_minmax(0,5fr)_minmax(0,3fr)_auto]',
-  playlist: 'grid-cols-[2rem_minmax(0,1fr)_auto] @2xl:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_auto] @4xl:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_7rem_auto]',
+  playlist: 'grid-cols-[2rem_minmax(0,1fr)_auto] @2xl:grid-cols-[2rem_minmax(0,1fr)_7rem_auto] @4xl:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_7rem_auto]',
   compact: 'grid-cols-[minmax(0,1fr)_auto] @xl:grid-cols-[minmax(0,6fr)_minmax(0,4fr)_auto]',
 }
 
@@ -67,13 +69,15 @@ const columnsOf = (variant: TrackListVariant, dated: boolean) => (variant === 'p
 const undatedColumns = 'grid-cols-[2rem_minmax(0,1fr)_auto] @2xl:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_auto]'
 
 /** The column a variant's rows give the album from the width that has room for it. */
-const albumColumn = { album: undefined, playlist: 'hidden @2xl:block', compact: 'hidden @xl:block' } satisfies Record<TrackListVariant, string | undefined>
+const albumColumns = { album: undefined, playlist: 'hidden @2xl:block', compact: 'hidden @xl:block' } satisfies Record<TrackListVariant, string | undefined>
+/** A dated playlist keeps its dates longer than its albums. */
+const albumColumnOf = (variant: TrackListVariant, dated: boolean) => (variant === 'playlist' && dated ? 'hidden @4xl:block' : albumColumns[variant])
 
 /**
  * The last column: like, duration, menu. The header's has the same width, so the columns between
  * line up with the rows'.
  */
-const actionsColumn = 'flex items-center justify-end gap-1 @md:w-28 pointer-coarse:gap-0 pointer-coarse:@md:w-32'
+const actionsColumn = 'flex shrink-0 items-center justify-end gap-1 @md:min-w-28 pointer-coarse:gap-0 pointer-coarse:@md:min-w-32'
 
 /**
  * Controls that appear when their row is hovered, has the keyboard's focus anywhere in it or has
@@ -243,16 +247,16 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           )}
           {album && artists}
 
-          {albumColumn[variant] && (
-            <div className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumn[variant])}>
+          {albumColumnOf(variant, addedAt !== undefined) && (
+            <div className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumnOf(variant, addedAt !== undefined))}>
               {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} title={track.album.title} tabIndex={-1} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
             </div>
           )}
-          {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @4xl:block">{formatRelative(addedAt)}</div>}
+          {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @2xl:block">{formatRelative(addedAt)}</div>}
 
           <div className={cn(actionsColumn, album && '@max-xl:col-start-3 @max-xl:row-span-2 @max-xl:row-start-1')}>
             {onAction && <SaveHeart liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(rowAction, !liked && revealed)} />}
-            <span className={cn('hidden w-10 text-right text-xs tabular @md:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
+            <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @md:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
             <DropdownMenu
               entries={menu}
               trigger={(
@@ -276,8 +280,8 @@ function ListHeader({ variant, dated }: { variant: TrackListVariant; dated: bool
         {variant !== 'compact' && <span className="text-center">#</span>}
         <span>Title</span>
         {variant === 'album' && <span className="hidden @xl:block">Artist</span>}
-        {albumColumn[variant] && <span className={albumColumn[variant]}>Album</span>}
-        {variant === 'playlist' && dated && <span className="hidden @4xl:block">Added</span>}
+        {albumColumnOf(variant, dated) && <span className={albumColumnOf(variant, dated)}>Album</span>}
+        {variant === 'playlist' && dated && <span className="hidden @2xl:block">Added</span>}
         {/* The clock sits over the durations, which end where the menu button starts. */}
         <span className={cn(actionsColumn, 'pr-9 pointer-coarse:pr-11')}><Clock3 className="hidden size-3.5 @md:block" /></span>
       </div>

@@ -63,7 +63,7 @@ When something does not load (a page, a panel of **Settings** or **Admin**, the 
 
 Your library is the music on your server (what its owner scanned, uploaded or dropped in the inbox, shared by everyone) plus what you saved. Only you add to it, and only with the heart: playing or downloading music never does.
 
-- **The heart** is on every song, in an album's and an artist's header, in the player bar and in **Now Playing**. It saves the song, album or artist to your library at once, and a notice offers **Undo**. A song you save is in **Liked Songs** and under **Songs**; an album under **Albums**, with its songs; an artist under **Artists**. When the server can fetch music for you, it fetches anything an album or song is missing behind it. Click the heart again to remove it; your playlists and history keep it.
+- **The heart** is on every song (in lists, search results, the queue and its history, at any window size; a narrow row cuts the title short and drops the album, date added and length before it), in an album's and an artist's header, in the player bar and in **Now Playing**. It saves the song, album or artist to your library at once, and a notice offers **Undo**. A song you save is in **Liked Songs** and under **Songs**; an album under **Albums**, with its songs; an artist under **Artists**. When the server can fetch music for you, it fetches anything an album or song is missing behind it. Click the heart again to remove it; your playlists and history keep it.
 - Menus have **Save to library** or **Remove from library**, which does the same as the heart.
 - Music on your server is in everyone's library whether or not you heart it. Its heart shows only your own save.
 
