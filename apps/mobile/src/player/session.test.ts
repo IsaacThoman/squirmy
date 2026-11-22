@@ -1,7 +1,8 @@
 import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  codecsFor, deviceRows, isPlayable, isRemote, newlyFailed, nextRepeat, outputDevice, playableSeeds, qualityFor, seedOf,
+  codecsFor, deviceRows, isPlayable, isRemote, newlyFailed, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
+  seedOf,
 } from './session';
 
 const phone: DeviceInfo = { id: 'phone', name: 'Isa’s iPhone', kind: 'ios', canPlay: true, isActive: false };
@@ -29,6 +30,15 @@ describe('deviceRows', () => {
 
   it('lists this device even before the server has', () => {
     expect(deviceRows([], phone, null).map(row => row.id)).toEqual(['phone']);
+  });
+
+  it('names a player the device list does not know yet instead of falling back to this device', () => {
+    const rows = deviceRows([phone], phone, 'new');
+    expect(rows.map(row => [row.id, row.name, row.subtitle, row.active])).toEqual([
+      ['phone', 'This iPhone', 'This device', false],
+      ['new', 'Another device', 'Playing', true],
+    ]);
+    expect(outputDevice(rows).id).toBe('new');
   });
 
   it('names the active device as the output, or this one when nothing plays', () => {
@@ -98,5 +108,27 @@ describe('availability', () => {
 describe('nextRepeat', () => {
   it('cycles off, all, one', () => {
     expect([nextRepeat('off'), nextRepeat('all'), nextRepeat('one')]).toEqual(['all', 'one', 'off']);
+  });
+});
+
+describe('nextDownloaded', () => {
+  const downloaded = new Set(['b', 'd', 'x']);
+  const isDownloaded = (id: string) => downloaded.has(id);
+
+  it('finds the first downloaded entry that is ready, passing over the rest', () => {
+    const queue = [entry('a', 'ready'), entry('x', 'preparing'), entry('b', 'ready'), entry('d', 'ready')];
+    expect(nextDownloaded({ autoplay: false, queue, autoplayQueue: [] }, isDownloaded)?.id).toBe('b');
+  });
+
+  it('goes on to autoplay suggestions only when autoplay is on', () => {
+    const session = { queue: [entry('a', 'ready')], autoplayQueue: [entry('d', 'ready')] };
+    expect(nextDownloaded({ ...session, autoplay: true }, isDownloaded)?.id).toBe('d');
+    expect(nextDownloaded({ ...session, autoplay: false }, isDownloaded)).toBeNull();
+  });
+
+  it('copes with a long queue at once', () => {
+    const queue = Array.from({ length: 5000 }, (_, index) => entry(`t${index}`, 'ready'));
+    queue.push(entry('b', 'ready'));
+    expect(nextDownloaded({ autoplay: false, queue, autoplayQueue: [] }, isDownloaded)?.id).toBe('b');
   });
 });

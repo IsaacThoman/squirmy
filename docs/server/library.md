@@ -43,7 +43,7 @@ Scans happen:
 - every night at 04:00 UTC, for every enabled folder;
 - for just the changed paths, two seconds after changes stop, while **Watch for changes** is on.
 
-Hidden files and folders, partial downloads, Synology `@eaDir`, `#recycle` and `#snapshot`, `$RECYCLE.BIN`, `System Volume Information` and `lost+found` are skipped. Symbolic links are followed only to files inside the folder.
+Hidden files and folders, partial downloads, Synology `@eaDir`, `#recycle` and `#snapshot`, `$RECYCLE.BIN`, `System Volume Information` and `lost+found` are skipped. Symbolic links are followed only to files inside the folder; a linked folder, or a link to a file outside, is never scanned or played.
 
 ### When watching does not work
 

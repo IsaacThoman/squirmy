@@ -32,6 +32,11 @@ export type DeviceRow = {
  */
 export function deviceRows(devices: readonly DeviceInfo[], thisDevice: DeviceInfo, activeDeviceId: string | null): DeviceRow[] {
   const others = devices.filter(device => device.id !== thisDevice.id && device.canPlay);
+  // The session can name a player before the device list has caught up with it (it just
+  // connected). Without a row of its own the output would fall back to this phone, and the
+  // sheet would say "Playing on This iPhone" while the phone is silent.
+  const known = activeDeviceId === null || activeDeviceId === thisDevice.id || others.some(device => device.id === activeDeviceId);
+  if (!known) others.push({ id: activeDeviceId, name: 'Another device', kind: 'other', canPlay: true, isActive: true });
   return [thisDevice, ...others].map(device => {
     const active = device.id === activeDeviceId;
     const isThisDevice = device.id === thisDevice.id;
@@ -132,4 +137,17 @@ export function newlyFailed(before: Entries, after: Entries): QueueEntry[] {
 /** Finds an entry anywhere in the session by id. */
 export function findEntry(session: Entries, entryId: string): QueueEntry | undefined {
   return allEntries(session).find(entry => entry.id === entryId);
+}
+
+/**
+ * Where playback goes offline when the current entry can't be streamed: the first
+ * downloaded, ready entry that `next` would reach (Up Next, then autoplay suggestions
+ * when autoplay is on). Null when there is none.
+ */
+export function nextDownloaded(
+  session: Pick<SessionState, 'autoplay'> & Pick<SessionQueue, 'queue' | 'autoplayQueue'>,
+  isDownloaded: (trackId: string) => boolean,
+): QueueEntry | null {
+  const candidates = session.autoplay ? [...session.queue, ...session.autoplayQueue] : session.queue;
+  return candidates.find(entry => entry.state === 'ready' && isDownloaded(entry.trackId)) ?? null;
 }

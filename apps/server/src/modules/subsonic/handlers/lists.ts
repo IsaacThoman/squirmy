@@ -139,5 +139,5 @@ export const listEndpoints: Record<string, Handler> = {
   getSongsByGenre,
   getStarred2: async (context) => ({ starred2: await starred(context, true) }),
   getStarred: async (context) => ({ starred: await starred(context, false) }),
-  getNowPlaying: async () => ({ nowPlaying: { entry: await nowPlaying() } }),
+  getNowPlaying: async ({ user }) => ({ nowPlaying: { entry: await nowPlaying(user.id) } }),
 }

@@ -38,13 +38,11 @@ async function stream(context: Context): Promise<typeof sent> {
     const headers: Record<string, string> = { 'content-type': liveMime(plan.codec), 'accept-ranges': 'none', 'cache-control': 'private' }
     const bytes = estimate ? Math.ceil(remainingSeconds(plan.bitrate, plan.offsetSeconds)) : undefined
     if (bytes !== undefined) headers['content-length'] = String(bytes)
+    // Started before any header is set, so a refusal (no free encoder) is a Subsonic error.
+    const body = context.request.method === 'HEAD' ? null : await liveEncode(file, plan, context.user.id)
     reply.code(200).headers(headers)
-    if (context.request.method === 'HEAD') {
-      await reply.send()
-    } else {
-      const body = await liveEncode(file, plan)
-      await reply.send(bytes === undefined ? body : exactLength(body, bytes))
-    }
+    if (!body) await reply.send()
+    else await reply.send(bytes === undefined ? body : exactLength(body, bytes))
     return sent
   }
 

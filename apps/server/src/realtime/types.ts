@@ -2,8 +2,8 @@ import type { ClientToServerEvents, ServerToClientEvents } from '@squirmy/contra
 import type { Server, Socket } from 'socket.io'
 import type { UserRole } from '../database/schema.js'
 
-/** Set on every socket once its session token has been verified. */
-export type SocketData = { userId: string; role: UserRole; authSessionId: string }
+/** Set on every socket once its session token has been verified. `expiresAt` is the session's expiry then, in epoch ms. */
+export type SocketData = { userId: string; role: UserRole; authSessionId: string; expiresAt: number }
 
 export type RealtimeServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>
 export type RealtimeSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>

@@ -101,6 +101,7 @@ async function shoot(page, shot, file) {
     await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Create', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'New app password' })
     await dialog.getByLabel('Name', { exact: true }).fill(shot.create)
+    await dialog.getByLabel('Your password', { exact: true }).fill(credentials.password)
     await dialog.getByRole('button', { name: 'Create' }).click()
     await page.getByRole('dialog', { name: 'Copy your app password' }).waitFor()
   }

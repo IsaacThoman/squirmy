@@ -7,7 +7,8 @@ import { SheetFrame, SheetRow, SheetRows } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
 import {
-  normalizationNote, normalizationOptions, qualityNote, qualityOptions, scrobbleDetail, useSettingsScreen,
+  lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail,
+  useSettingsScreen,
 } from './settings';
 
 export function SettingsScreen() {
@@ -39,7 +40,8 @@ export function SettingsScreen() {
       <StorageSection />
       {screen.listenBrainz && <ListenBrainz service={screen.listenBrainz} busy={screen.connectingListenBrainz}
         onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
-      {screen.lastFm && <>
+      {screen.lastFm && !screen.lastFm.available && screen.isAdmin && <Text style={styles.note}>{lastFmAdminNote}</Text>}
+      {screen.lastFm?.available && <>
         <Text style={styles.heading}>Last.fm</Text>
         <SheetRows>
           <SheetRow title={screen.lastFm.connected && !screen.lastFm.needsAttention ? 'Disconnect' : 'Connect'}
@@ -61,6 +63,8 @@ function ListenBrainz({ service, busy, onConnect, onDisconnect }: {
   return <>
     <Text style={styles.heading}>ListenBrainz</Text>
     <Text style={styles.note}>{scrobbleDetail(service)}</Text>
+    {!connected && <SheetRows><SheetRow title="Get your token" subtitle="From your ListenBrainz settings page" icon="arrow.up.forward.square"
+      onPress={openListenBrainzSettings} /></SheetRows>}
     {connected ? <SheetRows><SheetRow title="Disconnect" icon="xmark" onPress={onDisconnect} /></SheetRows> : <View style={styles.tokenRow}>
       <TextInput value={token} onChangeText={setToken} placeholder="User token" placeholderTextColor={colors.muted}
         autoCapitalize="none" autoCorrect={false} style={styles.input} accessibilityLabel="ListenBrainz user token" />
