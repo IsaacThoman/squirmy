@@ -178,8 +178,14 @@ export const AcquisitionProvider = z.object({
   /** Providers are tried in descending priority. */
   priority: z.number().int(),
   capabilities: ProviderCapabilities.nullable(),
+  /** When it last answered a connection test or delivered a fetch. */
   lastOkAt: IsoDateTime.nullable(),
   lastError: z.string().nullable(),
+  /**
+   * Set while the provider is failing: fetches of several different tracks failed with
+   * nothing delivered since this time (`lastError` says why). Null while it delivers.
+   */
+  failingSince: IsoDateTime.nullable(),
 })
 export type AcquisitionProvider = z.infer<typeof AcquisitionProvider>
 

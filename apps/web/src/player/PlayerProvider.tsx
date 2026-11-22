@@ -262,12 +262,12 @@ function useFetchFailures(snapshot: SessionClientSnapshot, store: TrackStore) {
   const outage = useRef(false)
   const held = useRef<ReturnType<typeof setTimeout>[]>([])
   useEffect(() => () => held.current.forEach(clearTimeout), [])
-  useServerEvent('playback.unavailable', () => {
+  useServerEvent('playback.unavailable', event => {
     outage.current = true
     // The failure that paused playback is part of the outage, not a song of its own.
     held.current.forEach(clearTimeout)
     held.current = []
-    toast({ title: 'Can’t load music right now', description: 'Playback is paused.' })
+    toast({ title: 'Can’t load music right now', description: event.reason ? `${event.reason} Playback is paused.` : 'Playback is paused.' })
   })
   useEffect(() => {
     const { session, queue, connection } = snapshot

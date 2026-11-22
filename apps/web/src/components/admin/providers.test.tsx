@@ -13,7 +13,7 @@ const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')
 const provider: AcquisitionProvider = {
   id: id(1), name: 'Shelf', baseUrl: 'http://shelf.lan:4801', enabled: true, coverage: 'assume_available', priority: 0,
   capabilities: { protocol: 1, name: 'Shelf service', coverage: 'assume_available', kinds: ['recording', 'album'], formats: ['flac'], maxConcurrent: 2 },
-  lastOkAt: '2026-11-20T10:00:00.000Z', lastError: null,
+  lastOkAt: '2026-11-20T10:00:00.000Z', lastError: null, failingSince: null,
 }
 const policy: AcquisitionPolicy = { preferLossless: true, maxFileBytes: 500 * 1024 ** 2, storageQuotaBytes: 0, timeoutSeconds: 900, targetRootId: null, deliveryBaseUrl: null }
 const job: AcquisitionJob = {
@@ -73,6 +73,18 @@ describe('providers admin', () => {
     onTest.mockResolvedValueOnce({ ...provider, lastError: 'connect ECONNREFUSED' })
     await userEvent.click(within(card).getByRole('button', { name: 'Test connection' }))
     expect(await within(card).findByText('Could not connect: connect ECONNREFUSED')).toBeInTheDocument()
+  })
+
+  it('says when a provider is failing, since when and why', () => {
+    const since = new Date()
+    since.setHours(12, 40, 0, 0)
+    const error = 'The provider failed: Tidal refused the sign-in. Authorize streamrip again.'
+    renderProviders({ providers: [{ ...provider, lastError: error, failingSince: since.toISOString() }] })
+    const card = screen.getByRole('listitem', { name: 'Shelf' })
+    expect(within(card).getByText('Failing')).toBeInTheDocument()
+    const alert = within(card).getByRole('alert')
+    expect(alert).toHaveTextContent('Fetches have failed since 12:40 PM')
+    expect(alert).toHaveTextContent(`Last error: ${error}`)
   })
 
   it('says priced offers are ignored, and lists failed requests with their error', () => {

@@ -20,6 +20,7 @@ import { startRealtime } from '../../realtime/index.js'
 import { body, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum } from '../../test/factories.js'
+import { OUTAGE_REASON } from '../acquisition/health.js'
 import { acquisitionModule } from '../acquisition/index.js'
 import { configureAcquisition } from '../acquisition/jobs.js'
 import { updateAcquisitionPolicy } from '../acquisition/policy.js'
@@ -126,6 +127,7 @@ describe('sessions with on-demand tracks', () => {
   const jobsFor = (ids: string[]) => db.select({ recordingId: acquisitionJobs.recordingId, status: acquisitionJobs.status }).from(acquisitionJobs)
     .where(inArray(acquisitionJobs.recordingId, ids)).orderBy(acquisitionJobs.id)
 
+  // Failing everything makes the provider failing (acquisition/health.ts): the notice says why.
   it('pauses with one notice when the provider fails everything, keeping the rest of the queue', async () => {
     mock.settings.fail = true
     const album = await remoteAlbum(20)
@@ -138,7 +140,7 @@ describe('sessions with on-demand tracks', () => {
     expect(queue.length).toBeGreaterThan(0)
     expect(queue.map((entry) => entry.trackId)).toEqual(album.ids.slice(at + 1).filter((id) => queue.some((entry) => entry.trackId === id)))
     expect(queue.at(-1)!.trackId).toBe(album.ids.at(-1))
-    await eventually(() => expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toEqual([{ type: 'playback.unavailable', trackId: current!.trackId }]))
+    await eventually(() => expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toEqual([{ type: 'playback.unavailable', trackId: current!.trackId, reason: OUTAGE_REASON }]))
 
     // Nothing more is fetched or said until the user plays again. A request that was
     // already going out when playback paused may still land.
@@ -181,7 +183,7 @@ describe('sessions with on-demand tracks', () => {
     play(phone, album)
     await eventually(() => expect(phone.client.getSnapshot().session).toMatchObject({ playing: false, current: { state: 'failed' } }))
     const current = phone.client.getSnapshot().session.current!
-    await eventually(() => expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toEqual([{ type: 'playback.unavailable', trackId: current.trackId }]))
+    await eventually(() => expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toEqual([{ type: 'playback.unavailable', trackId: current.trackId, reason: OUTAGE_REASON }]))
     expect(laptop.events.filter((event) => event.type === 'playback.unavailable')).toEqual([])
     expect(laptop.client.getSnapshot().session.current).toBeNull()
     mock.settings.fail = false
