@@ -2,31 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { engineState, playbackErrorMessage, startGraceMs, type SlotReading } from './state';
 
 const playing: SlotReading = {
-  failed: false, finished: false, ready: true, wantsPlay: true, started: true, sincePlay: 10_000, playing: true, waiting: false,
+  failed: false, finished: false, ready: true, wantsPlay: true, started: true, sincePlay: 10_000, playing: true,
 };
 
 describe('engineState', () => {
   it('puts failures and ends before everything else', () => {
-    expect(engineState({ ...playing, failed: true, finished: true }).state).toBe('error');
-    expect(engineState({ ...playing, finished: true }).state).toBe('ended');
+    expect(engineState({ ...playing, failed: true, finished: true })).toBe('error');
+    expect(engineState({ ...playing, finished: true })).toBe('ended');
   });
 
   it('is loading until the player is ready and first plays', () => {
-    expect(engineState({ ...playing, ready: false }).state).toBe('loading');
-    expect(engineState({ ...playing, started: false, playing: false, waiting: true }).state).toBe('loading');
-    expect(engineState({ ...playing, started: false, playing: false, sincePlay: 100 }).state).toBe('loading');
+    expect(engineState({ ...playing, ready: false })).toBe('loading');
+    expect(engineState({ ...playing, started: false, playing: false })).toBe('loading');
+    expect(engineState({ ...playing, started: false, playing: false, sincePlay: 100 })).toBe('loading');
   });
 
   it('follows the request to play or pause', () => {
-    expect(engineState(playing)).toEqual({ state: 'playing', interrupted: false });
-    expect(engineState({ ...playing, wantsPlay: false, playing: false }).state).toBe('paused');
+    expect(engineState(playing)).toBe('playing');
+    expect(engineState({ ...playing, wantsPlay: false, playing: false })).toBe('paused');
   });
 
-  it('tells buffering from a system pause', () => {
-    expect(engineState({ ...playing, playing: false, waiting: true })).toEqual({ state: 'buffering', interrupted: false });
-    expect(engineState({ ...playing, playing: false, sincePlay: startGraceMs - 1 })).toEqual({ state: 'playing', interrupted: false });
-    expect(engineState({ ...playing, playing: false, waiting: true, sincePlay: 10 })).toEqual({ state: 'playing', interrupted: false });
-    expect(engineState({ ...playing, playing: false })).toEqual({ state: 'paused', interrupted: true });
+  it('counts a player that stopped by itself as stalled, not paused', () => {
+    expect(engineState({ ...playing, playing: false })).toBe('buffering');
+    expect(engineState({ ...playing, playing: false, sincePlay: startGraceMs - 1 })).toBe('playing');
+    expect(engineState({ ...playing, playing: false, started: false })).toBe('loading');
   });
 });
 

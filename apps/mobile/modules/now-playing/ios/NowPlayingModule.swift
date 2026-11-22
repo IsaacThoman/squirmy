@@ -1,3 +1,4 @@
+import AVFoundation
 import ExpoModulesCore
 import MediaPlayer
 import UIKit
@@ -13,17 +14,33 @@ struct NowPlayingItem: Record {
 /**
  * Shows what is playing on the lock screen and in Control Center, and forwards their
  * buttons to JavaScript as `onRemoteCommand` events instead of acting on a player, so the
- * app can turn them into session commands.
+ * app can turn them into session commands. Also forwards what the audio session reports:
+ * `onInterruption` (a call or Siri began, or ended and may resume) and `onRouteChange`
+ * (headphones unplugged), which the player could only guess at from its own state.
  */
 public class NowPlayingModule: Module {
   private var targets: [(command: MPRemoteCommand, target: Any)] = []
   private var artworkUrl: URL?
   private var artwork: MPMediaItemArtwork?
+  private var observers: [NSObjectProtocol] = []
 
   public func definition() -> ModuleDefinition {
     Name("SquirmyNowPlaying")
 
-    Events("onRemoteCommand")
+    Events("onRemoteCommand", "onInterruption", "onRouteChange")
+
+    OnCreate {
+      let center = NotificationCenter.default
+      let session = AVAudioSession.sharedInstance()
+      self.observers = [
+        center.addObserver(forName: AVAudioSession.interruptionNotification, object: session, queue: .main) { [weak self] note in
+          self?.interruption(note)
+        },
+        center.addObserver(forName: AVAudioSession.routeChangeNotification, object: session, queue: .main) { [weak self] note in
+          self?.routeChange(note)
+        },
+      ]
+    }
 
     AsyncFunction("setItem") { (item: NowPlayingItem) in
       self.enableCommands()
@@ -53,8 +70,38 @@ public class NowPlayingModule: Module {
     }.runOnQueue(.main)
 
     OnDestroy {
+      self.observers.forEach { NotificationCenter.default.removeObserver($0) }
+      self.observers.removeAll()
       DispatchQueue.main.async { self.clear() }
     }
+  }
+
+  private func interruption(_ note: Notification) {
+    guard
+      let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+      let type = AVAudioSession.InterruptionType(rawValue: raw)
+    else {
+      return
+    }
+    switch type {
+    case .began:
+      sendEvent("onInterruption", ["type": "began"])
+    case .ended:
+      let options = AVAudioSession.InterruptionOptions(rawValue: note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
+      sendEvent("onInterruption", ["type": "ended", "shouldResume": options.contains(.shouldResume)])
+    @unknown default:
+      break
+    }
+  }
+
+  private func routeChange(_ note: Notification) {
+    guard
+      let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+      let reason = AVAudioSession.RouteChangeReason(rawValue: raw)
+    else {
+      return
+    }
+    sendEvent("onRouteChange", ["reason": reason == .oldDeviceUnavailable ? "oldDeviceUnavailable" : "other"])
   }
 
   private func clear() {

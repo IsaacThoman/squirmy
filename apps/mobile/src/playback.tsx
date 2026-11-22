@@ -18,7 +18,7 @@ import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
 import { useNotice } from './Notice';
-import { connectNowPlaying, createPlayerEngine } from './player/engine';
+import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { loadSession, saveSession } from './player/savedSession';
 import {
   codecsFor, deviceRows, findEntry, isRemote, newlyFailed, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
@@ -87,7 +87,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     void clientDevice().then(device => {
       if (cancelled) return;
       const send = (command: SessionCommand) => client.dispatch(command);
-      const engine = createPlayerEngine({ onInterrupted: () => send({ type: 'pause' }) });
+      const engine = createPlayerEngine({
+        onInterrupted: () => send({ type: 'pause' }),
+        // Only the entry the call paused, and only if nothing has moved playback since.
+        onResumed: entryId => {
+          const { session, isActiveDevice } = client.getSnapshot();
+          if (isActiveDevice && !session.playing && session.current?.id === entryId) send({ type: 'play' });
+        },
+      });
+      const stopAudioSession = connectAudioSession(engine);
       const saved = loadSession(account);
       if (saved) tracks.prime(saved.tracks);
       const client: SessionClient = new SessionClient({
@@ -236,6 +244,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         appState.remove();
         stopSaving();
         stopPreparing();
+        stopAudioSession();
         stopErrors();
         onOffline.current = null;
         stopWatching();

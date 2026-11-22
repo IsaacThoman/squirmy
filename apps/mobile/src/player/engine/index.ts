@@ -1,4 +1,5 @@
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import NowPlaying from '../../../modules/now-playing';
 import { ExpoAudioEngine, type ExpoAudioEngineOptions } from './ExpoAudioEngine';
 
 export { ExpoAudioEngine } from './ExpoAudioEngine';
@@ -30,7 +31,7 @@ function ensureAudioMode(): void {
  * The phone's `PlayerEngine`. Plays in the background and in silent mode, and takes the
  * audio session exclusively, which the lock screen needs to show the app as Now Playing.
  */
-export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInterrupted'> = {}) {
+export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInterrupted' | 'onResumed'> = {}) {
   ensureAudioMode();
   return new ExpoAudioEngine({
     ...options,
@@ -40,4 +41,25 @@ export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInte
       return createAudioPlayer({ uri: url }, { updateInterval: updateIntervalMs, keepAudioSessionActive: true });
     },
   });
+}
+
+/**
+ * Tells `engine` what the audio session reports: interruptions (calls, Siri) and the
+ * output going away. Returns a function that stops. Does nothing without the native
+ * module (Android, web).
+ */
+export function connectAudioSession(engine: ExpoAudioEngine): () => void {
+  const native = NowPlaying;
+  if (!native) return () => undefined;
+  const interruptions = native.addListener('onInterruption', event => {
+    if (event.type === 'began') engine.interrupt();
+    else engine.endInterruption(event.shouldResume);
+  });
+  const routes = native.addListener('onRouteChange', ({ reason }) => {
+    if (reason === 'oldDeviceUnavailable') engine.routeLost();
+  });
+  return () => {
+    interruptions.remove();
+    routes.remove();
+  };
 }
