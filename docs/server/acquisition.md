@@ -90,7 +90,7 @@ Under **Admin → Providers → Policy**, or `GET` and `PATCH /api/v1/admin/acqu
 - Autoplay and radios include tracks the provider can fetch for members allowed to fetch, after two tracks the server already has; other members get only tracks on the server.
 - A member without **Can fetch missing music** sees those tracks gray, and their row and menu say to ask an admin.
 - One fetch runs per track or album at a time. If two people or devices ask for the same thing, they share it.
-- Subsonic apps never see on-demand music; they show only what is on the server.
+- Subsonic apps never see on-demand music, nor music fetched only because someone played it: they show each person's library, limited to songs with a file on the server ([details](./subsonic.md)).
 
 ## How deliveries are verified
 
