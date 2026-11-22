@@ -3,7 +3,7 @@ import { formatTotalDuration } from '@squirmy/client-core';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, type ReactNode } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue,
 } from 'react-native-reanimated';
@@ -25,7 +25,8 @@ import { usePlaybackState } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
 import { AlbumStatusBlur } from './AlbumStatusBlur';
-import { AlbumMetadata, CollectionGrid, type AlbumMetadataProps } from './BrowseControls';
+import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
+import { CollectionGrid } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
@@ -75,7 +76,8 @@ type DetailProps = {
 
 /**
  * The page a collection zooms open into: its cover over the collection's tint, the title,
- * the play buttons, and the content below. Scrolling past the cover blurs the status bar.
+ * the play buttons, and the content below. Scrolling past the cover blurs the status bar;
+ * once the title scrolls under the buttons, they get a bar of their own with the title in it.
  */
 function DetailPage({
   item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, onRefresh, bottomInset, children,
@@ -104,6 +106,11 @@ function DetailPage({
   });
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const artRadius = item.round ? artSize / 2 : 17;
+  // How far the page scrolls before the header's title (below the cover's margins) reaches the bar.
+  const titleUnderBar = styles.art.marginTop + artSize + styles.art.marginBottom;
+  const barStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollOffset.value, [titleUnderBar, titleUnderBar + 24], [0, 1], Extrapolation.CLAMP),
+  }));
   const headerColor = tint ? interpolateColor(colors.albumTint, [0, 1], [colors.background, tint], 'RGB', { gamma: 1 }) : colors.background;
 
   return <View style={styles.page}>
@@ -111,8 +118,14 @@ function DetailPage({
     <Animated.View pointerEvents="none" style={[styles.status, { height: top }, blurStyle]}>
       <AlbumStatusBlur />
     </Animated.View>
+    <Animated.View pointerEvents="none" style={[styles.status, styles.bar, { height: top + albumNavSize + 12 }, barStyle]}>
+      <AlbumStatusBlur solid />
+    </Animated.View>
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
       <AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} />
+      {/* Hidden from VoiceOver: the header's own title already names the page. */}
+      <Animated.Text numberOfLines={1} maxFontSizeMultiplier={displayFontScale} accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants" style={[styles.barTitle, barStyle]}>{title}</Animated.Text>
       <View style={styles.navActions}>
         {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
       </View>
@@ -129,10 +142,25 @@ function DetailPage({
         {buttons && buttons.length > 0 && <AlbumPlaybackButtons title={title} actions={buttons} />}
         {status}
       </View>
-      {description ? <Text style={styles.description} numberOfLines={6}>{description}</Text> : null}
+      {description ? <ExpandableText text={description} lines={6} /> : null}
       {children}
     </Animated.ScrollView>
   </View>;
+}
+
+/** A bio or description cut at `lines`; when it is cut, a tap shows all of it and another cuts it again. */
+function ExpandableText({ text, lines }: { text: string; lines: number }) {
+  const styles = useStyles();
+  const [expanded, setExpanded] = useState(false);
+  const [cut, setCut] = useState(false);
+  return <Pressable disabled={!cut} onPress={() => { tapFeedback(); setExpanded(!expanded); }} style={styles.descriptionBlock}
+    accessibilityRole={cut ? 'button' : 'text'} accessibilityHint={cut ? (expanded ? 'Shows less' : 'Shows the whole text') : undefined}>
+    <Text style={styles.description} numberOfLines={expanded ? undefined : lines}>{text}</Text>
+    {cut && <Text style={styles.moreLabel}>{expanded ? 'Less' : 'More'}</Text>}
+    {/* The whole text, laid out unseen, to tell whether the visible copy is cut. */}
+    <Text style={[styles.description, styles.measure]} onTextLayout={event => setCut(event.nativeEvent.lines.length > lines)}
+      accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{text}</Text>
+  </Pressable>;
 }
 
 /** A page whose data has not arrived: the back button, then loading or the failure. */
@@ -453,14 +481,20 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { flex: 1, overflow: 'hidden', backgroundColor: colors.background },
-  nav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: gutter },
+  nav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: gutter },
+  barTitle: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
+  // Android has no blur here, so its bar is the page colour.
+  bar: Platform.OS === 'android' ? { backgroundColor: colors.background } : {},
   navActions: { flexDirection: 'row', gap: 10 },
   fallbackNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
   overscrollFill: { position: 'absolute', bottom: '100%', height: '100%', left: 0, right: 0 },
   status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
   header: { alignItems: 'center', paddingHorizontal: gutter },
   art: { marginTop: 8, marginBottom: 21, backgroundColor: colors.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
-  description: { marginHorizontal: gutter, color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
+  descriptionBlock: { marginHorizontal: gutter, marginTop: 18 },
+  description: { color: colors.muted, fontSize: 14, lineHeight: 21 },
+  moreLabel: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 4 },
+  measure: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
   trackListHeader: { marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 8 },
   trackListTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   trackCount: { color: colors.quiet, fontSize: 12, fontWeight: '600' },

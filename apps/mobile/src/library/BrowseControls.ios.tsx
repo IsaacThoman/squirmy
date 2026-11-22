@@ -4,15 +4,15 @@ import {
   type TextFieldRef,
 } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, autocorrectionDisabled, background, buttonBorderShape, buttonStyle, clipShape,
-  font, foregroundStyle, frame, lineLimit, menuIndicator, multilineTextAlignment, offset, padding, pickerStyle,
+  accessibilityLabel, autocorrectionDisabled, background, buttonBorderShape, buttonStyle, clipShape,
+  font, foregroundStyle, frame, lineLimit, menuIndicator, offset, padding, pickerStyle,
   opacity, progressViewStyle, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { StyleSheet, View } from 'react-native';
 import { IconButton, Symbol, hitShape, plainButton } from '../native/Controls';
 import type {
-  AlbumMetadataProps, BrowseButtonProps, CollectionButtonProps, CollectionGridProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
+  BrowseButtonProps, CollectionButtonProps, CollectionGridProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
   LinkedButtonProps, SearchFieldProps, TopResultProps,
 } from './BrowseControls';
 import { unavailableOpacity, useColors } from '../theme';
@@ -243,29 +243,7 @@ function TopResultButton({ title, subtitle, cover, size, dim, zoom, playable, on
   </Button>;
 }
 
-const noArtistLinks: NonNullable<AlbumMetadataProps['artistLinks']> = [];
-
-export function AlbumMetadata({ title, info, artist, artistLinks = noArtistLinks }: AlbumMetadataProps) {
-  const colors = useColors();
-  const artistFont = font({ textStyle: 'title3', weight: artistLinks.length ? 'semibold' : 'medium' });
-  const artistLine = artist ? <Text modifiers={[artistFont, multilineTextAlignment('center'),
-    ...(artistLinks.length ? [foregroundStyle(colors.accent)] : [])]}>{artist}</Text> : undefined;
-  return <Host alignment="top" matchContents={{ vertical: true }} style={styles.metadata}>
-    <VStack spacing={4}>
-      <Text modifiers={[font({ textStyle: 'largeTitle', weight: 'bold' }), multilineTextAlignment('center'),
-        accessibilityAddTraits(['isHeader'])]}>{title}</Text>
-      {artistLinks.length === 1 ? <Button modifiers={[plainButton, hitShape]} onPress={artistLinks[0].open}>{artistLine}</Button>
-        : artistLinks.length > 1 ? <Menu modifiers={[plainButton, menuIndicator('hidden')]} label={artistLine}>
-          {artistLinks.map(link => <Button key={link.name} label={link.name} systemImage="music.mic" onPress={link.open} />)}
-        </Menu>
-        : artistLine}
-      <Text modifiers={[footnote, foregroundStyle(colors.muted), multilineTextAlignment('center')]}>{info}</Text>
-    </VStack>
-  </Host>;
-}
-
 const styles = StyleSheet.create({
   search: { height: 46 },
   filters: { height: 37 },
-  metadata: { alignSelf: 'stretch' },
 });
