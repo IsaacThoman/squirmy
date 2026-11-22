@@ -28,7 +28,7 @@
   --destructive: #c42e3a;
   --destructive-foreground: #ffffff;
   --border: #e2dbf0;
-  --input: #d6cdea;
+  --input: #8a8794;
   --ring: #7c5ce0;
   --sidebar: #f4f0fc;
   --sidebar-foreground: #1d1929;
@@ -63,7 +63,7 @@
   --destructive: #fe5a5e;
   --destructive-foreground: #000000;
   --border: #4d4366;
-  --input: #5d527b;
+  --input: #837e8b;
   --ring: #9d7df2;
   --sidebar: #272139;
   --sidebar-foreground: #fffaff;
@@ -100,6 +100,14 @@
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
+  /*
+   * Text for music that does not play: muted text a quarter of the way to the page, still 3:1 on
+   * the page, cards and the sidebar in every theme (color-themes.test.ts), so it reads as gray
+   * without going faint.
+   */
+  /* Secondary words over an artwork tint (collection headers): see headerTints in lib/color-themes.ts. */
+  --color-tint-muted-foreground: color-mix(in oklab, var(--foreground) 80%, var(--background));
+  --color-faded-foreground: color-mix(in oklab, var(--muted-foreground) 75%, var(--background));
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -201,15 +209,20 @@
   &::-webkit-scrollbar { display: none; }
 }
 
-/* An album page header: the artwork's dominant color blended into the page at the theme's strength. */
+/*
+ * An album page header: the artwork's dominant color blended into the page at the theme's strength.
+ * Dark mode takes `--tint-dark`, the same color kept from going too light (headerTints).
+ */
 @utility album-tint {
+  --header-tint: var(--tint, var(--background));
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--tint, var(--background)) calc(var(--album-tint) * 100%), var(--background)) 0%,
-    color-mix(in srgb, var(--tint, var(--background)) calc(var(--album-tint) * 55%), var(--background)) 60%,
+    color-mix(in srgb, var(--header-tint) calc(var(--album-tint) * 100%), var(--background)) 0%,
+    color-mix(in srgb, var(--header-tint) calc(var(--album-tint) * 55%), var(--background)) 60%,
     var(--background) 100%
   );
 }
+.dark .album-tint { --header-tint: var(--tint-dark, var(--tint, var(--background))); }
 
 @utility equalizer-bar {
   transform-origin: bottom;
