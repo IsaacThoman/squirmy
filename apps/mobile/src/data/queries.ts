@@ -6,6 +6,7 @@ import {
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSignedInApi, type Api } from '../account/AccountProvider';
+import { albumExpanding } from './albums';
 import { useTrackStore } from './library';
 
 const pageSize = 60;
@@ -79,7 +80,15 @@ export function usePlaylists() {
 
 export function useAlbum(id: string) {
   const prime = usePrime();
-  return useApiQuery(queryKeys.album(id), async api => prime(await api.catalog.album(id), album => album.discs.flatMap(disc => disc.tracks)));
+  const api = useSignedInApi();
+  return useQuery({
+    queryKey: queryKeys.album(id),
+    queryFn: async () => prime(await api!.catalog.album(id), album => album.discs.flatMap(disc => disc.tracks)),
+    enabled: Boolean(api),
+    // An album the server has only heard of (from search or an artist's discography) comes
+    // back without tracks while the server looks them up; the next answer has them.
+    refetchInterval: query => albumExpanding(query.state.data, query.state.dataUpdateCount) ? 2000 : false,
+  });
 }
 
 export function useArtist(id: string) {
