@@ -22,6 +22,8 @@ export class TrackStore {
   private readonly missing = new Set<string>()
   private readonly inFlight = new Set<string>()
   private readonly queued = new Map<string, Wanted>()
+  /** In-flight keys refreshed meanwhile, fetched again when their answer is in. */
+  private readonly again = new Set<string>()
   private readonly listeners = new Set<() => void>()
   private scheduled = false
 
@@ -41,11 +43,7 @@ export class TrackStore {
     const key = keyOf(trackId, albumId)
     const summary = this.cache.get(key)
     if (summary || this.missing.has(key) || this.inFlight.has(key) || this.queued.has(key)) return summary
-    this.queued.set(key, { id: trackId, albumId })
-    if (!this.scheduled) {
-      this.scheduled = true
-      setTimer(() => this.flush(), this.batchDelayMs)
-    }
+    this.queue(key, { id: trackId, albumId })
     return undefined
   }
 
@@ -62,12 +60,29 @@ export class TrackStore {
   refresh(trackId: string, albumId: string | null = null): void {
     const key = keyOf(trackId, albumId)
     this.missing.delete(key)
-    if (this.inFlight.has(key) || this.queued.has(key)) return
-    this.queued.set(key, { id: trackId, albumId })
-    if (!this.scheduled) {
-      this.scheduled = true
-      setTimer(() => this.flush(), this.batchDelayMs)
+    if (this.queued.has(key)) return
+    // The answer on its way may have been read before the change: ask again once it is in.
+    if (this.inFlight.has(key)) {
+      this.again.add(key)
+      return
     }
+    this.queue(key, { id: trackId, albumId })
+  }
+
+  /** `refresh` for every album the track is cached under: what an invalidation of the track asks for. */
+  refreshTrack(trackId: string): void {
+    const prefix = keyOf(trackId, null)
+    const keys = new Set([...this.cache.keys(), ...this.missing].filter(key => key.startsWith(prefix)))
+    for (const key of keys) this.refresh(trackId, key.slice(prefix.length) || null)
+  }
+
+  /**
+   * Refreshes the tracks named by a realtime `invalidate` (`queryKeys.track`), which the
+   * server sends when a track's details change: its file was fetched and filed on an album,
+   * its cover arrived. Other keys are ignored.
+   */
+  refreshInvalidated(keys: readonly (readonly unknown[])[]): void {
+    for (const key of keys) if (key.length === 2 && key[0] === 'track' && typeof key[1] === 'string') this.refreshTrack(key[1])
   }
 
   /** Adds summaries the caller already has (album pages, search results), keyed by their album. */
@@ -80,6 +95,14 @@ export class TrackStore {
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  private queue(key: string, wanted: Wanted): void {
+    this.queued.set(key, wanted)
+    if (!this.scheduled) {
+      this.scheduled = true
+      setTimer(() => this.flush(), this.batchDelayMs)
+    }
   }
 
   private flush(): void {
@@ -109,7 +132,10 @@ export class TrackStore {
     } catch {
       // Left uncached so a later `get` retries.
     } finally {
-      for (const [key] of batch) this.inFlight.delete(key)
+      for (const [key, wanted] of batch) {
+        this.inFlight.delete(key)
+        if (this.again.delete(key)) this.queue(key, wanted)
+      }
     }
   }
 

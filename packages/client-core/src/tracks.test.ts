@@ -161,4 +161,36 @@ describe('TrackStore', () => {
     await vi.runAllTimersAsync()
     expect(store.get(uuid(4))?.id).toBe(uuid(4))
   })
+
+  it('asks again after an answer that was on its way when refreshed, which may predate the change', async () => {
+    let release!: () => void
+    let calls = 0
+    const api = vi.fn(async (request: TrackSummariesRequest) => {
+      calls += 1
+      if (calls === 1) await new Promise<void>(resolve => { release = resolve })
+      return { tracks: request.tracks.map(track => summary(Number(track.id.slice(-12)), calls > 1 ? uuid(9) : null)) }
+    })
+    const store = new TrackStore(api)
+    store.get(uuid(1))
+    await vi.advanceTimersByTimeAsync(20)
+    store.refresh(uuid(1))
+    release()
+    await vi.runAllTimersAsync()
+    expect(api).toHaveBeenCalledTimes(2)
+    expect(store.get(uuid(1))?.album?.id).toBe(uuid(9))
+  })
+
+  it('refreshes every album a track is cached under, and the tracks an invalidation names', async () => {
+    const api = fakeApi()
+    const store = new TrackStore(api)
+    store.get(uuid(1))
+    store.get(uuid(1), uuid(8))
+    store.get(uuid(2))
+    await vi.runAllTimersAsync()
+    api.mockClear()
+    store.refreshInvalidated([['track', uuid(1)], ['album', uuid(8)], ['search']])
+    await vi.runAllTimersAsync()
+    expect(api).toHaveBeenCalledOnce()
+    expect(api.mock.calls[0]![0].tracks).toEqual([{ id: uuid(1), albumId: null }, { id: uuid(1), albumId: uuid(8) }])
+  })
 })

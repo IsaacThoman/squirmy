@@ -2,6 +2,7 @@ import {
   type ClientDevice,
   type CommandAck,
   type DeviceInfo,
+  type EntryFailure,
   type EngineReport,
   type NormalizationMode,
   type PlaybackDescriptor,
@@ -18,6 +19,9 @@ import { gainFor } from '../normalization.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
 import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
 import type { SessionTransport } from './transport.js'
+
+/** Track failures remembered for `failureOf`: far more than are ever near the current entry. */
+const FAILURES_KEPT = 200
 
 /**
  * - `offline`: no connection. Commands still apply locally and wait to be sent.
@@ -50,8 +54,11 @@ export type SessionClientSnapshot = {
   outage: SessionOutage | null
 }
 
-/** What a `playback.unavailable` said: the track playback paused on, and the server's sentence for why, if it knows one. */
-export type SessionOutage = { trackId: string | null; reason: string | null }
+/**
+ * What a `playback.unavailable` said: the track playback stopped on, why (`kind`, see the
+ * event), and the server's sentence for it, if it has one.
+ */
+export type SessionOutage = { trackId: string | null; kind: 'outage' | 'failures' | 'exhausted'; reason: string | null }
 
 /**
  * How `detach` and `attach` end. Errors from this client: `offline` (they need the
@@ -234,6 +241,8 @@ export class SessionClient {
   private local: Session = createInitialSession()
   private devices: DeviceInfo[] = []
   private connection: ConnectionStatus = 'offline'
+  /** Why tracks failed, from `playback.failed`, oldest first. */
+  private readonly failures = new Map<string, EntryFailure>()
   /** The last `playback.unavailable`, and whether the pause it explains has been shown. */
   private told: { outage: SessionOutage; shown: boolean } | null = null
   private snapshot: SessionClientSnapshot
@@ -291,6 +300,15 @@ export class SessionClient {
     }
   }
 
+  /**
+   * Why the server could not fetch a track, as it said (`playback.failed`) just before the
+   * state that marked it failed. Undefined when it did not say (an older server): word that
+   * as an `error`.
+   */
+  failureOf(trackId: string): EntryFailure | undefined {
+    return this.failures.get(trackId)
+  }
+
   /** Subscribes to the transport and the engine, and says hello if already connected. Call once. */
   start(): void {
     const { transport, player } = this
@@ -307,8 +325,20 @@ export class SessionClient {
         this.publish()
       }),
       transport.on('event', event => {
+        if (event.type === 'playback.failed') {
+          this.failures.delete(event.trackId)
+          this.failures.set(event.trackId, event.failure)
+          for (const trackId of this.failures.keys()) {
+            if (this.failures.size <= FAILURES_KEPT) break
+            this.failures.delete(trackId)
+          }
+          return
+        }
         if (event.type !== 'playback.unavailable') return
-        this.told = { outage: { trackId: event.trackId, reason: event.reason ?? null }, shown: false }
+        const reason = event.reason ?? null
+        // Older servers send no kind: a reason meant the provider was failing.
+        const kind = event.kind ?? (reason ? 'outage' : 'failures')
+        this.told = { outage: { trackId: event.trackId, kind, reason }, shown: false }
         this.publish()
       }),
     )
