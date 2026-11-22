@@ -90,15 +90,18 @@ function entriesOf(session: Session): QueueEntry[] {
 
 type Change = { queue: boolean; devices: boolean }
 
-/** Makes `next` the session: bumps versions, follows the open play and schedules a write. Null when nothing changed. */
-function commit(record: SessionRecord, next: Session): Change | null {
+/**
+ * Makes `next` the session: bumps versions, follows the open play up to `now` (when the
+ * change took effect) and schedules a write. Null when nothing changed.
+ */
+function commit(record: SessionRecord, next: Session, now = settings.now()): Change | null {
   const previous = record.session
   if (next === previous) return null
   const queue = queueChanged(previous, next)
   record.version += 1
   if (queue) record.queueVersion += 1
   record.session = next
-  const { open, closed } = followPlay(record.play, previous, next, settings.now())
+  const { open, closed } = followPlay(record.play, previous, next, now)
   if (open && open !== record.play) notifyPlayStart(record.userId, open)
   record.play = open
   if (closed) {
@@ -121,7 +124,7 @@ function broadcast(record: SessionRecord, change: Change): void {
 
 /** Applies a server-issued command under a fresh command id and broadcasts the result. */
 function applyServer(record: SessionRecord, command: AnySessionCommand, now = settings.now()): void {
-  const change = commit(record, reduceSession(record.session, { command, now, commandId: newId() }))
+  const change = commit(record, reduceSession(record.session, { command, now, commandId: newId() }), now)
   if (!change) return
   broadcast(record, change)
   afterChange(record)
@@ -176,14 +179,21 @@ function refillAutoplay(record: SessionRecord): void {
     .catch(report)
 }
 
-function startGrace(userId: string, deviceId: string): void {
+/**
+ * Gives an active device that went away at `lostAt` the grace period to come back. When it
+ * does not, the session pauses where it was then (or at the last change since): its audio
+ * most likely stopped with it, and a device that played on offline reclaims the session
+ * with its own position when it returns.
+ */
+function startGrace(userId: string, deviceId: string, lostAt = settings.now()): void {
   const key = `${userId}:${deviceId}`
   if (graceTimers.has(key)) return
   graceTimers.set(key, settings.timers.set(() => {
     graceTimers.delete(key)
     serial(userId, () => {
       const record = loadedRecord(userId)
-      if (record && !connectedDevice(userId, deviceId)) applyServer(record, { type: 'deviceLost', deviceId })
+      if (!record || connectedDevice(userId, deviceId)) return
+      applyServer(record, { type: 'deviceLost', deviceId }, Math.min(settings.now(), Math.max(lostAt, record.session.anchorAt)))
     }).catch(report)
   }, settings.deviceGraceMs))
 }

@@ -310,6 +310,24 @@ describe('sessions', () => {
     expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
   })
 
+  it('pauses a lost device where it was when it went away, and counts no play time after', async () => {
+    const clock = stoppedClock()
+    const timers = manualTimers()
+    const a = await device('device-a-0023')
+    const b = await device('device-b-0023')
+    await a.send(playAlbum())
+    await b.state(1)
+    clock.advance(10_000)
+    a.socket.disconnect()
+    await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0023']))
+    clock.advance(20_000)
+    timers.fireAll()
+    expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
+    // The paused play is still open; shutdown writes it as counted so far.
+    await sessionsModule.stop!()
+    expect(await db.select({ msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id))).toEqual([{ msPlayed: 10_000 }])
+  })
+
   it('keeps the active device when it reconnects within the grace period', async () => {
     // However slow the reconnect, the grace period only ends when the test says so.
     const timers = manualTimers()
