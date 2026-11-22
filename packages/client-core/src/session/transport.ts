@@ -1,7 +1,7 @@
 import type { ClientToServerEvents, EngineReport, ServerToClientEvents } from '@squirmy/contracts'
 
 /** Client-to-server events that expect an ack. */
-export type AckEvent = 'session:hello' | 'time:sync' | 'session:command'
+export type AckEvent = 'session:hello' | 'time:sync' | 'session:command' | 'session:detach' | 'session:attach'
 export type AckPayload<E extends AckEvent> = Parameters<ClientToServerEvents[E]>[0]
 export type AckReply<E extends AckEvent> = Parameters<Parameters<ClientToServerEvents[E]>[1]>[0]
 export type AckCallback<E extends AckEvent> = (error: Error | null, reply?: AckReply<E>) => void
