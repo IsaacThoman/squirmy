@@ -13,6 +13,10 @@
  *    from the album's Deezer track list, a bounded number of albums per run.
  * 6. Popular tracks stored from Deezer without their album (so without artwork) get it by
  *    running the artist's top tracks again, a bounded number of artists per run.
+ * 7. Artists fetched before their popular tracks were stored as a ranked list get one the
+ *    same way, so the page lists their hits rather than the tracks played here.
+ * 8. Artist pictures chosen before pages were told apart from namesakes, or kept through
+ *    a merge, are chosen again from the MusicBrainz profile, a bounded number per run.
  */
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
@@ -20,7 +24,7 @@ import { getServerSettings } from '../../lib/settings.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { deezer } from '../metadata/index.js'
 import { decodeEntities } from '../metadata/deezer.js'
-import { refreshTopTracks } from './artist.js'
+import { refreshTopTracks, repickArtistImage } from './artist.js'
 import { linkDeezerAlbum } from './deezer-rows.js'
 import { splitMergedEditions } from './editions.js'
 import { foldTagBuiltArtists, reconcileAllArtists, reconcileArtistAlbums } from './reconcile.js'
@@ -31,18 +35,23 @@ const topTrackBatch = 200
 /** Albums whose Deezer track list is read again per run for explicit flags: two Deezer requests each. */
 const explicitBatch = 200
 
+/** Artists whose picture is chosen again per run: a MusicBrainz request (a second) and a Deezer one or two each. */
+const imageBatch = 100
+
 export type RepairReport = {
-  editions: number; merged: number; tagArtists: number; decoded: number; years: number; explicitAlbums: number; topTrackArtists: number
+  editions: number; merged: number; tagArtists: number; decoded: number; years: number; explicitAlbums: number; topTrackArtists: number; rankedArtists: number; imageArtists: number
 }
 
 export async function repairReleases(): Promise<RepairReport> {
-  const deezerEnabled = (await getServerSettings()).deezerEnabled
+  const settings = await getServerSettings()
+  const deezerEnabled = settings.deezerEnabled
   const editions = deezerEnabled ? await splitMergedEditions() : 0
   const merged = await reconcileAllArtists()
   const tagArtists = await foldTagBuiltArtists()
   const decoded = await decodeStoredEntities()
   const years = await backfillYears()
-  if (!deezerEnabled) return { editions, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0 }
+  const imageArtists = settings.musicBrainzEnabled ? await repairImages() : 0
+  if (!deezerEnabled) return { editions, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0, rankedArtists: 0, imageArtists }
   const explicitAlbums = await backfillExplicit()
   // Popular Deezer tracks on no release and without an album: the artist page showed them with no artwork.
   const artists = await db.execute<{ id: string }>(sql`
@@ -57,7 +66,15 @@ export async function repairReleases(): Promise<RepairReport> {
   for (const artist of artists) {
     if (await refreshTopTracks(artist.id)) await reconcileArtistAlbums(artist.id)
   }
-  return { editions, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length }
+  // Fetched artists with a Deezer page and no ranked list yet.
+  const unranked = await db.execute<{ id: string }>(sql`
+    select a.id from artists a
+    where a.merged_into_id is null and a.detail_level >= 1
+      and not exists (select 1 from artist_top_tracks t where t.artist_id = a.id)
+      and exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'artist' and e.entity_id = a.id)
+    order by md5(a.id::text || current_date::text) limit ${topTrackBatch}`)
+  for (const artist of unranked) await refreshTopTracks(artist.id)
+  return { editions, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length, rankedArtists: unranked.length, imageArtists }
 }
 
 const encoded = `'&(#x?[0-9a-f]+|amp|quot|lt|gt|apos|nbsp);'`
@@ -131,5 +148,17 @@ export async function backfillExplicit(): Promise<number> {
       if (album) await linkDeezerAlbum(row.albumId, album)
     })
   }
+  return rows.length
+}
+
+/** Step 8: pictures not chosen from the artist's MusicBrainz profile. */
+async function repairImages(): Promise<number> {
+  const rows = await db.execute<{ id: string }>(sql`
+    select a.id from artists a left join assets s on s.id = a.image_asset_id
+    where a.merged_into_id is null and a.mbid is not null and a.detail_level >= 1 and a.image_picked_at is null
+      -- A picture from the user's folders stays whatever MusicBrainz says.
+      and (a.image_asset_id is null or s.source ~* '^https?://')
+    order by md5(a.id::text || current_date::text) limit ${imageBatch}`)
+  for (const row of rows) await repickArtistImage(row.id)
   return rows.length
 }

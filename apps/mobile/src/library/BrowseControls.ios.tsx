@@ -100,7 +100,9 @@ function HostedCover({ cover, size, zoom }: { cover: React.ReactElement; size: n
 }
 
 export function CollectionTile(props: CollectionButtonProps) {
-  return <Host matchContents={{ vertical: true }} style={{ width: props.size }}>
+  // As for the grid below: near the screen's edges the host would otherwise take the safe
+  // area into its height, and the last rows of a long grid would overlap.
+  return <Host ignoreSafeArea="container" matchContents={{ vertical: true }} style={{ width: props.size }}>
     <CollectionTileButton {...props} />
   </Host>;
 }

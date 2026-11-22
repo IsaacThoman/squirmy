@@ -1,10 +1,14 @@
 import { ApiError } from '@squirmy/client-core';
-import type { AlbumDetail, PlaybackDescriptor, PlaylistDetail, StreamQuality, TrackSummary } from '@squirmy/contracts';
+import type {
+  AcquireQuery, AcquireResponse, AcquisitionJob, AlbumDetail, PlaybackDescriptor, PlaylistDetail, StreamQuality, TrackSummary,
+} from '@squirmy/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DownloadManager, type CollectionContent, type DownloadFiles, type DownloadIndex, type DownloadSource, type Transfer,
 } from './manager';
-import { albumCollectionId, maxAttempts, playlistCollectionId, type CollectionRow, type DownloadRow, type NetworkKind } from './model';
+import {
+  albumCollectionId, downloadStatus, fetchGapMs, maxAttempts, playlistCollectionId, type CollectionRow, type DownloadRow, type NetworkKind,
+} from './model';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const albumId = id(900);
@@ -165,28 +169,50 @@ class FakeSource implements DownloadSource {
     if (!content) throw new ApiError(404, 'not_found', 'Gone');
     return content;
   });
-  summaries = vi.fn(async (tracks: readonly { id: string }[]) => tracks.filter(item => !this.missing.has(item.id)).map(item => track(Number(item.id.slice(-12)))));
+  /** What the server says of each track now; `server` when not set. */
+  availability = new Map<string, TrackSummary['availability']>();
+  summaries = vi.fn(async (tracks: readonly { id: string }[]) => tracks.filter(item => !this.missing.has(item.id))
+    .map(item => track(Number(item.id.slice(-12)), this.availability.get(item.id) ?? 'server')));
+  /** The answer to an acquire request: the statuses of the jobs working on it, or an error. */
+  acquireAnswer: (kind: 'track' | 'album', target: string) => AcquisitionJob['status'][] | Error = () => ['queued'];
+  readonly acquires: { kind: 'track' | 'album'; id: string; query: AcquireQuery }[] = [];
+  acquireTrack = vi.fn(async (trackId: string, query: AcquireQuery) => this.acquire('track', trackId, query));
+  acquireAlbum = vi.fn(async (target: string, query: AcquireQuery) => this.acquire('album', target, query));
+  private acquire(kind: 'track' | 'album', target: string, query: AcquireQuery): AcquireResponse {
+    this.acquires.push({ kind, id: target, query });
+    const answer = this.acquireAnswer(kind, target);
+    if (answer instanceof Error) throw answer;
+    return { items: answer.map(status => job(status, kind === 'track' ? target : null)) };
+  }
 }
 
-function setup({ account = 'a', online = true } = {}) {
+function job(status: AcquisitionJob['status'], trackId: string | null): AcquisitionJob {
+  return {
+    id: id(990), providerId: id(991), providerName: 'Mock', requestedBy: 'me', trackId, albumId, title: 'Track', status, error: null,
+    importId: null, origin: 'download', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', completedAt: null,
+  };
+}
+
+function setup({ account = 'a', online = true, canFetch = false } = {}) {
   const index = new MemoryIndex(account);
   const files = new FakeFiles();
   const network = new FakeNetwork();
   const source = new FakeSource();
-  const options = { quality: 'original' as StreamQuality, wifiOnly: true, capBytes: null as number | null };
+  const options = { quality: 'original' as StreamQuality, wifiOnly: true, capBytes: null as number | null, canFetch };
   const create = () => new DownloadManager({ index, files, network, source, options: { ...options } });
   const manager = create();
   manager.start();
   manager.setOnline(online);
   const settle = () => vi.advanceTimersByTimeAsync(0);
-  const album = (count: number): AlbumDetail => ({
+  type Availability = (n: number) => TrackSummary['availability'];
+  const album = (count: number, availability: Availability = () => 'server'): AlbumDetail => ({
     id: albumId, mbid: null, title: 'Album', artistCredit: 'Artist', artists: [], year: 2020, type: 'album',
     artwork: { id: id(800), color: '#112233', thumbhash: null }, availability: 'full', trackCount: count, ownedTrackCount: count,
     releaseDate: null, genres: [], description: null, label: null, durationMs: count * 1000,
-    discs: [{ disc: 1, title: null, tracks: Array.from({ length: count }, (_, n) => track(n + 1)) }], liked: false, wanted: false,
+    discs: [{ disc: 1, title: null, tracks: Array.from({ length: count }, (_, n) => track(n + 1, availability(n + 1))) }], liked: false, wanted: false,
   });
-  const addAlbum = (count: number) => {
-    const detail = album(count);
+  const addAlbum = (count: number, availability?: Availability) => {
+    const detail = album(count, availability);
     manager.addCollection({ id: albumCollectionId(albumId), kind: 'album', title: 'Album', subtitle: 'Artist', artworks: [detail.artwork!] },
       detail.discs[0]!.tracks);
     return detail;
@@ -239,13 +265,19 @@ describe('DownloadManager queue', () => {
     expect(new Set(files.transfers.map(transfer => transfer.url)).size).toBe(3);
   });
 
-  it('skips tracks the server has no file of', async () => {
-    const { manager, files, settle } = setup();
-    manager.addCollection({ id: playlistCollectionId(id(500)), kind: 'playlist', title: 'Mix', subtitle: '', artworks: [] },
+  it('for someone who may not have music fetched, downloads what the server has and counts the rest as not available', async () => {
+    const { manager, files, source, settle } = setup();
+    const mix = playlistCollectionId(id(500));
+    manager.addCollection({ id: mix, kind: 'playlist', title: 'Mix', subtitle: '', artworks: [] },
       [track(1), track(2, 'none'), track(3, 'on_demand')]);
     await settle();
     expect(files.transfers).toHaveLength(1);
-    expect(manager.collection(playlistCollectionId(id(500)))).toMatchObject({ total: 1 });
+    expect(source.acquires).toEqual([]);
+    expect(downloadStatus(manager.collection(mix)!).text).toBe('Downloading 1 of 3 · 2 not available');
+    files.transfers[0]!.complete();
+    await settle();
+    expect(manager.collection(mix)).toMatchObject({ state: 'incomplete', done: 1, total: 3, unavailable: 2, retryable: false });
+    expect(downloadStatus(manager.collection(mix)!)).toMatchObject({ text: '1 of 3 downloaded · 2 not available', retry: false });
   });
 
   it('retries a failed download with growing waits, then gives up until asked again', async () => {
@@ -357,6 +389,189 @@ describe('DownloadManager queue', () => {
   });
 });
 
+describe('DownloadManager songs the server does not have yet', () => {
+  const mix = playlistCollectionId(id(500));
+  const addMix = (manager: DownloadManager, tracks: TrackSummary[]) =>
+    manager.addCollection({ id: mix, kind: 'playlist', title: 'Mix', subtitle: '', artworks: [] }, tracks);
+  const status = (manager: DownloadManager, collection = mix) => downloadStatus(manager.collection(collection)!).text;
+
+  it('asks the server for them as a download, and downloads each once the server has it', async () => {
+    const { manager, files, source, settle } = setup({ canFetch: true });
+    addMix(manager, [track(1), track(2), track(3, 'on_demand')]);
+    await settle();
+    expect(source.acquires).toEqual([{ kind: 'track', id: id(3), query: { albumId, origin: 'download' } }]);
+    expect(files.transfers).toHaveLength(2);
+    expect(manager.collection(mix)).toMatchObject({ state: 'downloading', done: 0, total: 3 });
+    expect(status(manager)).toBe('Downloading 1 of 3');
+    expect(manager.track(id(3))).toEqual({ state: 'queued', wait: null });
+
+    for (const transfer of [...files.transfers]) transfer.complete();
+    await settle();
+    // Two of three are here: still downloading, never "Downloaded".
+    expect(manager.collection(mix)).toMatchObject({ state: 'downloading', done: 2, total: 3 });
+    expect(status(manager)).toBe('Downloading 3 of 3');
+
+    // The server says it has the song (an `invalidate` of the track).
+    expect(manager.awaits(id(3))).toBe(true);
+    source.availability.set(id(3), 'server');
+    await manager.refreshTracks([id(3)]);
+    await settle();
+    expect(files.transfers).toHaveLength(3);
+    expect(files.transfers[2]!.url).toContain(id(3));
+    files.transfers[2]!.complete();
+    await settle();
+    expect(manager.collection(mix)).toMatchObject({ state: 'done', done: 3, total: 3 });
+    expect(status(manager)).toBe('Downloaded · 3 KB');
+    expect(source.acquires).toHaveLength(1);
+  });
+
+  it('asks for a downloaded album’s missing songs in one request', async () => {
+    const { manager, files, source, settle, addAlbum } = setup({ canFetch: true });
+    addAlbum(3, n => n === 1 ? 'server' : 'on_demand');
+    await settle();
+    expect(source.acquires).toEqual([{ kind: 'album', id: albumId, query: { origin: 'download' } }]);
+    expect(source.acquireTrack).not.toHaveBeenCalled();
+    files.transfers[0]!.complete();
+    await settle();
+    expect(status(manager, albumCollectionId(albumId))).toBe('Downloading 2 of 3');
+
+    source.availability.set(id(2), 'server');
+    source.availability.set(id(3), 'on_demand');
+    await manager.refreshTracks([id(2), id(3)]);
+    await settle();
+    expect(files.transfers).toHaveLength(2);
+    expect(manager.awaits(id(3))).toBe(true);
+  });
+
+  it('downloads a single song the server does not have yet', async () => {
+    const { manager, files, source, settle } = setup({ canFetch: true });
+    manager.addTrack(track(4, 'on_demand'));
+    await settle();
+    expect(source.acquires).toEqual([{ kind: 'track', id: id(4), query: { albumId, origin: 'download' } }]);
+    expect(files.transfers).toHaveLength(0);
+    // The job finished before the next look: asking again says so.
+    source.acquireAnswer = () => ['completed'];
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(source.acquires).toHaveLength(2);
+    expect(files.transfers).toHaveLength(1);
+  });
+
+  it('reports a song the server could not get, never as downloaded, and asks again on retry', async () => {
+    const { manager, files, source, settle } = setup({ canFetch: true });
+    source.acquireAnswer = () => new ApiError(404, 'not_available', 'No provider can supply this track right now');
+    addMix(manager, [track(1), track(2), track(3, 'on_demand')]);
+    await settle();
+    for (const transfer of [...files.transfers]) transfer.complete();
+    await settle();
+    expect(manager.track(id(3))).toEqual({ state: 'failed', error: 'Not available', unavailable: true });
+    expect(manager.collection(mix)).toMatchObject({ state: 'incomplete', done: 2, total: 3, unavailable: 1, retryable: true });
+    expect(downloadStatus(manager.collection(mix)!)).toMatchObject({ text: '2 of 3 downloaded · 1 not available', retry: true });
+    expect(manager.summary()).toMatchObject({ count: 2, pending: 0, unavailable: 1 });
+
+    source.acquireAnswer = () => ['queued'];
+    manager.retry();
+    await vi.advanceTimersByTimeAsync(fetchGapMs);
+    expect(source.acquires).toHaveLength(2);
+    expect(status(manager)).toBe('Downloading 3 of 3');
+  });
+
+  it('gives up on a song when the server says no one can have it', async () => {
+    const { manager, files, source, settle } = setup({ canFetch: true });
+    addMix(manager, [track(1), track(2, 'on_demand')]);
+    await settle();
+    files.transfers[0]!.complete();
+    await settle();
+    // A missed fetch grays the song out, and the server invalidates it.
+    source.availability.set(id(2), 'none');
+    await manager.refreshTracks([id(2)]);
+    expect(manager.collection(mix)).toMatchObject({ state: 'incomplete', done: 1, unavailable: 1 });
+    expect(status(manager)).toBe('1 of 2 downloaded · 1 not available');
+  });
+
+  it('counts a request refused outright as not available', async () => {
+    const { manager, source, settle } = setup({ canFetch: true });
+    source.acquireAnswer = () => ['failed'];
+    manager.addTrack(track(1, 'on_demand'));
+    await settle();
+    expect(manager.track(id(1))).toMatchObject({ state: 'failed', unavailable: true });
+  });
+
+  it('asks again later while no word comes, and gives up after a while', async () => {
+    const { manager, source, settle } = setup({ canFetch: true });
+    manager.addTrack(track(1, 'on_demand'));
+    await settle();
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(source.acquires).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(source.acquires).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(3 * 3600_000);
+    expect(source.acquires).toHaveLength(8);
+    expect(manager.track(id(1))).toMatchObject({ state: 'failed', unavailable: true });
+  });
+
+  it('paces its requests, and waits when the server says too many are running', async () => {
+    const { manager, source, settle } = setup({ canFetch: true });
+    source.acquireAnswer = (_kind, target) => target === id(2) ? new ApiError(429, 'acquire_limit_reached', 'Too many') : ['queued'];
+    addMix(manager, [1, 2, 3].map(n => track(n, 'on_demand')));
+    await settle();
+    expect(source.acquires.map(call => call.id)).toEqual([id(1)]);
+    await vi.advanceTimersByTimeAsync(fetchGapMs);
+    expect(source.acquires.map(call => call.id)).toEqual([id(1), id(2)]);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(source.acquires).toHaveLength(2);
+    source.acquireAnswer = () => ['queued'];
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(source.acquires.map(call => call.id)).toEqual([id(1), id(2), id(2)]);
+    await vi.advanceTimersByTimeAsync(fetchGapMs);
+    expect(source.acquires.map(call => call.id)).toEqual([id(1), id(2), id(2), id(3)]);
+  });
+
+  it('asks the server even on cellular with Wi-Fi only, and holds only the download', async () => {
+    const { manager, network, source, files, settle } = setup({ canFetch: true });
+    network.set('cellular');
+    addMix(manager, [track(1, 'on_demand')]);
+    await settle();
+    expect(source.acquires).toHaveLength(1);
+    source.availability.set(id(1), 'server');
+    await manager.refreshTracks([id(1)]);
+    await settle();
+    expect(files.transfers).toHaveLength(0);
+    expect(status(manager)).toBe('Waiting for Wi-Fi');
+  });
+
+  it('keeps waiting for them across a relaunch', async () => {
+    const first = setup({ canFetch: true });
+    addMix(first.manager, [track(1), track(2, 'on_demand')]);
+    await first.settle();
+    first.manager.dispose();
+    expect(first.index.row(id(2))).toMatchObject({ state: 'fetching', attempts: 1 });
+
+    const manager = new DownloadManager({
+      index: first.index, files: first.files, network: first.network, source: first.source,
+      options: { quality: 'original', wifiOnly: true, capBytes: null, canFetch: true },
+    });
+    manager.start();
+    manager.setOnline(true);
+    expect(manager.collection(mix)).toMatchObject({ total: 2, state: 'downloading' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(first.source.acquires).toHaveLength(2);
+  });
+
+  it('picks up songs the server got for someone else on the next sync', async () => {
+    const { manager, files, source, settle } = setup();
+    addMix(manager, [track(1), track(2, 'on_demand')]);
+    await settle();
+    files.transfers[0]!.complete();
+    await settle();
+    expect(manager.collection(mix)).toMatchObject({ state: 'incomplete' });
+    source.collections.set(id(500), { tracks: [track(1), track(2)] });
+    await manager.sync();
+    await settle();
+    expect(files.transfers).toHaveLength(2);
+    expect(source.acquires).toEqual([]);
+  });
+});
+
 describe('DownloadManager removal and reconciliation', () => {
   it('removes files and rows together, keeping tracks another list still has', async () => {
     const { manager, files, index, settle, addAlbum } = setup();
@@ -421,7 +636,7 @@ describe('DownloadManager removal and reconciliation', () => {
     files.disk.delete('file-2.flac');
     files.disk.set('stray.flac', 5);
     const before = files.transfers.length;
-    const manager = new DownloadManager({ index: first.index, files, network: first.network, source: first.source, options: { quality: 'original', wifiOnly: true, capBytes: null } });
+    const manager = new DownloadManager({ index: first.index, files, network: first.network, source: first.source, options: { quality: 'original', wifiOnly: true, capBytes: null, canFetch: false } });
     manager.start();
     expect(files.disk.has('stray.flac')).toBe(false);
     expect(first.index.row(id(1))).toMatchObject({ state: 'done' });

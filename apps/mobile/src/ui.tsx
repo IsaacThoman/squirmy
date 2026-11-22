@@ -32,7 +32,7 @@ const material: Record<string, AndroidSymbol> = {
   'wifi': 'wifi', 'wifi.exclamationmark': 'wifi_off', 'antenna.radiowaves.left.and.right': 'signal_cellular_alt',
   'arrow.down.circle': 'download', 'arrow.down.circle.fill': 'download_done', 'arrow.down.circle.dotted': 'downloading',
   'wifi.slash': 'wifi_off', 'exclamationmark.circle': 'error', 'arrow.clockwise': 'refresh', 'xmark.circle': 'cancel',
-  'internaldrive': 'storage', 'icloud.and.arrow.down': 'cloud_download',
+  'internaldrive': 'storage', 'e.square.fill': 'explicit', 'icloud.and.arrow.down': 'cloud_download',
 };
 
 export function Icon({ name, size = 22, color, style }: {

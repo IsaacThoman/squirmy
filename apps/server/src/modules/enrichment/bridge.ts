@@ -30,9 +30,41 @@ export function confidentReleaseGroup(hits: readonly MbReleaseGroupSummary[], wa
   return typed.length === 1 ? typed[0]!.mbid : null
 }
 
-/** The one artist a name search confidently names: the only hit scoring at least 90 with exactly that name. */
+/**
+ * Deezer tells namesakes apart with a parenthetical ("Nirvana (UK)"), which `matchKey`
+ * would read as part of the name and match to MusicBrainz's "Nirvana UK", a tribute band.
+ * Returns the name before it and the hint inside it.
+ */
+export function nameHint(name: string): { base: string; hint: string } | null {
+  const match = /^(.*\S)\s*\(([^()]+)\)$/.exec(name.trim())
+  return match ? { base: match[1]!, hint: match[2]!.trim() } : null
+}
+
+/** Country codes MusicBrainz uses for the hints Deezer writes most. */
+const hintCountries: Record<string, string> = { uk: 'GB', gb: 'GB', england: 'GB', us: 'US', usa: 'US', ca: 'CA', au: 'AU', fr: 'FR', de: 'DE', jp: 'JP', kr: 'KR' }
+
+/** Whether a MusicBrainz artist fits a namesake hint: its country, or a disambiguation that says it. */
+function fitsHint(hit: MbArtistSummary, hint: string): boolean {
+  const key = hint.toLowerCase()
+  if (hit.country && (hintCountries[key] ?? hint.toUpperCase()) === hit.country) return true
+  return matchKey(hit.disambiguation).split(' ').includes(matchKey(hint))
+}
+
+/**
+ * The one artist a name search confidently names: the only hit scoring at least 90 with
+ * exactly that name. A name with a namesake hint ("Nirvana (UK)") takes a hit of exactly
+ * that spelling, else the only hit named like the part before it that fits the hint.
+ */
 export function confidentArtist(hits: readonly MbArtistSummary[], name: string): string | null {
-  const exact = hits.filter((hit) => (hit.score ?? 0) >= minScore && matchKey(hit.name) === matchKey(name))
+  const scored = hits.filter((hit) => (hit.score ?? 0) >= minScore)
+  const hinted = nameHint(name)
+  if (hinted) {
+    const spelled = scored.filter((hit) => hit.name.toLowerCase() === name.trim().toLowerCase())
+    if (spelled.length === 1) return spelled[0]!.mbid
+    const fitting = hits.filter((hit) => matchKey(hit.name) === matchKey(hinted.base) && fitsHint(hit, hinted.hint))
+    return fitting.length === 1 ? fitting[0]!.mbid : null
+  }
+  const exact = scored.filter((hit) => matchKey(hit.name) === matchKey(name))
   return exact.length === 1 ? exact[0]!.mbid : null
 }
 
@@ -73,5 +105,6 @@ export async function bridgeArtist(deezerId: string, name: string): Promise<stri
   const links = await musicbrainz.lookupUrl(`https://www.deezer.com/artist/${deezerId}`)
   const linked = new Set(links?.artists.map((artist) => artist.mbid))
   if (linked.size === 1) return [...linked][0]!
-  return confidentArtist(await musicbrainz.searchArtists(name, { limit: 5 }), name)
+  // A namesake hint is not part of the name MusicBrainz knows the artist by.
+  return confidentArtist(await musicbrainz.searchArtists(nameHint(name)?.base ?? name, { limit: 5 }), name)
 }

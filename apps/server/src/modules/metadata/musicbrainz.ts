@@ -265,9 +265,12 @@ export function normalizeDate(raw: string | null | undefined): MbDate {
 
 /**
  * Squirmy's album type from MusicBrainz release-group types. Secondary types win over
- * the primary one in the order soundtrack, live, compilation; spoken word, audiobooks
- * and the like are "other". A single or EP stays one whatever its secondary types: a song
- * from a film or a live single is listed with the artist's singles, as stores list it.
+ * the primary one in the order soundtrack, live, compilation; remix albums and DJ mixes
+ * are compilations of other recordings; spoken word, audiobooks and the like are "other".
+ * A single or EP stays one whatever its secondary types: a song from a film or a live
+ * single is listed with the artist's singles, as stores list it. Mixtapes keep their
+ * primary type, so clients that predate the artist page's Mixtapes section still parse
+ * them; the page tells them apart by `secondaryTypes` (catalog/pages.ts).
  */
 export function albumType(primary: string | null | undefined, secondary: string[] = []): AlbumType {
   const short = primary?.toLowerCase()
@@ -275,7 +278,7 @@ export function albumType(primary: string | null | undefined, secondary: string[
   const types = new Set(secondary.map((type) => type.toLowerCase()))
   if (types.has('soundtrack')) return 'soundtrack'
   if (types.has('live')) return 'live'
-  if (types.has('compilation')) return 'compilation'
+  if (types.has('compilation') || types.has('remix') || types.has('dj-mix')) return 'compilation'
   if (['spokenword', 'interview', 'audiobook', 'audio drama'].some((type) => types.has(type))) return 'other'
   switch (primary?.toLowerCase()) {
     case 'album': return 'album'
@@ -428,14 +431,15 @@ export async function getArtist(mbid: string): Promise<MbArtist | null> {
   }
 }
 
-/** Fetches every page of a browse request. */
-async function browseAll<T>(path: string, params: Record<string, string>, listKey: string, countKey: string): Promise<T[] | null> {
+/** Fetches every page of a browse request, handing each to `onPage` as it arrives. */
+async function browseAll<T>(path: string, params: Record<string, string>, listKey: string, countKey: string, onPage?: (batch: T[]) => Promise<void>): Promise<T[] | null> {
   const items: T[] = []
   for (let offset = 0; ; offset += pageSize) {
     const page = await get<Record<string, unknown>>(path, { ...params, limit: String(pageSize), offset: String(offset) })
     if (!page) return offset === 0 ? null : items
     const batch = (page[listKey] as T[] | undefined) ?? []
     items.push(...batch)
+    if (onPage && batch.length > 0) await onPage(batch)
     if (batch.length < pageSize || items.length >= Number(page[countKey] ?? 0)) return items
   }
 }
@@ -443,11 +447,18 @@ async function browseAll<T>(path: string, params: Record<string, string>, listKe
 /**
  * The artist's discography: every release group credited to them, across all pages. With
  * `officialOnly`, only groups with an official release, as the MusicBrainz website lists
- * them by default; bootleg-only groups can outnumber the rest many times over.
+ * them by default; bootleg-only groups can outnumber the rest many times over. `onPage`
+ * sees each page of 100 as it arrives: a large discography (Bach has thousands of groups
+ * at a request a second) is worth writing as it comes in.
  */
-export async function browseReleaseGroups(artistMbid: string, options: { officialOnly?: boolean } = {}): Promise<MbReleaseGroupSummary[]> {
+export async function browseReleaseGroups(
+  artistMbid: string,
+  options: { officialOnly?: boolean; onPage?: (groups: MbReleaseGroupSummary[]) => Promise<void> } = {},
+): Promise<MbReleaseGroupSummary[]> {
   const params = { artist: artistMbid, inc: 'artist-credits', ...(options.officialOnly ? { 'release-group-status': 'website-default' } : {}) }
-  const raw = await browseAll<RawReleaseGroup>('release-group', params, 'release-groups', 'release-group-count')
+  const onPage = options.onPage
+  const raw = await browseAll<RawReleaseGroup>('release-group', params, 'release-groups', 'release-group-count',
+    onPage ? (batch) => onPage(batch.map(releaseGroupSummary)) : undefined)
   return (raw ?? []).map(releaseGroupSummary)
 }
 

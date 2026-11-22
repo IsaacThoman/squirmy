@@ -2,7 +2,7 @@ import { ApiError, createInitialSession, queueChanged, reduceSession, splitSessi
 import type { SquirmySocket } from '@squirmy/client-core/socket'
 import {
   DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
-  type AcquisitionPolicy, type CommandEnvelope, type DeviceInfo, type Import, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
+  type AcquisitionPolicy, type AlbumPage, type CommandEnvelope, type DeviceInfo, type Import, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
   type ScrobblingStatus, type SessionHello, type SetupStatus, type TrackSummariesRequest, type User, type WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
@@ -215,6 +215,7 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       genres: vi.fn(async () => list(genres.map(genre => ({ name: genre.name, albumCount: 1 })))),
       album: vi.fn(async (id: string) => found(albumDetail(id))),
       artist: vi.fn(async (id: string) => found(artistDetail(id))),
+      artistReleases: vi.fn(async (id: string, { section }: { section: string; cursor?: string }): Promise<AlbumPage> => list(found(artistDetail(id)).sections?.find(item => item.key === section)?.items ?? [])),
       track: vi.fn(async (id: string) => found(allTracks.find(track => track.id === id))),
       lyrics: vi.fn(async (id: string) => found(lyricsFor(id))),
       trackSummaries: vi.fn(async ({ tracks }: TrackSummariesRequest) => ({ tracks: tracks.flatMap(({ id }) => allTracks.filter(track => track.id === id).slice(0, 1)) })),

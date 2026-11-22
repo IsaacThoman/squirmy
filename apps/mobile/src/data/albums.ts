@@ -25,10 +25,15 @@ function isAlbumSummary(value: object, id: string): value is AlbumSummary {
  * album loads; the first answer for an album the server has not filled in yet takes seconds.
  */
 export function findAlbumSummary(cached: readonly unknown[], id: string): AlbumSummary | undefined {
-  const visit = (value: unknown, depth: number): AlbumSummary | undefined => {
+  return findCached(cached, (value): value is AlbumSummary => isAlbumSummary(value, id));
+}
+
+/** The first object in cached answers that `matches`, looking `maxDepth` levels deep. */
+export function findCached<T>(cached: readonly unknown[], matches: (value: object) => value is T & object): T | undefined {
+  const visit = (value: unknown, depth: number): T | undefined => {
     if (depth > maxDepth || value === null || typeof value !== 'object') return undefined;
-    const children = Array.isArray(value) ? value : isAlbumSummary(value, id) ? null : Object.values(value);
-    if (!children) return value as AlbumSummary;
+    const children = Array.isArray(value) ? value : matches(value) ? null : Object.values(value);
+    if (!children) return value as T;
     for (const child of children) {
       const found = visit(child, depth + 1);
       if (found) return found;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { useHttpFixtures } from '../../test/http.js'
-import { getImage, getWikipediaSummary } from './wikidata.js'
+import { cleanExtract, getImage, getWikipediaSummary } from './wikidata.js'
 
 const radiohead = 'Q44190'
 const joyDivision = 'Q172763'
@@ -29,6 +29,13 @@ describe('wikidata', () => {
     expect(summary!.text).toMatch(/^Radiohead are an English rock band/)
     expect(summary!.license).toContain('CC BY-SA')
     expect((await getWikipediaSummary(joyDivision))!.text).toContain('Joy Division')
+  })
+
+  it('drops the separators of the parentheticals the summary left out', () => {
+    expect(cleanExtract("The members are Thom Yorke ; brothers Jonny Greenwood and Colin Greenwood (bass); Ed O'Brien ; and Philip Selway (drums)."))
+      .toBe("The members are Thom Yorke; brothers Jonny Greenwood and Colin Greenwood (bass); Ed O'Brien; and Philip Selway (drums).")
+    expect(cleanExtract('Björk Guðmundsdóttir ( ; born 1965) is an Icelandic singer .')).toBe('Björk Guðmundsdóttir (born 1965) is an Icelandic singer.')
+    expect(cleanExtract('Sigur Rós ( ) are a band ,  from Reykjavík.')).toBe('Sigur Rós are a band, from Reykjavík.')
   })
 
   it('ignores malformed ids and stays quiet when switched off', async () => {

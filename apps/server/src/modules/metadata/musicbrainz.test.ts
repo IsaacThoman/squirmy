@@ -33,6 +33,10 @@ describe('musicbrainz', () => {
     expect(mb.albumType('Album', ['Compilation', 'Soundtrack'])).toBe('soundtrack')
     expect(mb.albumType('Album', ['Live', 'Compilation'])).toBe('live')
     expect(mb.albumType('Album', ['Audiobook'])).toBe('other')
+    // Remix albums and DJ mixes are compilations; a mixtape stays an album (the artist page files it apart).
+    expect(mb.albumType('Album', ['Remix'])).toBe('compilation')
+    expect(mb.albumType('Album', ['DJ-mix'])).toBe('compilation')
+    expect(mb.albumType('Album', ['Mixtape/Street'])).toBe('album')
     expect(mb.albumType('Broadcast')).toBe('other')
     expect(mb.albumType(null)).toBe('other')
     expect(mb.normalizeDate('1997-06-16')).toEqual({ date: '1997-06-16', year: 1997 })
