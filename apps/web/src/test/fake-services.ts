@@ -3,13 +3,13 @@ import type { SquirmySocket } from '@squirmy/client-core/socket'
 import {
   DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
   type AcquisitionPolicy, type AlbumPage, type CommandEnvelope, type DeviceInfo, type Import, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
-  type ScrobblingStatus, type SessionHello, type SetupStatus, type TrackSummariesRequest, type User, type WantItem,
+  type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type User, type WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
 import type { Services } from '@/api/services'
 import {
   albumDetail, allTracks, artistDetail, genres, home, libraryAlbums, libraryArtists, libraryTracks, likedTracks, lyricsFor, playlistDetail, playlistSummaries,
-  searchFixtures, wantlist,
+  searchFixtures, searchPage, wantlist,
 } from '@/fixtures/catalog'
 import { appPasswords, currentUser, invites, jobs, serverSettings, userSettings, users } from '@/fixtures/server'
 
@@ -108,6 +108,7 @@ export class FakeSocket {
   }
 }
 
+type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number }
 const list = <T>(items: T[]) => ({ items, nextCursor: null })
 const ok = { ok: true as const }
 const notFound = () => new ApiError(404, 'not_found', 'Not found')
@@ -241,8 +242,8 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       unwant: vi.fn(async () => ok),
     },
     search: {
-      library: vi.fn(async ({ q }: { q: string }) => searchFixtures(q).library),
-      catalog: vi.fn(async ({ q }: { q: string }) => searchFixtures(q).catalog),
+      library: vi.fn(async (params: SearchParams) => searchPage(searchFixtures(params.q).library, params)),
+      catalog: vi.fn(async (params: SearchParams) => searchPage(searchFixtures(params.q).catalog, params)),
     },
     scrobble: {
       status: vi.fn(async () => scrobbling),

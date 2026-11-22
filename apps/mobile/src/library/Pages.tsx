@@ -1,5 +1,5 @@
 import {
-  queryKeys, type AlbumDetail, type AlbumSummary, type AlbumType, type ArtistDetail, type HistoryItem, type HomeSection, type PlaybackContext, type TrackSummary,
+  queryKeys, type AlbumDetail, type AlbumSummary, type ArtistDetail, type HistoryItem, type HomeSection, type PlaybackContext, type TrackSummary,
 } from '@squirmy/contracts';
 import { albumNote, albumPresentation, canFetch, formatReleaseDate, formatTotalDuration, releaseSubtitle } from '@squirmy/client-core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,7 +33,7 @@ import { BrowseButton, CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
 import { heartButton } from './heart';
 import {
-  albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
+  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useCollectionDim, type Collection,
 } from './shared';
 import { uniqueTracks } from './loadAll';
@@ -52,10 +52,6 @@ const listWindow = 7;
 const gridRowKey = (row: readonly Collection[]) => row[0]!.key;
 
 export type PageProps = BrowseProps & { id: string; onBack: () => void };
-
-const typeNames: Record<AlbumType, string> = {
-  album: 'Album', ep: 'EP', single: 'Single', compilation: 'Compilation', live: 'Live', soundtrack: 'Soundtrack', other: 'Release',
-};
 
 /** Tiles in a discography rail before "See all"; the rest open on a page of their own. */
 const railLimit = 20;
@@ -288,7 +284,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
     artist={data.artistCredit} artistLinks={artistLinks}
-    info={[typeNames[data.type], data.genres[0], data.year, albumNote(data, viewer)].filter(Boolean).join('  ·  ')}
+    info={[albumTypeLabels[data.type], data.genres[0], data.year, albumNote(data, viewer)].filter(Boolean).join('  ·  ')}
     buttons={buttons.length ? buttons : wantButton} status={control.status}
     nav={[
       // The heart saves the album to the library. The placeholder does not know whether it is saved.

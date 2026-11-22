@@ -39,6 +39,12 @@ import type { IdSource, ProviderAlbum, ProviderArtist, ProviderCredit, ProviderR
 /** Catalog ids of a response's results, in provider order, without duplicates. */
 export type StubIds = { artists: string[]; albums: string[]; tracks: string[] }
 
+/**
+ * The stored rows, and the 0..1 popularity the provider gave each that has one, by catalog
+ * id: search ranks by it (rank.ts), and a row the library answer lists keeps it too.
+ */
+export type Materialized = StubIds & { popularity: Map<string, number> }
+
 /** Two recordings of one song differ in length by less than this; more means another version. */
 const durationToleranceMs = 10_000
 
@@ -449,8 +455,8 @@ async function resolveTracks(tx: Transaction, source: IdSource, tracks: Provider
  * Stores `results` of a provider whose ids are `source`'s and returns their catalog ids.
  * Idempotent: the same results again give the same ids and add no rows.
  */
-export async function materialize(source: IdSource, results: ProviderResults): Promise<StubIds> {
-  if (results.artists.length + results.albums.length + results.tracks.length === 0) return { artists: [], albums: [], tracks: [] }
+export async function materialize(source: IdSource, results: ProviderResults): Promise<Materialized> {
+  if (results.artists.length + results.albums.length + results.tracks.length === 0) return { artists: [], albums: [], tracks: [], popularity: new Map() }
   const albumInputs = [...results.albums, ...results.tracks.flatMap((track) => (track.album ? [track.album] : []))]
   // Registered before the transaction: once it holds the lock every query goes through it,
   // or searches queued on the lock could hold every pooled connection the holder needs.
@@ -471,10 +477,18 @@ export async function materialize(source: IdSource, results: ProviderResults): P
     }
     const albumIds = await resolveAlbums(tx, source, albumInputs, artistIds, covers, trackTitles, stubbedArtists)
     const trackIds = await resolveTracks(tx, source, results.tracks, artistIds, albumIds)
+    const popularity = new Map<string, number>()
+    const note = (id: string | undefined, value: number | null | undefined) => {
+      if (id && typeof value === 'number') popularity.set(id, Math.max(value, popularity.get(id) ?? 0))
+    }
+    for (const artist of results.artists) note(artistIds.get(artistRef(artist)), artist.popularity)
+    for (const album of results.albums) note(albumIds.get(albumRef(album)), album.popularity)
+    results.tracks.forEach((track, index) => note(trackIds[index], track.popularity))
     return {
       artists: unique(results.artists.map((artist: ProviderArtist) => artistIds.get(artistRef(artist)))),
       albums: unique(results.albums.map((album) => albumIds.get(albumRef(album)))),
       tracks: unique(trackIds),
+      popularity,
     }
   })
   // The artist's discography may have been written while this response was (or under

@@ -51,10 +51,10 @@ type RowProps = { item: SongRowItem; run: Run; handlers: SongRowHandlers };
  * playlist being reordered. Long lists go through `useSongListItems` instead.
  */
 export function SongList(props: SongListProps) {
-  const { tracks, numbered, playlist, album } = props;
+  const { tracks, numbered, playlist, album, kind } = props;
   const { run } = useTrackActionRunner();
   const handlers = useSongRowHandlers(props);
-  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album }), [album, numbered, playlist, tracks]);
+  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album, kind }), [album, numbered, playlist, tracks, kind]);
   const onMove = ([source]: number[], destination: number) => {
     const itemId = source === undefined ? undefined : playlist?.itemIds[source];
     if (!playlist || !itemId) return;
@@ -80,10 +80,10 @@ export function SongList(props: SongListProps) {
  * screen exist.
  */
 export function useSongListItems(props: SongListProps): SongListItems {
-  const { tracks, numbered, playlist, album } = props;
+  const { tracks, numbered, playlist, album, kind } = props;
   const { run } = useTrackActionRunner();
   const handlers = useSongRowHandlers(props);
-  const data = useMemo(() => songRows({ tracks, numbered, playlist, album }), [album, numbered, playlist, tracks]);
+  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, kind }), [album, numbered, playlist, tracks, kind]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongListItem item={item} run={run} handlers={handlers} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }
@@ -152,7 +152,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
                     {number === undefined && loading !== 'none' ? <ProgressView modifiers={[controlSize('mini'), tint(colors.accent)]} />
                       : mark && <Image systemName={mark as 'arrow.down.circle.fill'} color={colors.muted} size={10} />}
                     {(showArtist || loading === 'slow') && <Text modifiers={[foregroundStyle(colors.muted), font({ textStyle: 'caption' }), lineLimit(1)]}>
-                      {loading === 'slow' ? STILL_LOADING_LABEL : track.artistCredit}
+                      {loading === 'slow' ? STILL_LOADING_LABEL : item.kind ? `${item.kind} · ${track.artistCredit}` : track.artistCredit}
                     </Text>}
                   </HStack>}
                 </VStack>

@@ -5,7 +5,7 @@
 import { ARTIST_SECTION_KEYS } from '@squirmy/contracts'
 import type {
   AlbumDetail, AlbumSummary, AlbumType, ArtistDetail, ArtistSection, ArtistSummary, Artwork, ArtSize, HomeResponse, Lyrics,
-  PlaylistDetail, PlaylistSummary, TrackAvailability, TrackSummary,
+  PlaylistDetail, PlaylistSummary, SearchKind, SearchRanked, SearchResults, TrackAvailability, TrackSummary,
 } from '@squirmy/contracts'
 import { artistSectionTitle } from '@/lib/catalog'
 
@@ -414,13 +414,34 @@ export function searchFixtures(query: string) {
   const topAlbum = library.albums.find(item => exact(item.title))
   const topTrack = library.tracks.find(item => exact(item.title))
   const top = topArtist ? { type: 'artist' as const, id: topArtist.id } : topAlbum ? { type: 'album' as const, id: topAlbum.id } : topTrack ? { type: 'track' as const, id: topTrack.id } : null
-  const catalog = {
+  const catalogLists = {
     artists: artists.filter(artist => !artist.inLibrary && matches(artist.name)),
     albums: albums.filter(item => item.availability === 'none' || item.availability === 'on_demand').map(summary).filter(item => matches(item.title, item.artistCredit)),
     tracks: allTracks.filter(item => item.availability !== 'server' && matches(item.title, item.artistCredit)),
-    provider: 'deezer',
   }
-  return { library: { ...library, top }, catalog }
+  // The server's `ranked`, simplified: the name as asked, then its start, then the rest, each
+  // list in its order; the library's own music a little ahead of the catalog's.
+  const rankOf = (lists: Pick<SearchResults, 'artists' | 'albums' | 'tracks'>, weight: number): SearchRanked[] => {
+    const match = (name: string) => (exact(name) ? 1 : normalize(name).startsWith(normalize(query.trim())) ? 0.8 : 0.5)
+    const entries = [
+      ...lists.artists.map((item, index) => ({ type: 'artist' as const, id: item.id, score: match(item.name) - index / 1000 })),
+      ...lists.albums.map((item, index) => ({ type: 'album' as const, id: item.id, score: match(item.title) - index / 1000 })),
+      ...lists.tracks.map((item, index) => ({ type: 'track' as const, id: item.id, score: match(item.title) - index / 1000 })),
+    ]
+    return entries.map(entry => ({ ...entry, score: Math.max(0, entry.score * weight) })).sort((a, b) => b.score - a.score)
+  }
+  return {
+    library: { ...library, top, ranked: rankOf(library, 0.75) },
+    catalog: { ...catalogLists, provider: 'deezer', ranked: rankOf(catalogLists, 0.7) },
+  }
+}
+
+/** One page of a search answer, as the server pages a filter: one kind, after `offset`. */
+export function searchPage(answer: SearchResults, { type, offset = 0, limit = 20 }: { type?: SearchKind; offset?: number; limit?: number }): SearchResults {
+  const page = <T,>(kind: SearchKind, items: T[]) => (type && type !== kind ? [] : items.slice(offset, offset + limit))
+  const lists = { artists: page('artist', answer.artists), albums: page('album', answer.albums), tracks: page('track', answer.tracks) }
+  const ids = new Set([...lists.artists, ...lists.albums, ...lists.tracks].map(item => item.id))
+  return { ...answer, ...lists, top: type || offset ? null : answer.top, ranked: answer.ranked?.filter(entry => ids.has(entry.id)) }
 }
 
 function normalize(value: string) {

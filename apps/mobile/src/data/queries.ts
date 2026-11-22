@@ -1,6 +1,6 @@
 import { ApiError } from '@squirmy/client-core';
 import {
-  queryKeys, type ArtistSectionKey, type LibrarySort, type Lyrics, type Page, type SearchResults, type TrackSummary, type UpdateUserSettings,
+  queryKeys, type ArtistSectionKey, type LibrarySort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
   type UserSettings,
 } from '@squirmy/contracts';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -207,6 +207,48 @@ export function useSearch(text: string) {
   const library = useQuery(search('library'));
   const catalog = useQuery(search('catalog'));
   return { query: q, library, catalog, pending: text.trim() !== q || library.isFetching || catalog.isFetching };
+}
+
+/** Rows per page of one kind of search result; the server answers at most 50. */
+export const searchPageSize = 30;
+/** The contract's largest offset. */
+const lastSearchOffset = 450;
+
+type SearchPage = { offset: number; library: SearchResults | null; catalog: SearchResults | null; catalogFailed: boolean };
+const kindList = (answer: SearchResults | null, kind: SearchKind) =>
+  (answer ? kind === 'artist' ? answer.artists : kind === 'album' ? answer.albums : answer.tracks : []);
+
+/**
+ * One kind of search result for a filter, page by page: each page is the library's and the
+ * catalog's next `searchPageSize` of that kind, asked together once typing pauses.
+ */
+export function useSearchPages(text: string, kind: SearchKind | null) {
+  const q = useDebounced(text.trim(), searchDelayMs);
+  const api = useSignedInApi();
+  const prime = usePrime();
+  return useInfiniteQuery({
+    queryKey: [...queryKeys.search(), 'pages', kind, q],
+    enabled: Boolean(api && q && kind),
+    initialPageParam: 0,
+    queryFn: async ({ pageParam: offset }): Promise<SearchPage> => {
+      const params = { q, limit: searchPageSize, type: kind!, offset };
+      const [library, catalog] = await Promise.allSettled([api!.search.library(params), api!.search.catalog(params)]);
+      if (library.status === 'rejected' && catalog.status === 'rejected') throw library.reason;
+      const value = (result: PromiseSettledResult<SearchResults>) => (result.status === 'fulfilled' ? prime(result.value, answer => answer.tracks) : null);
+      const missing = catalog.status === 'rejected' && catalog.reason instanceof ApiError && catalog.reason.status === 404;
+      return { offset, library: value(library), catalog: value(catalog), catalogFailed: catalog.status === 'rejected' && !missing };
+    },
+    getNextPageParam: (last, pages) => {
+      const full = [last.library, last.catalog].some(answer => kindList(answer, kind!).length >= searchPageSize);
+      // An older server ignores `offset` and answers the first page again: nothing new, so the end.
+      const earlier = new Set(pages.slice(0, -1).flatMap(page => [page.library, page.catalog].flatMap(answer => kindList(answer, kind!).map(item => item.id))));
+      const fresh = [last.library, last.catalog].some(answer => kindList(answer, kind!).some(item => !earlier.has(item.id)));
+      const next = last.offset + searchPageSize;
+      return full && fresh && next <= lastSearchOffset ? next : undefined;
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  });
 }
 
 /** The most matches the library filter shows of each kind; the server answers up to this many. */

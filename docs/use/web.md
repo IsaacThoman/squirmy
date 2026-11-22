@@ -23,20 +23,24 @@ Most pages have a bar across the top with the page's name and, on some, links to
 
 ## Search
 
-**Search** in the sidebar opens the search page, with the search field in the bar at its top. Results come as you type, as one list: the **Top result**, then **Artists**, **Albums** and **Songs**. It covers all music, not only what is on your server:
+**Search** in the sidebar opens the search page, with the search field in the bar at its top. Results come as you type, as one list with every kind mixed: artists (with round pictures), albums, songs and your playlists, each row saying what it is and who made it ("Song · MGMT"). It covers all music, not only what is on your server.
 
-- What you have and play yourself comes first in each list, and shows at once. Results from the server's catalog search (Deezer by default, or the [local search index](../server/metadata-and-privacy.md#the-local-search-index)) join below it a moment later, so nothing you are looking at moves.
-- **Top result** is the best match for what you typed: click it to open it, or play it with its play button. **Enter** in the search field plays it (an album or a song) or opens it (an artist).
-- Music that plays looks the same whether its file is on your server or not. What you cannot play is gray, comes last in its list and says **Not available**; when your server has the Wantlist turned on, you can bookmark it to your [wantlist](./wantlist.md).
-- While you type on, the results of what you typed so far stay up, faded, until the new ones arrive.
+- The list is ordered by how well each name matches what you typed and how well known it is: for "tate", Tate McRae comes before an artist named exactly TATE whom few people listen to, but an artist named exactly as you typed still comes before another artist's songs that only share part of a name. Music in your library, and what you play and like, rank higher.
+- **All**, **Songs**, **Albums**, **Artists** and **Playlists** above the list narrow it to one kind. A narrowed list goes on as you scroll (or with **Show more**).
+- Click an artist, album or playlist to open it. Click a song to play it; the songs listed after it follow in the queue. A song that cannot be played opens its album instead.
+- Every row has its menu, from the **⋯** button or a right-click: a song's is the one it has everywhere; an album's plays it, queues it, adds it to a playlist and goes to its artist; an artist's starts a radio.
+- Music that plays looks the same whether its file is on your server or not. What you cannot play is gray, sits lower in the list and says **Not available**; when your server has the Wantlist turned on, you can add it to your [wantlist](./wantlist.md) from its menu.
+- ↓ and ↑ in the search field move through the results; **Enter** opens or plays the one highlighted, or the best match.
+- While you type on, the last results stay up, faded, until the new ones arrive. Your server's own music answers at once; the catalog search (Deezer by default, or the [local search index](../server/metadata-and-privacy.md#the-local-search-index)) takes a moment longer, so the list waits briefly for it, then shows what it has with a spinner at its end. If the catalog cannot be searched, the list says so and shows your server's music. If neither can be searched, the page and the quick search box say so, with **Try again**.
+- What you typed and the filter you chose are in the address, so **Back** from an album or artist returns to the same results, scrolled where you left them.
 
-Before you type, the page shows browse-by-genre tiles, which open your albums filtered to that genre.
+Before you type, the page lists your **Recent searches** and what you opened from them (**Recently viewed**), each with an **×** to remove it and **Clear all** to remove them all, then browse-by-genre tiles, which open your albums filtered to that genre. Recent searches are kept in this browser, for your account.
 
 ### Quick search
 
-Ctrl+K (⌘K on a Mac) opens a search box over whatever page you are on. It searches as you type, with the same results as the search page, the best match first.
+Ctrl+K (⌘K on a Mac) opens a search box over whatever page you are on. It searches as you type and lists the first ten results of the search page, in the same order and drawn the same way.
 
-- Move through the results with ↑ and ↓ and press Enter, or click one. An artist or an album opens; a song plays. A song that cannot be played opens its album instead.
+- Move through the results with ↑ and ↓ and press Enter, or click one. An artist, album or playlist opens; a song plays, followed by the other songs found. A song that cannot be played opens its album instead.
 - The last row, **See all results for "…"**, opens the search page with what you typed.
 - With nothing typed, the box lists places to go: the pages of the sidebar, **Playlists**, **Liked Songs** and, for admins, **Admin panel**.
 - Escape closes it.
