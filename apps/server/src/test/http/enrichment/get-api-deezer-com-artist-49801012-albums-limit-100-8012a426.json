@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/49801012/albums?limit=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 373910997,
+          "title": "Druidendämmerung",
+          "link": "https://www.deezer.com/album/373910997",
+          "cover": "https://api.deezer.com/album/373910997/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/c2204a627ea58dc5b3cc13697f5c0b5c/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/c2204a627ea58dc5b3cc13697f5c0b5c/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/c2204a627ea58dc5b3cc13697f5c0b5c/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c2204a627ea58dc5b3cc13697f5c0b5c/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "c2204a627ea58dc5b3cc13697f5c0b5c",
+          "genre_id": -1,
+          "fans": 354,
+          "release_date": "2022-11-30",
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/373910997/tracks",
+          "explicit_lyrics": false,
+          "type": "album"
+        }
+      ],
+      "total": 1
+    }
+  }
+}

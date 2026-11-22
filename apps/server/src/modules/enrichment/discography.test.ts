@@ -75,6 +75,23 @@ describe('artist discography', () => {
     expect((await albumRow(owned)).mbid).toBeNull()
   })
 
+  it('folds a feature Deezer listed among the artist\u2019s albums into the release of the artist that leads it', async () => {
+    const wayne = { name: 'Lil Wayne', mbid: '3d1b0d8b-1f6b-4a1e-8f7c-000000000003' }
+    const busta = { name: 'Busta Rhymes', mbid: '3d1b0d8b-1f6b-4a1e-8f7c-000000000004' }
+    const artistId = await artistStub({ name: wayne.name, mbid: wayne.mbid })
+    // Deezer names no owner for the albums of an artist's page, so the page artist leads it.
+    const { albumId: feature } = await albumStub({ title: 'Talk Ya Shit', artist: wayne.name, artistId, deezerId: 5301 })
+    await db.update(albums).set({ type: 'single' }).where(eq(albums.id, feature))
+    await upsertDiscography([{
+      ...group('Talk Ya Shit', 'd0000000-0000-4000-8000-000000000001', 'single'),
+      artistCredit: [{ name: busta.name, mbid: busta.mbid, joinPhrase: ' feat. ' }, { name: wayne.name, mbid: wayne.mbid, joinPhrase: '' }],
+      artistName: 'Busta Rhymes feat. Lil Wayne',
+    }])
+    expect(await albumRow(feature)).toMatchObject({ mbid: 'd0000000-0000-4000-8000-000000000001', mergedIntoId: null })
+    const [lead] = await db.execute<{ artistId: string }>(sql`select artist_id as "artistId" from album_artists where album_id = ${feature} and position = 0`)
+    expect(lead!.artistId).not.toBe(artistId)
+  })
+
   it('does not hand a group back the cover the archive answered it does not have', async () => {
     const mbid = 'c0000000-0000-4000-8000-000000000001'
     const url = `https://coverartarchive.org/release-group/${mbid}/front-500`

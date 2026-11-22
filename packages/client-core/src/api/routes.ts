@@ -61,6 +61,7 @@ export const apiRoutes = {
   'catalog.genres': 'GET /library/genres',
   'catalog.home': 'GET /home',
   'catalog.artist': 'GET /artists/:id',
+  'catalog.artistReleases': 'GET /artists/:id/releases',
   'catalog.album': 'GET /albums/:id',
   'catalog.track': 'GET /tracks/:id',
   'catalog.lyrics': 'GET /tracks/:id/lyrics',
