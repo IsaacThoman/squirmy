@@ -297,6 +297,38 @@ export function usePlaylistActions() {
     onSuccess: settle,
   });
 
+  /**
+   * Removes an item with an Undo notice. Undo adds the track again (the server gives it a
+   * new item) and moves it back to where it was; the list shows it there at once.
+   */
+  const removeItem = (id: string, itemId: string) => {
+    const playlist = cached(id);
+    const index = playlist?.items.findIndex(item => item.itemId === itemId) ?? -1;
+    const item = playlist?.items[index];
+    // Whether the server took the removal; a refusal has its own notice and puts the item back.
+    const removed = edit.mutateAsync({ id, itemId }).then(() => true, () => false);
+    if (!playlist || !item) return;
+    const putBack = () => run(async api => {
+      const added = await api.userdata.addPlaylistItems(id, { tracks: [{ trackId: item.track.id, albumId: item.track.album?.id ?? null }] });
+      const restored = added.items.at(-1);
+      if (!restored || index >= added.items.length - 1) return added;
+      return api.userdata.movePlaylistItem(id, { itemId: restored.itemId, toIndex: index });
+    }).then(settle, () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlist(id) });
+      notify(`Couldn’t put the song back in “${playlist.name}”. Try again.`);
+    });
+    const undo = () => {
+      queryClient.setQueryData<PlaylistDetail>(queryKeys.playlist(id), current => {
+        if (!current || current.items.some(other => other.itemId === itemId)) return current;
+        const items = [...current.items];
+        items.splice(Math.min(index, items.length), 0, item);
+        return { ...current, items, trackCount: items.length };
+      });
+      void removed.then(ok => ok ? putBack() : undefined);
+    };
+    notify(`Removed from “${playlist.name}”.`, { action: { label: 'Undo', run: undo } });
+  };
+
   return {
     create: (name: string) => create.mutateAsync(name),
     rename: (id: string, name: string) => rename.mutateAsync({ id, name }),
@@ -313,6 +345,6 @@ export function usePlaylistActions() {
         before: cached(playlist.id)?.items.length ?? playlist.trackCount,
       }),
     move: (id: string, itemId: string, toIndex: number) => edit.mutate({ id, itemId, toIndex }),
-    removeItem: (id: string, itemId: string) => edit.mutate({ id, itemId }),
+    removeItem,
   };
 }
