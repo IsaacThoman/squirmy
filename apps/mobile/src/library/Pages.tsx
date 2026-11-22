@@ -144,7 +144,8 @@ function DetailPage({
     <Animated.View pointerEvents="none" style={[styles.status, { height: top }, blurStyle]}>
       <AlbumStatusBlur />
     </Animated.View>
-    <Animated.View pointerEvents="none" style={[styles.status, styles.bar, { height: top + albumNavSize + 12 }, barStyle]}>
+    {/* Its softened bottom edge falls below the buttons, so rows scrolling up are hidden before they reach them. */}
+    <Animated.View pointerEvents="none" style={[styles.status, styles.bar, { height: top + albumNavSize + 22 }, barStyle]}>
       <AlbumStatusBlur solid />
     </Animated.View>
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
