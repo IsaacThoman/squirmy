@@ -279,14 +279,14 @@ describe('catalog pages', () => {
     await db.insert(playlists).values({ id: newId(), ownerId: user.id, name: 'Theirs', isPublic: true })
 
     // The wantlist is off by default: Home leaves it out and does not refresh wants.
-    expect((await homeOf()).map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists'])
+    expect((await homeOf()).map((section) => section.id)).toEqual(['recently-played', 'most-played', 'playlists', 'recently-added'])
     const ownedWant = async () => (await db.select({ fulfilledAt: wants.fulfilledAt }).from(wants)
       .where(and(eq(wants.userId, fresh.id), eq(wants.entityId, played.albumId))))[0]!.fulfilledAt
     expect(await ownedWant()).toBeNull()
     await updateServerSettings({ wantlistEnabled: true })
 
     const sections = await homeOf()
-    expect(sections.map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'wantlist'])
+    expect(sections.map((section) => section.id)).toEqual(['recently-played', 'most-played', 'playlists', 'recently-added', 'wantlist'])
     const byId = Object.fromEntries(sections.map((section) => [section.id, section]))
     expect(byId['recently-added']).toMatchObject({ kind: 'albums', title: 'Recently added' })
     // A hearted album is a saved one: it is recently added, beside the collection (there is no rail of liked albums).

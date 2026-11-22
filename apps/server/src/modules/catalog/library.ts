@@ -212,8 +212,23 @@ export async function listLibraryAlbums(userId: string, query: LibraryQuery): Pr
   return toPage(albumOrderings[query.sort], rows, query.limit, await albumSummaries(ids))
 }
 
-// Renamed from `tracks:recent` for the same reason as `albums:recent2`.
-const tracksRecent = byRecency('tracks:recent2', 'm.at', 'm.id')
+/**
+ * Newest first, then in file path order (the track order of every naming template), then
+ * by id: songs that entered the library together, a saved album's or one scan's, come in
+ * track order rather than in reverse id order.
+ */
+const byRecencyInTrackOrder = (name: string, at: string, path: string, id: string): Ordering => ({
+  name,
+  keys: [
+    { expression: sql.raw(at), type: 'timestamptz', descending: true },
+    { expression: sql.raw(path), type: 'text' },
+    { expression: sql.raw(id), type: 'uuid', descending: true },
+  ],
+})
+
+// Renamed from `tracks:recent` for the same reason as `albums:recent2`, then from
+// `tracks:recent2` when the track order joined the keys.
+const tracksRecent = byRecencyInTrackOrder('tracks:recent3', 'm.at', 'm.path', 'm.id')
 
 const trackOrderings: Record<LibrarySort, Ordering> = {
   recent: tracksRecent,
@@ -284,9 +299,10 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
       order by ${orderBy(ordering)} limit ${limit}`
   }
   if (query.sort === 'recent') {
-    const collection = byRecency(ordering.name, 'f.added_at', 'f.recording_id')
-    const ownSaves = byRecency(ordering.name, 's.created_at', 's.entity_id')
-    const albumSaves = byRecency(ordering.name, 's.created_at', 'p.recording_id')
+    const collection = byRecencyInTrackOrder(ordering.name, 'f.added_at', 'f.rel_path', 'f.recording_id')
+    // A song saved on its own has no place on an album: it sorts before any path.
+    const ownSaves = byRecencyInTrackOrder(ordering.name, 's.created_at', "(''::text)", 's.entity_id')
+    const albumSaves = byRecencyInTrackOrder(ordering.name, 's.created_at', 'p.path', 'p.recording_id')
     /** Condition: the user saved an album holding a present file of the recording, later than (or at) `than`. */
     const albumSavedAfter = (recording: string, than: string, orEqual: boolean) => sql`exists (
       select 1 from media_files held join likes album_save
@@ -296,7 +312,7 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
     )`
     return sql`
       select m.id, m."albumId", ${cursorKeys(ordering)} from (
-        (select f.recording_id as id, f.album_id as "albumId", f.added_at as at
+        (select f.recording_id as id, f.album_id as "albumId", f.added_at as at, f.rel_path as path
         from media_files f
         where ${collectionFile('f')} and f.recording_id is not null
           and not exists (
@@ -312,7 +328,7 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
           and ${after(collection, query.cursor)}
         order by ${orderBy(collection)} limit ${limit})
         union all
-        (select s.entity_id, null::uuid, s.created_at
+        (select s.entity_id, null::uuid, s.created_at, ''::text
         from likes s join recordings r on r.id = s.entity_id
         where s.user_id = ${userId} and s.entity_type = 'recording'
           and not exists (
@@ -324,11 +340,12 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
           and ${after(ownSaves, query.cursor)}
         order by ${orderBy(ownSaves)} limit ${limit})
         union all
-        (select p.recording_id, s.entity_id, s.created_at
+        (select p.recording_id, s.entity_id, s.created_at, p.path
         -- Lateral, so each save is walked newest first and its files are found by album, never by scanning all files.
         from likes s cross join lateral (
-          select distinct file.recording_id from media_files file
+          select file.recording_id, min(file.rel_path) as path from media_files file
           where file.album_id = s.entity_id and file.missing_since is null and file.recording_id is not null
+          group by file.recording_id
         ) p
         where s.user_id = ${userId} and s.entity_type = 'album' and ${leadingBound(albumSaves, query.cursor)}
           -- A recording on several saved albums is placed by the latest save.

@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { likes, recordingArtists, recordings } from '../../database/schema.js'
+import { albums, likes, recordingArtists, recordings } from '../../database/schema.js'
 import { creditKey } from '../../lib/text.js'
 import { body, signIn } from '../../test/api.js'
 import { createPlay } from '../../test/catalog.js'
@@ -63,6 +63,21 @@ describe('GET /search/library', () => {
   it('leaves out music the user does not own', async () => {
     expect(await search('pablo honey')).toMatchObject({ artists: [], albums: [], tracks: [] })
     expect(titles((await search('karma')).tracks)).toEqual(['Karma Police'])
+  })
+
+  it('keeps a search inside a genre: albums of it, their songs and their artists', async () => {
+    const [inGenre, outside] = [
+      await createAlbum({ title: 'Genre Search Inside', artist: await createArtist({ name: 'Genre Act One' }), owned: true, tracks: [{ title: 'Genre Search Song' }] }),
+      await createAlbum({ title: 'Genre Search Outside', artist: await createArtist({ name: 'Genre Act Two' }), owned: true, tracks: [{ title: 'Genre Search Song Too' }] }),
+    ]
+    await db.update(albums).set({ genres: ['Electronic'] }).where(eq(albums.id, inGenre.albumId))
+    await db.update(albums).set({ genres: ['Rock'] }).where(eq(albums.id, outside.albumId))
+    const scoped = (q: string) => app.inject({ url: `/api/v1/search/library?q=${encodeURIComponent(q)}&genre=electronic`, headers: user.headers })
+    expect(titles((await search('genre search')).albums).sort()).toEqual(['Genre Search Inside', 'Genre Search Outside'])
+    const inside = body(await scoped('genre search'), SearchResults)
+    expect(titles(inside.albums)).toEqual(['Genre Search Inside'])
+    expect(titles(inside.tracks)).toEqual(['Genre Search Song'])
+    expect(body(await scoped('genre act'), SearchResults).artists.map((artist) => artist.name)).toEqual(['Genre Act One'])
   })
 
   it('finds what the user hearted though it has no file yet, for that user only', async () => {
