@@ -1,6 +1,5 @@
 import { z } from 'zod'
-
-const boolean = z.enum(['true', 'false', '1', '0']).transform((value) => value === 'true' || value === '1')
+import { parseTrustProxy } from './lib/proxy.js'
 
 const Env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -24,9 +23,31 @@ const Env = z.object({
   SQUIRMY_MANAGED_LIBRARY_PATHS: z.string().optional(),
   /** Folder watched for music to import, used while the `inboxPath` server setting is unset. */
   SQUIRMY_INBOX_PATH: z.string().optional(),
-  /** Public origin, e.g. https://music.example.com. Used for absolute links only. */
-  PUBLIC_URL: z.string().url().optional(),
-  TRUST_PROXY: boolean.default(false),
+  /**
+   * Public origin, e.g. https://music.example.com. Used for absolute links, and an https
+   * origin marks the session cookie Secure for requests to its host.
+   */
+  PUBLIC_URL: z.literal('').transform(() => undefined).or(z.string().url()).optional(),
+  /**
+   * Which proxies may report the client's address and protocol: `false`; `true` for one
+   * proxy on this machine or a private network; a number of proxies; or a comma separated
+   * list of addresses, CIDR ranges and `loopback`, `linklocal`, `uniquelocal`, `private`.
+   * See docs/server/reverse-proxy.md.
+   */
+  TRUST_PROXY: z.string().default('false').transform((value, context) => {
+    try {
+      return parseTrustProxy(value)
+    } catch (error) {
+      context.addIssue({ code: 'custom', message: `TRUST_PROXY: ${(error as Error).message}` })
+      return z.NEVER
+    }
+  }),
+  /**
+   * A header the outermost proxy sets to the client's address, such as CF-Connecting-IP
+   * behind Cloudflare. Read only from a peer TRUST_PROXY trusts.
+   */
+  CLIENT_IP_HEADER: z.string().trim().toLowerCase().regex(/^[a-z0-9-]*$/, 'CLIENT_IP_HEADER must be a header name')
+    .transform((value) => value || undefined).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   FFMPEG_PATH: z.string().default('ffmpeg'),
   FFPROBE_PATH: z.string().default('ffprobe'),

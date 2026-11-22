@@ -137,4 +137,52 @@ describe('server kernel', () => {
       await app.close()
     })
   })
+
+  describe('behind a proxy', () => {
+    afterAll(() => {
+      delete process.env.TRUST_PROXY
+      delete process.env.CLIENT_IP_HEADER
+      resetConfig()
+    })
+
+    async function seen(env: { TRUST_PROXY?: string; CLIENT_IP_HEADER?: string }, remoteAddress: string, headers: Record<string, string>) {
+      process.env.TRUST_PROXY = env.TRUST_PROXY ?? 'false'
+      if (env.CLIENT_IP_HEADER) process.env.CLIENT_IP_HEADER = env.CLIENT_IP_HEADER
+      else delete process.env.CLIENT_IP_HEADER
+      resetConfig()
+      const app = await buildApp()
+      app.get('/test/client', async (request) => ({ ip: request.ip, protocol: request.protocol }))
+      try {
+        return (await app.inject({ url: '/test/client', remoteAddress, headers })).json() as { ip: string; protocol: string }
+      } finally {
+        await app.close()
+      }
+    }
+
+    it('TRUST_PROXY=true believes one proxy on a private network, and not a forged first entry', async () => {
+      const forged = { 'x-forwarded-for': '6.6.6.6, 203.0.113.9', 'x-forwarded-proto': 'https' }
+      expect(await seen({ TRUST_PROXY: 'true' }, '172.18.0.2', forged)).toEqual({ ip: '203.0.113.9', protocol: 'https' })
+      // Straight from the internet, the headers are the client's own words.
+      expect(await seen({ TRUST_PROXY: 'true' }, '198.51.100.7', forged)).toEqual({ ip: '198.51.100.7', protocol: 'http' })
+      expect(await seen({ TRUST_PROXY: 'false' }, '172.18.0.2', forged)).toEqual({ ip: '172.18.0.2', protocol: 'http' })
+    })
+
+    it('a hop count reaches past a tunnel and a local proxy', async () => {
+      const headers = { 'x-forwarded-for': '6.6.6.6, 203.0.113.9, 127.0.0.1' }
+      expect((await seen({ TRUST_PROXY: '2' }, '127.0.0.1', headers)).ip).toBe('203.0.113.9')
+    })
+
+    it('reads CF-Connecting-IP from a trusted proxy only', async () => {
+      const headers = { 'cf-connecting-ip': '203.0.113.9', 'x-forwarded-for': '172.18.0.9' }
+      const env = { TRUST_PROXY: 'true', CLIENT_IP_HEADER: 'CF-Connecting-IP' }
+      expect((await seen(env, '172.18.0.2', headers)).ip).toBe('203.0.113.9')
+      expect((await seen(env, '198.51.100.7', headers)).ip).toBe('198.51.100.7')
+    })
+
+    it('refuses a TRUST_PROXY it does not understand', async () => {
+      process.env.TRUST_PROXY = 'sometimes'
+      resetConfig()
+      await expect(buildApp()).rejects.toThrow(/TRUST_PROXY/)
+    })
+  })
 })

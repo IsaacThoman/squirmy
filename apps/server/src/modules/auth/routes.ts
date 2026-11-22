@@ -9,6 +9,7 @@ import { db, type Executor } from '../../database/client.js'
 import { invites, users } from '../../database/schema.js'
 import { requireUser, SESSION_COOKIE, type AuthUser } from '../../lib/auth.js'
 import { AppError, badRequest, conflict, forbidden, notFound, unauthorized } from '../../lib/errors.js'
+import { addressKey } from '../../lib/proxy.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { getVersion } from '../../lib/version.js'
 import { disconnectSockets } from '../../realtime/index.js'
@@ -58,12 +59,12 @@ async function signIn(request: FastifyRequest, reply: FastifyReply, executor: Ex
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  const loginPerIp = limiter(app, 'login-ip', 20, (request) => request.ip)
+  const loginPerIp = limiter(app, 'login-ip', 20, (request) => addressKey(request.ip))
   const loginPerUsername = limiter(app, 'login-user', 5, (request) =>
     usernameKey(String((request.body as { username?: unknown } | undefined)?.username ?? '')))
-  const setupPerIp = limiter(app, 'setup-ip', 10, (request) => request.ip)
-  const registerPerIp = limiter(app, 'register-ip', 10, (request) => request.ip)
-  const passwordPerUser = limiter(app, 'password-user', 10, (request) => request.user?.id ?? request.ip)
+  const setupPerIp = limiter(app, 'setup-ip', 10, (request) => addressKey(request.ip))
+  const registerPerIp = limiter(app, 'register-ip', 10, (request) => addressKey(request.ip))
+  const passwordPerUser = limiter(app, 'password-user', 10, (request) => request.user?.id ?? addressKey(request.ip))
 
   app.get('/setup/status', async (): Promise<SetupStatus> => {
     const settings = await getServerSettings()

@@ -10,7 +10,7 @@ Squirmy has two kinds of settings:
 | Variable | Why you care |
 |---|---|
 | `PUBLIC_URL` | The address people use, such as `https://music.example.com`. Set it whenever Squirmy sits behind a reverse proxy or is reached by a name the server cannot see. It is used for Last.fm's sign-in callback, artwork links handed to Subsonic apps, and the delivery address given to acquisition providers. |
-| `TRUST_PROXY` | Set to `true` when a reverse proxy sends `X-Forwarded-*` headers, and only then. See [Reverse proxies and HTTPS](./reverse-proxy.md#what-trust-proxy-does). |
+| `TRUST_PROXY` | Set to `true` when one reverse proxy on the same machine or network sends `X-Forwarded-*` headers. Behind a Cloudflare Tunnel, also set `CLIENT_IP_HEADER=CF-Connecting-IP`. See [Reverse proxies and HTTPS](./reverse-proxy.md#what-trust-proxy-does). |
 | `SQUIRMY_DATA_DIR` | The data folder: artwork, transcodes, uploads in progress, and the generated server secret. In the image it is `/data`, the `squirmy_data` volume. Part of it cannot be rebuilt; see [Backup](./backup.md#what-is-in-the-data-folder). |
 | `SQUIRMY_ROLE` | `all` (default) runs the API and the background worker in one process. `api` and `worker` split them; see [Splitting the API and the worker](#splitting-the-api-and-the-worker). |
 
@@ -23,8 +23,9 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `DATABASE_URL` | none, required | PostgreSQL connection string. Compose sets `postgres://squirmy:<POSTGRES_PASSWORD>@postgres:5432/squirmy`. PostgreSQL 15 or newer with the `pg_trgm` extension available; the migrations create the extension. |
 | `PORT` | `4747` | Port the HTTP server listens on inside the container. Change the host side with `SQUIRMY_PORT` in `.env` instead. |
 | `HOST` | `0.0.0.0` | Address to listen on. |
-| `PUBLIC_URL` | unset | The public origin, for example `https://music.example.com`, without a trailing path. Must be a valid URL when set; do not set it to an empty string. |
-| `TRUST_PROXY` | `false` (compose: `${TRUST_PROXY:-false}`) | `true` or `1` trusts `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`. |
+| `PUBLIC_URL` | unset (compose: `${PUBLIC_URL:-}`) | The public origin, for example `https://music.example.com`, without a trailing path. Must be a valid URL when set; empty means unset. An `https://` origin also marks the session cookie `Secure` for requests to its host name. |
+| `TRUST_PROXY` | `false` (compose: `${TRUST_PROXY:-false}`) | Which proxies may report the client's address and protocol in `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`: `false`; `true` for one proxy connecting from this machine or a private network; a number of proxies, such as `2`; or a comma-separated list of addresses, CIDR ranges and `loopback`, `linklocal`, `uniquelocal`, `private`. An unknown value stops the server at start. Before this setting took these forms, `true` trusted every proxy and `1` meant the same as `true`; `1` now means one proxy from any address. See [What `TRUST_PROXY` does](./reverse-proxy.md#what-trust-proxy-does). |
+| `CLIENT_IP_HEADER` | unset (compose: `${CLIENT_IP_HEADER:-}`) | A header the outermost proxy sets to the client's address, such as `CF-Connecting-IP` behind Cloudflare. Read only from a peer `TRUST_PROXY` trusts, and only when it holds one address. |
 | `SQUIRMY_DATA_DIR` | `./data` (image: `/data`) | The data folder. |
 | `SQUIRMY_SECRET` | unset | The root secret for signing stream URLs and encrypting stored credentials, at least 16 characters. When unset, a random one is generated on first start and kept in `<data>/secret.key`. Do not set or change it on a server that already has data: everything encrypted under the old secret (app passwords, API keys, provider secrets, scrobbling connections) becomes unreadable. |
 | `SQUIRMY_ROLE` | `all` | `all`, `api` or `worker`. |
@@ -48,15 +49,16 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `MUSIC_DIR` | `./music` | The host folder mounted at `/music`. |
 | `POSTGRES_PASSWORD` | `squirmy` | The database password. It takes effect only when the database volume is first created. |
 | `SQUIRMY_PORT` | `4747` | The host port. |
+| `PUBLIC_URL` | unset | Passed through to the app. |
 | `TRUST_PROXY` | `false` | Passed through to the app. |
+| `CLIENT_IP_HEADER` | unset | Passed through to the app. |
 
-To set a variable that `compose.yaml` does not pass through, such as `PUBLIC_URL` or `LOG_LEVEL`, add it under `environment:` of the `app` service:
+To set a variable that `compose.yaml` does not pass through, such as `LOG_LEVEL`, add it under `environment:` of the `app` service:
 
 ```yaml
 services:
   app:
     environment:
-      PUBLIC_URL: https://music.example.com
       LOG_LEVEL: debug
 ```
 
