@@ -26,6 +26,9 @@ describe('musicbrainz', () => {
     expect(mb.albumType('Album', [])).toBe('album')
     expect(mb.albumType('EP')).toBe('ep')
     expect(mb.albumType('Single', ['Remix'])).toBe('single')
+    // "Just Keep Watching (From F1® The Movie)": a single from a soundtrack.
+    expect(mb.albumType('Single', ['Soundtrack'])).toBe('single')
+    expect(mb.albumType('EP', ['Live'])).toBe('ep')
     expect(mb.albumType('Album', ['Compilation'])).toBe('compilation')
     expect(mb.albumType('Album', ['Compilation', 'Soundtrack'])).toBe('soundtrack')
     expect(mb.albumType('Album', ['Live', 'Compilation'])).toBe('live')
