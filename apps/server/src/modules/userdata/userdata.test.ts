@@ -226,8 +226,11 @@ describe('userdata', () => {
         await db.update(albums).set({ artworkAssetId: cover.id }).where(eq(albums.id, album.albumId))
         made.push({ album, cover })
       }
+      // An album without a cover is passed over.
+      const bare = await createAlbum({ tracks: [{ title: 'Bare' }] })
       const playlist = await create(mira, { name: 'Covers' })
       const order = [0, 0, 1, 1, 2, 3, 4].map((index, position) => ({ trackId: made[index]!.album.tracks[position % 2]!.recordingId }))
+      order.splice(1, 0, { trackId: bare.tracks[0]!.recordingId })
       const detail = body(await add(mira, playlist.id, { tracks: order }), PlaylistDetail)
       expect(detail.artworks.map((art) => art.id)).toEqual(made.slice(0, 4).map((entry) => entry.cover.id))
     })

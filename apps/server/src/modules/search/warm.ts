@@ -8,7 +8,7 @@ import { getConfig } from '../../config.js'
 import { albumDetailRun } from '../enrichment/detail.js'
 
 /** Albums warmed per search: the first ones listed, which are the ones people open. */
-export const warmedPerSearch = 5
+const warmedPerSearch = 5
 /** Runs at once across all searches; each mostly waits on MusicBrainz's one request a second. */
 const concurrency = 2
 

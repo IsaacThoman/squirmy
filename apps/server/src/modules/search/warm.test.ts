@@ -43,23 +43,23 @@ describe('warming catalog search albums', () => {
     await app.close()
   })
 
-  it('fetches the first albums without a track list in the background, two at a time', async () => {
-    // A catalog album that already has its track list: nothing to fetch for it.
+  it('fetches the top album and the first albums without a track list in the background, two at a time', async () => {
+    // A catalog album that already has its track list.
     const complete = await createAlbum({ title: 'OK Computer', artist: await createArtist({ name: 'Radiohead' }), tracks: [{ title: 'Airbag' }] })
     const results = body(await app.inject({ url: '/api/v1/search/catalog?q=Radiohead+OK+Computer&limit=5', headers: user.headers }), SearchResults)
     expect(results.albums.map((album) => album.id)).toContain(complete.albumId)
     const stubs = results.albums.filter((album) => album.trackCount === 0).map((album) => album.id)
     expect(stubs).toHaveLength(4)
 
-    // The answer did not wait for any of them.
-    expect(runs.started).toEqual(stubs.slice(0, 2))
-    await finish(stubs[0]!)
-    expect(runs.started).toEqual(stubs.slice(0, 3))
-    await finish(stubs[1]!)
-    await finish(stubs[2]!)
-    expect(runs.started).toEqual(stubs)
-    await finish(stubs[3]!)
-    expect(runs.started).not.toContain(complete.albumId)
+    // The top result goes first, track list or not: it is the page most likely opened. The
+    // answer did not wait for any of them.
+    expect(results.top).toMatchObject({ type: 'album', id: complete.albumId })
+    const order = [complete.albumId, ...stubs]
+    expect(runs.started).toEqual(order.slice(0, 2))
+    await finish(order[0]!)
+    expect(runs.started).toEqual(order.slice(0, 3))
+    for (const albumId of order.slice(1)) await finish(albumId)
+    expect(runs.started).toEqual(order)
   })
 
   it('puts a newer search ahead of what an older one left waiting, five at most', async () => {
