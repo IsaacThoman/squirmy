@@ -223,7 +223,8 @@ describe('acquisition end to end', () => {
   })
 
   it('tells other users of a delivery with patches and page refetches only: no search, library or Home runs again', async () => {
-    const album = await createAlbum({ title: 'Quietly Delivered', tracks: [{ title: 'Arrives', durationMs: 4000 }, { title: 'Stays Away', durationMs: 3000 }] })
+    // One song: a play queues the whole album, and a prefetch of another would outlive the test.
+    const album = await createAlbum({ title: 'Quietly Delivered', tracks: [{ title: 'Arrives', durationMs: 4000 }] })
     const wanted = album.tracks[0]!.recordingId
     const other = await signIn()
     const watching = await observe(other)
@@ -239,7 +240,7 @@ describe('acquisition end to end', () => {
       expect(roots.has('search')).toBe(false)
       expect(roots.has('library')).toBe(false)
       expect(roots.has('home')).toBe(false)
-      expect(['partial', 'full']).toContain(availabilityIn(watching.changes, album.albumId).at(-1))
+      expect(availabilityIn(watching.changes, album.albumId).at(-1)).toBe('full')
       expect(watching.changes).toContainEqual(expect.objectContaining({ kind: 'updated', entity: 'album', ids: expect.arrayContaining([album.albumId]) }))
     } finally {
       watching.close()
