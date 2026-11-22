@@ -15,11 +15,18 @@ export type NowPlayingItem = {
   durationMs: number;
 };
 
+export type AudioInterruption = { type: 'began' } | { type: 'ended'; shouldResume: boolean };
+
+/** `oldDeviceUnavailable`: the output went away, such as headphones unplugged. */
+export type AudioRouteChange = { reason: 'oldDeviceUnavailable' | 'other' };
+
 type NowPlayingModule = {
   setItem(item: NowPlayingItem): Promise<void>;
   setPlayback(playing: boolean, positionMs: number): Promise<void>;
   clear(): Promise<void>;
   addListener(event: 'onRemoteCommand', listener: (command: RemoteCommand) => void): EventSubscription;
+  addListener(event: 'onInterruption', listener: (interruption: AudioInterruption) => void): EventSubscription;
+  addListener(event: 'onRouteChange', listener: (change: AudioRouteChange) => void): EventSubscription;
 };
 
 /** iOS only; `null` where there is no lock screen integration. */

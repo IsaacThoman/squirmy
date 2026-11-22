@@ -1,7 +1,7 @@
 import { artworkUrl, streamUrl } from '@squirmy/client-core';
 import type { AlbumDetail, PlaylistDetail, TrackSummary } from '@squirmy/contracts';
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
 import { Platform } from 'react-native';
 import { useAccount, useAccountKey, useServerUrl, useSignedInApi, type Api } from '../account/AccountProvider';
@@ -36,32 +36,33 @@ const noTrack = { id: '', availability: 'none' } as const;
 /** The storage limit, kept on this device only. Null is no limit. */
 const capItem = accountItem<number | null>('downloadCap', 'device');
 
-function source(api: Api, serverUrl: string): DownloadSource {
+/** `current` gives the latest client, so a replaced one does not rebuild the manager. */
+function source(current: () => Api, serverUrl: string): DownloadSource {
   return {
-    describe: (trackId, albumId, quality) => api.streaming.playback(trackId, {
+    describe: (trackId, albumId, quality) => current().streaming.playback(trackId, {
       albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), download: true,
     }),
     url: descriptor => streamUrl(serverUrl, descriptor),
     artworkUrl: artwork => artworkUrl(serverUrl, artwork, keptArtSize),
     collection: async (kind, id): Promise<CollectionContent> => {
       if (kind === 'album') {
-        const album = await api.catalog.album(id);
+        const album = await current().catalog.album(id);
         return { album, tracks: album.discs.flatMap(disc => disc.tracks) };
       }
       if (kind === 'playlist') {
-        const playlist = await api.userdata.playlist(id);
+        const playlist = await current().userdata.playlist(id);
         return { playlist, tracks: playlist.items.map(item => item.track) };
       }
       const tracks: TrackSummary[] = [];
       let cursor: string | undefined;
       do {
-        const page = await api.userdata.likes('track', { cursor, limit: likedPageSize });
+        const page = await current().userdata.likes('track', { cursor, limit: likedPageSize });
         tracks.push(...page.items);
         cursor = page.nextCursor ?? undefined;
       } while (cursor);
       return { tracks };
     },
-    summaries: async tracks => (await api.catalog.trackSummaries({ tracks: tracks.map(track => ({ id: track.id, albumId: track.albumId })) })).tracks,
+    summaries: async tracks => (await current().catalog.trackSummaries({ tracks: tracks.map(track => ({ id: track.id, albumId: track.albumId })) })).tracks,
   };
 }
 
@@ -80,12 +81,18 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
   const { offline, socket, onInvalidate } = useRealtime();
   const [manager, setManager] = useState<DownloadManager | null>(null);
   const online = Boolean(socket) && !offline;
+  const apiRef = useRef(api);
+  apiRef.current = api;
 
+  // Built once per account: rebuilding would cancel the downloads in flight and start them over.
   useEffect(() => {
-    if (!api || !account) return;
+    if (!apiRef.current || !account) return;
     const network = downloadNetwork();
     const next = new DownloadManager({
-      index: downloadIndex(account), files: downloadFiles(), network, source: source(api, serverUrl),
+      index: downloadIndex(account), files: downloadFiles(), network, source: source(() => {
+        if (!apiRef.current) throw new Error('Signed out');
+        return apiRef.current;
+      }, serverUrl),
       options: { quality: settings?.downloadQuality ?? 'original', wifiOnly: settings?.downloadOnWifiOnly ?? true, capBytes: capItem.read() },
     });
     next.start();
@@ -96,7 +103,7 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
       network.dispose();
       setManager(null);
     };
-  }, [account, api, serverUrl, tracks]);
+  }, [account, serverUrl, tracks]);
 
   useEffect(() => {
     if (settings) manager?.setOptions({ quality: settings.downloadQuality, wifiOnly: settings.downloadOnWifiOnly });

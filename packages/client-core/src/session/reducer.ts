@@ -107,10 +107,20 @@ export function randomSeed(): number {
  */
 export function reduceSession(session: Session, input: SessionInput): Session {
   const parsed = AnyCommand.safeParse(input.command)
-  if (!parsed.success || !Number.isFinite(input.now)) return session
+  if (!parsed.success) return session
+  return reduceParsedSession(session, { ...input, command: parsed.data })
+}
+
+/**
+ * `reduceSession` for a command that was already validated. A client replays its unsent
+ * commands on every update; validating a 5,000-track `playTracks` each time is what made
+ * that slow.
+ */
+export function reduceParsedSession(session: Session, input: SessionInput): Session {
+  if (!Number.isFinite(input.now)) return session
   let serial = 0
   const context: Context = { now: input.now, deviceId: input.deviceId, nextId: () => `${input.commandId}.${(serial++).toString(36)}` }
-  const next = apply(session, parsed.data, context)
+  const next = apply(session, input.command, context)
   if (next !== session && next.playing && next.activeDeviceId === null && input.deviceId) {
     return { ...next, activeDeviceId: input.deviceId }
   }
