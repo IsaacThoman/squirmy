@@ -30,13 +30,16 @@ function warn(message: string, error?: unknown) {
 
 /** Everything that shows whether the entity is in the user's library, for their other devices. */
 async function invalidateLibrary(userId: string, type: LibraryEntityType, id: string) {
-  // Track rows carry `inLibrary` wherever they are listed; artists count library albums.
+  // Track rows carry `inLibrary` wherever they are listed (wants too); artists count library albums.
   const keys: (readonly unknown[])[] = [
-    queryKeys.library(), queryKeys.home(), queryKeys.likes(), queryKeys.playlists(), queryKeys.history(), queryKeys.search(),
+    queryKeys.library(), queryKeys.home(), queryKeys.likes(), queryKeys.playlists(), queryKeys.history(), queryKeys.search(), queryKeys.wants(),
     entityKey(type, id),
   ]
-  const pages = await db.execute<{ kind: 'album' | 'artist'; id: string }>(type === 'album'
-    ? sql`select 'artist' as kind, artist_id as id from album_artists where album_id = ${id}`
+  const pages = await db.execute<{ kind: 'album' | 'artist' | 'track'; id: string }>(type === 'album'
+    ? sql`
+      select 'artist' as kind, artist_id as id from album_artists where album_id = ${id}
+      union select 'track', recording_id from media_files where album_id = ${id} and recording_id is not null
+      union select 'track', rt.recording_id from release_tracks rt join releases rl on rl.id = rt.release_id where rl.album_id = ${id}`
     : sql`
       select distinct 'album' as kind, rl.album_id as id from release_tracks rt join releases rl on rl.id = rt.release_id where rt.recording_id = ${id}
       union select 'album', album_id from media_files where recording_id = ${id} and album_id is not null

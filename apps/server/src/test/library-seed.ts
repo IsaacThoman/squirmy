@@ -84,7 +84,8 @@ export async function seedLargeLibrary(options: LargeLibrary) {
       join seed_tracks st on st.album_i = 1 + (n * 104729) % ${albums} and st.position = 1
       on conflict do nothing`)
   })
-  await db.execute(sql`analyze`)
+  // As autovacuum would have by now: index-only scans then skip the heap.
+  await db.execute(sql`vacuum (analyze)`)
 }
 
 export type StubCatalog = {
@@ -168,5 +169,6 @@ export async function seedStubCatalog(options: StubCatalog) {
       select ${userId}, 'album', id, timestamptz '2026-01-01' + i * interval '1 minute' + interval '30 seconds'
       from seed_albums where i > ${collectionAlbums} and i <= ${collectionAlbums + savedAlbums}`)
   })
-  await db.execute(sql`analyze`)
+  // As autovacuum would have by now: index-only scans then skip the heap.
+  await db.execute(sql`vacuum (analyze)`)
 }

@@ -238,7 +238,7 @@ Two separate questions, both answered in `modules/catalog/availability.ts`: can 
 - **Track**: a collection file links its recording, or the user saved the recording, or a present file (cache included) links it and that file's album is saved by the user (`inLibraryRecording`). Songs of a saved album therefore appear as their files arrive.
 - **Artist**: credited (`album_artists`) on an album in the user's library. Being featured on a track, or credited on cached music, does not count.
 - Merges move saves as they move likes (the older row wins a collision), and the library's orphan cleanup and `search.cleanup` keep saved rows.
-- The migration that introduced this turned completed album fetches with a requester into saves; single-track fetches came from pressing play and were not carried over. On a server whose files all came from a provider, every library starts empty.
+- The migration that introduced this turned completed album fetches with a requester into saves (with a track-only provider, four or more track fetches of one album by one requester within five seconds); other single-track fetches came from pressing play and were not carried over. On a server whose files all came from a provider, every library starts empty.
 
 ### Catalog read side
 
