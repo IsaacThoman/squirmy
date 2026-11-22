@@ -7,6 +7,7 @@ import { searchLibrary } from './library.js'
 import { materialize, type StubIds } from './materialize.js'
 import { searchCatalog } from './providers.js'
 import { topResult } from './top.js'
+import { warmAlbums, warmedPerSearch } from './warm.js'
 
 /** Queries whose `matchKey` is shorter than this many characters answer nothing. */
 const minQueryLength = 2
@@ -44,10 +45,14 @@ export async function searchRoutes(app: FastifyInstance) {
     if (!provider) return empty
     const ids = await materialize(provider.idSource, results)
     const without = (found: string[], shown: string[]) => found.filter((id) => !shown.includes(id))
-    return respond(user.id, q, {
+    const answer = await respond(user.id, q, {
       artists: without(ids.artists, library.artists),
       albums: without(ids.albums, library.albums),
       tracks: without(ids.tracks, library.tracks),
     }, provider.name)
+    // A stub album is gray and its page waits for providers until its track list is
+    // fetched; start on the first ones now so they are playable when the user gets there.
+    warmAlbums(answer.albums.filter((album) => album.trackCount === 0).slice(0, warmedPerSearch).map((album) => album.id))
+    return answer
   })
 }
