@@ -163,4 +163,18 @@ describe('lib/http', () => {
     expect((await cachedFetch('test', 'https://example.test/limited-1', options)).cached).toBe(true)
     expect(await nextSlot()).toEqual(reserved)
   })
+
+  it('reads at most 8 MiB of a response, and fails larger ones without caching them', async () => {
+    const limit = 8 * 1024 * 1024
+    const url = 'https://example.test/large'
+    // No content-length: the body is counted as it streams in.
+    stubFetch(() => new Response('x'.repeat(limit + 1), { headers: { 'content-type': 'text/plain' } }))
+    await expect(cachedFetch('test', url, { ttlSeconds: 60 })).rejects.toThrow(/larger than 8 MiB/)
+    stubFetch(() => new Response('{}', { headers: { 'content-length': String(limit + 1) } }))
+    await expect(cachedFetch('test', url, { ttlSeconds: 60 })).rejects.toBeInstanceOf(ProviderError)
+    expect(await db.select().from(httpCache).where(eq(httpCache.url, url))).toEqual([])
+
+    stubFetch(() => new Response('y'.repeat(limit)))
+    expect((await cachedFetch('test', url, { ttlSeconds: 60 })).text).toHaveLength(limit)
+  })
 })

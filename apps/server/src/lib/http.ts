@@ -77,6 +77,8 @@ export function unexpectedResponse(provider: string, result: HttpResult): Provid
 const missTtlSeconds = 6 * 3600
 const defaultTimeoutMs = 15_000
 const maxRetryWaitMs = 60_000
+/** Most bytes of a body cachedFetch reads. Provider answers are far smaller; more is a fault, and is not kept. */
+const maxBodyBytes = 8 * 1024 * 1024
 /** Query parameters that carry credentials; masked in the stored URL. */
 const secretParams = new Set(['api_key', 'client', 'client_key', 'token', 'sk', 'api_sig'])
 
@@ -134,13 +136,34 @@ export async function request(provider: string, url: string, init: RequestInit &
   }
 }
 
+/** The body as text. Past `maxBodyBytes` it throws ProviderError, without reading the rest. */
+async function readBody(provider: string, response: Response): Promise<string> {
+  const tooLarge = () => new ProviderError(provider, `response larger than ${maxBodyBytes / 1024 / 1024} MiB`, response.status)
+  if (Number(response.headers.get('content-length') ?? 0) > maxBodyBytes) {
+    await response.body?.cancel()
+    throw tooLarge()
+  }
+  if (!response.body) return ''
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for await (const chunk of response.body) {
+    size += chunk.byteLength
+    // Leaving the loop cancels the stream.
+    if (size > maxBodyBytes) throw tooLarge()
+    chunks.push(chunk)
+  }
+  // As response.text() does: UTF-8, without a byte order mark.
+  return new TextDecoder().decode(Buffer.concat(chunks))
+}
+
 /**
  * GETs (or POSTs) a provider URL through the shared response cache.
  *
  * A fresh `http_cache` row is served without a request. Otherwise the call waits for its
  * rate-limit slot, fetches, retries 429/503 with backoff (honoring Retry-After), and
  * stores the result: successes for `ttlSeconds`, 404/410 for at most six hours, 5xx
- * never. Network failures and timeouts throw ProviderError; HTTP errors are returned.
+ * never. Network failures, timeouts and bodies over 8 MiB throw ProviderError; HTTP
+ * errors are returned.
  */
 export async function cachedFetch(provider: string, url: string, options: CachedFetchOptions): Promise<HttpResult> {
   const method = options.method ?? 'GET'
@@ -162,7 +185,7 @@ export async function cachedFetch(provider: string, url: string, options: Cached
       body: options.body,
       timeoutMs: options.timeoutMs,
     })
-    const result: HttpResult = { ...parse(response.status, await response.text()), cached: false }
+    const result: HttpResult = { ...parse(response.status, await readBody(provider, response)), cached: false }
     const kind = options.classify?.(result) ?? classifyStatus(result.status, options.cacheErrors)
 
     if (kind === 'retry') {
