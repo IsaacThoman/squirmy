@@ -55,7 +55,7 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
 
   return {
     nowPlaying,
-    isWanted: (track: TrackSummary) => library.isWanted(track.id),
+    isWanted: library.wantlistEnabled ? (track: TrackSummary) => library.isWanted(track.id) : undefined,
     isPreparing: onDemand.isPreparing,
     canRequest: onDemand.canRequest,
     playlists: library.playlists,
@@ -65,10 +65,10 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
   }
 }
 
-/** Props for album cards that offer music you do not have to the Wantlist. */
+/** Props for album cards that offer music you do not have to the Wantlist; none while the server has it off. */
 export function useAlbumWants() {
   const library = useLibrary()
-  return (album: AlbumSummary) => ({
+  return (album: AlbumSummary): { wanted?: boolean; onWant?: (wanted: boolean) => void } => (!library.wantlistEnabled ? {} : {
     wanted: library.isWanted(album.id),
     onWant: (wanted: boolean) => {
       library.setWanted({ type: 'album', album }, wanted)

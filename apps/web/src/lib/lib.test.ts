@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { safeNext } from '@/auth/session'
 import { keyIsTaken } from '@/player/shortcuts'
 import { codecsFor } from './codecs'
-import { deviceName, tabDeviceName } from './device'
+import { claimTabDevice, deviceName, tabDeviceName } from './device'
 import { formatDuration, formatRelative, formatTotalDuration } from './format'
 import { activeLine, parseLrc } from './lyrics'
 import { dropIndex, moveItem } from './reorder'
@@ -55,6 +55,13 @@ describe('tab devices', () => {
     expect(tabDeviceName('Chrome on macOS', 1)).toBe('Chrome on macOS')
     expect(tabDeviceName('Chrome on macOS', 2)).toBe('Chrome on macOS (2)')
   })
+
+  it('marks the claim settled, so the player can read it without suspending', async () => {
+    const claim = claimTabDevice()
+    const tab = await claim
+    await Promise.resolve()
+    expect(claim).toMatchObject({ status: 'fulfilled', value: tab })
+  })
 })
 
 describe('codecs', () => {
@@ -89,5 +96,15 @@ describe('sign-in redirects', () => {
     expect(safeNext('//evil.example')).toBe('/')
     expect(safeNext('https://evil.example')).toBe('/')
     expect(safeNext(null)).toBe('/')
+  })
+
+  it('read the path as the browser would, so no trick reaches another origin', () => {
+    // Browsers treat a backslash as a slash and drop tabs and newlines, which makes these `//evil.example`.
+    for (const next of ['/\\evil.example', '/\\/evil.example', '\\\\evil.example', '/\t/evil.example', '/\n/evil.example', '\n//evil.example', 'javascript:alert(1)', 'https:evil.example']) {
+      expect(safeNext(next), JSON.stringify(next)).toBe('/')
+    }
+    expect(safeNext('/library/albums?sort=title#top')).toBe('/library/albums?sort=title#top')
+    expect(safeNext(`${window.location.origin}/search?q=a`)).toBe('/search?q=a')
+    expect(safeNext('/a/../settings')).toBe('/settings')
   })
 })

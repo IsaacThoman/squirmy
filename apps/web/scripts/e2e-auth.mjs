@@ -1,6 +1,8 @@
 // Walks the account flows in real Chromium against a server that has not been set up yet:
-// setup, sign out and in, invites and registration, admin-only pages, password changes,
-// app passwords, server settings, and the reconnect notice.
+// setup, sign out and in, invites and registration, admin-only pages, the settings dialog
+// (opening it, its sections, the Last.fm return notice), appearance kept across reloads with no
+// flash of the wrong colors, password changes, app passwords, server settings, the app shell
+// (folding and resizing the sidebar, the phone drawer) and the reconnect notice.
 // Usage: node scripts/e2e-auth.mjs <baseUrl> [--restart "<command that restarts the API>"]
 // Without --restart the reconnect check is skipped. Leaves an admin `admin` and a member
 // `sam` behind; their passwords are printed at the end.
@@ -34,6 +36,36 @@ async function step(name, body) {
 
 const path = page => new URL(page.url()).pathname + new URL(page.url()).search
 const heading = (page, name) => page.getByRole('heading', { name, exact: true })
+const settings = page => page.getByRole('dialog', { name: 'Settings' })
+const settingsSection = (page, name) => settings(page).getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name, exact: true })
+// A closed phone drawer is aria-hidden, so it is found by its markup rather than its role.
+const sidebar = page => page.locator('aside[aria-label="Sidebar"]')
+const sidebarWidth = async page => Math.round((await sidebar(page).boundingBox()).width)
+/** Waits out the sidebar's 300 ms fold. */
+const settle = page => page.waitForTimeout(450)
+
+/** Reloads and records the sidebar's width in every frame of the first second. */
+async function reloadWatchingSidebar(page) {
+  await page.evaluate(() => sessionStorage.setItem('e2e.watch-sidebar', '1'))
+  await page.reload()
+  await heading(page, 'Listen now').waitFor()
+  await page.waitForTimeout(1000)
+  return page.evaluate(() => window.__sidebarWidths ?? [])
+}
+
+/** What index.html applied from storage, with every script file blocked so only its inline script runs. */
+async function beforeAppScript(context) {
+  const bare = await context.newPage()
+  await bare.route(() => true, route => (route.request().resourceType() === 'script' ? route.abort() : route.continue()))
+  await bare.goto(`${base}/`)
+  const state = await bare.evaluate(() => ({
+    dark: document.documentElement.classList.contains('dark'),
+    theme: document.getElementById('squirmy-color-theme')?.textContent ?? null,
+    app: document.getElementById('root').childElementCount,
+  }))
+  await bare.close()
+  return state
+}
 
 async function apiLogin(username, password) {
   const response = await fetch(`${base}/api/v1/auth/login`, {
@@ -46,6 +78,18 @@ async function apiLogin(username, password) {
 
 const browser = await chromium.launch()
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+await context.addInitScript(() => {
+  if (sessionStorage.getItem('e2e.watch-sidebar') !== '1') return
+  sessionStorage.removeItem('e2e.watch-sidebar')
+  const widths = window.__sidebarWidths = []
+  const start = performance.now()
+  const frame = () => {
+    const aside = document.querySelector('aside[aria-label="Sidebar"]')
+    if (aside) widths.push(Math.round(aside.getBoundingClientRect().width))
+    if (performance.now() - start < 1000) requestAnimationFrame(frame)
+  }
+  requestAnimationFrame(frame)
+})
 const page = await context.newPage()
 page.on('pageerror', error => console.log(`page error: ${error.message}`))
 let inviteLink = null
@@ -132,7 +176,16 @@ await step('register with the invite', async () => {
   await guest.getByRole('button', { name: 'Create account' }).click()
   await heading(guest, 'Listen now').waitFor()
   check('registering signs the new user in', path(guest) === '/')
-  check('members get no Admin link', await guest.getByRole('link', { name: 'Admin' }).count() === 0)
+  check('members get no Admin link', await guest.getByRole('link', { name: /^Admin/ }).count() === 0)
+  await guest.getByRole('button', { name: /^Account, / }).click()
+  await guest.getByRole('menuitem', { name: 'Settings' }).waitFor()
+  check('a member\'s account menu has no Admin panel', await guest.getByRole('menuitem', { name: 'Admin panel' }).count() === 0)
+  await guest.keyboard.press('Escape')
+  await guest.keyboard.press('ControlOrMeta+k')
+  const places = guest.getByRole('dialog', { name: 'Search' }).getByRole('listbox', { name: 'Go to' })
+  await places.getByRole('option', { name: 'Albums' }).waitFor()
+  check('nor does quick search offer it', await places.getByRole('option', { name: 'Admin panel' }).count() === 0)
+  await guest.keyboard.press('Escape')
   for (const route of ['/admin/users', '/admin/settings']) {
     await guest.goto(`${base}${route}`)
     await heading(guest, 'Admins only').waitFor()
@@ -148,10 +201,79 @@ await step('register with the invite', async () => {
   check('an invite works once', reuse.status === 400)
 })
 
+await step('the settings dialog', async () => {
+  await page.goto(`${base}/`)
+  await heading(page, 'Listen now').waitFor()
+  await page.getByRole('button', { name: /^Account, / }).click()
+  await page.getByRole('menuitem', { name: 'Admin panel' }).waitFor()
+  check('an admin\'s account menu links to the admin panel', true)
+  await page.getByRole('menuitem', { name: 'Settings' }).click()
+  await settings(page).waitFor()
+  check('Settings in the account menu opens the dialog on Playback', await settingsSection(page, 'Playback').getAttribute('aria-current') === 'page')
+  for (const name of ['Playback', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'About']) {
+    await settingsSection(page, name).click()
+    await settings(page).getByRole('heading', { name, exact: true, level: 2 }).waitFor({ timeout: 5000 })
+  }
+  check('each section opens from the section list', true)
+  const version = (await (await fetch(`${base}/api/v1/setup/status`)).json()).version
+  check('About shows the server\'s version', await settings(page).getByText(`Squirmy ${version}`, { exact: true }).isVisible(), version)
+  await page.keyboard.press('Escape')
+  await settings(page).waitFor({ state: 'detached' })
+  check('Escape closes it', path(page) === '/')
+
+  await page.keyboard.press('ControlOrMeta+Comma')
+  await settings(page).waitFor({ timeout: 5000 })
+  check('Ctrl/Cmd+comma opens it', true)
+  await page.keyboard.press('Escape')
+  await settings(page).waitFor({ state: 'detached' })
+
+  await page.goto(`${base}/settings/app-passwords`)
+  await settings(page).waitFor()
+  check('/settings/<section> opens that section over Home', await settingsSection(page, 'App passwords').getAttribute('aria-current') === 'page' && path(page) === '/', path(page))
+  await page.keyboard.press('Escape')
+
+  await page.goto(`${base}/settings?lastfm=connected`)
+  await settings(page).waitFor()
+  await page.getByText('Connected to Last.fm', { exact: true }).waitFor({ timeout: 5000 })
+  check('returning from Last.fm shows a notice and opens Scrobbling', await settingsSection(page, 'Scrobbling').getAttribute('aria-current') === 'page')
+  await page.keyboard.press('Escape')
+  await settings(page).waitFor({ state: 'detached' })
+})
+
+await step('appearance', async () => {
+  await page.goto(`${base}/settings/appearance`)
+  await settings(page).waitFor()
+  const mode = name => settings(page).getByRole('group', { name: 'Theme' }).getByRole('button', { name, exact: true })
+  const theme = name => settings(page).getByRole('group', { name: 'Color theme' }).getByRole('button', { name, exact: true })
+  const applied = () => page.evaluate(() => ({ dark: document.documentElement.classList.contains('dark'), theme: document.getElementById('squirmy-color-theme')?.textContent ?? null }))
+  check('a new browser follows the system (light here)', await mode('System').getAttribute('aria-pressed') === 'true' && !(await applied()).dark)
+  await mode('Dark').click()
+  await theme('Ocean').click()
+  const chosen = await applied()
+  check('Dark and a color theme apply at once', chosen.dark && Boolean(chosen.theme))
+  check('the chosen theme is marked', await theme('Ocean').getAttribute('aria-pressed') === 'true')
+  const early = await beforeAppScript(context)
+  check('index.html applies both before the app script runs', early.app === 0 && early.dark && early.theme === chosen.theme, `app ${early.app}, dark ${early.dark}, theme ${early.theme === chosen.theme ? 'same' : (early.theme ?? 'none').slice(0, 40)}`)
+  await page.goto(`${base}/settings/appearance`)
+  await settings(page).waitFor()
+  const reloaded = await applied()
+  check('both survive a reload', reloaded.dark && reloaded.theme === chosen.theme && await theme('Ocean').getAttribute('aria-pressed') === 'true' && await mode('Dark').getAttribute('aria-pressed') === 'true')
+
+  await mode('Light').click()
+  await theme('Squirmy').click()
+  const reset = await applied()
+  check('Light and the default theme drop the dark class and the theme stylesheet', !reset.dark && reset.theme === null)
+  const earlyLight = await beforeAppScript(context)
+  check('and index.html applies that before the app script runs', earlyLight.app === 0 && !earlyLight.dark && earlyLight.theme === null)
+  await mode('System').click()
+  await page.keyboard.press('Escape')
+  await settings(page).waitFor({ state: 'detached' })
+})
+
 await step('change password', async () => {
-  await page.goto(`${base}/settings`)
+  await page.goto(`${base}/settings/account`)
   await page.getByRole('button', { name: 'Change password' }).click()
-  const dialog = page.getByRole('dialog')
+  const dialog = page.getByRole('dialog', { name: 'Change password' })
   await dialog.getByLabel('Current password').fill('wrong current password')
   await dialog.getByLabel('New password', { exact: true }).fill(admin.newPassword)
   await dialog.getByLabel('Repeat the new password').fill(admin.newPassword)
@@ -161,15 +283,17 @@ await step('change password', async () => {
   await dialog.getByLabel('Current password').fill(admin.password)
   await dialog.getByRole('button', { name: 'Change password' }).click()
   await page.getByText('Password changed', { exact: true }).first().waitFor()
-  check('the password changes and this browser stays signed in', await heading(page, 'Settings').isVisible())
+  check('the password changes and this browser stays signed in', await settings(page).isVisible())
   check('the old password no longer works', await apiLogin(admin.username, admin.password) === 401)
   check('the new password works', await apiLogin(admin.username, admin.newPassword) === 200)
 })
 
 await step('app passwords', async () => {
-  await page.getByRole('button', { name: 'Create', exact: true }).click()
-  await page.getByLabel('Name', { exact: true }).fill('Car stereo')
-  await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
+  await settingsSection(page, 'App passwords').click()
+  await settings(page).getByRole('button', { name: 'Create', exact: true }).click()
+  const create = page.getByRole('dialog', { name: 'New app password' })
+  await create.getByLabel('Name', { exact: true }).fill('Car stereo')
+  await create.getByRole('button', { name: 'Create' }).click()
   const secret = page.getByRole('textbox', { name: 'App password' })
   await secret.waitFor()
   check('a new app password is shown once', (await secret.inputValue()).length >= 16)
@@ -177,10 +301,11 @@ await step('app passwords', async () => {
   const row = page.getByText('Car stereo', { exact: true })
   await row.waitFor()
   check('it is listed', true)
-  await page.getByRole('button', { name: 'Revoke' }).click()
-  await page.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click()
+  await settings(page).getByRole('button', { name: 'Revoke' }).click()
+  await page.getByRole('dialog', { name: 'Revoke “Car stereo”?' }).getByRole('button', { name: 'Revoke' }).click()
   await row.waitFor({ state: 'detached' })
   check('revoking removes it', await page.getByText('No app passwords').isVisible())
+  await page.keyboard.press('Escape')
 })
 
 await step('server settings persist', async () => {
@@ -208,6 +333,120 @@ await step('jobs', async () => {
   await page.goto(`${base}/admin/jobs`)
   await page.getByText(/Live · updated/).waitFor()
   check('the jobs page loads and refreshes itself', true)
+})
+
+await step('the sidebar folds and keeps its width', async () => {
+  await page.goto(`${base}/`)
+  await heading(page, 'Listen now').waitFor()
+  const open = await sidebarWidth(page)
+  check('the sidebar starts open at its default width', open === 264, `${open}px`)
+  await page.keyboard.press('ControlOrMeta+b')
+  await settle(page)
+  check('Ctrl/Cmd+B folds it to a rail', await sidebarWidth(page) === 52 && await sidebar(page).getByRole('button', { name: 'Open sidebar' }).isVisible(), `${await sidebarWidth(page)}px`)
+  check('the rail keeps its links', await sidebar(page).getByRole('link', { name: 'Albums' }).isVisible())
+  const foldedLoad = [...new Set(await reloadWatchingSidebar(page))]
+  check('folded survives a reload, with no animation on load', foldedLoad.length === 1 && foldedLoad[0] === 52, foldedLoad.join(' → '))
+  await page.keyboard.press('ControlOrMeta+b')
+  await settle(page)
+  check('Ctrl/Cmd+B opens it again', await sidebarWidth(page) === open)
+  await page.reload()
+  await heading(page, 'Listen now').waitFor()
+  check('open survives a reload', await sidebarWidth(page) === open)
+
+  const handle = page.getByRole('separator', { name: 'Resize sidebar' })
+  const box = await handle.boundingBox()
+  const x = box.x + box.width / 2
+  const y = box.y + 200
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x + 40, y, { steps: 4 })
+  await page.mouse.move(x + 80, y, { steps: 4 })
+  await page.mouse.up()
+  await settle(page)
+  const dragged = await sidebarWidth(page)
+  check('dragging its edge resizes it', Math.abs(dragged - (open + 80)) <= 2, `${dragged}px`)
+  const load = [...new Set(await reloadWatchingSidebar(page))]
+  check('the width survives a reload', Math.abs(await sidebarWidth(page) - dragged) <= 1, `${await sidebarWidth(page)}px`)
+  check('the sidebar is painted at its kept width from the first frame', load.length === 1 && load[0] === dragged, `${load.slice(0, 3).join(' → ')}${load.length > 3 ? ` … ${load.at(-1)}` : ''} px`)
+
+  const again = await handle.boundingBox()
+  await page.mouse.move(again.x + again.width / 2, y)
+  await page.mouse.down()
+  await page.mouse.move(again.x - 150, y, { steps: 6 })
+  await page.mouse.move(again.x - 250, y, { steps: 6 })
+  await page.mouse.up()
+  await settle(page)
+  check('dragging it in past the snap point folds it', await sidebarWidth(page) === 52, `${await sidebarWidth(page)}px`)
+  await page.keyboard.press('ControlOrMeta+b')
+  await settle(page)
+  check('it reopens at the width it had', Math.abs(await sidebarWidth(page) - dragged) <= 1, `${await sidebarWidth(page)}px`)
+  await handle.dblclick()
+  await settle(page)
+  check('a double click restores the default width', await sidebarWidth(page) === open, `${await sidebarWidth(page)}px`)
+})
+
+await step('the phone drawer', async () => {
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: await context.storageState() })
+  const tab = await phone.newPage()
+  await tab.goto(`${base}/`)
+  await heading(tab, 'Listen now').waitFor()
+  const drawerOpen = async () => (await sidebar(tab).evaluate(aside => !aside.inert && aside.getBoundingClientRect().left >= 0))
+  check('the sidebar is closed on a phone', !(await drawerOpen()))
+  check('there is no tab bar', await tab.evaluate(() => [...document.querySelectorAll('nav')].every(nav => nav.closest('aside'))))
+  const opener = tab.getByRole('button', { name: 'Open sidebar' })
+  await opener.click()
+  await tab.waitForTimeout(300)
+  check('Open sidebar slides the drawer in', await drawerOpen())
+  await sidebar(tab).getByRole('link', { name: 'Albums' }).click()
+  await tab.waitForURL('**/library/albums')
+  await tab.waitForTimeout(300)
+  check('following a link navigates and closes the drawer', !(await drawerOpen()))
+  await opener.click()
+  await tab.waitForTimeout(300)
+  check('focus moves into the drawer', await sidebar(tab).evaluate(aside => aside.contains(document.activeElement)))
+  await tab.keyboard.press('Escape')
+  await tab.waitForTimeout(300)
+  check('Escape closes it and gives focus back', !(await drawerOpen()) && await opener.evaluate(button => button === document.activeElement))
+  await opener.click()
+  await tab.waitForTimeout(300)
+  await sidebar(tab).getByRole('button', { name: /^Account, / }).click()
+  await tab.getByRole('menuitem', { name: 'Settings' }).click()
+  await settings(tab).waitFor()
+  check('Settings opens from the drawer\'s account menu and the drawer closes', !(await drawerOpen()))
+  await phone.close()
+})
+
+await step('the admin panel', async () => {
+  await page.goto(`${base}/`)
+  await heading(page, 'Listen now').waitFor()
+  await page.getByRole('button', { name: /^Account, / }).click()
+  await page.getByRole('menuitem', { name: 'Admin panel' }).click()
+  await page.waitForURL('**/admin/library')
+  await page.getByRole('heading', { name: 'Admin', level: 1 }).waitFor()
+  check('Admin panel in the account menu opens the admin library', true)
+  const nav = page.getByRole('navigation', { name: 'Admin sections' })
+  const sections = { 'Library': 'library', 'Review queue': 'reviews', 'Organize': 'organize', 'Search index': 'search-index', 'Providers': 'providers', 'Users & invites': 'users', 'Server settings': 'settings', 'Jobs': 'jobs' }
+  const listed = (await nav.getByRole('link').allTextContents()).map(text => text.trim())
+  check('the header lists every admin section', listed.join() === Object.keys(sections).join(), listed.join(' · '))
+  const missed = []
+  let slowest = 0
+  for (const [name, slug] of Object.entries(sections)) {
+    const started = Date.now()
+    await nav.getByRole('link', { name, exact: true }).click()
+    await page.waitForURL(`**/admin/${slug}`)
+    // Navigation renders in a transition: the address changes first, the page when it is ready.
+    await nav.locator('[aria-current="page"]').filter({ hasText: name }).waitFor({ timeout: 5000 }).catch(() => {})
+    slowest = Math.max(slowest, Date.now() - started)
+    const current = await nav.locator('[aria-current="page"]').allTextContents()
+    const broken = await page.getByText(/Something went wrong|Admins only/).allTextContents()
+    if (current.join() !== name || broken.length) missed.push(`${name}: current ${current.join() || 'none'}${broken.length ? `, “${broken.join(' / ')}”` : ''}`)
+  }
+  check('each section opens and is marked current', missed.length === 0, missed.length ? missed.join('; ') : `slowest ${slowest} ms`)
+  await page.keyboard.press('ControlOrMeta+k')
+  const places = page.getByRole('dialog', { name: 'Search' }).getByRole('listbox', { name: 'Go to' })
+  await places.getByRole('option', { name: 'Admin panel' }).click()
+  await page.waitForURL('**/admin/library')
+  check('quick search goes to the admin panel too', true)
 })
 
 await step('reconnect notice', async () => {

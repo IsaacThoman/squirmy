@@ -20,7 +20,8 @@ function toSubsonic(error: unknown, request: FastifyRequest): SubsonicError {
   if (error instanceof AppError) {
     if (error.status === 404 || error.code.endsWith('_not_found')) return new SubsonicError(ErrorCode.notFound, error.message)
     if (error.status === 403) return new SubsonicError(ErrorCode.notAuthorized, error.message)
-    if (error.status < 500) return new SubsonicError(ErrorCode.generic, error.message)
+    // 503 is a busy server (no free encoder), which the client may retry, not a fault.
+    if (error.status < 500 || error.status === 503) return new SubsonicError(ErrorCode.generic, error.message)
   }
   request.log.error({ err: error }, 'Subsonic request failed')
   return new SubsonicError(ErrorCode.generic, 'Something went wrong')
@@ -48,7 +49,7 @@ async function handle(request: FastifyRequest, reply: FastifyReply) {
   try {
     const endpoint = endpoints.get(method.toLowerCase())
     if (!endpoint) throw new SubsonicError(ErrorCode.generic, `Unknown API method: ${method}`)
-    const user = endpoint.public ? null : await authenticate(params, request.ip)
+    const user = endpoint.public ? null : await authenticate(params)
     if (endpoint.admin && user?.role !== 'admin') {
       throw new SubsonicError(ErrorCode.notAuthorized, 'User is not authorized for the given operation')
     }

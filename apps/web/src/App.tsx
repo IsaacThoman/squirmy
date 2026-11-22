@@ -3,11 +3,12 @@ import { Navigate, Route, Routes } from 'react-router'
 import { AdminOnly, Bootstrap, RequireSetup, SignedInOnly, SignedOutOnly } from '@/auth/guards'
 import { Page } from '@/components/layout/Page'
 import { Spinner } from '@/components/ui/feedback'
-import { LoginPage, RegisterPage, SettingsPage, SetupPage } from '@/pages/account'
+import { LoginPage, RegisterPage, SetupPage } from '@/pages/account'
 import {
   AlbumPage, ArtistPage, HomePage, LibraryAlbumsPage, LibraryArtistsPage, LibraryPlaylistsPage, LibrarySongsPage, LikedPage, NotFoundPage,
-  PlaylistPage, SearchPage, ShellPage, WantlistPage,
+  PlaylistPage, SearchPage, WantlistPage,
 } from '@/pages/music'
+import { SettingsRoute, ShellPage } from '@/pages/shell'
 
 // Admin, import and developer pages are separate downloads; most visits never open them.
 const admin = (name: keyof typeof import('@/pages/admin')) => lazy(() => import('@/pages/admin').then(module => ({ default: module[name] })))
@@ -30,7 +31,7 @@ const dev = import.meta.env.DEV && {
 }
 
 function Loading({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<Page className="flex justify-center pt-32"><Spinner /></Page>}>{children}</Suspense>
+  return <Suspense fallback={<Page className="flex justify-center pt-24"><Spinner /></Page>}>{children}</Suspense>
 }
 
 export function AppRoutes() {
@@ -59,7 +60,8 @@ export function AppRoutes() {
               <Route path="album/:id" element={<AlbumPage />} />
               <Route path="artist/:id" element={<ArtistPage />} />
               <Route path="playlist/:id" element={<PlaylistPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings" element={<SettingsRoute />} />
+              <Route path="settings/:section" element={<SettingsRoute />} />
               <Route path="imports" element={<Loading><ImportsPage /></Loading>} />
               <Route path="imports/:id" element={<Loading><ImportPage /></Loading>} />
               <Route path="admin" element={<AdminOnly />}>

@@ -16,26 +16,23 @@ export type SlotReading = {
   /** Milliseconds since the engine last called the player's `play()`. */
   sincePlay: number;
   playing: boolean;
-  /** The player is waiting for data (`waitingToPlayAtSpecifiedRate` on iOS). */
-  waiting: boolean;
 };
 
 /**
- * The engine state for a reading. `interrupted` means the player stopped although the
- * engine wants it playing and it is not waiting for data: the system paused it (a call,
- * Siri, unplugged headphones). The engine reports that as `paused` and never resumes.
+ * The engine state for a reading. A player that stopped although the engine wants it
+ * playing, outside the start grace, counts as stalled: the system's own pauses (a call,
+ * Siri, unplugged headphones) arrive as audio session events, so a stop seen here is the
+ * stream running dry.
  */
-export function engineState(reading: SlotReading): { state: EngineState; interrupted: boolean } {
-  const settled = (state: EngineState) => ({ state, interrupted: false });
-  if (reading.failed) return settled('error');
-  if (reading.finished) return settled('ended');
-  if (!reading.ready) return settled('loading');
-  if (!reading.wantsPlay) return settled('paused');
-  if (reading.playing) return settled('playing');
+export function engineState(reading: SlotReading): EngineState {
+  if (reading.failed) return 'error';
+  if (reading.finished) return 'ended';
+  if (!reading.ready) return 'loading';
+  if (!reading.wantsPlay) return 'paused';
+  if (reading.playing) return 'playing';
   // Right after play() the player primes its buffers for a moment; that is not a stall.
-  if (reading.sincePlay < startGraceMs) return settled(reading.started ? 'playing' : 'loading');
-  if (reading.waiting) return settled(reading.started ? 'buffering' : 'loading');
-  return { state: 'paused', interrupted: true };
+  if (reading.sincePlay < startGraceMs) return reading.started ? 'playing' : 'loading';
+  return reading.started ? 'buffering' : 'loading';
 }
 
 /**

@@ -13,6 +13,7 @@
 import {
   bigint,
   boolean,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -637,6 +638,25 @@ export const playbackSessions = pgTable('playback_sessions', {
   queueVersion: bigint('queue_version', { mode: 'number' }).notNull().default(0),
   updatedAt: updatedAt(),
 })
+
+/**
+ * The own session of a detached device: shaped like `playback_sessions`, at most one per
+ * device. Deleted when the device attaches, and once its device has not been seen for
+ * seven days, at the user's next hello or detach.
+ */
+export const detachedSessions = pgTable('detached_sessions', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  deviceId: text('device_id').notNull(),
+  state: jsonb('state').$type<unknown>().notNull(),
+  version: bigint('version', { mode: 'number' }).notNull().default(0),
+  queueVersion: bigint('queue_version', { mode: 'number' }).notNull().default(0),
+  /** When the device was last connected; the session is discarded seven days after. */
+  lastSeenAt: at('last_seen_at').notNull().defaultNow(),
+  updatedAt: updatedAt(),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.deviceId] }),
+  foreignKey({ columns: [t.userId, t.deviceId], foreignColumns: [devices.userId, devices.id] }).onDelete('cascade'),
+])
 
 export const likes = pgTable('likes', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

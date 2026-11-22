@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button, Host, HStack, List, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, buttonStyle, environment, font, foregroundStyle, frame, labelStyle, lineLimit,
@@ -6,16 +6,20 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import type { TrackSummary } from '@squirmy/contracts';
+import { useWantlistEnabled } from '../account/AccountProvider';
 import { useRealtime } from '../data/realtime';
-import { useTrackDownload } from '../downloads/DownloadsProvider';
-import { useLibraryActions, useLiked, useTrack, useTrackStore } from '../data/library';
-import { IconButton, Symbol, TrackCover, TrackMenu, hitShape, plainButton } from '../native/Controls';
-import { usePlaybackState, type QueueEntry } from '../playback';
+import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
+import { useLiked, useTrack, useTrackStore } from '../data/library';
+import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner } from '../library/trackActions';
+import { IconButton, Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
+import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
 import { useColors } from '../theme';
 
 const rowHeight = 54;
 const headingHeight = 42;
+/** Up next shows this many entries at first, and this many more each time more are asked for. */
+const upNextPage = 100;
 const rowModifiers = [
   listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
   listRowBackground('clear'),
@@ -37,6 +41,10 @@ export default function QueuePage(_props: QueueProps) {
   const [viewport, setViewport] = useState(0);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [upNextShown, setUpNextShown] = useState(upNextPage);
+  const historyHandlers = useQueueHandlers(true);
+  const upNext = useMemo(() => queue.queue.slice(0, upNextShown), [queue.queue, upNextShown]);
+  const hidden = queue.queue.length - upNext.length;
   const canEdit = queue.queue.length > 1 || (session.autoplay && queue.autoplayQueue.length > 1);
 
   useLayoutEffect(() => {
@@ -90,7 +98,7 @@ export default function QueuePage(_props: QueueProps) {
         <Host style={[styles.list, { height: rowHeight * history.length }]}>
           <List modifiers={listModifiers}>
             {history.map(entry => <VStack key={entry.id} modifiers={[...rowModifiers, listRowSeparatorTint(colors.stroke)]}>
-              <QueueTrack entry={entry} onPlay={track => actions.playNow(track)} />
+              <QueueTrack entry={entry} handlers={historyHandlers} />
             </VStack>)}
           </List>
         </Host>
@@ -111,9 +119,13 @@ export default function QueuePage(_props: QueueProps) {
           <Text modifiers={[detailFont, foregroundStyle(colors.quiet)]}>{queue.queue.length} {queue.queue.length === 1 ? 'track' : 'tracks'}</Text>
         </HStack>
       </QueueBand>
-      {queue.queue.length ? <QueueRows entries={queue.queue} editing={editing} /> : (
+      {queue.queue.length ? <QueueRows entries={upNext} total={queue.queue.length} editing={editing} /> : (
         <QueueBand height={34}><Text modifiers={[detailFont, foregroundStyle(colors.muted)]}>Songs you queue appear here.</Text></QueueBand>
       )}
+      {hidden > 0 && <QueueBand height={44}>
+        <Button label={`Show ${Math.min(upNextPage, hidden)} more`} onPress={() => setUpNextShown(shown => shown + upNextPage)}
+          modifiers={[plainButton, foregroundStyle(colors.accent)]} />
+      </QueueBand>}
       <QueueBand height={58}>
         <VStack alignment="leading" spacing={4}>
           <HStack spacing={6}>
@@ -149,12 +161,34 @@ function QueueMode({ symbol, label, active, onPress }: {
   </Button>;
 }
 
-function QueueRows({ entries, editing, autoplay = false }: {
-  entries: readonly QueueEntry[]; editing: boolean; autoplay?: boolean;
+type QueueHandlers = {
+  play: (entry: QueueEntry, track: TrackSummary) => void;
+  promote: (entry: QueueEntry, autoplay: boolean) => void;
+  move: (entry: QueueEntry, index: number) => void;
+  remove: (entry: QueueEntry) => void;
+  run: ReturnType<typeof useTrackActionRunner>['run'];
+};
+
+/** What queue rows do, in one object that changes only with the session runtime, so rows redraw only for their own entry. */
+function useQueueHandlers(history: boolean): QueueHandlers {
+  const actions = usePlaybackActions();
+  const tracks = useTrackStore();
+  const { run } = useTrackActionRunner();
+  return useMemo(() => ({
+    play: (entry, track) => history ? actions.playNow(track) : actions.playQueueEntry(entry.id),
+    promote: (entry, autoplay) => actions.promote(entry, tracks.get(entry.trackId, entry.albumId), autoplay),
+    move: (entry, index) => actions.moveInQueue(entry.id, index),
+    remove: entry => actions.removeFromQueue(entry.id),
+    run,
+  }), [actions, history, run, tracks]);
+}
+
+function QueueRows({ entries, total = entries.length, editing, autoplay = false }: {
+  entries: readonly QueueEntry[]; total?: number; editing: boolean; autoplay?: boolean;
 }) {
   const colors = useColors();
-  const { actions } = usePlaybackState();
-  const tracks = useTrackStore();
+  const actions = usePlaybackActions();
+  const handlers = useQueueHandlers(false);
   if (!entries.length) return null;
 
   const onMove = ([source]: number[], destination: number) => {
@@ -168,45 +202,47 @@ function QueueRows({ entries, editing, autoplay = false }: {
     <List modifiers={[...listModifiers, environment({ key: 'editMode', value: editing ? 'active' : 'inactive' })]}>
       <List.ForEach data={entries} keyExtractor={entry => entry.id} recycling={false}
         onMove={entries.length > 1 ? onMove : undefined}>
-        {({ item, index }) => {
-          const promote = () => actions.promote(item, tracks.get(item.trackId, item.albumId), autoplay);
-          const remove = () => actions.removeFromQueue(item.id);
-          return <SwipeActions modifiers={[...rowModifiers, listRowSeparatorTint(colors.stroke)]}>
-            <QueueTrack entry={item} onPlay={() => actions.playQueueEntry(item.id)}>
-              {index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => actions.moveInQueue(item.id, index - 1)} />}
-              {index + 1 < entries.length && <Button label="Move down" systemImage="chevron.down" onPress={() => actions.moveInQueue(item.id, index + 1)} />}
-              <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={remove} />
-            </QueueTrack>
-            <SwipeActions.Actions edge="leading">
-              <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward"
-                modifiers={[iconOnly, tint('#8071D4')]} onPress={promote} />
-            </SwipeActions.Actions>
-            <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
-              <Button label="Remove from queue" systemImage="trash" role="destructive"
-                modifiers={[iconOnly]} onPress={remove} />
-            </SwipeActions.Actions>
-          </SwipeActions>;
-        }}
+        {({ item, index }) => <SwipeActions modifiers={[...rowModifiers, listRowSeparatorTint(colors.stroke)]}>
+          <QueueTrack entry={item} handlers={handlers} position={{ index, total, autoplay }} />
+          <SwipeActions.Actions edge="leading">
+            <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward"
+              modifiers={[iconOnly, tint('#8071D4')]} onPress={() => handlers.promote(item, autoplay)} />
+          </SwipeActions.Actions>
+          <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
+            <Button label="Remove from queue" systemImage="trash" role="destructive"
+              modifiers={[iconOnly]} onPress={() => handlers.remove(item)} />
+          </SwipeActions.Actions>
+        </SwipeActions>}
       </List.ForEach>
     </List>
   </Host>;
 }
 
+type QueueTrackProps = {
+  entry: QueueEntry;
+  handlers: QueueHandlers;
+  /** Where a queued entry sits, for its Move up and Move down; left out in the history. */
+  position?: { index: number; total: number; autoplay: boolean };
+};
+
 /** A queue row. A failed entry is gray and will be skipped, as is one that is not downloaded while offline; a preparing one says so. */
-function QueueTrack({ entry, onPlay, children }: {
-  entry: QueueEntry; onPlay: (track: TrackSummary) => void; children?: React.ReactNode;
-}) {
+const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: QueueTrackProps) {
   const colors = useColors();
   const track = useTrack(entry.trackId, entry.albumId);
   const favorite = useLiked('track', track?.id, track?.liked);
-  const { setLiked } = useLibraryActions();
   const { offline } = useRealtime();
-  const downloaded = useTrackDownload(entry.trackId)?.state === 'done';
+  const download = useTrackDownload(entry.trackId);
+  const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
+  const playable = useCanPlay(track);
+  const current = useCurrentTrackState(track?.id);
+  const wantlist = useWantlistEnabled();
+  const downloaded = download?.state === 'done';
   const failed = entry.state === 'failed' || (offline && !downloaded);
   const detail = entry.state === 'failed' ? 'Couldn’t be fetched' : failed ? 'Not downloaded' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
   const title = track?.title ?? '';
+  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist }) : [];
   return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
-    <Button onPress={() => { if (track && !failed) onPlay(track); }} modifiers={[plainButton, accessibilityLabel(`${title}, ${detail}`)]}>
+    <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, accessibilityLabel(`${title}, ${detail}`)]}>
       <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape]}>
         <TrackCover track={track} size={38} />
         <VStack alignment="leading" spacing={3}>
@@ -217,11 +253,17 @@ function QueueTrack({ entry, onPlay, children }: {
       </HStack>
     </Button>
     <IconButton symbol={favorite ? 'heart.fill' : 'heart'} size={17}
-      label={favorite ? `Remove ${title} from favorites` : `Favorite ${title}`}
-      color={favorite ? colors.accent : colors.muted} selected={favorite} onPress={() => track && setLiked('track', track.id, !favorite)} />
-    <TrackMenu track={track}>{children}</TrackMenu>
+      label={favorite ? `Unlike ${title}` : `Like ${title}`}
+      color={favorite ? colors.accent : colors.muted} selected={favorite}
+      onPress={() => track && handlers.run(track, { id: favorite ? 'unlike' : 'like', title, icon: 'heart' })} />
+    <TrackActionsMenu actions={actions} onRun={action => track && handlers.run(track, action)} label={`More options for ${title || 'this song'}`}>
+      {position && position.index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => handlers.move(entry, position.index - 1)} />}
+      {position && position.index + 1 < position.total && <Button label="Move down" systemImage="chevron.down" onPress={() => handlers.move(entry, position.index + 1)} />}
+      {position && <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={() => handlers.remove(entry)} />}
+    </TrackActionsMenu>
   </HStack>;
-}
+}, (a, b) => a.entry === b.entry && a.handlers === b.handlers && a.position?.index === b.position?.index
+  && a.position?.total === b.position?.total && a.position?.autoplay === b.position?.autoplay);
 
 const styles = StyleSheet.create({
   page: { flex: 1 },

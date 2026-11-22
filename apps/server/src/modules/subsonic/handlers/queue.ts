@@ -8,7 +8,7 @@
  * suggestions do not count), so a save and a restore give back the same list.
  */
 import { positionAt } from '@squirmy/client-core'
-import type { SessionSnapshot } from '@squirmy/contracts'
+import { COMMAND_TRACK_LIMIT, type SessionSnapshot } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
 import { isoTime } from '../../catalog/sql.js'
@@ -29,7 +29,9 @@ async function save(context: Context, ids: string[], currentIndex: number | unde
   const positionMs = params.int('position', 0, { min: 0 })
   const start = currentIndex ?? 0
   const snapshot = await replaceQueue(user.id, { trackIds: ids.slice(start), currentId: ids[start] ?? null, positionMs })
-  saved.set(user.id, { entries: entriesOf(snapshot), before: ids.slice(0, start), client, at: new Date().toISOString() })
+  // Bounded like the session's side, which keeps at most COMMAND_TRACK_LIMIT ids from the current one on.
+  const before = ids.slice(Math.max(0, start - COMMAND_TRACK_LIMIT), start)
+  saved.set(user.id, { entries: entriesOf(snapshot), before, client, at: new Date().toISOString() })
   return {}
 }
 

@@ -1,5 +1,5 @@
 {
-  "id": "f9f07977-7185-4354-8d25-441bcf9c2ba8",
+  "id": "08fc904e-1f15-4d58-abc9-0896fc5c3335",
   "prevId": "a470de5d-c21b-48cb-89eb-00a7737c0e3c",
   "version": "7",
   "dialect": "postgresql",
@@ -87,13 +87,6 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
-        },
-        "origin": {
-          "name": "origin",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'play'"
         },
         "created_at": {
           "name": "created_at",
@@ -436,12 +429,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'must_resolve'"
-        },
-        "coverage_override": {
-          "name": "coverage_override",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "priority": {
           "name": "priority",
@@ -1738,6 +1725,102 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.detached_sessions": {
+      "name": "detached_sessions",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "queue_version": {
+          "name": "queue_version",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "detached_sessions_user_id_users_id_fk": {
+          "name": "detached_sessions_user_id_users_id_fk",
+          "tableFrom": "detached_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "detached_sessions_user_id_device_id_devices_user_id_id_fk": {
+          "name": "detached_sessions_user_id_device_id_devices_user_id_id_fk",
+          "tableFrom": "detached_sessions",
+          "tableTo": "devices",
+          "columnsFrom": [
+            "user_id",
+            "device_id"
+          ],
+          "columnsTo": [
+            "user_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "detached_sessions_user_id_device_id_pk": {
+          "name": "detached_sessions_user_id_device_id_pk",
+          "columns": [
+            "user_id",
+            "device_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

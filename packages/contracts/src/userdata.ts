@@ -38,6 +38,14 @@ export type PlaylistDetail = z.infer<typeof PlaylistDetail>
 export const PlaylistPage = page(PlaylistSummary)
 export type PlaylistPage = z.infer<typeof PlaylistPage>
 
+/**
+ * Most items one playlist holds. Adding past it fails with `playlist_full` (409), and the
+ * playlist is left as it was.
+ */
+export const PLAYLIST_ITEM_LIMIT = 10_000
+/** Most playlists one user owns. Creating another fails with `too_many_playlists` (409). */
+export const PLAYLIST_LIMIT = 1000
+
 export const CreatePlaylistRequest = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().max(2000).nullable().optional(),

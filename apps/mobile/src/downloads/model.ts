@@ -262,3 +262,10 @@ export function unavailableReason(track: Pick<TrackSummary, 'availability'>, off
 export function trackMark(download: TrackDownload | undefined, track: Pick<TrackSummary, 'availability'>, playable: boolean): string | null {
   return downloadSymbol(download) ?? (track.availability === 'on_demand' && playable ? 'icloud.and.arrow.down' : null);
 }
+
+/** The page a song downloaded on its own opens: its album, or its first artist when it has no album. */
+export function songPage(track: Pick<TrackSummary, 'album' | 'artists'>): { page: 'album' | 'artist'; id: string } | null {
+  if (track.album) return { page: 'album', id: track.album.id };
+  const artist = track.artists[0];
+  return artist ? { page: 'artist', id: artist.id } : null;
+}

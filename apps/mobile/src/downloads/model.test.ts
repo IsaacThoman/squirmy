@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canPlay, canRequestMusic, extensionFor, formatBytes, retryDelay, sizeMatches, trackMark, unavailableReason, waitReason,
+  canPlay, canRequestMusic, extensionFor, formatBytes, retryDelay, sizeMatches, songPage, trackMark, unavailableReason, waitReason,
 } from './model';
 
 describe('download rules', () => {
@@ -67,5 +67,14 @@ describe('download rules', () => {
   it('formats sizes', () => {
     expect([2_500, 4_200_000, 123_000_000, 1_250_000_000, 64_000_000_000].map(formatBytes))
       .toEqual(['3 KB', '4.2 MB', '123 MB', '1.3 GB', '64 GB']);
+  });
+});
+
+describe('songPage', () => {
+  const artist = { id: 'artist-1', name: 'Artist' };
+  it('opens the album, or the first artist when the song has none', () => {
+    expect(songPage({ album: { id: 'album-1', title: 'Album', artwork: null }, artists: [artist] })).toEqual({ page: 'album', id: 'album-1' });
+    expect(songPage({ album: null, artists: [artist] })).toEqual({ page: 'artist', id: 'artist-1' });
+    expect(songPage({ album: null, artists: [] })).toBeNull();
   });
 });

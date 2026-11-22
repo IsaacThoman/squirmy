@@ -1,16 +1,17 @@
 /**
  * Builds Subsonic albums (`AlbumID3`, and the folder form as a `Child`) in batches with
- * a fixed number of queries. Counts, duration and the added date describe the album's
- * present files, one song per recording, as Subsonic clients expect of a library.
+ * a fixed number of queries. Only albums in the user's library are built (sql.ts), and
+ * counts, duration and the added date describe the album's library files, one song per
+ * recording, as Subsonic clients expect of a library.
  */
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { canonicalRelease } from '../catalog/availability.js'
+import { canonicalRelease, inLibraryAlbum } from '../catalog/availability.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { albumId, artistId, coverArtId } from './ids.js'
 import type { Payload } from './protocol.js'
 import { credits } from './songs.js'
-import { presentFiles, seconds } from './sql.js'
+import { libraryFile, seconds } from './sql.js'
 
 type AlbumRow = {
   id: string
@@ -45,8 +46,9 @@ function itemDate(value: string | null): Payload | undefined {
 export type AlbumOptions = { rootId?: string | null }
 
 /**
- * AlbumID3 objects for `ids`, in their order. Albums with no present file (in the music
- * folder, when one is given) and ids that do not exist are left out.
+ * AlbumID3 objects for `ids`, in their order. Albums outside the user's library, albums
+ * with no library file (in the music folder, when one is given) and ids that do not exist
+ * are left out.
  */
 export async function albums(userId: string, ids: readonly string[], options: AlbumOptions = {}): Promise<Payload[]> {
   const unique = [...new Set(ids)]
@@ -63,14 +65,14 @@ export async function albums(userId: string, ids: readonly string[], options: Al
         select count(*)::int as "songCount", coalesce(sum(song.duration_ms), 0)::int8 as "durationMs", min(song.added_at) as created
         from (
           select distinct on (f.recording_id) f.duration_ms, f.added_at from media_files f
-          where f.album_id = a.id and f.recording_id is not null and ${presentFiles('f', options.rootId)}
+          where f.album_id = a.id and f.recording_id is not null and ${libraryFile('f', userId, options.rootId)}
           order by f.recording_id, f.added_at
         ) song
       ) stats
       left join releases rel on rel.id = ${canonicalRelease('a')}
       left join likes lk on lk.user_id = ${userId} and lk.entity_type = 'album' and lk.entity_id = a.id
       left join ratings rating on rating.user_id = ${userId} and rating.entity_type = 'album' and rating.entity_id = a.id
-      where a.id = any(${uuidArray(unique)}) and stats."songCount" > 0`),
+      where a.id = any(${uuidArray(unique)}) and stats."songCount" > 0 and ${inLibraryAlbum('a.id', userId)}`),
     db.execute<{ id: string; count: number; last: string }>(sql`
       select album_id as id, count(*)::int as count, ${isoTime('max(started_at)')} as last
       from plays where user_id = ${userId} and album_id = any(${uuidArray(unique)})

@@ -1,12 +1,13 @@
-import { Button, Divider, Host, HStack, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
+import { Button, Divider, Host, HStack, Menu, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, background, clipShape, disabled as disabledModifier, font, foregroundStyle,
-  frame, lineLimit, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
+  frame, lineLimit, menuIndicator, multilineTextAlignment, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconButton, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
 import type {
-  SheetActionProps, SheetFieldProps, SheetFrameProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps, TrackSummaryProps,
+  SheetActionProps, SheetFieldProps, SheetFrameProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps,
+  TrackSummaryProps,
 } from './SheetUI';
 import { useColors } from './theme';
 
@@ -25,6 +26,16 @@ export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
   </Host>;
 }
 
+/** A sheet's title and close button, fixed above a form that scrolls beneath them. */
+export function SheetFormHeader({ title, onClose }: SheetFrameProps) {
+  const colors = useColors();
+  return <HStack spacing={8} modifiers={[padding({ top: 22, horizontal: 22, bottom: 6 })]}>
+    <Text modifiers={[font({ textStyle: 'title2', weight: 'bold' }), accessibilityAddTraits(['isHeader'])]}>{title}</Text>
+    <Spacer minLength={0} />
+    <IconButton symbol="xmark.circle.fill" label="Close" size={26} color={colors.muted} onPress={onClose} />
+  </HStack>;
+}
+
 export function SheetRows({ children }: { children: React.ReactNode }) {
   return <VStack alignment="leading" spacing={0}>{children}</VStack>;
 }
@@ -36,8 +47,9 @@ export function SheetScroll({ height, children }: SheetScrollProps) {
   </ScrollView>;
 }
 
-export function SheetRow({ title, subtitle, icon, selected, onPress }: SheetRowProps) {
+export function SheetRow({ title, subtitle, icon, selected, destructive, onPress }: SheetRowProps) {
   const colors = useColors();
+  const iconColor = destructive ? colors.danger : selected ? colors.accent : colors.muted;
   return <>
     <Button onPress={onPress} modifiers={[
       plainButton, accessibilityLabel(subtitle ? `${title}, ${subtitle}` : title),
@@ -45,10 +57,10 @@ export function SheetRow({ title, subtitle, icon, selected, onPress }: SheetRowP
     ]}>
       <HStack spacing={12} modifiers={[frame({ minHeight: 49 }), hitShape]}>
         <HStack modifiers={[frame({ width: 27 })]}>
-          <Symbol name={icon} size={18} color={selected ? colors.accent : colors.muted} />
+          <Symbol name={icon} size={18} color={iconColor} />
         </HStack>
         <VStack alignment="leading" spacing={2}>
-          <Text modifiers={[font({ textStyle: 'body', weight: 'medium' })]}>{title}</Text>
+          <Text modifiers={[font({ textStyle: 'body', weight: 'medium' }), ...(destructive ? [foregroundStyle(colors.danger)] : [])]}>{title}</Text>
           {subtitle && <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>{subtitle}</Text>}
         </VStack>
         <Spacer minLength={4} />
@@ -57,6 +69,33 @@ export function SheetRow({ title, subtitle, icon, selected, onPress }: SheetRowP
     </Button>
     <Divider modifiers={[padding({ leading: 39 })]} />
   </>;
+}
+
+/** Small print at the foot of a sheet, such as the app's version. */
+export function SheetNote({ children }: { children: string }) {
+  const colors = useColors();
+  return <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), frame({ maxWidth: Infinity }),
+    multilineTextAlignment('center')]}>{children}</Text>;
+}
+
+/**
+ * A form row that picks one of a few values from a menu. SwiftUI's own menu picker tints
+ * its value only once it has been changed, so the value here is drawn by hand.
+ */
+export function SheetPickerRow<T extends string | number>({ label, value, options, onChange }: SheetPickerRowProps<T>) {
+  const colors = useColors();
+  const current = options.find(option => option.value === value)?.label ?? '';
+  // The whole row opens the menu, as a native picker's does.
+  return <Menu modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(`${label}, ${current}`)]}
+    label={<HStack spacing={5} modifiers={[frame({ maxWidth: Infinity, minHeight: 32 }), hitShape]}>
+      <Text modifiers={[foregroundStyle(colors.text)]}>{label}</Text>
+      <Spacer minLength={8} />
+      <Text modifiers={[foregroundStyle(colors.muted), lineLimit(1)]}>{current}</Text>
+      <Symbol name="chevron.up.chevron.down" size={12} color={colors.muted} />
+    </HStack>}>
+    {options.map(option => <Button key={String(option.value)} label={option.label}
+      systemImage={option.value === value ? 'checkmark' : undefined} onPress={() => onChange(option.value)} />)}
+  </Menu>;
 }
 
 export function TrackSummary({ track, subtitle }: TrackSummaryProps) {

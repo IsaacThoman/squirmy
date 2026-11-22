@@ -34,7 +34,8 @@ const asText = (value: unknown) => String(value ?? '')
 /**
  * An input that saves on blur or Enter. Until then it holds a draft, checked with the
  * contract schema; a value the server refuses stays in the field, with the server's reason
- * under it, to be corrected.
+ * under it, to be corrected. It is the control of a `Row`: beside the label it lines up
+ * on the right, under the label on the left.
  */
 export function DraftField<P extends object, K extends keyof P & string>({
   id, field, value, schema, onSave, className, unit, type = 'text', inputMode, step, placeholder, format = asText, parse,
@@ -57,8 +58,8 @@ export function DraftField<P extends object, K extends keyof P & string>({
     }
   }
   return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center gap-2">
+    <div className="flex min-w-0 max-w-full flex-col items-start gap-1 @xl:items-end">
+      <div className="flex max-w-full items-center gap-2">
         <Input
           id={id} type={type} inputMode={inputMode} step={step} min={type === 'number' ? 0 : undefined} placeholder={placeholder}
           value={draft ?? format(value)}
@@ -67,11 +68,11 @@ export function DraftField<P extends object, K extends keyof P & string>({
           onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : undefined}
-          className={cn('h-9', className)}
+          className={cn(type === 'number' && 'tabular', className)}
         />
-        {unit && <span className="text-sm text-muted">{unit}</span>}
+        {unit && <span className="w-7 shrink-0 text-xs text-muted-foreground">{unit}</span>}
       </div>
-      {error && <p id={`${id}-error`} className="max-w-80 text-right text-xs font-medium text-danger">{error}</p>}
+      {error && <p id={`${id}-error`} className="max-w-80 text-xs text-destructive @xl:text-right">{error}</p>}
     </div>
   )
 }
@@ -81,8 +82,8 @@ export type SaveState = 'idle' | 'saving' | 'saved'
 export function SaveStatus({ status }: { status: SaveState }) {
   if (status === 'idle') return null
   return (
-    <span role="status" className="flex h-10 items-center gap-2 text-sm font-semibold text-muted">
-      {status === 'saving' ? <><Spinner className="size-4" label="Saving" />Saving…</> : <><Check className="size-4 text-accent" />Saved</>}
+    <span role="status" className="flex h-8 items-center gap-2 text-sm text-muted-foreground">
+      {status === 'saving' ? <><Spinner className="size-4" label="Saving" />Saving…</> : <><Check className="size-4 text-primary" />Saved</>}
     </span>
   )
 }

@@ -5,7 +5,7 @@ import {
   Pause, Play, Plus, Radio, Trash2,
 } from 'lucide-react'
 import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
@@ -16,6 +16,7 @@ import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
+import { PrefetchLink } from './PrefetchLink'
 import { useEndReached } from './use-end-reached'
 
 /** `add-to:<playlist id>` adds the track to a playlist; `add-to:new` starts one with it. */
@@ -49,15 +50,36 @@ type SharedProps = {
   onMove?: (from: number, to: number) => void
 }
 
+/**
+ * A row is its own size container, and its columns follow its width rather than the window's: the
+ * sidebar, the queue and a page's own columns all change how much room a list has. From 36rem an
+ * album's artists and a compact row's album get a column; a playlist's album does from 42rem and
+ * its date added from 56rem. The duration shows from 28rem.
+ */
 const columns: Record<TrackListVariant, string> = {
-  album: 'grid-cols-[2.25rem_minmax(0,1fr)_auto]',
-  playlist: 'grid-cols-[2.25rem_minmax(0,1fr)_auto] md:grid-cols-[2.25rem_minmax(0,6fr)_minmax(0,4fr)_auto] xl:grid-cols-[2.25rem_minmax(0,6fr)_minmax(0,4fr)_7rem_auto]',
-  compact: 'grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,6fr)_minmax(0,4fr)_auto]',
+  album: 'grid-cols-[2rem_minmax(0,1fr)_auto] @xl:grid-cols-[2rem_minmax(0,5fr)_minmax(0,3fr)_auto]',
+  playlist: 'grid-cols-[2rem_minmax(0,1fr)_auto] @2xl:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_auto] @4xl:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_7rem_auto]',
+  compact: 'grid-cols-[minmax(0,1fr)_auto] @xl:grid-cols-[minmax(0,6fr)_minmax(0,4fr)_auto]',
 }
 
 /** A playlist's rows have a date added column only when they know the date. */
 const columnsOf = (variant: TrackListVariant, dated: boolean) => (variant === 'playlist' && !dated ? undatedColumns : columns[variant])
-const undatedColumns = 'grid-cols-[2.25rem_minmax(0,1fr)_auto] md:grid-cols-[2.25rem_minmax(0,6fr)_minmax(0,4fr)_auto]'
+const undatedColumns = 'grid-cols-[2rem_minmax(0,1fr)_auto] @2xl:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_auto]'
+
+/** The column a variant's rows give the album from the width that has room for it. */
+const albumColumn = { album: undefined, playlist: 'hidden @2xl:block', compact: 'hidden @xl:block' } satisfies Record<TrackListVariant, string | undefined>
+
+/**
+ * The last column: like, duration, menu. The header's has the same width, so the columns between
+ * line up with the rows'.
+ */
+const actionsColumn = 'flex items-center justify-end gap-1 @md:w-28'
+
+/**
+ * Controls that appear when their row is hovered, has the keyboard's focus anywhere in it or has
+ * its menu open. Phones and touch screens, which cannot hover, always show them.
+ */
+const revealed = 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opacity-100 md:pointer-fine:group-has-[:focus-visible]/row:opacity-100 md:pointer-fine:group-has-[[data-state=open]]/row:opacity-100'
 
 /** Where a row dragged within its list would land: before or after the row under the pointer. */
 type DropTarget = { index: number; side: 'before' | 'after' }
@@ -80,7 +102,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
 /** Why a track that a provider could supply does not play for this user. */
 export const REQUEST_NOT_ALLOWED = 'Not on the server yet. Ask an admin to let you fetch missing music.'
 
-export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted = false, isPreparing, canRequest = true, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
+export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted, isPreparing, canRequest = true, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
   const navigate = useNavigate()
   const { liked } = track
   const notAllowed = track.availability === 'on_demand' && !canRequest
@@ -108,7 +130,8 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
     { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
     { kind: 'separator' },
     { label: liked ? 'Remove from Liked Songs' : 'Save to Liked Songs', icon: <Heart />, onSelect: () => act('like') },
-    ...(track.availability === 'server' ? [] : [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: () => act('want') }]),
+    // Undefined `wanted` means the server has the wantlist off.
+    ...(track.availability === 'server' || wanted === undefined ? [] : [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: () => act('want') }]),
     { kind: 'separator' },
     ...(track.album ? [{ label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(`/album/${track.album!.id}`) }] : []),
     ...track.artists.map(artist => ({ label: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
@@ -139,26 +162,51 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   }
   const dropSide = reorder?.target?.index === index ? reorder.target.side : undefined
 
-  const playButton = !unavailable && (
+  const album = variant === 'album'
+  // Over artwork the button and the markers are white; in the number column they take the text's colors.
+  const playButton = (overArt: boolean) => !unavailable && (
     <button
       type="button"
       aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
       onClick={play}
-      className="absolute inset-0 flex items-center justify-center rounded-md text-foreground opacity-0 transition-opacity duration-100 focus-visible:opacity-100 group-hover/row:opacity-100"
+      className={cn(
+        'peer absolute inset-0 flex items-center justify-center opacity-0 outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/row:opacity-100',
+        overArt ? 'rounded-[5px] text-white' : 'rounded-md text-foreground',
+      )}
     >
-      {playing ? <Pause className="size-4" fill="currentColor" /> : <Play className="size-4" fill="currentColor" />}
+      {playing ? <Pause className="size-3.5" fill="currentColor" /> : <Play className="size-3.5" fill="currentColor" />}
     </button>
   )
+  const marker = (overArt: boolean) => (preparing
+    ? <Spinner label="Preparing" className={cn('size-4', overArt ? 'text-white' : 'text-primary')} />
+    : current ? <Equalizer playing={playing} className={cn(overArt && 'text-white')} /> : null)
+  /** What the play button replaces while the row is hovered or the button has focus. */
+  const resting = cn('transition-opacity', !unavailable && 'group-hover/row:opacity-0 peer-focus-visible:opacity-0')
 
-  const marker = preparing
-    ? <Spinner label="Preparing" className="size-4" />
-    : current ? <Equalizer playing={playing} /> : null
+  const title = (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span title={track.title} className={cn('truncate text-sm font-medium', current && 'text-primary', unavailable && 'text-muted-foreground')}>{track.title}</span>
+      {track.explicit && <ExplicitBadge />}
+      {track.availability === 'on_demand' && !notAllowed && (
+        <Tooltip label="Plays on demand">
+          <CloudDownload tabIndex={0} aria-label="Plays on demand" className="size-3.5 shrink-0 rounded-sm text-muted-foreground outline-none focus-visible:text-primary" />
+        </Tooltip>
+      )}
+      {unavailable && <span className="sr-only">{notAllowed ? `(${REQUEST_NOT_ALLOWED})` : '(not in your library)'}</span>}
+    </div>
+  )
+  // Under the title, except on album pages, where a wide row gives the artists a column of their own.
+  const artists = (
+    <div className={cn('min-w-0 truncate text-xs text-muted-foreground', album && '@max-xl:col-start-2 @xl:text-sm')}>
+      {preparing ? <span className="text-primary">Preparing…</span> : <ArtistLinks track={track} plain={unavailable} />}
+    </div>
+  )
 
   return (
     <ContextMenu entries={menu}>
       <li
         aria-current={current ? 'true' : undefined}
-        aria-disabled={unavailable || undefined}
+        // Only playing is unavailable: the name says so, and the heart and the menu still work.
         title={notAllowed ? REQUEST_NOT_ALLOWED : unavailable ? 'Not in your library' : undefined}
         onDoubleClick={unavailable ? undefined : play}
         draggable
@@ -172,117 +220,110 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
         data-drop={dropSide}
         style={style}
         className={cn(
-          'group/row grid h-14 select-none items-center gap-3 rounded-lg px-2 transition-colors duration-100',
-          'data-[drop=after]:shadow-[inset_0_-2px_0_var(--accent)] data-[drop=before]:shadow-[inset_0_2px_0_var(--accent)]',
-          columnsOf(variant, addedAt !== undefined),
-          unavailable ? 'text-quiet [&>*:not(:last-child)]:opacity-60' : 'hover:bg-overlay has-[[data-state=open]]:bg-overlay',
-          current && 'bg-selection hover:bg-selection',
+          'group/row @container select-none rounded-md px-2 transition-colors',
+          'data-[drop=after]:shadow-[inset_0_-2px_0_var(--primary)] data-[drop=before]:shadow-[inset_0_2px_0_var(--primary)]',
+          unavailable ? 'text-muted-foreground' : 'hover:bg-accent/60 has-[:focus-visible]:bg-accent/60 has-[[data-state=open]]:bg-accent/60',
         )}
       >
-        {variant === 'compact' ? null : (
-          <div className="relative flex h-8 items-center justify-center text-[15px] tabular text-quiet">
-            <span className={cn('transition-opacity duration-100', !unavailable && 'group-hover/row:opacity-0', current && 'text-accent')}>
-              {marker ?? number ?? index + 1}
-            </span>
-            {playButton}
-          </div>
-        )}
-
-        <div className="flex min-w-0 items-center gap-3">
-          {(variant === 'compact' || variant === 'playlist') && (
-            <div className="relative size-10 shrink-0">
-              <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-10 rounded-md" />
-              {variant === 'compact' && (
-                <div className={cn('absolute inset-0 flex items-center justify-center rounded-md', (current || preparing) && 'bg-black/45 text-white')}>
-                  {marker && <span className={cn('transition-opacity', !unavailable && 'group-hover/row:opacity-0')}>{marker}</span>}
-                  {playButton && <div className="absolute inset-0 rounded-md text-white group-hover/row:bg-black/45 [&_button]:text-white">{playButton}</div>}
-                </div>
-              )}
+        <div className={cn('grid h-11 content-center items-center gap-x-3', album && '@xl:h-10', columnsOf(variant, addedAt !== undefined), unavailable && '[&>*:not(:last-child)]:opacity-60')}>
+          {variant === 'compact' ? null : (
+            <div className={cn('relative flex h-8 items-center justify-center text-sm tabular text-muted-foreground', album && '@max-xl:row-span-2')}>
+              {playButton(false)}
+              <span className={resting}>{marker(false) ?? number ?? index + 1}</span>
             </div>
           )}
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span title={track.title} className={cn('truncate text-[15px] font-medium tracking-[-0.01em]', current && 'text-accent', unavailable && 'text-quiet')}>{track.title}</span>
-              {track.availability === 'on_demand' && !notAllowed && (
-                <Tooltip label="Plays on demand">
-                  <CloudDownload tabIndex={0} aria-label="Plays on demand" className="size-3.5 shrink-0 text-quiet outline-none focus-visible:text-accent" />
-                </Tooltip>
-              )}
-              {unavailable && <span className="sr-only">{notAllowed ? `(${REQUEST_NOT_ALLOWED})` : '(not in your library)'}</span>}
-            </div>
-            <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] text-muted">
-              {track.explicit && <ExplicitBadge />}
-              {preparing ? <span className="text-accent">Preparing…</span> : <ArtistLinks track={track} dimmed={unavailable} />}
-            </div>
-          </div>
-        </div>
 
-        {(variant === 'playlist' || variant === 'compact') && (
-          <div className={cn('hidden min-w-0 truncate text-[13px] text-muted', variant === 'playlist' ? 'md:block' : 'lg:block', unavailable && 'text-quiet')}>
-            {track.album && <Link to={`/album/${track.album.id}`} className="hover:text-foreground hover:underline">{track.album.title}</Link>}
-          </div>
-        )}
-        {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-[13px] text-muted xl:block">{formatRelative(addedAt)}</div>}
-
-        <div className="flex items-center justify-end gap-1">
-          {onAction && (
-            <IconButton
-              label={liked ? `Remove ${track.title} from Liked Songs` : `Save ${track.title} to Liked Songs`}
-              tooltip={false}
-              size="sm"
-              onClick={() => act('like')}
-              className={cn(liked ? 'text-accent hover:text-accent' : 'md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100')}
-            >
-              <Heart fill={liked ? 'currentColor' : 'none'} />
-            </IconButton>
+          {album ? title : (
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="relative size-8 shrink-0">
+                <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-8 rounded-[5px]" />
+                {variant === 'compact' && (
+                  <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current || preparing ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
+                    {playButton(true)}
+                    <span className={resting}>{marker(true)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                {title}
+                {artists}
+              </div>
+            </div>
           )}
-          <span className="hidden w-11 text-right text-[13px] tabular text-quiet sm:block">{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
-          <DropdownMenu
-            entries={menu}
-            trigger={(
-              <IconButton label={`More options for ${track.title}`} tooltip={false} size="sm" className="md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100 data-[state=open]:opacity-100">
-                <MoreHorizontal />
+          {album && artists}
+
+          {albumColumn[variant] && (
+            <div className={cn('min-w-0 truncate text-sm text-muted-foreground', albumColumn[variant])}>
+              {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
+            </div>
+          )}
+          {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @4xl:block">{formatRelative(addedAt)}</div>}
+
+          <div className={cn(actionsColumn, album && '@max-xl:col-start-3 @max-xl:row-span-2 @max-xl:row-start-1')}>
+            {onAction && (
+              <IconButton
+                label={liked ? `Remove ${track.title} from Liked Songs` : `Save ${track.title} to Liked Songs`}
+                tooltip={false}
+                size="sm"
+                onClick={() => act('like')}
+                className={cn(liked ? 'text-primary hover:text-primary' : revealed)}
+              >
+                <Heart fill={liked ? 'currentColor' : 'none'} />
               </IconButton>
             )}
-          />
+            <span className={cn('hidden w-10 text-right text-xs tabular text-muted-foreground @md:block', unavailable && 'opacity-60')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
+            <DropdownMenu
+              entries={menu}
+              trigger={(
+                <IconButton label={`More options for ${track.title}`} tooltip={false} size="sm" className={revealed}>
+                  <MoreHorizontal />
+                </IconButton>
+              )}
+            />
+          </div>
         </div>
       </li>
     </ContextMenu>
   )
 }
 
-function ArtistLinks({ track, dimmed }: { track: TrackSummary; dimmed: boolean }) {
-  if (!track.artists.length) return <span className="truncate">{track.artistCredit}</span>
+/** The track's artists, each a link. `plain` leaves out the hover color, for rows that are grayed out. */
+function ArtistLinks({ track, plain }: { track: TrackSummary; plain: boolean }) {
+  if (!track.artists.length) return <>{track.artistCredit}</>
   return (
-    <span className="truncate">
+    <>
       {track.artists.map((artist, index) => (
         <Fragment key={artist.id}>
           {index > 0 && ', '}
-          <Link to={`/artist/${artist.id}`} className={cn('hover:underline', dimmed ? 'text-quiet' : 'hover:text-foreground')}>{artist.name}</Link>
+          <PrefetchLink kind="artist" id={artist.id} to={`/artist/${artist.id}`} className={cn('hover:underline', !plain && 'hover:text-foreground')}>{artist.name}</PrefetchLink>
         </Fragment>
       ))}
-    </span>
+    </>
   )
 }
 
+/** The names of the columns, laid out as a row is so that they sit over them. */
 function ListHeader({ variant, dated }: { variant: TrackListVariant; dated: boolean }) {
-  if (variant === 'compact') return null
   return (
-    <div aria-hidden className={cn('mb-1 grid h-9 items-center gap-3 border-b border-stroke px-2 text-xs font-semibold uppercase tracking-wider text-quiet', columnsOf(variant, dated))}>
-      <span className="text-center">#</span>
-      <span>Title</span>
-      {variant === 'playlist' && <span className="hidden md:block">Album</span>}
-      {variant === 'playlist' && dated && <span className="hidden xl:block">Added</span>}
-      <span className="flex justify-end pr-11"><Clock3 className="hidden size-4 sm:block" /></span>
+    <div aria-hidden className="@container mb-1 border-b px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <div className={cn('grid h-8 items-center gap-x-3', columnsOf(variant, dated))}>
+        {variant !== 'compact' && <span className="text-center">#</span>}
+        <span>Title</span>
+        {variant === 'album' && <span className="hidden @xl:block">Artist</span>}
+        {albumColumn[variant] && <span className={albumColumn[variant]}>Album</span>}
+        {variant === 'playlist' && dated && <span className="hidden @4xl:block">Added</span>}
+        {/* The clock sits over the durations, which end where the menu button starts. */}
+        <span className={cn(actionsColumn, 'pr-9')}><Clock3 className="hidden size-3.5 @md:block" /></span>
+      </div>
     </div>
   )
 }
 
 export function DiscHeader({ disc, title }: { disc: number; title: string | null }) {
   return (
-    <li className="flex h-12 items-center gap-3 px-2 pt-3 text-sm font-semibold text-muted first:pt-0">
-      <Disc3 aria-hidden className="size-4 text-quiet" />
-      <span>Disc {disc}{title && <span className="font-normal text-quiet"> · {title}</span>}</span>
+    <li className="flex h-10 items-end gap-3 px-2 pb-2 text-xs font-medium text-muted-foreground first:h-8">
+      <span className="flex w-8 justify-center"><Disc3 aria-hidden className="size-3.5" /></span>
+      <span>Disc {disc}{title && <span className="font-normal"> · {title}</span>}</span>
     </li>
   )
 }
@@ -339,10 +380,13 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
   )
 }
 
-const rowHeight = 56
+/** The height of a row with artwork, `h-11`. */
+const rowHeight = 44
 
 /** The same rows, rendered only near the viewport. For the whole library's songs. */
-type VirtualTrackListProps = Omit<TrackListProps, 'discs' | 'addedAt' | 'header' | 'onMove'> & {
+type VirtualTrackListProps = Omit<TrackListProps, 'variant' | 'discs' | 'addedAt' | 'header' | 'onMove'> & {
+  /** The variants whose rows are one height at every width. */
+  variant?: Exclude<TrackListVariant, 'album'>
   /** Called as the last rows come into view, to load the next page. */
   onEndReached?: () => void
 }

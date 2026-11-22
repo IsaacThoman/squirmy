@@ -6,10 +6,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createThemedStyles, useColors } from '../theme';
 import { Icon } from '../ui';
 import type { Server } from './server';
-import { displayAddress } from './address';
+import { displayAddress, serverVersion } from './address';
 
 export type FieldKind = 'url' | 'username' | 'password' | 'newPassword' | 'code';
-export type FieldHandle = { focus: () => void };
+/** `clear` empties the field without rebuilding it: iOS offers to save a password whose filled field disappears. */
+export type FieldHandle = { focus: () => void; clear: () => void };
 
 export type AuthPageProps = { icon: string; title: string; message: string; children: ReactNode };
 export type AuthSectionProps = { footer?: string | null; tone?: 'error' | 'note'; children: ReactNode };
@@ -22,7 +23,8 @@ export type AuthFieldProps = {
   autoFocus?: boolean;
   ref?: Ref<FieldHandle>;
 };
-export type AuthSubmitProps = { title: string; busy?: boolean; disabled?: boolean; onPress: () => void };
+/** `busyTitle` replaces the title while `busy`, next to a spinner. */
+export type AuthSubmitProps = { title: string; busyTitle?: string; busy?: boolean; disabled?: boolean; onPress: () => void };
 export type AuthLinkProps = { title: string; icon?: string; onPress: () => void };
 export type AuthServerProps = { server: Server; onChange: () => void };
 
@@ -64,19 +66,20 @@ export function AuthField({ kind, placeholder, value, onChange, onSubmit, autoFo
   const colors = useColors();
   const styles = useStyles();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
-  useImperativeHandle(ref, () => ({ focus: () => input.current?.focus() }), []);
+  useImperativeHandle(ref, () => ({ focus: () => input.current?.focus(), clear: () => input.current?.clear() }), []);
   return <TextInput ref={input} value={value} onChangeText={onChange} onSubmitEditing={onSubmit} placeholder={placeholder}
     accessibilityLabel={placeholder} placeholderTextColor={colors.quiet} autoFocus={autoFocus} autoCapitalize="none"
     autoCorrect={false} submitBehavior={kind === 'username' || kind === 'code' ? 'submit' : 'blurAndSubmit'}
     style={styles.input} {...inputProps[kind]} />;
 }
 
-export function AuthSubmit({ title, busy, disabled, onPress }: AuthSubmitProps) {
+export function AuthSubmit({ title, busyTitle, busy, disabled, onPress }: AuthSubmitProps) {
   const colors = useColors();
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled: disabled || busy, busy }} disabled={disabled || busy}
-    onPress={onPress} style={({ pressed }) => [styles.submit, (disabled || busy) && styles.disabled, pressed && styles.pressed]}>
-    {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.submitTitle}>{title}</Text>}
+    onPress={onPress} style={({ pressed }) => [styles.submit, disabled && !busy && styles.disabled, pressed && styles.pressed]}>
+    {busy && <ActivityIndicator size="small" color={colors.onAccent} />}
+    <Text style={styles.submitTitle}>{busy ? busyTitle ?? title : title}</Text>
   </Pressable>;
 }
 
@@ -96,7 +99,8 @@ export function AuthServer({ server, onChange }: AuthServerProps) {
     <View style={styles.serverIcon}><Icon name="server.rack" size={19} color={colors.accent} /></View>
     <View style={styles.flex}>
       <Text numberOfLines={1} style={styles.serverName}>{server.name}</Text>
-      <Text numberOfLines={1} style={styles.serverDetail}>{displayAddress(server.url)} · Squirmy {server.version}</Text>
+      <Text numberOfLines={1} ellipsizeMode="middle" style={styles.serverDetail}>{displayAddress(server.url)}</Text>
+      <Text numberOfLines={1} style={styles.serverDetail}>{serverVersion(server.version)}</Text>
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Change server" onPress={onChange} hitSlop={8}
       style={({ pressed }) => pressed && styles.pressed}>
@@ -116,7 +120,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   group: { borderRadius: 16, backgroundColor: colors.surface, overflow: 'hidden' },
   footer: { color: colors.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 14 },
   input: { color: colors.text, fontSize: 16, minHeight: 50, paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.stroke },
-  submit: { minHeight: 50, borderRadius: 25, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  submit: { height: 50, borderRadius: 25, backgroundColor: colors.accent, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' },
   submitTitle: { color: colors.onAccent, fontSize: 16, fontWeight: '700' },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },

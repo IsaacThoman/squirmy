@@ -3,14 +3,14 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createMockProvider, type MockProvider, type MockTrack } from '@squirmy/adapter-mock'
-import { AcquireResponse, AlbumDetail, ArtistDetail, MatchReviewList } from '@squirmy/contracts'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { AcquireResponse, AlbumDetail, AlbumPage, ArtistDetail, MatchReviewList } from '@squirmy/contracts'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import {
-  acquisitionJobs, acquisitionMisses, albumArtists, albums, artists, externalIds, imports, mediaFiles, recordingArtists, recordings, releases, releaseTracks,
+  acquisitionJobs, acquisitionMisses, albumArtists, albums, artists, externalIds, imports, libraryItems, mediaFiles, recordingArtists, recordings, releases, releaseTracks,
 } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
@@ -20,7 +20,6 @@ import { body, errorCode, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
 import { resolveOne } from '../catalog/redirects.js'
-import { albumSummaries } from '../catalog/summaries.js'
 import { importsModule } from '../imports/index.js'
 import { libraryModule } from '../library/index.js'
 import { insertRoot } from '../library/roots.js'
@@ -115,15 +114,23 @@ describe('acquired tracks and their album', () => {
     return job
   }
   /**
-   * The artist's albums that hold a present file, in title order. Deliveries are cache, so
-   * they are in nobody's library; this is where they show on artist pages and in search.
+   * The artist's albums that hold a present file, as their album pages show them. This is
+   * where fetched tracks used to show up as one look-alike album each. (Fetched files are
+   * cache: they are in no one's library unless the album was saved, so the library lists
+   * are no measure of where they went.)
    */
-  const libraryAlbums = async (artistId: string) => {
-    const held = await db.selectDistinct({ id: mediaFiles.albumId }).from(mediaFiles).where(and(isNull(mediaFiles.missingSince), isNotNull(mediaFiles.albumId)))
-    return (await albumSummaries(held.map((row) => row.id!)))
-      .filter((album) => album.artists.some((artist) => artist.id === artistId))
-      .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
+  const albumsWithFiles = async (artistId: string) => {
+    const rows = await db.execute<{ id: string }>(sql`
+      select distinct f.album_id as id from media_files f
+      where f.missing_since is null and f.album_id is not null
+        and exists (select 1 from album_artists aa where aa.album_id = f.album_id and aa.artist_id = ${artistId})
+      order by f.album_id`)
+    const pages = []
+    for (const row of rows) pages.push(body(await app.inject({ url: `/api/v1/albums/${row.id}`, headers: fan.headers }), AlbumDetail))
+    return pages
   }
+  /** The ids of the albums in the user's library: the collection plus their saves. */
+  const savedAlbums = async () => body(await app.inject({ url: '/api/v1/library/albums?limit=200', headers: fan.headers }), AlbumPage).items.map((album) => album.id)
   const albumPage = async (albumId: string) => body(await app.inject({ url: `/api/v1/albums/${albumId}`, headers: fan.headers }), AlbumDetail)
   const filesOf = (recordingId: string) => db.select().from(mediaFiles).where(and(eq(mediaFiles.recordingId, recordingId), isNull(mediaFiles.missingSince)))
   const albumsNamed = (title: string, artistName: string) => db.select().from(albums).where(and(eq(albums.matchKey, creditKey(artistName, title)), isNull(albums.mergedIntoId)))
@@ -171,7 +178,7 @@ describe('acquired tracks and their album', () => {
     const jobs = [await fetchTrack(third, album.albumId), await fetchTrack(first, album.albumId), await fetchTrack(second, album.albumId)]
     for (const job of jobs) expect(job).toMatchObject({ status: 'completed', error: null })
 
-    const listed = await libraryAlbums(album.artist.id)
+    const listed = await albumsWithFiles(album.artist.id)
     expect(listed.map((item) => ({ id: item.id, title: item.title }))).toEqual([{ id: album.albumId, title: 'The Coin Shop' }])
     expect(listed[0]).toMatchObject({ availability: 'partial', trackCount: 4, ownedTrackCount: 3, mbid: expect.any(String) })
     expect(await albumsNamed('The Coin Shop', album.artist.name)).toHaveLength(1)
@@ -202,6 +209,8 @@ describe('acquired tracks and their album', () => {
     expect(await db.select().from(artists).where(and(eq(artists.nameKey, matchKey(album.artist.name)), isNull(artists.mergedIntoId)))).toHaveLength(1)
     const artist = body(await app.inject({ url: `/api/v1/artists/${album.artist.id}`, headers: fan.headers }), ArtistDetail)
     expect(artist.albums.map((item) => item.id)).toEqual([album.albumId])
+    // Tracks fetched by playing them are cache, not saves.
+    expect(await savedAlbums()).not.toContain(album.albumId)
   })
 
   it('puts two tracks of one album fetched at the same time on that album', async () => {
@@ -214,7 +223,7 @@ describe('acquired tracks and their album', () => {
       await Promise.all(ids.map(async (id) => body(await app.inject({ method: 'POST', url: `/api/v1/tracks/${id}/acquire?albumId=${album.albumId}`, headers: fan.headers }), AcquireResponse, 202)))
       for (const id of ids) await settle(id)
       for (const id of ids) expect((await jobsFor(id)).at(-1)).toMatchObject({ status: 'completed', error: null })
-      expect((await libraryAlbums(album.artist.id)).map((item) => [item.id, item.trackCount, item.ownedTrackCount])).toEqual([[album.albumId, 3, 2]])
+      expect((await albumsWithFiles(album.artist.id)).map((item) => [item.id, item.trackCount, item.ownedTrackCount])).toEqual([[album.albumId, 3, 2]])
       for (const [index, id] of ids.entries()) {
         expect((await filesOf(id))[0]).toMatchObject({ albumId: album.albumId, releaseTrackId: album.tracks[index]!.releaseTrackId, matchStatus: 'matched' })
       }
@@ -227,7 +236,7 @@ describe('acquired tracks and their album', () => {
     const wanted = album.tracks[1]!
     expect(await fetchTrack(wanted.recordingId, album.albumId)).toMatchObject({ status: 'completed', error: null })
 
-    expect((await libraryAlbums(album.artist.id)).map((item) => [item.id, item.title, item.year])).toEqual([[album.albumId, 'Plain Title', 1997]])
+    expect((await albumsWithFiles(album.artist.id)).map((item) => [item.id, item.title, item.year])).toEqual([[album.albumId, 'Plain Title', 1997]])
     expect(await albumsNamed('Plain Title (Deluxe Edition)', album.artist.name)).toEqual([])
     const [file] = await filesOf(wanted.recordingId)
     expect(file).toMatchObject({ albumId: album.albumId, releaseTrackId: wanted.releaseTrackId, relPath: `_Fetched/${album.artist.name}/Plain Title (1997)/02 Second Song.flac` })
@@ -242,7 +251,7 @@ describe('acquired tracks and their album', () => {
     mock.settings.retag = (track) => likeAStore({ ...track, position: positions.get(track.title)!, year: 2020 })
     for (const track of stub.tracks) expect(await fetchTrack(track.recordingId, stub.albumId)).toMatchObject({ status: 'completed', error: null })
 
-    const listed = await libraryAlbums(artist.id)
+    const listed = await albumsWithFiles(artist.id)
     expect(listed.map((item) => item.id)).toEqual([stub.albumId])
     expect(listed[0]).toMatchObject({ availability: 'full', trackCount: 2, ownedTrackCount: 2 })
     expect(await albumsNamed('Only Searched', artist.name)).toHaveLength(1)
@@ -269,21 +278,21 @@ describe('acquired tracks and their album', () => {
     expect(await fetchTrack(stub.tracks[1]!.recordingId, stub.albumId)).toMatchObject({ status: 'completed', error: null })
     const [file] = await filesOf(stub.tracks[1]!.recordingId)
     expect(file).toMatchObject({ albumId: stub.albumId, releaseId, releaseTrackId: trackIds[1], matchStatus: 'matched', relPath: `_Fetched/${artist.name}/Listed Elsewhere/02 Side B.flac` })
-    expect((await libraryAlbums(artist.id)).map((item) => [item.id, item.availability, item.trackCount, item.ownedTrackCount])).toEqual([[stub.albumId, 'partial', 2, 1]])
+    expect((await albumsWithFiles(artist.id)).map((item) => [item.id, item.availability, item.trackCount, item.ownedTrackCount])).toEqual([[stub.albumId, 'partial', 2, 1]])
     expect(await db.select().from(releases).where(eq(releases.albumId, stub.albumId))).toHaveLength(1)
   })
 
   it('finds the album itself when a track is requested without one', async () => {
     const album = await identified({ title: 'No Context', year: 2001, tracks: [{ title: 'Asked Alone', durationMs: 3000 }, { title: 'Never Asked', durationMs: 2000 }] })
     expect(await fetchTrack(album.tracks[0]!.recordingId)).toMatchObject({ status: 'completed', error: null, albumId: null })
-    expect((await libraryAlbums(album.artist.id)).map((item) => item.id)).toEqual([album.albumId])
+    expect((await albumsWithFiles(album.artist.id)).map((item) => item.id)).toEqual([album.albumId])
     expect((await filesOf(album.tracks[0]!.recordingId))[0]).toMatchObject({ albumId: album.albumId, releaseTrackId: album.tracks[0]!.releaseTrackId, relPath: `_Fetched/${album.artist.name}/No Context (2001)/01 Asked Alone.flac` })
 
     // A search stub knows its album only as a hint.
     const artist = await createArtist()
     const stub = await createStubAlbum({ title: 'Hinted At', artist, tracks: [{ title: 'From A Search', durationMs: 2000 }] })
     expect(await fetchTrack(stub.tracks[0]!.recordingId)).toMatchObject({ status: 'completed', error: null })
-    expect((await libraryAlbums(artist.id)).map((item) => item.id)).toEqual([stub.albumId])
+    expect((await albumsWithFiles(artist.id)).map((item) => item.id)).toEqual([stub.albumId])
     expect(await albumsNamed('Hinted At', artist.name)).toHaveLength(1)
   })
 
@@ -301,7 +310,42 @@ describe('acquired tracks and their album', () => {
     expect(item?.kind === 'album' && item.album.tracks.map((track) => [track.title, track.wanted ?? true])).toEqual([['Had It', false], ['Need It', true], ['Need It Too', true]])
     expect(await db.select().from(mediaFiles).where(eq(mediaFiles.importId, job!.importId!))).toHaveLength(2)
     expect(await filesOf(album.tracks[0]!.recordingId)).toHaveLength(1)
-    expect((await libraryAlbums(album.artist.id)).map((item) => [item.id, item.availability, item.ownedTrackCount])).toEqual([[album.albumId, 'full', 3]])
+    expect((await albumsWithFiles(album.artist.id)).map((item) => [item.id, item.availability, item.ownedTrackCount])).toEqual([[album.albumId, 'full', 3]])
+    expect(await savedAlbums()).toContain(album.albumId)
+  })
+
+  it('adds an album to the library only when it is asked for from the library', async () => {
+    const acquireAlbum = (albumId: string, origin?: 'library' | 'download') =>
+      app.inject({ method: 'POST', url: `/api/v1/albums/${albumId}/acquire${origin ? `?origin=${origin}` : ''}`, headers: fan.headers })
+    const saved = async (albumId: string) => (await db.select().from(libraryItems)
+      .where(and(eq(libraryItems.userId, fan.id), eq(libraryItems.entityType, 'album'), eq(libraryItems.entityId, albumId)))).length > 0
+
+    // A device downloading the album only fetches it.
+    const downloaded = await identified({ title: 'For The Road', year: 2014, tracks: [{ title: 'Mile One', durationMs: 2000 }, { title: 'Mile Two', durationMs: 2000 }] })
+    body(await acquireAlbum(downloaded.albumId, 'download'), AcquireResponse, 202)
+    await settle(downloaded.tracks[0]!.recordingId)
+    expect((await albumPage(downloaded.albumId)).ownedTrackCount).toBe(2)
+    expect(await saved(downloaded.albumId)).toBe(false)
+    expect(await savedAlbums()).not.toContain(downloaded.albumId)
+    // Asking again, now that the server has it all, still adds nothing.
+    expect(errorCode(await acquireAlbum(downloaded.albumId, 'download'), 409)).toBe('already_available')
+    expect(await saved(downloaded.albumId)).toBe(false)
+
+    // The library action adds it, even when there is nothing left to fetch.
+    expect(errorCode(await acquireAlbum(downloaded.albumId, 'library'), 409)).toBe('already_available')
+    expect(await saved(downloaded.albumId)).toBe(true)
+    expect(await savedAlbums()).toContain(downloaded.albumId)
+
+    const added = await identified({ title: 'Kept Close', year: 2015, tracks: [{ title: 'Held', durationMs: 2000 }] })
+    body(await acquireAlbum(added.albumId, 'library'), AcquireResponse, 202)
+    expect(await saved(added.albumId)).toBe(true)
+    await settle(added.tracks[0]!.recordingId)
+
+    // Tracks fetched to play them (or ahead of playing them) are never saved, nor is their album.
+    const played = await identified({ title: 'Only Played', year: 2016, tracks: [{ title: 'Heard Once', durationMs: 2000 }, { title: 'Not Yet', durationMs: 2000 }] })
+    expect(await fetchTrack(played.tracks[0]!.recordingId, played.albumId)).toMatchObject({ status: 'completed' })
+    expect(await saved(played.albumId)).toBe(false)
+    expect(await db.select().from(libraryItems).where(and(eq(libraryItems.userId, fan.id), eq(libraryItems.entityId, played.tracks[0]!.recordingId)))).toEqual([])
   })
 
   it('fetches an album track by track when no provider will fetch it whole', async () => {
@@ -320,9 +364,11 @@ describe('acquired tracks and their album', () => {
       expect((await filesOf(track.recordingId))[0]).toMatchObject({ albumId: album.albumId, releaseTrackId: album.tracks[index]!.releaseTrackId })
     }
     expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.providerId, providerId))).toEqual([])
-    expect((await libraryAlbums(album.artist.id)).map((item) => [item.id, item.availability])).toEqual([[album.albumId, 'full']])
+    expect((await albumsWithFiles(album.artist.id)).map((item) => [item.id, item.availability])).toEqual([[album.albumId, 'full']])
+    expect(await savedAlbums()).toContain(album.albumId)
   })
 
+  // Longer than the default: a retry woken while its worker is busy waits for pg-boss's 30 second poll.
   it('waits for a busy provider instead of graying the track out, and never sends it more jobs than it takes', async () => {
     const album = await identified({ title: 'Busy Night', year: 2008, tracks: Array.from({ length: 3 }, (_, index) => ({ title: `Rush ${index + 1}`, durationMs: 1000 })) })
     configureAcquisition({ slotWaitSeconds: 1 })
@@ -334,13 +380,13 @@ describe('acquired tracks and their album', () => {
       expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, first))).toEqual([])
 
       // Playback asks for the current entry and the next ones at the same time, more than
-      // the provider takes at once. Two, not more: each import holds a connection of the
-      // test database's four while it runs, and a second one while it files, so three
-      // imports at once can take them all.
+      // the provider takes at once. Two against a provider that takes one: each running import
+      // holds a connection of the test database's four, and filing reserves one more for its
+      // root lock, so three imports filing at once would leave none for their queries.
       mock.settings.delayMs = 400
       mock.settings.maxConcurrent = 1
       expect((await app.inject({ method: 'POST', url: `/api/v1/admin/acquisition/providers/${providerId}/test`, headers: admin.headers })).statusCode).toBe(200)
-      const rest = album.tracks.slice(1).map((track) => track.recordingId)
+      const rest = album.tracks.slice(1, 3).map((track) => track.recordingId)
       let peak = 0
       const watch = setInterval(() => {
         void db.select({ count: sql<number>`count(*)::int` }).from(acquisitionJobs)
@@ -351,14 +397,15 @@ describe('acquired tracks and their album', () => {
       for (const id of rest) await settle(id)
       clearInterval(watch)
       for (const id of rest) expect((await jobsFor(id)).at(-1)).toMatchObject({ status: 'completed', error: null })
+      expect(peak).toBeGreaterThan(0)
       expect(peak).toBe(1)
-      expect((await libraryAlbums(album.artist.id)).map((item) => [item.id, item.ownedTrackCount])).toEqual([[album.albumId, 3]])
+      expect((await albumsWithFiles(album.artist.id)).map((item) => [item.id, item.ownedTrackCount])).toEqual([[album.albumId, 3]])
     } finally {
       configureAcquisition({ slotWaitSeconds: 5 })
       mock.settings.maxConcurrent = 4
       await app.inject({ method: 'POST', url: `/api/v1/admin/acquisition/providers/${providerId}/test`, headers: admin.headers })
     }
-  })
+  }, 90_000)
 
   it('puts a whole album fetched in one job on the album, whatever its files call it', async () => {
     const album = await identified({ title: 'All At Once', year: 2015, tracks: [{ title: 'Part One', durationMs: 2000 }, { title: 'Part Two', durationMs: 3000 }, { title: 'Part Three', durationMs: 2000 }] })
@@ -368,9 +415,12 @@ describe('acquired tracks and their album', () => {
     await settle(album.tracks[0]!.recordingId)
     expect((await jobsFor(album.tracks[0]!.recordingId))[0]).toMatchObject({ status: 'completed', error: null, recordingId: null })
 
-    const listed = await libraryAlbums(album.artist.id)
+    const listed = await albumsWithFiles(album.artist.id)
     expect(listed.map((item) => [item.id, item.availability, item.trackCount, item.ownedTrackCount])).toEqual([[album.albumId, 'full', 3, 3]])
     expect(await albumsNamed('All At Once (Expanded Edition)', album.artist.name)).toEqual([])
+    // Asking for the whole album saves it to the asker's library.
+    expect(await savedAlbums()).toContain(album.albumId)
+    expect(await db.select().from(libraryItems).where(and(eq(libraryItems.userId, fan.id), eq(libraryItems.entityId, album.albumId)))).toMatchObject([{ entityType: 'album' }])
     const files = await db.select().from(mediaFiles).where(eq(mediaFiles.albumId, album.albumId))
     expect(files.map((file) => file.relPath).sort()).toEqual(['01 Part One', '02 Part Two', '03 Part Three'].map((name) => `_Fetched/${album.artist.name}/All At Once (2015)/${name}.flac`))
     expect(files.every((file) => file.matchStatus === 'matched' && file.releaseTrackId !== null)).toBe(true)
@@ -399,7 +449,7 @@ describe('acquired tracks and their album', () => {
     expect(await resolveOne('recordings', twin)).toBe(wanted)
     expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, twin))).toEqual([])
     expect(await filesOf(wanted)).toHaveLength(1)
-    expect((await libraryAlbums(album.artist.id)).map((item) => [item.id, item.trackCount, item.ownedTrackCount])).toEqual([[album.albumId, 2, 1]])
+    expect((await albumsWithFiles(album.artist.id)).map((item) => [item.id, item.trackCount, item.ownedTrackCount])).toEqual([[album.albumId, 2, 1]])
     const page = await albumPage(album.albumId)
     expect(page.discs[0]!.tracks.map((track) => [track.position, track.title, track.availability])).toEqual([[1, 'Same Song', 'server'], [2, 'Other Song', 'on_demand']])
   })

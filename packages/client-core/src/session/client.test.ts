@@ -1,5 +1,6 @@
 import type {
   AnySessionCommand,
+  Session,
 } from './reducer.js'
 import type {
   CommandEnvelope,
@@ -9,11 +10,17 @@ import type {
   QueueEntry,
   QueueSeed,
   ServerToClientEvents,
+  SessionAttach,
+  SessionCommand,
+  SessionHello,
+  SessionHelloAck,
 } from '@squirmy/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeEngine } from '../engine.js'
-import { type SavedSession, SessionClient } from './client.js'
+import { ApiError } from '../api/client.js'
+import { type SavedSession, SessionClient, type SessionPlayer } from './client.js'
 import { createInitialSession, positionAt, queueChanged, reduceSession, splitSession } from './reducer.js'
+import { bringSession, forkSession } from './scope.js'
 import type { AckCallback, AckEvent, AckPayload, AckReply, SessionTransport } from './transport.js'
 
 const PHONE = 'phone-0001'
@@ -23,71 +30,136 @@ const track = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '
 const seeds = (...ns: number[]): QueueSeed[] => ns.map(n => ({ trackId: track(n), albumId: null, durationMs: 200_000 }))
 const trackOf = (entry: QueueEntry | null | undefined) => entry && Number(entry.trackId.slice(-12))
 
-/** The server side: the real reducer, versions, command de-duplication, ordered replies. */
-class FakeServer {
+/** A session the fake server holds: the shared one, or a detached device's own. */
+type Held = { session: Session; version: number; queueVersion: number }
+
+/**
+ * The server side: the real reducer, versions, command de-duplication, ordered replies.
+ * It is itself the shared session; `own` holds the sessions of detached devices.
+ */
+class FakeServer implements Held {
   session = createInitialSession()
   version = 1
   queueVersion = 1
+  /** Own sessions of detached devices, by device id. */
+  readonly own = new Map<string, Held>()
   readonly transports = new Set<FakeTransport>()
   readonly commands: CommandEnvelope[] = []
   readonly reports: EngineReport[] = []
+  readonly hellos: SessionHello[] = []
   readonly seen = new Set<string>()
   rejecting = false
+  /** Answers as a server from before detaching: no capabilities, no scope, and the new events are never answered. */
+  old = false
+  /** Detaches and attaches but never answers, as when the answer comes too late. */
+  silentMoves = false
+  /** What a hello claiming a detached session the server does not hold is told. */
+  ended: 'expired' | 'missing' = 'missing'
   private serial = 0
 
   now(): number {
     return Date.now() + SERVER_OFFSET
   }
 
-  /** Applies a command as if another device (or the server itself) sent it. */
-  apply(command: AnySessionCommand, deviceId?: string, commandId = `server-${(this.serial += 1)}`): void {
-    const previous = this.session
-    const next = reduceSession(previous, { command, now: this.now(), commandId, deviceId })
+  /** The session a device is in. */
+  held(deviceId?: string): Held {
+    return (deviceId !== undefined && this.own.get(deviceId)) || this
+  }
+
+  /** Applies a command as if another device (or the server itself) sent it; to the shared session unless told otherwise. */
+  apply(command: AnySessionCommand, deviceId?: string, commandId = `server-${(this.serial += 1)}`, held: Held = this): void {
+    this.replace(held, reduceSession(held.session, { command, now: this.now(), commandId, deviceId }))
+  }
+
+  /** Makes `next` the session and tells the sockets in it. */
+  private replace(held: Held, next: Session): void {
+    const previous = held.session
     if (next === previous) return
-    this.session = next
-    this.version += 1
+    held.session = next
+    held.version += 1
     const queue = queueChanged(previous, next)
-    if (queue) this.queueVersion += 1
+    if (queue) held.queueVersion += 1
     const halves = splitSession(next)
     for (const transport of this.transports) {
-      if (queue) transport.push('session:queue', { version: this.version, queueVersion: this.queueVersion, queue: halves.queue })
-      transport.push('session:state', { version: this.version, state: halves.state })
+      if (this.held(transport.deviceId) !== held) continue
+      if (queue) transport.push('session:queue', { version: held.version, queueVersion: held.queueVersion, queue: halves.queue })
+      transport.push('session:state', { version: held.version, state: halves.state })
     }
   }
 
   devices(): DeviceInfo[] {
-    return [...this.transports].filter(transport => transport.deviceId).map(transport => ({
-      id: transport.deviceId!, name: transport.deviceId!, kind: 'other', canPlay: true, isActive: this.session.activeDeviceId === transport.deviceId,
-    }))
+    return [...new Set([...this.transports].flatMap(transport => transport.deviceId ?? []))].map((id) => {
+      const own = this.own.get(id)?.session
+      return {
+        id, name: id, kind: 'other', canPlay: !own, isActive: this.session.activeDeviceId === id,
+        ...(own ? { detached: { playing: own.playing, trackId: own.current?.trackId ?? null, albumId: own.current?.albumId ?? null } } : {}),
+      }
+    })
+  }
+
+  /** Everything a hello is answered with, for the session the device is in. */
+  private greeting(deviceId: string): SessionHelloAck {
+    const held = this.held(deviceId)
+    const { state, queue } = splitSession(held.session)
+    const snapshot = { version: held.version, queueVersion: held.queueVersion, state, queue }
+    if (this.old) return { serverTime: this.now(), snapshot, devices: this.devices() }
+    const scope = held === this ? { type: 'shared' as const } : { type: 'device' as const, deviceId }
+    return { serverTime: this.now(), snapshot: { ...snapshot, scope }, devices: this.devices(), capabilities: ['detach'] }
+  }
+
+  /** Tells the device's other sockets that it changed session, and everyone the new device list. */
+  private moved(transport: FakeTransport): void {
+    for (const other of this.transports) {
+      if (other !== transport && other.deviceId === transport.deviceId) other.push('session:moved', this.greeting(transport.deviceId!))
+      other.push('devices', this.devices())
+    }
   }
 
   receive<E extends AckEvent>(transport: FakeTransport, event: E, payload: AckPayload<E>, reply: (value: AckReply<E>) => void): void {
     const send = reply as (value: unknown) => void
     if (event === 'session:hello') {
-      const hello = payload as AckPayload<'session:hello'>
+      const hello = payload as SessionHello
+      this.hellos.push(hello)
       transport.deviceId = hello.device.id
-      const { state, queue } = splitSession(this.session)
-      send({ serverTime: this.now(), snapshot: { version: this.version, queueVersion: this.queueVersion, state, queue }, devices: this.devices() })
+      const lost = !this.old && hello.detached === true && !this.own.has(hello.device.id)
+      send({ ...this.greeting(hello.device.id), ...(lost ? { detachedEnded: this.ended } : {}) })
     } else if (event === 'time:sync') {
       send({ clientTime: payload, serverTime: this.now() })
+    } else if (event === 'session:detach' || event === 'session:attach') {
+      // An older server has no such listener, so the request times out.
+      if (this.old) return
+      const deviceId = transport.deviceId!
+      if (this.rejecting) return send({ ok: false, error: 'rejected' })
+      const own = this.own.get(deviceId)
+      if (event === 'session:detach' && !own) {
+        this.own.set(deviceId, { session: forkSession(this.session, deviceId, this.now()), version: this.version, queueVersion: this.queueVersion })
+        this.apply({ type: 'deviceLost', deviceId })
+      } else if (event === 'session:attach' && own) {
+        if ((payload as SessionAttach).bringQueue) {
+          if (!own.session.current && !own.session.queue.length) return send({ ok: false, error: 'nothing_to_bring' })
+          // The others hear of it before this device is one of them; its own answer is the ack.
+          this.replace(this, bringSession(this.session, own.session, { now: this.now(), commandId: `server-${(this.serial += 1)}`, deviceId }))
+        }
+        this.own.delete(deviceId)
+      }
+      if (!this.silentMoves) send({ ok: true, ...this.greeting(deviceId) })
+      this.moved(transport)
     } else {
       const envelope = payload as CommandEnvelope
+      const held = this.held(transport.deviceId)
       this.commands.push(envelope)
       if (this.rejecting) return send({ ok: false, error: 'rejected' })
-      if (this.seen.has(envelope.commandId)) return send({ ok: true, version: this.version })
+      if (this.seen.has(envelope.commandId)) return send({ ok: true, version: held.version })
       // As the real server: only the active device may end a track.
-      if (envelope.command.type === 'trackEnded' && this.session.activeDeviceId !== transport.deviceId) {
+      if (envelope.command.type === 'trackEnded' && held.session.activeDeviceId !== transport.deviceId) {
         return send({ ok: false, error: 'not_active_device' })
       }
       this.seen.add(envelope.commandId)
-      const before = this.session
+      const before = held.session
       const next = reduceSession(before, { command: envelope.command, now: this.now(), commandId: envelope.commandId, deviceId: transport.deviceId })
       // The protocol acks before it broadcasts.
-      send({ ok: true, version: next === before ? this.version : this.version + 1 })
-      if (next !== before) {
-        this.session = before
-        this.apply(envelope.command, transport.deviceId, envelope.commandId)
-      }
+      send({ ok: true, version: next === before ? held.version : held.version + 1 })
+      this.replace(held, next)
     }
   }
 }
@@ -206,18 +278,21 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true, restore, server = new FakeServer() }: {
-  canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError }: {
+  canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer; id?: string
+  onLoadError?: SessionPlayer['onLoadError']
 } = {}) {
   const transport = new FakeTransport(server)
   const engine = new FakeEngine()
   engine.durationMs = 200_000
   const resolvePlayback = vi.fn(async (entry: QueueEntry) => descriptor(entry))
+  const ended = vi.fn()
   const client = new SessionClient({
     transport,
-    device: { id: PHONE, name: 'Phone', kind: 'ios' },
-    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off' } : undefined,
+    device: { id, name: 'Phone', kind: 'ios' },
+    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError } : undefined,
     restore,
+    onDetachedEnded: ended,
   })
   client.start()
   const settle = async () => {
@@ -228,7 +303,7 @@ function setup({ canPlay = true, connect = true, restore, server = new FakeServe
   }
   if (connect) transport.connect()
   const calls = (method: string) => engine.calls.filter(([name]) => name === method)
-  return { server, transport, engine, client, resolvePlayback, settle, calls }
+  return { server, transport, engine, client, resolvePlayback, settle, calls, ended }
 }
 
 beforeEach(() => {
@@ -503,6 +578,66 @@ describe('SessionClient engine', () => {
     expect(calls('load').at(-1)).toMatchObject(['load', { startMs: 30_000, autoplay: true }])
   })
 
+  it('gives up on an entry the server refuses: reports it, stops the audio and tells the caller', async () => {
+    const onLoadError = vi.fn()
+    const context = setup({ onLoadError })
+    const { client, engine, resolvePlayback, server, settle } = context
+    const refused = new ApiError(404, 'not_available', 'Not available')
+    resolvePlayback.mockImplementation(async entry => {
+      if (entry.trackId === track(2)) throw refused
+      return descriptor(entry)
+    })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await settle()
+    client.dispatch({ type: 'next' })
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(trackOf(current)).toBe(2)
+    expect(onLoadError).toHaveBeenCalledTimes(1)
+    expect(onLoadError).toHaveBeenCalledWith(current, refused, false)
+    // The first track must not go on playing under the second one's title.
+    expect(engine.getStatus().state).toBe('idle')
+    expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'error' })
+    const asked = resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2)).length
+    await vi.advanceTimersByTimeAsync(30_000)
+    await settle()
+    expect(resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2))).toHaveLength(asked)
+    expect(onLoadError).toHaveBeenCalledTimes(1)
+    // Play asks again.
+    client.dispatch({ type: 'pause' })
+    client.dispatch({ type: 'play' })
+    await settle()
+    expect(resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2))).toHaveLength(asked + 1)
+  })
+
+  it('retries an entry it cannot reach, reporting a stall meanwhile', async () => {
+    const onLoadError = vi.fn()
+    const context = setup({ onLoadError })
+    const { client, engine, resolvePlayback, server, settle } = context
+    let failures = 2
+    resolvePlayback.mockImplementation(async entry => {
+      if (entry.trackId === track(2) && failures > 0) {
+        failures -= 1
+        throw new ApiError(0, 'network_error', 'Network request failed')
+      }
+      return descriptor(entry)
+    })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await settle()
+    // The preload took the first failure; the load takes the second.
+    client.dispatch({ type: 'next' })
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(onLoadError).toHaveBeenCalledWith(current, expect.any(ApiError), true)
+    expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'buffering' })
+    await vi.advanceTimersByTimeAsync(3000)
+    await settle()
+    expect(engine.getStatus()).toMatchObject({ entryId: current.id, state: 'playing' })
+    expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'playing' })
+  })
+
   it('stops the engine when another device takes over', async () => {
     const { server, transport, client, engine } = await playingHere()
     server.apply({ type: 'transfer', deviceId: WEB }, WEB)
@@ -609,6 +744,20 @@ describe('SessionClient engine', () => {
     await settle()
     expect(trackOf(server.session.current)).toBe(2)
     expect(server.session).toMatchObject({ playing: false, positionMs: 20_000 })
+  })
+
+  it('drops a saved command that is no longer valid, keeping the rest', async () => {
+    const { client } = setup({ connect: false })
+    client.dispatch({ type: 'enqueue', tracks: seeds(1), placement: 'last' })
+    const saved = client.save()
+    const broken = { ...saved.pending[0]!, commandId: 'broken', command: { type: 'enqueue', tracks: 'nope' } as unknown as SessionCommand }
+    const restored = new SessionClient({
+      transport: new FakeTransport(new FakeServer()),
+      device: { id: PHONE, name: 'Phone', kind: 'ios' },
+      restore: { ...saved, pending: [broken, ...saved.pending] },
+    })
+    expect(restored.save().pending.map(pending => pending.commandId)).toEqual([saved.pending[0]!.commandId])
+    expect(trackOf(restored.getSnapshot().queue.queue[0])).toBe(1)
   })
 
   it('restores a session another device plays as it was', async () => {
@@ -758,5 +907,393 @@ describe('SessionClient engine', () => {
     const { client, engine } = await playingHere()
     client.dispose()
     expect(engine.getStatus().state).toBe('idle')
+  })
+})
+
+describe('SessionClient detaching', () => {
+  type Context = ReturnType<typeof setup>
+
+  async function playingHere(count = 3, server = new FakeServer()) {
+    const context = setup({ server })
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(...Array.from({ length: count }, (_, i) => i + 1)), seed: 1 })
+    await context.settle()
+    return context
+  }
+
+  /** Another device of the same user, connected to the same server. */
+  async function another(server: FakeServer, id = WEB) {
+    const context = setup({ server, id })
+    await context.settle()
+    return context
+  }
+
+  /** Lets every given client and the server finish talking. */
+  async function quiet(...contexts: Context[]) {
+    for (let round = 0; round < 3; round += 1) for (const context of contexts) await context.settle()
+  }
+
+  async function detached(context: Context, ...others: Context[]) {
+    const done = context.client.detach()
+    await quiet(context, ...others)
+    expect(await done).toEqual({ ok: true })
+  }
+
+  it('offers detaching to a device that can play, once the server has said it can', async () => {
+    const player = setup()
+    expect(player.client.getSnapshot()).toMatchObject({ detached: false, canDetach: false })
+    expect(await player.client.detach()).toEqual({ ok: false, error: 'offline' })
+    await player.settle()
+    expect(player.client.getSnapshot()).toMatchObject({ detached: false, canDetach: true })
+    expect(player.server.hellos).toEqual([{ device: { id: PHONE, name: 'Phone', kind: 'ios' }, canPlay: true, detached: false }])
+    expect(await player.client.attach()).toEqual({ ok: true })
+
+    const remote = setup({ canPlay: false })
+    await remote.settle()
+    expect(remote.client.getSnapshot().canDetach).toBe(false)
+    expect(await remote.client.detach()).toEqual({ ok: false, error: 'unsupported' })
+  })
+
+  it('hides detaching from a server that does not know it, and works as before', async () => {
+    const server = new FakeServer()
+    server.old = true
+    const { client, transport, settle } = setup({ server })
+    await settle()
+    expect(client.getSnapshot()).toMatchObject({ connection: 'online', detached: false, canDetach: false })
+    expect(await client.detach()).toEqual({ ok: false, error: 'unsupported' })
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    transport.flush()
+    expect(trackOf(server.session.current)).toBe(1)
+    expect(client.getSnapshot().isActiveDevice).toBe(true)
+  })
+
+  it('goes on playing in its own session when the playing device detaches, and leaves the shared one paused', async () => {
+    const phone = await playingHere()
+    const { server, client, engine, calls } = phone
+    const web = await another(server)
+    await vi.advanceTimersByTimeAsync(30_000)
+    const entryId = client.getSnapshot().session.current!.id
+    const loads = calls('load').length
+
+    await detached(phone, web)
+    expect(client.getSnapshot()).toMatchObject({ detached: true, isActiveDevice: true, session: { playing: true, activeDeviceId: PHONE, current: { id: entryId } } })
+    expect(engine.getStatus()).toMatchObject({ state: 'playing', entryId, positionMs: 30_000 })
+    expect(calls('load')).toHaveLength(loads)
+    expect(calls('stop')).toEqual([])
+    expect(calls('seek')).toEqual([])
+    // The shared session stopped where it was, and the other device lists this one as playing on its own.
+    expect(web.client.getSnapshot()).toMatchObject({ detached: false, isActiveDevice: false, session: { playing: false, activeDeviceId: null, positionMs: 30_000, current: { id: entryId } } })
+    expect(web.client.getSnapshot().devices.find(device => device.id === PHONE)).toMatchObject({ canPlay: false, detached: { playing: true, trackId: track(1) } })
+
+    // From here the two sessions go their own ways.
+    client.dispatch({ type: 'next' })
+    web.client.dispatch({ type: 'playTracks', tracks: seeds(7, 8), seed: 1 })
+    await quiet(phone, web)
+    expect(trackOf(server.own.get(PHONE)!.session.current)).toBe(2)
+    expect(trackOf(client.getSnapshot().session.current)).toBe(2)
+    expect(client.getSnapshot().isActiveDevice).toBe(true)
+    expect(trackOf(server.session.current)).toBe(7)
+    expect(web.client.getSnapshot()).toMatchObject({ isActiveDevice: true, session: { activeDeviceId: WEB } })
+    expect(web.engine.getStatus().state).toBe('playing')
+    expect(engine.getStatus().state).toBe('playing')
+  })
+
+  it('starts a remote’s own session paused where the shared one was, and plays there when asked', async () => {
+    const server = new FakeServer()
+    const web = await another(server)
+    web.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await web.settle()
+    const phone = setup({ server })
+    await phone.settle()
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    await detached(phone, web)
+    expect(phone.client.getSnapshot()).toMatchObject({ detached: true, isActiveDevice: false, session: { playing: false, positionMs: 15_000, activeDeviceId: null } })
+    expect(trackOf(phone.client.getSnapshot().session.current)).toBe(1)
+    expect(phone.client.getSnapshot().queue.queue.map(trackOf)).toEqual([2, 3])
+    expect(phone.calls('load')).toEqual([])
+    expect(web.client.getSnapshot().session).toMatchObject({ playing: true, activeDeviceId: WEB })
+
+    phone.client.dispatch({ type: 'play' })
+    await quiet(phone, web)
+    expect(phone.client.getSnapshot().isActiveDevice).toBe(true)
+    expect(phone.calls('load')[0]![1]).toMatchObject({ startMs: 15_000, autoplay: true })
+    expect(web.client.getSnapshot().session).toMatchObject({ playing: true, activeDeviceId: WEB })
+    expect(web.engine.getStatus().state).toBe('playing')
+  })
+
+  it('does not try a transfer out of its own session or into another device’s', async () => {
+    const phone = await playingHere()
+    const web = await another(phone.server)
+    await detached(phone, web)
+    const sent = phone.server.commands.length
+    phone.client.dispatch({ type: 'transfer', deviceId: WEB })
+    web.client.dispatch({ type: 'transfer', deviceId: PHONE })
+    await quiet(phone, web)
+    expect(phone.server.commands).toHaveLength(sent)
+    expect(phone.engine.getStatus().state).toBe('playing')
+    expect(phone.calls('stop')).toEqual([])
+    expect(phone.client.getSnapshot().isActiveDevice).toBe(true)
+  })
+
+  it('rejoins the shared session as a remote and stops what it played on its own', async () => {
+    const phone = await playingHere()
+    const { server, client, engine } = phone
+    const web = await another(server)
+    await detached(phone, web)
+    web.client.dispatch({ type: 'playTracks', tracks: seeds(7, 8), seed: 1 })
+    await quiet(phone, web)
+
+    const done = client.attach()
+    await quiet(phone, web)
+    expect(await done).toEqual({ ok: true })
+    expect(server.own.has(PHONE)).toBe(false)
+    expect(client.getSnapshot()).toMatchObject({ detached: false, isActiveDevice: false, session: { activeDeviceId: WEB, playing: true } })
+    expect(trackOf(client.getSnapshot().session.current)).toBe(7)
+    expect(engine.getStatus().state).toBe('idle')
+    expect(web.client.getSnapshot().devices.find(device => device.id === PHONE)).toMatchObject({ canPlay: true })
+    expect(web.engine.getStatus().state).toBe('playing')
+
+    // An ordinary remote again: its commands reach the shared session.
+    client.dispatch({ type: 'pause' })
+    await quiet(phone, web)
+    expect(server.session.playing).toBe(false)
+  })
+
+  it('brings its own session back with it and carries on as the active device', async () => {
+    const phone = await playingHere()
+    const { server, client, calls } = phone
+    const web = await another(server)
+    await detached(phone, web)
+    web.client.dispatch({ type: 'playTracks', tracks: seeds(7, 8), seed: 1 })
+    client.dispatch({ type: 'next' })
+    client.dispatch({ type: 'setVolume', deviceId: PHONE, value: 0.4 })
+    await quiet(phone, web)
+    await vi.advanceTimersByTimeAsync(20_000)
+    const entryId = client.getSnapshot().session.current!.id
+    const loads = calls('load').length
+
+    const done = client.attach({ bringQueue: true })
+    await quiet(phone, web)
+    expect(await done).toEqual({ ok: true })
+    expect(server.own.has(PHONE)).toBe(false)
+    expect(client.getSnapshot()).toMatchObject({ detached: false, isActiveDevice: true, session: { playing: true, activeDeviceId: PHONE, current: { id: entryId } } })
+    expect(calls('load')).toHaveLength(loads)
+    expect(calls('stop')).toEqual([])
+    expect(client.getPositionMs()).toBe(20_000)
+    // The other devices now follow what this one brought, and whatever they played stopped.
+    expect(web.client.getSnapshot()).toMatchObject({ isActiveDevice: false, session: { activeDeviceId: PHONE, playing: true, current: { id: entryId } } })
+    expect(web.client.getSnapshot().queue.queue.map(trackOf)).toEqual([3])
+    expect(web.client.getSnapshot().session.volumes).toEqual({ [PHONE]: 0.4 })
+    expect(positionAt(server.session, server.now())).toBe(20_000)
+    expect(web.engine.getStatus().state).toBe('idle')
+  })
+
+  it('stays detached when there is nothing to bring', async () => {
+    const phone = setup()
+    await phone.settle()
+    await detached(phone)
+    const done = phone.client.attach({ bringQueue: true })
+    await phone.settle()
+    expect(await done).toEqual({ ok: false, error: 'nothing_to_bring' })
+    expect(phone.client.getSnapshot().detached).toBe(true)
+  })
+
+  it('refuses to detach or attach offline, and while one is under way', async () => {
+    const phone = await playingHere()
+    const { server, client, transport } = phone
+    transport.disconnect()
+    expect(await client.detach()).toEqual({ ok: false, error: 'offline' })
+    transport.connect()
+    await phone.settle()
+    expect(client.getSnapshot().detached).toBe(false)
+    expect(server.own.size).toBe(0)
+
+    const first = client.detach()
+    expect(await client.detach()).toEqual({ ok: false, error: 'busy' })
+    expect(await client.attach()).toEqual({ ok: false, error: 'busy' })
+    await phone.settle()
+    expect(await first).toEqual({ ok: true })
+  })
+
+  it('reports what the server refused and a request it never answered', async () => {
+    const phone = await playingHere()
+    phone.server.rejecting = true
+    const refused = phone.client.detach()
+    await phone.settle()
+    expect(await refused).toEqual({ ok: false, error: 'rejected' })
+
+    phone.server.rejecting = false
+    phone.server.old = true
+    const unanswered = phone.client.detach()
+    await phone.settle()
+    await vi.advanceTimersByTimeAsync(10_000)
+    await phone.settle()
+    expect(await unanswered).toEqual({ ok: false, error: 'timeout' })
+    expect(phone.client.getSnapshot()).toMatchObject({ detached: false, isActiveDevice: true })
+    expect(phone.engine.getStatus().state).toBe('playing')
+  })
+
+  it('asks again where it is when a move went unanswered, and takes the answer', async () => {
+    const phone = await playingHere()
+    phone.server.silentMoves = true
+    const hellos = phone.server.hellos.length
+    const late = phone.client.detach()
+    await phone.settle()
+    await vi.advanceTimersByTimeAsync(10_000)
+    await phone.settle()
+    expect(phone.server.hellos.length).toBe(hellos + 1)
+    expect(await late).toEqual({ ok: true })
+    expect(phone.client.getSnapshot()).toMatchObject({ detached: true, isActiveDevice: true, connection: 'online' })
+    expect(phone.engine.getStatus().state).toBe('playing')
+  })
+
+  it('forgets commands made before the request and sends those made after it to the new session', async () => {
+    const phone = await playingHere()
+    const { server, client } = phone
+    client.dispatch({ type: 'setRepeat', value: 'all' })
+    const done = client.detach()
+    client.dispatch({ type: 'setShuffle', value: true, seed: 3 })
+    expect(client.getSnapshot().session).toMatchObject({ repeat: 'all', shuffle: true })
+    await phone.settle()
+    expect(await done).toEqual({ ok: true })
+    // Repeat reached the shared session before it was copied; shuffle only this device's own.
+    expect(server.session).toMatchObject({ repeat: 'all', shuffle: false })
+    expect(server.own.get(PHONE)!.session).toMatchObject({ repeat: 'all', shuffle: true })
+    expect(client.getSnapshot().session).toMatchObject({ repeat: 'all', shuffle: true })
+    expect(client.save().pending).toEqual([])
+  })
+
+  it('learns from the next hello that a detach whose answer was lost did happen', async () => {
+    const phone = await playingHere()
+    const { server, client, transport, engine } = phone
+    let result: unknown
+    void client.detach().then((value) => { result = value })
+    transport.flushToServer()
+    transport.disconnect()
+    client.dispatch({ type: 'setRepeat', value: 'one' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(result).toBeUndefined()
+    expect(server.own.has(PHONE)).toBe(true)
+
+    transport.connect()
+    await phone.settle()
+    expect(result).toEqual({ ok: true })
+    expect(client.getSnapshot()).toMatchObject({ detached: true, isActiveDevice: true, session: { repeat: 'one' } })
+    expect(server.own.get(PHONE)!.session.repeat).toBe('one')
+    expect(server.session.repeat).toBe('off')
+    expect(engine.getStatus().state).toBe('playing')
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(client.getSnapshot().detached).toBe(true)
+  })
+
+  it('reports a detach that never reached the server', async () => {
+    const phone = await playingHere()
+    const done = phone.client.detach()
+    phone.transport.disconnect()
+    phone.transport.connect()
+    await phone.settle()
+    expect(await done).toEqual({ ok: false, error: 'disconnected' })
+    expect(phone.client.getSnapshot()).toMatchObject({ detached: false, isActiveDevice: true })
+    expect(phone.server.own.size).toBe(0)
+  })
+
+  it('saves that it was detached, shows it on relaunch and resumes its own session with what it did offline', async () => {
+    const first = await playingHere()
+    await detached(first)
+    first.transport.disconnect()
+    first.client.dispatch({ type: 'next' })
+    const saved = JSON.parse(JSON.stringify(first.client.save())) as SavedSession
+    expect(saved.detached).toBe(true)
+    first.client.dispose()
+
+    const { server, client, transport, settle, ended } = setup({ restore: saved, connect: false, server: first.server })
+    expect(client.getSnapshot()).toMatchObject({ detached: true, connection: 'offline', session: { playing: false } })
+    expect(trackOf(client.getSnapshot().session.current)).toBe(2)
+    transport.connect()
+    await settle()
+    expect(server.hellos.at(-1)).toMatchObject({ detached: true })
+    expect(client.getSnapshot()).toMatchObject({ detached: true, connection: 'online' })
+    expect(trackOf(server.own.get(PHONE)!.session.current)).toBe(2)
+    expect(trackOf(server.session.current)).toBe(1)
+    expect(ended).not.toHaveBeenCalled()
+  })
+
+  it('lands in the shared session with the reason when its own is gone, and sends nothing made for the other', async () => {
+    const first = await playingHere()
+    await detached(first)
+    first.transport.disconnect()
+    first.client.dispatch({ type: 'next' })
+    first.client.dispatch({ type: 'setRepeat', value: 'one' })
+    const saved = first.client.save()
+    first.client.dispose()
+    first.server.own.clear()
+    first.server.ended = 'expired'
+    const shared = first.server.session
+
+    const { server, client, transport, engine, settle, ended } = setup({ restore: saved, connect: false, server: first.server })
+    transport.connect()
+    await settle()
+    expect(ended.mock.calls).toEqual([['expired']])
+    expect(client.getSnapshot()).toMatchObject({ detached: false, isActiveDevice: false, canDetach: true })
+    expect(server.session).toBe(shared)
+    expect(client.save().pending).toEqual([])
+    expect(engine.getStatus().state).toBe('idle')
+  })
+
+  it('follows the server when it holds an own session this client did not know of', async () => {
+    const server = new FakeServer()
+    const first = await playingHere(3, server)
+    await detached(first)
+    first.transport.disconnect()
+    first.client.dispose()
+
+    // The same device with nothing saved: a reinstall, or a sign-out and back in.
+    const { client, transport, settle, ended } = setup({ server, connect: false })
+    client.dispatch({ type: 'setRepeat', value: 'one' })
+    transport.connect()
+    await settle()
+    expect(server.hellos.at(-1)).toMatchObject({ detached: false })
+    expect(client.getSnapshot().detached).toBe(true)
+    expect(trackOf(client.getSnapshot().session.current)).toBe(1)
+    // What it did while it took itself to be in the shared session went nowhere.
+    expect(server.own.get(PHONE)!.session.repeat).toBe('off')
+    expect(server.session.repeat).toBe('off')
+    expect(ended).not.toHaveBeenCalled()
+  })
+
+  it('follows its device when another socket of it detaches and attaches', async () => {
+    const phone = await playingHere()
+    const twin = await another(phone.server, PHONE)
+    await detached(phone, twin)
+    expect(twin.client.getSnapshot()).toMatchObject({ detached: true, session: { activeDeviceId: PHONE } })
+    twin.client.dispatch({ type: 'setRepeat', value: 'all' })
+    await quiet(phone, twin)
+    expect(phone.client.getSnapshot().session.repeat).toBe('all')
+    expect(phone.server.session.repeat).toBe('off')
+
+    const done = twin.client.attach()
+    await quiet(phone, twin)
+    expect(await done).toEqual({ ok: true })
+    expect(phone.client.getSnapshot()).toMatchObject({ detached: false, session: { repeat: 'off' } })
+    expect(phone.engine.getStatus().state).toBe('idle')
+  })
+
+  it('takes its own session back after playing on through a long disconnect', async () => {
+    const phone = await playingHere()
+    const { server, client, transport, engine } = phone
+    await detached(phone)
+    transport.disconnect()
+    await vi.advanceTimersByTimeAsync(25_000)
+    server.apply({ type: 'deviceLost', deviceId: PHONE }, undefined, undefined, server.own.get(PHONE)!)
+    await vi.advanceTimersByTimeAsync(10_000)
+    transport.connect()
+    await phone.settle()
+    const own = server.own.get(PHONE)!.session
+    expect(own).toMatchObject({ activeDeviceId: PHONE, playing: true })
+    expect(positionAt(own, server.now())).toBe(35_000)
+    expect(server.session).toMatchObject({ activeDeviceId: null, playing: false })
+    expect(client.getSnapshot()).toMatchObject({ detached: true, isActiveDevice: true })
+    expect(engine.getStatus()).toMatchObject({ state: 'playing', positionMs: 35_000 })
   })
 })
