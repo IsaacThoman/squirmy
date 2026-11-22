@@ -5,16 +5,18 @@
  */
 import { queryKeys } from '@squirmy/contracts'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { db } from '../../database/client.js'
+import { db, type Transaction } from '../../database/client.js'
 import { albumArtists, albums, artists, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { assignAlbumArtwork, remoteImage } from '../artwork/index.js'
 import { lockUpserts, replaceCredits, upsertArtists } from '../matching/apply.js'
-import { resolveMerged } from '../matching/merge.js'
+import { uuidArray } from '../catalog/sql.js'
+import { mergeAlbum, resolveMerged } from '../matching/merge.js'
 import { deezer, fanart, listenbrainz, musicbrainz, wikidata } from '../metadata/index.js'
 import type { MbReleaseGroupSummary, MbUrl } from '../metadata/musicbrainz.js'
+import { editionFreeKey } from '../search/keys.js'
 import { genreNames } from './album.js'
 import { bridgeArtist } from './bridge.js'
 import { deezerDiscography, deezerTopTrackRow } from './deezer-rows.js'
@@ -108,8 +110,8 @@ export async function hydrateArtist(id: string, { force = false } = {}): Promise
 }
 
 /**
- * Upserts an album row (`detail_level` at least 1) for each release group, with its
- * credits and, while it has none, the Cover Art Archive's front cover as a lazy remote
+ * Upserts an album row (`detail_level` at least 1) for each release group, adopting the
+ * stubs search or Deezer made for it (`stubsByGroup`), with its credits and, while it has none, the Cover Art Archive's front cover as a lazy remote
  * image (a group without one simply 404s when shown). Rows are keyed by MBID, so running
  * it again changes nothing. Returns the ids of albums it created.
  */
@@ -118,8 +120,10 @@ export async function upsertDiscography(groups: readonly MbReleaseGroupSummary[]
   const rows = await db.transaction(async (tx) => {
     await lockUpserts(tx)
     const artistIds = await upsertArtists(tx, groups.flatMap((group) => group.artistCredit))
+    const stubs = await stubsByGroup(tx, groups, artistIds)
     const written: { id: string; mbid: string; artworkAssetId: string | null; inserted: boolean }[] = []
     for (const group of groups) {
+      await adoptStubs(tx, group.mbid, stubs.get(group.mbid) ?? [])
       const values = {
         mbid: group.mbid,
         title: group.title,
@@ -153,6 +157,53 @@ export async function upsertDiscography(groups: readonly MbReleaseGroupSummary[]
     }
   }
   return rows.filter((row) => row.inserted).map((row) => row.id)
+}
+
+const compatibleTypes = (a: string, b: string) => a === b || a === 'other' || b === 'other'
+
+/**
+ * Album rows search or Deezer created for the discography's release groups: no MBID, no
+ * files, the same primary artist, the same title once edition suffixes are dropped
+ * (`editionFreeKey`) and a compatible type. A title two groups of the artist share
+ * ("Weezer") names neither, so its stubs are left alone. Keyed by group MBID.
+ */
+async function stubsByGroup(tx: Transaction, groups: readonly MbReleaseGroupSummary[], artistIds: Map<string, string>): Promise<Map<string, string[]>> {
+  const primaryOf = (group: MbReleaseGroupSummary) => (group.artistCredit[0] ? artistIds.get(group.artistCredit[0].mbid) ?? null : null)
+  const primaries = [...new Set(groups.flatMap((group) => primaryOf(group) ?? []))]
+  if (primaries.length === 0) return new Map()
+  const rows = await tx.execute<{ id: string; title: string; type: string; artistId: string }>(sql`
+    select a.id, a.title, a.type, a.primary_artist_id as "artistId" from albums a
+    where a.mbid is null and a.merged_into_id is null and a.primary_artist_id = any(${uuidArray(primaries)})
+      and not exists (select 1 from media_files f where f.album_id = a.id)`)
+  const result = new Map<string, string[]>()
+  const groupKeys = groups.map((group) => ({ group, artistId: primaryOf(group), key: editionFreeKey(group.title) }))
+  for (const row of rows) {
+    const key = editionFreeKey(row.title)
+    if (!key) continue
+    const fits = groupKeys.filter((one) => one.artistId === row.artistId && one.key === key && compatibleTypes(one.group.type, row.type))
+    if (fits.length !== 1) continue
+    const mbid = fits[0]!.group.mbid
+    result.set(mbid, [...(result.get(mbid) ?? []), row.id])
+  }
+  return result
+}
+
+/**
+ * Makes the stubs of a release group one row with its MBID before it is upserted: merged
+ * into the row that has it, else the first takes it and the others merge into that one.
+ * Merges leave redirects, so ids clients hold keep working.
+ */
+async function adoptStubs(tx: Transaction, mbid: string, stubIds: readonly string[]) {
+  if (stubIds.length === 0) return
+  const [existing] = await tx.select({ id: albums.id }).from(albums).where(eq(albums.mbid, mbid))
+  let into = existing ? await resolveMerged(tx, albums, existing.id) : null
+  for (const id of stubIds) {
+    if (into) await mergeAlbum(id, into, tx)
+    else {
+      await tx.update(albums).set({ mbid, updatedAt: new Date() }).where(eq(albums.id, id))
+      into = id
+    }
+  }
 }
 
 /** Keeps the image an artist has (from the user's folders, say); else Deezer's picture, fanart.tv, then Wikidata, as a lazy remote image. */
