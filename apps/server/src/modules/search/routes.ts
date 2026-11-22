@@ -1,4 +1,4 @@
-import { LibrarySearchQuery, SearchQuery, type SearchKind, type SearchResults } from '@squirmy/contracts'
+import { LibrarySearchQuery, SearchQuery, type AlbumSummary, type SearchKind, type SearchResults } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { requireUser } from '../../lib/auth.js'
 import { dropCachedReads } from '../../lib/read-cache.js'
@@ -6,6 +6,7 @@ import { matchKey } from '../../lib/text.js'
 import { albumSummaries, artistSummaries, trackSummaries } from '../catalog/summaries.js'
 import { warmDetail } from '../enrichment/detail.js'
 import { searchLibrary } from './library.js'
+import { labelFreeKey } from './keys.js'
 import { materialize, type StubIds } from './materialize.js'
 import { withoutNamesakes } from './namesakes.js'
 import { allKinds, searchCatalog } from './providers.js'
@@ -38,6 +39,23 @@ function distinct(found: Found): Found {
   return { artists: once(found.artists), albums: once(found.albums), tracks: once(found.tracks) }
 }
 
+/**
+ * One card per album name and artist. Deezer lists one edition several times (the explicit
+ * and the clean "SOS Deluxe: LANA", another pressing), each a row of its own, and search
+ * showed the same card three times. The first, which ranks highest, stands for the others;
+ * so does a copy the library answer already shows. Different editions keep their names
+ * ("SOS" and "SOS Deluxe: LANA") and so stay apart.
+ */
+export function oncePerTitle(albums: AlbumSummary[], shown: readonly AlbumSummary[] = []): AlbumSummary[] {
+  const key = (album: AlbumSummary) => `${matchKey(album.artistCredit)}|${labelFreeKey(album.title)}`
+  const seen = new Set(shown.map(key))
+  return albums.filter((album) => {
+    if (seen.has(key(album))) return false
+    seen.add(key(album))
+    return true
+  })
+}
+
 const empty: SearchResults = { artists: [], albums: [], tracks: [], provider: null, top: null, ranked: [] }
 const ranked = (list: Ranked[]) => list.map(({ type, id, score }) => ({ type, id, score }))
 
@@ -50,7 +68,8 @@ export async function searchRoutes(app: FastifyInstance) {
     if (tooShort(q, key) || key === '') return empty
     // With a genre, a search inside the Library's genre chip stays in it.
     const ids = await searchLibrary(user.id, key, limit, { offset, types: type && [type], genre })
-    const found = distinct(await summaries(user.id, ids))
+    const unique = distinct(await summaries(user.id, ids))
+    const found = { ...unique, albums: oncePerTitle(unique.albums) }
     // Every result of the library search is the viewer's own.
     const list = await rankFound(q, found, { userId: user.id, owned: [...ids.artists, ...ids.albums, ...ids.tracks] })
     return { ...found, provider: null, top: topOf(list), ranked: ranked(list) }
@@ -86,6 +105,7 @@ export async function searchRoutes(app: FastifyInstance) {
     // (fans, plays), so the client can place its rows among these on one scale.
     const page = { artists: library.artists.slice(offset), albums: library.albums.slice(offset), tracks: library.tracks.slice(offset) }
     const libraryPage = await summaries(user.id, page)
+    own.albums = oncePerTitle(own.albums, libraryPage.albums)
     const list = await rankFound(q, {
       artists: [...own.artists, ...libraryPage.artists],
       albums: [...own.albums, ...libraryPage.albums],
