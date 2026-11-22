@@ -368,8 +368,9 @@ describe('acquired tracks and their album', () => {
     expect(await savedAlbums()).toContain(album.albumId)
   })
 
+  // Longer than the default: a retry woken while its worker is busy waits for pg-boss's 30 second poll.
   it('waits for a busy provider instead of graying the track out, and never sends it more jobs than it takes', async () => {
-    const album = await identified({ title: 'Busy Night', year: 2008, tracks: Array.from({ length: 4 }, (_, index) => ({ title: `Rush ${index + 1}`, durationMs: 1000 })) })
+    const album = await identified({ title: 'Busy Night', year: 2008, tracks: Array.from({ length: 3 }, (_, index) => ({ title: `Rush ${index + 1}`, durationMs: 1000 })) })
     configureAcquisition({ slotWaitSeconds: 1 })
     try {
       mock.settings.busyTimes = 2
@@ -379,12 +380,13 @@ describe('acquired tracks and their album', () => {
       expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, first))).toEqual([])
 
       // Playback asks for the current entry and the next ones at the same time, more than
-      // the provider takes at once. Three, not more: each import holds a connection of the
-      // test database's four while it runs.
+      // the provider takes at once. Two against a provider that takes one: each running import
+      // holds a connection of the test database's four, and filing reserves one more for its
+      // root lock, so three imports filing at once would leave none for their queries.
       mock.settings.delayMs = 400
-      mock.settings.maxConcurrent = 2
+      mock.settings.maxConcurrent = 1
       expect((await app.inject({ method: 'POST', url: `/api/v1/admin/acquisition/providers/${providerId}/test`, headers: admin.headers })).statusCode).toBe(200)
-      const rest = album.tracks.slice(1).map((track) => track.recordingId)
+      const rest = album.tracks.slice(1, 3).map((track) => track.recordingId)
       let peak = 0
       const watch = setInterval(() => {
         void db.select({ count: sql<number>`count(*)::int` }).from(acquisitionJobs)
@@ -396,14 +398,14 @@ describe('acquired tracks and their album', () => {
       clearInterval(watch)
       for (const id of rest) expect((await jobsFor(id)).at(-1)).toMatchObject({ status: 'completed', error: null })
       expect(peak).toBeGreaterThan(0)
-      expect(peak).toBeLessThanOrEqual(2)
-      expect((await albumsWithFiles(album.artist.id)).map((item) => [item.id, item.ownedTrackCount])).toEqual([[album.albumId, 4]])
+      expect(peak).toBe(1)
+      expect((await albumsWithFiles(album.artist.id)).map((item) => [item.id, item.ownedTrackCount])).toEqual([[album.albumId, 3]])
     } finally {
       configureAcquisition({ slotWaitSeconds: 5 })
       mock.settings.maxConcurrent = 4
       await app.inject({ method: 'POST', url: `/api/v1/admin/acquisition/providers/${providerId}/test`, headers: admin.headers })
     }
-  })
+  }, 90_000)
 
   it('puts a whole album fetched in one job on the album, whatever its files call it', async () => {
     const album = await identified({ title: 'All At Once', year: 2015, tracks: [{ title: 'Part One', durationMs: 2000 }, { title: 'Part Two', durationMs: 3000 }, { title: 'Part Three', durationMs: 2000 }] })
