@@ -48,7 +48,7 @@ async function handle(request: FastifyRequest, reply: FastifyReply) {
   try {
     const endpoint = endpoints.get(method.toLowerCase())
     if (!endpoint) throw new SubsonicError(ErrorCode.generic, `Unknown API method: ${method}`)
-    const user = endpoint.public ? null : await authenticate(params, request.ip)
+    const user = endpoint.public ? null : await authenticate(params)
     if (endpoint.admin && user?.role !== 'admin') {
       throw new SubsonicError(ErrorCode.notAuthorized, 'User is not authorized for the given operation')
     }

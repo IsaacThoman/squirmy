@@ -5,7 +5,7 @@
  */
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albums, appPasswords, mediaFiles, plays, recordings, releaseLoudness, users } from '../../database/schema.js'
@@ -19,7 +19,6 @@ import { getRatings, likeEntity, listLikes } from '../userdata/likes.js'
 import { addPlaylistItems, createPlaylist, getPlaylist } from '../userdata/playlists.js'
 import { similarArtists } from '../radio/index.js'
 import { getSnapshot } from '../sessions/index.js'
-import { resetAuthFailures } from './auth.js'
 import { folderId } from './ids.js'
 import { extensions } from './handlers/system.js'
 import { methodNames } from './endpoints.js'
@@ -70,7 +69,6 @@ describe('subsonic', () => {
     await db.update(mediaFiles).set({ loudnessLufs: -21, truePeakDb: -6 }).where(eq(mediaFiles.id, blueHour.tracks[0]!.fileId!))
     await db.insert(releaseLoudness).values({ releaseId: blueHour.releaseId, loudnessLufs: -20, truePeakDb: -3, fileCount: 3 })
   })
-  beforeEach(() => resetAuthFailures())
   afterAll(async () => {
     await app.close()
   })
@@ -180,11 +178,10 @@ describe('subsonic', () => {
       expect(Date.now() - row!.lastUsedAt!.getTime()).toBeLessThan(10_000)
     })
 
-    it('limits failed attempts per IP', async () => {
-      for (let attempt = 0; attempt < 10; attempt++) expect(await code({ u: 'mira', p: 'guess' })).toBe(40)
-      expect(await code({ u: 'mira', p: mira.secret })).toBe(40)
-      const elsewhere = await app.inject({ url: `/rest/ping?f=json&${new URLSearchParams({ u: 'mira', p: mira.secret })}`, remoteAddress: '10.9.8.7' })
-      expect(elsewhere.json()['subsonic-response'].status).toBe('ok')
+    it('accepts valid credentials however many failures came from the same address', async () => {
+      for (let attempt = 0; attempt < 120; attempt++) expect(await code({ u: 'mira', p: 'guess' })).toBe(40)
+      // A stale app on the same address must not lock out the user's working ones.
+      expect(await code({ u: 'mira', p: mira.secret })).toBeUndefined()
     })
 
     it('needs admin rights for admin methods and for other users', async () => {

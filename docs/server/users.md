@@ -46,7 +46,7 @@ Each user's **Manage** menu in **Admin → Users & invites** has:
 
 Sessions last 180 days and renew while in use. Changing your own password (**Settings → Account → Change password**) signs out your other browsers and apps; app passwords keep working.
 
-Sign-in is rate limited to 5 attempts a minute per username and 20 per IP address. Behind a reverse proxy, set [`TRUST_PROXY`](./reverse-proxy.md#what-trust-proxy-does) so the limit applies to the real client address.
+Sign-in allows 20 attempts a minute per address. Failed attempts are also counted: after 5 wrong passwords in a minute for one username from one address, that address must wait out the minute for that username, while the same account can still sign in from elsewhere. After 30 wrong passwords in a minute for one username from all addresses together, that username is refused everywhere until the minute ends. Correct sign-ins never count against these limits. Subsonic apps are refused only when their address sent 100 wrong app passwords in a minute; valid app passwords are otherwise always accepted. Behind a reverse proxy, set [`TRUST_PROXY`](./reverse-proxy.md#what-trust-proxy-does) so the limits apply to the real client address.
 
 ## App passwords
 
