@@ -1,15 +1,15 @@
-import { queryKeys, type AlbumSummary, type AlbumType, type PlaybackContext, type TrackSummary } from '@squirmy/contracts';
+import { queryKeys, type AlbumSummary, type AlbumType, type HistoryItem, type PlaybackContext, type TrackSummary } from '@squirmy/contracts';
 import { formatTotalDuration } from '@squirmy/client-core';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { useAccount, useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
+import { useAccount, useSignedInApi, useWantlistEnabled, type Api } from '../account/AccountProvider';
 import { albumExpanding } from '../data/albums';
 import { fallbackTint } from '../data/color';
 import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
@@ -32,10 +32,12 @@ import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useOfflineDim, type Collection,
 } from './shared';
+import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
 import { underStatusBar, useRefreshControl } from './refresh';
 import { displayFontScale } from '../fontScale';
 import { SongList } from './SongList';
+import { usePlayAll } from './usePlayAll';
 import { ZoomTarget } from './ZoomLink';
 
 const albumNavSize = 44;
@@ -196,11 +198,14 @@ function share(message: string) {
 }
 
 /** Play and Shuffle, for a list with something playable in it. */
-function playButtons(tracks: readonly TrackSummary[], canPlay: (track: TrackSummary) => boolean, play: (shuffle: boolean) => void): AlbumPlaybackProps['actions'] {
+function playButtons(
+  tracks: readonly TrackSummary[], canPlay: (track: TrackSummary) => boolean, play: (shuffle: boolean) => void,
+  busy: 'play' | 'shuffle' | null = null,
+): AlbumPlaybackProps['actions'] {
   if (!tracks.some(canPlay)) return [];
   return [
-    { label: 'Play', symbol: 'play.fill', onPress: () => play(false) },
-    { label: 'Shuffle', symbol: 'shuffle', onPress: () => play(true) },
+    { label: 'Play', symbol: 'play.fill', onPress: () => play(false), busy: busy === 'play' },
+    { label: 'Shuffle', symbol: 'shuffle', onPress: () => play(true), busy: busy === 'shuffle' },
   ];
 }
 
@@ -268,11 +273,19 @@ export function PlaylistScreen(props: PageProps) {
   return <UserPlaylistScreen {...props} />;
 }
 
-function TrackListPage({ item, title, info, tracks, context, empty, loadMore, loadingMore, refresh, download, props }: {
+type PlayAll = ReturnType<typeof usePlayAll<unknown>>;
+const likedPage = (api: Api, cursor: string, limit: number) => api.userdata.likes('track', { cursor, limit });
+const historyPage = (api: Api, cursor: string, limit: number) => api.userdata.history({ cursor, limit });
+/** Each song once, at its latest play: the page lists songs, not every play of them. */
+const historyTracks = (items: readonly HistoryItem[]) => uniqueTracks(items.map(item => item.track));
+
+function TrackListPage({ item, title, info, tracks, playAll, context, empty, loadMore, loadingMore, refresh, download, props }: {
   item: Collection;
   title: string;
   info: string;
   tracks: readonly TrackSummary[];
+  /** Loads the rest of a list shown in part before playing it; without it, `tracks` is played as it is. */
+  playAll?: PlayAll;
   context: PlaybackContext;
   empty: { title: string; description: string };
   loadMore: () => void;
@@ -285,9 +298,11 @@ function TrackListPage({ item, title, info, tracks, context, empty, loadMore, lo
   const { canPlay } = useAvailability();
   const play = (shuffle?: boolean, start?: number) => {
     tapFeedback();
-    actions.playTracks(tracks, { start, shuffle, context });
+    const playTracks = (all: readonly TrackSummary[]) => actions.playTracks(all, { start, shuffle, context });
+    if (playAll) playAll.run(start, Boolean(shuffle), playTracks);
+    else playTracks(tracks);
   };
-  return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play)}
+  return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play, playAll?.busy)}
     nav={download ? [download.nav] : []} status={download?.status}
     onBack={props.onBack} onEndReached={loadMore} onRefresh={refresh} bottomInset={props.bottomInset ?? 155}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)}>
@@ -299,6 +314,7 @@ function TrackListPage({ item, title, info, tracks, context, empty, loadMore, lo
 
 function LikedScreen(props: PageProps) {
   const liked = useLikedTracks();
+  const playAll = usePlayAll({ list: liked, fetchPage: likedPage, tracksOf: items => [...items] });
   const kept = useDownloadedLikes();
   const download = useDownloadActions();
   const tracks = liked.data ? liked.items : kept;
@@ -307,16 +323,19 @@ function LikedScreen(props: PageProps) {
   useBackSwipeOnly();
   if (!tracks) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
   return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={tracks} download={control}
+    playAll={liked.data ? playAll : undefined}
     context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage} refresh={liked.refetch}
     empty={{ title: 'No liked songs yet', description: 'Tap the heart on any song to add it to Liked Songs.' }} props={props} />;
 }
 
 function HistoryScreen(props: PageProps) {
   const history = useHistory();
+  const playAll = usePlayAll({ list: history, fetchPage: historyPage, tracksOf: historyTracks });
+  const tracks = useMemo(() => historyTracks(history.items), [history.items]);
   useBackSwipeOnly();
   if (!history.data) return <PageFallback query={history} what="your history" onBack={props.onBack} />;
   return <TrackListPage item={recentCollection(props.link)} title="Recently Played" info="Listening history"
-    tracks={history.items.map(item => item.track)} context={{ type: 'history', id: null, title: 'Recently Played' }}
+    tracks={tracks} playAll={playAll} context={{ type: 'history', id: null, title: 'Recently Played' }}
     loadMore={history.loadMore} loadingMore={history.isFetchingNextPage} refresh={history.refetch}
     empty={{ title: 'Nothing played yet', description: 'Play a song and it will appear in your history.' }} props={props} />;
 }

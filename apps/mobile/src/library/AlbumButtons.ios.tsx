@@ -34,12 +34,14 @@ export function AlbumPlaybackButtons({ title, actions }: AlbumPlaybackProps) {
   return (
     <Host style={{ height: 46, marginTop: 18, alignSelf: 'stretch' }}>
       <HStack spacing={9}>
-        {actions.map(({ label, symbol, onPress }, index) => {
+        {actions.map(({ label, symbol, onPress, busy }, index) => {
           const color = index === 0 ? colors.onAccent : colors.text;
           return <Button key={label} onPress={onPress}
             modifiers={[buttonStyle('plain'), background(index === 0 ? colors.accent : colors.surface), clipShape('capsule'), accessibilityLabel(`${label} ${title}`)]}>
             <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity }), frame({ height: 46 }), hitShape]}>
-              <Image systemName={symbol as SymbolName} color={color} size={17} />
+              {busy
+                ? <ProgressView modifiers={[progressViewStyle('circular'), tint(color), frame({ width: 17, height: 17 })]} />
+                : <Image systemName={symbol as SymbolName} color={color} size={17} />}
               <Text modifiers={[foregroundStyle(color), font({ size: 15, weight: 'bold' })]}>{label}</Text>
             </HStack>
           </Button>;

@@ -21,6 +21,7 @@ import {
 const keptArtSize = 600;
 const likedPageSize = 200;
 const syncIntervalMs = 6 * 3600_000;
+const resyncAfterMs = 10 * 60_000;
 /** Server changes come in bursts (a scan, a playlist edit); collections are re-read once they settle. */
 const invalidateDelayMs = 3000;
 
@@ -109,12 +110,19 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
     if (settings) manager?.setOptions({ quality: settings.downloadQuality, wifiOnly: settings.downloadOnWifiOnly });
   }, [manager, settings?.downloadQuality, settings?.downloadOnWifiOnly]);
 
+  // Coming back online re-reads everything at most every few minutes: a phone on a weak
+  // network can drop and regain its connection many times in that time.
+  const lastSync = useRef({ manager: null as DownloadManager | null, at: -Infinity });
   useEffect(() => {
     if (!manager) return;
     manager.setOnline(online);
     if (!online) return;
-    void manager.sync();
-    const timer = setInterval(() => void manager.sync(), syncIntervalMs);
+    const sync = () => {
+      lastSync.current = { manager, at: Date.now() };
+      void manager.sync();
+    };
+    if (lastSync.current.manager !== manager || Date.now() - lastSync.current.at >= resyncAfterMs) sync();
+    const timer = setInterval(sync, syncIntervalMs);
     return () => clearInterval(timer);
   }, [manager, online]);
 
@@ -122,11 +130,13 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
     if (!manager) return;
     const kinds = new Set<CollectionKind>();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const stop = onInvalidate(keys => {
-      for (const [root] of keys) {
+    const stop = onInvalidate((keys, { own }) => {
+      for (const [root, id] of keys) {
+        // A like made here changes which songs are liked, not what a playlist or album holds.
+        if (root === 'likes' && manager.collectionRow(likedId)) kinds.add('liked');
+        if (own) continue;
         if (root === 'playlists') kinds.add('playlist');
-        if (root === 'likes') kinds.add('liked');
-        if (root === 'album' || root === 'library') kinds.add('album');
+        if (root === 'library' || (root === 'album' && typeof id === 'string' && manager.collectionRow(albumCollectionId(id)))) kinds.add('album');
       }
       if (!kinds.size) return;
       clearTimeout(timer);
