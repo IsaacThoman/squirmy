@@ -11,7 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { formatDuration, formatRemaining } from '@squirmy/client-core';
+import { contextLabel, formatDuration, formatRemaining } from '@squirmy/client-core';
 import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
 import { useLibraryActions, useLiked } from './data/library';
@@ -40,6 +40,13 @@ import { createThemedStyles, useColors } from './theme';
 const artworkRadius = 21;
 const artworkGap = 14;
 const grabberHeight = 32;
+/**
+ * The line under the grabber that says what is playing from ("Playing from album · Dummy"),
+ * as on web. Its room is kept when there is nothing to say, so the artwork does not move
+ * from one song to the next.
+ */
+const contextHeight = 34;
+const headerHeight = grabberHeight + contextHeight;
 const compactArtworkSize = 54;
 const compactArtworkRadius = 11;
 const artworkInset = 24;
@@ -91,7 +98,8 @@ export default function Player() {
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
-  const { current, track, actions, remote, output } = usePlaybackState();
+  const { current, track, actions, remote, output, session } = usePlaybackState();
+  const context = contextLabel(session.context);
   const loading = useLoading();
   const { setLiked } = useLibraryActions();
   const artwork = track?.album?.artwork;
@@ -188,7 +196,7 @@ export default function Player() {
     'worklet';
     return {
       x: insets.left + artX + (artworkInset - artX) * d + drag * (1 - d),
-      y: top + grabberHeight + artY + (compactArtworkTop - artY) * d,
+      y: top + headerHeight + artY + (compactArtworkTop - artY) * d,
       size: artSize + (compactArtworkSize - artSize) * d,
       radius: artworkRadius + (compactArtworkRadius - artworkRadius) * d,
     };
@@ -304,6 +312,13 @@ export default function Player() {
             <GestureDetector gesture={grabberDismiss}>
               <Animated.View style={[styles.grabberTouch, grabberStyle]}>
                 <CollapseButton onPress={close} />
+                <View style={styles.context} accessible={Boolean(context)}
+                  accessibilityLabel={context ? `${context.heading}, ${context.title}` : undefined}>
+                  {context && <>
+                    <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={styles.contextHeading}>{context.heading}</Text>
+                    <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={styles.contextTitle}>{context.title}</Text>
+                  </>}
+                </View>
               </Animated.View>
             </GestureDetector>
             <View style={styles.deckFrame} onLayout={(event) => setAvailableHeight(event.nativeEvent.layout.height)}>
@@ -578,7 +593,10 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
-  grabberTouch: { height: grabberHeight, alignItems: 'center', justifyContent: 'center' },
+  grabberTouch: { height: headerHeight, alignItems: 'center' },
+  context: { height: contextHeight, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: artworkInset },
+  contextHeading: { color: colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
+  contextTitle: { color: colors.text, fontSize: 13, fontWeight: '600', marginTop: 1 },
   deckFrame: { flex: 1 },
   nowPlaying: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: artworkInset, gap: artworkGap },
   artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.surface },
