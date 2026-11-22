@@ -249,6 +249,11 @@ export function useLiked(type: LikeEntityType, id: string | undefined, liked: bo
   return (id ? likes.get(`${type}:${id}`) : undefined) ?? liked ?? false;
 }
 
+/** Hearts changed here or on another device since the screens' data was loaded, by `type:id`. */
+export function useLikeChanges(): ReadonlyMap<string, boolean> {
+  return useLibrary().likes;
+}
+
 export function useLibraryActions() {
   const { setLiked, setWanted } = useLibrary();
   return { setLiked, setWanted };
