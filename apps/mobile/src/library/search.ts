@@ -1,4 +1,4 @@
-import { mergeSearch, searchItemKey, type SearchFilter, type SearchItem, type Viewer } from '@squirmy/client-core';
+import { mergeSearch, type SearchFilter, type SearchItem, type Viewer } from '@squirmy/client-core';
 import type { PlaylistSummary, SearchResults } from '@squirmy/contracts';
 
 /** The filters above the results, as the segmented control names them. */
@@ -33,19 +33,4 @@ export function searchStage({ library, catalog, catalogFailed, waited }: {
 }): 'wait' | 'partial' | 'full' {
   if (catalog || (library && catalogFailed)) return 'full';
   return library && waited ? 'partial' : 'wait';
-}
-
-/**
- * Keeps rows already on screen for this query where they were. A later answer for the same
- * query (a refresh after a play, which moves a played song up in the library's ranking) may
- * order them differently; moving rows under the finger reads as a glitch. Rows the earlier
- * answer did not have go after them, in their new order. Returns the items and the order to
- * pass next time.
- */
-export function keepOrder(items: readonly SearchItem[], previous: readonly string[] | null): { items: SearchItem[]; order: string[] } {
-  if (!previous?.length) return { items: [...items], order: items.map(searchItemKey) };
-  const place = new Map(previous.map((key, index) => [key, index]));
-  const known = items.filter(item => place.has(searchItemKey(item))).sort((a, b) => place.get(searchItemKey(a))! - place.get(searchItemKey(b))!);
-  const kept = [...known, ...items.filter(item => !place.has(searchItemKey(item)))];
-  return { items: kept, order: kept.map(searchItemKey) };
 }

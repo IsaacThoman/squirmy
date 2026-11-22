@@ -1,4 +1,4 @@
-import { searchItemKey, type MergedSearch, type SearchItem } from '@squirmy/client-core'
+import { searchItemKey, tooShortToSearch, type MergedSearch, type SearchItem } from '@squirmy/client-core'
 import type { AlbumSummary, ArtistSummary, TrackSummary } from '@squirmy/contracts'
 import { ArrowRight, CornerDownLeft, Play, Search, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useMemo, useState } from 'react'
@@ -136,7 +136,7 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
         </div>
         <div className="min-h-0 overflow-y-auto p-1.5">
           {!term && <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Go to</p>}
-          {settledEmpty && <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">No results for “{term}”.</p>}
+          {settledEmpty && <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">{tooShortToSearch(term) ? 'Keep typing to search.' : `No results for “${term}”.`}</p>}
           <div id={listboxId} role="listbox" aria-label={term ? 'Results' : 'Go to'}>
             {choices.map((choice, index) => (
               <Option

@@ -1,7 +1,7 @@
 import { searchItemKey, type SearchItem } from '@squirmy/client-core';
 import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchResults, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { keepOrder, searchItems, searchStage } from './search';
+import { searchItems, searchStage } from './search';
 
 const artist = (id: string, inLibrary = true): ArtistSummary => ({ id, mbid: null, name: id, image: null, inLibrary });
 const album = (id: string, availability: AlbumSummary['availability'] = 'full'): AlbumSummary => ({
@@ -55,17 +55,5 @@ describe('searchStage', () => {
     expect(searchStage({ library: true, catalog: false, catalogFailed: false, waited: true })).toBe('partial');
     expect(searchStage({ library: true, catalog: false, catalogFailed: true, waited: false })).toBe('full');
     expect(searchStage({ library: false, catalog: true, catalogFailed: false, waited: false })).toBe('full');
-  });
-});
-
-describe('keepOrder', () => {
-  const items = (...ids: string[]): SearchItem[] => ids.map(id => ({ type: 'track', track: track(id) }));
-
-  it('keeps rows already shown where they were and adds new ones after them', () => {
-    const first = keepOrder(items('a', 'b', 'c'), null);
-    expect(keys(first.items)).toEqual(['track:a', 'track:b', 'track:c']);
-    const again = keepOrder(items('c', 'd', 'a', 'b'), first.order);
-    expect(keys(again.items)).toEqual(['track:a', 'track:b', 'track:c', 'track:d']);
-    expect(again.order).toEqual(keys(again.items));
   });
 });

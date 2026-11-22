@@ -1,4 +1,4 @@
-import { recentSearchKey, searchItemKey, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core'
+import { recentSearchKey, searchItemKey, tooShortToSearch, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core'
 import type { TrackSummary } from '@squirmy/contracts'
 import { Clock3, Heart, MoreHorizontal, Play, RotateCw, Search, X } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
@@ -221,6 +221,7 @@ function Results({ term, filter, list, listboxId, optionId, picked, onChoose }: 
       />
     )
   }
+  if (tooShortToSearch(term) && filter !== 'playlist') return <p className="text-sm text-muted-foreground">Keep typing: search needs at least two letters or digits.</p>
   if (!items) return <ResultsSkeleton />
   if (!items.length && !pending && !stale) {
     return (

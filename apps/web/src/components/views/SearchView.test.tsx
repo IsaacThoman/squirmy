@@ -133,21 +133,52 @@ describe('search page', () => {
     expect(screen.queryByText('Searching for more…')).toBeNull()
   })
 
-  it('keeps the last results, faded, until the next query is answered, and never mixes the two', async () => {
+  it('keeps the results faded while what is typed on is answered, and never opens one of them with Enter', async () => {
+    const { services, api } = fakeServices()
+    renderWithApp(<AppRoutes />, '/search?q=blue', services)
+    await results()
+    const before = rows()
+    api.search.library.mockReturnValue(new Promise<never>(() => {}))
+    api.search.catalog.mockReturnValue(new Promise<never>(() => {}))
+    await userEvent.type(field(), ' hour')
+    await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'blue hour', limit: 20 }, expect.anything()))
+    expect(rows()).toEqual(before)
+    expect(screen.getAllByRole('option')[0]).toHaveClass('opacity-60')
+    await userEvent.type(field(), '{Enter}')
+    expect(screen.getByRole('heading', { level: 1, name: 'Search' })).toBeInTheDocument()
+  })
+
+  it('never shows one search’s results under an unrelated one', async () => {
     const { services, api } = fakeServices()
     renderWithApp(<AppRoutes />, '/search?q=blue%20hour', services)
     await results()
-    const before = rows()
     api.search.library.mockReturnValue(new Promise<never>(() => {}))
     api.search.catalog.mockReturnValue(new Promise<never>(() => {}))
     await userEvent.clear(field())
     await userEvent.type(field(), 'amber')
     await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'amber', limit: 20 }, expect.anything()))
+    expect(screen.queryByRole('listbox', { name: /^Results for/ })).toBeNull()
+    expect(screen.getByRole('status', { name: 'Searching' })).toBeInTheDocument()
+  })
+
+  it('keeps rows where they were when the same search is answered again', async () => {
+    const { services, api } = fakeServices()
+    const { queryClient } = renderWithApp(<AppRoutes />, '/search?q=mira%20vale', services)
+    await results()
+    await waitFor(() => expect(screen.queryByText('Searching for more…')).toBeNull())
+    const before = rows()
+    // The server ranks the songs the other way round now (a play moved one up).
+    const reversed = (answer: SearchResults) => ({ ...answer, ranked: answer.ranked?.map((entry, index, all) => ({ ...entry, score: all[all.length - 1 - index]!.score })) })
+    api.search.library.mockImplementation(async (params: Params) => reversed(searchPage(searchFixtures(params.q).library, params)))
+    api.search.catalog.mockImplementation(async (params: Params) => reversed(searchPage(searchFixtures(params.q).catalog, params)))
+    await act(() => queryClient.invalidateQueries({ queryKey: ['search'] }))
+    await waitFor(() => expect(api.search.library).toHaveBeenCalledTimes(2))
     expect(rows()).toEqual(before)
-    expect(screen.getAllByRole('option')[0]).toHaveClass('opacity-60')
-    // Enter does not open a result of the earlier query.
-    await userEvent.type(field(), '{Enter}')
-    expect(screen.getByRole('heading', { level: 1, name: 'Search' })).toBeInTheDocument()
+  })
+
+  it('says a single letter is too short to search', async () => {
+    renderWithApp(<AppRoutes />, '/search?q=a')
+    expect(await screen.findByText(/Keep typing/)).toBeInTheDocument()
   })
 
   it('says when nothing matches', async () => {

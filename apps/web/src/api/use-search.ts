@@ -1,4 +1,4 @@
-import { mergeSearch, playlistScore, searchItemKey, type MergedSearch, type SearchItem } from '@squirmy/client-core'
+import { continuesQuery, keepOrder, mergeSearch, playlistScore, searchItemKey, type MergedSearch, type SearchItem } from '@squirmy/client-core'
 import { queryKeys, type PlaylistSummary, type SearchKind, type SearchResults } from '@squirmy/contracts'
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
@@ -64,8 +64,10 @@ function useAnswer(kind: 'library' | 'catalog', term: string) {
 export function useMergedSearch(typed: string, { catalog: withCatalog = true, playlists }: { catalog?: boolean; playlists?: readonly PlaylistSummary[] } = {}): SearchState {
   const viewer = useViewer()
   const term = typed.trim()
-  const library = useAnswer('library', useDebounced(term, 60, ''))
-  const catalog = useAnswer('catalog', useDebounced(withCatalog ? term : '', 250, ''))
+  // What is in the field when the page opens is asked at once: answers already cached (Back to
+  // the search page) then show on the first frame instead of after the debounce.
+  const library = useAnswer('library', useDebounced(term, 60, term))
+  const catalog = useAnswer('catalog', useDebounced(withCatalog ? term : '', 250, withCatalog ? term : ''))
 
   const exactLibrary = library.answer?.term === term ? library.answer : null
   const exactCatalog = withCatalog && catalog.answer?.term === term ? catalog.answer : null
@@ -85,6 +87,7 @@ export function useMergedSearch(typed: string, { catalog: withCatalog = true, pl
     const options = { query: term, ...(playlists ? { playlists: { query: term, items: playlists } } : {}) }
     return {
       term,
+      complete: !catalogPending,
       results: mergeSearch(exactLibrary?.data, exactCatalog?.data, viewer, options),
       catalogFailed: Boolean(exactCatalog?.failed),
       failed: Boolean(exactLibrary?.failed && (!withCatalog || exactCatalog?.failed)),
@@ -92,9 +95,21 @@ export function useMergedSearch(typed: string, { catalog: withCatalog = true, pl
     }
   }, [term, exactLibrary, exactCatalog, catalogPending, waited, withCatalog, playlists, viewer])
 
+  // Once both answers are in, a later answer for the same query (refetched after music became
+  // playable, or after a play) keeps the rows where they were shown.
+  const [order, setOrder] = useState<{ term: string; keys: string[] } | null>(null)
+  const steady = useMemo(() => {
+    if (!current?.complete) return current
+    const kept = keepOrder(current.results.items, order?.term === current.term ? order.keys : null)
+    return { ...current, results: { ...current.results, items: kept.items }, order: kept.order }
+  }, [current, order])
+  if (steady && 'order' in steady && (order?.term !== steady.term || order.keys.join() !== steady.order.join())) {
+    setOrder({ term: steady.term, keys: steady.order })
+  }
+
   // The last results shown, which stand in (faded) while the next query's are on their way.
-  const [shown, setShown] = useState(current)
-  if (current && current !== shown) setShown(current)
+  const [shown, setShown] = useState(steady)
+  if (steady && steady !== shown) setShown(steady)
 
   const retry = useEventCallback(() => {
     void library.refetch()
@@ -104,10 +119,11 @@ export function useMergedSearch(typed: string, { catalog: withCatalog = true, pl
   return useMemo(() => {
     const base = { catalogPending, retry, catalogFailed: false, failed: false, unavailable: false }
     if (!term) return { ...base, results: null, stale: false, catalogPending: false }
-    if (current) return { ...base, results: current.results, stale: false, catalogFailed: current.catalogFailed, failed: current.failed, unavailable: current.unavailable }
-    if (shown?.results && shown.term !== term) return { ...base, results: { ...shown.results, top: null }, stale: true }
+    if (steady) return { ...base, results: steady.results, stale: false, catalogFailed: steady.catalogFailed, failed: steady.failed, unavailable: steady.unavailable }
+    // Only the same search typed on or deleted back stands in, never an unrelated one.
+    if (shown?.results && shown.term !== term && continuesQuery(term, shown.term)) return { ...base, results: { ...shown.results, top: null }, stale: true }
     return { ...base, results: null, stale: false }
-  }, [term, current, shown, catalogPending, retry])
+  }, [term, steady, shown, catalogPending, retry])
 }
 
 /** Rows per page of one kind; the server answers at most 50. */

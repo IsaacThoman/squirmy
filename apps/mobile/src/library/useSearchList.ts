@@ -1,4 +1,4 @@
-import { filterKind, playlistScore, searchItemKey, type SearchFilter, type SearchItem } from '@squirmy/client-core';
+import { continuesQuery, filterKind, keepOrder, playlistScore, searchItemKey, type SearchFilter, type SearchItem } from '@squirmy/client-core';
 import {
   addRecentSearch, parseRecentSearches, recentSearchesStorageKey, removeRecentSearch, type RecentSearch,
 } from '@squirmy/client-core';
@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useAccountKey } from '../account/AccountProvider';
 import { usePlaylists, useSearch, useSearchPages } from '../data/queries';
 import { useViewer } from '../downloads/DownloadsProvider';
-import { catalogWaitMs, keepOrder, searchItems, searchStage } from './search';
+import { catalogWaitMs, searchItems, searchStage } from './search';
 
 /** The results for what is typed and the filter chosen, however they were found. */
 export type SearchList = {
@@ -105,13 +105,14 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
     };
   }, [term, filter, all, paged, pages, playlists, search.library, search.catalog, libraryFailed, catalogFailed]);
 
-  // The last results shown stand in while the next query's or filter's are on their way.
-  const [shown, setShown] = useState<SearchList | null>(null);
-  if (current && current !== shown) setShown(current);
+  // The last results shown stand in, faded, while the next ones are on their way: only for the
+  // same filter and the same search typed on or deleted back, never under an unrelated one.
+  const [shown, setShown] = useState<{ term: string; filter: SearchFilter; list: SearchList } | null>(null);
+  if (current && current !== shown?.list) setShown({ term, filter, list: current });
   if (!term) return { items: null, stale: false, pending: false, failed: false, catalogFailed: false, refetch: async () => {} };
   if (current) return current;
-  return shown?.items
-    ? { ...shown, stale: true, pending: true, loadMore: undefined }
+  return shown?.list.items && shown.filter === filter && continuesQuery(term, shown.term)
+    ? { ...shown.list, stale: true, pending: true, loadMore: undefined }
     : { items: null, stale: false, pending: true, failed: false, catalogFailed: false, refetch: async () => {} };
 }
 
