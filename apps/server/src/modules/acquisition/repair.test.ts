@@ -99,7 +99,6 @@ describe('repairing deliveries left on albums of their own', () => {
   /** One file through a real acquisition import, tagged like the old provider: track artist as album artist, "N/1", no ids, `Release/1-0NN`. */
   async function oldImport(jobId: string, tags: Tags) {
     const delivery = await createImport({ kind: 'acquisition', userId: fan.id, acquisitionJobId: jobId, rootId })
-    await db.update(acquisitionJobs).set({ importId: delivery.id }).where(eq(acquisitionJobs.id, jobId))
     const name = `Release/1-${String(tags.position).padStart(3, '0')}.flac`
     tone += 37
     const file = await makeTone(fixtures, {
@@ -116,6 +115,10 @@ describe('repairing deliveries left on albums of their own', () => {
       expect(row!.status).toBe('completed')
     })
     await drainJobs()
+    // Linked only now: the old ingest built artists from the tags without reading the
+    // request, which is the state these repairs start from (ingest now credits a delivery
+    // as it was requested).
+    await db.update(acquisitionJobs).set({ importId: delivery.id }).where(eq(acquisitionJobs.id, jobId))
     const [delivered] = await db.select().from(mediaFiles).where(eq(mediaFiles.importId, delivery.id))
     expect(delivered).toMatchObject({ source: `provider:${providerId}`, relPath: `_Incoming/${delivery.id}/${name}` })
     return { importId: delivery.id, file: delivered! }
