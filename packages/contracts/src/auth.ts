@@ -48,7 +48,8 @@ export type ClientDevice = z.infer<typeof ClientDevice>
 export const SetupRequest = z.object({ username: Username, password: Password, device: ClientDevice.optional() })
 export type SetupRequest = z.infer<typeof SetupRequest>
 
-export const LoginRequest = z.object({ username: z.string().min(1), password: z.string().min(1), device: ClientDevice.optional() })
+/** Bounded like the fields they must match, so a sign-in cannot hand argon2 megabytes. */
+export const LoginRequest = z.object({ username: z.string().trim().min(1).max(40), password: z.string().min(1).max(200), device: ClientDevice.optional() })
 export type LoginRequest = z.infer<typeof LoginRequest>
 
 /** `inviteCode` is required unless the operator turned off `registrationRequiresInvite`. */
