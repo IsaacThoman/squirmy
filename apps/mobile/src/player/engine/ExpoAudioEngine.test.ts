@@ -4,10 +4,10 @@ import { ExpoAudioEngine, type NativePlayer, type NativeStatus } from './ExpoAud
 
 /** Stands in for an `expo-audio` player; the test decides when it loads, ends or fails. */
 class FakePlayer implements NativePlayer {
-  playing = false;
   isLoaded = false;
   isBuffering = false;
-  currentTime = 0;
+  /** Says it plays, but its clock stands still: a stream that has not started to arrive. */
+  frozen = false;
   duration = 0;
   volume = 1;
   muted = false;
@@ -16,7 +16,28 @@ class FakePlayer implements NativePlayer {
   readonly seeks: { seconds: number; land: () => void }[] = [];
   private listener?: (status: NativeStatus) => void;
 
+  // The clock runs on the (fake) time while playing, as AVPlayer's does.
+  private playingNow = false;
+  private time = 0;
+  private since = 0;
+
   constructor(readonly url: string) {}
+
+  get playing() {
+    return this.playingNow;
+  }
+  set playing(playing: boolean) {
+    this.time = this.currentTime;
+    this.since = Date.now();
+    this.playingNow = playing;
+  }
+  get currentTime() {
+    return this.time + (this.playingNow && !this.frozen ? (Date.now() - this.since) / 1000 : 0);
+  }
+  set currentTime(seconds: number) {
+    this.time = seconds;
+    this.since = Date.now();
+  }
 
   play() {
     this.calls.push('play');
@@ -273,6 +294,20 @@ describe('ExpoAudioEngine', () => {
     vi.advanceTimersByTime(500);
     expect(states()).toEqual(['a:loading', 'a:playing', 'a:buffering', 'a:playing']);
     expect(interrupted).toEqual([]);
+  });
+
+  it('reports buffering while the player says it plays but its clock stands still', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].frozen = true;
+    players[0].load();
+    expect(engine.getStatus().state).toBe('playing');
+    vi.advanceTimersByTime(2000);
+    expect(engine.getStatus()).toEqual({ entryId: 'a', state: 'buffering', positionMs: 0 });
+    players[0].frozen = false;
+    players[0].currentTime = 0;
+    vi.advanceTimersByTime(500);
+    expect(engine.getStatus().state).toBe('playing');
+    expect(states()).toEqual(['a:loading', 'a:playing', 'a:buffering', 'a:playing']);
   });
 
   it('maps a failure to an error and stays there', () => {
