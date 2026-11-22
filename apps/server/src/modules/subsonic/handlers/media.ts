@@ -11,7 +11,7 @@ import { openStream, selectFile } from '../../streaming/index.js'
 import { profiles } from '../../streaming/profiles.js'
 import { expectId } from '../ids.js'
 import { notFound, sent, type Context, type Handler, type Payload } from '../protocol.js'
-import { hasPresentFile } from '../sql.js'
+import { hasPresentFile, servableArt } from '../sql.js'
 import { exactLength, liveEncode, liveMime, planStream } from '../transcode.js'
 import { resolve } from './browsing.js'
 
@@ -81,21 +81,22 @@ async function artworkAsset(value: string): Promise<string | null> {
     case 'cover':
       return parsed.id
     case 'album':
-      query = sql`select artwork_asset_id as id from albums where id = ${await resolve('album', parsed.id)}`
+      query = sql`select ${servableArt('artwork_asset_id')} as id from albums where id = ${await resolve('album', parsed.id)}`
       break
     case 'artist':
-      query = sql`select image_asset_id as id from artists where id = ${await resolve('artist', parsed.id)}`
+      query = sql`select ${servableArt('image_asset_id')} as id from artists where id = ${await resolve('artist', parsed.id)}`
       break
     case 'track':
       query = sql`
-        select coalesce(a.artwork_asset_id, f.embedded_art_asset_id) as id from media_files f left join albums a on a.id = f.album_id
+        select picture.id from media_files f left join albums a on a.id = f.album_id
+        cross join lateral (select coalesce(${servableArt('a.artwork_asset_id')}, ${servableArt('f.embedded_art_asset_id')}) as id) picture
         where f.recording_id = ${await resolve('track', parsed.id)} and f.missing_since is null
-        order by (a.artwork_asset_id is null and f.embedded_art_asset_id is null), f.lossless desc, f.added_at desc limit 1`
+        order by picture.id is null, f.lossless desc, f.added_at desc limit 1`
       break
     case 'playlist':
       query = sql`
-        select a.artwork_asset_id as id from playlist_items i join albums a on a.id = i.album_id
-        where i.playlist_id = ${parsed.id} and a.artwork_asset_id is not null order by i.position limit 1`
+        select ${servableArt('a.artwork_asset_id')} as id from playlist_items i join albums a on a.id = i.album_id
+        where i.playlist_id = ${parsed.id} and ${servableArt('a.artwork_asset_id')} is not null order by i.position limit 1`
       break
   }
   const [row] = await db.execute<{ id: string | null }>(query)

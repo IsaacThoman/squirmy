@@ -18,7 +18,7 @@ import { rootParam } from '../folders.js'
 import { albumId, artistId, expectId, trackId, type IdKind } from '../ids.js'
 import { notFound, type Context, type Handler, type Payload } from '../protocol.js'
 import { songs } from '../songs.js'
-import { libraryAlbum, libraryAlbumIds, libraryFile, libraryRecording, presentFiles } from '../sql.js'
+import { libraryAlbum, libraryAlbumIds, libraryFile, libraryRecording, presentFiles, servableArt } from '../sql.js'
 
 const tables: Partial<Record<IdKind, MergeableTable>> = { artist: 'artists', album: 'albums', track: 'recordings' }
 const nouns: Partial<Record<IdKind, string>> = { artist: 'Artist', album: 'Album', track: 'Song' }
@@ -139,7 +139,7 @@ async function artistInfo({ user, params, baseUrl }: Context, id3: boolean): Pro
   const count = params.int('count', 20, { min: 0, max: 100 })
   const [[row], similar] = await Promise.all([
     db.execute<{ bio: string | null; bioUrl: string | null; mbid: string | null; imageId: string | null }>(sql`
-      select bio, bio_url as "bioUrl", mbid, image_asset_id as "imageId" from artists where id = ${artist}`),
+      select bio, bio_url as "bioUrl", mbid, ${servableArt('image_asset_id')} as "imageId" from artists where id = ${artist}`),
     count > 0 ? similarArtists(artist, { limit: count * 2 }) : [],
   ])
   if (!row) throw notFound('Artist')
@@ -159,8 +159,8 @@ async function albumInfo({ params, baseUrl }: Context): Promise<Payload> {
   const parsed = expectId(params.required('id'), 'album', 'track')
   const id = await resolve(parsed.kind, parsed.id)
   const [row] = await db.execute<{ description: string | null; mbid: string | null; artworkId: string | null }>(parsed.kind === 'album'
-    ? sql`select description, mbid, artwork_asset_id as "artworkId" from albums where id = ${id}`
-    : sql`select a.description, a.mbid, a.artwork_asset_id as "artworkId" from media_files f join albums a on a.id = f.album_id
+    ? sql`select description, mbid, ${servableArt('artwork_asset_id')} as "artworkId" from albums where id = ${id}`
+    : sql`select a.description, a.mbid, ${servableArt('a.artwork_asset_id')} as "artworkId" from media_files f join albums a on a.id = f.album_id
         where f.recording_id = ${id} and f.missing_since is null order by f.added_at desc limit 1`)
   if (!row) throw notFound('Album')
   return {

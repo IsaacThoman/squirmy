@@ -11,7 +11,7 @@ import { isoTime, uuidArray } from '../catalog/sql.js'
 import { albumId, artistId, coverArtId } from './ids.js'
 import type { Payload } from './protocol.js'
 import { credits } from './songs.js'
-import { libraryFile, seconds } from './sql.js'
+import { libraryFile, seconds, servableArt } from './sql.js'
 
 type AlbumRow = {
   id: string
@@ -57,7 +57,7 @@ export async function albums(userId: string, ids: readonly string[], options: Al
     db.execute<AlbumRow>(sql`
       select a.id, a.mbid, a.title, a.artist_credit as "artistCredit", a.primary_artist_id as "primaryArtistId", a.year,
         a.release_date as "releaseDate", a.genres, a.type, a.secondary_types as "secondaryTypes",
-        a.artwork_asset_id as "artworkId", rel.label,
+        ${servableArt('a.artwork_asset_id')} as "artworkId", rel.label,
         stats."songCount", stats."durationMs", ${isoTime('stats.created')} as created,
         ${isoTime('lk.created_at')} as starred, rating.rating
       from albums a
