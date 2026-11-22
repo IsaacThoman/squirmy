@@ -79,7 +79,7 @@ describe('album detail from each source', () => {
   it('bridges a Deezer album by its URL relation and merges it into the row that has the MBID', async () => {
     const [existing] = await db.execute<{ id: string }>(sql`select id from albums where mbid = ${okComputer}`)
     const { albumId: stub } = await albumStub({ title: 'OK Computer', artist: 'Radiohead', deezerId: 14879699 })
-    await ensureAlbumDetail(stub)
+    await albumDetailRun(stub)
 
     expect(http.requests.some((url) => url.includes('/ws/2/url?'))).toBe(true)
     expect((await albumRow(stub)).mergedIntoId).toBe(existing!.id)
@@ -93,7 +93,7 @@ describe('album detail from each source', () => {
 
   it('bridges by UPC when MusicBrainz has no link to the Deezer page, adopting the MBID in place', async () => {
     const { albumId } = await albumStub({ title: 'Antisocialites', artist: 'Alvvays', deezerId: 369493327 })
-    await ensureAlbumDetail(albumId)
+    await albumDetailRun(albumId)
     const { album, tracks } = await canonical(albumId)
     expect(album).toMatchObject({ mbid: '1f0a3090-ae8c-4fbd-9b70-b4371961ef11', detailLevel: 2, mergedIntoId: null })
     expect(tracks.length).toBeGreaterThan(8)
@@ -103,7 +103,7 @@ describe('album detail from each source', () => {
 
   it('bridges by a strict title and artist search when neither link nor barcode is known', async () => {
     const { albumId } = await albumStub({ title: 'Miraculé', artist: 'Niro', deezerId: 7887699 })
-    await ensureAlbumDetail(albumId)
+    await albumDetailRun(albumId)
     const { album, tracks } = await canonical(albumId)
     expect(album).toMatchObject({ mbid: 'a6ccb4c7-5d38-4140-8482-14fc4db43480', detailLevel: 2 })
     expect(tracks.length).toBeGreaterThan(5)
@@ -112,7 +112,7 @@ describe('album detail from each source', () => {
 
   it('builds the track list from Deezer when nothing matches, and retries the bridge a day later', async () => {
     const { albumId } = await albumStub({ title: 'Discovery', artist: 'Data Punk', deezerId: 74901252 })
-    await ensureAlbumDetail(albumId)
+    await albumDetailRun(albumId)
     const { album, release, tracks } = await canonical(albumId)
     expect(album).toMatchObject({ mbid: null, detailLevel: 1 })
     expect(release).toMatchObject({ mbid: null, format: 'Digital Media' })
@@ -122,13 +122,13 @@ describe('album detail from each source', () => {
     expect(page.discs.flatMap((disc) => disc.tracks).map((track) => track.title)).toEqual(tracks.map((track) => track.title))
 
     http.requests.length = 0
-    await ensureAlbumDetail(albumId)
+    await albumDetailRun(albumId)
     expect(http.requests).toEqual([])
 
     // A day later the bridge is tried again (answered from the cache here), and the rows are reused.
     await db.execute(sql`update albums set fetched_at = now() - interval '2 days' where id = ${albumId}`)
     const before = await db.select({ id: recordings.id }).from(recordings)
-    await ensureAlbumDetail(albumId)
+    await albumDetailRun(albumId)
     expect((await albumRow(albumId)).fetchedAt!.getTime()).toBeGreaterThan(Date.now() - 60_000)
     expect(await db.select({ id: recordings.id }).from(recordings)).toHaveLength(before.length)
     expect(await db.select().from(releases).where(eq(releases.albumId, albumId))).toHaveLength(1)
@@ -200,20 +200,60 @@ describe('album detail bounds', () => {
       await gate
       return fixtures(...args)
     })
-    setDetailBudget(50)
+    setDetailBudget(300)
 
     const started = Date.now()
     const page = await albumDetail(context.userId, albumId)
     expect(Date.now() - started).toBeLessThan(2000)
     expect(page.discs).toEqual([])
+    // Not final: clients show it as loading and refetch on the invalidation.
+    expect(page.detailPending).toBe(true)
     const [job] = await db.execute<{ startAfter: Date }>(sql`
       select start_after as "startAfter" from pgboss.job where name = 'enrichment.album' and singleton_key = ${albumId}`)
     expect(new Date(job!.startAfter).getTime()).toBeGreaterThan(Date.now())
 
+    // A second visit while the run is still going does not wait out the budget again.
+    const again = Date.now()
+    expect((await albumDetail(context.userId, albumId)).detailPending).toBe(true)
+    expect(Date.now() - again).toBeLessThan(200)
+
     open()
     await albumDetailRun(albumId)
     expect((await albumRow(albumId)).detailLevel).toBe(2)
-    expect((await albumDetail(context.userId, albumId)).discs[0]!.tracks.length).toBeGreaterThan(5)
+    const done = await albumDetail(context.userId, albumId)
+    expect(done.discs[0]!.tracks.length).toBeGreaterThan(5)
+    expect(done.detailPending).toBeUndefined()
+  })
+
+  it('shows the Deezer track list while MusicBrainz is still answering', async () => {
+    const { albumId } = await albumStub({ title: 'OK Computer', artist: 'Radiohead', mbid: okComputer, deezerId: 14879699 })
+    const fixtures = globalThis.fetch
+    let open: () => void = () => {}
+    const gate = new Promise<void>((resolve) => {
+      open = resolve
+    })
+    vi.stubGlobal('fetch', async (...args: Parameters<typeof fetch>) => {
+      if (String(args[0]).includes('musicbrainz.org')) await gate
+      return fixtures(...args)
+    })
+    setDetailBudget(1500)
+
+    const started = Date.now()
+    const page = await albumDetail(context.userId, albumId)
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(page.detailPending).toBe(true)
+    expect(page.discs[0]!.tracks.map((track) => track.title).slice(0, 2)).toEqual(['Airbag', 'Paranoid Android'])
+
+    open()
+    await albumDetailRun(albumId)
+    const { release, tracks } = await canonical(albumId)
+    expect(release.mbid).toBe(okComputerCanonical)
+    expect(tracks).toHaveLength(12)
+    // The Deezer rows became the MusicBrainz ones: one edition, ids that still resolve.
+    expect(await db.select({ id: releases.id }).from(releases).where(eq(releases.albumId, albumId))).toHaveLength(1)
+    const pageTrack = page.discs[0]!.tracks[0]!
+    const [airbag] = await db.select({ mbid: recordings.mbid, into: recordings.mergedIntoId }).from(recordings).where(eq(recordings.id, pageTrack.id))
+    expect(airbag!.mbid ?? airbag!.into).toBeTruthy()
   })
 
   it('does not throw when a provider is down', async () => {
@@ -221,7 +261,7 @@ describe('album detail bounds', () => {
     vi.stubGlobal('fetch', async () => {
       throw new TypeError('fetch failed')
     })
-    await expect(ensureAlbumDetail(albumId)).resolves.toBeUndefined()
+    await expect(ensureAlbumDetail(albumId)).resolves.toBe(true)
     expect(await albumDetail(context.userId, albumId)).toMatchObject({ id: albumId, discs: [] })
     expect((await albumRow(albumId)).detailLevel).toBe(0)
   })

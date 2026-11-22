@@ -10,12 +10,13 @@ import { albums, releases } from '../../database/schema.js'
 import { lockUpserts, upsertRelease } from '../matching/apply.js'
 import { mergeAlbum } from '../matching/merge.js'
 import { deezer, musicbrainz } from '../metadata/index.js'
+import type { DeezerAlbum } from '../metadata/deezer.js'
 import type { MbReleaseGroup } from '../metadata/musicbrainz.js'
 import { bridgeAlbum } from './bridge.js'
 import { chooseCanonicalRelease } from './canonical.js'
 import { buildFromDeezer, linkDeezerAlbum } from './deezer-rows.js'
 import { fitStrayRecordings } from './fit.js'
-import { adoptMbid, albumOwned, changed, currentId, day, externalIdOf } from './rows.js'
+import { adoptMbid, albumOwned, attempt, changed, currentId, day, externalIdOf } from './rows.js'
 
 /** A complete album is refreshed after this long. */
 const refreshAfterMs = 30 * day
@@ -45,7 +46,7 @@ export const genreNames = (genres: { name: string }[]) => genres.slice(0, maxGen
  * existing MusicBrainz row), or null when there is no such album. Provider failures
  * propagate; whatever was written before them stays.
  */
-export async function hydrateAlbum(id: string, { force = false } = {}): Promise<string | null> {
+export async function hydrateAlbum(id: string, { force = false, usable }: { force?: boolean; usable?: () => void } = {}): Promise<string | null> {
   const albumId = await currentId('album', id)
   if (!albumId) return null
   const [album] = await db.select({
@@ -56,6 +57,17 @@ export async function hydrateAlbum(id: string, { force = false } = {}): Promise<
 
   const deezerId = await externalIdOf('deezer', 'album', albumId)
   if (!album.mbid && !deezerId) return albumId
+  let dz: DeezerAlbum | null | undefined
+  if (deezerId && !(await hasTrackList(albumId))) {
+    // MusicBrainz takes a request a second and a bridge or release several, more than a
+    // page waits; Deezer's track list stands in meanwhile and becomes the release later.
+    await attempt('Deezer track list', async () => {
+      dz = await deezer.getAlbum(Number(deezerId))
+      if (!dz) return
+      await buildFromDeezer(albumId, dz)
+      usable?.()
+    })
+  }
   const groupMbid = album.mbid ?? (deezerId ? await bridgeAlbum(deezerId, { title: album.title, artist: album.artistCredit, type: album.type as AlbumType }) : null)
   let result = albumId
   if (groupMbid) {
@@ -63,11 +75,18 @@ export async function hydrateAlbum(id: string, { force = false } = {}): Promise<
     if (group) result = await fromMusicBrainz(albumId, group)
   }
   const [after] = await db.select({ detailLevel: albums.detailLevel }).from(albums).where(eq(albums.id, result))
-  const dz = deezerId ? await deezer.getAlbum(Number(deezerId)) : null
+  if (dz === undefined) dz = deezerId ? await deezer.getAlbum(Number(deezerId)) : null
   if (dz && (after?.detailLevel ?? 0) < 2) await buildFromDeezer(result, dz)
   if (dz) await linkDeezerAlbum(result, dz)
   await changed([queryKeys.album(result), ...(result === albumId ? [] : [queryKeys.album(albumId)])])
   return result
+}
+
+/** Whether the album has any edition with tracks yet. */
+async function hasTrackList(albumId: string): Promise<boolean> {
+  const [row] = await db.execute<{ found: boolean }>(sql`
+    select exists (select 1 from releases rl join release_tracks rt on rt.release_id = rl.id where rl.album_id = ${albumId}) as found`)
+  return Boolean(row?.found)
 }
 
 /**

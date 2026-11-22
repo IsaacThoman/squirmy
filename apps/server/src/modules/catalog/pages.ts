@@ -53,7 +53,7 @@ export async function albumTrackList(albumId: string): Promise<AlbumTrack[]> {
  * disc, every track with its own availability. Fetches missing detail first.
  */
 export async function albumDetail(userId: string, id: string): Promise<AlbumDetail> {
-  await ensureAlbumDetail(await resolveOrThrow('albums', id, 'album'))
+  const settled = await ensureAlbumDetail(await resolveOrThrow('albums', id, 'album'))
   // Completing a stub may merge it into the album's existing row.
   const albumId = await resolveOrThrow('albums', id, 'album')
   const [[summary], [extra], tracks] = await Promise.all([
@@ -83,7 +83,7 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
     disc.tracks.push({ ...summary, disc: track.disc, position: track.position })
   }
   const durationMs = discs.reduce((total, disc) => total + disc.tracks.reduce((sum, track) => sum + track.durationMs, 0), 0)
-  return { ...summary, ...extra, durationMs, discs }
+  return { ...summary, ...extra, durationMs, discs, ...(settled ? {} : { detailPending: true as const }) }
 }
 
 /**
@@ -92,7 +92,7 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
  * artists from the radio module. Fetches missing detail first.
  */
 export async function artistDetail(userId: string, id: string): Promise<ArtistDetail> {
-  await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
+  const settled = await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
   const artistId = await resolveOrThrow('artists', id, 'artist')
   const [[summary], [profile], albums, top, similar] = await Promise.all([
     artistSummaries([artistId]),
@@ -122,7 +122,7 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
     albumSummaries(albums.map((row) => row.id)),
     trackSummaries(userId, top.map((row) => ({ id: row.id }))),
   ])
-  return { ...summary, ...profile, topTracks, albums: albumList, similar }
+  return { ...summary, ...profile, topTracks, albums: albumList, similar, ...(settled ? {} : { detailPending: true as const }) }
 }
 
 /** One track, in the given album's context when there is one. */
