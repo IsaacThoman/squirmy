@@ -299,7 +299,7 @@ function TrackListPage({ item, title, info, tracks, playAll, context, empty, loa
   const play = (shuffle?: boolean, start?: number) => {
     tapFeedback();
     const playTracks = (all: readonly TrackSummary[]) => actions.playTracks(all, { start, shuffle, context });
-    if (playAll) void playAll.run(start, Boolean(shuffle), playTracks);
+    if (playAll) playAll.run(start, Boolean(shuffle), playTracks);
     else playTracks(tracks);
   };
   return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play, playAll?.busy)}

@@ -246,7 +246,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
               const play = (list: readonly TrackSummary[]) => actions.playTracks(list, { start, context: { type: 'other', id: null, title: 'Songs' } });
               // Filtered, the matches on screen are what is played.
               if (query.trim()) play(tracks);
-              else void playSongs.run(start, false, play);
+              else playSongs.run(start, false, play);
             }} />
         </View>
       ) : grid ? <CollectionGrid columns={columns} items={items.map(item => ({
