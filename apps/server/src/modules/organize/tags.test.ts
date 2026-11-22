@@ -15,7 +15,7 @@ import { getBatch } from './batches.js'
 import { planOrganize } from './plan.js'
 import { revertBatch } from './revert.js'
 import { catalogTagValues, TAG_WRITABLE, writeTags, type TagValues } from './tags.js'
-import { addAlbum, makeRoot, manifest } from './test-library.js'
+import { addAlbum, makeRoot, manifest } from '../../test/organize-library.js'
 
 describe('organize: tags', () => {
   useTestDatabase()

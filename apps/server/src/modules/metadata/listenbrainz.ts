@@ -14,9 +14,6 @@ export type LbTopRecording = {
   userCount: number
 }
 
-/** Play counts for one recording; null counts mean ListenBrainz has no data for it. */
-export type LbPopularity = { recordingMbid: string; listenCount: number | null; userCount: number | null }
-
 export type LbSimilarArtist = { mbid: string; name: string; comment: string; type: string | null; score: number }
 
 /** One play to submit. Omit `listenedAt` for `playing_now`. */
@@ -56,7 +53,6 @@ const rateLimit = { rateLimitKey: provider, rateLimitMs: 350 }
 /** The algorithm ListenBrainz's own artist pages use. */
 const similarArtistsAlgorithm = 'session_based_days_7500_session_300_contribution_3_threshold_10_limit_100_filter_True_skip_30'
 /** ListenBrainz's MAX_ITEMS_PER_GET and MAX_LISTENS_PER_REQUEST. */
-const popularityBatch = 100
 const importBatch = 1000
 
 /**
@@ -96,26 +92,6 @@ export async function topRecordingsForArtist(artistMbid: string, options: { limi
     listenCount: one.total_listen_count,
     userCount: one.total_user_count,
   }))
-}
-
-/** Listen and listener counts for recordings, in the order given. Empty without a server token. */
-export async function recordingPopularity(recordingMbids: string[]): Promise<LbPopularity[]> {
-  const token = await serverToken()
-  if (!token || recordingMbids.length === 0) return []
-  const results: LbPopularity[] = []
-  for (let start = 0; start < recordingMbids.length; start += popularityBatch) {
-    const batch = recordingMbids.slice(start, start + popularityBatch)
-    const raw = await read<{ recording_mbid: string; total_listen_count: number | null; total_user_count: number | null }[]>(
-      `${api}popularity/recording`, token, { method: 'POST', body: JSON.stringify({ recording_mbids: batch }) },
-    )
-    const counts = new Map((raw ?? []).map((one) => [one.recording_mbid, one]))
-    results.push(...batch.map((mbid) => ({
-      recordingMbid: mbid,
-      listenCount: counts.get(mbid)?.total_listen_count ?? null,
-      userCount: counts.get(mbid)?.total_user_count ?? null,
-    })))
-  }
-  return results
 }
 
 /**

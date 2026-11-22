@@ -15,8 +15,6 @@ const runWorker = role !== 'api'
 // Worked out now, so no request waits for it.
 const version = getVersion()
 
-await runMigrations()
-
 // Every step registers its undo here, so a failed boot and a signal unwind the same way.
 const undo: (() => Promise<void>)[] = []
 let app: FastifyInstance | undefined
@@ -47,6 +45,8 @@ process.on('SIGINT', () => void shutdown('SIGINT'))
 
 try {
   undo.push(closeDb)
+  // Inside the try, so a failed migration is logged as a failed start and closes the pool.
+  await runMigrations()
 
   if (runWorker) for (const module of modules) await module.jobs?.(jobs)
   await startJobs({ work: runWorker })

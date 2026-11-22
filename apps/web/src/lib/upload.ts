@@ -41,6 +41,7 @@ const BATCH_BYTES = 16 * 1024 ** 2
 const BATCH_FILES = 32
 /** Progress re-renders the page at most this often. */
 const PROGRESS_MS = 120
+const PROXY_TOO_LARGE = 'The upload was refused as too large before it reached Squirmy (HTTP 413). A reverse proxy in front of the server probably limits the request size; see Troubleshooting, "Uploads fail on size".'
 
 /** Dot files and macOS resource forks; the server skips them too. */
 const isHidden = (path: string) => path.split('/').some(segment => segment.startsWith('.') || segment === '__MACOSX')
@@ -210,7 +211,9 @@ export class Upload {
         this.emit()
         return false
       }
-      if (error instanceof ApiError && error.status === 413) {
+      // Only Squirmy's own refusals name the file; a 413 from a reverse proxy has no JSON
+      // body, so treating it as one would reject the batch one file per round.
+      if (error instanceof ApiError && (error.code === 'file_too_large' || error.code === 'import_too_large')) {
         const kept = (error.details as { files?: ImportFileResult[] } | undefined)?.files ?? []
         this.settle(batch.slice(0, kept.length), kept)
         const refused = batch[kept.length]
@@ -222,7 +225,7 @@ export class Upload {
         return true
       }
       for (const index of batch) if (this.files[index].status === 'sending') this.files[index] = { ...this.files[index], status: 'waiting', sent: 0 }
-      this.set('failed', { error: errorMessage(error) })
+      this.set('failed', { error: error instanceof ApiError && error.code === 'http_413' ? PROXY_TOO_LARGE : errorMessage(error) })
       return false
     }
   }

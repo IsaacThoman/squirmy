@@ -340,18 +340,6 @@ export async function openTranscode(file: MediaFile, profile: TranscodeProfile, 
 
 const transcodeFailed = (error: Error) => error instanceof AppError ? error : new AppError(500, 'transcode_failed', 'The file could not be transcoded')
 
-/** Builds (fileId, profile) into the cache unless it is already there. Resolves when it is ready. */
-export async function prepareTranscode(file: MediaFile, profile: TranscodeProfile): Promise<void> {
-  const row = await readyTranscode(file, profile)
-  if (row && await stat(path.join(cacheRoot(), row.storagePath)).then(() => true, () => false)) {
-    await touch(row)
-    return
-  }
-  const job = startTranscode(await requireSource(file), profile)
-  await job.done
-  if (job.error) throw job.error
-}
-
 /** Kills every running encoder and waits for each to clean up. For shutdown. */
 export async function stopTranscodes() {
   stopping = true

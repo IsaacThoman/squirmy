@@ -4,7 +4,7 @@ Version 1.
 
 An acquisition provider is a small HTTP service you run next to Squirmy that can supply audio files for music the server does not have yet. When one is connected, tracks it can supply stop being gray: playing one fetches the file in the background, files it into the library like any other import, and starts playback when it arrives.
 
-Squirmy ships no providers that fetch from third parties and names none. The protocol is generic; what you connect is your decision and your responsibility. The repository includes two reference adapters: one that serves files from a cold-storage folder you already own ([adapters/cold-storage](https://github.com/IsaacThoman/squirmy/blob/dev/adapters/cold-storage/README.md)), and a mock used in tests and demos ([adapters/mock](https://github.com/IsaacThoman/squirmy/blob/dev/adapters/mock/README.md)). Both are built on `@squirmy/provider-kit` (`adapters/kit`), which implements everything below except "what do you have" and "fetch it", so a new provider is mostly those two functions.
+Squirmy ships no providers that fetch from third parties and names none. The protocol is generic; what you connect is your decision and your responsibility. The repository includes two reference adapters: one that serves files from a cold-storage folder you already own ([adapters/cold-storage](https://github.com/IsaacThoman/squirmy/blob/dev/adapters/cold-storage/README.md)), and a mock used in tests and demos ([adapters/mock](https://github.com/IsaacThoman/squirmy/blob/dev/adapters/mock/README.md)). Both are built on `@squirmy/provider-kit` (`adapters/kit`), which implements everything below except "what do you have" and "fetch it", so a new provider is mostly those two functions. The kit is a workspace package of this repository and is not published to npm, so a provider built on it lives in a clone of the repository, as the two adapters do.
 
 The schemas for every message are in `packages/contracts/src/acquisition.ts` (names start with `Provider`).
 
@@ -12,7 +12,7 @@ The schemas for every message are in `packages/contracts/src/acquisition.ts` (na
 
 An admin adds a provider with its base URL and shared secret in **Admin → Providers** (`POST /api/v1/admin/acquisition/providers`); the server calls `GET /capabilities` right away and again whenever the provider is tested (`POST /api/v1/admin/acquisition/providers/:id/test`). The [operator guide](./server/acquisition.md) walks through the screen. A provider counts only while it is enabled and has answered `capabilities` once. With several, they are tried in descending priority.
 
-The server tells a provider where to deliver with absolute URLs. Their origin is, in order: the policy's `deliveryBaseUrl` (`PATCH /api/v1/admin/acquisition/policy`), `PUBLIC_URL`, or `http://localhost:<PORT>`. A provider in another container needs one of the first two, for example `deliveryBaseUrl: "http://squirmy:4747"` on a shared Docker network.
+The server tells a provider where to deliver with absolute URLs. Their origin is, in order: the policy's `deliveryBaseUrl` (`PATCH /api/v1/admin/acquisition/policy`), `PUBLIC_URL`, or `http://localhost:<PORT>`. A provider in another container needs one of the first two, for example `deliveryBaseUrl: "http://app:4747"` on a shared Docker network (`app` is the service name of Squirmy's container in the shipped `compose.yaml`).
 
 ## Overview
 

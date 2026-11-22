@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { extractArchive, inspectArchive, type ArchiveLimits } from './archive.js'
 import { checkRelativePath, fileKind } from './paths.js'
-import { writeZip } from './test-zip.js'
+import { writeZip } from '../../test/zip.js'
 
 const limits: ArchiveLimits = { maxEntries: 100, maxEntryBytes: 1024 * 1024, maxTotalBytes: 4 * 1024 * 1024 }
 
