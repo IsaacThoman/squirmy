@@ -15,15 +15,17 @@ Squirmy is young. [docs/roadmap.md](docs/roadmap.md) tracks what works today.
 
 ## Quick start
 
-You need Docker with Compose, and Git. No image has been published yet, so Compose builds it from this repository.
+You need Docker with Compose. The image is published as `ghcr.io/isaacthoman/squirmy` for amd64 and arm64, so all you download is the Compose file.
 
 ```sh
-git clone https://github.com/IsaacThoman/squirmy.git
-cd squirmy
-MUSIC_DIR=/path/to/your/music docker compose up -d --build
+mkdir squirmy && cd squirmy
+curl -fsSLO https://raw.githubusercontent.com/IsaacThoman/squirmy/main/compose.yaml
+MUSIC_DIR=/path/to/your/music docker compose up -d
 ```
 
-Open http://localhost:4747 and create the admin account. At the folder step choose **Skip for now**: your music folder is mounted at `/music` and already added (read-only) and scanning. The image contains the API, the worker, the web app, ffmpeg and fpcalc; `compose.yaml` adds PostgreSQL. Append `:ro` to the music volume in `compose.yaml` if the server must never change your files.
+Open http://localhost:4747 and create the admin account. At the folder step your music folder is already listed: it is mounted at `/music`, added read-only and scanning, so choose **Continue**. The image contains the API, the worker, the web app, ffmpeg and fpcalc; `compose.yaml` adds PostgreSQL. Append `:ro` to the music volume in `compose.yaml` if the server must never change your files.
+
+To build the image from the source instead, clone this repository and run `docker compose up -d --build` in it.
 
 ## Documentation
 

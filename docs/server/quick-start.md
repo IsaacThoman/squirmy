@@ -4,21 +4,22 @@ By the end of this page you will have Squirmy and its database running in Docker
 
 ## What you need
 
-- A Linux, macOS or Windows machine with **Docker Engine and Docker Compose v2** (`docker compose version` prints a version). The image builds for amd64 and arm64.
-- **Git**, to fetch the source. No release of the image has been published yet, so Compose builds it from the repository on your machine. The first build takes a few minutes.
+- A Linux, macOS or Windows machine with **Docker Engine and Docker Compose v2** (`docker compose version` prints a version). The image is published as `ghcr.io/isaacthoman/squirmy` for amd64 and arm64.
 - Your music in a folder the machine can read. Squirmy reads MP3, FLAC, M4A/MP4/AAC, Ogg Vorbis, Opus, WAV, AIFF, WavPack, APE, WMA and DSF files.
 - Disk space for the database and the data folder (artwork, transcodes and uploads in progress). Plan on a few GB plus the transcode cache, which is capped at 10 GB by default.
 
 The image contains the API, the background worker, the web app, `ffmpeg` and `fpcalc`. `compose.yaml` adds PostgreSQL 17.
 
-## 1. Get the files
+## 1. Get the Compose file
+
+Make a folder for the server and download `compose.yaml` into it. It is the only file you need.
 
 ```sh
-git clone https://github.com/IsaacThoman/squirmy.git
-cd squirmy
+mkdir squirmy && cd squirmy
+curl -fsSLO https://raw.githubusercontent.com/IsaacThoman/squirmy/main/compose.yaml
 ```
 
-`compose.yaml` in this folder runs two services: `app` (Squirmy) and `postgres` (its database), with two named volumes, `squirmy_db` for the database and `squirmy_data` for the data folder.
+`compose.yaml` runs two services: `app` (Squirmy) and `postgres` (its database), with two named volumes, `squirmy_db` for the database and `squirmy_data` for the data folder.
 
 ## 2. Say where your music is
 
@@ -46,10 +47,10 @@ To guarantee the server can never write to your music, make the mount read-only 
 ## 3. Start it
 
 ```sh
-docker compose up -d --build
+docker compose up -d
 ```
 
-The first start builds the image, creates the database, runs the migrations, adds `/music` as a read-only library folder and starts scanning it. Check that it is up:
+The first start pulls the images (Squirmy's takes about 1 GB of disk), creates the database, runs the migrations, adds `/music` as a read-only library folder and starts scanning it. Check that it is up:
 
 ```sh
 docker compose ps
@@ -97,11 +98,25 @@ Everything stays playable from its tags while this runs, and the work resumes wh
 
 ```sh
 cd squirmy
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 The new container runs any database migrations on start, before it serves anything. Your database and data volumes are kept. Read [Backup, restore and moving](./backup.md) before upgrading a server you care about, and take a database dump first.
+
+`compose.yaml` uses the `latest` tag, which is the newest [release](https://github.com/IsaacThoman/squirmy/releases). To stay on one version, change the `image:` line of the `app` service to that version's tag, such as `ghcr.io/isaacthoman/squirmy:0.1.0`.
+
+## Building from the source
+
+To run code that has not been released, build the image yourself. You need Git, and the first build takes a few minutes.
+
+```sh
+git clone https://github.com/IsaacThoman/squirmy.git
+cd squirmy
+docker compose up -d --build
+```
+
+The `.env` file goes in this folder. An image built this way reports its version as `dev`. Update it with `git pull` and the same `docker compose up -d --build`.
 
 ## Uninstalling
 
