@@ -168,15 +168,15 @@ type LibraryRow =
 const libraryRowKey = (row: LibraryRow) => row.key;
 
 /**
- * What an empty Library says. The library is what this user added plus the music the
+ * What an empty Library says. The library is what this user hearted plus the music the
  * server's owner brought, not everything that was ever played, so it starts out empty for
  * someone who only streams; Home's Recently played and Most played carry what they listened to.
  */
 const emptyLibrary = {
   Albums: { icon: 'square.stack', title: 'Add music to your library',
-    description: 'Albums and songs you add show up here, with the music stored on your server. Find something you love and tap + or Add to library.' },
-  Songs: { icon: 'music.note', title: 'No songs yet', description: 'Songs you add, and the songs of albums you add, show up here.' },
-  Artists: { icon: 'music.mic', title: 'No artists yet', description: 'The artists of albums in your library show up here.' },
+    description: 'Albums and songs you save show up here, with the music stored on your server. Find something you love and tap the heart.' },
+  Songs: { icon: 'music.note', title: 'No songs yet', description: 'Songs you heart, and the songs of albums you heart, show up here.' },
+  Artists: { icon: 'music.mic', title: 'No artists yet', description: 'Artists you heart, and the artists of albums in your library, show up here.' },
 } as const;
 
 export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bottomInset = 155 }: BrowseProps) {

@@ -1,4 +1,4 @@
-import { isPlayable, trackLibraryToggle, type Viewer } from '@squirmy/client-core';
+import { isPlayable, librarySave, type Viewer } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
 import type { Href } from 'expo-router';
 import type { TrackDownload } from '../downloads/model';
@@ -19,7 +19,7 @@ export type TrackAction = {
 
 export type TrackActionId =
   | 'play' | 'resume' | 'next' | 'last' | 'like' | 'unlike' | 'download' | 'retryDownload' | 'removeDownload'
-  | 'playlist' | 'radio' | 'want' | 'album' | 'artist' | 'remove' | 'save' | 'unsave';
+  | 'playlist' | 'radio' | 'want' | 'album' | 'artist' | 'remove';
 
 export type TrackActionOptions = {
   /** The playlist the track is shown in, for "Remove from playlist". */
@@ -28,6 +28,7 @@ export type TrackActionOptions = {
 
 /** What a track's menu depends on, read by the row that shows it. */
 export type TrackActionState = {
+  /** The heart: saved to the user's library, counting what the user just did here. */
   liked: boolean;
   playable: boolean;
   offline: boolean;
@@ -38,8 +39,6 @@ export type TrackActionState = {
   onItsOwn: boolean;
   /** The server has the wantlist on. */
   wantlist: boolean;
-  /** In the user's library; undefined when the server does not say, and then nothing is offered. */
-  saved?: boolean;
   /** Who is signed in: a radio starts from what the server plays for them, never from a download alone. */
   viewer?: Viewer | null;
 };
@@ -50,17 +49,16 @@ export function trackActionKey(action: Pick<TrackAction, 'id' | 'page'>): string
 }
 
 /**
- * What can be done with `track`, in menu order. Gray tracks can only be liked, wanted (when
- * the server has the wantlist on), removed from the library and opened. Add and Remove from
- * library appear only where they change the library (see `trackLibraryToggle`). Offline, what needs the server is left out,
- * and likes wait for it. The result
- * only describes the actions; `useTrackActionRunner` carries one out when it is chosen.
+ * What can be done with `track`, in menu order. Gray tracks can only be saved to or removed
+ * from the library, wanted (when the server has the wantlist on) and opened. The library entry
+ * flips the heart (`librarySave`), so a track has one, collection songs too. Offline, what
+ * needs the server is left out, and hearts wait for it. The result only describes the
+ * actions; `useTrackActionRunner` carries one out when it is chosen.
  */
 export function trackActions(track: TrackSummary, state: TrackActionState, { playlist }: TrackActionOptions = {}): TrackAction[] {
-  const { liked, playable, offline, current, download, onItsOwn, wantlist, saved, viewer } = state;
+  const { liked, playable, offline, current, download, onItsOwn, wantlist, viewer } = state;
   const online = !offline;
-  // A collection song, or one of an album the user added, stays in the library whatever its own save says.
-  const library = trackLibraryToggle(track, saved);
+  const library = librarySave({ liked });
   const downloadAction: TrackAction | false = download?.state === 'failed' && onItsOwn
     ? { id: 'retryDownload', title: 'Retry download', icon: 'arrow.clockwise' }
     : download && onItsOwn
@@ -73,11 +71,9 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     playable && current === 'paused' && { id: 'resume', title: 'Play', icon: 'play.fill' },
     playable && current === null && { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward' },
     playable && { id: 'last', title: 'Play last', icon: 'text.badge.plus' },
-    liked
-      ? { id: 'unlike', title: 'Unlike', icon: 'heart.slash' }
-      : { id: 'like', title: 'Like', icon: 'heart' },
-    playable && online && library === false && { id: 'save', title: 'Add to library', icon: 'plus' },
-    online && library === true && { id: 'unsave', title: 'Remove from library', icon: 'minus.circle' },
+    library.saved
+      ? { id: 'unlike', title: library.label, icon: 'heart.slash' }
+      : { id: 'like', title: library.label, icon: 'heart' },
     downloadAction,
     playable && online && { id: 'playlist', title: 'Add to playlist', icon: 'text.badge.plus', sheet: true,
       href: { pathname: '/add-to-playlist', params: { trackId: track.id, albumId: track.album?.id ?? '' } } },

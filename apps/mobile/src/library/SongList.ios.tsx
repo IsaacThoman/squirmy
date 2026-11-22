@@ -7,7 +7,7 @@ import {
 import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { useWantlistEnabled } from '../account/AccountProvider';
-import { useLiked, useSaved } from '../data/library';
+import { useLiked } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { downloadSymbol, unavailableReason } from '../downloads/model';
@@ -15,6 +15,7 @@ import { IconButton, TrackActionButtons, TrackActionsMenu, TrackCover, hitShape 
 import { useCurrentTrackState, useTrackLoading } from '../playback';
 import { STILL_LOADING_LABEL } from '../player/loading';
 import type { SongListProps } from './SongList';
+import { heartButton } from './heart';
 import {
   sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
 } from './rows';
@@ -29,8 +30,8 @@ const listModifiers = [listStyle('plain'), scrollContentBackground('hidden'), sc
 const quick = {
   next: { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward' },
   last: { id: 'last', title: 'Play last', icon: 'text.badge.plus' },
-  like: { id: 'like', title: 'Like', icon: 'heart' },
-  unlike: { id: 'unlike', title: 'Unlike', icon: 'heart.slash' },
+  like: { id: 'like', title: 'Save to library', icon: 'heart' },
+  unlike: { id: 'unlike', title: 'Remove from library', icon: 'heart.slash' },
 } satisfies Record<string, TrackAction>;
 
 type Run = ReturnType<typeof useTrackActionRunner>['run'];
@@ -100,8 +101,8 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const viewer = useViewer();
   const options = playlist && { playlist: { ...playlist, onRemove: handlers.remove } };
   // Described from what the row already reads; nothing runs until an item is chosen.
-  const saved = useSaved('track', track.id, track.inLibrary);
-  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist, saved, viewer }, options);
+  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist, viewer }, options);
+  const heart = heartButton(liked, track.title);
   const perform = (action: TrackAction) => run(track, action, options);
 
   return (
@@ -149,7 +150,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
           </ContextMenu.Trigger>
           <ContextMenu.Items><TrackActionButtons actions={actions} onRun={perform} /></ContextMenu.Items>
         </ContextMenu>
-        <IconButton symbol={liked ? 'heart.fill' : 'heart'} size={19} label={liked ? `Unlike ${track.title}` : `Like ${track.title}`} selected={liked}
+        <IconButton symbol={heart.icon} size={19} label={heart.label} selected={heart.selected}
           color={liked ? colors.accent : colors.muted} onPress={() => perform(liked ? quick.unlike : quick.like)} />
         <TrackActionsMenu actions={actions} onRun={perform} label={`More options for ${track.title}`} />
       </HStack>

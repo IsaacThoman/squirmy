@@ -15,6 +15,7 @@ import { formatDuration, formatRemaining } from '@squirmy/client-core';
 import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
 import { useLibraryActions, useLiked } from './data/library';
+import { heartButton } from './library/heart';
 import { useLyrics } from './data/queries';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
@@ -276,9 +277,9 @@ export default function Player() {
       </View>
       {track && <PlayerButton
         icon={isFavorite ? 'heart.fill' : 'heart'}
-        label={isFavorite ? `Unlike ${track.title}` : `Like ${track.title}`}
+        label={heartButton(isFavorite, track.title).label}
         selected={isFavorite}
-        onPress={() => { selectionFeedback(); setLiked('track', track.id, !isFavorite); }}
+        onPress={() => { selectionFeedback(); setLiked('track', track.id, !isFavorite, track.title); }}
         color={isFavorite ? colors.accent : colors.text}
       />}
       {track && <TrackMenuButton track={track} onPress={() => openTrackMenu(track.id, track.album?.id)} />}
