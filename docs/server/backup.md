@@ -107,12 +107,14 @@ Then choose **Scan now** on that folder in **Admin → Library**. The relative p
 ## Upgrading
 
 1. Take a database dump (above).
-2. Update and rebuild:
+2. Pull the new image and restart:
 
    ```sh
-   git pull
-   docker compose up -d --build
+   docker compose pull
+   docker compose up -d
    ```
+
+   If you [build the image from the source](./quick-start.md#building-from-the-source), run `git pull` and `docker compose up -d --build` instead.
 
 Migrations run on start, before the server serves anything, and only move forward. To go back to an older version, restore the dump you took before the upgrade into an empty database and run the older version.
 
