@@ -17,11 +17,11 @@ The server always keeps at least one active admin: the last one cannot be demote
 | **Can upload music** ([uploads](./adding-music.md#uploading)) | if granted | always |
 | **Can fetch missing music** (through an [acquisition provider](./acquisition.md)) | if granted | always |
 
-Shown as the **Upload** and **Fetch** badges next to a user in **Admin → Users & invites**.
+Shown as the **Upload** and **Fetch** badges next to a user in **Management → Users & invites**.
 
 ## Inviting people
 
-1. Open **Admin → Users & invites** and choose **Invite someone**.
+1. Open **Management → Users & invites** and choose **Invite someone**.
 2. Pick the role, **Can upload music**, **Can fetch missing music**, and when the link expires (**In a day**, **In 7 days**, **In 14 days**, **In 30 days** or **Never**).
 3. Copy the **Invite link** and send it. It looks like `https://music.example.com/register?invite=…`, built from the address you opened the admin page at, so open it at the public address before copying.
 
@@ -31,11 +31,11 @@ To make an account yourself instead, choose **Add user**, set a username, an opt
 
 ### Open registration
 
-**Admin → Server settings → Registration → Require an invite to join** is on by default. Turned off, anyone who can reach the server can create a member account, without upload or fetch permissions, from the sign-in page. Leave it on for a server on the internet.
+**Management → Server settings → General → Registration → Require an invite to join** is on by default. Turned off, anyone who can reach the server can create a member account, without upload or fetch permissions, from the sign-in page. Leave it on for a server on the internet.
 
 ## Managing accounts
 
-Each user's **Manage** menu in **Admin → Users & invites** has:
+Each user's **Manage** menu in **Management → Users & invites** has:
 
 - **Edit…**: display name, role and permissions.
 - **Reset password…**: sets a new password and signs them out everywhere. Their app passwords keep working.

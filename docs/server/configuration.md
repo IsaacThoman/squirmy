@@ -3,7 +3,7 @@
 Squirmy has two kinds of settings:
 
 - **Environment variables**, read once when the process starts. They say where things are: the database, the data folder, the address the server is reached at. Change them in `compose.yaml` or `.env` and restart.
-- **Server settings**, stored in the database and changed while the server runs, in **Admin → Server settings**. They control metadata sources, API keys, matching and limits. A few have no screen yet and are changed through the API.
+- **Server settings**, stored in the database and changed while the server runs, in **Management → Server settings**. They control metadata sources, API keys, matching and limits. A few have no screen yet and are changed through the API.
 
 ## The ones that matter
 
@@ -29,7 +29,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `SQUIRMY_SECRET` | unset | The root secret for signing stream URLs and encrypting stored credentials, at least 16 characters. When unset, a random one is generated on first start and kept in `<data>/secret.key`. Do not set or change it on a server that already has data: everything encrypted under the old secret (app passwords, API keys, provider secrets, scrobbling connections) becomes unreadable. |
 | `SQUIRMY_ROLE` | `all` | `all`, `api` or `worker`. |
 | `SQUIRMY_LIBRARY_PATHS` | unset (compose: `/music`) | Comma-separated absolute paths. On every start, each one that is not already a library folder is added as a **read-only** folder, watched, and scanned. A path that does not exist or overlaps another folder is skipped with a warning in the log. Removing a path from this variable does not remove the folder from the library. |
-| `SQUIRMY_MANAGED_LIBRARY_PATHS` | unset | The same, but each folder is added as a **managed** folder, which Squirmy may organize and file uploads into ([Organizing files](./organizing.md)). The folder must be writable by the server. A path in both variables is added as managed. Either variable only adds folders: a folder that is already in the library keeps the mode it has; change it in **Admin → Library**. |
+| `SQUIRMY_MANAGED_LIBRARY_PATHS` | unset | The same, but each folder is added as a **managed** folder, which Squirmy may organize and file uploads into ([Organizing files](./organizing.md)). The folder must be writable by the server. A path in both variables is added as managed. Either variable only adds folders: a folder that is already in the library keeps the mode it has; change it in **Management → Library**. |
 | `SQUIRMY_INBOX_PATH` | unset | A folder watched for music to import, used while the `inboxPath` server setting is unset. See [Adding music](./adding-music.md#the-inbox-folder). |
 | `SQUIRMY_WEB_DIST` | unset (image: `/app/apps/web/dist`) | The built web app to serve. Unset, the server serves only the API; the Vite dev server proxies to it during development. |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
@@ -62,7 +62,9 @@ services:
 
 Stored in the `server_settings` table, from `ServerSettings` in `packages/contracts/src/settings.ts`. Changes apply right away, with no restart. In the web app, each change saves as you make it; text fields save when you leave them or press Enter.
 
-### Admin → Server settings
+### Server settings in the web app
+
+Choose **General** for the server name and registration, **Metadata** for sources and API keys, **Library & imports** for matching, missing files and imports, or **Playback** for the transcode cache.
 
 | Section | Setting (as on screen) | Key | Default | What it does |
 |---|---|---|---|---|
@@ -170,4 +172,4 @@ These run on their own; nothing needs configuring. Times are UTC.
 | Clean up stale imports | every 15 minutes |
 | Send scrobbles; check acquisition jobs | every minute |
 
-The **Jobs** page in **Admin** shows every queue with its queued, active and failed counts.
+The **Jobs** page in **Management** shows every queue with its queued, active and failed counts.

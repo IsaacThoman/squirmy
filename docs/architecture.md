@@ -383,7 +383,7 @@ The catalog is a lazy cache of MusicBrainz. `enrichment/detail.ts` completes a r
 - `TrackStore`: batched, cached `TrackSummary` hydration for queue entries.
 - Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork and stream URL helpers.
 
-**Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. Colors and type follow the mobile theme in `apps/mobile/src/theme.ts`. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
+**Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
 
 ```
 apps/web/src/
@@ -391,6 +391,7 @@ apps/web/src/
   auth/                session queries, route guards, logout
   realtime/            the user's socket.io connection, invalidations, `useServerEvent`
   components/ui/       primitives (button, slider, menu, dialog, …)
+  components/theme/    web palettes, browser appearance preferences
   components/music/    covers, cards, rails, track lists
   components/player/   player bar, mini-player, queue, devices, Now Playing
   components/layout/   app shell, sidebar, top bar, tab bar
@@ -404,6 +405,8 @@ apps/web/src/
 ```
 
 - **Bootstrap.** One API client (same origin, `client: 'web'`) and one `QueryClient`. Before any route renders, `GET /setup/status` and `GET /auth/me` load. Guards: a server without an admin shows the setup wizard on every route; signed-out visitors go to `/login?next=…`; admin routes need the admin role. Signing in or out only changes the cached `me`, and the guards navigate. A 401 from any request signs out; other failures become a toast with the server's message, unless the query or mutation says it shows them itself (`meta: { silent }`, `meta: { inline }`).
+- **Appearance.** Web palettes populate the shared CSS tokens. The browser stores the palette and color mode locally and applies them before React mounts. System mode follows the browser color scheme.
+- **Navigation.** The desktop shell has a collapsible sidebar, a search bar and a persistent transport. On phones, a drawer exposes the same routes and the tab bar and mini-player stay visible. Personal settings use `/settings?section=…`. Management continues to use `/admin/*`.
 - **Forms** validate with the contract schemas (`useFormSubmit`), show issues under their fields, and map known error codes onto fields.
 - **Realtime.** `RealtimeProvider` opens one socket per signed-in user. `invalidate` refreshes the named queries, every reconnect refreshes all of them, and the shell shows a notice when the socket has been down for three seconds. The socket is in the context for `SessionClient`.
 - **Audio.** `WebPlayerEngine` alternates two `<audio>` elements, each through its own `GainNode`, so normalization can boost. When the browser refuses to start audio the entry goes to `error` and the shell offers "Enable audio", which calls `unlock()` from the click. `/dev/engine` drives it with tones from `scripts/dev-audio.mjs`; `scripts/e2e-engine.mjs` checks it against the contract in Chromium, `scripts/e2e-auth.mjs` walks the account flows against a fresh server, `scripts/e2e-admin.mjs` the admin flows (setup with a real folder, scans, reviews, Fix match, Organize on disk, the search index), `scripts/e2e-playback.mjs` playback on the demo library (transport, queue, likes, playlists, lyrics, gapless ends, two devices, a second user), and `scripts/e2e-polish.mjs` a server started like the Docker image (setup with its configured folder, naming templates, search's top result, the queue's preparing labels).

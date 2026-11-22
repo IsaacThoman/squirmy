@@ -217,7 +217,7 @@ function EditUserDialog({ user, isSelf, onOpenChange, onSave }: { user: User; is
             <Input id="edit-display-name" value={value.displayName} onChange={event => setValue({ ...value, displayName: event.target.value })} placeholder={user.username} aria-invalid={!!form.errors.displayName} autoFocus />
           </Field>
           <RowGroup>
-            <AccessFields value={value} onChange={access => setValue({ ...value, ...access })} roleLocked={isSelf && value.role === 'member' ? 'You lose access to Admin when you save.' : undefined} />
+            <AccessFields value={value} onChange={access => setValue({ ...value, ...access })} roleLocked={isSelf && value.role === 'member' ? 'You lose access to Management when you save.' : undefined} />
           </RowGroup>
         </DialogForm>
       </DialogContent>

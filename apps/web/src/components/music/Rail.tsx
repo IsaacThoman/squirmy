@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Children, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { IconButton } from '@/components/ui/icon-button'
 import { SectionHeader } from './SectionHeader'
 
@@ -7,6 +7,7 @@ import { SectionHeader } from './SectionHeader'
 export function Rail({ title, href, children }: { title: string; href?: string; children: ReactNode }) {
   const scroller = useRef<HTMLDivElement>(null)
   const [edges, setEdges] = useState({ start: true, end: true })
+  const itemCount = Children.count(children)
 
   const measure = useCallback(() => {
     const element = scroller.current
@@ -23,7 +24,7 @@ export function Rail({ title, href, children }: { title: string; href?: string; 
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     return () => observer.disconnect()
-  }, [measure])
+  }, [itemCount, measure])
 
   const page = (direction: 1 | -1) => {
     const element = scroller.current
@@ -35,17 +36,17 @@ export function Rail({ title, href, children }: { title: string; href?: string; 
       <SectionHeader
         title={title}
         href={href}
-        action={(
-          <div className="hidden gap-1 md:flex">
-            <IconButton label="Scroll back" tooltip={false} size="sm" variant="solid" disabled={edges.start} onClick={() => page(-1)}><ChevronLeft /></IconButton>
-            <IconButton label="Scroll forward" tooltip={false} size="sm" variant="solid" disabled={edges.end} onClick={() => page(1)}><ChevronRight /></IconButton>
+        action={edges.start && edges.end ? undefined : (
+          <div className="hidden gap-1 rounded-lg border border-stroke bg-sheet md:flex">
+            <IconButton label="Scroll back" tooltip={false} size="sm" className="rounded-md" disabled={edges.start} onClick={() => page(-1)}><ChevronLeft /></IconButton>
+            <IconButton label="Scroll forward" tooltip={false} size="sm" className="rounded-md" disabled={edges.end} onClick={() => page(1)}><ChevronRight /></IconButton>
           </div>
         )}
       />
       <div
         ref={scroller}
         onScroll={measure}
-        className="-mx-(--gutter) flex snap-x snap-mandatory scroll-px-(--gutter) gap-4 overflow-x-auto px-(--gutter) pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-(--gutter) flex snap-x snap-mandatory scroll-px-(--gutter) gap-4 overflow-x-auto px-(--gutter) pt-1 pb-2 [scrollbar-width:none] md:gap-5 [&::-webkit-scrollbar]:hidden"
       >
         {children}
       </div>
@@ -55,5 +56,5 @@ export function Rail({ title, href, children }: { title: string; href?: string; 
 
 /** A fixed-width slot in a rail. */
 export function RailItem({ children, wide }: { children: ReactNode; wide?: boolean }) {
-  return <div className={wide ? 'w-[min(78vw,22rem)] shrink-0 snap-start' : 'w-[9.5rem] shrink-0 snap-start md:w-44'}>{children}</div>
+  return <div className={wide ? 'w-[min(78vw,22rem)] shrink-0 snap-start' : 'w-36 shrink-0 snap-start sm:w-40 lg:w-44'}>{children}</div>
 }

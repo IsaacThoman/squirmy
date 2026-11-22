@@ -264,7 +264,7 @@ function PolicySettings({ policy, managedRoots, onSave }: { policy: AcquisitionP
           format={seconds => String(Math.round((Number(seconds) / MINUTE) * 10) / 10)} parse={text => (text.trim() ? Math.round(Number(text) * MINUTE) : Number.NaN)}
         />
       </SettingRow>
-      <SettingRow label="File into" description={<>Which managed folder fetched music goes to. Imports use the one in <Link to="/admin/settings" className="font-semibold text-accent hover:underline">Server settings</Link>.</>}>
+      <SettingRow label="File into" description={<>Which managed folder fetched music goes to. Imports use the one in <Link to="/admin/settings?section=library" className="font-semibold text-accent hover:underline">Server settings</Link>.</>}>
         <Select
           label="File into"
           value={policy.targetRootId ?? SAME_AS_IMPORTS}

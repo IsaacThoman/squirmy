@@ -1,10 +1,12 @@
 import type { AlbumSummary, TrackSummary } from '@squirmy/contracts'
-import { Bookmark } from 'lucide-react'
+import { Bookmark, Search } from 'lucide-react'
+import { Link } from 'react-router'
 import { Page } from '@/components/layout/Page'
 import { AlbumCard, CardGrid } from '@/components/music/Cards'
 import { PageTitle, SectionHeader } from '@/components/music/SectionHeader'
 import { GridSkeleton } from '@/components/music/Skeletons'
 import { TrackList } from '@/components/music/TrackList'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
 
@@ -13,14 +15,14 @@ export function WantlistView({ albums, tracks }: { albums: AlbumSummary[] | unde
   const actions = useTrackActions(tracks ?? [])
   const wants = useAlbumWants()
   return (
-    <Page className="flex flex-col gap-10">
-      <div>
+    <Page className="mx-auto flex max-w-[94rem] flex-col gap-8">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <PageTitle>Wantlist</PageTitle>
-        <p className="mt-2 max-w-xl text-[15px] text-muted">Albums and songs you’ve asked for. They light up here as soon as a matching import lands in your library.</p>
-      </div>
+        <Button asChild variant="outline" size="sm"><Link to="/search"><Search />Find music</Link></Button>
+      </header>
       {(!albums || !tracks) && <GridSkeleton count={6} />}
       {albums && tracks && albums.length + tracks.length === 0 && (
-        <EmptyState icon={<Bookmark />} title="Nothing wanted yet" description="Gray albums and songs in search and on artist pages can be added to your Wantlist." />
+        <EmptyState icon={<Bookmark />} title="Your Wantlist is empty" description="Save albums and songs from search or artist pages to track music you still want to add." />
       )}
       {albums && albums.length > 0 && (
         <section>
@@ -31,7 +33,7 @@ export function WantlistView({ albums, tracks }: { albums: AlbumSummary[] | unde
       {tracks && tracks.length > 0 && (
         <section>
           <SectionHeader title="Songs" />
-          <div className="-mx-2"><TrackList label="Wanted songs" tracks={tracks} variant="compact" header={false} {...actions} /></div>
+          <TrackList label="Wanted songs" tracks={tracks} variant="compact" header={false} {...actions} />
         </section>
       )}
     </Page>

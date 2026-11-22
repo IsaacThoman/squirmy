@@ -18,8 +18,8 @@ export function RailSkeleton() {
   return (
     <div aria-hidden className="min-w-0">
       <Skeleton className="mb-4 h-6 w-44" />
-      <div className="flex gap-4 overflow-hidden">
-        {[0, 1, 2, 3, 4, 5, 6].map(item => <div key={item} className="w-[9.5rem] shrink-0 md:w-44"><CardSkeleton /></div>)}
+      <div className="flex gap-4 overflow-hidden md:gap-5">
+        {[0, 1, 2, 3, 4, 5, 6].map(item => <div key={item} className="w-36 shrink-0 sm:w-40 lg:w-44"><CardSkeleton /></div>)}
       </div>
     </div>
   )
@@ -53,16 +53,18 @@ export function TrackRowsSkeleton({ rows = 8, art }: { rows?: number; art?: bool
 /** The top of an album, artist or playlist page while it loads. */
 export function CollectionSkeleton({ round }: { round?: boolean }) {
   return (
-    <div role="status" aria-label="Loading">
-      <div className="flex flex-col items-center gap-6 px-(--gutter) pb-6 pt-20 md:flex-row md:items-end md:gap-8 md:pt-24">
-        <Skeleton className={cn('aspect-square w-[min(62vw,15rem)] shrink-0 md:w-52 lg:w-60', round ? 'rounded-full' : 'rounded-cover')} />
-        <div className="flex w-full flex-col items-center gap-3 md:items-start">
-          <Skeleton className="h-3 w-16" />
-          <Skeleton className="h-12 w-[min(28rem,80%)]" />
-          <Skeleton className="h-4 w-40" />
+    <div role="status" aria-label="Loading" className="px-(--gutter) pt-6 md:pt-8">
+      <div className="@container rounded-2xl border border-stroke bg-sheet">
+        <div className="flex flex-col items-center gap-5 p-5 @min-[32rem]:flex-row @min-[32rem]:gap-7 @min-[32rem]:p-7">
+          <Skeleton className={cn('aspect-square w-[min(51vw,11rem)] shrink-0 @min-[32rem]:w-44 @min-[55rem]:w-52', round ? 'rounded-full' : 'rounded-cover')} />
+          <div className="flex w-full flex-col items-center gap-3 @min-[32rem]:items-start">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-12 w-[min(28rem,80%)]" />
+            <Skeleton className="h-4 w-40" />
+          </div>
         </div>
       </div>
-      <div className="px-(--gutter) pt-4"><TrackRowsSkeleton /></div>
+      <div className="pt-6"><TrackRowsSkeleton /></div>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import type { AlbumSummary, ArtistSummary, PlaylistSummary } from '@squirmy/contracts'
-import { BookmarkCheck, BookmarkPlus, CloudDownload, Play } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ArrowUpRight, BookmarkCheck, BookmarkPlus, CloudDownload, Play } from 'lucide-react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Tooltip } from '@/components/ui/tooltip'
 import { albumTypeLabel, isUnowned } from '@/lib/catalog'
@@ -22,10 +22,12 @@ type CardProps = {
   centered?: boolean
 }
 
+const revealOnHover = 'pointer-fine:translate-y-1 pointer-fine:opacity-0 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/card:translate-y-0 group-hover/card:opacity-100'
+
 /** Artwork, a title and a subtitle, linking to a page. A play button rises on hover. */
 function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered }: CardProps) {
   return (
-    <div className={cn('group/card relative flex min-w-0 flex-col rounded-2xl p-2 -m-2 transition-colors duration-150 hover:bg-overlay focus-within:bg-overlay', centered && 'items-center text-center')}>
+    <div className={cn('group/card relative -m-1.5 flex min-w-0 flex-col rounded-xl border border-transparent p-1.5 transition-colors hover:border-stroke hover:bg-sheet focus-within:border-stroke focus-within:bg-sheet', centered && 'items-center text-center')}>
       <div className="relative w-full">
         {art}
         {badge && <div className="absolute left-2 top-2">{badge}</div>}
@@ -34,9 +36,9 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered 
             type="button"
             aria-label={`Play ${title}`}
             onClick={onPlay}
-            className="absolute bottom-2 right-2 z-10 flex size-11 translate-y-2 items-center justify-center rounded-full bg-accent text-on-accent opacity-0 shadow-cover transition duration-150 hover:scale-105 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/card:translate-y-0 group-hover/card:opacity-100"
+            className={cn('absolute bottom-2 right-2 z-10 flex size-9 items-center justify-center rounded-full bg-accent text-on-accent shadow-cover transition duration-150 hover:scale-105', revealOnHover)}
           >
-            <Play className="size-5 translate-x-px" fill="currentColor" />
+            <Play className="size-4 translate-x-px" fill="currentColor" />
           </button>
         )}
         {want && !onPlay && (
@@ -46,15 +48,15 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered 
             aria-pressed={want.wanted}
             onClick={() => want.onChange(!want.wanted)}
             className={cn(
-              'absolute bottom-2 right-2 z-10 flex size-10 items-center justify-center rounded-full bg-sheet text-accent shadow-cover transition duration-150 hover:scale-105',
-              !want.wanted && 'translate-y-2 opacity-0 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/card:translate-y-0 group-hover/card:opacity-100',
+              'absolute bottom-2 right-2 z-10 flex size-9 items-center justify-center rounded-full bg-sheet text-accent shadow-cover transition duration-150 hover:scale-105',
+              !want.wanted && revealOnHover,
             )}
           >
-            {want.wanted ? <BookmarkCheck className="size-5" /> : <BookmarkPlus className="size-5" />}
+            {want.wanted ? <BookmarkCheck className="size-4" /> : <BookmarkPlus className="size-4" />}
           </button>
         )}
       </div>
-      <Link to={to} title={title} className={cn('mt-2.5 truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none', dimmed && 'text-quiet', 'w-full')}>
+      <Link to={to} title={title} className={cn('mt-2.5 w-full truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-accent', dimmed && 'text-quiet')}>
         {title}
       </Link>
       <div className={cn('mt-0.5 w-full truncate text-[13px] text-muted', dimmed && 'text-quiet')}>{subtitle}</div>
@@ -134,20 +136,20 @@ export function CardGrid({ children, className }: { children: ReactNode; classNa
   return <div className={cn('grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))]', className)}>{children}</div>
 }
 
-/** A colored tile for browsing a genre, with a cover tilted into the corner. */
+/** A genre shortcut, optionally with a cover from that genre. */
 export function GenreTile({ name, color, art, onClick }: { name: string; color: string; art?: ReactNode; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`Browse ${name}`}
-      style={{ backgroundColor: color }}
-      className="group relative h-28 overflow-hidden rounded-2xl p-4 text-left transition duration-150 hover:brightness-110 active:scale-[0.98]"
+      style={{ '--genre-color': color } as CSSProperties}
+      className="group flex min-h-16 items-center justify-between gap-2 overflow-hidden rounded-xl border border-stroke bg-[color-mix(in_srgb,var(--genre-color)_13%,var(--sheet))] px-4 py-2 text-left transition-colors hover:bg-[color-mix(in_srgb,var(--genre-color)_23%,var(--sheet))]"
     >
-      <span className="relative z-10 text-[17px] font-bold text-[#F5F2FF]">{name}</span>
+      <span className="min-w-0 break-words text-sm font-semibold">{name}</span>
       {art
-        ? <div className="absolute -bottom-3 -right-2 w-[5.5rem] rotate-[19deg] shadow-cover transition-transform duration-200 group-hover:rotate-[14deg] group-hover:scale-105">{art}</div>
-        : <span aria-hidden className="absolute -bottom-6 -right-3 text-[5.5rem] font-black leading-none tracking-tighter text-white/12 transition-transform duration-200 group-hover:-rotate-6">{name.slice(0, 2)}</span>}
+        ? <div aria-hidden className="w-10 shrink-0 transition-transform group-hover:rotate-6">{art}</div>
+        : <ArrowUpRight aria-hidden className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />}
     </button>
   )
 }

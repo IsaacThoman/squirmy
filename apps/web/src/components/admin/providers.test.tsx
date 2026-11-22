@@ -97,7 +97,8 @@ describe('providers admin', () => {
 describe('import settings', () => {
   it('shows why the server refused an inbox folder under the field', async () => {
     const onSave = vi.fn(async () => { throw new ApiError(400, 'inbox_not_found', 'The inbox folder does not exist') })
-    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" />)
+    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" />, '/admin/settings')
+    await userEvent.click(screen.getByRole('link', { name: 'Library & imports' }))
     await userEvent.type(screen.getByLabelText('Inbox folder'), '/srv/nowhere{Enter}')
     expect(onSave).toHaveBeenCalledWith({ inboxPath: '/srv/nowhere' }, { inline: true })
     expect(await screen.findByText('The inbox folder does not exist')).toBeInTheDocument()

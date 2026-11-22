@@ -14,13 +14,12 @@ import { formatRelative, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { FolderPicker } from './FolderPicker'
 
-/** A centered card over a soft wash of the accent color. */
 function AuthFrame({ title, description, children, footer }: { title: string; description?: ReactNode; children: ReactNode; footer?: ReactNode }) {
   return (
-    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-12">
-      <div aria-hidden className="absolute -top-40 left-1/2 -z-10 size-[44rem] -translate-x-1/2 rounded-full bg-accent opacity-[0.12] blur-[120px]" />
+    <div className="relative isolate flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-sheet px-4 py-12">
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,var(--selection),transparent_68%)]" />
       <Logo className="mb-8" />
-      <main className="w-full max-w-sm animate-slide-in rounded-3xl bg-sheet p-7 shadow-float">
+      <main className="w-full max-w-md animate-slide-in rounded-2xl border border-stroke bg-background p-6 shadow-cover sm:p-8">
         <h1 className="text-2xl font-extrabold tracking-[-0.03em]">{title}</h1>
         {description && <p className="mt-1.5 text-sm leading-relaxed text-muted">{description}</p>}
         <div className="mt-6">{children}</div>
@@ -285,8 +284,8 @@ export function SetupDoneView({ folderPaths, onFinish }: { folderPaths: string[]
       step={2}
       title="You’re all set"
       description={folderPaths.length
-        ? 'Music shows up as soon as its tags are read, and identification carries on in the background. Add more folders whenever you like, from Admin → Library.'
-        : 'Add your music folders whenever you are ready, from Admin → Library.'}
+        ? 'Music shows up as soon as its tags are read, and identification carries on in the background. Add more folders whenever you like, from Management → Library.'
+        : 'Add your music folders whenever you are ready, from Management → Library.'}
     >
       <div className="flex flex-col items-center gap-5 text-center">
         <div className="flex size-16 items-center justify-center rounded-full bg-selection text-accent"><PartyPopper className="size-7" /></div>

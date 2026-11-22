@@ -135,6 +135,10 @@ describe('account', () => {
   it('shows a new app password once and revokes after confirming', async () => {
     const { services, api } = fakeServices()
     renderWithApp(app, '/settings', services)
+    const sections = await screen.findByRole('navigation', { name: 'Settings sections' })
+    expect(within(sections).getByRole('link', { name: 'Appearance', current: 'page' })).toBeInTheDocument()
+    await userEvent.click(within(sections).getByRole('link', { name: 'App passwords' }))
+    expect(where()).toBe('/settings?section=app-passwords')
     await userEvent.click(await screen.findByRole('button', { name: 'Create' }))
     await userEvent.type(screen.getByLabelText('Name'), 'Phone')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -149,13 +153,20 @@ describe('account', () => {
   it('puts a wrong current password on its field', async () => {
     const { services, api } = fakeServices()
     api.auth.changePassword.mockRejectedValueOnce(new ApiError(403, 'invalid_credentials', 'The current password is wrong'))
-    renderWithApp(app, '/settings', services)
+    renderWithApp(app, '/settings?section=account', services)
     await userEvent.click(await screen.findByRole('button', { name: 'Change password' }))
     await userEvent.type(screen.getByLabelText('Current password'), 'nope')
     await userEvent.type(screen.getByLabelText('New password'), 'a new password')
     await userEvent.type(screen.getByLabelText('Repeat the new password'), 'a new password')
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Change password' }))
     expect(await screen.findByText('The current password is wrong')).toBeInTheDocument()
+  })
+
+  it('lands on Scrobbling after connecting Last.fm', async () => {
+    renderWithApp(app, '/settings?lastfm=connected')
+    expect(await screen.findByRole('heading', { name: 'Scrobbling' })).toBeInTheDocument()
+    await waitFor(() => expect(where()).toBe('/settings?section=scrobbling'))
+    expect(await screen.findByText('Connected to Last.fm')).toBeInTheDocument()
   })
 })
 

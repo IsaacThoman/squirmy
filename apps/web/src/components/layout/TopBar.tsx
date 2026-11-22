@@ -1,81 +1,66 @@
 import type { User } from '@squirmy/contracts'
-import { ChevronLeft, ChevronRight, LogOut, Settings, Shield, Upload } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { IconButton } from '@/components/ui/icon-button'
-import { DropdownMenu } from '@/components/ui/menu'
 import { SearchField } from '@/components/ui/search-field'
-import { canUploadMusic } from '@/lib/catalog'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { cn } from '@/lib/utils'
-import { useScrollContainer } from './scroll-context'
+import { AccountMenu, Logo } from './Sidebar'
 
-/** History buttons, search and the account menu. Clear until the page scrolls under it. */
-export function TopBar({ user, onLogout }: { user: User; onLogout: () => void }) {
+/** Navigation history and search for the listening workspace. */
+export function TopBar({ user, onLogout, mobileNavigation }: { user: User; onLogout: () => void; mobileNavigation: ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
-  const scroller = useScrollContainer()
-  const [scrolled, setScrolled] = useState(false)
+  const header = useRef<HTMLElement>(null)
   const onSearch = location.pathname === '/search'
   const [query, setQuery] = useUrlDraft(onSearch ? params.get('q') ?? '' : '')
+  const shortcut = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘ K' : 'Ctrl K'
 
   useEffect(() => {
-    if (!scroller) return
-    const update = () => setScrolled(scroller.scrollTop > 24)
-    update()
-    scroller.addEventListener('scroll', update, { passive: true })
-    return () => scroller.removeEventListener('scroll', update)
-  }, [scroller])
+    const focusSearch = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey) || event.altKey || event.defaultPrevented) return
+      const input = header.current?.querySelector('input')
+      if (!input?.offsetParent || input.closest('[aria-hidden="true"]')) return
+      event.preventDefault()
+      input.focus()
+      input.select()
+    }
+    window.addEventListener('keydown', focusSearch)
+    return () => window.removeEventListener('keydown', focusSearch)
+  }, [])
 
   const canGoBack = (window.history.state as { idx?: number } | null)?.idx !== 0
 
   return (
-    <header
-      className={cn(
-        'sticky top-0 z-20 -mb-14 flex h-14 items-center gap-2 px-(--gutter) transition-[background-color,backdrop-filter,box-shadow] duration-200 md:-mb-16 md:h-16',
-        scrolled && 'bg-background/80 shadow-[0_1px_0_var(--stroke)] backdrop-blur-xl backdrop-saturate-150',
-      )}
-    >
-      <div className="flex gap-1.5">
-        <IconButton label="Go back" variant="solid" size="sm" disabled={!canGoBack} onClick={() => navigate(-1)} className="bg-overlay backdrop-blur-md"><ChevronLeft /></IconButton>
-        <IconButton label="Go forward" variant="solid" size="sm" onClick={() => navigate(1)} className="bg-overlay backdrop-blur-md max-md:hidden"><ChevronRight /></IconButton>
+    <header ref={header} className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-stroke bg-background px-(--gutter) pt-[env(safe-area-inset-top)] md:h-14 md:pt-0">
+      {mobileNavigation}
+      <Link to="/" aria-label="Squirmy home" className="mr-auto rounded-lg md:hidden">
+        <Logo className="[&>svg]:size-6" />
+      </Link>
+      <div className="flex gap-0.5">
+        <IconButton label="Go back" size="sm" disabled={!canGoBack} onClick={() => navigate(-1)} className="rounded-lg"><ChevronLeft /></IconButton>
+        <IconButton label="Go forward" size="sm" onClick={() => navigate(1)} className="rounded-lg max-md:hidden"><ChevronRight /></IconButton>
       </div>
-      <SearchField
-        value={query}
-        onValueChange={value => {
-          setQuery(value)
-          void navigate(`/search${value ? `?q=${encodeURIComponent(value)}` : ''}`, { replace: onSearch })
-        }}
-        placeholder="Songs, albums, artists"
-        aria-label="Search"
-        className="ml-1 w-full max-w-sm max-md:hidden"
-      />
-      <div className="ml-auto">
-        <UserMenu user={user} onLogout={onLogout} />
+      <div className="relative hidden w-full max-w-[24rem] md:block">
+        <SearchField
+          value={query}
+          onValueChange={value => {
+            setQuery(value)
+            void navigate(`/search${value ? `?q=${encodeURIComponent(value)}` : ''}`, { replace: onSearch })
+          }}
+          placeholder="Search songs, albums, artists"
+          aria-label="Search"
+          aria-keyshortcuts="Meta+k Control+k"
+          className={cn(
+            '[&>input]:h-9 [&>input]:text-[13px]',
+            !query && '[&>input]:pr-17',
+          )}
+        />
+        {!query && <kbd aria-hidden className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-stroke bg-background px-1.5 py-0.5 font-sans text-[10px] font-medium leading-none text-quiet">{shortcut}</kbd>}
       </div>
+      <AccountMenu user={user} onLogout={onLogout} compact className="md:hidden" />
     </header>
-  )
-}
-
-function UserMenu({ user, onLogout }: { user: User; onLogout: () => void }) {
-  const navigate = useNavigate()
-  const name = user.displayName ?? user.username
-  return (
-    <DropdownMenu
-      entries={[
-        { kind: 'label', label: `${name} · ${user.role === 'admin' ? 'Admin' : 'Member'}` },
-        { label: 'Settings', icon: <Settings />, onSelect: () => navigate('/settings') },
-        ...(canUploadMusic(user) ? [{ label: 'Add music', icon: <Upload />, onSelect: () => navigate('/imports') }] : []),
-        ...(user.role === 'admin' ? [{ label: 'Admin', icon: <Shield />, onSelect: () => navigate('/admin') }] : []),
-        { kind: 'separator' },
-        { label: 'Log out', icon: <LogOut />, onSelect: onLogout },
-      ]}
-      trigger={(
-        <button type="button" aria-label={`Account, ${name}`} className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-on-accent ring-4 ring-transparent transition hover:ring-selection data-[state=open]:ring-selection">
-          {name.slice(0, 1).toUpperCase()}
-        </button>
-      )}
-    />
   )
 }

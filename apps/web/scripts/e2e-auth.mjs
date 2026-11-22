@@ -132,7 +132,7 @@ await step('register with the invite', async () => {
   await guest.getByRole('button', { name: 'Create account' }).click()
   await heading(guest, 'Listen now').waitFor()
   check('registering signs the new user in', path(guest) === '/')
-  check('members get no Admin link', await guest.getByRole('link', { name: 'Admin' }).count() === 0)
+  check('members get no Management link', await guest.getByRole('link', { name: 'Management' }).count() === 0)
   for (const route of ['/admin/users', '/admin/settings']) {
     await guest.goto(`${base}${route}`)
     await heading(guest, 'Admins only').waitFor()
@@ -149,7 +149,7 @@ await step('register with the invite', async () => {
 })
 
 await step('change password', async () => {
-  await page.goto(`${base}/settings`)
+  await page.goto(`${base}/settings?section=account`)
   await page.getByRole('button', { name: 'Change password' }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Current password').fill('wrong current password')
@@ -167,6 +167,7 @@ await step('change password', async () => {
 })
 
 await step('app passwords', async () => {
+  await page.getByRole('link', { name: 'App passwords' }).click()
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await page.getByLabel('Name', { exact: true }).fill('Car stereo')
   await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
@@ -189,6 +190,7 @@ await step('server settings persist', async () => {
   await name.fill('Squirmy Test')
   await name.press('Enter')
   await page.getByRole('status').getByText('Saved').waitFor()
+  await page.getByRole('link', { name: 'Metadata', exact: true }).click()
   await page.getByRole('switch', { name: 'Deezer' }).click()
   await page.getByRole('button', { name: 'Add key' }).nth(1).click()
   await page.getByRole('dialog').getByLabel('API key').fill('an-acoustid-key')
@@ -196,10 +198,10 @@ await step('server settings persist', async () => {
   await page.getByRole('dialog').waitFor({ state: 'detached' })
   await page.waitForTimeout(300)
   await page.reload()
-  await name.waitFor()
-  check('the server name persists', await name.inputValue() === 'Squirmy Test')
   check('a toggle persists', await page.getByRole('switch', { name: 'Deezer' }).getAttribute('aria-checked') === 'false')
   check('a key shows as set and is never sent back', await page.getByRole('button', { name: 'Change' }).count() === 1)
+  await page.getByRole('link', { name: 'General', exact: true }).click()
+  check('the server name persists', await name.inputValue() === 'Squirmy Test')
   const status = await (await fetch(`${base}/api/v1/setup/status`)).json()
   check('the sign-in screens see the new name', status.serverName === 'Squirmy Test')
 })

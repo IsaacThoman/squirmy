@@ -54,7 +54,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-[94rem]">
       <CollectionHeader
         kind={albumTypeLabel(album.type)}
         title={album.title}

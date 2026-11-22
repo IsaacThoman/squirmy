@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { Spinner } from './feedback'
 
 const buttonVariants = cva(
-  'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold transition duration-150 ease-out active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0',
+  'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold transition duration-150 ease-out active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
@@ -17,9 +17,9 @@ const buttonVariants = cva(
         link: 'h-auto px-0 text-accent underline-offset-4 hover:underline active:scale-100',
       },
       size: {
-        sm: 'h-8 px-3.5 text-[13px] [&_svg]:size-4',
-        md: 'h-10 px-5 text-sm [&_svg]:size-[18px]',
-        lg: 'h-12 px-7 text-[15px] [&_svg]:size-5',
+        sm: 'h-8 px-3 text-[13px] [&_svg]:size-4',
+        md: 'h-10 px-4 text-sm [&_svg]:size-[18px]',
+        lg: 'h-12 px-5 text-[15px] [&_svg]:size-5',
       },
     },
     defaultVariants: { variant: 'secondary', size: 'md' },

@@ -1,4 +1,4 @@
-import { Heart, ListMusic, Maximize2, MonitorSpeaker, Pause, Play, Quote } from 'lucide-react'
+import { Heart, ListMusic, Maximize2, MonitorSpeaker, Music2, Pause, Play, Quote } from 'lucide-react'
 import { Link } from 'react-router'
 import { Cover } from '@/components/music/Cover'
 import { IconButton } from '@/components/ui/icon-button'
@@ -18,19 +18,19 @@ export type PlayerChromeProps = {
   onOpenNowPlaying: () => void
 }
 
-/** The desktop player along the bottom of the window, over a blur of whatever scrolls behind it. */
+/** The shared playback controls at the bottom of the desktop workspace. */
 export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueue, lyricsOpen, onToggleLyrics, onOpenNowPlaying }: PlayerChromeProps) {
   const { state, controls } = player
   const item = state.current
   const elsewhere = playingElsewhere(state)
   return (
-    <div className="border-t border-stroke bg-floating backdrop-blur-2xl backdrop-saturate-150">
-      <div className="grid h-[5.5rem] grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-4 px-4">
+    <section aria-label="Player" className="border-t border-stroke bg-sheet">
+      <div className="grid h-[5.3125rem] grid-cols-[minmax(0,1fr)_minmax(0,1.8fr)_minmax(0,1fr)] items-center gap-3 px-4 lg:px-5">
         <div className="flex min-w-0 items-center gap-3">
-          {item && (
+          {item ? (
             <>
               <button type="button" aria-label="Open Now Playing" onClick={onOpenNowPlaying} className="group relative shrink-0 rounded-lg">
-                <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-14 rounded-lg shadow-cover" />
+                <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-12 rounded-lg" />
                 <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
                   <Maximize2 className="size-4" />
                 </span>
@@ -51,12 +51,17 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                 <Heart fill={liked ? 'currentColor' : 'none'} />
               </IconButton>
             </>
+          ) : (
+            <>
+              <span aria-hidden className="grid size-12 shrink-0 place-items-center rounded-lg border border-stroke bg-surface text-quiet"><Music2 className="size-[18px]" /></span>
+              <p className="truncate text-[13px] font-medium text-muted">Nothing playing</p>
+            </>
           )}
         </div>
 
-        <div className="flex min-w-0 flex-col items-center gap-1">
+        <div className="flex min-w-0 flex-col items-center gap-0.5">
           <TransportButtons player={player} disabled={!item} />
-          <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} className="max-w-[40rem]" />
+          <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} className="max-w-[34rem]" />
         </div>
 
         <div className="flex items-center justify-end gap-0.5">
@@ -66,12 +71,12 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
             player={player}
             trigger={<IconButton label="Devices" size="sm" className={cn(elsewhere && 'text-accent hover:text-accent')}><MonitorSpeaker /></IconButton>}
           />
-          <VolumeControl volume={state.volume} onChange={controls.setVolume} className="hidden lg:flex" />
+          <VolumeControl volume={state.volume} onChange={controls.setVolume} className="hidden lg:flex [&>:last-child]:w-16" />
           <IconButton label="Now Playing" size="sm" disabled={!item} onClick={onOpenNowPlaying} className="hidden lg:inline-flex"><Maximize2 /></IconButton>
         </div>
       </div>
       {elsewhere && <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} />}
-    </div>
+    </section>
   )
 }
 
@@ -82,7 +87,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
   const elsewhere = playingElsewhere(state)
   if (!item) return null
   return (
-    <div className="relative mx-2 overflow-hidden rounded-2xl bg-floating shadow-float backdrop-blur-2xl backdrop-saturate-150">
+    <section aria-label="Player" className="relative mx-2 overflow-hidden rounded-xl bg-sheet ring-1 ring-stroke">
       <div className="flex h-14 items-center gap-1 pl-2 pr-1">
         <button type="button" aria-label={`Open Now Playing, ${item.track.title}`} onClick={onOpenNowPlaying} className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch rounded-xl text-left">
           <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-10 rounded-lg" />
@@ -102,7 +107,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
         </IconButton>
       </div>
       <MiniProgress durationMs={item.entry.durationMs} />
-    </div>
+    </section>
   )
 }
 

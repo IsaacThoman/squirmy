@@ -102,7 +102,7 @@ docker compose exec postgres psql -U squirmy -d squirmy \
 docker compose up -d app
 ```
 
-Then choose **Scan now** on that folder in **Admin → Library**. The relative paths inside the folder must be unchanged. This was tested on a scratch server: every file was found again and none was marked missing. Removing the folder and adding it again at the new path also brings the music back, but it is read and identified again from scratch, which on a large library takes hours.
+Then choose **Scan now** on that folder in **Management → Library**. The relative paths inside the folder must be unchanged. This was tested on a scratch server: every file was found again and none was marked missing. Removing the folder and adding it again at the new path also brings the music back, but it is read and identified again from scratch, which on a large library takes hours.
 
 ## Upgrading
 

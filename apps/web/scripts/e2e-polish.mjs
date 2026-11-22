@@ -249,7 +249,7 @@ await step('search leads with the top result', async () => {
 })
 
 await step('ListenBrainz setting', async () => {
-  await page.goto(`${base}/admin/settings`)
+  await page.goto(`${base}/admin/settings?section=metadata`)
   const row = page.getByText('Top songs and popularity on artist pages', { exact: false })
   await row.waitFor()
   check('the server\'s ListenBrainz key is described as a lookup key', await page.getByText('Not used for scrobbling', { exact: false }).isVisible())

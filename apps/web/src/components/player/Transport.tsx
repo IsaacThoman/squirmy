@@ -11,15 +11,15 @@ import { usePosition, type Player } from '@/player/player-context'
 export function TransportButtons({ player, large, disabled }: { player: Player; large?: boolean; disabled?: boolean }) {
   const { state, controls } = player
   return (
-    <div className={cn('flex items-center justify-center', large ? 'gap-5' : 'gap-2')}>
+    <div className={cn('flex items-center justify-center', large ? 'gap-1 sm:gap-5' : 'gap-2')}>
       <IconButton label={state.shuffle ? 'Turn off shuffle' : 'Shuffle'} size={large ? 'lg' : 'sm'} pressed={state.shuffle} disabled={disabled} onClick={() => controls.setShuffle(!state.shuffle)}>
         <Shuffle />
       </IconButton>
-      <IconButton label="Previous" size={large ? 'lg' : 'md'} disabled={disabled} onClick={controls.previous} className="text-foreground">
+      <IconButton label="Previous" size={large ? 'lg' : 'sm'} disabled={disabled} onClick={controls.previous} className="text-foreground">
         <SkipBack fill="currentColor" />
       </IconButton>
       <PlayPauseButton playing={state.playing} onClick={controls.togglePlay} large={large} disabled={disabled} />
-      <IconButton label="Next" size={large ? 'lg' : 'md'} disabled={disabled} onClick={controls.next} className="text-foreground">
+      <IconButton label="Next" size={large ? 'lg' : 'sm'} disabled={disabled} onClick={controls.next} className="text-foreground">
         <SkipForward fill="currentColor" />
       </IconButton>
       <RepeatButton repeat={state.repeat} onClick={controls.cycleRepeat} large={large} disabled={disabled} />
@@ -29,7 +29,7 @@ export function TransportButtons({ player, large, disabled }: { player: Player; 
 
 export function PlayPauseButton({ playing, onClick, large, disabled, className }: { playing: boolean; onClick: () => void; large?: boolean; disabled?: boolean; className?: string }) {
   return (
-    <IconButton label={playing ? 'Pause' : 'Play'} variant="contrast" size={large ? 'xl' : 'md'} disabled={disabled} onClick={onClick} className={className}>
+    <IconButton label={playing ? 'Pause' : 'Play'} variant="accent" size={large ? 'xl' : 'md'} disabled={disabled} onClick={onClick} className={cn(!large && 'size-9 shadow-none [&_svg]:size-4', className)}>
       {playing ? <Pause fill="currentColor" /> : <Play className="translate-x-px" fill="currentColor" />}
     </IconButton>
   )

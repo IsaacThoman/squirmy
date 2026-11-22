@@ -1,6 +1,6 @@
 # Your library
 
-This page covers adding music folders, how Squirmy finds changes in them, how files become albums, and what to do with albums it could not identify. Everything here is in **Admin → Library** and **Admin → Review queue**.
+This page covers adding music folders, how Squirmy finds changes in them, how files become albums, and what to do with albums it could not identify. Everything here is in **Management → Library** and **Management → Review queue**.
 
 ## Music folders
 
@@ -19,7 +19,7 @@ Folders added from `SQUIRMY_LIBRARY_PATHS` (in Docker, `/music`) start read-only
 
 ### Add a folder
 
-1. Open **Admin → Library** and choose **Add folder**.
+1. Open **Management → Library** and choose **Add folder**.
 2. Pick the folder in the browser, or type its path into the path field and press Enter. The folder shown on screen is the one that is added. The browser starts in the server's home folder; in Docker that is inside the container, so the folder must be mounted into the container first (add a line under `volumes:` in `compose.yaml`, for example `- /srv/more-music:/more-music:ro`, and run `docker compose up -d`).
 3. Give it a name, and decide on **Let Squirmy organize this folder** (managed) and **Watch for changes**.
 4. Choose **Add and scan**.
@@ -68,15 +68,15 @@ Squirmy also recognizes a file by a hash of its audio stream, computed without d
 
 ## Missing files and the grace period
 
-A file that disappears is marked **missing** rather than deleted from the library, so an unmounted drive or a NAS that is offline for a weekend does not empty your library. After **Keep missing files for** (default 14 days, in **Admin → Server settings → Library**) a daily job at 05:30 UTC removes it. A file that comes back before then simply returns.
+A file that disappears is marked **missing** rather than deleted from the library, so an unmounted drive or a NAS that is offline for a weekend does not empty your library. After **Keep missing files for** (default 14 days, in **Management → Server settings → Library & imports**) a daily job at 05:30 UTC removes it. A file that comes back before then simply returns.
 
 A folder the server cannot read at all (the mount is gone and the path does not exist) is skipped during the scan, and its files are not marked missing. If the mount point still exists but is empty, the files are marked missing and the grace period protects them.
 
-The **Missing from disk** count under **Identification** in **Admin → Library** shows how many files are missing right now.
+The **Missing from disk** count under **Identification** in **Management → Library** shows how many files are missing right now.
 
 ## Identified, in review, from tags only
 
-**Admin → Library** counts files in four states:
+**Management → Library** counts files in four states:
 
 | On screen | Meaning |
 |---|---|
@@ -103,7 +103,7 @@ Music plays the whole time, whatever its state.
 
 ## The review queue and Fix match
 
-**Admin → Review queue** lists the albums the matcher was not sure about, with a count in the admin menu. Pick an album to see its files ("The tags say") beside each candidate release, with a track-by-track comparison and a score.
+**Management → Review queue** lists the albums the matcher was not sure about, with a count in the Management navigation. Pick an album to see its files ("The tags say") beside each candidate release, with a track-by-track comparison and a score.
 
 - **Use this release** applies the candidate.
 - **Keep as it is** keeps the album as its tags describe it.
@@ -112,7 +112,7 @@ Music plays the whole time, whatever its state.
 
 Whatever you choose with **Use this release** or **Keep as it is** is locked: later scans and automatic matching never change it.
 
-**Fix match** corrects any album, identified or not. Open it with **Fix a match** in **Admin → Library** (then find the album), from a review, or from an album in **Admin → Organize**. In the dialog you can:
+**Fix match** corrects any album, identified or not. Open it with **Fix a match** in **Management → Library** (then find the album), from a review, or from an album in **Management → Organize**. In the dialog you can:
 
 - search MusicBrainz by "Artist - Album", a title, a MusicBrainz release or release-group link, or an MBID, and choose **Use this release**;
 - **Match automatically**, to unlock the album and let the matcher try again;

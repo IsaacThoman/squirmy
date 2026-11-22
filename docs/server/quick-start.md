@@ -72,7 +72,7 @@ Everyone else joins by invite. See [Users and access](./users.md).
 
 ## What happens during the first scan
 
-Open **Admin → Library** to watch it. Each folder shows what it is doing ("Finding files", "Reading tags", "Identifying albums"), and the top of the page counts songs, playing time and how much of the library is identified.
+Open **Management → Library** to watch it. Each folder shows what it is doing ("Finding files", "Reading tags", "Identifying albums"), and the top of the page counts songs, playing time and how much of the library is identified.
 
 1. **Finding files.** The folder is walked and every audio file is recorded. This is quick.
 2. **Reading tags.** Tags and technical details are read and the files are grouped into albums. As soon as an album's tags are read it is browsable and playable, built from its tags.
@@ -92,7 +92,7 @@ On the demo library that ships with the repository, 12 albums took about two and
 | 1,000 albums | a few hours |
 | 10,000 albums | more than a day |
 
-Everything stays playable from its tags while this runs, and the work resumes where it stopped after a restart. If you run your own MusicBrainz mirror, point Squirmy at it in **Admin → Server settings → MusicBrainz server** and the limit goes away. [Metadata and privacy](./metadata-and-privacy.md#the-musicbrainz-rate-limit) has the details.
+Everything stays playable from its tags while this runs, and the work resumes where it stopped after a restart. If you run your own MusicBrainz mirror, point Squirmy at it in **Management → Server settings → Metadata → MusicBrainz server** and the limit goes away. [Metadata and privacy](./metadata-and-privacy.md#the-musicbrainz-rate-limit) has the details.
 
 ## Updating
 

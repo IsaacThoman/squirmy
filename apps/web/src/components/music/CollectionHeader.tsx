@@ -1,5 +1,6 @@
 import { BookmarkCheck, BookmarkPlus, Heart, Play, Shuffle } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 
@@ -10,6 +11,7 @@ type CollectionHeaderProps = {
   art: ReactNode
   /** The line under the title: artist links, owner. */
   byline?: ReactNode
+  description?: string | null
   meta?: (string | null | undefined | false)[]
   /** The artwork's dominant color; tints the header. */
   tint?: string | null
@@ -17,19 +19,25 @@ type CollectionHeaderProps = {
 }
 
 /** The top of an album or playlist page, tinted with its artwork's color. */
-export function CollectionHeader({ kind, title, art, byline, meta, tint, actions }: CollectionHeaderProps) {
+export function CollectionHeader({ kind, title, art, byline, description, meta, tint, actions }: CollectionHeaderProps) {
   return (
-    <header className={cn('px-(--gutter) pb-6 pt-20 md:pt-24', tint && 'album-tint')} style={tint ? { '--tint': tint } as CSSProperties : undefined}>
-      <div className="flex flex-col items-center gap-6 text-center md:flex-row md:items-end md:gap-8 md:text-left">
-        <div className="w-[min(62vw,15rem)] shrink-0 shadow-cover md:w-52 lg:w-60 [&>*]:shadow-cover">{art}</div>
-        <div className="flex min-w-0 flex-col items-center gap-2 md:items-start">
-          <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted">{kind}</span>
-          <h1 className="text-balance text-[clamp(2rem,4.6vw,4.25rem)] font-extrabold leading-[1.02] tracking-[-0.045em]">{title}</h1>
-          {byline && <div className="text-[17px] font-semibold">{byline}</div>}
-          {meta?.some(Boolean) && <p className="text-[13px] font-medium text-muted">{meta.filter(Boolean).join(' · ')}</p>}
+    <header className="px-(--gutter) pb-6 pt-6 md:pb-8 md:pt-8">
+      <div
+        className="@container rounded-2xl border border-stroke bg-[linear-gradient(115deg,color-mix(in_srgb,var(--collection-color)_16%,var(--sheet)),var(--sheet)_68%)]"
+        style={{ '--collection-color': tint ?? 'var(--accent)' } as CSSProperties}
+      >
+        <div className="flex flex-col items-center gap-5 p-5 text-center @min-[32rem]:flex-row @min-[32rem]:gap-7 @min-[32rem]:p-7 @min-[32rem]:text-left">
+          <div className="w-[min(51vw,11rem)] shrink-0 @min-[32rem]:w-44 @min-[55rem]:w-52 [&>*]:shadow-cover">{art}</div>
+          <div className="flex min-w-0 flex-col items-center gap-1.5 @min-[32rem]:items-start">
+            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-muted">{kind}</p>
+            <h1 className="max-w-full text-balance break-words text-[clamp(1.85rem,5.5cqw,3.75rem)] font-extrabold leading-[1.05] tracking-[-0.045em]">{title}</h1>
+            {byline && <div className="text-sm font-semibold @min-[32rem]:text-base">{byline}</div>}
+            {meta?.some(Boolean) && <p className="text-sm text-muted">{meta.filter(Boolean).join(' · ')}</p>}
+            {description && <p className="mt-1 max-w-xl break-words text-sm leading-relaxed text-muted">{description}</p>}
+            {actions && <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 @min-[32rem]:justify-start">{actions}</div>}
+          </div>
         </div>
       </div>
-      {actions && <div className="mt-7 flex items-center justify-center gap-2 md:justify-start">{actions}</div>}
     </header>
   )
 }
@@ -49,9 +57,9 @@ type PlayActionsProps = {
 export function PlayActions({ title, onPlay, onShuffle, liked, onLike, wanted, onWant, children }: PlayActionsProps) {
   return (
     <>
-      <IconButton label={`Play ${title}`} variant="accent" size="xl" disabled={!onPlay} onClick={onPlay}>
-        <Play className="translate-x-0.5" fill="currentColor" />
-      </IconButton>
+      <Button variant="primary" aria-label={`Play ${title}`} disabled={!onPlay} onClick={onPlay}>
+        <Play fill="currentColor" />Play
+      </Button>
       {onShuffle && <IconButton label={`Shuffle ${title}`} size="lg" onClick={onShuffle}><Shuffle /></IconButton>}
       {onLike && (
         <IconButton label={liked ? `Remove ${title} from your library` : `Save ${title} to your library`} size="lg" onClick={onLike} className={cn(liked && 'text-accent hover:text-accent')}>

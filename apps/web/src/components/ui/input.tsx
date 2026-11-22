@@ -1,7 +1,7 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-export const inputClass = 'h-11 w-full min-w-0 rounded-xl border border-transparent bg-surface px-3.5 text-[15px] text-foreground transition duration-150 placeholder:text-quiet hover:border-stroke focus-visible:border-accent focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-selection disabled:opacity-50 aria-invalid:border-danger'
+export const inputClass = 'h-11 w-full min-w-0 rounded-lg border border-stroke bg-background px-3.5 text-[15px] text-foreground transition duration-150 placeholder:text-quiet hover:border-grabber focus-visible:border-accent focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-selection disabled:opacity-50 aria-invalid:border-danger'
 
 export function Input({ className, ...props }: ComponentProps<'input'>) {
   return <input className={cn(inputClass, className)} {...props} />

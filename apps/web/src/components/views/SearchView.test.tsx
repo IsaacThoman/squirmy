@@ -2,8 +2,9 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '@/App'
-import { album } from '@/fixtures/catalog'
+import { album, albums } from '@/fixtures/catalog'
 import { renderWithApp } from '@/test/render'
+import { SearchView } from './SearchView'
 
 const sectionHeadings = (section: HTMLElement) => within(section).getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)
 
@@ -40,5 +41,16 @@ describe('search page', () => {
     renderWithApp(<AppRoutes />, '/search?q=soft')
     await screen.findByRole('region', { name: 'In your library' })
     expect(screen.queryByRole('region', { name: 'Top result' })).toBeNull()
+  })
+
+  it('can reveal songs beyond the first six results', async () => {
+    const tracks = albums.flatMap(item => item.discs.flatMap(disc => disc.tracks)).slice(0, 8)
+    renderWithApp(<SearchView query="a" onQueryChange={() => {}} library={{ artists: [], albums: [], tracks, provider: null }} catalog={null} genres={[]} onBrowseGenre={() => {}} onPlayAlbum={() => {}} />)
+    const songs = screen.getByRole('list', { name: 'In your library: songs' })
+    expect(within(songs).getAllByRole('listitem')).toHaveLength(6)
+    await userEvent.click(screen.getByRole('button', { name: 'Show all 8 songs' }))
+    expect(within(songs).getAllByRole('listitem')).toHaveLength(8)
+    await userEvent.click(screen.getByRole('button', { name: 'Show fewer songs' }))
+    expect(within(songs).getAllByRole('listitem')).toHaveLength(6)
   })
 })

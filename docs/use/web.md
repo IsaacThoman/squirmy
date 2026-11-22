@@ -1,21 +1,21 @@
 # The web app
 
-The web app is served by your Squirmy server at its own address, such as `https://music.example.com`. Sign in, and it is your library, a player, and (for admins) the server's admin pages. This page is a short tour.
+The web app is served by your Squirmy server at its own address, such as `https://music.example.com`. Sign in, and it is your library, a player, and (for admins) server management. This page is a short tour.
 
 ## Getting around
 
-The sidebar has **Home**, **Search**, your **Library** (**Albums**, **Artists**, **Songs**), the **Wantlist**, **Add music** (for admins and people who may upload), and your **Playlists** with **Liked Songs** at the top. **New playlist** (the **+** next to Playlists) makes one. Admins also see **Admin**.
+The sidebar has **Home**, **Search**, your **Library** (**Albums**, **Artists**, **Songs**), the **Wantlist**, **Add music** (for admins and people who may upload), and your **Playlists** with **Liked Songs** at the top. **New playlist** (the **+** next to Playlists) makes one. Open **Settings** from the sidebar. Admins also see **Management**.
 
-The menu under your name, top right, has **Settings**, **Add music** (for people who may upload), **Admin** (for admins) and **Log out**.
+On desktop, use the button beside the Squirmy logo to collapse or expand the sidebar. The account menu is at the bottom of the sidebar. On a phone, use the bottom tabs or open the full navigation from the top left. The account menu is at the top right.
 
-- **Home** shows a featured album (what you played last, else what was added last) and rows of recently added and recently played albums, most played songs, your playlists, liked albums, your wantlist and new releases by artists in your library. On a server with no music yet it says so; admins get **Add a music folder**, which opens **Admin → Library**.
+- **Home** shows a featured album (the most recent playable album you listened to, or the most recent playable addition) and rows of recently added and recently played albums, most played songs, your playlists, liked albums, your wantlist and new releases by artists in your library. On a server with no music yet it says so; admins get **Add a music folder**, which opens **Management → Library**.
 - **Library** pages load as you scroll and can be sorted and filtered by genre. Counts read "60+" until the last page arrives.
 - **Album, artist and playlist pages** play from the header. Artist pages can start a radio. The first open of an artist the server knows little about can take a few seconds while it fetches the details.
 - **Playlists** you own can be renamed, made public or private, reordered by dragging or with **Move up** and **Move down**, and deleted.
 
 ## Search
 
-Type in **Search** (or the search field at the top). Two searches run at once:
+Type in **Search** or use the search field at the top. On desktop, press **⌘ K** or **Ctrl K** to focus it. Two searches run at once:
 
 - **Top result** leads when an artist, album or song is named the way you typed it (or starts with it): click it to open it, or play it with its play button when it is on your server. Your library's best match comes before the catalog's.
 - **Your library** comes next, at full brightness, and tolerates typos and word order.
@@ -49,11 +49,13 @@ If the browser refuses to start audio on its own (after a transfer or a reload),
 
 ## Settings
 
+**Settings → Appearance** lets you choose System, Light, or Dark mode and a palette. **Squirmy** is the default purple theme, alongside **Pulpo**, **Ocean**, **Forest**, and **Ember**. The choice is saved in your browser.
+
 **Settings** also holds **Scrobbling** ([ListenBrainz and Last.fm](../server/scrobbling.md)), **App passwords** for [Subsonic apps](../server/subsonic.md), and **Account**: **Edit name**, **Change password** and **Log out**.
 
-## Admin
+## Management
 
-Admins manage the server here. Each page has its own guide:
+Admins manage the server under **Management**. Each page has its own guide:
 
 | Page | Guide |
 |---|---|
@@ -66,7 +68,7 @@ Admins manage the server here. Each page has its own guide:
 | **Server settings** | [Configuration](../server/configuration.md#server-settings) |
 | **Jobs** | [Troubleshooting](../server/troubleshooting.md#logs-and-the-jobs-page) |
 
-The server's version is under the admin sections (at the bottom of the page on a phone) and on the sign-in page.
+The server's version is in the Management header and on the sign-in page.
 
 ## Not there yet
 

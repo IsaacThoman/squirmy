@@ -32,6 +32,7 @@ import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
 import { SearchView } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
 import { plural } from '@/lib/format'
+import { canUploadMusic, isUnowned } from '@/lib/catalog'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
@@ -118,13 +119,16 @@ export function HomePage() {
   const albums = (id: string) => sections?.find(section => section.id === id && section.kind === 'albums')
   const added = albums('recently-added')
   const played = albums('recently-played')
-  const featured = (played?.kind === 'albums' ? played.albums[0] : undefined) ?? (added?.kind === 'albums' ? added.albums[0] : undefined) ?? null
+  const lastPlayed = played?.kind === 'albums' ? played.albums.find(album => !isUnowned(album)) : undefined
+  const newAlbum = added?.kind === 'albums' ? added.albums.find(album => !isUnowned(album)) : undefined
+  const featured = lastPlayed ? { album: lastPlayed, label: 'Recently played' } : newAlbum ? { album: newAlbum, label: 'Recently added' } : null
   return (
     <HomeView
       featured={featured}
       sections={sections}
       empty={Boolean(sections) && !added}
       canAddMusic={user.role === 'admin'}
+      canUpload={canUploadMusic(user)}
       scan={scan}
       onPlayAlbum={album => void playAlbum(album)}
       onPlayPlaylist={playlist => void playPlaylist(playlist)}

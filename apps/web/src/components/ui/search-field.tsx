@@ -29,7 +29,7 @@ export function SearchField({ value, onValueChange, size = 'md', className, plac
         autoComplete="off"
         spellCheck={false}
         className={cn(
-          'w-full min-w-0 rounded-full border border-transparent bg-surface text-foreground transition duration-150 placeholder:text-quiet hover:border-stroke focus-visible:border-accent focus-visible:bg-background focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-selection [&::-webkit-search-cancel-button]:hidden',
+          'w-full min-w-0 rounded-lg border border-stroke bg-sheet text-foreground transition duration-150 placeholder:text-quiet hover:border-grabber focus-visible:border-accent focus-visible:bg-background focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-selection [&::-webkit-search-cancel-button]:hidden',
           size === 'lg' ? 'h-13 pl-11 pr-12 text-[17px]' : 'h-10 pl-10 pr-10 text-sm',
         )}
         {...props}

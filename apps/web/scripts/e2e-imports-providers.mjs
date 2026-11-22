@@ -306,7 +306,7 @@ await step('imports list and detail', async () => {
 })
 
 await step('import settings', async () => {
-  await page.goto(`${base}/admin/settings`)
+  await page.goto(`${base}/admin/settings?section=library`)
   const field = page.getByLabel('Inbox folder')
   await field.fill(path.join(work, 'nowhere'))
   await field.press('Enter')

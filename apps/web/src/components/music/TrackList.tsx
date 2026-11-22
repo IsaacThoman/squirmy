@@ -50,14 +50,14 @@ type SharedProps = {
 }
 
 const columns: Record<TrackListVariant, string> = {
-  album: 'grid-cols-[2.25rem_minmax(0,1fr)_auto]',
-  playlist: 'grid-cols-[2.25rem_minmax(0,1fr)_auto] md:grid-cols-[2.25rem_minmax(0,6fr)_minmax(0,4fr)_auto] xl:grid-cols-[2.25rem_minmax(0,6fr)_minmax(0,4fr)_7rem_auto]',
-  compact: 'grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,6fr)_minmax(0,4fr)_auto]',
+  album: 'grid-cols-[1.75rem_minmax(0,1fr)_auto] sm:grid-cols-[2rem_minmax(0,1fr)_7.5rem]',
+  playlist: 'grid-cols-[1.75rem_minmax(0,1fr)_auto] sm:grid-cols-[2rem_minmax(0,1fr)_7.5rem] md:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_7.5rem] xl:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_7rem_7.5rem]',
+  compact: 'grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_7.5rem] lg:grid-cols-[minmax(0,6fr)_minmax(0,4fr)_7.5rem]',
 }
 
 /** A playlist's rows have a date added column only when they know the date. */
 const columnsOf = (variant: TrackListVariant, dated: boolean) => (variant === 'playlist' && !dated ? undatedColumns : columns[variant])
-const undatedColumns = 'grid-cols-[2.25rem_minmax(0,1fr)_auto] md:grid-cols-[2.25rem_minmax(0,6fr)_minmax(0,4fr)_auto]'
+const undatedColumns = 'grid-cols-[1.75rem_minmax(0,1fr)_auto] sm:grid-cols-[2rem_minmax(0,1fr)_7.5rem] md:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_7.5rem]'
 
 /** Where a row dragged within its list would land: before or after the row under the pointer. */
 type DropTarget = { index: number; side: 'before' | 'after' }
@@ -144,7 +144,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
       type="button"
       aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
       onClick={play}
-      className="absolute inset-0 flex items-center justify-center rounded-md text-foreground opacity-0 transition-opacity duration-100 focus-visible:opacity-100 group-hover/row:opacity-100"
+      className={cn('absolute inset-0 flex items-center justify-center rounded-md text-foreground opacity-0 transition-opacity duration-100 focus-visible:opacity-100 group-hover/row:opacity-100', !preparing && 'pointer-coarse:opacity-100')}
     >
       {playing ? <Pause className="size-4" fill="currentColor" /> : <Play className="size-4" fill="currentColor" />}
     </button>
@@ -172,16 +172,16 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
         data-drop={dropSide}
         style={style}
         className={cn(
-          'group/row grid h-14 select-none items-center gap-3 rounded-lg px-2 transition-colors duration-100',
+          'group/row grid h-14 select-none items-center gap-2 rounded-md px-2 transition-colors duration-100 sm:gap-3',
           'data-[drop=after]:shadow-[inset_0_-2px_0_var(--accent)] data-[drop=before]:shadow-[inset_0_2px_0_var(--accent)]',
           columnsOf(variant, addedAt !== undefined),
-          unavailable ? 'text-quiet [&>*:not(:last-child)]:opacity-60' : 'hover:bg-overlay has-[[data-state=open]]:bg-overlay',
-          current && 'bg-selection hover:bg-selection',
+          unavailable ? 'text-quiet [&>*:not(:last-child)]:opacity-60' : 'hover:bg-overlay focus-within:bg-overlay has-[[data-state=open]]:bg-overlay',
+          current && 'bg-selection hover:bg-selection focus-within:bg-selection',
         )}
       >
         {variant === 'compact' ? null : (
           <div className="relative flex h-8 items-center justify-center text-[15px] tabular text-quiet">
-            <span className={cn('transition-opacity duration-100', !unavailable && 'group-hover/row:opacity-0', current && 'text-accent')}>
+            <span className={cn('transition-opacity duration-100', !unavailable && 'group-hover/row:opacity-0', !unavailable && !preparing && 'pointer-coarse:opacity-0', current && 'text-accent')}>
               {marker ?? number ?? index + 1}
             </span>
             {playButton}
@@ -194,15 +194,15 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
               <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-10 rounded-md" />
               {variant === 'compact' && (
                 <div className={cn('absolute inset-0 flex items-center justify-center rounded-md', (current || preparing) && 'bg-black/45 text-white')}>
-                  {marker && <span className={cn('transition-opacity', !unavailable && 'group-hover/row:opacity-0')}>{marker}</span>}
-                  {playButton && <div className="absolute inset-0 rounded-md text-white group-hover/row:bg-black/45 [&_button]:text-white">{playButton}</div>}
+                  {marker && <span className={cn('transition-opacity', !unavailable && 'group-hover/row:opacity-0', !unavailable && !preparing && 'pointer-coarse:opacity-0')}>{marker}</span>}
+                  {playButton && <div className={cn('absolute inset-0 rounded-md text-white group-hover/row:bg-black/45 [&_button]:text-white', !preparing && 'pointer-coarse:bg-black/45')}>{playButton}</div>}
                 </div>
               )}
             </div>
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span title={track.title} className={cn('truncate text-[15px] font-medium tracking-[-0.01em]', current && 'text-accent', unavailable && 'text-quiet')}>{track.title}</span>
+              <span title={track.title} className={cn('truncate text-sm font-semibold', current && 'text-accent', unavailable && 'text-quiet')}>{track.title}</span>
               {track.availability === 'on_demand' && !notAllowed && (
                 <Tooltip label="Plays on demand">
                   <CloudDownload tabIndex={0} aria-label="Plays on demand" className="size-3.5 shrink-0 text-quiet outline-none focus-visible:text-accent" />
@@ -231,7 +231,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
               tooltip={false}
               size="sm"
               onClick={() => act('like')}
-              className={cn(liked ? 'text-accent hover:text-accent' : 'md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100')}
+              className={cn(liked ? 'text-accent hover:text-accent' : 'md:pointer-fine:opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100')}
             >
               <Heart fill={liked ? 'currentColor' : 'none'} />
             </IconButton>
@@ -240,7 +240,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           <DropdownMenu
             entries={menu}
             trigger={(
-              <IconButton label={`More options for ${track.title}`} tooltip={false} size="sm" className="md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100 data-[state=open]:opacity-100">
+              <IconButton label={`More options for ${track.title}`} tooltip={false} size="sm" className="md:pointer-fine:opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100">
                 <MoreHorizontal />
               </IconButton>
             )}
@@ -266,12 +266,12 @@ function ArtistLinks({ track, dimmed }: { track: TrackSummary; dimmed: boolean }
 }
 
 function ListHeader({ variant, dated }: { variant: TrackListVariant; dated: boolean }) {
-  if (variant === 'compact') return null
   return (
-    <div aria-hidden className={cn('mb-1 grid h-9 items-center gap-3 border-b border-stroke px-2 text-xs font-semibold uppercase tracking-wider text-quiet', columnsOf(variant, dated))}>
-      <span className="text-center">#</span>
+    <div aria-hidden className={cn('mb-1 grid h-9 items-center gap-2 border-b border-stroke px-2 text-xs font-medium text-muted sm:gap-3', columnsOf(variant, dated))}>
+      {variant !== 'compact' && <span className="text-center pointer-coarse:invisible">#</span>}
       <span>Title</span>
       {variant === 'playlist' && <span className="hidden md:block">Album</span>}
+      {variant === 'compact' && <span className="hidden lg:block">Album</span>}
       {variant === 'playlist' && dated && <span className="hidden xl:block">Added</span>}
       <span className="flex justify-end pr-11"><Clock3 className="hidden size-4 sm:block" /></span>
     </div>
@@ -323,7 +323,7 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
     />
   ))
   return (
-    <div>
+    <div className="rounded-xl border border-stroke bg-sheet p-1.5">
       {header && <ListHeader variant={variant} dated={addedAt !== undefined} />}
       <ol aria-label={label} className="flex flex-col">
         {showDiscs
@@ -370,7 +370,7 @@ export function VirtualTrackList({ tracks, label, variant = 'compact', isWanted,
   useEndReached(last, tracks.length, onEndReached)
 
   return (
-    <div>
+    <div className="rounded-xl border border-stroke bg-sheet p-1.5">
       <ListHeader variant={variant} dated={false} />
       <ol ref={list} aria-label={label} className="relative" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map(item => {

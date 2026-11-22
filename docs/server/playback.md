@@ -10,7 +10,7 @@ When an album has several files for the same track, the server picks the file on
 
 ### Quality and transcoding
 
-Each user picks a streaming quality in **Settings** (web) or **Settings → Streaming Quality** (iOS): one for Wi-Fi and the browser (default **Original**), one for cellular on iOS (default **High**).
+Each user picks a streaming quality in **Settings → Playback** (web) or **Settings → Streaming Quality** (iOS): one for Wi-Fi and the browser (default **Original**), one for cellular on iOS (default **High**).
 
 | Quality | What is sent |
 |---|---|
@@ -24,7 +24,7 @@ Conversions are done with ffmpeg and sent while they are encoded, so playback st
 
 ### The transcode cache
 
-Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted. The folder is safe to delete at any time; it refills as people listen.
+Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Management → Server settings → Playback → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted. The folder is safe to delete at any time; it refills as people listen.
 
 ## Loudness normalization
 
@@ -32,7 +32,7 @@ Albums are mastered at very different levels. Normalization evens them out so yo
 
 **What is measured.** Each file's integrated loudness and true peak are measured with ffmpeg's EBU R128 filter, in the background at low priority. Each album is also measured as a whole, with its tracks played in order, so the quiet and loud songs of one album keep their relationship. Until a file is measured, its ReplayGain tags are used if it has them. The target is -18 LUFS, the ReplayGain reference.
 
-**The modes**, per user in **Settings → Volume normalization** (web) or **Normalize Volume** (iOS):
+**The modes**, per user in **Settings → Playback → Volume normalization** (web) or **Normalize Volume** (iOS):
 
 | Mode (web / iOS) | Gain used |
 |---|---|
@@ -50,7 +50,7 @@ Each user has **one** playback session, held by the server: the queue, the curre
 - **One device plays; every other one is a remote.** Open the web app while your phone plays and you see the same track at the same position, with the controls driving the phone. The web app shows "Playing on …" with **Play here**; the iOS app shows "Playing on …" in the **Playback device** sheet.
 - **Pressing play when nothing is playing** makes the device you pressed it on the player.
 - **Transferring.** Open the devices list (the **Devices** button in the player bar on the web; on iOS, the playback device button in the mini-player or Now Playing, which opens the **Playback device** sheet) and pick a device. Playback continues there from the same position. Each device keeps its own volume.
-- **Each browser tab is its own device.** A second tab of the same browser is listed with "(2)" after its name. Rename the browser in **Settings → This browser's name**.
+- **Each browser tab is its own device.** A second tab of the same browser is listed with "(2)" after its name. Rename the browser in **Settings → Playback → This browser's name**.
 - **When the playing device disappears**, the server waits 20 seconds, then pauses the session at the last known position. Any device can resume it.
 - **A device is listed only while it is connected.** iOS suspends an app that is paused in the background, so a paused phone drops off the list until it is opened again.
 

@@ -19,7 +19,7 @@ export function DialogContent({ title, description, className, children, ...prop
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 animate-fade-in bg-black/40 backdrop-blur-[2px] data-[state=closed]:animate-exit" />
       <DialogPrimitive.Content
-        className={cn('fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-5 overflow-y-auto rounded-3xl bg-sheet p-6 shadow-float focus:outline-none', className)}
+        className={cn('fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-5 overflow-y-auto rounded-2xl bg-background p-6 shadow-float focus:outline-none', className)}
         {...props}
       >
         <div className="flex items-start gap-4 animate-enter">

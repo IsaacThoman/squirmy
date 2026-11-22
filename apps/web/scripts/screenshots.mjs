@@ -45,8 +45,6 @@ async function capture(target, shot, scheme, storageState) {
   if (review) await page.getByText('Track by track').or(page.getByText('MusicBrainz offered nothing close')).first().waitFor()
   if (shot.then) await click(shot.then)
   if (shot.create) {
-    // The settings rows load in and move the button; wait for the last of them.
-    await page.getByRole('button', { name: /^(Connect|Disconnect)$/ }).first().waitFor()
     await page.getByRole('button', { name: 'Create', exact: true }).click()
     await page.getByLabel('Name', { exact: true }).fill(shot.create)
     await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
@@ -132,7 +130,7 @@ const shots = [
   { name: 'queue', path: album, click: 'Queue' },
   { name: 'now-playing', path: '/', click: 'Lyrics', wait: 900 },
   { name: 'settings', path: '/settings' },
-  { name: 'app-password', path: '/settings', create: 'Car stereo' },
+  { name: 'app-password', path: '/settings?section=app-passwords', create: 'Car stereo' },
   { name: 'admin-users', path: '/admin/users' },
   { name: 'admin-invite', path: '/admin/users', click: 'Invite someone', then: 'Create invite' },
   { name: 'admin-settings', path: '/admin/settings', height: 1500 },
@@ -173,7 +171,7 @@ for (const scheme of ['light', 'dark']) {
 // Another device plays: every page shows where, and the devices list offers to bring it here.
 const speaker = await browser.newContext({ storageState: session, viewport: { width: 1024, height: 768 } })
 const playing = await speaker.newPage()
-await playing.goto(`${base}/settings`)
+await playing.goto(`${base}/settings?section=playback`)
 await playing.getByLabel('This browser’s name').fill('Living Room')
 await playing.getByLabel('This browser’s name').press('Enter')
 await playing.locator('body').click({ position: { x: 5, y: 5 } })

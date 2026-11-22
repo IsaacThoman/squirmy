@@ -128,13 +128,14 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
   const playable = tracks.some(track => isPlayable(track, canRequest))
   const size = tracks.length ? [count ?? plural(tracks.length, 'song'), durationMs !== null && formatTotalDuration(durationMs)].filter(Boolean).join(', ') : 'No songs yet'
   return (
-    <div>
+    <div className="mx-auto max-w-[94rem]">
       <CollectionHeader
         kind={kind}
         title={title}
         art={art}
         tint={tint}
         byline={byline}
+        description={description}
         meta={[size]}
         actions={(
           <PlayActions
@@ -147,7 +148,6 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
         )}
       />
       <div className="px-(--gutter) pb-12">
-        {description && <p className="-mt-2 mb-6 max-w-3xl text-[15px] leading-relaxed text-muted">{description}</p>}
         {!tracks.length
           ? empty
           : virtual

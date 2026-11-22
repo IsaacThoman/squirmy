@@ -145,7 +145,7 @@ function ReviewDetail({ review, rootName, onResolve, onSearch }: { review: Match
           />
         )}
 
-      <div className="z-10 flex flex-col gap-3 rounded-2xl bg-sheet p-3 ring-1 ring-stroke md:sticky md:bottom-[calc(var(--player-height)+1rem)] md:bg-floating md:shadow-float md:ring-0 md:backdrop-blur-xl">
+      <div className="z-10 flex flex-col gap-3 rounded-2xl bg-sheet p-3 ring-1 ring-stroke md:sticky md:bottom-4 md:bg-floating md:shadow-float md:ring-0 md:backdrop-blur-xl">
         <p className="px-1 text-xs leading-relaxed text-muted">
           {open
             ? 'Use this release to take its titles and artwork. Keep as it is plays the album from its tags and stops asking. Dismiss closes the review for now.'

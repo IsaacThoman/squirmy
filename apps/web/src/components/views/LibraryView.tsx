@@ -11,7 +11,6 @@ import { VirtualGrid } from '@/components/music/VirtualGrid'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { Select, type SelectOption } from '@/components/ui/select'
-import { pillClass } from '@/components/ui/tabs'
 import { plural } from '@/lib/format'
 import { useTrackActions } from '@/player/use-track-actions'
 
@@ -51,18 +50,22 @@ export type LibraryListProps<T> = {
 
 function LibraryPage({ count, controls, children }: { count?: string; controls?: ReactNode; children: ReactNode }) {
   return (
-    <Page className="flex flex-col gap-5">
+    <Page className="mx-auto flex max-w-[94rem] flex-col gap-5">
       <PageTitle>Library</PageTitle>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav aria-label="Library sections" className="flex gap-2 overflow-x-auto [scrollbar-width:none]">
-          {tabs.map(tab => <NavLink key={tab.to} to={tab.to} className={pillClass}>{tab.label}</NavLink>)}
+      <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-b border-stroke pb-2">
+        <nav aria-label="Library sections" className="flex max-w-full gap-1 overflow-x-auto [scrollbar-width:none]">
+          {tabs.map(tab => (
+            <NavLink key={tab.to} to={tab.to} className="shrink-0 rounded-lg px-2.5 py-2 text-sm font-medium text-muted transition-colors hover:bg-overlay hover:text-foreground aria-[current=page]:bg-selection aria-[current=page]:font-semibold aria-[current=page]:text-accent sm:px-3">
+              {tab.label}
+            </NavLink>
+          ))}
         </nav>
         <div className="flex flex-wrap items-center gap-3">
           {count && <span className="text-[13px] font-medium text-quiet">{count}</span>}
           {controls}
         </div>
       </div>
-      <div className="mt-2">{children}</div>
+      <div>{children}</div>
     </Page>
   )
 }
@@ -141,7 +144,7 @@ export function LibrarySongsView({ onPlay, ...list }: LibraryListProps<TrackSumm
       {!list.items
         ? <TrackRowsSkeleton rows={12} art />
         : list.items.length
-          ? <div className="-mx-2"><VirtualTrackList label="Songs" tracks={list.items} variant="compact" onEndReached={list.onEndReached} {...actions} /></div>
+          ? <VirtualTrackList label="Songs" tracks={list.items} variant="compact" onEndReached={list.onEndReached} {...actions} />
           : <Empty icon={<ListMusic />} title="No songs yet" {...list} />}
     </LibraryPage>
   )
@@ -156,8 +159,8 @@ export function LibraryPlaylistsView({ playlists, onCreate, onPlayPlaylist }: { 
           ? (
             <CardGrid>
               {playlists.map(playlist => <PlaylistCard key={playlist.id} playlist={playlist} onPlay={() => onPlayPlaylist(playlist)} />)}
-              <button type="button" onClick={onCreate} className="flex aspect-square flex-col items-center justify-center gap-2 rounded-cover border-2 border-dashed border-stroke text-sm font-semibold text-muted transition hover:border-accent hover:text-accent">
-                <Plus className="size-7" />New playlist
+              <button type="button" onClick={onCreate} className="flex aspect-square flex-col items-center justify-center gap-2 rounded-cover border border-dashed border-stroke bg-sheet text-sm font-semibold text-muted transition hover:border-accent hover:bg-selection hover:text-accent">
+                <Plus className="size-5" />New playlist
               </button>
             </CardGrid>
           )

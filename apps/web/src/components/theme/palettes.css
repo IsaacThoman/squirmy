@@ -1,0 +1,83 @@
+:root {
+  color-scheme: light dark;
+}
+
+:root[data-color-mode='light'] { color-scheme: light; }
+:root[data-color-mode='dark'] { color-scheme: dark; }
+
+/* Squirmy adapts Pulpo's Iris palette. The remaining presets use the matching Pulpo palettes. */
+:root, [data-color-theme='squirmy'] {
+  --background: light-dark(#fbf9ff, #1d1929);
+  --sheet: light-dark(#f4f0fc, #272139);
+  --surface: light-dark(#f1edf9, #383443);
+  --foreground: light-dark(#1d1929, #fffaff);
+  --muted: light-dark(#6b6480, #b2abbe);
+  --accent: light-dark(#b5368f, #f099d8);
+  --on-accent: light-dark(#ffffff, #27132a);
+  --stroke: light-dark(#e2dbf0, #4d4366);
+  --overlay: light-dark(#ebe5f7, #454250);
+  --selection: light-dark(#e6ddf8, #433766);
+  --focus: light-dark(#7c5ce0, #b399ff);
+}
+
+[data-color-theme='pulpo'] {
+  --background: light-dark(#ffffff, #0d0d0f);
+  --sheet: light-dark(#fafafa, #111114);
+  --surface: light-dark(#f4f4f5, #212124);
+  --foreground: light-dark(#09090b, #fafafa);
+  --muted: light-dark(#686872, #9f9fa9);
+  --accent: light-dark(#18181b, #e4e4e7);
+  --on-accent: light-dark(#fafafa, #18181b);
+  --stroke: light-dark(#e4e4e7, #ffffff17);
+  --overlay: light-dark(#f4f4f5, #262629);
+  --selection: light-dark(#ededf0, #2a2a2f);
+  --focus: light-dark(#71717b, #a1a1aa);
+}
+
+[data-color-theme='ocean'] {
+  --background: light-dark(#f7fbfe, #0f1720);
+  --sheet: light-dark(#eef5fb, #0c131b);
+  --foreground: light-dark(#0f1d2b, #e6f1fa);
+  --muted: light-dark(#506577, #9fb3c6);
+  --accent: light-dark(#0b6fbd, #4fb0ee);
+  --on-accent: light-dark(#ffffff, #0b2234);
+}
+
+[data-color-theme='forest'] {
+  --background: light-dark(#f8fbf8, #121a16);
+  --sheet: light-dark(#eef5ef, #0f1612);
+  --foreground: light-dark(#14231a, #e7f2ea);
+  --muted: light-dark(#536b5b, #a1b5a7);
+  --accent: light-dark(#1d7f4a, #5cc48a);
+  --on-accent: light-dark(#ffffff, #12291c);
+}
+
+[data-color-theme='ember'] {
+  --background: light-dark(#fffaf6, #1c1512);
+  --sheet: light-dark(#fbf1ea, #18110e);
+  --foreground: light-dark(#2a1a12, #fbefe8);
+  --muted: light-dark(#795d4e, #c4a899);
+  --accent: light-dark(#bd4f18, #f08a4b);
+  --on-accent: light-dark(#ffffff, #30190c);
+}
+
+:is([data-color-theme='ocean'], [data-color-theme='forest'], [data-color-theme='ember']) {
+  --surface: color-mix(in srgb, var(--background), var(--accent) 7%);
+  --stroke: color-mix(in srgb, var(--background), var(--foreground) 15%);
+  --overlay: color-mix(in srgb, var(--background), var(--foreground) 7%);
+  --selection: color-mix(in srgb, var(--background), var(--accent) 15%);
+  --focus: var(--accent);
+}
+
+:root, [data-color-theme] {
+  --quiet: var(--muted);
+  --grabber: var(--muted);
+  --dragged-row: color-mix(in srgb, var(--background), var(--accent) 18%);
+  --floating: color-mix(in srgb, var(--sheet) 94%, transparent);
+  --danger: light-dark(#b4233c, #ff8fa0);
+  --player-gradient: color-mix(in srgb, var(--background) 42%, transparent), var(--floating) 60%, var(--background);
+}
+
+:root {
+  --shadow-color: 260deg 15% 12%;
+}

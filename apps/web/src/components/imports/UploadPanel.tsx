@@ -16,11 +16,11 @@ const unavailableText: Record<ImportUnavailable, { admin: ReactNode; member: str
     member: 'Uploads are filed into a managed music folder, and this server has none yet. Ask an admin to add one.',
   },
   import_root_not_set: {
-    admin: <>This server has several managed folders. Choose the one uploads go to in <Link to="/admin/settings" className="font-semibold text-accent hover:underline">Server settings</Link>.</>,
+    admin: <>This server has several managed folders. Choose the one uploads go to in <Link to="/admin/settings?section=library" className="font-semibold text-accent hover:underline">Server settings</Link>.</>,
     member: 'An admin needs to choose which music folder uploads go to.',
   },
   import_root_unavailable: {
-    admin: <>The folder chosen for uploads is disabled, gone, or no longer managed. Choose another in <Link to="/admin/settings" className="font-semibold text-accent hover:underline">Server settings</Link>.</>,
+    admin: <>The folder chosen for uploads is disabled, gone, or no longer managed. Choose another in <Link to="/admin/settings?section=library" className="font-semibold text-accent hover:underline">Server settings</Link>.</>,
     member: 'The folder uploads go to is not available. Ask an admin to choose another.',
   },
 }

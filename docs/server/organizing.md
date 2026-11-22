@@ -7,7 +7,7 @@ Nothing in a folder changes until you preview a batch and apply it, and every ba
 ## Make a folder managed
 
 1. Make sure the folder is writable by the server. In Docker, the container user is uid 1000, and the volume must not end in `:ro`.
-2. In **Admin → Library**, open the folder's **⋯** menu, choose **Edit…**, turn on **Let Squirmy organize this folder**, and **Save**.
+2. In **Management → Library**, open the folder's **⋯** menu, choose **Edit…**, turn on **Let Squirmy organize this folder**, and **Save**.
 3. Confirm with **Make managed**.
 
 Or turn on **Let Squirmy organize this folder** when you add the folder.
@@ -52,7 +52,7 @@ A template is a path of literal text, tokens and `[optional]` parts, separated b
 - No empty folder names (`//`, or a `/` at either end), no `.` or `..` folders, and none of `< > : " \ | ? *` or control characters.
 - At most 500 characters.
 
-To change it, open **Admin → Library**, choose the managed folder's **⋯** menu, then **Edit…**. **Naming template** shows the folder's template, marked **Default** while it uses the default. Edit it in place: under the field, an example shows the path a track on a two-disc album would get, and **Tokens** lists every token with its description. **Save** checks the template; one that breaks a rule is refused with the reason under the field, for example `The file name must end with .{ext}`. **Reset to default** goes back to the default. A preview on **Organize** says whether it used the default template or the folder's own, with **Change it in Library** to open this editor.
+To change it, open **Management → Library**, choose the managed folder's **⋯** menu, then **Edit…**. **Naming template** shows the folder's template, marked **Default** while it uses the default. Edit it in place: under the field, an example shows the path a track on a two-disc album would get, and **Tokens** lists every token with its description. **Save** checks the template; one that breaks a rule is refused with the reason under the field, for example `The file name must end with .{ext}`. **Reset to default** goes back to the default. A preview on **Organize** says whether it used the default template or the folder's own, with **Change it in Library** to open this editor.
 
 Through the API, the template is the folder's `template` field: `POST /api/v1/admin/library/roots` when adding a folder, or `PATCH /api/v1/admin/library/roots/<id>` later, with `null` for the default. A refused template is error code `invalid_request` with the reason. `GET /api/v1/admin/organize/template` returns the default template and the tokens with their descriptions.
 
@@ -60,7 +60,7 @@ Changing the template moves nothing by itself: the next preview plans moves to t
 
 ## Preview, apply, undo
 
-Open **Admin → Organize**. With more than one managed folder, choose it under **Folder**.
+Open **Management → Organize**. With more than one managed folder, choose it under **Folder**.
 
 1. Choose the options:
    - **Include unidentified music**: also file albums that are not identified, named from their own tags. Off (the default) moves only identified albums and albums an admin approved.

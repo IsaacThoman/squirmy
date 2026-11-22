@@ -1,5 +1,6 @@
 import { ChevronDown, Heart, ListMusic, MonitorSpeaker, Quote } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
+import { useRef } from 'react'
 import { Link } from 'react-router'
 import { Cover } from '@/components/music/Cover'
 import { IconButton } from '@/components/ui/icon-button'
@@ -27,6 +28,7 @@ type NowPlayingProps = {
 export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, liked, onToggleLike }: NowPlayingProps) {
   const { state, controls } = player
   const artUrl = useArtUrl()
+  const previousFocus = useRef<HTMLElement | null>(null)
   const item = state.current
   const artwork = item?.track.album?.artwork ?? null
   const elsewhere = playingElsewhere(state)
@@ -37,6 +39,14 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
       <DialogPrimitive.Portal>
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          onOpenAutoFocus={() => {
+            previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+          }}
+          onCloseAutoFocus={event => {
+            if (!previousFocus.current?.offsetParent) return
+            event.preventDefault()
+            previousFocus.current.focus()
+          }}
           className="fixed inset-0 z-40 flex animate-slide-in flex-col overflow-clip text-foreground focus:outline-none data-[state=closed]:animate-exit"
           style={{ backgroundColor: artwork?.color ?? 'var(--background)' }}
         >
@@ -53,14 +63,14 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
 
           {elsewhere && <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />}
 
-          <div className="relative flex h-16 shrink-0 items-center justify-between px-4 pt-[env(safe-area-inset-top)] md:px-8">
+          <div className="relative flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between px-4 pt-[env(safe-area-inset-top)] md:h-14 md:px-8 md:pt-0">
             <DialogPrimitive.Close asChild>
               <IconButton label="Close Now Playing" tooltip={false} variant="solid" className="bg-overlay"><ChevronDown /></IconButton>
             </DialogPrimitive.Close>
             <div className="min-w-0 px-4 text-center">
               {state.context?.title && (
                 <>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">Playing from {state.context.type}</p>
+                  <p className="text-[11px] font-semibold text-muted">Playing from</p>
                   <p className="truncate text-sm font-semibold">{state.context.title}</p>
                 </>
               )}
@@ -76,7 +86,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
 
           <div className={cn('relative grid min-h-0 flex-1 grid-cols-1 gap-10 px-6 py-4 md:px-12', pane !== 'art' && 'lg:grid-cols-2')}>
             <div className={cn('min-h-0 flex-col items-center justify-center gap-6', pane === 'art' ? 'flex' : 'hidden lg:flex')}>
-              <div className="aspect-square h-auto max-h-full w-full max-w-[min(32rem,52vh)]">
+              <div className="aspect-square h-auto max-h-full w-full max-w-[min(32rem,52dvh)]">
                 <Cover artwork={artwork} size={1200} className="size-full rounded-[18px] shadow-[0_30px_80px_-20px_rgb(0_0_0/0.55)]" />
               </div>
             </div>

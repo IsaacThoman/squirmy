@@ -22,7 +22,7 @@ export function Select<T extends string>({ value, onValueChange, options, label,
       <SelectPrimitive.Trigger
         id={id}
         aria-label={label}
-        className={cn('inline-flex h-9 items-center gap-1.5 rounded-full bg-surface pl-3.5 pr-2.5 text-[13px] font-semibold text-foreground transition duration-150 hover:brightness-95 dark:hover:brightness-125 data-[state=open]:ring-4 data-[state=open]:ring-selection', className)}
+        className={cn('inline-flex h-9 items-center gap-1.5 rounded-lg border border-stroke bg-background pl-3.5 pr-2.5 text-[13px] font-semibold text-foreground transition duration-150 hover:bg-overlay data-[state=open]:ring-4 data-[state=open]:ring-selection', className)}
       >
         {prefix && <span className="text-muted">{prefix}</span>}
         <SelectPrimitive.Value />

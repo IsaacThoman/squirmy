@@ -10,7 +10,7 @@ Uploads and the inbox are *imports*: Squirmy takes the files, identifies them, a
 
 ## Before you start: a managed folder to file into
 
-Imports need a [managed folder](./organizing.md#make-a-folder-managed) to file music into. With exactly one enabled managed folder, that is the one. With several, choose one in **Admin → Server settings → Imports → Import into**. Otherwise uploads cannot start: **Add music** says what is missing, and the API answers `no_managed_root` or `import_root_not_set`.
+Imports need a [managed folder](./organizing.md#make-a-folder-managed) to file music into. With exactly one enabled managed folder, that is the one. With several, choose one in **Management → Server settings → Library & imports → Imports → Import into**. Otherwise uploads cannot start: **Add music** says what is missing, and the API answers `no_managed_root` or `import_root_not_set`.
 
 ## What an import does
 
@@ -26,7 +26,7 @@ receiving → extracting → moving → identifying → filing → completed
 
 ### Where unidentified music stays
 
-Albums that were not identified confidently stay in `<managed folder>/_Incoming/<import id>/`. They are in the library, browsable and playable, and the import's `reviewFolder` names the folder. Fix them in **Admin → Review queue** or with **Fix match**, then file them from **Admin → Organize**. Organize leaves `_Incoming` out of its plans unless the preview asks for it with `includeIncoming` (an API option of `POST /api/v1/admin/organize/preview`; the screen does not offer it yet).
+Albums that were not identified confidently stay in `<managed folder>/_Incoming/<import id>/`. They are in the library, browsable and playable, and the import's `reviewFolder` names the folder. Fix them in **Management → Review queue** or with **Fix match**, then file them from **Management → Organize**. Organize leaves `_Incoming` out of its plans unless the preview asks for it with `includeIncoming` (an API option of `POST /api/v1/admin/organize/preview`; the screen does not offer it yet).
 
 ### Limits
 
@@ -35,7 +35,7 @@ Albums that were not identified confidently stay in `<managed folder>/_Incoming/
 | `importMaxFileBytes` | 4 GiB | Largest single file, zip archives included. A larger file is refused with 413. |
 | `importMaxBytes` | 64 GiB | Largest import, counting what its archives extract to. |
 
-Change them in **Admin → Server settings → Imports**. A reverse proxy in front needs a matching body size limit; see [Reverse proxies](./reverse-proxy.md).
+Change them in **Management → Server settings → Library & imports → Imports**. A reverse proxy in front needs a matching body size limit; see [Reverse proxies](./reverse-proxy.md).
 
 An import that receives no files for a day is failed and cleaned up.
 

@@ -12,7 +12,7 @@ Only plays made after you connect are sent. Disconnecting stops sending and drop
 
 ## ListenBrainz
 
-**Operator:** nothing to do. (The ListenBrainz token in **Admin → Server settings → API keys** is for top songs and similar artists, not for users' scrobbling.)
+**Operator:** nothing to do. (The ListenBrainz token in **Management → Server settings → Metadata → API keys** is for top songs and similar artists, not for users' scrobbling.)
 
 **Each user:**
 
@@ -26,7 +26,7 @@ The token is checked with ListenBrainz before it is saved, and stored encrypted.
 **Operator:**
 
 1. Create a Last.fm API account and note its **API key** and **shared secret**.
-2. Open **Admin → Server settings → API keys → Last.fm**, choose **Add key**, enter both, and choose **Save key**.
+2. Open **Management → Server settings → Metadata → API keys → Last.fm**, choose **Add key**, enter both, and choose **Save key**.
 3. Set [`PUBLIC_URL`](./configuration.md#environment-variables) to the address people use. After approving access on Last.fm, the browser is sent back to `<PUBLIC_URL>/api/v1/scrobbling/lastfm/callback`. Without `PUBLIC_URL`, the server uses the address of the request, which is wrong behind a reverse proxy that is not trusted (`TRUST_PROXY`), and unreachable when the app connected through a local address.
 
 Until the key is set, users see "An admin of this server has to add a Last.fm API key first."
@@ -35,7 +35,7 @@ Until the key is set, users see "An admin of this server has to add a Last.fm AP
 
 1. In the web app, open **Settings → Scrobbling** and choose **Connect** next to Last.fm. In the iOS app, open the account sheet, then **Settings**, then **Connect** under **Last.fm**.
 2. Approve Squirmy on Last.fm's page.
-3. You land on the web app's **Settings** page with a confirmation. The approval link is valid for 10 minutes.
+3. You land on the web app's **Settings → Scrobbling** page with a confirmation. The approval link is valid for 10 minutes.
 
 ## Status and problems
 

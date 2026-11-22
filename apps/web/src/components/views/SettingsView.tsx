@@ -2,12 +2,14 @@ import {
   ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
   type AppPassword, type NormalizationMode, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
-import { AlertTriangle, KeyRound, LogOut, Pencil, Plus } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowUpRight, AudioLines, KeyRound, LogOut, Palette, Pencil, Plus, Shield, UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router'
 import { useFormSubmit } from '@/api/errors'
 import { Page } from '@/components/layout/Page'
-import { SettingRow, SettingsSection } from '@/components/layout/Settings'
+import { SettingRow, SettingsNav, SettingsSection } from '@/components/layout/Settings'
 import { PageTitle } from '@/components/music/SectionHeader'
+import { AppearanceSettings } from '@/components/theme/AppearanceSettings'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
 import { Badge, Skeleton } from '@/components/ui/feedback'
@@ -29,6 +31,16 @@ const qualityOptions: SelectOption<StreamQuality>[] = [
   { value: 'high', label: 'High (AAC 256)' },
   { value: 'data_saver', label: 'Data saver' },
 ]
+
+const sections = [
+  { id: 'appearance', to: '/settings', label: 'Appearance', icon: <Palette aria-hidden /> },
+  { id: 'playback', to: '/settings?section=playback', label: 'Playback', icon: <AudioLines aria-hidden /> },
+  { id: 'scrobbling', to: '/settings?section=scrobbling', label: 'Scrobbling', icon: <Activity aria-hidden /> },
+  { id: 'app-passwords', to: '/settings?section=app-passwords', label: 'App passwords', icon: <KeyRound aria-hidden /> },
+  { id: 'account', to: '/settings?section=account', label: 'Account', icon: <UserRound aria-hidden /> },
+] as const
+
+type SettingsSectionId = typeof sections[number]['id']
 
 type SettingsViewProps = {
   user: User
@@ -56,81 +68,122 @@ type SettingsViewProps = {
   onLogout: () => void
 }
 
-export function SettingsView({
+export function SettingsView(props: SettingsViewProps) {
+  const [params] = useSearchParams()
+  const id = params.has('lastfm') ? 'scrobbling' : params.get('section')
+  const section = sections.find(item => item.id === id) ?? sections[0]
+
+  return (
+    <Page className="mx-auto max-w-5xl">
+      <PageTitle className="mb-6">Settings</PageTitle>
+      <div className="@container rounded-2xl border border-stroke bg-background">
+        <div className="flex min-h-96 flex-col @[44rem]:grid @[44rem]:grid-cols-[12rem_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4 rounded-t-2xl border-b border-stroke bg-sheet p-2 @[44rem]:rounded-l-2xl @[44rem]:rounded-tr-none @[44rem]:border-r @[44rem]:border-b-0 @[44rem]:p-3">
+            <SettingsNav label="Settings sections" items={sections} active={section.to} className="@[44rem]:flex-col" />
+            {props.user.role === 'admin' && (
+              <Link to="/admin" className="mt-auto hidden items-center gap-2 rounded-lg border-t border-stroke px-3 py-3 text-sm font-medium text-muted hover:bg-overlay hover:text-foreground @[44rem]:flex">
+                <Shield aria-hidden className="size-4" />Management<ArrowUpRight aria-hidden className="ml-auto size-3.5" />
+              </Link>
+            )}
+          </div>
+          <div className="min-w-0 p-4 sm:p-6 @[44rem]:p-7">
+            <SettingsPanel key={section.id} section={section.id} {...props} />
+          </div>
+        </div>
+      </div>
+    </Page>
+  )
+}
+
+function SettingsPanel({
+  section,
   user, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange, scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect,
   appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout,
-}: SettingsViewProps) {
+}: SettingsViewProps & { section: SettingsSectionId }) {
   const [dialog, setDialog] = useState<'app-password' | 'password' | 'rename' | 'listenbrainz' | null>(null)
   const [revoking, setRevoking] = useState<AppPassword | null>(null)
   const [disconnecting, setDisconnecting] = useState<ScrobbleService | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   return (
-    <Page className="flex max-w-3xl flex-col gap-9">
-      <PageTitle>Settings</PageTitle>
+    <>
+      {section === 'appearance' && (
+        <section className="space-y-4" aria-labelledby="appearance-title">
+          <h2 id="appearance-title" className="text-lg font-semibold tracking-tight">Appearance</h2>
+          <AppearanceSettings />
+        </section>
+      )}
 
-      <SettingsSection title="Playback">
-        {settings ? (
-          <>
-            <SettingRow htmlFor="normalization" label="Volume normalization" description="Evens out loudness between songs. Automatic uses album levels when you play an album in order.">
-              <Select id="normalization" label="Volume normalization" value={settings.normalization} options={normalizationOptions} onValueChange={normalization => onSettingsChange({ normalization })} />
-            </SettingRow>
-            <SettingRow htmlFor="quality-wifi" label="Streaming quality" description="On Wi-Fi and in the browser. Original plays the file untouched when your device supports it.">
-              <Select id="quality-wifi" label="Streaming quality" value={settings.qualityWifi} options={qualityOptions} onValueChange={qualityWifi => onSettingsChange({ qualityWifi })} />
-            </SettingRow>
-            <SettingRow htmlFor="quality-cellular" label="Cellular quality" description="Used by the iOS app away from Wi-Fi.">
-              <Select id="quality-cellular" label="Cellular quality" value={settings.qualityCellular} options={qualityOptions} onValueChange={qualityCellular => onSettingsChange({ qualityCellular })} />
-            </SettingRow>
-          </>
-        ) : <LoadingRows rows={3} />}
-        <SettingRow htmlFor="device-name" label="This browser’s name" description="How your other devices list it when you move playback.">
-          <DeviceNameField key={deviceName} name={deviceName} placeholder={defaultDeviceName} onChange={onDeviceNameChange} />
-        </SettingRow>
-      </SettingsSection>
-
-      <SettingsSection title="Scrobbling" description="Send what you listen to to other services. Songs count once you have heard half of them, or four minutes.">
-        {scrobbling
-          ? scrobbling.services.map(service => (
-            <ScrobbleRow
-              key={service.target}
-              service={service}
-              onToggle={enabled => onSettingsChange(service.target === 'listenbrainz' ? { scrobbleListenBrainz: enabled } : { scrobbleLastFm: enabled })}
-              onConnect={service.target === 'listenbrainz' ? () => setDialog('listenbrainz') : onConnectLastFm}
-              onDisconnect={() => setDisconnecting(service)}
-            />
-          ))
-          : <LoadingRows rows={2} />}
-      </SettingsSection>
-
-      <SettingsSection
-        title="App passwords"
-        description="For Subsonic apps, which need a password of their own. Revoke one to sign that app out."
-        action={<Button size="sm" onClick={() => setDialog('app-password')}><Plus />Create</Button>}
-      >
-        {!appPasswords && <SettingRow label={<Skeleton className="h-5 w-40" />} description={<Skeleton className="mt-1 h-4 w-56" />} />}
-        {appPasswords?.length === 0 && <SettingRow label="No app passwords" description="Create one to connect a Subsonic client." />}
-        {appPasswords?.map(password => (
-          <SettingRow
-            key={password.id}
-            label={<span className="flex items-center gap-2"><KeyRound className="size-4 text-quiet" />{password.name}</span>}
-            description={`Created ${formatDate(password.createdAt)} · ${password.lastUsedAt ? `last used ${formatRelative(password.lastUsedAt)}` : 'never used'}`}
-          >
-            <Button size="sm" variant="outline" onClick={() => setRevoking(password)}>Revoke</Button>
+      {section === 'playback' && (
+        <SettingsSection title="Playback">
+          {settings ? (
+            <>
+              <SettingRow htmlFor="normalization" label="Volume normalization" description="Evens out loudness between songs. Automatic uses album levels when you play an album in order.">
+                <Select id="normalization" label="Volume normalization" value={settings.normalization} options={normalizationOptions} onValueChange={normalization => onSettingsChange({ normalization })} />
+              </SettingRow>
+              <SettingRow htmlFor="quality-wifi" label="Streaming quality" description="On Wi-Fi and in the browser. Original plays the file untouched when your device supports it.">
+                <Select id="quality-wifi" label="Streaming quality" value={settings.qualityWifi} options={qualityOptions} onValueChange={qualityWifi => onSettingsChange({ qualityWifi })} />
+              </SettingRow>
+              <SettingRow htmlFor="quality-cellular" label="Cellular quality" description="Used by the iOS app away from Wi-Fi.">
+                <Select id="quality-cellular" label="Cellular quality" value={settings.qualityCellular} options={qualityOptions} onValueChange={qualityCellular => onSettingsChange({ qualityCellular })} />
+              </SettingRow>
+            </>
+          ) : <LoadingRows rows={3} />}
+          <SettingRow htmlFor="device-name" label="This browser’s name" description="How your other devices list it when you move playback.">
+            <DeviceNameField key={deviceName} name={deviceName} placeholder={defaultDeviceName} onChange={onDeviceNameChange} />
           </SettingRow>
-        ))}
-      </SettingsSection>
+        </SettingsSection>
+      )}
 
-      <SettingsSection title="Account">
-        <SettingRow label={user.displayName ?? user.username} description={`@${user.username} · joined ${formatDate(user.createdAt)}`}>
-          <Badge tone={user.role === 'admin' ? 'accent' : 'neutral'}>{user.role}</Badge>
-          {onRename && <Button size="sm" variant="outline" onClick={() => setDialog('rename')}><Pencil />Edit name</Button>}
-        </SettingRow>
-        <SettingRow label="Password" description="Changing it signs you out everywhere else.">
-          <Button size="sm" variant="outline" onClick={() => setDialog('password')}>Change password</Button>
-        </SettingRow>
-        <SettingRow label="Sign out of this browser">
-          <Button size="sm" variant="outline" onClick={onLogout}><LogOut />Log out</Button>
-        </SettingRow>
-      </SettingsSection>
+      {section === 'scrobbling' && (
+        <SettingsSection title="Scrobbling" description="Send what you listen to to other services. Songs count once you have heard half of them, or four minutes.">
+          {scrobbling
+            ? scrobbling.services.map(service => (
+              <ScrobbleRow
+                key={service.target}
+                service={service}
+                onToggle={enabled => onSettingsChange(service.target === 'listenbrainz' ? { scrobbleListenBrainz: enabled } : { scrobbleLastFm: enabled })}
+                onConnect={service.target === 'listenbrainz' ? () => setDialog('listenbrainz') : onConnectLastFm}
+                onDisconnect={() => setDisconnecting(service)}
+              />
+            ))
+            : <LoadingRows rows={2} />}
+        </SettingsSection>
+      )}
+
+      {section === 'app-passwords' && (
+        <SettingsSection
+          title="App passwords"
+          description="For Subsonic apps, which need a password of their own. Revoke one to sign that app out."
+          action={<Button size="sm" onClick={() => setDialog('app-password')}><Plus />Create</Button>}
+        >
+          {!appPasswords && <SettingRow label={<Skeleton className="h-5 w-40" />} description={<Skeleton className="mt-1 h-4 w-56" />} />}
+          {appPasswords?.length === 0 && <SettingRow label="No app passwords" description="Create one to connect a Subsonic client." />}
+          {appPasswords?.map(password => (
+            <SettingRow
+              key={password.id}
+              label={<span className="flex items-center gap-2"><KeyRound className="size-4 text-quiet" />{password.name}</span>}
+              description={`Created ${formatDate(password.createdAt)} · ${password.lastUsedAt ? `last used ${formatRelative(password.lastUsedAt)}` : 'never used'}`}
+            >
+              <Button size="sm" variant="outline" onClick={() => setRevoking(password)}>Revoke</Button>
+            </SettingRow>
+          ))}
+        </SettingsSection>
+      )}
+
+      {section === 'account' && (
+        <SettingsSection title="Account">
+          <SettingRow label={user.displayName ?? user.username} description={`@${user.username} · joined ${formatDate(user.createdAt)}`}>
+            <Badge tone={user.role === 'admin' ? 'accent' : 'neutral'}>{user.role}</Badge>
+            {onRename && <Button size="sm" variant="outline" onClick={() => setDialog('rename')}><Pencil />Edit name</Button>}
+          </SettingRow>
+          <SettingRow label="Password" description="Changing it signs you out everywhere else.">
+            <Button size="sm" variant="outline" onClick={() => setDialog('password')}>Change password</Button>
+          </SettingRow>
+          <SettingRow label="Sign out of this browser">
+            <Button size="sm" variant="outline" onClick={onLogout}><LogOut />Log out</Button>
+          </SettingRow>
+        </SettingsSection>
+      )}
 
       <CreateAppPasswordDialog open={dialog === 'app-password'} onOpenChange={close} onCreate={onCreateAppPassword} />
       <ChangePasswordDialog open={dialog === 'password'} onOpenChange={close} onChange={onChangePassword} />
@@ -152,7 +205,7 @@ export function SettingsView({
         confirmLabel="Revoke"
         onConfirm={() => onRevokeAppPassword(revoking!.id)}
       />
-    </Page>
+    </>
   )
 }
 

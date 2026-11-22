@@ -18,7 +18,7 @@ Responses are cached in the database (`http_cache`), so the same question is not
 
 | Service | Contacted when | What is sent | Default | Turn it off |
 |---|---|---|---|---|
-| **MusicBrainz** (`musicbrainz.org`, or your mirror) | Identifying albums after a scan or import; **Fix match** searches; opening an artist or album page; catalog search when Deezer is off and there is no local index | Album artist and title, track counts, barcodes and ISRCs from your tags, MusicBrainz ids, Deezer links and barcodes being bridged to MusicBrainz, and the search text an admin types in Fix match (or any user's search text, when it answers catalog search) | On | **Admin → Server settings → MusicBrainz**. Nothing new is identified while it is off; switching it back on starts on what waited. |
+| **MusicBrainz** (`musicbrainz.org`, or your mirror) | Identifying albums after a scan or import; **Fix match** searches; opening an artist or album page; catalog search when Deezer is off and there is no local index | Album artist and title, track counts, barcodes and ISRCs from your tags, MusicBrainz ids, Deezer links and barcodes being bridged to MusicBrainz, and the search text an admin types in Fix match (or any user's search text, when it answers catalog search) | On | **Management → Server settings → Metadata → MusicBrainz**. Nothing new is identified while it is off; switching it back on starts on what waited. |
 | **Cover Art Archive** (`coverartarchive.org`, images served from `archive.org`) | Fetching covers for identified albums, and for albums you browse | MusicBrainz release and release-group ids | On | **Cover Art Archive** |
 | **Deezer** (`api.deezer.com`, images from Deezer's image servers) | **Every catalog search**, as users type, unless the local search index is ready; artist pages; covers MusicBrainz lacks; radio | Users' search text; artist names; album barcodes (UPC); ISRCs; Deezer ids | On | **Deezer**. Catalog search then falls back to MusicBrainz, which matches titles only. |
 | **Wikidata, Wikipedia, Wikimedia Commons** | Artist images and biographies, album descriptions | Wikidata ids taken from MusicBrainz, Wikipedia page titles | On | **Wikidata and Wikipedia** |
@@ -37,7 +37,7 @@ To run a server that sends nothing about your library anywhere, turn off all fiv
 
 ## API keys
 
-Add these in **Admin → Server settings → API keys** with **Add key**. They are stored encrypted with the server secret and never shown again.
+Add these in **Management → Server settings → Metadata → API keys** with **Add key**. They are stored encrypted with the server secret and never shown again.
 
 | Key | Where to get it | What it unlocks |
 |---|---|---|
@@ -52,7 +52,7 @@ The public MusicBrainz server allows about one request per second per client. Sq
 
 For a large library, that is the bottleneck. Identifying an album and fetching its details takes several requests (on the demo library, about seven per album), so a first scan of 1,000 albums takes a few hours and 10,000 albums more than a day. The music is playable from its tags the whole time, and the work survives restarts.
 
-If you run your own [MusicBrainz mirror](https://musicbrainz.org/doc/MusicBrainz_Server/Setup), enter its base URL (for example `http://musicbrainz-mirror:5000`) in **Admin → Server settings → MusicBrainz server**. Requests to anything other than `musicbrainz.org` are not rate limited.
+If you run your own [MusicBrainz mirror](https://musicbrainz.org/doc/MusicBrainz_Server/Setup), enter its base URL (for example `http://musicbrainz-mirror:5000`) in **Management → Server settings → Metadata → MusicBrainz server**. Requests to anything other than `musicbrainz.org` are not rate limited.
 
 ## The local search index
 
@@ -69,7 +69,7 @@ It is worth it when you want search to stay private, when you turned Deezer off,
 
 To set it up:
 
-1. Open **Admin → Search index**.
+1. Open **Management → Search index**.
 2. Under **Dump**, keep **The newest dump from MetaBrainz**, or choose **A URL or a file on this server** for a `.tar.zst` dump you downloaded yourself.
 3. Under **Size**, keep **Every recording**, or choose **Fewer songs for the biggest artists** and a number to save space. Artists and albums stay complete either way.
 4. Choose **Start import**. Progress shows on the page; the import runs in the background at low priority.

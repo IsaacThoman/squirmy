@@ -1,7 +1,8 @@
 import { UpdateServerSettings, type LibraryRoot, type ServerSettings } from '@squirmy/contracts'
-import { useState, type FormEvent, type ReactNode } from 'react'
-import { Link } from 'react-router'
-import { SettingRow, SettingsSection } from '@/components/layout/Settings'
+import { AudioLines, Database, Folder, SlidersHorizontal } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router'
+import { SettingRow, SettingsNav, SettingsSection } from '@/components/layout/Settings'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Badge, Skeleton } from '@/components/ui/feedback'
@@ -29,10 +30,38 @@ type ServerSettingsProps = {
 /** The import folder setting's "nothing chosen" choice; a select cannot hold null. */
 const ONLY_ROOT = 'only'
 
+const sections = [
+  { id: 'general', to: '/admin/settings', label: 'General', icon: <SlidersHorizontal aria-hidden /> },
+  { id: 'metadata', to: '/admin/settings?section=metadata', label: 'Metadata', icon: <Database aria-hidden /> },
+  { id: 'library', to: '/admin/settings?section=library', label: 'Library & imports', icon: <Folder aria-hidden /> },
+  { id: 'playback', to: '/admin/settings?section=playback', label: 'Playback', icon: <AudioLines aria-hidden /> },
+] as const
+
 /** Every operator setting. Each change is saved as soon as it is made; text fields save when they lose focus. */
-export function ServerSettingsAdmin({ settings, managedRoots, onSave, status }: ServerSettingsProps) {
+export function ServerSettingsAdmin({ settings, status, ...props }: ServerSettingsProps) {
+  const [params] = useSearchParams()
+  const section = sections.find(item => item.id === params.get('section')) ?? sections[0]
+
+  return (
+    <div className="@container">
+      <AdminHeader title="Server settings" description="Changes apply right away.">
+        <SaveStatus status={status} />
+      </AdminHeader>
+      <div className="grid min-w-0 gap-6 @[44rem]:grid-cols-[11.5rem_minmax(0,1fr)]">
+        <SettingsNav label="Server settings sections" items={sections} active={section.to} className="self-start rounded-xl border border-stroke bg-sheet p-2 @[44rem]:flex-col" />
+        {settings ? <ServerSettingsPanel key={section.id} section={section.id} settings={settings} {...props} /> : <SettingsSkeleton />}
+      </div>
+    </div>
+  )
+}
+
+type ServerSettingsPanelProps = Pick<ServerSettingsProps, 'managedRoots' | 'onSave'> & {
+  section: typeof sections[number]['id']
+  settings: ServerSettings
+}
+
+function ServerSettingsPanel({ section, settings, managedRoots, onSave }: ServerSettingsPanelProps) {
   const [editing, setEditing] = useState<Secret | null>(null)
-  if (!settings) return <SettingsSkeleton />
   const toggle = (key: Toggle, label: string, description?: string) => (
     <SettingRow label={label} description={description}>
       <Switch aria-label={label} checked={settings[key]} onCheckedChange={value => void onSave({ [key]: value }).catch(() => {})} />
@@ -45,59 +74,69 @@ export function ServerSettingsAdmin({ settings, managedRoots, onSave, status }: 
     </SettingRow>
   )
   return (
-    <div className="flex flex-col gap-9">
-      <AdminHeader title="Server settings" description="Changes apply right away.">
-        <SaveStatus status={status} />
-      </AdminHeader>
+    <div className="flex flex-col gap-7">
+      {section === 'general' && (
+        <>
+          <SettingsSection title="General">
+            <SettingRow htmlFor="server-name" label="Server name" description="Shown on the sign-in page and in Subsonic apps.">
+              <DraftField id="server-name" field="serverName" value={settings.serverName} schema={UpdateServerSettings} onSave={onSave} className="w-48" />
+            </SettingRow>
+          </SettingsSection>
 
-      <SettingsSection title="General" className="-mt-6">
-        <SettingRow htmlFor="server-name" label="Server name" description="Shown on the sign-in page and in Subsonic apps.">
-          <DraftField id="server-name" field="serverName" value={settings.serverName} schema={UpdateServerSettings} onSave={onSave} className="w-48" />
-        </SettingRow>
-      </SettingsSection>
+          <SettingsSection title="Registration">
+            {toggle('registrationRequiresInvite', 'Require an invite to join', 'Off lets anyone who can reach this server create an account.')}
+          </SettingsSection>
+        </>
+      )}
 
-      <SettingsSection title="Registration">
-        {toggle('registrationRequiresInvite', 'Require an invite to join', 'Off lets anyone who can reach this server create an account.')}
-      </SettingsSection>
+      {section === 'metadata' && (
+        <>
+          <SettingsSection title="Metadata sources" description="Every source is optional. Turning one off keeps what it already provided.">
+            {toggle('musicBrainzEnabled', 'MusicBrainz', 'Identifies albums and fills in discographies.')}
+            <SettingRow htmlFor="mb-url" label="MusicBrainz server" description="Point at your own mirror to lift the rate limit.">
+              <DraftField id="mb-url" field="musicBrainzBaseUrl" value={settings.musicBrainzBaseUrl} schema={UpdateServerSettings} onSave={onSave} className="w-64 font-mono text-[13px]" />
+            </SettingRow>
+            {toggle('coverArtArchiveEnabled', 'Cover Art Archive', 'Album covers.')}
+            {toggle('deezerEnabled', 'Deezer', 'Search for music you do not have, artist images, top songs, missing covers and radio.')}
+            {toggle('wikidataEnabled', 'Wikidata and Wikipedia', 'Artist images and bios, and album descriptions.')}
+            {toggle('lrclibEnabled', 'LRCLIB', 'Lyrics, synced where available.')}
+          </SettingsSection>
 
-      <SettingsSection title="Metadata sources" description="Every source is optional. Turning one off keeps what it already provided.">
-        {toggle('musicBrainzEnabled', 'MusicBrainz', 'Identifies albums and fills in discographies.')}
-        <SettingRow htmlFor="mb-url" label="MusicBrainz server" description="Point at your own mirror to lift the rate limit.">
-          <DraftField id="mb-url" field="musicBrainzBaseUrl" value={settings.musicBrainzBaseUrl} schema={UpdateServerSettings} onSave={onSave} className="w-64 font-mono text-[13px]" />
-        </SettingRow>
-        {toggle('coverArtArchiveEnabled', 'Cover Art Archive', 'Album covers.')}
-        {toggle('deezerEnabled', 'Deezer', 'Search for music you do not have, artist images, top songs, missing covers and radio.')}
-        {toggle('wikidataEnabled', 'Wikidata and Wikipedia', 'Artist images and bios, and album descriptions.')}
-        {toggle('lrclibEnabled', 'LRCLIB', 'Lyrics, synced where available.')}
-      </SettingsSection>
+          <SettingsSection title="API keys" description="Stored encrypted. Once saved, a key is never shown again.">
+            {secret('listenBrainz', settings.listenBrainzTokenSet, 'ListenBrainz', 'Top songs and popularity on artist pages, and similar artists for radio. Not used for scrobbling: each user connects their own ListenBrainz account in their settings.')}
+            {secret('acoustId', settings.acoustIdKeySet, 'AcoustID', 'Identifies untagged files by fingerprint.')}
+            {secret('fanart', settings.fanartKeySet, 'fanart.tv', 'Better artist images.')}
+            {secret('lastFm', settings.lastFmKeySet, 'Last.fm', 'Lets users connect their Last.fm account for scrobbling.')}
+          </SettingsSection>
+        </>
+      )}
 
-      <SettingsSection title="API keys" description="Stored encrypted. Once saved, a key is never shown again.">
-        {secret('listenBrainz', settings.listenBrainzTokenSet, 'ListenBrainz', 'Top songs and popularity on artist pages, and similar artists for radio. Not used for scrobbling: each user connects their own ListenBrainz account in their settings.')}
-        {secret('acoustId', settings.acoustIdKeySet, 'AcoustID', 'Identifies untagged files by fingerprint.')}
-        {secret('fanart', settings.fanartKeySet, 'fanart.tv', 'Better artist images.')}
-        {secret('lastFm', settings.lastFmKeySet, 'Last.fm', 'Lets users connect their Last.fm account for scrobbling.')}
-      </SettingsSection>
+      {section === 'library' && (
+        <>
+          <SettingsSection title="Matching">
+            <MatchThreshold value={settings.matchAutoAcceptScore} onSave={onSave} />
+          </SettingsSection>
 
-      <SettingsSection title="Matching">
-        <MatchThreshold value={settings.matchAutoAcceptScore} onSave={onSave} />
-      </SettingsSection>
+          <SettingsSection title="Library">
+            <SettingRow htmlFor="grace-days" label="Keep missing files for" description="An unmounted drive does not empty the library during this time.">
+              <DraftField id="grace-days" field="missingFileGraceDays" value={settings.missingFileGraceDays} schema={UpdateServerSettings} onSave={onSave} type="number" inputMode="numeric" className="w-20 text-right" unit="days" />
+            </SettingRow>
+          </SettingsSection>
 
-      <SettingsSection title="Library">
-        <SettingRow htmlFor="grace-days" label="Keep missing files for" description="An unmounted drive does not empty the library during this time.">
-          <DraftField id="grace-days" field="missingFileGraceDays" value={settings.missingFileGraceDays} schema={UpdateServerSettings} onSave={onSave} type="number" inputMode="numeric" className="w-20 text-right" unit="days" />
-        </SettingRow>
-      </SettingsSection>
+          <ImportSettings settings={settings} managedRoots={managedRoots} onSave={onSave} />
+        </>
+      )}
 
-      <ImportSettings settings={settings} managedRoots={managedRoots} onSave={onSave} />
-
-      <SettingsSection title="Transcoding">
-        <SettingRow htmlFor="transcode-cache" label="Transcode cache" description="Converted streams are kept on disk up to this size; the oldest go first.">
-          <DraftField
-            id="transcode-cache" field="transcodeCacheMaxBytes" value={settings.transcodeCacheMaxBytes} schema={UpdateServerSettings} onSave={onSave}
-            type="number" inputMode="decimal" step="any" className="w-24 text-right" unit="GB" {...inGigabytes}
-          />
-        </SettingRow>
-      </SettingsSection>
+      {section === 'playback' && (
+        <SettingsSection title="Transcoding">
+          <SettingRow htmlFor="transcode-cache" label="Transcode cache" description="Converted streams are kept on disk up to this size; the oldest go first.">
+            <DraftField
+              id="transcode-cache" field="transcodeCacheMaxBytes" value={settings.transcodeCacheMaxBytes} schema={UpdateServerSettings} onSave={onSave}
+              type="number" inputMode="decimal" step="any" className="w-24 text-right" unit="GB" {...inGigabytes}
+            />
+          </SettingRow>
+        </SettingsSection>
+      )}
 
       {editing && <SecretDialog secret={editing} isSet={secretSet(settings, editing)} onOpenChange={open => { if (!open) setEditing(null) }} onSave={onSave} />}
     </div>
@@ -216,18 +255,13 @@ function SecretDialog({ secret, isSet, onOpenChange, onSave }: { secret: Secret;
   )
 }
 
-function SettingsSkeleton(): ReactNode {
+function SettingsSkeleton() {
   return (
-    <div className="flex flex-col gap-9" aria-busy>
-      <AdminHeader title="Server settings" description="Changes apply right away." />
-      {[3, 5, 4].map((rows, section) => (
-        <div key={section} className="-mt-3 flex flex-col gap-3">
-          <Skeleton className="ml-1 h-6 w-40" />
-          <div className="divide-y divide-stroke rounded-2xl bg-sheet ring-1 ring-stroke">
-            {Array.from({ length: rows }, (_, row) => <div key={row} className="px-4 py-4"><Skeleton className="h-5 w-2/3" /></div>)}
-          </div>
-        </div>
-      ))}
+    <div className="flex min-w-0 flex-col gap-3" aria-busy>
+      <Skeleton className="h-6 w-40" />
+      <div className="divide-y divide-stroke rounded-xl border border-stroke bg-background">
+        {[0, 1, 2].map(row => <div key={row} className="p-4"><Skeleton className="h-5 w-2/3" /></div>)}
+      </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { CloudDownload, GripVertical, Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
 import { Spinner } from '@/components/ui/feedback'
@@ -18,11 +18,12 @@ const rowHeight = 56
 /** The whole queue: what is playing, up next, history and autoplay. */
 export function QueueContent({ player }: { player: Player }) {
   const { state, controls } = player
+  const heading = useId()
   return (
     <div className="flex flex-col gap-6 pb-6">
       {state.current && (
-        <section aria-labelledby="queue-now">
-          <QueueHeading id="queue-now">Now playing</QueueHeading>
+        <section aria-labelledby={`${heading}-now`}>
+          <QueueHeading id={`${heading}-now`}>Now playing</QueueHeading>
           <QueueRow item={state.current} current playing={state.playing} />
         </section>
       )}
@@ -36,9 +37,9 @@ export function QueueContent({ player }: { player: Player }) {
         </button>
       </div>
 
-      <section aria-labelledby="queue-next">
+      <section aria-labelledby={`${heading}-next`}>
         <QueueHeading
-          id="queue-next"
+          id={`${heading}-next`}
           detail={state.queue.length ? `${state.queue.length} ${state.queue.length === 1 ? 'track' : 'tracks'}` : undefined}
           action={state.queue.length > 0 && <ClearButton label="Clear queue" onClick={controls.clearQueue} />}
         >
@@ -50,19 +51,19 @@ export function QueueContent({ player }: { player: Player }) {
       </section>
 
       {state.history.length > 0 && (
-        <section aria-labelledby="queue-history">
-          <QueueHeading id="queue-history" action={<ClearButton label="Clear history" onClick={controls.clearHistory} />}>
+        <section aria-labelledby={`${heading}-history`}>
+          <QueueHeading id={`${heading}-history`} action={<ClearButton label="Clear history" onClick={controls.clearHistory} />}>
             History
           </QueueHeading>
           <ul>{[...state.history].reverse().map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} faded /></li>)}</ul>
         </section>
       )}
 
-      <section aria-labelledby="queue-autoplay">
+      <section aria-labelledby={`${heading}-autoplay`}>
         <div className="flex items-center justify-between gap-3 px-2">
           <div className="flex items-center gap-2">
             <InfinityIcon aria-hidden className={cn('size-4', state.autoplay ? 'text-accent' : 'text-quiet')} />
-            <h3 id="queue-autoplay" className="text-[15px] font-bold">Autoplay</h3>
+            <h3 id={`${heading}-autoplay`} className="text-[15px] font-bold">Autoplay</h3>
           </div>
           <Switch checked={state.autoplay} onCheckedChange={controls.setAutoplay} aria-label="Autoplay" />
         </div>
@@ -143,6 +144,7 @@ type SortableQueueProps = {
  * Rows are a fixed height, so the drop position is the drag distance in rows.
  */
 export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueueProps) {
+  const reorderHelp = useId()
   const [drag, setDrag] = useState<{ index: number; startY: number; offset: number } | null>(null)
   const [announcement, setAnnouncement] = useState('')
   const refocus = useRef<string | null>(null)
@@ -214,7 +216,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
                   }}
                   type="button"
                   aria-label={`Reorder ${item.track.title}, position ${index + 1} of ${items.length}`}
-                  aria-describedby="queue-reorder-help"
+                  aria-describedby={reorderHelp}
                   onKeyDown={event => onKeyDown(event, index)}
                   onPointerDown={event => onPointerDown(event, index)}
                   onPointerMove={onPointerMove}
@@ -229,7 +231,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
           )
         })}
       </ul>
-      <p id="queue-reorder-help" className="sr-only">Use the up and down arrow keys to move this song.</p>
+      <p id={reorderHelp} className="sr-only">Use the up and down arrow keys to move this song.</p>
       <p aria-live="polite" className="sr-only">{announcement}</p>
     </>
   )
@@ -239,11 +241,11 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
 export function QueuePanel({ player, onClose }: { player: Player; onClose: () => void }) {
   return (
     <aside aria-label="Queue" className="flex h-full w-full flex-col bg-sheet">
-      <div className="flex h-16 shrink-0 items-center justify-between px-5">
-        <h2 className="text-lg font-bold tracking-tight">Queue</h2>
-        <IconButton label="Close queue" size="sm" onClick={onClose}><X /></IconButton>
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-stroke px-4">
+        <h2 className="text-sm font-semibold">Queue</h2>
+        <IconButton label="Close queue" size="sm" className="rounded-lg" onClick={onClose}><X /></IconButton>
       </div>
-      <ScrollArea className="min-h-0 flex-1 px-3">
+      <ScrollArea className="min-h-0 flex-1 px-2.5 pt-3">
         <QueueContent player={player} />
       </ScrollArea>
     </aside>

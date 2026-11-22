@@ -21,8 +21,9 @@ Play, pause and seeking need something in the session. The volume keys change th
 | Where | Key | Action |
 |---|---|---|
 | Queue, on a song's reorder handle | ↑ / ↓ | Move the song up or down one place |
+| The desktop workspace | ⌘ K / Ctrl K | Focus the search field |
 | A search field | Escape | Clear it |
-| Admin folder picker, path field | Enter | Open the typed path |
-| Admin server settings, a text field | Enter | Save the value |
+| Management folder picker, path field | Enter | Open the typed path |
+| Management server settings, a text field | Enter | Save the value |
 
 There are no other single-key shortcuts yet.

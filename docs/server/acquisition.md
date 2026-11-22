@@ -14,11 +14,11 @@ This page explains how to connect one, the coverage modes, the policy settings, 
 
 ## Connecting a provider
 
-In **Admin → Providers**:
+In **Management → Providers**:
 
 1. **Add provider**, with a name, its base URL and the shared secret you configured on the provider (at least 8 characters). The server asks it for its capabilities right away; the card shows what it reports (its name, single songs or whole albums, formats, how many requests at once) and when it last answered, or its last error. **Test connection** asks again. The secret is never shown again; editing leaves it alone unless you type a new one.
 2. **Tell the provider where to deliver**, under **Policy → Delivery address**, when it reaches the server at another address than `PUBLIC_URL` or `http://localhost:4747` (see below).
-3. **Allow people to fetch.** Admins always can. For members, turn on **Can fetch missing music** in **Admin → Users & invites**.
+3. **Allow people to fetch.** Admins always can. For members, turn on **Can fetch missing music** in **Management → Users & invites**.
 
 The switch on a provider's card turns it off and on, and its menu edits or deletes it. **Requests**, at the bottom, lists every fetch with who asked, what for, the provider, the state and the error, as they happen; filter it by state.
 
@@ -50,7 +50,7 @@ TOKEN=$(curl -s -X POST $SERVER/api/v1/auth/login -H 'Content-Type: application/
      -d '{"deliveryBaseUrl":"http://app:4747"}'
    ```
 
-3. **Allow people to fetch.** Admins always can. For members, turn on **Can fetch missing music** in **Admin → Users & invites**.
+3. **Allow people to fetch.** Admins always can. For members, turn on **Can fetch missing music** in **Management → Users & invites**.
 
 Other calls:
 
@@ -71,7 +71,7 @@ A provider says how it covers music, which decides what turns from gray to playa
 
 ## Policy
 
-Under **Admin → Providers → Policy**, or `GET` and `PATCH /api/v1/admin/acquisition/policy`:
+Under **Management → Providers → Policy**, or `GET` and `PATCH /api/v1/admin/acquisition/policy`:
 
 | Key | Default | What it does |
 |---|---|---|

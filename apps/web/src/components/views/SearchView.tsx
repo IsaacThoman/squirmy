@@ -1,5 +1,6 @@
 import type { AlbumSummary, ArtistSummary, SearchResults, TrackSummary } from '@squirmy/contracts'
-import { Play, Search } from 'lucide-react'
+import { ArrowRight, Play, Search } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { Page } from '@/components/layout/Page'
 import { AlbumCard, ArtistCard, GenreTile, Monogram } from '@/components/music/Cards'
@@ -7,6 +8,7 @@ import { Cover } from '@/components/music/Cover'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { PageTitle, SectionHeader } from '@/components/music/SectionHeader'
 import { TrackList } from '@/components/music/TrackList'
+import { Button } from '@/components/ui/button'
 import { EmptyState, Skeleton } from '@/components/ui/feedback'
 import { SearchField } from '@/components/ui/search-field'
 import { albumTypeLabel, genreColor, isUnowned } from '@/lib/catalog'
@@ -37,10 +39,10 @@ export function SearchView({ query, onQueryChange, library, catalog, libraryLoad
   // The library's best match leads; without one, the catalog's.
   const top = topResult(library) ?? (libraryLoading ? null : topResult(catalog))
   return (
-    <Page className="flex flex-col gap-8">
+    <Page className="mx-auto flex max-w-[94rem] flex-col gap-8">
       <div className="flex flex-col gap-4">
         <PageTitle>Search</PageTitle>
-        <SearchField value={query} onValueChange={onQueryChange} size="lg" placeholder="Songs, albums, artists" autoFocus className="md:hidden" />
+        <SearchField value={query} onValueChange={onQueryChange} size="lg" placeholder="Songs, albums, artists" aria-label="Search music" autoFocus className="md:hidden" />
       </div>
 
       {!active && genres.length > 0 && (
@@ -51,6 +53,9 @@ export function SearchView({ query, onQueryChange, library, catalog, libraryLoad
           </div>
         </section>
       )}
+      {!active && genres.length === 0 && (
+        <EmptyState icon={<Search />} title="Find music" description="Search your library and the catalog by song, album, or artist." />
+      )}
 
       {active && unavailable && (
         <EmptyState icon={<Search />} title="Search is not available yet" description="This server does not answer searches yet. Browse your library in the meantime." />
@@ -59,10 +64,10 @@ export function SearchView({ query, onQueryChange, library, catalog, libraryLoad
         <>
           {top && <TopResult top={top} onPlayAlbum={onPlayAlbum} />}
           {libraryLoading && <ResultsSkeleton label="Searching your library" />}
-          {!isEmpty(library) && library && <Results title="In your library" results={library} onPlayAlbum={onPlayAlbum} />}
+          {!isEmpty(library) && library && <Results key={query + ':library'} title="In your library" results={library} onPlayAlbum={onPlayAlbum} />}
           {catalogLoading && <ResultsSkeleton label="Searching the catalog" />}
           {!catalogLoading && !isEmpty(catalog) && catalog && (
-            <Results title="More to discover" note={catalog.provider ? `Not in your library · from ${providerName(catalog.provider)}` : 'Not in your library'} results={catalog} onPlayAlbum={onPlayAlbum} />
+            <Results key={query + ':catalog'} title="More to discover" note={catalog.provider ? `Not in your library · from ${providerName(catalog.provider)}` : 'Not in your library'} results={catalog} onPlayAlbum={onPlayAlbum} />
           )}
           {isEmpty(library) && !libraryLoading && !catalogLoading && isEmpty(catalog) && (
             <EmptyState icon={<Search />} title={`No results for “${query.trim()}”`} description="Check the spelling, or try an artist, album or song name." />
@@ -80,10 +85,11 @@ function providerName(provider: string) {
 function Results({ title, note, results, onPlayAlbum }: { title: string; note?: string; results: SearchResults; onPlayAlbum: (album: AlbumSummary) => void }) {
   const actions = useTrackActions(results.tracks, { type: 'search', id: null, title })
   const wants = useAlbumWants()
+  const [showAllSongs, setShowAllSongs] = useState(false)
   return (
     <section aria-label={title} className="flex flex-col gap-7">
-      <div className="flex items-baseline gap-3 border-b border-stroke pb-3">
-        <h2 className="text-[26px] font-extrabold tracking-[-0.04em]">{title}</h2>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-stroke pb-3">
+        <h2 className="text-2xl font-bold tracking-[-0.03em]">{title}</h2>
         {note && <p className="text-[13px] font-medium text-quiet">{note}</p>}
       </div>
       {results.artists.length > 0 && (
@@ -98,8 +104,12 @@ function Results({ title, note, results, onPlayAlbum }: { title: string; note?: 
       )}
       {results.tracks.length > 0 && (
         <div>
-          <SectionHeader title="Songs" />
-          <div className="-mx-2"><TrackList label={`${title}: songs`} tracks={results.tracks.slice(0, 6)} variant="compact" header={false} {...actions} /></div>
+          <SectionHeader title="Songs" action={results.tracks.length > 6 && (
+            <Button variant="ghost" size="sm" aria-expanded={showAllSongs} onClick={() => setShowAllSongs(show => !show)}>
+              {showAllSongs ? 'Show fewer songs' : `Show all ${results.tracks.length} songs`}
+            </Button>
+          )} />
+          <TrackList label={`${title}: songs`} tracks={showAllSongs ? results.tracks : results.tracks.slice(0, 6)} variant="compact" header={false} {...actions} />
         </div>
       )}
     </section>
@@ -141,31 +151,29 @@ function TopResult({ top, onPlayAlbum }: { top: Top; onPlayAlbum: (album: AlbumS
       }
   const art = top.type === 'artist'
     ? top.artist.image ? <Cover artwork={top.artist.image} round dimmed={!item.owned} size={300} /> : <Monogram name={top.artist.name} />
-    : <Cover artwork={top.type === 'album' ? top.album.artwork : top.track.album?.artwork ?? null} dimmed={!item.owned} size={300} className="shadow-cover" />
+    : <Cover artwork={top.type === 'album' ? top.album.artwork : top.track.album?.artwork ?? null} dimmed={!item.owned} size={300} />
   return (
     <section aria-labelledby="search-top">
       <SectionHeader id="search-top" title="Top result" />
-      <div className="group/top relative flex max-w-xl items-center gap-5 rounded-2xl bg-sheet p-4 ring-1 ring-stroke transition-colors hover:bg-overlay focus-within:bg-overlay sm:p-5">
+      <div className="group/top relative flex max-w-xl items-center gap-4 rounded-xl border border-stroke bg-sheet p-3 transition-colors has-[a]:hover:bg-surface has-[a]:focus-within:bg-surface sm:gap-5 sm:p-4">
         <div className="w-20 shrink-0 sm:w-28">{art}</div>
         <div className="min-w-0 flex-1">
           {item.to
-            ? <Link to={item.to} title={item.title} className={cn('block truncate text-2xl font-extrabold tracking-[-0.03em] after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none sm:text-[28px]', !item.owned && 'text-muted')}>{item.title}</Link>
-            : <p title={item.title} className="truncate text-2xl font-extrabold tracking-[-0.03em] sm:text-[28px]">{item.title}</p>}
-          <p className="mt-1 flex min-w-0 items-center gap-2 text-sm text-muted">
-            <span className="shrink-0 rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-foreground">{item.kind}</span>
-            {item.by && <span className="truncate" title={item.by}>{item.by}</span>}
-          </p>
+            ? <Link to={item.to} title={item.title} className={cn('block truncate text-xl font-bold tracking-[-0.03em] after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-accent sm:text-2xl', !item.owned && 'text-muted')}>{item.title}</Link>
+            : <p title={item.title} className="truncate text-xl font-bold tracking-[-0.03em] sm:text-2xl">{item.title}</p>}
+          <p className="mt-1 truncate text-sm text-muted"><span>{item.kind}</span>{item.by && ` · ${item.by}`}</p>
         </div>
         {item.play && (
           <button
             type="button"
             aria-label={`Play ${item.title}`}
             onClick={item.play}
-            className="relative z-10 flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent shadow-cover transition duration-150 hover:scale-105"
+            className="relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent transition duration-150 hover:scale-105"
           >
             <Play className="size-5 translate-x-px" fill="currentColor" />
           </button>
         )}
+        {!item.play && item.to && <ArrowRight aria-hidden className="size-4 shrink-0 text-muted" />}
       </div>
     </section>
   )

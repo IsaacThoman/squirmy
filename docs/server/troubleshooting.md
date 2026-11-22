@@ -12,7 +12,7 @@ docker compose logs -f app
 
 HTTP requests and errors are JSON lines; the library, watchers and imports add plain lines such as `Not watching /music: it is a network mount.`. For more detail, set `LOG_LEVEL: debug` under the `app` service's `environment:` in `compose.yaml` and run `docker compose up -d`. Valid levels are `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` and `silent`.
 
-**Jobs.** **Admin → Jobs** lists every background queue with its **Queued**, **Active** and **Failed** counts, refreshed every few seconds. The names say what they do:
+**Jobs.** **Management → Jobs** lists every background queue with its **Queued**, **Active** and **Failed** counts, refreshed every few seconds. The names say what they do:
 
 | Queue | Work |
 |---|---|
@@ -40,7 +40,7 @@ Confirm with `docker compose ps` and `docker compose logs app`.
 
 ## Nothing appears after adding a folder
 
-Confirm in **Admin → Library**: the folder's card shows its file count, "not scanned yet" or when it was scanned, and how many files were unreadable.
+Confirm in **Management → Library**: the folder's card shows its file count, "not scanned yet" or when it was scanned, and how many files were unreadable.
 
 - **The folder is not inside the container.** The folder picker browses the container's file system, not the host's. Check with `docker compose exec app ls /music`. Add the folder as a volume in `compose.yaml` and choose its path inside the container.
 - **The server cannot read it.** Adding fails with "The server cannot read that folder", or the scan finds 0 files. The container runs as uid 1000; give that user read access (and write access for a managed folder): `ls -ln` on the host shows the owner.
@@ -50,10 +50,10 @@ Confirm in **Admin → Library**: the folder's card shows its file count, "not s
 
 ## Albums stay unidentified
 
-Confirm in **Admin → Library** under **Identification**: **Waiting** means not tried yet; **From tags only** means tried and not identified; **In review** means an admin has to choose.
+Confirm in **Management → Library** under **Identification**: **Waiting** means not tried yet; **From tags only** means tried and not identified; **In review** means an admin has to choose.
 
 - **Waiting for a long time**: identification is slow on a big library, not stuck. See below.
-- **From tags only, everywhere**: check that **MusicBrainz** is on in **Admin → Server settings**, and that the server can reach the internet: this prints `200`:
+- **From tags only, everywhere**: check that **MusicBrainz** is on in **Management → Server settings → Metadata**, and that the server can reach the internet: this prints `200`:
 
   ```sh
   docker compose exec app node -e "fetch('https://musicbrainz.org/ws/2/artist?query=test&fmt=json', { headers: { 'User-Agent': 'Squirmy-check ( https://github.com/IsaacThoman/squirmy )' } }).then(r => console.log(r.status))"
@@ -61,12 +61,12 @@ Confirm in **Admin → Library** under **Identification**: **Waiting** means not
 
   MusicBrainz answers 403 to requests without a User-Agent, so keep the header. A `503` means it is limiting requests from your address right now (the server may be using its share); try again a few seconds later.
 - **From tags only, some albums**: the tags may lack an album artist and album title, or be too far from the release MusicBrainz knows. Use **Fix match** (see [The review queue and Fix match](./library.md#the-review-queue-and-fix-match)). Files with no album and artist tags at all can be identified by fingerprint once an AcoustID key is added.
-- **In review**: open **Admin → Review queue**. If too many good matches end up there, lower **Accept matches automatically above** a little.
+- **In review**: open **Management → Review queue**. If too many good matches end up there, lower **Accept matches automatically above** a little.
 
 ## No covers
 
 - **Unidentified albums** have no MusicBrainz id, so their cover can only come from the files: a picture embedded in the tags, or an image in the album's folder named `cover`, `front`, `folder`, `album` or `albumart…`.
-- **Identified albums** get covers in the background, every 30 minutes for albums still missing one. Check that **Cover Art Archive** (and **Deezer**, the fallback) are on in **Admin → Server settings**, and that the server can reach the internet.
+- **Identified albums** get covers in the background, every 30 minutes for albums still missing one. Check that **Cover Art Archive** (and **Deezer**, the fallback) are on in **Management → Server settings → Metadata**, and that the server can reach the internet.
 - **Covers that used to work and now do not**: the data folder's `assets/` may have been deleted or not restored. Most images are rebuilt from the music files, folder images and the URLs they came from on their own, some only after a background download, so reload after a minute. Images whose source has changed are not; restore `assets/` from a backup for those ([When `assets/` is lost](./backup.md#when-assets-is-lost)).
 
 ## The app cannot connect
@@ -94,7 +94,7 @@ Test the stream path from outside with `curl -I https://music.example.com/health
 ## Uploads fail on size
 
 - **413 from the proxy** (an HTML error page, often nginx's): the proxy's body size limit. Set `client_max_body_size 0;` in nginx, or the equivalent; see [Reverse proxies](./reverse-proxy.md).
-- **413 from Squirmy** (JSON with `file_too_large` or `import_too_large`): the file or the whole import is over `importMaxFileBytes` (4 GiB) or `importMaxBytes` (64 GiB). Raise them in **Admin → Server settings → Imports** ([Configuration](./configuration.md#server-settings)).
+- **413 from Squirmy** (JSON with `file_too_large` or `import_too_large`): the file or the whole import is over `importMaxFileBytes` (4 GiB) or `importMaxBytes` (64 GiB). Raise them in **Management → Server settings → Library & imports → Imports** ([Configuration](./configuration.md#server-settings)).
 - **Large uploads cut off after a minute behind Traefik**: Traefik v3's 60 second read timeout. Set `respondingTimeouts.readTimeout=0` on the entry point.
 - **`no_managed_root` or `import_root_not_set`**: imports need a managed folder to file into. See [Adding music](./adding-music.md#before-you-start-a-managed-folder-to-file-into).
 
@@ -102,7 +102,7 @@ Test the stream path from outside with `curl -I https://music.example.com/health
 
 This is expected. The public MusicBrainz server allows one request per second, and an album needs several. A library of 1,000 albums takes a few hours; 10,000 takes more than a day. Music stays playable from its tags meanwhile, and the work resumes after restarts.
 
-Confirm on **Admin → Jobs**: `matching.match-album` has a long **Queued** list and one or two **Active**, and the **Identified** percentage in **Admin → Library** keeps rising. The only way to make it fast is your own MusicBrainz mirror ([details](./metadata-and-privacy.md#the-musicbrainz-rate-limit)).
+Confirm on **Management → Jobs**: `matching.match-album` has a long **Queued** list and one or two **Active**, and the **Identified** percentage in **Management → Library** keeps rising. The only way to make it fast is your own MusicBrainz mirror ([details](./metadata-and-privacy.md#the-musicbrainz-rate-limit)).
 
 ## The first open of an artist page is slow
 

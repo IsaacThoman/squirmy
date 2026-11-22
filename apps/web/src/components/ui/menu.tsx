@@ -3,7 +3,7 @@ import { ContextMenu as ContextPrimitive, DropdownMenu as DropdownPrimitive } fr
 import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-export const menuContentClass = 'z-50 min-w-52 origin-(--radix-popper-transform-origin) animate-enter overflow-hidden rounded-2xl bg-sheet p-1.5 text-foreground shadow-float data-[state=closed]:animate-exit'
+export const menuContentClass = 'z-50 min-w-52 origin-(--radix-popper-transform-origin) animate-enter overflow-hidden rounded-xl bg-background p-1.5 text-foreground shadow-float data-[state=closed]:animate-exit'
 export const menuItemClass = 'relative flex h-9 cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium outline-none transition-colors duration-100 data-disabled:pointer-events-none data-disabled:opacity-40 data-highlighted:bg-overlay [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted data-[variant=danger]:text-danger'
 
 /**

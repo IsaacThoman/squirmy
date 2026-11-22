@@ -74,7 +74,12 @@ export function SettingsPage() {
     if (lastFmReturn === null) return
     const message = lastFmReturns[lastFmReturn] ?? lastFmReturns.error
     toast(message)
-    setParams({}, { replace: true })
+    setParams(current => {
+      const next = new URLSearchParams(current)
+      next.delete('lastfm')
+      next.set('section', 'scrobbling')
+      return next
+    }, { replace: true })
   }, [lastFmReturn, setParams])
   const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords() })
   const refreshPasswords = () => queryClient.invalidateQueries({ queryKey: appPasswordsKey })
