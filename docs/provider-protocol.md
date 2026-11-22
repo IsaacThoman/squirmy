@@ -97,7 +97,7 @@ Any identifying field may be null or empty; match on what is present, most speci
 
 An item with an empty `offers` array cannot be supplied. `offerId` is opaque to the server. Respond within 15 seconds.
 
-An `album` item asks for a whole release group (`ProviderAlbumQuery`: title, artist, MusicBrainz id, barcode and the track list). The server sends album items only to providers whose `kinds` include `album`; otherwise an album request becomes one recording request per missing track.
+An `album` item asks for a whole release group (`ProviderAlbumQuery`: title, artist, MusicBrainz id, barcode and the track list). The track list is always the whole edition, so the provider can tell editions apart; a track marked `"wanted": false` is one the server already has (or does not need from this job) and must not be delivered, and a track without the field is wanted. The server sends album items only to providers whose `kinds` include `album`; otherwise an album request becomes one recording request per missing track. An album that no provider offers whole, that the provider declines, or that fails before any file arrives is also fetched as one recording request per missing track.
 
 When several offers come back, the server takes lossless ones first (or lossy first when the operator turns `preferLossless` off), then the highest quality: sample rate × bit depth for lossless, bitrate for lossy. Expired offers (`expiresAt` in the past) are skipped.
 
@@ -119,9 +119,9 @@ Starts fetching one offer.
 }
 ```
 
-Respond quickly with `{ "accepted": true, "providerJobId": "…" }` and do the work in the background, or `{ "accepted": false, "error": "…" }` (the job then ends as `rejected`). The server may send the same `jobId` twice, after a restart; treat it as an idempotency key and do not fetch twice, but use the `delivery` from the latest request: it carries a new token, and the old one no longer works.
+Respond quickly with `{ "accepted": true, "providerJobId": "…" }` and do the work in the background, or `{ "accepted": false, "error": "…" }` (the job then ends as `rejected`, and the tracks count as ones this provider cannot supply for a day). A provider that cannot take another job right now answers `{ "accepted": false, "reason": "busy", "error": "…" }`: the server asks again later (after 5 seconds, doubling up to a minute) and does not count it against the tracks. For providers older than the field, an `error` starting with "Provider is busy" is read the same way. The server may send the same `jobId` twice, after a restart; treat it as an idempotency key and do not fetch twice, but use the `delivery` from the latest request: it carries a new token, and the old one no longer works.
 
-The server sends at most `maxConcurrent` jobs to a provider at once; others wait their turn.
+The server sends at most `maxConcurrent` jobs to a provider at once, counting jobs it has handed over and not yet seen delivered; others wait their turn.
 
 ## Delivering files
 

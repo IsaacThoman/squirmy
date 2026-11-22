@@ -5,6 +5,7 @@ describe('provider kit', () => {
   let provider: ProviderServer
   let base = ''
   let fetches = 0
+  let busy = false
 
   beforeAll(async () => {
     provider = createProviderServer({
@@ -16,6 +17,7 @@ describe('provider kit', () => {
         throw new Error('nothing to fetch')
       },
       onError: () => {},
+      busy: () => busy,
     })
     base = await provider.listen()
   })
@@ -46,6 +48,19 @@ describe('provider kit', () => {
     await provider.jobs.get('01937f0e-0000-7000-8000-000000000123')!.done
     expect(fetches).toBe(1)
     expect(await (await request('/jobs/01937f0e-0000-7000-8000-000000000123')).json()).toEqual({ status: 'failed', error: 'nothing to fetch' })
+  })
+
+  it('declines a new job as busy when told to, and takes it when asked again', async () => {
+    const body = JSON.stringify({
+      jobId: '01937f0e-0000-7000-8000-000000000456', offerId: 'x',
+      delivery: { uploadUrl: 'http://127.0.0.1:9/files', completeUrl: 'http://127.0.0.1:9/complete', token: 't' },
+    })
+    busy = true
+    expect(await (await request('/acquire', { body })).json()).toEqual({ accepted: false, error: 'Provider is busy', reason: 'busy' })
+    expect(provider.jobs.has('01937f0e-0000-7000-8000-000000000456')).toBe(false)
+    busy = false
+    expect(await (await request('/acquire', { body })).json()).toEqual({ accepted: true, providerJobId: '01937f0e-0000-7000-8000-000000000456' })
+    await provider.jobs.get('01937f0e-0000-7000-8000-000000000456')!.done
   })
 
   it('compares text without case, accents or punctuation', () => {
