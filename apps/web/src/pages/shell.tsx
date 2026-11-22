@@ -2,6 +2,7 @@
  * The container of the app shell: the sidebar's playlists, the search dialog and the settings
  * dialog, each with the data it needs.
  */
+import { searchContext } from '@squirmy/client-core'
 import type { PlaylistSummary } from '@squirmy/contracts'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bookmark, Disc3, Heart, House, Library, ListMusic, MicVocal, Music2, Search, ShieldCheck, Upload } from 'lucide-react'
@@ -143,7 +144,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
       case 'destination': return void navigate(choice.destination.to)
       case 'all': return void navigate(`/search?q=${encodeURIComponent(choice.query)}`)
       case 'track':
-        if (isPlayable(choice.track, viewer)) controls.playTracks([choice.track], 0, { type: 'search', id: null, title: 'Search' })
+        if (isPlayable(choice.track, viewer)) controls.playTracks([choice.track], 0, searchContext(typed))
         else if (choice.track.album) void navigate(`/album/${choice.track.album.id}`)
         else void navigate(`/search?q=${encodeURIComponent(choice.track.title)}`)
     }
