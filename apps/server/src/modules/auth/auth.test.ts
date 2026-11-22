@@ -10,6 +10,7 @@ import { appPasswords, authSessions, devices, invites, users } from '../../datab
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
+import { createUser } from '../../test/factories.js'
 import { findAppPasswordByKey, insertUser, rememberDevice, verifyAppPassword } from './service.js'
 
 const device = { id: 'device-0001', name: 'Test phone', kind: 'ios' as const }
@@ -270,13 +271,27 @@ describe('auth', () => {
   it('keeps the most recently seen 100 devices per user', async () => {
     const [mira] = await db.select().from(users).where(eq(users.usernameKey, 'mira'))
     await db.insert(devices).values(Array.from({ length: 100 }, (_, index) => ({
-      userId: mira!.id, id: `old-device-${String(index).padStart(3, '0')}`, name: 'Old', kind: 'other', lastSeenAt: new Date(Date.UTC(2020, 0, 1, 0, index)),
+      userId: mira!.id, id: `old-device-${String(index).padStart(3, '0')}`, name: 'Old', kind: 'other', lastSeenAt: new Date(Date.now() - (200 - index) * 60_000),
     })))
     await rememberDevice(db, mira!.id, { id: 'new-device-1', name: 'New', kind: 'ios' })
     const kept = await db.select().from(devices).where(eq(devices.userId, mira!.id))
     expect(kept).toHaveLength(100)
     expect(kept.map((row) => row.id)).toContain('new-device-1')
     expect(kept.map((row) => row.id)).not.toContain('old-device-000')
+  })
+
+  it('forgets devices not seen for as long as a session lasts when a new one signs in', async () => {
+    const user = await createUser()
+    const day = 24 * 60 * 60_000
+    await db.insert(devices).values([
+      { userId: user.id, id: 'gone-device', name: 'Chrome on macOS', kind: 'web', lastSeenAt: new Date(Date.now() - 181 * day) },
+      { userId: user.id, id: 'kept-device', name: 'Chrome on macOS', kind: 'web', lastSeenAt: new Date(Date.now() - 179 * day) },
+    ])
+    // Seeing a known device prunes nothing; a new one does.
+    await rememberDevice(db, user.id, { id: 'kept-device', name: 'Chrome on macOS', kind: 'web' })
+    expect((await db.select().from(devices).where(eq(devices.userId, user.id))).map((row) => row.id).toSorted()).toEqual(['gone-device', 'kept-device'])
+    await rememberDevice(db, user.id, { id: 'new-device-2', name: 'iPhone', kind: 'ios' })
+    expect((await db.select().from(devices).where(eq(devices.userId, user.id))).map((row) => row.id).toSorted()).toEqual(['kept-device', 'new-device-2'])
   })
 
   it('rejects disabled accounts', async () => {

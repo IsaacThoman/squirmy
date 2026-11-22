@@ -250,6 +250,18 @@ export const DeviceInfo = z.object({
   /** It is the active device of the shared session. */
   isActive: z.boolean(),
   /**
+   * It is the device the list was sent to: over the socket, the one the receiving socket
+   * said hello as; from `GET /me/devices`, the one the request's sign-in was made from.
+   * Absent from older servers.
+   */
+  isCurrent: z.boolean().optional(),
+  /**
+   * When the device last said anything over its socket (its hello, a command, a report),
+   * epoch milliseconds. Sent again as it moves on, at most once a minute per device, so
+   * clients can tell apart devices with the same name. Absent from older servers.
+   */
+  lastSeenAt: z.number().int().optional(),
+  /**
    * Present while the device is detached: whether its own session is playing, and what.
    * The list is sent again when either changes.
    */

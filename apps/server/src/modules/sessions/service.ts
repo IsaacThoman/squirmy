@@ -17,7 +17,7 @@ import { rememberDevice } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { lookupTracks, trustSeeds } from './entries.js'
 import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, type OpenPlay, savePlay } from './plays.js'
-import { connectedDevice, connectedDeviceIds, deviceSockets, joinDevice, leaveDevice, listDevices } from './presence.js'
+import { connectedDevice, connectedDeviceIds, deviceSockets, joinDevice, leaveDevice, listDevices, seeDevice, socketDevices } from './presence.js'
 import {
   createOwn, deleteStoredOwn, discardOwn, loadedOwn, loadedRecord, loadedRecords, loadRecord, persist, readOwn, recordOf, rememberCommand,
   schedulePersist, serial, type SessionRecord, sessionKey, snapshotOf, storedOwn, unloadAll,
@@ -119,20 +119,43 @@ function ownSummary(session: Session): NonNullable<DeviceInfo['detached']> {
 }
 
 /** The user's connected devices as every client sees them. The shared session is loaded from the first hello on. */
-function deviceList(userId: string): DeviceInfo[] {
-  return listDevices(userId, loadedRecord(userId)?.session.activeDeviceId ?? null, (deviceId) => {
+function deviceList(userId: string, currentDeviceId: string | null): DeviceInfo[] {
+  return listDevices(userId, loadedRecord(userId)?.session.activeDeviceId ?? null, currentDeviceId, (deviceId) => {
     const own = loadedOwn(userId, deviceId)
     return own ? ownSummary(own.session) : undefined
   })
 }
 
-function emitDevices(userId: string): void {
-  io?.to(userRoom(userId)).emit('devices', deviceList(userId))
+/**
+ * Sends the device list to the user's sockets, but `exceptSocketId`. Each socket gets it
+ * as its own device sees it (`isCurrent`), so the list goes out per socket; a socket that
+ * has not said hello yet gets it with no current device.
+ */
+export function emitDevices(userId: string, exceptSocketId?: string): void {
+  const sockets = io?.of('/').adapter.rooms.get(userRoom(userId))
+  if (!io || !sockets) return
+  const devices = socketDevices(userId)
+  const lists = new Map<string | null, DeviceInfo[]>()
+  for (const socketId of sockets) {
+    if (socketId === exceptSocketId) continue
+    const deviceId = devices.get(socketId) ?? null
+    let list = lists.get(deviceId)
+    if (!list) lists.set(deviceId, list = deviceList(userId, deviceId))
+    io.to(socketId).emit('devices', list)
+  }
 }
 
-/** A hello's answer for a device in `record`'s session. */
-function helloAck(record: SessionRecord): SessionHelloAck {
-  return { serverTime: settings.now(), snapshot: snapshotOf(record), devices: deviceList(record.userId), capabilities: CAPABILITIES }
+/**
+ * Notes that `deviceId` said something now. Its other devices get the list again once
+ * the last-seen time they have is a minute or more behind.
+ */
+export function noteSeen(userId: string, deviceId: string | null): void {
+  if (deviceId && seeDevice(userId, deviceId, settings.now())) emitDevices(userId)
+}
+
+/** A hello's answer for `deviceId`, a device in `record`'s session. */
+function helloAck(record: SessionRecord, deviceId: string): SessionHelloAck {
+  return { serverTime: settings.now(), snapshot: snapshotOf(record), devices: deviceList(record.userId, deviceId), capabilities: CAPABILITIES }
 }
 
 /**
@@ -410,7 +433,7 @@ async function placeReturning(userId: string, deviceId: string, believed: boolea
 export function greet(userId: string, socketId: string, hello: SessionHello, reply: (ack: SessionHelloAck) => void): Promise<void> {
   const { device, canPlay } = hello
   const returning = !connectedDevice(userId, device.id)
-  joinDevice(userId, socketId, device, canPlay)
+  joinDevice(userId, socketId, device, canPlay, settings.now())
   cancelGrace(userId, device.id)
   return serial(userId, async () => {
     await rememberDevice(db, userId, device)
@@ -424,7 +447,7 @@ export function greet(userId: string, socketId: string, hello: SessionHello, rep
       schedulePersist(own, report)
     }
     joinSessionRoom([socketId], record)
-    reply({ ...helloAck(record), ...(ended ? { detachedEnded: ended } : {}) })
+    reply({ ...helloAck(record, device.id), ...(ended ? { detachedEnded: ended } : {}) })
   }).catch(report)
 }
 
@@ -467,7 +490,7 @@ export function detach(userId: string, deviceId: string | null, socketId: string
     const device = deviceId ? connectedDevice(userId, deviceId) : undefined
     if (!device) return ack({ ok: false, error: 'hello_required' })
     const existing = loadedOwn(userId, device.id)
-    if (existing) return ack({ ok: true, ...helloAck(existing) })
+    if (existing) return ack({ ok: true, ...helloAck(existing, device.id) })
     if (!device.canPlay) return ack({ ok: false, error: 'cannot_play' })
     const others = connectedDeviceIds(userId).filter(id => id !== device.id && loadedOwn(userId, id))
     if (others.length >= MAX_DETACHED) return ack({ ok: false, error: 'too_many_detached' })
@@ -498,7 +521,7 @@ export function detach(userId: string, deviceId: string | null, socketId: string
     // Written at once, so a restart never finds the shared session still playing on a detached device.
     if (change) void persist(shared).catch(report)
     moveDevice(own, device.id, socketId)
-    ack({ ok: true, ...helloAck(own) })
+    ack({ ok: true, ...helloAck(own, device.id) })
     if (change) broadcast(shared, { ...change, devices: false })
     emitDevices(userId)
     afterChange(own)
@@ -551,7 +574,7 @@ export function attach(userId: string, deviceId: string | null, socketId: string
     if (!device) return ack({ ok: false, error: 'hello_required' })
     const shared = await load(userId)
     const own = loadedOwn(userId, device.id)
-    if (!own) return ack({ ok: true, ...helloAck(shared) })
+    if (!own) return ack({ ok: true, ...helloAck(shared, device.id) })
     const bring = request.data.bringQueue === true
     if (bring && !own.session.current && !own.session.queue.length) return ack({ ok: false, error: 'nothing_to_bring' })
 
@@ -578,7 +601,7 @@ export function attach(userId: string, deviceId: string | null, socketId: string
       closePlay(own)
     }
     moveDevice(shared, device.id, socketId)
-    ack({ ok: true, ...helloAck(shared) })
+    ack({ ok: true, ...helloAck(shared, device.id) })
     if (change) broadcast(shared, { ...change, devices: false })
     emitDevices(userId)
     if (change) afterChange(shared)
@@ -593,7 +616,7 @@ function moveDevice(record: SessionRecord, deviceId: string, socketId: string): 
   const sockets = deviceSockets(record.userId, deviceId)
   joinSessionRoom(sockets, record)
   const others = sockets.filter(id => id !== socketId)
-  if (io && others.length) io.to(others).emit('session:moved', helloAck(record))
+  if (io && others.length) io.to(others).emit('session:moved', helloAck(record, deviceId))
 }
 
 /**
@@ -700,11 +723,11 @@ export function getSnapshot(userId: string): Promise<SessionSnapshot> {
   return serial(userId, async () => snapshotOf(await load(userId)))
 }
 
-/** The user's connected devices. */
-export function getDevices(userId: string): Promise<DeviceInfo[]> {
+/** The user's connected devices, as `currentDeviceId` (if known) sees them. */
+export function getDevices(userId: string, currentDeviceId: string | null = null): Promise<DeviceInfo[]> {
   return serial(userId, async () => {
     await load(userId)
-    return deviceList(userId)
+    return deviceList(userId, currentDeviceId)
   })
 }
 
