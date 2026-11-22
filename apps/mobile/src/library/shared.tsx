@@ -9,6 +9,7 @@ import { useKeptCollections } from '../downloads/DownloadsProvider';
 import { Cover, Icon } from '../ui';
 import { BrowseButton, CollectionTile } from './BrowseControls';
 import type { Page } from './links';
+import { mosaicCovers } from './mosaic';
 import { createThemedStyles, useColors } from '../theme';
 
 export const gutter = 22;
@@ -76,7 +77,7 @@ const gradients = {
 
 export function CollectionCover({ item, size, radius = 13 }: { item: Collection; size: number; radius?: number }) {
   const styles = useStyles();
-  const covers = item.artworks ?? [];
+  const covers = mosaicCovers(item.artworks ?? []);
   let cover;
   if (covers.length >= 4) {
     const half = size / 2;

@@ -2,6 +2,20 @@
 
 The wantlist is your list of albums and songs you do not have yet. Add gray music to it while you browse, and it fills in when matching music arrives on the server.
 
+## Turning it on
+
+The wantlist is off unless the server's admin turns it on, and while it is off the apps do not mention it. It is most useful when music reaches the server by hand; with an [acquisition provider](../server/acquisition.md) that can fetch anything, playing a song is quicker than wanting it.
+
+An admin turns it on with the `wantlistEnabled` setting (see [Server settings](../server/configuration.md#server-settings)):
+
+```sh
+curl -X PATCH https://music.example.com/api/v1/admin/settings \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"wantlistEnabled": true}'
+```
+
+Open apps show or hide it right away. Turning it off keeps everyone's wants, so turning it back on brings them back.
+
 ## Adding to it
 
 - **Web app.** Albums you do not have show a bookmark on their cards, and album pages and song menus have **Add to Wantlist**. Search results below "your library" and gray albums on artist pages are the usual places to find them.

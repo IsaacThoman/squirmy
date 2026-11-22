@@ -431,7 +431,7 @@ async function removeDuplicateFiles(row: ImportRow, root: Root, paths: string[])
  * Files the albums the matcher identified with confidence: plans one organize batch
  * restricted to them (remembered, so a rerun applies the same batch) and applies it. What
  * was not identified stays in `_Incoming/<importId>/`; the folder is removed once no audio
- * is left in it. Then the counts are taken and wants are refreshed.
+ * is left in it. Then the counts are taken and, while the wantlist is on, wants are refreshed.
  */
 async function file(row: ImportRow, root: Root, stats: Stats, work: ImportWork, options: typeof defaults) {
   const folder = incomingFolder(row.id)
@@ -463,7 +463,8 @@ async function file(row: ImportRow, root: Root, stats: Stats, work: ImportWork, 
     unreadable: sql<number>`(count(*) filter (where ${mediaFiles.probeError} is not null))::int`,
   }).from(mediaFiles).where(ofImport(row))
   Object.assign(stats, counts, { filesLeftForReview: audioLeft })
-  await refreshWants()
+  // A switched-off wantlist is left as it was; listing wants catches up once it is back on.
+  if ((await getServerSettings()).wantlistEnabled) await refreshWants()
 }
 
 /** Applies a batch, waiting while another batch holds the root. Gives up quietly after `organizeWaitMs`. */
