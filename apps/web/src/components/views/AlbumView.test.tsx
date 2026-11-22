@@ -218,6 +218,20 @@ describe('album page', () => {
     })
   })
 
+  it('names a song\'s artists only where they are not the album\'s own, and has no artist column', async () => {
+    const { services, api } = fakeServices()
+    const tracks = blueHour.discs[0].tracks
+    const guest = { id: '01a20236-8dd0-77ed-9c01-ab24582bf8cf', name: 'Guest Artist' }
+    const featured = { ...tracks[1]!, artistCredit: `${blueHour.artistCredit} feat. ${guest.name}`, artists: [...tracks[1]!.artists, guest] }
+    api.catalog.album.mockResolvedValue({ ...blueHour, discs: [{ ...blueHour.discs[0], tracks: [tracks[0]!, featured, ...tracks.slice(2)] }] })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const list = await screen.findByRole('list', { name: 'Blue Hour tracks' })
+    const rows = within(list).getAllByRole('listitem')
+    expect(within(rows[0]!).queryByRole('link')).toBeNull()
+    expect(within(rows[1]!).getByRole('link', { name: guest.name })).toBeInTheDocument()
+    expect(screen.queryByText('Artist', { selector: 'span' })).toBeNull()
+  })
+
   it('credits several artists as the credit reads, each a link', async () => {
     const { services, api } = fakeServices()
     const [mira, lune] = [blueHour.artists[0]!, slowMotion.artists[0]!]

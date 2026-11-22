@@ -32,7 +32,8 @@ export type PlaylistChoice = { id: string; name: string }
 export type NowPlaying = { trackId: string; playing: boolean; loading: boolean; onTogglePlay: () => void }
 
 /**
- * - `album`: track numbers, no artwork; for album pages.
+ * - `album`: track numbers, no artwork, and the artists only on songs whose credit differs from
+ *   the album's (`albumCredit`), as the iOS app does; for album pages.
  * - `playlist`: running numbers, artwork, album and (when the rows have `addedAt`) date added columns.
  * - `compact`: artwork instead of numbers, album column on wide screens; search and top tracks.
  */
@@ -48,18 +49,20 @@ type SharedProps = {
   playlists?: PlaylistChoice[]
   /** Makes the rows reorderable by dragging and from the menu (a playlist the user owns). */
   onMove?: (from: number, to: number) => void
+  /** On an album page, the album's credit: a song credited the same says nothing under its title. */
+  albumCredit?: string
 }
 
 /**
  * A row is its own size container, and its columns follow its width rather than the window's: the
  * sidebar, the queue and a page's own columns all change how much room a list has. As a row
  * narrows it gives up the album first, then the date added, then the duration; the title and
- * artist truncate; the heart and the menu never go. From 36rem an album's artists and a compact
- * row's album get a column; a playlist's date added does from 42rem and its album from 56rem (from
- * 42rem when it has no dates). The duration shows from 28rem.
+ * artist truncate; the heart and the menu never go. From 36rem a compact row's album gets a
+ * column; a playlist's date added does from 42rem and its album from 56rem (from 42rem when it has
+ * no dates). The duration shows from 20rem.
  */
 const columns: Record<TrackListVariant, string> = {
-  album: 'grid-cols-[2rem_minmax(0,1fr)_auto] @xl:grid-cols-[2rem_minmax(0,5fr)_minmax(0,3fr)_auto]',
+  album: 'grid-cols-[2rem_minmax(0,1fr)_auto]',
   playlist: 'grid-cols-[2rem_minmax(0,1fr)_auto] @2xl:grid-cols-[2rem_minmax(0,1fr)_7rem_auto] @4xl:grid-cols-[2rem_minmax(0,6fr)_minmax(0,4fr)_7rem_auto]',
   compact: 'grid-cols-[minmax(0,1fr)_auto] @xl:grid-cols-[minmax(0,6fr)_minmax(0,4fr)_auto]',
 }
@@ -77,7 +80,7 @@ const albumColumnOf = (variant: TrackListVariant, dated: boolean) => (variant ==
  * The last column: like, duration, menu. The header's has the same width, so the columns between
  * line up with the rows'.
  */
-const actionsColumn = 'flex shrink-0 items-center justify-end gap-1 @md:min-w-28 pointer-coarse:gap-0 pointer-coarse:@md:min-w-32'
+const actionsColumn = 'flex shrink-0 items-center justify-end gap-1 @xs:min-w-28 pointer-coarse:gap-0 pointer-coarse:@xs:min-w-32'
 
 /**
  * Controls that appear when their row is hovered, has the keyboard's focus anywhere in it or has
@@ -110,7 +113,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
  * One song. A song that plays looks the same wherever its file is (on the server, or fetched
  * as it plays); one that does not is gray and says "Not available".
  */
-export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
+export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted, onPlay, onAction, playlists, extraMenu, reorder, style, albumCredit }: TrackRowProps) {
   const navigate = useNavigate()
   const viewer = useViewer()
   const { liked } = track
@@ -184,11 +187,13 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
       {unavailable && <span className="sr-only">({UNAVAILABLE_LABEL})</span>}
     </div>
   )
-  // Under the title, except on album pages, where a wide row gives the artists a column of their own.
+  // Under the title. On an album page only where they are not the album's own (a featured artist):
+  // a column repeating the album's artist on every row says nothing.
+  const showArtists = !album || albumCredit === undefined || track.artistCredit !== albumCredit
   // The links leave the Tab order: cut short, they would be stops with nothing to see. The row's
   // menu goes to each artist and the album, and the tooltip has the whole credit.
   const artists = (
-    <div title={track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', album && '@max-xl:col-start-2 @xl:text-sm')}>
+    <div title={track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
       <ArtistLinks credit={track} plain={unavailable} focusable={false} />
     </div>
   )
@@ -218,17 +223,20 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           'data-[drop=after]:shadow-[inset_0_-2px_0_var(--primary)] data-[drop=before]:shadow-[inset_0_2px_0_var(--primary)]',
           // Gray, but at 3:1 or more in every theme (`color-themes.test.ts`), so the song can still be read.
           unavailable ? 'text-faded-foreground' : 'hover:bg-accent/60 has-[:focus-visible]:bg-accent/60 has-[[data-state=open]]:bg-accent/60 pointer-coarse:active:bg-accent/60',
+          // The playing song also has a quiet fill: in themes whose action color is close to the
+          // text (Pulpo's near-white or near-black) its title's color alone does not stand out.
+          current && 'bg-accent/40',
         )}
       >
-        <div className={cn('grid h-11 content-center items-center gap-x-3', album && '@xl:h-10 pointer-coarse:@xl:h-11', columnsOf(variant, addedAt !== undefined))}>
+        <div className={cn('grid h-11 content-center items-center gap-x-3', columnsOf(variant, addedAt !== undefined))}>
           {variant === 'compact' ? null : (
-            <div className={cn('relative flex h-8 items-center justify-center text-sm tabular', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', album && '@max-xl:row-span-2')}>
+            <div className={cn('relative flex h-8 items-center justify-center text-sm tabular', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
               {playButton(false)}
               <span className={resting}>{marker(false) ?? number ?? index + 1}</span>
             </div>
           )}
 
-          {album ? title : (
+          {album ? <div className="min-w-0">{title}{showArtists && artists}</div> : (
             <div className="flex min-w-0 items-center gap-3">
               <div className="relative size-8 shrink-0">
                 <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-8 rounded-[5px]" />
@@ -245,7 +253,6 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
               </div>
             </div>
           )}
-          {album && artists}
 
           {albumColumnOf(variant, addedAt !== undefined) && (
             <div className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumnOf(variant, addedAt !== undefined))}>
@@ -254,9 +261,9 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           )}
           {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @2xl:block">{formatRelative(addedAt)}</div>}
 
-          <div className={cn(actionsColumn, album && '@max-xl:col-start-3 @max-xl:row-span-2 @max-xl:row-start-1')}>
+          <div className={actionsColumn}>
             {onAction && <SaveHeart liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(rowAction, !liked && revealed)} />}
-            <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @md:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
+            <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @xs:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
             <DropdownMenu
               entries={menu}
               trigger={(
@@ -279,11 +286,10 @@ function ListHeader({ variant, dated }: { variant: TrackListVariant; dated: bool
       <div className={cn('grid h-8 items-center gap-x-3', columnsOf(variant, dated))}>
         {variant !== 'compact' && <span className="text-center">#</span>}
         <span>Title</span>
-        {variant === 'album' && <span className="hidden @xl:block">Artist</span>}
         {albumColumnOf(variant, dated) && <span className={albumColumnOf(variant, dated)}>Album</span>}
         {variant === 'playlist' && dated && <span className="hidden @2xl:block">Added</span>}
         {/* The clock sits over the durations, which end where the menu button starts. */}
-        <span className={cn(actionsColumn, 'pr-9 pointer-coarse:pr-11')}><Clock3 className="hidden size-3.5 @md:block" /></span>
+        <span className={cn(actionsColumn, 'pr-9 pointer-coarse:pr-11')}><Clock3 className="hidden size-3.5 @xs:block" /></span>
       </div>
     </div>
   )

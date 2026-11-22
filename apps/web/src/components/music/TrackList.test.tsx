@@ -113,6 +113,9 @@ describe('TrackRow', () => {
     const onTogglePlay = vi.fn()
     const { row } = renderRow('night-swimming', { nowPlaying: { trackId: track('night-swimming').id, playing: true, loading: false, onTogglePlay } })
     expect(row).toHaveAttribute('aria-current', 'true')
+    // A fill as well as the title's color, which is close to the text's in some themes.
+    expect(row).toHaveClass('bg-accent/40')
+    expect(within(row).getByText('Night Swimming')).toHaveClass('text-primary')
     expect(within(row).getByRole('img', { name: 'Playing' })).toBeInTheDocument()
     await userEvent.click(within(row).getByRole('button', { name: 'Pause Night Swimming' }))
     expect(onTogglePlay).toHaveBeenCalled()

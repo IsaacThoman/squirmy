@@ -79,7 +79,7 @@ describe('pages', () => {
   it.each(['/artist/not-a-uuid', '/album/01a2048d-b138', '/playlist/after-dark'])('%s, an id cut short, is “Nothing here” without asking the server', async route => {
     const { services, api } = fakeServices()
     renderWithApp(<AppRoutes />, route, services)
-    expect(await screen.findByRole('heading', { level: 3, name: 'Nothing here' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Nothing here' })).toBeInTheDocument()
     expect(screen.queryByText('This page did not load')).toBeNull()
     expect(api.catalog.artist).not.toHaveBeenCalled()
     expect(api.catalog.album).not.toHaveBeenCalled()

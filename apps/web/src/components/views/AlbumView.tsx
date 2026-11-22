@@ -155,7 +155,7 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
         {listing
           ? <div role="status" aria-label="Loading songs" className="px-2 pt-2"><TrackRowsSkeleton rows={Math.min(Math.max(album.trackCount, 6), 14)} /></div>
           : tracks.length
-            ? <div className="-mx-2"><TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" {...actions} /></div>
+            ? <div className="-mx-2"><TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" albumCredit={album.artistCredit} {...actions} /></div>
             : overdue
               ? (
                 <EmptyState
