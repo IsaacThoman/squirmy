@@ -9,7 +9,7 @@ import {
   AcquireResponse, AcquisitionUsage, ImportList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent,
 } from '@squirmy/contracts'
 import { deliver } from '@squirmy/provider-kit'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -33,7 +33,7 @@ import { matchingModule } from '../matching/index.js'
 import { sessionsModule } from '../sessions/index.js'
 import { requestRecording } from './coverage.js'
 import { acquisitionModule } from './index.js'
-import { configureAcquisition, sweepJobs } from './jobs.js'
+import { configureAcquisition, finishJob, sweepJobs } from './jobs.js'
 import { applyOutcome, recentOutcome } from './outcomes.js'
 import { updateAcquisitionPolicy } from './policy.js'
 import { createProvider, updateProvider } from './providers.js'
@@ -535,7 +535,7 @@ describe('acquisition end to end', () => {
       // Completing over the limit queued an eviction; the new file is too young to go.
       expect((await trackAvailability([wanted])).get(wanted)).toBe('server')
       // Playing is not adding: the fetched track serves playback and is in nobody's library.
-      expect(await db.select().from(libraryItems)).toEqual([])
+      expect(await db.select().from(libraryItems).where(inArray(libraryItems.entityId, [wanted, album.albumId]))).toEqual([])
     } finally {
       await updateAcquisitionPolicy({ storageQuotaBytes: 0 })
     }
@@ -573,8 +573,11 @@ describe('acquisition end to end', () => {
     configureAcquisition({ slotWaitSeconds: 1 })
     mock.settings.maxConcurrent = 1
     await refresh()
-    // The one slot must be free: earlier tests' jobs may still be finishing.
-    await eventually(async () => expect(await db.select({ id: acquisitionJobs.id }).from(acquisitionJobs).where(isNull(acquisitionJobs.completedAt))).toEqual([]), 20_000)
+    // The one slot must be free. Earlier tests can leave a job the provider holds for minutes
+    // (a prefetch for an old queue, taken while the mock was told to be slow); end them.
+    for (const left of await db.select({ id: acquisitionJobs.id }).from(acquisitionJobs).where(isNull(acquisitionJobs.completedAt))) {
+      await finishJob(left.id, { status: 'failed', error: 'Ended by the test' })
+    }
     try {
       const album = await createAlbum({ title: 'One At A Time', tracks: ['Holder', 'Saved', 'Ahead', 'Playing'].map((title) => ({ title, durationMs: 2000 })) })
       const [holder, saved, ahead, playing] = album.tracks.map((track) => track.recordingId) as [string, string, string, string]
