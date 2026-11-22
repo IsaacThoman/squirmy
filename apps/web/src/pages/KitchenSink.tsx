@@ -464,7 +464,7 @@ function Music() {
           <PlayerBar player={player} liked onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} />
         </div>
         <div className="max-w-sm"><MiniPlayer player={player} onOpenNowPlaying={() => {}} /></div>
-        <PlayingElsewhere device={player.state.devices[2]} onPlayHere={() => {}} />
+        <PlayingElsewhere player={player} device={player.state.devices[2]} onPlayHere={() => {}} />
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="rounded-xl border bg-card p-2"><DeviceList player={player} /></div>
           <ScrollArea className="h-[28rem] rounded-xl border bg-card p-3"><QueueContent player={player} /></ScrollArea>

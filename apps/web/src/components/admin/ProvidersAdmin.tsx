@@ -1,24 +1,24 @@
 import {
   AcquisitionJobStatus, CreateAcquisitionProviderRequest, UpdateAcquisitionPolicy, UpdateAcquisitionProviderRequest,
-  type AcquisitionJob, type AcquisitionPolicy, type AcquisitionProvider, type LibraryRoot,
+  type AcquisitionJob, type AcquisitionPolicy, type AcquisitionProvider, type AcquisitionUsage, type LibraryRoot,
 } from '@squirmy/contracts'
-import { CircleAlert, CircleCheck, CircleSlash, History, MoreHorizontal, Pencil, PlugZap, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
+import { CircleAlert, CircleCheck, CircleSlash, HardDrive, History, MoreHorizontal, Pencil, PlugZap, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import type { z } from 'zod'
 import { useFormSubmit } from '@/api/errors'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog, Dialog, DialogContent } from '@/components/ui/dialog'
-import { Badge, EmptyState, Skeleton, Spinner } from '@/components/ui/feedback'
+import { Badge, EmptyState, ProgressBar, Skeleton, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { Field, Input } from '@/components/ui/input'
 import { DropdownMenu } from '@/components/ui/menu'
 import { Row, Section } from '@/components/ui/section'
 import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { formatClock, formatRelative, inGigabytes, inMegabytes } from '@/lib/format'
+import { formatBytes, formatClock, formatRelative, inGigabytes, inMegabytes, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { AdminHeader, DialogForm } from './AdminLayout'
+import { AdminHeader, DialogForm, Stat } from './AdminLayout'
 import { DraftField, type SavePatch } from './DraftField'
 import { cardClass, Panel } from './Panel'
 
@@ -26,7 +26,9 @@ type ProvidersAdminProps = {
   /** Undefined while loading. */
   providers: AcquisitionProvider[] | undefined
   policy: AcquisitionPolicy | undefined
-  /** Managed library folders fetched music can be filed into. */
+  /** What fetched music takes on disk, against the cache limit. Undefined while loading. */
+  usage: AcquisitionUsage | undefined
+  /** Managed library folders fetched music is kept in (under `_Fetched/`). */
   managedRoots: LibraryRoot[] | undefined
   jobs: AcquisitionJob[] | undefined
   jobStatus: AcquisitionJobStatus | null
@@ -46,14 +48,14 @@ type ProviderDialog = { kind: 'add' } | { kind: 'edit' | 'delete'; provider: Acq
 const coverageLabels = { assume_available: 'Offers everything', must_resolve: 'Checks each track' } as const
 
 /** Acquisition providers: the services that can supply missing music, how they are used, and what they were asked for. */
-export function ProvidersAdmin({ providers, policy, managedRoots, jobs, jobStatus, onJobStatusChange, onCreate, onUpdate, onDelete, onTest, onClearMisses, onSavePolicy }: ProvidersAdminProps) {
+export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, jobStatus, onJobStatusChange, onCreate, onUpdate, onDelete, onTest, onClearMisses, onSavePolicy }: ProvidersAdminProps) {
   const [dialog, setDialog] = useState<ProviderDialog | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   return (
     <div>
       <AdminHeader
         title="Providers"
-        description="A provider is a separate service you run that can supply music this server does not have. With one connected, missing songs play on demand and are filed into the library like any other import; until you add one, nothing is ever fetched."
+        description="A provider is a separate service you run that can supply music this server does not have. With one connected, missing songs play on demand. What it delivers is kept as a cache, apart from your own music: it is not added to anyone’s library, and the least recently played files make room once the cache reaches its limit. Until you add one, nothing is ever fetched."
       >
         <Button size="sm" variant="primary" onClick={() => setDialog({ kind: 'add' })}><Plus />Add provider</Button>
       </AdminHeader>
@@ -87,6 +89,7 @@ export function ProvidersAdmin({ providers, policy, managedRoots, jobs, jobStatu
           )}
         </section>
 
+        <CacheUsage usage={usage} />
         <PolicySettings policy={policy} managedRoots={managedRoots} onSave={onSavePolicy} />
         <JobsList jobs={jobs} status={jobStatus} onStatusChange={onJobStatusChange} />
       </div>
@@ -97,7 +100,7 @@ export function ProvidersAdmin({ providers, policy, managedRoots, jobs, jobStatu
         open={dialog?.kind === 'delete'}
         onOpenChange={close}
         title={dialog?.kind === 'delete' ? `Delete ${dialog.provider.name}?` : ''}
-        description="The server stops asking it for music. Music it already supplied stays in the library."
+        description="The server stops asking it for music. Music it already supplied stays in the cache until it makes room for newer songs."
         confirmLabel="Delete provider"
         onConfirm={() => dialog?.kind === 'delete' ? onDelete(dialog.provider.id) : Promise.resolve()}
       />
@@ -283,6 +286,45 @@ function ProviderFormDialog({ open, provider, onOpenChange, onAdd, onSave }: Pro
   )
 }
 
+/**
+ * The cache (product decisions 16 to 20): every file a provider delivered, what of it is
+ * pinned (saved, liked, in a playlist or a queue, or played in the last day) and so never
+ * evicted, and the limit eviction works to.
+ */
+function CacheUsage({ usage }: { usage: AcquisitionUsage | undefined }) {
+  if (!usage) return <Skeleton className="h-32 rounded-xl" />
+  const { cachedFiles, cachedBytes, pinnedBytes, limitBytes } = usage
+  const evictable = Math.max(cachedBytes - pinnedBytes, 0)
+  return (
+    <Panel title="Cache" description="Songs fetched for playing are kept so they start at once next time. They are not part of anyone’s library and are not counted under Library.">
+      {cachedFiles === 0 ? (
+        <EmptyState icon={<HardDrive />} title="Nothing cached yet" description="Songs a provider delivers are counted here." className={cn(cardClass, 'py-8')} />
+      ) : (
+        <div className="@container flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
+            <Stat label="Cached" value={formatBytes(cachedBytes)} detail={plural(cachedFiles, 'file')} />
+            <Stat label="Kept" value={formatBytes(pinnedBytes)} detail="Saved, liked, in a playlist or queue, or played in the last day" />
+            <Stat label="Can make room" value={formatBytes(evictable)} detail="Least recently played go first" />
+            <Stat label="Limit" value={limitBytes ? formatBytes(limitBytes) : 'None'} detail={limitBytes ? `${Math.round((cachedBytes / limitBytes) * 100)}% used` : 'Nothing is ever deleted'} />
+          </div>
+          {limitBytes > 0 && (
+            <div className={cn(cardClass, 'flex flex-col gap-2 p-4')}>
+              <ProgressBar value={Math.min(cachedBytes / limitBytes, 1)} label="Cache used" />
+              <p className="text-xs text-muted-foreground">
+                {cachedBytes > limitBytes
+                  ? pinnedBytes > limitBytes * 0.9
+                    ? 'Over the limit with songs people hold on to. Raise the limit to keep room for new ones.'
+                    : 'Over the limit. Songs nobody holds on to are deleted within the hour.'
+                  : `${formatBytes(limitBytes - cachedBytes)} free`}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </Panel>
+  )
+}
+
 /** The target folder's "same as imports" choice; a select cannot hold null. */
 const SAME_AS_IMPORTS = 'imports'
 const MINUTE = 60
@@ -302,7 +344,7 @@ function PolicySettings({ policy, managedRoots, onSave }: { policy: AcquisitionP
       <Row htmlFor="policy-file" label="Largest file" description="A delivery with a bigger file fails.">
         <DraftField id="policy-file" field="maxFileBytes" value={policy.maxFileBytes} {...draft} type="number" inputMode="decimal" step="any" className="w-24 text-right" unit="MB" {...inMegabytes} />
       </Row>
-      <Row htmlFor="policy-quota" label="Storage for fetched music" description="Fetching stops once fetched files take this much. 0 means no limit.">
+      <Row htmlFor="policy-quota" label="Cache limit" description="Once fetched music takes more, the least recently played songs nobody holds on to are deleted until it is under 90% of this. Playing is never refused. 0 means no limit.">
         <DraftField id="policy-quota" field="storageQuotaBytes" value={policy.storageQuotaBytes} {...draft} type="number" inputMode="decimal" step="any" className="w-24 text-right" unit="GB" {...inGigabytes} />
       </Row>
       <Row htmlFor="policy-timeout" label="Give up after" description="A provider that has not delivered by then fails the request.">
@@ -311,9 +353,9 @@ function PolicySettings({ policy, managedRoots, onSave }: { policy: AcquisitionP
           format={seconds => String(Math.round((Number(seconds) / MINUTE) * 10) / 10)} parse={text => (text.trim() ? Math.round(Number(text) * MINUTE) : Number.NaN)}
         />
       </Row>
-      <Row label="File into" description={<>Which managed folder fetched music goes to. Imports use the one in <Link to="/admin/settings" className="text-primary underline-offset-4 hover:underline">Server settings</Link>.</>}>
+      <Row label="Keep in" description={<>The managed folder whose <span className="font-mono">_Fetched</span> folder holds the cache. Imports use the one in <Link to="/admin/settings" className="text-primary underline-offset-4 hover:underline">Server settings</Link>.</>}>
         <Select
-          label="File into"
+          label="Keep in"
           className="w-64 max-w-full"
           value={policy.targetRootId ?? SAME_AS_IMPORTS}
           options={[
