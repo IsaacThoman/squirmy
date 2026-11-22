@@ -59,7 +59,11 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!serverUrl || !token) return;
     const { origin, path } = socketAddress(serverUrl);
-    const next: SquirmySocket = io(origin, { path, auth: { token }, transports: ['websocket'], autoConnect: false });
+    // WebSocket first; long-polling when it cannot open, e.g. behind a proxy that does not
+    // pass on the upgrade. The web app gets the same fallback from socket.io's defaults.
+    const next: SquirmySocket = io(origin, {
+      path, auth: { token }, transports: ['websocket', 'polling'], tryAllTransports: true, autoConnect: false,
+    });
     let everConnected = false;
     let lastHeard = Date.now();
     let retry: ReturnType<typeof setTimeout> | undefined;
