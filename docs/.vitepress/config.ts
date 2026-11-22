@@ -68,8 +68,8 @@ export default defineConfig({
   // Dead links fail the build, so a broken link fails CI.
   ignoreDeadLinks: false,
   head: [
-    ['link', { rel: 'icon', sizes: '48x48', href: `${base}favicon.ico` }],
-    ['link', { rel: 'icon', type: 'image/png', href: `${base}squirmy-mark.png` }],
+    // The same tab icon as the web app: the head on the dark background, which reads at 16 px.
+    ['link', { rel: 'icon', sizes: '16x16 32x32 48x48', href: `${base}favicon.ico` }],
     ['link', { rel: 'apple-touch-icon', href: `${base}apple-touch-icon.png` }],
     ['meta', { name: 'theme-color', content: '#5B439E' }],
   ],
