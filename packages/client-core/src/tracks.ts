@@ -54,6 +54,22 @@ export class TrackStore {
     return this.cache.get(keyOf(trackId, albumId))
   }
 
+  /**
+   * Fetches the summary again, keeping the cached one until the answer arrives. For a track
+   * whose details changed on the server: an on-demand track gains its album and cover once
+   * its file is fetched, and the summary taken before then has neither.
+   */
+  refresh(trackId: string, albumId: string | null = null): void {
+    const key = keyOf(trackId, albumId)
+    this.missing.delete(key)
+    if (this.inFlight.has(key) || this.queued.has(key)) return
+    this.queued.set(key, { id: trackId, albumId })
+    if (!this.scheduled) {
+      this.scheduled = true
+      setTimer(() => this.flush(), this.batchDelayMs)
+    }
+  }
+
   /** Adds summaries the caller already has (album pages, search results), keyed by their album. */
   prime(tracks: readonly TrackSummary[]): void {
     for (const track of tracks) this.cache.set(keyOf(track.id, track.album?.id ?? null), track)
