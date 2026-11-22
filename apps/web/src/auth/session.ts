@@ -4,7 +4,7 @@ import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { createContext, useContext } from 'react'
 import { useApi } from '@/api/services'
 
-export const setupStatusKey = ['setup-status'] as const
+export const setupStatusKey = queryKeys.setupStatus()
 const isAuthKey = (key: readonly unknown[]) => key.length === 1 && (key[0] === setupStatusKey[0] || key[0] === queryKeys.me()[0])
 
 export function useSetupStatus() {

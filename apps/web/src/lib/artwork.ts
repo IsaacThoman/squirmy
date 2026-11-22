@@ -1,10 +1,12 @@
-import { API_PREFIX, type ArtSize, type Artwork } from '@squirmy/contracts'
+import { artworkUrl } from '@squirmy/client-core'
+import { ART_SIZES, type ArtSize, type Artwork } from '@squirmy/contracts'
 import { createContext, useContext } from 'react'
 import { thumbHashToDataURL } from 'thumbhash'
 
 export type ArtUrlBuilder = (artwork: Artwork, size: ArtSize) => string
 
-export const apiArtUrl: ArtUrlBuilder = (artwork, size) => `${API_PREFIX}/art/${artwork.id}/${size}`
+// Same origin, so the path alone; artworkUrl is the one place that knows the route.
+export const apiArtUrl: ArtUrlBuilder = (artwork, size) => artworkUrl('', artwork, size)!
 
 /** How `Cover` turns artwork into an image URL. Defaults to the server's art route. */
 export const ArtUrlContext = createContext<ArtUrlBuilder>(apiArtUrl)
@@ -31,5 +33,5 @@ export function thumbhashUrl(hash: string): string | undefined {
 
 /** The next size up, for high-density screens. */
 export function doubleSize(size: ArtSize): ArtSize {
-  return size === 96 ? 300 : size === 300 ? 600 : 1200
+  return ART_SIZES[Math.min(ART_SIZES.indexOf(size) + 1, ART_SIZES.length - 1)]!
 }
