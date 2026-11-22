@@ -6,7 +6,7 @@ import { createMockProvider, type MockProvider } from '@squirmy/adapter-mock'
 import { FakeEngine, SessionClient } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import {
-  AcquireResponse, AcquisitionProviderList, AcquisitionUsage, ImportList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent,
+  AcquireResponse, AcquisitionProviderList, AcquisitionUsage, ImportList, LibraryRootList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent,
 } from '@squirmy/contracts'
 import { deliver } from '@squirmy/provider-kit'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
@@ -531,6 +531,10 @@ describe('acquisition end to end', () => {
     expect(await usage()).toMatchObject({ cachedFiles: before.usage.cachedFiles + 1, cachedBytes: before.usage.cachedBytes + file!.size, limitBytes: 0 })
     expect(file!.relPath).toBe(`_Fetched/${album.artist.name}/Heard Once (2024)/01 Sampled.flac`)
     await access(path.join(rootDir, file!.relPath))
+    // The folder counts the delivery, and says how many of its files are cache, so its count adds up with the stats.
+    const roots = body(await app.inject({ url: '/api/v1/admin/library/roots', headers: admin.headers }), LibraryRootList)
+    const folder = roots.items.find((root) => root.id === file!.rootId)!
+    expect(folder.cachedFileCount).toBeGreaterThanOrEqual(1)
   })
 
   it('accepts a play while the cache is over its limit, and evicts nothing that was just fetched', async () => {

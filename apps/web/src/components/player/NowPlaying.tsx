@@ -57,7 +57,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
           </div>
 
           {elsewhere
-            ? <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />
+            ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />
             : state.detached && <OnlyOnThisDevice player={player} className="relative" />}
 
           <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-5">

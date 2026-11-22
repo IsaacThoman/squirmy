@@ -77,7 +77,7 @@ For members who may not fetch, and on servers without a provider, music that is 
 
 ## Devices
 
-Every open tab is a device in your one playback session. When music plays somewhere else, the player bar says "Playing on …" with **Play here**; the controls drive that device and this tab plays nothing. **Devices** lists where you can play, including **Play in this tab**. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
+Every open tab can play in your one playback session, one at a time. When music plays somewhere else, the player bar says "Playing on …" (or "Playing in another tab") with **Play here**; the controls drive that device and this tab plays nothing. **Devices** lists where you can play: **This browser** with **Play in this tab**, one **Another tab** row for the browser's other open tabs, and each of your other devices once. Two devices of the same name are told apart by when they were last used, or a short id; renaming one in **Settings → Playback → This browser's name** is clearer. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
 
 ### Playing separately on one device
 

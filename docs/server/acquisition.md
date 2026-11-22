@@ -20,7 +20,7 @@ In **Admin → Providers**:
 2. **Tell the provider where to deliver**, under **Policy → Delivery address**, when it reaches the server at another address than `PUBLIC_URL` or `http://localhost:4747` (see below).
 3. **Allow people to fetch.** Admins always can. For members, turn on **Can fetch missing music** in **Admin → Users & invites**.
 
-The switch on a provider's card turns it off and on, and its menu edits or deletes it. **Requests**, at the bottom, lists every fetch with who asked, what for, the provider, the state and the error, as they happen; filter it by state.
+The switch on a provider's card turns it off and on, and its menu edits or deletes it. **Cache** shows what fetched music takes: **Cached** (size and number of files), **Kept** (files that are never deleted because someone saved, liked, queued or put them in a playlist, or played them in the last day), **Can make room** (the rest, least recently played first), and the **Limit** with how much of it is used. **Requests**, at the bottom, lists every fetch with who asked, what for, the provider, the state and the error, as they happen; filter it by state.
 
 ### Through the API
 
@@ -93,9 +93,9 @@ Under **Admin → Providers → Policy**, or `GET` and `PATCH /api/v1/admin/acqu
 |---|---|---|
 | `preferLossless` | `true` | With several offers, take lossless first, then the highest quality. |
 | `maxFileBytes` | 500 MiB | A delivered file above this fails the job. A job may receive 1.25 × this per requested track in all, and four files per track plus two (audio, cover, lyrics, cue sheet); more fails the job. |
-| `storageQuotaBytes` | `0` (no limit) | The cache limit: once fetched music adds up to more, the least recently played files nobody holds on to are deleted, down to 90%. A fetch is never refused because of it. See [The cache](#the-cache). |
+| `storageQuotaBytes` | `0` (no limit) | **Cache limit** on screen. The cache limit: once fetched music adds up to more, the least recently played files nobody holds on to are deleted, down to 90%. A fetch is never refused because of it. See [The cache](#the-cache). |
 | `timeoutSeconds` | `900` | A job that has not delivered by then fails. 30 to 86,400. |
-| `targetRootId` | `null` | The managed folder acquired music goes into. `null` uses the same folder as uploads (`importRootId`, else the only managed folder). |
+| `targetRootId` | `null` | **Keep in** on screen. The managed folder whose `_Fetched/` holds the cache. `null` uses the same folder as uploads (`importRootId`, else the only managed folder). |
 | `deliveryBaseUrl` | `null` | The origin of the delivery URLs handed to providers. |
 
 ## The cache

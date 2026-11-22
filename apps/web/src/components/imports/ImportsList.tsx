@@ -31,7 +31,7 @@ export function ImportsList({ imports, ownerOf, onCancel }: ImportsListProps) {
       </div>
     )
   }
-  if (!imports.length) return <EmptyState icon={<Inbox />} title="Nothing imported yet" description="Uploads, the inbox folder and music fetched on demand all show up here." className="rounded-xl border py-10" />
+  if (!imports.length) return <EmptyState icon={<Inbox />} title="Nothing imported yet" description="Uploads and music from the inbox folder show up here." className="rounded-xl border py-10" />
   return (
     <ul aria-label="Recent imports" className="divide-y overflow-hidden rounded-xl border bg-card">
       {imports.map(item => {
