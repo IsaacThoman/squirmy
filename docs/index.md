@@ -22,7 +22,7 @@ features:
     details: Squirmy reads your tags, matches albums against MusicBrainz, fetches covers and lyrics, and can rename managed folders into a clean layout. Every move can be previewed and undone.
     link: /server/library
   - title: Search everything
-    details: Search covers all music, not only what you own. Your library comes first at full brightness; everything else shows gray and can go on your wantlist.
+    details: Search covers all music, not only what you own. Your library comes first at full brightness; everything else shows gray and can go on an optional wantlist.
     link: /use/web
   - title: One session, every device
     details: Playback lives on the server. Start an album in the browser, pick it up on your phone, or use one as a remote for the other.
