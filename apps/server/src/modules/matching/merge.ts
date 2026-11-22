@@ -163,7 +163,10 @@ export async function mergeArtist(fromId: string, intoId: string, executor: Exec
     await moveExternalIds(tx, 'artist', fromId, into)
     for (const table of ['likes', 'ratings'] as const) await moveUserRows(tx, table, 'artist', fromId, into)
     await tx.execute(sql`
-      update ${artists} a set image_asset_id = coalesce(a.image_asset_id, f.image_asset_id)
+      update ${artists} a set image_asset_id = coalesce(a.image_asset_id, f.image_asset_id),
+        -- Either row's picture may be a namesake's (search links Deezer pages by name), so
+        -- the merged artist's is chosen again (enrichment/artist.ts).
+        image_picked_at = null
       from ${artists} f where a.id = ${into} and f.id = ${fromId}`)
     await redirect(tx, artists, fromId, into)
   })

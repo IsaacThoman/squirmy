@@ -1,5 +1,5 @@
 import {
-  Id, LibraryQuery, PageQuery, TrackQuery, TrackSummariesRequest,
+  ArtistReleasesQuery, Id, LibraryQuery, PageQuery, TrackQuery, TrackSummariesRequest,
   type Lyrics, type TrackSummariesResponse, type TrackSummary,
 } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
@@ -8,7 +8,7 @@ import { requireUser } from '../../lib/auth.js'
 import { cachedRead, type CacheTag } from '../../lib/read-cache.js'
 import { home } from './home.js'
 import { listLibraryAlbums, listLibraryArtists, listLibraryGenres, listLibraryTracks } from './library.js'
-import { albumDetail, artistDetail, trackDetail, trackLyrics } from './pages.js'
+import { albumDetail, artistDetail, artistReleases, trackDetail, trackLyrics } from './pages.js'
 import { alignedTrackSummaries } from './summaries.js'
 
 const IdParams = z.object({ id: Id })
@@ -56,6 +56,12 @@ export async function catalogRoutes(app: FastifyInstance) {
     const userId = requireUser(request).id
     const { id } = IdParams.parse(request.params)
     return cachedRead(request, reply, { userId, tags: artistPage }, () => artistDetail(userId, id))
+  })
+  app.get('/artists/:id/releases', async (request, reply) => {
+    const userId = requireUser(request).id
+    const { id } = IdParams.parse(request.params)
+    const query = ArtistReleasesQuery.parse(request.query)
+    return cachedRead(request, reply, { userId, tags: lists }, () => artistReleases(id, query))
   })
   app.get('/albums/:id', async (request, reply) => {
     const userId = requireUser(request).id

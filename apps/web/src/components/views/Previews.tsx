@@ -3,7 +3,7 @@ import { Fragment } from 'react'
 import { Link } from 'react-router'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
 import { Cover } from '@/components/music/Cover'
-import { GridSkeleton, TrackRowsSkeleton } from '@/components/music/Skeletons'
+import { RailSkeleton, TrackRowsSkeleton } from '@/components/music/Skeletons'
 import { albumTypeLabel } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { ArtistHeader } from './ArtistView'
@@ -42,7 +42,7 @@ export function ArtistPreview({ artist }: { artist: ArtistSummary }) {
       <ArtistHeader artist={artist} actions={<PlayActions title={artist.name} />} />
       <div className="flex flex-col gap-10 px-(--gutter) pb-10">
         <TrackRowsSkeleton rows={5} art />
-        <GridSkeleton count={6} />
+        <RailSkeleton />
       </div>
     </div>
   )

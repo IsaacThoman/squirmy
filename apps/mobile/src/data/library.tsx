@@ -218,6 +218,8 @@ export function useLibraryActions() {
   return { setLiked, want };
 }
 
+type AddChange = { id: string; name: string; tracks: readonly TrackSummary[]; anyway?: boolean; before?: number };
+
 /** Playlist edits. Each one updates the cached playlist from the server's answer. */
 export function usePlaylistActions() {
   const api = useSignedInApi();
@@ -229,6 +231,7 @@ export function usePlaylistActions() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.home() });
   };
   const failed = (what: string) => () => notify(`Couldn’t ${what}. Try again.`);
+  const cached = (id: string) => queryClient.getQueryData<PlaylistDetail>(queryKeys.playlist(id));
   const run = <T,>(work: (api: Api) => Promise<T>) => api ? work(api) : Promise.reject(new Error('Signed out'));
 
   const create = useMutation({
@@ -253,13 +256,21 @@ export function usePlaylistActions() {
     },
     onError: failed('delete the playlist'),
   });
+  // Without `anyway`, tracks the playlist already has are left out, and the notice says so.
   const add = useMutation({
-    mutationFn: ({ id, tracks }: { id: string; name: string; tracks: readonly TrackSummary[] }) => run(api => api.userdata.addPlaylistItems(id, {
+    mutationFn: ({ id, tracks, anyway }: AddChange) => run(api => api.userdata.addPlaylistItems(id, {
       tracks: tracks.map(track => ({ trackId: track.id, albumId: track.album?.id ?? null })),
+      skipDuplicates: !anyway,
     })),
-    onSuccess: (playlist, { name }) => {
+    onSuccess: (playlist, change) => {
       settle(playlist);
-      notify(`Added to “${name}”.`);
+      const { name, before } = change;
+      // The answer is the whole playlist, so an unchanged length is how a skipped duplicate shows.
+      if (!change.anyway && before !== undefined && playlist.items.length === before) {
+        notify(`Already in “${name}”.`, { action: { label: 'Add Anyway', run: () => add.mutate({ ...change, anyway: true }) } });
+      } else {
+        notify(`Added to “${name}”.`);
+      }
     },
     onError: failed('add to the playlist'),
   });
@@ -286,12 +297,54 @@ export function usePlaylistActions() {
     onSuccess: settle,
   });
 
+  /**
+   * Removes an item with an Undo notice. Undo adds the track again (the server gives it a
+   * new item) and moves it back to where it was; the list shows it there at once.
+   */
+  const removeItem = (id: string, itemId: string) => {
+    const playlist = cached(id);
+    const index = playlist?.items.findIndex(item => item.itemId === itemId) ?? -1;
+    const item = playlist?.items[index];
+    // Whether the server took the removal; a refusal has its own notice and puts the item back.
+    const removed = edit.mutateAsync({ id, itemId }).then(() => true, () => false);
+    if (!playlist || !item) return;
+    const putBack = () => run(async api => {
+      const added = await api.userdata.addPlaylistItems(id, { tracks: [{ trackId: item.track.id, albumId: item.track.album?.id ?? null }] });
+      const restored = added.items.at(-1);
+      if (!restored || index >= added.items.length - 1) return added;
+      return api.userdata.movePlaylistItem(id, { itemId: restored.itemId, toIndex: index });
+    }).then(settle, () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlist(id) });
+      notify(`Couldn’t put the song back in “${playlist.name}”. Try again.`);
+    });
+    const undo = () => {
+      queryClient.setQueryData<PlaylistDetail>(queryKeys.playlist(id), current => {
+        if (!current || current.items.some(other => other.itemId === itemId)) return current;
+        const items = [...current.items];
+        items.splice(Math.min(index, items.length), 0, item);
+        return { ...current, items, trackCount: items.length };
+      });
+      void removed.then(ok => ok ? putBack() : undefined);
+    };
+    notify(`Removed from “${playlist.name}”.`, { action: { label: 'Undo', run: undo } });
+  };
+
   return {
     create: (name: string) => create.mutateAsync(name),
-    rename: (id: string, name: string) => rename.mutate({ id, name }),
+    rename: (id: string, name: string) => rename.mutateAsync({ id, name }),
     remove: (id: string) => remove.mutate(id),
-    add: (playlist: Pick<PlaylistSummary, 'id' | 'name'>, tracks: readonly TrackSummary[]) => add.mutate({ id: playlist.id, name: playlist.name, tracks }),
+    /**
+     * Whether the playlist already has the track, from its cached page; undefined when
+     * that page has not been loaded.
+     */
+    has: (id: string, trackId: string) => cached(id)?.items.some(item => item.track.id === trackId),
+    /** Adds the tracks, leaving out ones the playlist has unless `anyway` (the person chose to add them again). */
+    add: (playlist: Pick<PlaylistSummary, 'id' | 'name'> & Partial<Pick<PlaylistSummary, 'trackCount'>>, tracks: readonly TrackSummary[], options: { anyway?: boolean } = {}) =>
+      add.mutate({
+        id: playlist.id, name: playlist.name, tracks, anyway: options.anyway,
+        before: cached(playlist.id)?.items.length ?? playlist.trackCount,
+      }),
     move: (id: string, itemId: string, toIndex: number) => edit.mutate({ id, itemId, toIndex }),
-    removeItem: (id: string, itemId: string) => edit.mutate({ id, itemId }),
+    removeItem,
   };
 }

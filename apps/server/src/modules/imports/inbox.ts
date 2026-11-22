@@ -19,7 +19,8 @@ import { lstat, open, readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { and, eq } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
-import { db, getSql } from '../../database/client.js'
+import { db } from '../../database/client.js'
+import { trySessionLock, type SessionLock } from '../../database/locks.js'
 import { imports } from '../../database/schema.js'
 import { AppError } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
@@ -128,8 +129,7 @@ export async function finishInboxClaim(importId: string): Promise<void> {
 class InboxWatcher {
   private readonly seen = new Map<string, { signature: string; since: number }>()
   private readonly warned = new Set<string>()
-  private connection: Awaited<ReturnType<ReturnType<typeof getSql>['reserve']>> | undefined
-  private locked = false
+  private held: SessionLock | null = null
   private timer: NodeJS.Timeout | undefined
   private running: Promise<void> = Promise.resolve()
   private stopped = false
@@ -149,10 +149,8 @@ class InboxWatcher {
     this.stopped = true
     clearTimeout(this.timer)
     await this.running
-    if (this.connection) {
-      if (this.locked) await this.connection`select pg_advisory_unlock(hashtext('squirmy.inbox'))`.catch(() => {})
-      this.connection.release()
-    }
+    await this.held?.release().catch(() => {})
+    this.held = null
   }
 
   private warnOnce(key: string, message: string) {
@@ -163,17 +161,16 @@ class InboxWatcher {
 
   /** Takes the inbox lock, and on first taking it finishes claims a crash interrupted. */
   private async lock(): Promise<boolean> {
-    if (this.locked) return true
-    this.connection ??= await getSql().reserve()
-    const [row] = await this.connection<{ locked: boolean }[]>`select pg_try_advisory_lock(hashtext('squirmy.inbox')) as locked`
-    this.locked = Boolean(row?.locked)
-    if (this.locked) {
+    if (this.held) return true
+    // A session lock (locks.ts) rather than a pooled connection kept for as long as this runs.
+    this.held = await trySessionLock('squirmy.inbox')
+    if (this.held) {
       const interrupted = await db.select({ id: imports.id }).from(imports).where(and(eq(imports.kind, 'inbox'), eq(imports.status, 'receiving')))
       for (const { id } of interrupted) {
         await finishInboxClaim(id).catch((error: unknown) => warn(`Could not finish the inbox import ${id}: ${(error as Error).message}`))
       }
     }
-    return this.locked
+    return this.held !== null
   }
 
   async tick() {

@@ -59,7 +59,9 @@ describe('album detail from each source', () => {
 
   it('fills in an album stub that only has a release-group MBID with its canonical edition', async () => {
     const { albumId } = await albumStub({ title: 'OK Computer', artist: 'Radiohead', mbid: okComputer })
-    await ensureAlbumDetail(albumId)
+    // MusicBrainz alone; Deezer's stand-in has its own test below.
+    await updateServerSettings({ deezerEnabled: false })
+    await albumDetailRun(albumId).finally(() => updateServerSettings({ deezerEnabled: true }))
 
     const { album, release, tracks } = await canonical(albumId)
     expect(album).toMatchObject({ mbid: okComputer, detailLevel: 2 })
@@ -139,8 +141,8 @@ describe('album detail from each source', () => {
     await updateServerSettings({ musicBrainzEnabled: false, deezerEnabled: false, coverArtArchiveEnabled: false })
     const { albumId } = await albumStub({ title: 'In Rainbows', artist: 'Radiohead', deezerId: 14880659 })
     const { albumId: byMbid } = await albumStub({ title: 'Kid A', artist: 'Radiohead', mbid: '0e7d5b1e-2222-4000-8000-000000000000' })
-    await ensureAlbumDetail(albumId)
-    await ensureAlbumDetail(byMbid)
+    await albumDetailRun(albumId)
+    await albumDetailRun(byMbid)
     expect(http.requests).toEqual([])
     expect(await db.select().from(releases).where(eq(releases.albumId, albumId))).toEqual([])
     await updateServerSettings({ musicBrainzEnabled: true, deezerEnabled: true, coverArtArchiveEnabled: true })
@@ -164,7 +166,7 @@ describe('album detail with owned music and merges', () => {
   it('follows a MusicBrainz merge: a row with the old release-group id is merged into the one with the new id', async () => {
     const [current] = await db.execute<{ id: string }>(sql`select id from albums where mbid = ${okComputer}`)
     const { albumId: old } = await albumStub({ title: 'OK Computer', artist: 'Radiohead', mbid: mergedOkComputer })
-    await ensureAlbumDetail(old)
+    await albumDetailRun(old)
     expect((await albumRow(old)).mergedIntoId).toBe(current!.id)
   })
 
@@ -177,13 +179,47 @@ describe('album detail with owned music and merges', () => {
   })
 })
 
+describe('album detail of a release group only MusicBrainz listed', () => {
+  const context = useAlbumTests()
+  const { http } = context
+
+  it('shows Deezer’s track list of it first, then MusicBrainz’s canonical edition', async () => {
+    const { albumId } = await albumStub({ title: 'OK Computer', artist: 'Radiohead', mbid: okComputer })
+    // The page is usable once Deezer's list is written, before MusicBrainz answers.
+    expect(await ensureAlbumDetail(albumId)).toBe(false)
+    expect(http.requests).toContain('GET https://api.deezer.com/search/album?q=Radiohead+OK+Computer&limit=10')
+    expect((await albumDetail(context.userId, albumId)).discs.flatMap((disc) => disc.tracks).length).toBeGreaterThanOrEqual(12)
+    await albumDetailRun(albumId)
+
+    const { album, release, tracks } = await canonical(albumId)
+    expect(album).toMatchObject({ mbid: okComputer, detailLevel: 2, mergedIntoId: null })
+    expect(release).toMatchObject({ mbid: okComputerCanonical, trackCount: 12 })
+    expect(tracks.every((track) => track.mbid)).toBe(true)
+    // Its Deezer ids are kept, so its tracks play on demand.
+    expect(await deezerIdsOf('album', albumId)).toEqual(['14879699'])
+    const [airbag] = await db.select({ id: recordings.id }).from(recordings).where(sql`${recordings.isrcs} @> array['GBAYE9701274'] and ${recordings.mergedIntoId} is null`)
+    expect(await deezerIdsOf('recording', airbag!.id)).toEqual(['138539971'])
+  })
+
+  it('takes no stand-in by another artist or of another release', async () => {
+    const { albumId } = await albumStub({ title: 'Antisocialites', artist: 'Not Alvvays', mbid: '1f0a3090-ae8c-4fbd-9b70-b4371961ef11' })
+    await updateServerSettings({ musicBrainzEnabled: false })
+    try {
+      await albumDetailRun(albumId)
+    } finally {
+      await updateServerSettings({ musicBrainzEnabled: true })
+    }
+    expect(await deezerIdsOf('album', albumId)).toEqual([])
+  })
+})
+
 describe('album detail bounds', () => {
   const context = useAlbumTests()
   const { http } = context
 
   it('runs once for concurrent callers', async () => {
     const { albumId } = await albumStub({ title: 'Antisocialites', artist: 'Alvvays', mbid: '1f0a3090-ae8c-4fbd-9b70-b4371961ef11' })
-    await Promise.all([ensureAlbumDetail(albumId), ensureAlbumDetail(albumId), albumDetail(context.userId, albumId)])
+    await Promise.all([albumDetailRun(albumId), ensureAlbumDetail(albumId), albumDetail(context.userId, albumId)])
     expect(http.requests.length).toBeGreaterThan(0)
     expect(new Set(http.requests).size).toBe(http.requests.length)
     expect((await albumRow(albumId)).detailLevel).toBe(2)
@@ -285,12 +321,12 @@ describe('album detail folds stand-in recordings into the release', () => {
   it('merges a top-track stub that owns a file filed under the album into its MusicBrainz track', async () => {
     const artistId = await artistStub({ name: 'Radiohead', mbid: radiohead })
     const { albumId } = await albumStub({ title: 'OK Computer', artist: 'Radiohead', artistId, mbid: okComputer })
-    await ensureAlbumDetail(albumId)
+    await albumDetailRun(albumId)
     // Played from the artist page, fetched, and filed under the complete album.
     const stub = await topTrackStub('Karma Police', artistId, 262_000)
     const root = await createLibraryRoot()
     await createFile({ rootId: root.id, recordingId: stub, albumId })
-    await ensureAlbumDetail(albumId)
+    await albumDetailRun(albumId)
 
     const [row] = await db.select({ mergedIntoId: recordings.mergedIntoId }).from(recordings).where(eq(recordings.id, stub))
     expect(row!.mergedIntoId).not.toBeNull()
@@ -323,7 +359,7 @@ describe('album detail for an owned album without a MusicBrainz edition', () => 
     // A one-track local album that was merged into the release group's row later.
     const owned = await createAlbum({ title: 'OK Computer', artist, mbid: okComputer, owned: true, tracks: [{ title: 'Airbag', durationMs: 284_000 }] })
     await db.update(albums).set({ detailLevel: 1 }).where(eq(albums.id, owned.albumId))
-    await ensureAlbumDetail(owned.albumId)
+    await albumDetailRun(owned.albumId)
 
     const { release, tracks } = await canonical(owned.albumId)
     expect(release.mbid).toBe(okComputerCanonical)

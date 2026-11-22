@@ -151,10 +151,10 @@ export function SheetSystemVolume({ label }: { label: string }) {
   </VStack>;
 }
 
-export function SheetField({ label, value, onChange, onSubmit, autoFocus }: SheetFieldProps) {
+export function SheetField({ label, value, onChange, onSubmit, autoFocus, maxLength }: SheetFieldProps) {
   const colors = useColors();
   const text = useNativeState(value);
-  return <TextField text={text} onTextChange={onChange} placeholder={label} autoFocus={autoFocus}
+  return <TextField text={text} onTextChange={onChange} placeholder={label} autoFocus={autoFocus} maxLength={maxLength}
     modifiers={[accessibilityLabel(label), submitLabel('done'), onSubmitModifier(onSubmit), font({ textStyle: 'body' }),
       padding({ horizontal: 14 }), frame({ maxWidth: Infinity, minHeight: 48 }), background(colors.surface), clipShape('roundedRectangle', 14)]} />;
 }

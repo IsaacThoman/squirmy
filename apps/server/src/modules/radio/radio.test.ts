@@ -1,5 +1,5 @@
 import { RadioResponse, type QueueSeed } from '@squirmy/contracts'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
@@ -328,9 +328,21 @@ describe('radio', () => {
       expect(http.requests).toContain('GET https://api.deezer.com/search/artist?q=Radiohead&limit=5')
       // Blur is named by both sources; Jeff Buckley only by Deezer (its top answer), The Beatles
       // only by ListenBrainz (by MBID). Arcade Fire's MBID differs from ListenBrainz's.
-      expect(similar.map((one) => one.name)).toEqual(['Blur', 'Jeff Buckley', 'The Beatles'])
+      const names = similar.map((one) => one.name)
+      expect(names[0]).toBe('Blur')
+      expect(names).toEqual(expect.arrayContaining(['Jeff Buckley', 'The Beatles']))
+      expect(names).not.toContain('Arcade Fire')
       expect(similar[0]!.score).toBeGreaterThan(similar[1]!.score)
-      expect(similar[2]!.score).toBeGreaterThan(0)
+      // Deezer's suggestions the catalog lacked are stubs now, with their page and picture,
+      // so the rail of a big artist is not limited to what someone happened to search.
+      const pumpkins = similar.find((one) => one.name === 'The Smashing Pumpkins')!
+      const [stub] = await db.execute<{ image: string | null; deezer: string | null }>(sql`
+        select a.image_asset_id as image, (select external_id from external_ids e where e.provider = 'deezer' and e.entity_type = 'artist' and e.entity_id = a.id) as deezer
+        from artists a where a.id = ${pumpkins.artistId}`)
+      expect(stub!.deezer).toBeTruthy()
+      expect(stub!.image).toBeTruthy()
+      // Asked again, the same rows answer.
+      expect((await similarArtists(artist.id)).map((one) => one.artistId)).toEqual(similar.map((one) => one.artistId))
     })
 
     it('ranks tracks by similar artists first', async () => {

@@ -1,8 +1,8 @@
 import { BlurView } from 'expo-blur';
 import { createContext, useCallback, useContext, useEffect, useState, type PropsWithChildren } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AccessibilityInfo, Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
+import { useTabChrome } from './tabChrome';
 import { createThemedStyles } from './theme';
 
 const shownMs = 2800;
@@ -17,7 +17,7 @@ type Notify = (message: string, options?: NoticeOptions) => void;
 
 const NoticeContext = createContext<Notify>(() => undefined);
 
-/** Shows `message` briefly at the top of the screen, above everything, and announces it; `action` adds a button such as Undo, `detail` a line under it. */
+/** Shows `message` briefly above the mini-player, over everything, and announces it; `action` adds a button such as Undo, `detail` a line under it. */
 export function useNotice() {
   return useContext(NoticeContext);
 }
@@ -48,11 +48,16 @@ export function NoticeProvider({ children }: PropsWithChildren) {
   </NoticeContext.Provider>;
 }
 
+/**
+ * Rises just above the mini-player and the tab bar, as toasts do in streaming apps: at the
+ * top it covered the pages' back and header buttons. An open keyboard lifts it above itself.
+ */
 function NoticeBanner({ message, detail, action }: { message: string; detail?: string; action?: NoticeAction }) {
   const styles = useStyles();
-  const { top } = useSafeAreaInsets();
-  return <Animated.View entering={FadeInUp.duration(220)} exiting={FadeOutUp.duration(220)}
-    pointerEvents={action ? 'box-none' : 'none'} style={[styles.wrap, { top: top + 6 }]}>
+  const { contentInset } = useTabChrome();
+  const keyboard = useKeyboardHeight();
+  return <Animated.View entering={FadeInDown.duration(220)} exiting={FadeOutDown.duration(220)}
+    pointerEvents={action ? 'box-none' : 'none'} style={[styles.wrap, { bottom: Math.max(contentInset, keyboard + 12) }]}>
     <BlurView tint="systemChromeMaterial" intensity={90} style={[styles.pill, action && styles.withAction]}>
       {detail
         ? <View style={[styles.lines, action && styles.textWithAction]}>
@@ -67,6 +72,19 @@ function NoticeBanner({ message, detail, action }: { message: string; detail?: s
       </Pressable>}
     </BlurView>
   </Animated.View>;
+}
+
+function useKeyboardHeight(): number {
+  const [height, setHeight] = useState(() => Keyboard.isVisible() ? Keyboard.metrics()?.height ?? 0 : 0);
+  useEffect(() => {
+    // iOS says so as the keyboard starts to move; Android only once it has.
+    const subscriptions = [
+      Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', event => setHeight(event.endCoordinates.height)),
+      Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setHeight(0)),
+    ];
+    return () => subscriptions.forEach(subscription => subscription.remove());
+  }, []);
+  return height;
 }
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
