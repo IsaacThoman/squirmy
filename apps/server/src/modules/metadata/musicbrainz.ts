@@ -192,6 +192,20 @@ type RawRelease = {
 }
 
 const provider = 'musicbrainz'
+
+/**
+ * MusicBrainz's special-purpose artists: Various Artists, [anonymous], [no artist],
+ * [traditional] and [unknown]. They stand for "no one in particular" on credits, so they
+ * have no discography of their own; Various Artists alone is credited on hundreds of
+ * thousands of compilations.
+ */
+export const specialPurposeArtists: ReadonlySet<string> = new Set([
+  '89ad4ac3-39f7-470e-963a-56509c546377',
+  'f731ccc4-e22a-43af-a747-64213329e088',
+  'eec63d3c-3b81-4ad4-b1e4-7c147d4d2b61',
+  '9be7f096-97ec-4615-8957-8d40b5dcbc41',
+  '125ec42a-7229-4250-afc5-e057484327fe',
+])
 const lookupTtl = 7 * 86400
 const searchTtl = 86400
 const pageSize = 100

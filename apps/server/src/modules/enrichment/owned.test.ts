@@ -168,6 +168,23 @@ describe('owned music enrichment', () => {
     expect(section?.kind === 'albums' && section.albums.map((album) => album.id)).toEqual([fresh])
   })
 
+  it('leaves Various Artists out of new releases: owning a compilation adds no one\'s discography', async () => {
+    // 2026-11-22: an owned compilation made Various Artists a library artist, its
+    // discography brought in some 266,000 compilations and Home listed them.
+    const various = await createArtist({ name: 'Various Artists', mbid: '89ad4ac3-39f7-470e-963a-56509c546377' })
+    const compilation = await createAlbum({ title: 'Owned Compilation', artist: various, type: 'compilation', owned: true })
+    // Enriched already, so the sweep test that follows finds only its own work.
+    await db.update(albums).set({ enrichedAt: new Date() }).where(eq(albums.id, compilation.albumId))
+    await db.update(artists).set({ detailLevel: 2, fetchedAt: new Date() }).where(eq(artists.id, various.id))
+    const recent = await createAlbum({ title: 'Some Compilation', artist: various, type: 'compilation' })
+    await db.update(albums).set({ releaseDate: new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10) }).where(eq(albums.id, recent.albumId))
+
+    http.requests.length = 0
+    await refreshNewReleases()
+    expect(http.requests.filter((url) => url.includes('89ad4ac3-39f7-470e-963a-56509c546377'))).toEqual([])
+    expect(await newReleaseAlbumIds(200)).not.toContain(recent.albumId)
+  })
+
   it('sweeps owned music that was never enriched', async () => {
     await db.execute(sql`delete from pgboss.job where name like 'enrichment.%'`)
     const other = await createAlbum({ title: 'Never Enriched', owned: true })
@@ -229,4 +246,5 @@ describe('owned music enrichment', () => {
     expect(await queued('enrichment.lyrics')).toEqual(expect.arrayContaining(enriched.tracks.map((track) => track.recordingId)))
     await patch({ fanartKey: null })
   })
+
 })

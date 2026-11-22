@@ -2,6 +2,7 @@
 import { queryKeys } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
+import { uuidArray } from '../catalog/sql.js'
 import { musicbrainz } from '../metadata/index.js'
 import { upsertDiscography } from './artist.js'
 import { attempt, changed } from './rows.js'
@@ -9,8 +10,14 @@ import { attempt, changed } from './rows.js'
 /** Albums released within this many days count as new. */
 const windowDays = 120
 
-/** Artists credited on an album with a present file. */
-const libraryArtists = sql`select aa.artist_id from album_artists aa join media_files f on f.album_id = aa.album_id and f.missing_since is null`
+/**
+ * Artists credited on an album with a present file. MusicBrainz's placeholders (Various
+ * Artists on every compilation) are no one's new music, and their discographies are huge.
+ */
+const libraryArtists = sql`
+  select aa.artist_id from album_artists aa join media_files f on f.album_id = aa.album_id and f.missing_since is null
+  join artists ar on ar.id = aa.artist_id
+  where ar.mbid is null or not (ar.mbid = any(${uuidArray([...musicbrainz.specialPurposeArtists])}))`
 
 /**
  * Browses the (cached) discography of every library artist with an MBID and upserts
