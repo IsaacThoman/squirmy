@@ -20,12 +20,15 @@ import { entityKey, entityTable, resolveEntity, storedType } from './entities.js
 async function invalidateLike(userId: string, type: LikeEntityType, id: string) {
   const keys: (readonly unknown[])[] = [queryKeys.likes(), queryKeys.home(), entityKey(type, id)]
   if (type === 'track') {
-    // Track hearts also show on album and artist pages, playlists and history.
+    // Track hearts also show on album and artist pages, playlists, history, songs lists and search results.
     const pages = await db.execute<{ kind: 'album' | 'artist'; id: string }>(sql`
       select distinct 'album' as kind, rl.album_id as id from release_tracks rt join releases rl on rl.id = rt.release_id where rt.recording_id = ${id}
       union
+      -- Album pages also list owned recordings filed under them that the release does not.
+      select 'album', album_id from media_files where recording_id = ${id} and album_id is not null
+      union
       select 'artist', artist_id from recording_artists where recording_id = ${id}`)
-    keys.push(queryKeys.playlists(), queryKeys.history(), ...pages.map((page) => entityKey(page.kind, page.id)))
+    keys.push(queryKeys.playlists(), queryKeys.history(), queryKeys.libraryTracks(), queryKeys.search(), ...pages.map((page) => entityKey(page.kind, page.id)))
   }
   await invalidate({ user: userId }, keys)
 }

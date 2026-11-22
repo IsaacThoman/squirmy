@@ -123,7 +123,7 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 <data>/secret.key                     generated root secret (0600)
 <data>/assets/ab/cd/<sha256>.<ext>    original images, content addressed; rebuilt from their source when lost
 <data>/art/<assetId>/<size>.webp      derived renditions, safe to delete
-<data>/transcodes/<fileId>/<profile>.<ext>
+<data>/transcodes/<fileId>/<profile>.<source>.<ext>  transcodes; <source> is the file's size and mtime
 <data>/staging/<importId>/            files being imported
 ```
 
@@ -251,13 +251,13 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 ### Playback and streaming
 
 - Clients ask `GET /tracks/:id/playback` and receive a signed URL. The stream route accepts the signature instead of a session so `<audio>`, AVPlayer and downloads need no headers. Signatures bind the file id, profile, user id and an expiry of 12 hours.
-- File choice: files of the recording that belong to the requested album first, then lossless over lossy, then higher bitrate.
+- File choice: files of the recording that belong to the requested album first, then lossless over lossy, then higher bitrate. Both ids follow merges, so a queue entry that names an album merged away still gets that album's file.
 - `quality=original` serves the file as is when the client's codec list includes its codec, and transcodes to `aac_256` otherwise. `high` is `aac_256`. `data_saver` is `opus_128` when the client lists opus and `mp3_192` otherwise. The mapping lives in `streaming/profiles.ts`.
 - Signed URLs carry `exp` (epoch seconds), `uid` and `sig`, an HMAC from `sign('stream', …)`. A request without a valid signature may use the session instead.
-- A URL names the file, not its path, so it keeps working when organize files it: a file not at its row's path is looked for at the other end of a move that is running (organize renames on disk before it updates the row), and is marked missing only when it is in neither place.
-- A transcode is written to the cache while it is streamed to the first requester; later requests get the cached file with Range support. ffmpeg writes to a pipe, so every streamed byte is final: AAC 256k in ADTS (`.aac`), Opus 128k in Ogg, MP3 at constant bitrate without a Xing frame. Encoders: `aac`, `libopus`, `libmp3lame`.
+- A URL names the file, not its path, so it keeps working when organize files it: a file not at its row's path is looked for at the other end of a move that is running (organize renames on disk before it updates the row), and is marked missing only when it is in neither place. When the library root itself is not a readable folder (an unmounted drive or share) the request answers 503 `root_unavailable` and nothing is marked missing, as the scanner does.
+- A transcode is written to the cache while it is streamed to the first requester; later requests get the cached file with Range support. A cached transcode is used only while the source's size and mtime are the ones it was made from, so a file replaced or retagged in place is encoded again. ffmpeg writes to a pipe, so every streamed byte is final: AAC 256k in ADTS (`.aac`), Opus 128k in Ogg, MP3 at constant bitrate without a Xing frame. Encoders: `aac`, `libopus`, `libmp3lame`.
 - Requests for the same transcode share one ffmpeg per process; a client that leaves does not stop it. At most half the CPU cores (at least two) encode at once.
-- `streaming.transcode` `{ fileId, profile }` builds a transcode ahead of time. `streaming.evict` runs hourly and at worker start: it reconciles rows with files on disk and deletes least-recently-used transcodes beyond `transcodeCacheMaxBytes`.
+- `streaming.transcode` `{ fileId, profile }` builds a transcode ahead of time. `streaming.evict` runs hourly and at worker start: it reconciles rows with files on disk and deletes least-recently-used transcodes beyond `transcodeCacheMaxBytes`, sparing those used in the last half hour so a track being played keeps answering Range requests.
 - Normalization values: prefer measured loudness (`-18 − loudness_lufs` gives the gain); fall back to the file's ReplayGain tags. Album values come from `release_loudness`.
 - Loudness is EBU R128 from ffmpeg's `ebur128` filter. `loudness.measure` `{ fileId }` stores a file's integrated loudness and true peak, then queues `loudness.album` `{ releaseId }`, which decodes the release's present files in track order through one concat filter, so gating covers the album as a whole. `loudness.sweep` (every 10 minutes and at worker start) queues files with no loudness in batches of 500 and releases whose file set changed. Silent and very short files store -70 LUFS, which yields no gain.
 
