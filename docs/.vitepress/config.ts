@@ -68,12 +68,13 @@ export default defineConfig({
   // Dead links fail the build, so a broken link fails CI.
   ignoreDeadLinks: false,
   head: [
-    ['link', { rel: 'icon', type: 'image/png', href: `${base}icon.png` }],
-    ['link', { rel: 'apple-touch-icon', href: `${base}icon.png` }],
+    ['link', { rel: 'icon', sizes: '48x48', href: `${base}favicon.ico` }],
+    ['link', { rel: 'icon', type: 'image/png', href: `${base}squirmy-mark.png` }],
+    ['link', { rel: 'apple-touch-icon', href: `${base}apple-touch-icon.png` }],
     ['meta', { name: 'theme-color', content: '#5B439E' }],
   ],
   themeConfig: {
-    logo: '/icon.png',
+    logo: '/squirmy-mark.png',
     siteTitle: 'Squirmy',
     nav: [
       { text: 'Quick start', link: '/server/quick-start' },
@@ -90,8 +91,5 @@ export default defineConfig({
       text: 'Edit this page on GitHub',
     },
     outline: { level: [2, 3] },
-  },
-  vite: {
-    publicDir: '../apps/mobile/assets',
   },
 })
