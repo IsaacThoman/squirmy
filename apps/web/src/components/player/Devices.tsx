@@ -1,4 +1,4 @@
-import type { SessionMoveResult } from '@squirmy/client-core'
+import { listedDevices, playingOnText, type SessionMoveResult } from '@squirmy/client-core'
 import { queryKeys, type DeviceInfo } from '@squirmy/contracts'
 import { useQuery } from '@tanstack/react-query'
 import { AppWindow, Laptop, ListPlus, MonitorSpeaker, Smartphone, Speaker, Split, Unlink2, Users } from 'lucide-react'
@@ -8,16 +8,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { formatIdle } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
-import type { Player } from '@/player/player-context'
+import { labelDevice, type Player } from '@/player/player-context'
 import { VolumeControl } from './Transport'
 
 export function DeviceIcon({ kind, className }: { kind: DeviceInfo['kind']; className?: string }) {
   const Icon = kind === 'web' ? AppWindow : kind === 'desktop' ? Laptop : kind === 'ios' || kind === 'android' ? Smartphone : Speaker
   return <Icon aria-hidden className={className} />
-}
-
-function deviceName(device: DeviceInfo, thisDeviceId: string) {
-  return device.id === thisDeviceId ? 'This browser' : device.name
 }
 
 /** "Listening on …" and the other places this session can play. */
@@ -49,7 +45,10 @@ export function DevicesPopover({ player, trigger, side = 'top' }: { player: Play
  * detached it shows that instead, with the ways back.
  */
 export function DeviceList({ player, onTransferred }: { player: Player; onTransferred?: () => void }) {
-  const { devices, activeDeviceId, thisDeviceId, volumes, detached, canDetach } = player.state
+  const { activeDeviceId, thisDeviceId, volumes, detached, canDetach } = player.state
+  // One row per browser, not per tab (client-core `listedDevices`).
+  const devices = listedDevices(player.state.devices, thisDeviceId)
+  const name = (device: DeviceInfo) => labelDevice(player.state, device).name
   // A detached device plays its own queue: it is listed apart, and playback never moves to it.
   const separate = devices.filter(device => device.detached && device.id !== thisDeviceId)
   const shared = devices.filter(device => !device.detached)
@@ -69,12 +68,12 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
           </div>
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">Listening on</p>
-            <p className={cn('truncate text-sm font-medium', active && 'text-primary')}>{active ? deviceName(active, thisDeviceId) : 'Nothing right now'}</p>
+            <p className={cn('truncate text-sm font-medium', active && 'text-primary')}>{active ? name(active) : 'Nothing right now'}</p>
           </div>
         </div>
         {active && (
           <VolumeControl
-            label={`${deviceName(active, thisDeviceId)} volume`}
+            label={`${name(active)} volume`}
             volume={volumes[active.id] ?? 1}
             onChange={volume => player.controls.setVolume(volume, active.id)}
             fill
@@ -96,8 +95,8 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
                 >
                   <span className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"><DeviceIcon kind={device.kind} className="size-4" /></span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm" title={deviceName(device, thisDeviceId)}>{deviceName(device, thisDeviceId)}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{device.id === thisDeviceId ? 'Play in this tab' : `${device.canPlay ? deviceKind(device.kind) : 'Remote control only'}${formatIdle(device.lastSeenAt)}`}</span>
+                    <span className="block truncate text-sm" title={name(device)}>{name(device)}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{deviceDetail(player, device)}</span>
                   </span>
                 </button>
               </li>
@@ -105,7 +104,7 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
           </ul>
         </div>
       )}
-      <PlayingSeparately devices={separate} />
+      <PlayingSeparately player={player} devices={separate} />
       {/* Hidden, not disabled, where it cannot work: a tab that only controls, or an older server. */}
       {canDetach && (
         <div className="mt-1 border-t pt-1">
@@ -164,7 +163,7 @@ function DetachedList({ player, separate, onDone }: { player: Player; separate: 
           <ActionRow icon={<ListPlus className="size-4" />} title="Bring this queue with me" detail="Your other devices switch to what’s playing here." onClick={() => void rejoin(true)} />
         )}
       </div>
-      <PlayingSeparately devices={separate} />
+      <PlayingSeparately player={player} devices={separate} />
     </div>
   )
 }
@@ -173,7 +172,7 @@ function DetachedList({ player, separate, onDone }: { player: Player; separate: 
  * The devices playing their own queue, each with what it plays. Shown on every device, so
  * whoever wonders why the kitchen did not change finds out here. Not pressable.
  */
-function PlayingSeparately({ devices }: { devices: DeviceInfo[] }) {
+function PlayingSeparately({ player, devices }: { player: Player; devices: DeviceInfo[] }) {
   if (!devices.length) return null
   return (
     <div className="mt-1 border-t pt-1">
@@ -183,7 +182,7 @@ function PlayingSeparately({ devices }: { devices: DeviceInfo[] }) {
           <li key={device.id} className="flex items-center gap-3 px-2 py-1.5">
             <span className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"><DeviceIcon kind={device.kind} className="size-4" /></span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm" title={device.name}>{device.name}</span>
+              <span className="block truncate text-sm" title={labelDevice(player.state, device).name}>{labelDevice(player.state, device).name}</span>
               <span className="block truncate text-xs text-muted-foreground"><SeparateTrack state={device.detached!} /></span>
             </span>
           </li>
@@ -235,16 +234,25 @@ function moveError(result: Extract<SessionMoveResult, { ok: false }>, fallback: 
   return fallback
 }
 
+/** A row's second line: what the device is and how long it has been quiet, plus what tells it from a twin. */
+function deviceDetail(player: Player, device: DeviceInfo) {
+  const label = labelDevice(player.state, device)
+  if (label.relation === 'this') return 'Play in this tab'
+  if (label.relation === 'tab') return `Open in this browser${formatIdle(device.lastSeenAt)}`
+  const what = device.canPlay ? deviceKind(device.kind) : 'Remote control only'
+  return `${what}${formatIdle(device.lastSeenAt)}${label.hint ? ` · ${label.hint}` : ''}`
+}
+
 function deviceKind(kind: DeviceInfo['kind']) {
   return { ios: 'iPhone app', android: 'Android app', web: 'Web browser', desktop: 'Computer', other: 'Speaker' }[kind]
 }
 
 /** Shown while another device plays: where the sound is, and a way to bring it here. */
-export function PlayingElsewhere({ device, onPlayHere, className }: { device: DeviceInfo; onPlayHere: () => void; className?: string }) {
+export function PlayingElsewhere({ player, device, onPlayHere, className }: { player: Player; device: DeviceInfo; onPlayHere: () => void; className?: string }) {
   return (
     <div className={cn('flex h-8 items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-primary', className)}>
       <DeviceIcon kind={device.kind} className="size-3.5 shrink-0" />
-      <span className="truncate">Playing on {device.name}</span>
+      <span className="truncate">{playingOnText(labelDevice(player.state, device))}</span>
       <button type="button" onClick={onPlayHere} className="ml-1.5 h-6 shrink-0 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
         Play here
       </button>

@@ -46,16 +46,18 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
     await seedLargeLibrary({ albums: ALBUMS, tracksPerAlbum: TRACKS_PER_ALBUM, artists: 2_000, unownedEvery: 10, userId: user.id, plays: 50_000, likes: 2_000 })
     // Saves next to the collection: albums without files, and tracks of them.
     await db.execute(sql`
-      insert into library_items (user_id, entity_type, entity_id, created_at)
+      insert into likes (user_id, entity_type, entity_id, created_at)
       select ${user.id}, 'album', a.id, timestamptz '2026-01-01' + n * interval '20 minutes'
       from (select id, row_number() over (order by id) as n from albums a
-        where not exists (select 1 from media_files f where f.album_id = a.id) limit 500) a`)
+        where not exists (select 1 from media_files f where f.album_id = a.id) limit 500) a
+      on conflict do nothing`)
     await db.execute(sql`
-      insert into library_items (user_id, entity_type, entity_id, created_at)
+      insert into likes (user_id, entity_type, entity_id, created_at)
       select ${user.id}, 'recording', rt.recording_id, timestamptz '2026-01-01' + n * interval '15 minutes'
       from (select rt.recording_id, row_number() over (order by rt.recording_id) as n from release_tracks rt
-        where not exists (select 1 from media_files f where f.recording_id = rt.recording_id) limit 500) rt`)
-    await db.execute(sql`analyze library_items`)
+        where not exists (select 1 from media_files f where f.recording_id = rt.recording_id) limit 500) rt
+      on conflict do nothing`)
+    await db.execute(sql`analyze likes`)
     report.push(`seeded in ${Math.round(performance.now() - started)} ms`)
   }, 300_000)
   afterEach(() => {

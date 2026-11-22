@@ -1,6 +1,6 @@
 import type { AlbumSummary, TrackAvailability } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
-import { albumNote, albumPresentation, canFetch, isPlayable, trackLibraryToggle, UNAVAILABLE_LABEL, type Viewer } from './availability.js'
+import { albumNote, albumPresentation, canFetch, isPlayable, librarySave, UNAVAILABLE_LABEL, type Viewer } from './availability.js'
 
 const admin: Viewer = { role: 'admin', canAcquire: false }
 const fetcher: Viewer = { role: 'member', canAcquire: true }
@@ -56,26 +56,14 @@ describe('albumPresentation and albumNote', () => {
   })
 })
 
-describe('trackLibraryToggle', () => {
-  it('offers Remove only for the user\'s own save', () => {
-    expect(trackLibraryToggle({ inLibrary: true, library: 'saved' })).toBe(true)
-    expect(trackLibraryToggle({ inLibrary: false, library: null })).toBe(false)
-  })
-
-  it('offers nothing for collection songs and songs of an added album', () => {
-    expect(trackLibraryToggle({ inLibrary: true, library: 'collection' })).toBeNull()
-    expect(trackLibraryToggle({ inLibrary: true, library: 'album' })).toBeNull()
-    // Saving one does not make it removable: it would stay in the library.
-    expect(trackLibraryToggle({ inLibrary: true, library: 'collection' }, true)).toBeNull()
+describe('librarySave', () => {
+  it('is the heart: saved items offer Remove, others Save', () => {
+    expect(librarySave({ liked: true })).toEqual({ saved: true, label: 'Remove from library' })
+    expect(librarySave({ liked: false })).toEqual({ saved: false, label: 'Save to library' })
   })
 
   it('follows what the user just did ahead of the server', () => {
-    expect(trackLibraryToggle({ inLibrary: false, library: null }, true)).toBe(true)
-    expect(trackLibraryToggle({ inLibrary: true, library: 'saved' }, false)).toBe(false)
-  })
-
-  it('offers nothing when the server does not say, and falls back to inLibrary without a reason', () => {
-    expect(trackLibraryToggle({})).toBeNull()
-    expect(trackLibraryToggle({ inLibrary: true })).toBe(true)
+    expect(librarySave({ liked: false }, true)).toEqual({ saved: true, label: 'Remove from library' })
+    expect(librarySave({ liked: true }, false)).toEqual({ saved: false, label: 'Save to library' })
   })
 })

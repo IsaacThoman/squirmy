@@ -192,7 +192,7 @@ describe('GET /search/catalog', () => {
     })
   })
 
-  it("finds the user's album under other punctuation and editions, and only those", async () => {
+  it("finds the user's album under other punctuation, and keeps other editions apart", async () => {
     const beatles = await createArtist({ name: 'The Beatles' })
     const abbey = await createAlbum({ title: 'Abbey Road', artist: beatles, owned: true, tracks: [{ title: 'Come Together' }] })
     const nirvana = await createArtist({ name: 'Nirvana' })
@@ -213,10 +213,17 @@ describe('GET /search/catalog', () => {
       ],
       tracks: [],
     })
-    expect(ids.albums.slice(0, 2)).toEqual([abbey.albumId, nevermind.albumId])
-    expect(ids.albums).toHaveLength(5)
-    const created = await db.select({ title: albums.title, type: albums.type }).from(albums).where(sql`${albums.id} = any(${`{${ids.albums.slice(2).join(',')}}`}::uuid[])`)
-    expect(created.map((row) => row.title).sort()).toEqual(['Abbey Road', 'Abbey Road Sessions', 'Nevermind (Live at the Paramount)'])
+    // Other punctuation and store labels are the same edition; edition words name another
+    // edition, with its own songs, so it is not the user's copy.
+    expect(ids.albums[1]).toBe(abbey.albumId)
+    expect(ids.albums).not.toContain(nevermind.albumId)
+    expect(ids.albums).toHaveLength(8)
+    const created = await db.select({ title: albums.title, type: albums.type }).from(albums)
+      .where(sql`${albums.id} = any(${`{${ids.albums.filter((id) => id !== abbey.albumId).join(',')}}`}::uuid[])`)
+    expect(created.map((row) => row.title).sort()).toEqual([
+      'Abbey Road', 'Abbey Road (Remastered 2019)', 'Abbey Road - 50th Anniversary Super Deluxe Edition', 'Abbey Road Sessions',
+      'Nevermind', 'Nevermind (Live at the Paramount)', 'Nevermind [Deluxe Edition] (Explicit)',
+    ])
   })
 
   it('shows music added after it was searched as owned', async () => {

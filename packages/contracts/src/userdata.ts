@@ -2,13 +2,19 @@ import { z } from 'zod'
 import { AlbumSummary, ArtistSummary, Artwork, TrackSummary } from './catalog.js'
 import { Id, IsoDateTime, page } from './common.js'
 
+/**
+ * `PUT/DELETE /me/likes/:type/:id`, both answering `Ok` and idempotent: the heart, the one
+ * way to save something to a library. A user's library is the server's collection plus what
+ * they saved, so saving never needs a file and removing deletes nothing but the save. Saving
+ * an album or track also asks for its missing files when the user may fetch music. Saving an
+ * unknown id is 404. `GET /me/likes/:type` lists the saves, newest first (Liked Songs).
+ */
 export const LikeEntityType = z.enum(['track', 'album', 'artist'])
 export type LikeEntityType = z.infer<typeof LikeEntityType>
 
 /**
- * `PUT/DELETE /me/library/:type/:id`, both answering `Ok` and idempotent. A user's library
- * is the server's collection plus what they saved here, so saving never needs a file and
- * removing deletes nothing but the save. Saving an unknown id is 404.
+ * `PUT/DELETE /me/library/:type/:id`: deprecated aliases of `PUT/DELETE /me/likes/:type/:id`,
+ * kept for app builds from before the single heart. They write the same save.
  */
 export const LibraryEntityType = z.enum(['album', 'track'])
 export type LibraryEntityType = z.infer<typeof LibraryEntityType>

@@ -36,9 +36,8 @@ function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, ...pr
   const library = {
     wantlistEnabled,
     isWanted: () => false,
-    setLiked: vi.fn<LibraryActions['setLiked']>(),
+    setSaved: vi.fn<LibraryActions['setSaved']>(),
     setWanted: vi.fn<LibraryActions['setWanted']>(),
-    setInLibrary: vi.fn<LibraryActions['setInLibrary']>(),
     playlists: playlistSummaries,
     addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(),
     newPlaylist: vi.fn<LibraryActions['newPlaylist']>(),
@@ -88,33 +87,34 @@ function dragTracks(...slugs: string[]) {
 afterEach(endTrackDrag)
 
 describe('Sidebar', () => {
-  it('links to every main page', () => {
+  it('links to every main page, with one Library for albums, artists and songs', () => {
     renderSidebar()
-    const pages = [['Home', '/'], ['Search', '/search'], ['Albums', '/library/albums'], ['Artists', '/library/artists'], ['Songs', '/library/songs'], ['Wantlist', '/wantlist'], ['Add music', '/imports']]
+    const pages = [['Home', '/'], ['Search', '/search'], ['Library', '/library'], ['Wantlist', '/wantlist'], ['Add music', '/imports']]
     for (const [name, to] of pages) expect(mainNav().getByRole('link', { name })).toHaveAttribute('href', to)
     expect(mainNav().getAllByRole('link')).toHaveLength(pages.length)
+    for (const name of ['Albums', 'Artists', 'Songs']) expect(within(sidebar()).queryByRole('link', { name })).toBeNull()
     expect(within(sidebar()).getByRole('link', { name: 'Squirmy home' })).toHaveAttribute('href', '/')
-    expect(within(sidebar()).getByRole('link', { name: 'Playlists' })).toHaveAttribute('href', '/library/playlists')
+    expect(within(sidebar()).getByRole('link', { name: 'Playlists' })).toHaveAttribute('href', '/library?filter=playlists')
   })
 
   it('goes to a page and says a link was followed', async () => {
     const { onNavigate } = renderSidebar()
-    await userEvent.click(mainNav().getByRole('link', { name: 'Albums' }))
-    expect(where()).toBe('/library/albums')
+    await userEvent.click(mainNav().getByRole('link', { name: 'Library' }))
+    expect(where()).toBe('/library')
     expect(onNavigate).toHaveBeenCalledTimes(1)
   })
 
-  it('marks the page you are on', () => {
-    renderSidebar({ route: '/library/artists' })
-    expect(mainNav().getByRole('link', { name: 'Artists' })).toHaveAttribute('aria-current', 'page')
+  it('marks the page you are on, whatever the Library shows', () => {
+    renderSidebar({ route: '/library?filter=artists' })
+    expect(mainNav().getByRole('link', { name: 'Library' })).toHaveAttribute('aria-current', 'page')
     expect(mainNav().getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current')
-    expect(mainNav().getByRole('link', { name: 'Albums' })).not.toHaveAttribute('aria-current')
+    expect(mainNav().getByRole('link', { name: 'Search' })).not.toHaveAttribute('aria-current')
   })
 
   it('leaves out the Wantlist while the server has it off', () => {
     renderSidebar({ wantlistEnabled: false })
     expect(mainNav().queryByRole('link', { name: 'Wantlist' })).not.toBeInTheDocument()
-    expect(mainNav().getByRole('link', { name: 'Songs' })).toBeInTheDocument()
+    expect(mainNav().getByRole('link', { name: 'Library' })).toBeInTheDocument()
   })
 
   it('offers Add music only to people who may upload', () => {
@@ -268,14 +268,17 @@ describe('Sidebar', () => {
       expect(library.addToPlaylist).not.toHaveBeenCalled()
     })
 
-    it('likes the songs dropped on Liked Songs that are not liked yet', () => {
+    it('saves the songs dropped on Liked Songs that are not saved yet, with one toast', async () => {
       const { library } = renderSidebar()
       const { transfer } = dragTracks('amber', 'riverside', 'open-window')
       const link = playlistLink('Liked Songs 24 songs')
       expect(fireEvent.dragOver(link, { dataTransfer: transfer })).toBe(false)
       fireEvent.drop(link, { dataTransfer: transfer })
-      expect(library.setLiked.mock.calls).toEqual([['track', track('riverside').id, true], ['track', track('open-window').id, true]])
+      const saved = (slug: string) => [{ type: 'track', id: track(slug).id, title: track(slug).title }, true, { quiet: true }]
+      expect(library.setSaved.mock.calls).toEqual([saved('riverside'), saved('open-window')])
       expect(library.addToPlaylist).not.toHaveBeenCalled()
+      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
+      expect(screen.getByText('2 songs')).toBeInTheDocument()
     })
 
     it('ignores a drag of anything else', () => {
@@ -303,7 +306,7 @@ describe('Sidebar', () => {
   describe('folded to a rail', () => {
     it('keeps the navigation and the account menu reachable by name', () => {
       renderSidebar({ collapsed: true })
-      for (const name of ['Home', 'Search', 'Albums', 'Artists', 'Songs', 'Wantlist', 'Add music']) {
+      for (const name of ['Home', 'Search', 'Library', 'Wantlist', 'Add music']) {
         expect(mainNav().getByRole('link', { name })).toBeInTheDocument()
       }
       expect(screen.getByRole('button', { name: 'Account, Alex Rivera' })).toBeInTheDocument()
@@ -337,14 +340,14 @@ describe('Sidebar', () => {
     it('is out of reach while closed', () => {
       renderSidebar({ mobile: true, mobileOpen: false })
       expect(screen.queryByRole('complementary', { name: 'Sidebar' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: 'Albums' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Library' })).not.toBeInTheDocument()
       expect(screen.getByLabelText('Sidebar')).toHaveAttribute('inert')
     })
 
     it('shows everything while open, playlists included', () => {
       renderSidebar({ mobile: true, mobileOpen: true })
       expect(sidebar()).not.toHaveAttribute('inert')
-      expect(mainNav().getByRole('link', { name: 'Albums' })).toBeInTheDocument()
+      expect(mainNav().getByRole('link', { name: 'Library' })).toBeInTheDocument()
       expect(playlistLinks()).toHaveLength(playlists.length + 1)
       expect(screen.getByRole('button', { name: 'Account, Alex Rivera' })).toBeInTheDocument()
     })

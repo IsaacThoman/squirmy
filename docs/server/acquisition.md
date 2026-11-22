@@ -20,7 +20,7 @@ In **Admin → Providers**:
 2. **Tell the provider where to deliver**, under **Policy → Delivery address**, when it reaches the server at another address than `PUBLIC_URL` or `http://localhost:4747` (see below).
 3. **Allow people to fetch.** Admins always can. For members, turn on **Can fetch missing music** in **Admin → Users & invites**.
 
-The switch on a provider's card turns it off and on, and its menu edits or deletes it. **Requests**, at the bottom, lists every fetch with who asked, what for, the provider, the state and the error, as they happen; filter it by state.
+The switch on a provider's card turns it off and on, and its menu edits or deletes it. **Cache** shows what fetched music takes: **Cached** (size and number of files), **Kept** (files that are never deleted because someone saved, liked, queued or put them in a playlist, or played them in the last day), **Can make room** (the rest, least recently played first), and the **Limit** with how much of it is used. **Requests**, at the bottom, lists every fetch with who asked, what for, the provider, the state and the error, as they happen; filter it by state.
 
 ### Through the API
 
@@ -93,20 +93,20 @@ Under **Admin → Providers → Policy**, or `GET` and `PATCH /api/v1/admin/acqu
 |---|---|---|
 | `preferLossless` | `true` | With several offers, take lossless first, then the highest quality. |
 | `maxFileBytes` | 500 MiB | A delivered file above this fails the job. A job may receive 1.25 × this per requested track in all, and four files per track plus two (audio, cover, lyrics, cue sheet); more fails the job. |
-| `storageQuotaBytes` | `0` (no limit) | The cache limit: once fetched music adds up to more, the least recently played files nobody holds on to are deleted, down to 90%. A fetch is never refused because of it. See [The cache](#the-cache). |
+| `storageQuotaBytes` | `0` (no limit) | **Cache limit** on screen. The cache limit: once fetched music adds up to more, the least recently played files nobody holds on to are deleted, down to 90%. A fetch is never refused because of it. See [The cache](#the-cache). |
 | `timeoutSeconds` | `900` | A job that has not delivered by then fails. 30 to 86,400. |
-| `targetRootId` | `null` | The managed folder acquired music goes into. `null` uses the same folder as uploads (`importRootId`, else the only managed folder). |
+| `targetRootId` | `null` | **Keep in** on screen. The managed folder whose `_Fetched/` holds the cache. `null` uses the same folder as uploads (`importRootId`, else the only managed folder). |
 | `deliveryBaseUrl` | `null` | The origin of the delivery URLs handed to providers. |
 
 ## The cache
 
-Everything a provider delivers is cache, not part of anyone's library. Playing a track fetches it and keeps its file so it plays at once next time; adding to a library is only ever the **Add to library** action. Fetched files:
+Everything a provider delivers is cache, not part of anyone's library. Playing a track fetches it and keeps its file so it plays at once next time; adding to a library is only ever the heart (**Save to library**) in Squirmy's apps, or a star in a Subsonic app. Fetched files:
 
 - are filed under `_Fetched/` in the managed folder, with the folder's usual layout inside, so your own folders hold only music you brought. A filed file is not moved again when its album later gets a year or a corrected title, but it is when its artist credit changes (a folder named after the artists its tags ran together, `Grimes, VADAKIN`, becomes `Grimes & VADAKIN`), and folders left empty are removed;
 - open no reviews, are left out of **Imports** (`GET /imports?kind=acquisition` lists them) and of the counts in **Admin → Library**, and are counted by `GET /admin/acquisition/usage` instead;
 - are deleted when they are not what was asked for (another song, an extra track nobody uses, a file nothing identified), rather than kept for review.
 
-With `storageQuotaBytes` set, an hourly job (and one after each fetch that goes over the limit) deletes the least recently played files until the cache is under 90% of the limit. A file is never deleted while anyone has saved its album or the track, likes either, has the track in a playlist or in their queue, or played it in the last 24 hours, nor in its first hour on the server. A deleted track is still playable: the next play fetches it again. If what people hold on to is more than the limit, everything else goes and the cache stays over it; raise the limit. With `0` nothing is deleted.
+With `storageQuotaBytes` set, an hourly job (and one after each fetch that goes over the limit) deletes the least recently played files until the cache is under 90% of the limit. A file is never deleted while anyone has saved (hearted) its album or the track, has the track in a playlist or in their queue, or played it in the last 24 hours, nor in its first hour on the server. A deleted track is still playable: the next play fetches it again. If what people hold on to is more than the limit, everything else goes and the cache stays over it; raise the limit. With `0` nothing is deleted.
 
 Files outside a managed folder are never deleted, and a fetched file you move out of `_Fetched/` yourself becomes part of your collection. An upload or inbox file is never dropped as a duplicate of a fetched file. If the database is ever restored without them, files found under a managed folder's `_Fetched/` are taken back in as cache.
 
@@ -115,12 +115,12 @@ Upgrading from a version where the quota refused new fetches: if fetched music w
 ## Limits
 
 - One fetch runs per track or album at a time. If two people or devices ask for the same thing, they share it.
-- Waiting fetches start in this order: the track being played, then tracks coming up in a queue, then downloads to a device, then **Add to library**. A playing track never waits behind a library save.
+- Waiting fetches start in this order: the track being played, then tracks coming up in a queue, then downloads to a device, then songs and albums someone saved to their library. A playing track never waits behind a library save.
 - A member allowed to fetch can have 100 fetches running at once (admins have no limit); `POST /tracks/:id/acquire` and `POST /albums/:id/acquire` take 120 requests a minute per user.
 
 ## What users see
 
-- In the web app, albums and tracks a provider can supply look like any other for people who may fetch: nothing says where their files are ([The web app](../use/web.md#music-that-is-not-on-the-server-yet)). The [iOS app](../use/ios.md#on-demand-songs) marks such songs with a small cloud next to the artist. **Add to library** on an album asks the server to fetch its missing songs. Songs fetched by playing them, fetched ahead of playing, or downloaded to a device are kept as cache and are not added to anyone's library.
+- In the web app, albums and tracks a provider can supply look like any other for people who may fetch: nothing says where their files are ([The web app](../use/web.md#music-that-is-not-on-the-server-yet)). The [iOS app](../use/ios.md#on-demand-songs) marks such songs with a small cloud next to the artist. Hearting an album (saving it to your library) asks the server to fetch its missing songs. Songs fetched by playing them, fetched ahead of playing, or downloaded to a device are kept as cache and are not added to anyone's library.
 - Pressing play queues them as usual. While the current track is fetched the web player shows its buffering spinner (and "Still loading…" after eight seconds), and the session waits at its start; it plays as soon as the file arrives. Upcoming tracks in the queue are fetched ahead of time.
 - If a fetch fails for the song playing or the next one, a notice says so, the track is skipped, and it shows gray, "Not available", for a day. Upcoming tracks that fail are skipped when reached. When three tracks in a row fail (a provider outage, say), playback pauses on the third rather than skipping through the queue. Once the provider counts as failing, the next failed track pauses playback at once, and the notice says the server can't fetch music on demand right now.
 - Autoplay and radios include tracks the provider can fetch for members allowed to fetch, chosen for how well they fit, not for being on the server already (a song on the server only wins a near tie for the first spot, so it starts at once); other members get only tracks on the server. For members allowed to fetch, a radio can start from any artist or song the provider covers, even with none of it on the server; for others, an artist radio is offered only when the server has some of that artist's music, and a song radio only from a song they can play.

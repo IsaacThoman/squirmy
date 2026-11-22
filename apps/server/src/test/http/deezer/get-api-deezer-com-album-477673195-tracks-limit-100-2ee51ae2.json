@@ -1,0 +1,290 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/477673195/tracks?limit=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 2416719665,
+          "title": "No Church In The Wild",
+          "isrc": "USUM71111617",
+          "link": "https://www.deezer.com/track/2416719665",
+          "duration": 272,
+          "track_position": 1,
+          "disk_number": 1,
+          "rank": 590494,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719675,
+          "title": "Lift Off",
+          "isrc": "USUM71111619",
+          "link": "https://www.deezer.com/track/2416719675",
+          "duration": 266,
+          "track_position": 2,
+          "disk_number": 1,
+          "rank": 424297,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719685,
+          "title": "Ni**as In Paris",
+          "isrc": "USUM71111621",
+          "link": "https://www.deezer.com/track/2416719685",
+          "duration": 219,
+          "track_position": 3,
+          "disk_number": 1,
+          "rank": 524745,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719695,
+          "title": "Otis",
+          "isrc": "USUM71111634",
+          "link": "https://www.deezer.com/track/2416719695",
+          "duration": 180,
+          "track_position": 4,
+          "disk_number": 1,
+          "rank": 453505,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719705,
+          "title": "Gotta Have It",
+          "isrc": "USUM71111623",
+          "link": "https://www.deezer.com/track/2416719705",
+          "duration": 140,
+          "track_position": 5,
+          "disk_number": 1,
+          "rank": 412231,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719715,
+          "title": "New Day",
+          "isrc": "USUM71111636",
+          "link": "https://www.deezer.com/track/2416719715",
+          "duration": 272,
+          "track_position": 6,
+          "disk_number": 1,
+          "rank": 353880,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719725,
+          "title": "That's My Bitch",
+          "isrc": "USUM71111691",
+          "link": "https://www.deezer.com/track/2416719725",
+          "duration": 202,
+          "track_position": 7,
+          "disk_number": 1,
+          "rank": 382230,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719735,
+          "title": "Welcome To The Jungle",
+          "isrc": "USUM71111674",
+          "link": "https://www.deezer.com/track/2416719735",
+          "duration": 174,
+          "track_position": 8,
+          "disk_number": 1,
+          "rank": 339869,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719745,
+          "title": "Who Gon Stop Me",
+          "isrc": "USUM71111640",
+          "link": "https://www.deezer.com/track/2416719745",
+          "duration": 256,
+          "track_position": 9,
+          "disk_number": 1,
+          "rank": 345765,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719755,
+          "title": "Murder To Excellence",
+          "isrc": "USUM71111672",
+          "link": "https://www.deezer.com/track/2416719755",
+          "duration": 300,
+          "track_position": 10,
+          "disk_number": 1,
+          "rank": 334331,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719765,
+          "title": "Made In America",
+          "isrc": "USUM71111676",
+          "link": "https://www.deezer.com/track/2416719765",
+          "duration": 292,
+          "track_position": 11,
+          "disk_number": 1,
+          "rank": 328894,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719775,
+          "title": "Why I Love You",
+          "isrc": "USUM71111678",
+          "link": "https://www.deezer.com/track/2416719775",
+          "duration": 201,
+          "track_position": 12,
+          "disk_number": 1,
+          "rank": 447862,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719785,
+          "title": "Illest Motherf***** Alive",
+          "isrc": "USUM71600681",
+          "link": "https://www.deezer.com/track/2416719785",
+          "duration": 323,
+          "track_position": 13,
+          "disk_number": 1,
+          "rank": 325427,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719795,
+          "title": "H•A•M (Album Version Explicit)",
+          "isrc": "USUM71100134",
+          "link": "https://www.deezer.com/track/2416719795",
+          "duration": 277,
+          "track_position": 14,
+          "disk_number": 1,
+          "rank": 375247,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 230,
+            "name": "Kanye West",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719805,
+          "title": "Primetime",
+          "isrc": "USUM71111638",
+          "link": "https://www.deezer.com/track/2416719805",
+          "duration": 199,
+          "track_position": 15,
+          "disk_number": 1,
+          "rank": 325255,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2416719815,
+          "title": "The Joy",
+          "isrc": "USUM71111693",
+          "link": "https://www.deezer.com/track/2416719815",
+          "duration": 317,
+          "track_position": 16,
+          "disk_number": 1,
+          "rank": 297109,
+          "explicit_lyrics": true,
+          "artist": {
+            "id": 1309,
+            "name": "JAŸ-Z",
+            "type": "artist"
+          },
+          "type": "track"
+        }
+      ],
+      "total": 16
+    }
+  }
+}

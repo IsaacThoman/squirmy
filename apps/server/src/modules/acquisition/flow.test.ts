@@ -6,7 +6,7 @@ import { createMockProvider, type MockProvider } from '@squirmy/adapter-mock'
 import { FakeEngine, SessionClient } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import {
-  AcquireResponse, AcquisitionProviderList, AcquisitionUsage, ImportList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent,
+  AcquireResponse, AcquisitionProviderList, AcquisitionUsage, ImportList, LibraryRootList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent,
 } from '@squirmy/contracts'
 import { deliver } from '@squirmy/provider-kit'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
@@ -15,7 +15,7 @@ import { io as connect } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { acquisitionJobs, acquisitionMisses, imports, libraryItems, matchReviews, mediaFiles, recordings } from '../../database/schema.js'
+import { acquisitionJobs, acquisitionMisses, imports, likes, matchReviews, mediaFiles, recordings } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
@@ -531,6 +531,10 @@ describe('acquisition end to end', () => {
     expect(await usage()).toMatchObject({ cachedFiles: before.usage.cachedFiles + 1, cachedBytes: before.usage.cachedBytes + file!.size, limitBytes: 0 })
     expect(file!.relPath).toBe(`_Fetched/${album.artist.name}/Heard Once (2024)/01 Sampled.flac`)
     await access(path.join(rootDir, file!.relPath))
+    // The folder counts the delivery, and says how many of its files are cache, so its count adds up with the stats.
+    const roots = body(await app.inject({ url: '/api/v1/admin/library/roots', headers: admin.headers }), LibraryRootList)
+    const folder = roots.items.find((root) => root.id === file!.rootId)!
+    expect(folder.cachedFileCount).toBeGreaterThanOrEqual(1)
   })
 
   it('accepts a play while the cache is over its limit, and evicts nothing that was just fetched', async () => {
@@ -549,7 +553,7 @@ describe('acquisition end to end', () => {
       // Completing over the limit queued an eviction; the new file is too young to go.
       expect((await trackAvailability([wanted])).get(wanted)).toBe('server')
       // Playing is not adding: the fetched track serves playback and is in nobody's library.
-      expect(await db.select().from(libraryItems).where(inArray(libraryItems.entityId, [wanted, album.albumId]))).toEqual([])
+      expect(await db.select().from(likes).where(inArray(likes.entityId, [wanted, album.albumId]))).toEqual([])
     } finally {
       await updateAcquisitionPolicy({ storageQuotaBytes: 0 })
     }

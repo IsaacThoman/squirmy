@@ -1,14 +1,12 @@
-import type { TrackSummary } from '@squirmy/contracts'
-import { ChevronDown, CircleCheck, CirclePlus, Heart, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
+import { ChevronDown, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { Cover } from '@/components/music/Cover'
+import { SaveHeart } from '@/components/music/LibrarySave'
 import { Dialog } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
-import { trackLibraryToggle } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
-import { useLibrary } from '@/player/library-context'
 import { playingElsewhere, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
@@ -59,7 +57,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
           </div>
 
           {elsewhere
-            ? <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />
+            ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />
             : state.detached && <OnlyOnThisDevice player={player} className="relative" />}
 
           <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-5">
@@ -111,12 +109,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
                   </p>
                 )}
               </div>
-              {item && <LibraryToggle track={item.track} />}
-              {item && (
-                <IconButton label={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'} size="lg" onClick={onToggleLike} className={cn('max-md:size-11', liked && 'text-primary hover:text-primary')}>
-                  <Heart fill={liked ? 'currentColor' : 'none'} />
-                </IconButton>
-              )}
+              {item && <SaveHeart liked={liked} onToggle={onToggleLike} size="lg" className="max-md:size-11" />}
             </div>
             <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
             <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between">
@@ -131,25 +124,5 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </Dialog>
-  )
-}
-
-/**
- * Add to library for the song playing, beside its heart. None for a song removing would not take
- * out (a collection song, one of an added album), or when the server does not say.
- */
-function LibraryToggle({ track }: { track: TrackSummary }) {
-  const library = useLibrary()
-  const saved = trackLibraryToggle(track)
-  if (saved === null) return null
-  return (
-    <IconButton
-      label={saved ? 'Remove from library' : 'Add to library'}
-      size="lg"
-      onClick={() => library.setInLibrary({ type: 'track', id: track.id, title: track.title }, !saved)}
-      className={cn('max-md:size-11', saved && 'text-primary hover:text-primary')}
-    >
-      {saved ? <CircleCheck /> : <CirclePlus />}
-    </IconButton>
   )
 }

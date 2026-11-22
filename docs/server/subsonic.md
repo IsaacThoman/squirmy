@@ -58,12 +58,12 @@ Requests can be GET or form POST, with or without `.view`, and answers come as X
 
 ### How it maps onto Squirmy
 
-- **Stars are likes.** Starring a song, album or artist in an app likes it in Squirmy, and the other way round.
+- **Stars are the heart.** Starring a song, album or artist in an app saves it to your Squirmy library, and the other way round: a song you heart in Squirmy is starred in the app.
 - **Ratings** (1 to 5 stars) are kept for Subsonic apps; Squirmy's own apps do not show them.
 - **Scrobbles are plays.** A scrobble adds the play to your history at the time the app reports, and from there to ListenBrainz or Last.fm when you have connected them. A "now playing" notice shows in `getNowPlaying` until the song would have ended.
 - **The play queue is your Squirmy queue.** Save the queue in one app and Squirmy's web and phone apps pick it up paused at the same point, and the other way round. Tracks a Subsonic app saved before its current song are remembered until the queue changes in Squirmy. Of a very long queue, 5,000 tracks from the current song on, and 5,000 before it, are kept.
 - **Music folders are library roots.** Apps that filter by folder see one folder per root.
-- **Your library is Squirmy's library.** Subsonic has no "add to library" call; add albums and songs in Squirmy's apps. Starring one does not add it.
+- **Your library is Squirmy's library**, the music on the server plus what you saved, limited to songs whose files are on the server: an album you starred shows once its files have arrived.
 - **Similar songs and artists** come from Squirmy's radio, limited to your library.
 - **ReplayGain** values on songs are Squirmy's loudness measurements (or the file's own tags until a file is measured), relative to -18 LUFS.
 

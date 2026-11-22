@@ -25,6 +25,8 @@ type DiscographyRow = {
   hasArtwork: boolean
   owned: boolean
   led: boolean
+  /** For an edition row (`albums.edition_of_id`), its release group's title: the two are one release. */
+  releaseTitle?: string
 }
 
 /** Which of two rows of one release stands for it on the page: owned, MusicBrainz, a stated type, detail, a cover, the earlier year. */
@@ -52,7 +54,7 @@ function standsBefore(a: DiscographyRow, b: DiscographyRow): number {
 export function standingRows(rows: readonly DiscographyRow[], { fromMusicBrainz = false } = {}): DiscographyRow[] {
   const best = new Map<string, DiscographyRow>()
   const stated = new Set<string>()
-  const keyOf = (row: DiscographyRow) => `${row.led}|${releaseKey(row.title) || row.id}`
+  const keyOf = (row: DiscographyRow) => `${row.led}|${releaseKey(row.releaseTitle ?? row.title) || row.id}`
   for (const row of rows) {
     if (!row.typeGuessed) stated.add(keyOf(row))
     const key = `${keyOf(row)}|${row.typeGuessed ? '?' : row.type}`
@@ -119,10 +121,10 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
       select coalesce(rl.release_date, a.release_date) as "releaseDate", a.genres, a.description, rl.label,
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'album' and l.entity_id = a.id) as liked,
         exists (select 1 from wants w where w.user_id = ${userId} and w.entity_type = 'album' and w.entity_id = a.id and w.fulfilled_at is null) as wanted,
-        -- A collection album is everyone's and cannot be removed, so that wins over a save.
+        -- A collection album is everyone's; the heart (liked) shows the viewer's own save.
         case
           when exists (select 1 from media_files f where f.album_id = a.id and ${collectionFile('f')}) then 'collection'
-          when exists (select 1 from library_items li where li.user_id = ${userId} and li.entity_type = 'album' and li.entity_id = a.id) then 'saved'
+          when exists (select 1 from likes li where li.user_id = ${userId} and li.entity_type = 'album' and li.entity_id = a.id) then 'saved'
         end as library
       from albums a left join releases rl on rl.id = ${canonicalRelease('a')}
       where a.id = ${albumId}`),
@@ -169,7 +171,8 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'artist' and l.entity_id = a.id) as liked
       from artists a where a.id = ${artistId}`),
     db.execute<DiscographyRow>(sql`
-      select a.id, a.title, a.type, a.type_guessed as "typeGuessed", a.mbid is not null as "hasMbid", a.detail_level as "detailLevel",
+      select a.id, a.title, (select g.title from albums g where g.id = a.edition_of_id) as "releaseTitle",
+        a.type, a.type_guessed as "typeGuessed", a.mbid is not null as "hasMbid", a.detail_level as "detailLevel",
         a.year, a.artwork_asset_id is not null as "hasArtwork",
         exists (select 1 from media_files f where f.album_id = a.id and f.missing_since is null) as owned,
         a.primary_artist_id = ${artistId} or exists (

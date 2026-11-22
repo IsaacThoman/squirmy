@@ -5,7 +5,8 @@
  * `inLibraryRecording` in availability.ts, docs/architecture.md "Availability"). An album
  * is in it when a collection file is linked to it or the user saved it; a track when a
  * collection file links its recording, the user saved it, or a present file of it belongs
- * to an album the user saved; an artist when it is credited on a library album. Genres
+ * to an album the user saved; an artist when the user saved it or it is credited on a
+ * library album. Saving is the heart (`likes`). Genres
  * match case-insensitively; a track has the genres of its present files' albums.
  *
  * The title, artist and year orders read the membership set first (collection files by
@@ -46,7 +47,7 @@ function libraryAlbumIds(userId: string): SQL {
   return sql`
     select collected.album_id from media_files collected where collected.album_id is not null and ${collectionFile('collected')}
     union all
-    select saved.entity_id from library_items saved where saved.user_id = ${userId} and saved.entity_type = 'album'`
+    select saved.entity_id from likes saved where saved.user_id = ${userId} and saved.entity_type = 'album'`
 }
 
 /** Ids of the recordings in the user's library, by decision 10's three ways in (duplicates possible). */
@@ -54,9 +55,9 @@ function libraryRecordingIds(userId: string): SQL {
   return sql`
     select collected.recording_id from media_files collected where collected.recording_id is not null and ${collectionFile('collected')}
     union all
-    select saved.entity_id from library_items saved where saved.user_id = ${userId} and saved.entity_type = 'recording'
+    select saved.entity_id from likes saved where saved.user_id = ${userId} and saved.entity_type = 'recording'
     union all
-    select present.recording_id from library_items saved
+    select present.recording_id from likes saved
       join media_files present on present.album_id = saved.entity_id and present.missing_since is null
     where saved.user_id = ${userId} and saved.entity_type = 'album' and present.recording_id is not null`
 }
@@ -70,7 +71,7 @@ function albumIsMember(album: string, userId: string): SQL {
   return sql`exists (
     select 1 from media_files collected where collected.album_id = ${sql.raw(album)} and ${collectionFile('collected')}
     union all
-    select 1 from library_items saved where saved.user_id = ${userId} and saved.entity_type = 'album' and saved.entity_id = ${sql.raw(album)}
+    select 1 from likes saved where saved.user_id = ${userId} and saved.entity_type = 'album' and saved.entity_id = ${sql.raw(album)}
   )`
 }
 
@@ -79,9 +80,9 @@ function recordingIsMember(recording: string, userId: string): SQL {
   return sql`exists (
     select 1 from media_files collected where collected.recording_id = ${sql.raw(recording)} and ${collectionFile('collected')}
     union all
-    select 1 from library_items saved where saved.user_id = ${userId} and saved.entity_type = 'recording' and saved.entity_id = ${sql.raw(recording)}
+    select 1 from likes saved where saved.user_id = ${userId} and saved.entity_type = 'recording' and saved.entity_id = ${sql.raw(recording)}
     union all
-    select 1 from media_files present join library_items saved
+    select 1 from media_files present join likes saved
       on saved.user_id = ${userId} and saved.entity_type = 'album' and saved.entity_id = present.album_id
     where present.recording_id = ${sql.raw(recording)} and present.missing_since is null
   )`
@@ -91,10 +92,10 @@ function recordingIsMember(recording: string, userId: string): SQL {
 export function libraryShapeQuery(userId: string, kind: 'albums' | 'tracks'): SQL {
   const column = sql.raw(kind === 'albums' ? 'album_id' : 'recording_id')
   const saves = kind === 'albums'
-    ? sql`select saved.entity_id from library_items saved where saved.user_id = ${userId} and saved.entity_type = 'album' limit ${SMALL_LIBRARY}`
-    : sql`(select saved.entity_id from library_items saved where saved.user_id = ${userId} and saved.entity_type = 'recording' limit ${SMALL_LIBRARY})
+    ? sql`select saved.entity_id from likes saved where saved.user_id = ${userId} and saved.entity_type = 'album' limit ${SMALL_LIBRARY}`
+    : sql`(select saved.entity_id from likes saved where saved.user_id = ${userId} and saved.entity_type = 'recording' limit ${SMALL_LIBRARY})
         union all
-        (select present.recording_id from library_items saved
+        (select present.recording_id from likes saved
           join media_files present on present.album_id = saved.entity_id and present.missing_since is null
         where saved.user_id = ${userId} and saved.entity_type = 'album' limit ${SMALL_LIBRARY})`
   return sql`
@@ -177,14 +178,14 @@ export function libraryAlbumsQuery(userId: string, query: LibraryQuery, shape: L
             where newer.album_id = f.album_id and ${collectionFile('newer')} and (newer.added_at, newer.id) > (f.added_at, f.id)
           )
           and not exists (
-            select 1 from library_items later
+            select 1 from likes later
             where later.user_id = ${userId} and later.entity_type = 'album' and later.entity_id = f.album_id and later.created_at > f.added_at
           )
           and ${after(collection, query.cursor)}
         order by ${orderBy(collection)} limit ${limit})
         union all
         (select s.entity_id, s.created_at
-        from library_items s join albums a on a.id = s.entity_id
+        from likes s join albums a on a.id = s.entity_id
         where s.user_id = ${userId} and s.entity_type = 'album' and ${genre}
           and not exists (
             select 1 from media_files later
@@ -288,7 +289,7 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
     const albumSaves = byRecency(ordering.name, 's.created_at', 'p.recording_id')
     /** Condition: the user saved an album holding a present file of the recording, later than (or at) `than`. */
     const albumSavedAfter = (recording: string, than: string, orEqual: boolean) => sql`exists (
-      select 1 from media_files held join library_items album_save
+      select 1 from media_files held join likes album_save
         on album_save.user_id = ${userId} and album_save.entity_type = 'album' and album_save.entity_id = held.album_id
       where held.recording_id = ${sql.raw(recording)} and held.missing_since is null
         and album_save.created_at ${sql.raw(orEqual ? '>=' : '>')} ${sql.raw(than)}
@@ -303,7 +304,7 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
             where newer.recording_id = f.recording_id and ${collectionFile('newer')} and (newer.added_at, newer.id) > (f.added_at, f.id)
           )
           and not exists (
-            select 1 from library_items later
+            select 1 from likes later
             where later.user_id = ${userId} and later.entity_type = 'recording' and later.entity_id = f.recording_id and later.created_at > f.added_at
           )
           and not ${albumSavedAfter('f.recording_id', 'f.added_at', false)}
@@ -312,7 +313,7 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
         order by ${orderBy(collection)} limit ${limit})
         union all
         (select s.entity_id, null::uuid, s.created_at
-        from library_items s join recordings r on r.id = s.entity_id
+        from likes s join recordings r on r.id = s.entity_id
         where s.user_id = ${userId} and s.entity_type = 'recording'
           and not exists (
             select 1 from media_files later
@@ -325,14 +326,14 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
         union all
         (select p.recording_id, s.entity_id, s.created_at
         -- Lateral, so each save is walked newest first and its files are found by album, never by scanning all files.
-        from library_items s cross join lateral (
+        from likes s cross join lateral (
           select distinct file.recording_id from media_files file
           where file.album_id = s.entity_id and file.missing_since is null and file.recording_id is not null
         ) p
         where s.user_id = ${userId} and s.entity_type = 'album' and ${leadingBound(albumSaves, query.cursor)}
           -- A recording on several saved albums is placed by the latest save.
           and not exists (
-            select 1 from media_files held join library_items album_save
+            select 1 from media_files held join likes album_save
               on album_save.user_id = ${userId} and album_save.entity_type = 'album' and album_save.entity_id = held.album_id
             where held.recording_id = p.recording_id and held.missing_since is null
               and (album_save.created_at, album_save.entity_id) > (s.created_at, s.entity_id)
@@ -342,7 +343,7 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
             where later.recording_id = p.recording_id and ${collectionFile('later')} and later.added_at >= s.created_at
           )
           and not exists (
-            select 1 from library_items own
+            select 1 from likes own
             where own.user_id = ${userId} and own.entity_type = 'recording' and own.entity_id = p.recording_id and own.created_at >= s.created_at
           )
           and ${recordingHasGenre('p.recording_id', query.genre)}
@@ -381,9 +382,11 @@ const artistOrdering: Ordering = {
 
 /** The query behind `GET /library/artists`, returning `limit + 1` rows. Exported for EXPLAIN in tests. */
 export function libraryArtistsQuery(userId: string, query: PageQuery, shape: LibraryShape): SQL {
+  // An artist the user saved with the heart is in the library whatever albums it has.
+  const own = sql`select own.entity_id from likes own where own.user_id = ${userId} and own.entity_type = 'artist'`
   const member = shape === 'small'
-    ? sql`ar.id = any(array(select aa.artist_id from album_artists aa where aa.album_id = any(array(${libraryAlbumIds(userId)}))))`
-    : sql`exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${albumIsMember('aa.album_id', userId)})`
+    ? sql`ar.id = any(array(select aa.artist_id from album_artists aa where aa.album_id = any(array(${libraryAlbumIds(userId)})) union all ${own}))`
+    : sql`(ar.id in (${own}) or exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${albumIsMember('aa.album_id', userId)}))`
   return sql`
     select ar.id, ${cursorKeys(artistOrdering)}
     from artists ar
@@ -393,9 +396,9 @@ export function libraryArtistsQuery(userId: string, query: PageQuery, shape: Lib
 }
 
 /**
- * One page of the artists credited on the user's library albums, by name ignoring a
- * leading article. The list has this one order and no genre filter. Artists only featured
- * on a track are not library artists.
+ * One page of the user's library artists, by name ignoring a leading article: the artists
+ * they saved and those credited on their library albums. The list has this one order and
+ * no genre filter. Artists only featured on a track are not library artists.
  */
 export async function listLibraryArtists(userId: string, query: PageQuery): Promise<ArtistPage> {
   const rows = await db.execute<IdRow>(libraryArtistsQuery(userId, query, await libraryShape(userId, 'albums')))

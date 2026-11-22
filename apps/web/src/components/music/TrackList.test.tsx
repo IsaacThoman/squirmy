@@ -101,33 +101,26 @@ describe('TrackRow', () => {
   })
 
   describe('menu', () => {
-    it('adds a song to the library', async () => {
+    it('has one library entry, worded like the heart, that saves the song', async () => {
       const { onAction } = renderRow('night-swimming-demo')
-      expect(await menuItems('Night Swimming (Demo)')).toContain('Add to library')
-      await userEvent.click(screen.getByRole('menuitem', { name: 'Add to library' }))
-      expect(onAction).toHaveBeenCalledWith('library', track('night-swimming-demo'), 0)
+      const items = await menuItems('Night Swimming (Demo)')
+      expect(items.filter(item => /library|Liked Songs/.test(item ?? ''))).toEqual(['Save to library'])
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Save to library' }))
+      expect(onAction).toHaveBeenCalledWith('like', track('night-swimming-demo'), 0)
     })
 
-    it('removes a song the user added', async () => {
-      const saved = { ...track('night-swimming-demo'), inLibrary: true, library: 'saved' as const }
-      renderRow('night-swimming-demo', { track: saved })
-      expect(await menuItems('Night Swimming (Demo)')).toContain('Remove from library')
-    })
-
-    it('offers no library entry for a song removing would not take out, or from a server that does not say', async () => {
-      // A collection song, wherever it is listed: an artist's top songs, search, a playlist.
-      for (const library of ['collection', 'album'] as const) {
-        renderRow('soft-signal', { track: { ...track('soft-signal'), inLibrary: true, library } })
-        const items = await menuItems('Soft Signal')
-        expect(items).not.toContain('Remove from library')
-        expect(items).not.toContain('Add to library')
-        await userEvent.keyboard('{Escape}')
-        screen.getByRole('listitem').remove()
-      }
-      renderRow('soft-signal', { track: { ...track('soft-signal'), inLibrary: undefined, library: undefined } })
+    it('offers Remove from library for a saved song, wherever its file is', async () => {
+      // The heart shows the viewer's own save, so a song of the collection has the entry too.
+      renderRow('soft-signal', { track: { ...track('soft-signal'), liked: true, inLibrary: true, library: 'collection' } })
       const items = await menuItems('Soft Signal')
-      expect(items).not.toContain('Add to library')
-      expect(items).not.toContain('Remove from library')
+      expect(items).toContain('Remove from library')
+      expect(items).not.toContain('Save to library')
+    })
+
+    it('offers Save to library on a collection song the viewer has not saved', async () => {
+      renderRow('soft-signal', { track: { ...track('soft-signal'), liked: false, inLibrary: true, library: 'collection' } })
+      expect(screen.getByRole('button', { name: 'Save Soft Signal to library' })).toBeInTheDocument()
+      expect(await menuItems('Soft Signal')).toContain('Save to library')
     })
 
     it('offers a page for each of the song\'s artists, each linking to its own', async () => {
@@ -155,10 +148,10 @@ describe('TrackRow', () => {
     })
   })
 
-  it('shows the explicit badge and sends like actions', async () => {
+  it('shows the explicit badge and saves from the heart', async () => {
     const { onAction } = renderRow('after-the-rain')
     expect(screen.getByTitle('Explicit')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Save After the Rain to Liked Songs' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save After the Rain to library' }))
     expect(onAction).toHaveBeenCalledWith('like', track('after-the-rain'), 0)
   })
 })

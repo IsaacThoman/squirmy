@@ -224,6 +224,12 @@ export const albums = pgTable('albums', {
   artworkAssetId: uuid('artwork_asset_id'),
   /** The edition whose track list the album page shows. */
   canonicalReleaseId: uuid('canonical_release_id'),
+  /**
+   * For a store album that is one edition of a release group ("SOS Deluxe: LANA"): the
+   * group's row. Such a row keeps its own MBID-less identity and track list and is never
+   * merged into the group's row (enrichment/album.ts); artist pages show the group once.
+   */
+  editionOfId: uuid('edition_of_id'),
   detailLevel: smallint('detail_level').notNull().default(0),
   fetchedAt: at('fetched_at'),
   /** When enrichment last finished the extras owned albums get: stored cover, description, external ids, lyrics. */
@@ -239,6 +245,7 @@ export const albums = pgTable('albums', {
   index('albums_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
   index('albums_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('albums_primary_artist').on(t.primaryArtistId),
+  index('albums_edition_of').on(t.editionOfId).where(sql`${t.editionOfId} is not null`),
   // Library orderings (modules/catalog/library.ts). The expressions are `sortKey` over the
   // stored match keys and must stay identical to `sortKeys` in modules/catalog/sql.ts.
   index('albums_title_sort').on(sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`, t.id),
@@ -667,6 +674,13 @@ export const detachedSessions = pgTable('detached_sessions', {
   foreignKey({ columns: [t.userId, t.deviceId], foreignColumns: [devices.userId, devices.id] }).onDelete('cascade'),
 ])
 
+/**
+ * What a user saved with the heart: a track (`recording`), album or artist. A user's library
+ * is the server's collection (files no provider delivered), which every user has, plus these
+ * saves; Liked Songs lists the saved recordings. A save needs no file: the album shows in the
+ * library at once and its files arrive later. Not deleted with the files. (Saves used to be a
+ * second table, `library_items`, beside likes; migration 0018 folded it in.)
+ */
 export const likes = pgTable('likes', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   entityType: text('entity_type').$type<LikeEntityType>().notNull(),
@@ -674,24 +688,10 @@ export const likes = pgTable('likes', {
   createdAt: createdAt(),
 }, (t) => [
   primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
-  index('likes_user_recent').on(t.userId, t.entityType, t.createdAt),
-])
-
-/**
- * What a user added to their library, beyond the server's collection (files that were not
- * delivered by a provider), which every user has. A save needs no file: the album shows in
- * the library at once and its files arrive later. Not deleted with the files.
- */
-export const libraryItems = pgTable('library_items', {
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  entityType: text('entity_type').$type<'album' | 'recording'>().notNull(),
-  entityId: uuid('entity_id').notNull(),
-  createdAt: createdAt(),
-}, (t) => [
-  primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
-  index('library_items_user_recent').on(t.userId, t.entityType, t.createdAt.desc(), t.entityId.desc()),
+  // Newest first with the id as tie-break: the keyset order of the library lists and Liked Songs.
+  index('likes_user_recent').on(t.userId, t.entityType, t.createdAt.desc(), t.entityId.desc()),
   // Who keeps an entity, whatever the user: merges and cache pinning look rows up this way.
-  index('library_items_entity').on(t.entityType, t.entityId),
+  index('likes_entity').on(t.entityType, t.entityId),
 ])
 
 /** 1..5 stars. Exists for Subsonic clients. */

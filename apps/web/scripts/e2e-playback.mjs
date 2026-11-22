@@ -196,7 +196,7 @@ await step('queue', async () => {
 })
 
 await step('likes', async () => {
-  await page.getByRole('button', { name: 'Save to Liked Songs', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Save to library', exact: true }).first().click()
   await page.getByRole('link', { name: /Liked Songs/ }).first().click()
   await page.getByRole('heading', { name: 'Liked Songs', level: 1 }).waitFor()
   const row = page.getByRole('list', { name: 'Liked Songs tracks' }).getByText('Night Swimming', { exact: true })

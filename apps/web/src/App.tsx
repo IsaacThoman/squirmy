@@ -5,8 +5,7 @@ import { Page } from '@/components/layout/Page'
 import { Spinner } from '@/components/ui/feedback'
 import { LoginPage, RegisterPage, SetupPage } from '@/pages/account'
 import {
-  AlbumPage, ArtistPage, HomePage, LibraryAlbumsPage, LibraryArtistsPage, LibraryPlaylistsPage, LibrarySongsPage, LikedPage, NotFoundPage,
-  PlaylistPage, SearchPage, WantlistPage,
+  AlbumPage, ArtistPage, HomePage, LibraryPage, LibraryRedirect, LikedPage, NotFoundPage, PlaylistPage, SearchPage, WantlistPage,
 } from '@/pages/music'
 import { SettingsRoute, ShellPage } from '@/pages/shell'
 
@@ -50,11 +49,12 @@ export function AppRoutes() {
             <Route element={<ShellPage />}>
               <Route index element={<HomePage />} />
               <Route path="search" element={<SearchPage />} />
-              <Route path="library" element={<Navigate to="/library/albums" replace />} />
-              <Route path="library/albums" element={<LibraryAlbumsPage />} />
-              <Route path="library/artists" element={<LibraryArtistsPage />} />
-              <Route path="library/songs" element={<LibrarySongsPage />} />
-              <Route path="library/playlists" element={<LibraryPlaylistsPage />} />
+              <Route path="library" element={<LibraryPage />} />
+              {/* The list pages from before the combined Library, kept for links and bookmarks. */}
+              <Route path="library/albums" element={<LibraryRedirect filter="albums" />} />
+              <Route path="library/artists" element={<LibraryRedirect filter="artists" />} />
+              <Route path="library/songs" element={<LibraryRedirect filter="songs" />} />
+              <Route path="library/playlists" element={<LibraryRedirect filter="playlists" />} />
               <Route path="liked" element={<LikedPage />} />
               <Route path="wantlist" element={<WantlistPage />} />
               <Route path="album/:id" element={<AlbumPage />} />

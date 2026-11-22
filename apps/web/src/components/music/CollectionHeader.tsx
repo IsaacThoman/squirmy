@@ -1,9 +1,9 @@
-import { BookmarkCheck, BookmarkPlus, CircleCheck, CirclePlus, Heart, Play, Shuffle } from 'lucide-react'
+import { BookmarkCheck, BookmarkPlus, Play, Shuffle } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
-import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { SaveHeart } from './LibrarySave'
 
 type CollectionHeaderProps = {
   /** "Album", "Playlist", "EP"… */
@@ -43,19 +43,13 @@ export function CollectionHeader({ kind, title, art, byline, meta, description, 
   )
 }
 
-/**
- * Whether the collection is in the user's library. `collection`: music the server's owner
- * brought, in everyone's library for good; `saved`: the user added it; null: not in it.
- */
-export type LibraryToggle = { state: 'collection' | 'saved' | null; onChange: (inLibrary: boolean) => void }
-
 type PlayActionsProps = {
   title: string
   onPlay?: () => void
   onShuffle?: () => void
   /** Play was pressed and waits for the track list. */
   pending?: boolean
-  library?: LibraryToggle
+  /** The heart: saved to the user's library. */
   liked?: boolean
   onLike?: () => void
   wanted?: boolean
@@ -63,20 +57,15 @@ type PlayActionsProps = {
   children?: ReactNode
 }
 
-/** Play, Shuffle, the library, Like and Want, with room for an overflow menu. */
-export function PlayActions({ title, onPlay, onShuffle, pending, library, liked, onLike, wanted, onWant, children }: PlayActionsProps) {
+/** Play, Shuffle, the heart and Want, with room for an overflow menu. */
+export function PlayActions({ title, onPlay, onShuffle, pending, liked = false, onLike, wanted, onWant, children }: PlayActionsProps) {
   return (
     <>
       <IconButton label={`Play ${title}`} variant="primary" size="xl" shape="round" disabled={!onPlay} aria-busy={pending || undefined} onClick={onPlay} className="mr-2">
         {pending ? <Spinner label={null} className="text-current" /> : <Play className="translate-x-0.5" fill="currentColor" />}
       </IconButton>
       {onShuffle && <IconButton label={`Shuffle ${title}`} size="lg" onClick={onShuffle}><Shuffle /></IconButton>}
-      {library && <LibraryButton library={library} />}
-      {onLike && (
-        <IconButton label={liked ? `Remove ${title} from your likes` : `Like ${title}`} size="lg" onClick={onLike} className={cn(liked && 'text-primary hover:text-primary')}>
-          <Heart fill={liked ? 'currentColor' : 'none'} />
-        </IconButton>
-      )}
+      {onLike && <SaveHeart liked={liked} onToggle={onLike} size="lg" />}
       {onWant && (
         <IconButton label={wanted ? 'Remove from Wantlist' : 'Add to Wantlist'} size="lg" onClick={onWant} className={cn(wanted && 'text-primary hover:text-primary')}>
           {wanted ? <BookmarkCheck /> : <BookmarkPlus />}
@@ -84,32 +73,5 @@ export function PlayActions({ title, onPlay, onShuffle, pending, library, liked,
       )}
       {children}
     </>
-  )
-}
-
-/**
- * Add to library, a plus that turns into a check at once. On a collection album the check
- * stays put: removing the server's own music is an admin's job, not a library choice.
- */
-function LibraryButton({ library }: { library: LibraryToggle }) {
-  if (library.state === 'collection') {
-    return (
-      <Tooltip label="On this server">
-        <span role="img" aria-label="On this server" tabIndex={0} className="inline-flex size-10 items-center justify-center rounded-md text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-5">
-          <CircleCheck />
-        </span>
-      </Tooltip>
-    )
-  }
-  const saved = library.state === 'saved'
-  return (
-    <IconButton
-      label={saved ? 'Remove from library' : 'Add to library'}
-      size="lg"
-      onClick={() => library.onChange(!saved)}
-      className={cn(saved && 'text-primary hover:text-primary')}
-    >
-      {saved ? <CircleCheck /> : <CirclePlus />}
-    </IconButton>
   )
 }

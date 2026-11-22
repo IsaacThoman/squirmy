@@ -24,7 +24,7 @@ const managed: LibraryRoot = { ...root, id: id(9), name: 'Managed', mode: 'manag
 
 function renderProviders(overrides: Partial<Parameters<typeof ProvidersAdmin>[0]> = {}) {
   const props = {
-    providers: [provider], policy, managedRoots: [managed], jobs: [job], jobStatus: null, onJobStatusChange: vi.fn(),
+    providers: [provider], policy, usage: { cachedFiles: 0, cachedBytes: 0, pinnedBytes: 0, limitBytes: 0 }, managedRoots: [managed], jobs: [job], jobStatus: null, onJobStatusChange: vi.fn(),
     onCreate: vi.fn(async () => provider), onUpdate: vi.fn(async () => provider), onDelete: vi.fn(async () => ({ ok: true })),
     onTest: vi.fn(async () => provider), onClearMisses: vi.fn(async () => ({ cleared: 0, provider })), onSavePolicy: vi.fn(async () => policy),
     ...overrides,
@@ -34,6 +34,25 @@ function renderProviders(overrides: Partial<Parameters<typeof ProvidersAdmin>[0]
 }
 
 describe('providers admin', () => {
+  it('shows what the cache holds against its limit, and describes the limit as eviction', () => {
+    const GB = 1024 ** 3
+    renderProviders({ usage: { cachedFiles: 110, cachedBytes: 6 * GB, pinnedBytes: 2 * GB, limitBytes: 5 * GB } })
+    const cache = screen.getByRole('heading', { name: 'Cache' }).closest('section')!
+    expect(within(cache).getByText('110 files')).toBeInTheDocument()
+    expect(within(cache).getByText('6.0 GB')).toBeInTheDocument()
+    expect(within(cache).getByText('2.0 GB')).toBeInTheDocument()
+    expect(within(cache).getByText('4.0 GB')).toBeInTheDocument()
+    expect(within(cache).getByText('120% used')).toBeInTheDocument()
+    expect(within(cache).getByText(/Songs nobody holds on to are deleted within the hour/)).toBeInTheDocument()
+    expect(screen.getByText(/Playing is never refused/)).toBeInTheDocument()
+    expect(screen.queryByText(/filed into the library|Fetching stops/)).not.toBeInTheDocument()
+  })
+
+  it('says when nothing is cached and there is no limit', () => {
+    renderProviders()
+    expect(screen.getByText('Nothing cached yet')).toBeInTheDocument()
+  })
+
   it('adds a provider, checking the secret first', async () => {
     const props = renderProviders({ providers: [] })
     expect(screen.getByText(/On-demand fetching is off/)).toBeInTheDocument()

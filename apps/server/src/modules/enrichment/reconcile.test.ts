@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { eq, sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, externalIds, libraryItems, likes, mediaFiles, playlistItems, playlists, plays, recordings } from '../../database/schema.js'
+import { albumArtists, albums, externalIds, likes, mediaFiles, playlistItems, playlists, plays, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { createFile } from '../../test/catalog.js'
@@ -25,7 +25,7 @@ function described(rows: readonly Recorded[]) {
 }
 
 describe('release reconciliation plan, on recorded discographies', () => {
-  it('folds the Grimes stubs into their release groups and leaves distinct releases alone', () => {
+  it('folds the Grimes stubs into their release groups and leaves distinct releases and editions alone', () => {
     expect(described(recorded('grimes'))).toEqual([
       // Search stubs written under a second Grimes row, merged into the MusicBrainz artist after its discography ran.
       'Art Angels (-, album) -> Art Angels (2015, album, mb)',
@@ -33,8 +33,6 @@ describe('release reconciliation plan, on recorded discographies', () => {
       'Darkbloom (-, ep) -> Darkbloom (2011, ep, mb)',
       'Entropy (-, single) -> Entropy (2015, single, mb)',
       'Halfaxa (-, album) -> Halfaxa (2010, album, mb)',
-      // The deluxe edition is the same release.
-      'Miss Anthropocene (Deluxe Edition) (-, album) -> Miss Anthropocene (2019, album, mb)',
       // MusicBrainz has two "Violence" singles; the stub joins the one the page shows.
       'Violence (-, single) -> Violence (2019, single, mb)',
       '爱 (-, single) -> 爱 (2026, single, mb)',
@@ -64,6 +62,24 @@ describe('release reconciliation plan, on recorded discographies', () => {
     expect(planReleaseMerges([row('a', 'album', { mbid: 'x', year: 2016 }), row('b', 'single', { typeGuessed: true })]).map(([from]) => from.id)).toEqual(['b'])
     // Years far apart are different releases (a re-recording, a reissue under the old title).
     expect(planReleaseMerges([row('a', 'album', { mbid: 'x', year: 2001 }), row('b', 'album', { year: 2016 })])).toEqual([])
+  })
+
+  it('never merges another edition, or an edition row', () => {
+    const row = (id: string, title: string, extra: Partial<ReleaseRow> = {}): ReleaseRow => ({
+      id, title, type: 'album', typeGuessed: false, mbid: null, year: null, detailLevel: 0, hasFiles: false, hasArtwork: true, ...extra,
+    })
+    const rows = [
+      row('sos', 'SOS', { mbid: 'x', year: 2022 }),
+      row('lana', 'SOS Deluxe: LANA'),
+      row('3am', 'Midnights (3am Edition)'),
+      row('midnights', 'Midnights', { mbid: 'y', year: 2022 }),
+      // A store copy under the group's own title kept as an edition (its track count differed).
+      row('copy', 'Midnights', { isEdition: true }),
+      // The same edition, labelled the store's way.
+      row('f1', 'Just Keep Watching (From F1® The Movie)', { typeGuessed: true }),
+      row('jkw', 'Just Keep Watching', { type: 'soundtrack', mbid: 'z', year: 2025 }),
+    ]
+    expect(planReleaseMerges(rows).map(([from, into]) => [from.id, into.id])).toEqual([['f1', 'jkw']])
   })
 
   it('merges stubs of one release that no MusicBrainz row stands for into the best of them', () => {
@@ -105,8 +121,9 @@ describe('reconcileArtistAlbums', () => {
     const owner = await createUser()
     const root = await createLibraryRoot()
     await createFile({ rootId: root.id, recordingId: await recording(tate, 'TIT FOR TAT'), albumId: owned })
+    // Two saves (the heart), each of a row that gives way.
     await db.insert(likes).values({ userId: owner.id, entityType: 'album', entityId: stub })
-    await db.insert(libraryItems).values({ userId: owner.id, entityType: 'album', entityId: orphan })
+    await db.insert(likes).values({ userId: owner.id, entityType: 'album', entityId: orphan })
     const [playlist] = await db.insert(playlists).values({ id: newId(), ownerId: owner.id, name: 'Mix' }).returning()
     await db.insert(playlistItems).values({ id: newId(), playlistId: playlist!.id, position: 0, recordingId: song, albumId: stub })
     await db.insert(plays).values({ id: newId(), userId: owner.id, recordingId: song, albumId: stub })
@@ -117,8 +134,7 @@ describe('reconcileArtistAlbums', () => {
     expect((await row(stub)).mergedIntoId).toBe(single)
     expect((await row(orphan)).mergedIntoId).toBe(owned)
     expect((await row(album2023)).mergedIntoId).toBeNull()
-    expect(await db.select({ entityId: likes.entityId }).from(likes)).toEqual([{ entityId: single }])
-    expect(await db.select({ entityId: libraryItems.entityId }).from(libraryItems)).toEqual([{ entityId: owned }])
+    expect((await db.select({ entityId: likes.entityId }).from(likes)).map((row) => row.entityId).sort()).toEqual([single, owned].sort())
     expect(await db.select({ albumId: playlistItems.albumId }).from(playlistItems)).toEqual([{ albumId: single }])
     expect(await db.select({ albumId: plays.albumId }).from(plays)).toEqual([{ albumId: single }])
     expect((await db.select({ hint: recordings.albumHintId }).from(recordings).where(eq(recordings.id, song)))[0]!.hint).toBe(single)

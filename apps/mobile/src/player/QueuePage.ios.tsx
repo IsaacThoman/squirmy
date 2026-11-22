@@ -9,7 +9,8 @@ import type { TrackSummary } from '@squirmy/contracts';
 import { useWantlistEnabled } from '../account/AccountProvider';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
-import { useLiked, useSaved, useTrack, useTrackStore } from '../data/library';
+import { useLiked, useTrack, useTrackStore } from '../data/library';
+import { heartButton } from '../library/heart';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner } from '../library/trackActions';
 import { IconButton, Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
 import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
@@ -248,8 +249,8 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
   const viewer = useViewer();
   const { detail, unavailable: failed } = queueRow(entry, track, { playable, offline, viewer });
   const title = track?.title ?? '';
-  const saved = useSaved('track', track?.id, track?.inLibrary);
-  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, saved, viewer }) : [];
+  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, viewer }) : [];
+  const heart = heartButton(favorite, title || 'this song');
   return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
     <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, accessibilityLabel(`${title}, ${detail}`)]}>
       <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape]}>
@@ -261,9 +262,8 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
         <Spacer minLength={4} />
       </HStack>
     </Button>
-    <IconButton symbol={favorite ? 'heart.fill' : 'heart'} size={17}
-      label={favorite ? `Unlike ${title}` : `Like ${title}`}
-      color={favorite ? colors.accent : colors.muted} selected={favorite}
+    <IconButton symbol={heart.icon} size={17} label={heart.label}
+      color={favorite ? colors.accent : colors.muted} selected={heart.selected}
       onPress={() => track && handlers.run(track, { id: favorite ? 'unlike' : 'like', title, icon: 'heart' })} />
     <TrackActionsMenu actions={actions} onRun={action => track && handlers.run(track, action)} label={`More options for ${title || 'this song'}`}>
       {position && position.index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => handlers.move(entry, position.index - 1)} />}

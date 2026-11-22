@@ -34,14 +34,11 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
       controls.enqueue([track], action === 'play-next' ? 'next' : 'last')
       toast({ title: action === 'play-next' ? 'Playing next' : 'Added to queue', description: track.title })
     } else if (action === 'like') {
-      library.setLiked('track', track.id, !track.liked)
-      toast({ title: track.liked ? 'Removed from Liked Songs' : 'Saved to Liked Songs', description: track.title })
+      library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)
     } else if (action === 'want') {
       const wanted = !library.isWanted(track.id)
       library.setWanted({ type: 'track', track }, wanted)
       toast({ title: wanted ? 'Added to Wantlist' : 'Removed from Wantlist', description: track.title })
-    } else if (action === 'library') {
-      library.setInLibrary({ type: 'track', id: track.id, title: track.title }, !track.inLibrary)
     } else if (action === 'radio') {
       controls.startRadio({ type: 'track', id: track.id })
     } else if (action === 'remove') {

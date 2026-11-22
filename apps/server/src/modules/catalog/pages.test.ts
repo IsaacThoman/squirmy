@@ -222,22 +222,23 @@ describe('catalog pages', () => {
     await db.insert(playlists).values({ id: newId(), ownerId: user.id, name: 'Theirs', isPublic: true })
 
     // The wantlist is off by default: Home leaves it out and does not refresh wants.
-    expect((await homeOf()).map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'liked-albums'])
+    expect((await homeOf()).map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists'])
     const ownedWant = async () => (await db.select({ fulfilledAt: wants.fulfilledAt }).from(wants)
       .where(and(eq(wants.userId, fresh.id), eq(wants.entityId, played.albumId))))[0]!.fulfilledAt
     expect(await ownedWant()).toBeNull()
     await updateServerSettings({ wantlistEnabled: true })
 
     const sections = await homeOf()
-    expect(sections.map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'liked-albums', 'wantlist'])
+    expect(sections.map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'wantlist'])
     const byId = Object.fromEntries(sections.map((section) => [section.id, section]))
     expect(byId['recently-added']).toMatchObject({ kind: 'albums', title: 'Recently added' })
-    expect(byId['recently-added']!.kind === 'albums' && byId['recently-added']!.albums[0]!.id).toBe(played.albumId)
+    // A hearted album is a saved one: it is recently added, beside the collection (there is no rail of liked albums).
+    expect(byId['recently-added']!.kind === 'albums' && byId['recently-added']!.albums.map((album) => album.id).sort())
+      .toEqual(expect.arrayContaining([played.albumId, liked.albumId]))
     expect(byId['recently-played']).toMatchObject({ kind: 'albums', albums: [{ id: played.albumId }] })
     // The play from 100 days ago is outside the window.
     expect(byId['most-played']).toMatchObject({ kind: 'tracks', tracks: [{ id: played.tracks[1]!.recordingId }, { id: played.tracks[0]!.recordingId }] })
     expect(byId.playlists).toMatchObject({ kind: 'playlists', title: 'Your playlists', playlists: [{ name: 'Mine', trackCount: 1 }] })
-    expect(byId['liked-albums']).toMatchObject({ kind: 'albums', albums: [{ id: liked.albumId }] })
     expect(byId.wantlist).toMatchObject({ kind: 'albums', albums: [{ id: wanted.albumId }] })
     expect(await ownedWant()).not.toBeNull()
   })
@@ -265,6 +266,12 @@ describe('standingRows', () => {
       row('i', 'Sports car', 'single', { led: false }),
     ]
     expect(standingRows(rows).map((one) => one.id)).toEqual(['a', 'c', 'e', 'f', 'h', 'i'])
+  })
+
+  it('lists an edition row once with its release group', () => {
+    const group = row('g', 'SOS', 'album', { year: 2022 })
+    const lana = row('l', 'SOS Deluxe: LANA', 'album', { hasMbid: false, year: 2022, releaseTitle: 'SOS' })
+    expect(standingRows([lana, group]).map((one) => one.id)).toEqual(['g'])
   })
 
   it('leaves out a popular song’s album MusicBrainz does not list for an artist it knows', () => {

@@ -81,7 +81,7 @@ The server remembers a detached device:
 - **Reload, relaunch, network drop, server restart:** the device comes back detached, with its own queue. No message is needed; the marker is enough.
 - **Away more than seven days:** the server forgets the own session and the device comes back in the shared session. The apps already show a toast or notice for this (`onDetachedEnded`): web *Playing with your other devices again* / *This tab was away for over a week, so its own queue was cleared.*; iOS the same in its notice style.
 
-A web device is one tab (`claimTabDevice`), so detaching one tab does not detach the others; each tab of the same browser is listed as its own device.
+A web device is one tab (`claimTabDevice`), so detaching one tab does not detach the others. Lists fold a browser's tabs into one row (client-core `listedDevices`), but never detached ones: each plays its own queue and is listed under "Playing separately".
 
 ## Not in scope
 

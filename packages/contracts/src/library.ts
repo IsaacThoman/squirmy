@@ -27,7 +27,13 @@ export const LibraryRoot = z.object({
    */
   template: z.string().nullable(),
   scanning: z.boolean(),
+  /** Present files in the folder, the provider cache under its `_Fetched/` included. */
   fileCount: z.number().int(),
+  /**
+   * How many of `fileCount` a provider delivered (`media_files.cached`). They are cache,
+   * not collection, so `GET /admin/library/stats` leaves them out. Absent from older servers.
+   */
+  cachedFileCount: z.number().int().optional(),
   lastScanStartedAt: IsoDateTime.nullable(),
   lastScanFinishedAt: IsoDateTime.nullable(),
   lastScanStats: ScanStats.nullable(),
@@ -75,6 +81,10 @@ export type UpdateLibraryRootRequest = z.infer<typeof UpdateLibraryRootRequest>
 export const ScanRootResponse = z.object({ queued: z.boolean() })
 export type ScanRootResponse = z.infer<typeof ScanRootResponse>
 
+/**
+ * `GET /admin/library/stats`: the collection, the files people brought (scanned, uploaded,
+ * imported). Provider deliveries are cache and are counted by `GET /admin/acquisition/usage`.
+ */
 export const LibraryStats = z.object({
   artists: z.number().int(),
   albums: z.number().int(),

@@ -1,6 +1,8 @@
 /**
  * Search over the user's own music: artists with owned tracks, albums with a present
- * file, and owned tracks. Answered from Postgres alone, in a few milliseconds.
+ * file, and owned tracks, plus whatever the user saved with the heart, file or not (the
+ * Library's search box searches this, and a saved album may not have arrived yet).
+ * Answered from Postgres alone, in a few milliseconds.
  *
  * The query is a `matchKey`, so case, punctuation and diacritics never matter. Candidates
  * come from three index lookups per kind, each bounded:
@@ -10,7 +12,8 @@
  * - artist: albums and tracks whose primary artist's name starts with the query;
  * - fuzzy (three characters or more): trigram word similarity against `name_key` or the
  *   whole `match_key` (artist and title), which tolerates typos and word order.
- * Only owned rows are taken. They are ranked exact match first, then prefix (of a title,
+ * Only owned rows are taken, and one more lookup walks the user's saves (a few hundred rows
+ * for most people) for titles or names that start with the query or are like it. They are ranked exact match first, then prefix (of a title,
  * a name or the artist), then by similarity; ties go to what the user played most among
  * their last 1,000 plays, then to what they liked.
  */
@@ -92,11 +95,19 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
   const end = prefixEnd(key)
   const recent = sql`select recording_id, album_id from plays where user_id = ${userId} order by started_at desc limit ${recentPlays}`
 
+  // Saves are a branch of their own, not an `or` in the owned condition, which would change
+  // the plans of the owned lookups for every query.
+  const similar = (column: string) => key.length >= 3 ? sql`${key} <% ${sql.raw(column)}` : sql`false`
   if (kind === 'artist') {
     const owned = sql`a.merged_into_id is null and ${artistOwned('a')}`
     return sql`
       with candidates as (
         (select a.id from artists a where a.name_key collate "C" >= ${key} and a.name_key collate "C" < ${end} and ${owned} limit ${prefixCandidates})
+        union
+        (select a.id from likes own join artists a on a.id = own.entity_id
+          where own.user_id = ${userId} and own.entity_type = 'artist' and a.merged_into_id is null
+            and (starts_with(a.name_key, ${key}) or ${similar('a.name_key')})
+          limit ${prefixCandidates})
         union
         (select a.id from artists a where ${fuzzy(key, sql`a.name_key`)} and ${owned} limit ${fuzzyCandidates})
       ),
@@ -135,6 +146,12 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
         where ar.name_key collate "C" >= ${key} and ar.name_key collate "C" < ${end} and ${owned} limit ${fuzzyCandidates})
       union
       (select t.id from ${table} t where ${fuzzy(key, sql`t.match_key`)} and ${owned} limit ${fuzzyCandidates})
+      union
+      (select t.id from likes own join ${table} t on t.id = own.entity_id
+        where own.user_id = ${userId} and own.entity_type = ${likeType} and t.merged_into_id is null
+          and (starts_with(t.title_key, ${key}) or ${similar('t.match_key')}
+            or exists (select 1 from artists ar where ar.id = t.primary_artist_id and starts_with(ar.name_key, ${key})))
+        limit ${prefixCandidates})
     ),
     played as (select ${playedBy} as id, count(*)::int as plays from (${recent}) p group by 1)
     select t.id from candidates c join ${table} t on t.id = c.id left join played on played.id = t.id

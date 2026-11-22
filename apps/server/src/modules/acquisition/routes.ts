@@ -14,7 +14,6 @@ import { hashToken } from '../../lib/crypto.js'
 import { AppError, badRequest, conflict, unauthorized } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { addImportFile } from '../imports/index.js'
-import { recordSave } from '../userdata/library.js'
 import {
   completeDelivery, DELIVERING, ensureImport, finishJob, loadJob, providerFailed, markDownloading, requestAlbum, requestTrack, touchJob, type JobRow,
 } from './jobs.js'
@@ -193,21 +192,11 @@ export async function acquisitionRoutes(app: FastifyInstance) {
   app.post('/albums/:id/acquire', { preHandler: limitAcquires }, async (request, reply): Promise<AcquireResponse> => {
     const user = requireUser(request)
     const albumId = IdParams.parse(request.params).id
-    // Only the library action adds to a library (the default origin, which "Get this album"
-    // sends). A device downloading an album, and playback (which asks through the sessions
-    // module, never here), only fetch: the files are cache.
+    // Fetching never adds to a library: only the heart does (`PUT /me/likes/album/:id`, which
+    // asks for the files itself). This used to save the album for the default origin, so any
+    // caller that only meant to fetch put albums in the user's library unasked.
     const { origin = 'library' } = AcquireQuery.parse(request.query)
-    const save = () => (origin === 'library' ? recordSave(user.id, 'album', albumId) : Promise.resolve(albumId))
-    let jobs
-    try {
-      jobs = await requestAlbum(user.id, albumId, origin)
-    } catch (error) {
-      // Adding an album the server already has (as cache) to the library still adds it.
-      if (error instanceof AppError && error.code === 'already_available') await save()
-      throw error
-    }
-    // Owned by the userdata module, as completed album jobs were converted when library saves arrived.
-    await save()
+    const jobs = await requestAlbum(user.id, albumId, origin)
     reply.code(202)
     return { items: await jobsById(jobs.map((job) => job.id)) }
   })
