@@ -101,7 +101,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const options = playlist && { playlist: { ...playlist, onRemove: handlers.remove } };
   // Described from what the row already reads; nothing runs until an item is chosen.
   const saved = useSaved('track', track.id, track.inLibrary);
-  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist, saved }, options);
+  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist, saved, viewer }, options);
   const perform = (action: TrackAction) => run(track, action, options);
 
   return (
