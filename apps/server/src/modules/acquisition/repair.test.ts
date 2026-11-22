@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs'
 import { access, mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { AlbumDetail, AlbumPage } from '@squirmy/contracts'
+import { AlbumDetail, AlbumPage, SearchResults } from '@squirmy/contracts'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -21,11 +21,12 @@ import { makeTone } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
 import { resolveOne } from '../catalog/redirects.js'
-import { addImportFile, commitImport, createImport, importsModule } from '../imports/index.js'
+import { addImportFile, commitImport, createImport, importsModule, refileImport } from '../imports/index.js'
+import { lockCatalog } from '../library/cleanup.js'
 import { libraryModule } from '../library/index.js'
 import { insertRoot } from '../library/roots.js'
 import { scanRoot } from '../library/scan.js'
-import { matchingModule } from '../matching/index.js'
+import { matchingModule, placeFiles } from '../matching/index.js'
 import { createProvider } from './providers.js'
 import { repairDeliveries } from './repair.js'
 import { mergeDelivered } from './verify.js'
@@ -356,4 +357,142 @@ describe('repairing deliveries left on albums of their own', () => {
     expect(await snapshot()).toBe(before)
     expect(await db.select().from(releaseTracks).where(eq(releaseTracks.releaseId, lp.releaseId))).toHaveLength(4)
   }, 180_000)
+
+  /** Unmerged artists with this name. */
+  const artistsNamed = (name: string) => db.select({ id: artists.id }).from(artists).where(and(eq(artists.nameKey, matchKey(name)), isNull(artists.mergedIntoId)))
+
+  it('puts popular tracks fetched with no album on the album their tags name, and drops the artists their tags ran together', async () => {
+    // The live leftovers of 2026-11-22: "SILK SCARF" and "Summer 2000 (Fcukers Remix)" were
+    // played from the Fcukers page's popular tracks. Deezer lists those without an album row,
+    // so the jobs named no album and the rows had no album hint; the files' album artist tag
+    // ran the track's artists together, which made an artist of each combination; and the
+    // repair left both files in `_Incoming`, unmatched.
+    const tiga = await createArtist({ name: 'Tieega', mbid: crypto.randomUUID() })
+    const band = await createArtist({ name: 'Fcookers', mbid: crypto.randomUUID() })
+    const girl = await createArtist({ name: 'TV Gurrl', mbid: crypto.randomUUID() })
+    const clanton = await createArtist({ name: 'George Clantonn' })
+    const hotlife = await identified({
+      title: 'Hotlife', artist: tiga, year: 2025,
+      tracks: [{ title: 'Party Thyme', durationMs: 2000 }, { title: 'Friktion', durationMs: 2000 }, { title: 'Mind Dimensions', durationMs: 2000 }, { title: 'SILK SCARF', durationMs: 2000 }],
+    })
+    // The standard edition, which does not have the Japanese edition's bonus remix.
+    const faux = await identified({ title: 'Fauxllennium', artist: girl, year: 2016, tracks: [{ title: 'Taking What’s Not Yourz', durationMs: 2000 }, { title: 'Song About Mee', durationMs: 2000 }] })
+
+    // Rows for Deezer's popular tracks: a Deezer id, no album hint, and the other artists'
+    // credits pointing at the page's artist, as the live rows do.
+    const popular = async (title: string, credits: { artistId: string; name: string }[]) => {
+      const id = newId()
+      const credit = credits.map((one) => one.name).join(', ')
+      await db.insert(recordings).values({
+        id, title, artistCredit: credit, primaryArtistId: band.id, durationMs: 2000, titleKey: matchKey(title), matchKey: creditKey(credit, title),
+      })
+      await db.insert(recordingArtists).values(credits.map((one, position) => ({
+        recordingId: id, position, artistId: one.artistId, creditedName: one.name, joinPhrase: position < credits.length - 1 ? ', ' : '',
+      })))
+      await db.insert(externalIds).values({ provider: 'deezer', entityType: 'recording', externalId: `top-${id}`, entityId: id })
+      return id
+    }
+    const scarf = await popular('SILK SCARF', [{ artistId: band.id, name: tiga.name }, { artistId: band.id, name: band.name }])
+    const summer = await popular('Summer 2000 (Fcookers Remix)', [{ artistId: band.id, name: girl.name }, { artistId: clanton.id, name: clanton.name }, { artistId: band.id, name: band.name }])
+    const silkCredit = `${tiga.name}, ${band.name}`
+    const summerCredit = `${girl.name}, ${clanton.name}, ${band.name}`
+    const silk = await fetchedTheOldWay(scarf, null, { title: 'SILK SCARF', artist: silkCredit, album: 'HOTLIFE', position: 4, year: 2025 })
+    const remix = await fetchedTheOldWay(summer, null, { title: 'Summer 2000 (Fcookers Remix)', artist: summerCredit, album: 'Fauxllennium (Japanese Deluxe Edition)', position: 14, year: 2025 })
+
+    // The broken state: one album and one artist of its own for each, the files in `_Incoming`.
+    expect(await artistsNamed(silkCredit)).toHaveLength(1)
+    expect(await artistsNamed(summerCredit)).toHaveLength(1)
+    expect((await albumPage(silk.copyId)).artists.map((artist) => artist.name)).toEqual([silkCredit])
+    expect(silk.file.relPath).toMatch(/^_Incoming\//)
+
+    expect(await repairDeliveries()).toMatchObject({ placed: 2 })
+    await drainJobs()
+
+    // "SILK SCARF" is track 4 of the album, as the album's own recording, filed with it.
+    expect(await resolveOne('recordings', scarf)).toBe(hotlife.tracks[3]!.recordingId)
+    const filed = await fileRow(silk.file.id)
+    expect(filed).toMatchObject({
+      albumId: hotlife.albumId, releaseTrackId: hotlife.tracks[3]!.releaseTrackId, recordingId: hotlife.tracks[3]!.recordingId, matchStatus: 'matched', matchSource: 'request',
+      relPath: `_Fetched/${tiga.name}/Hotlife (2025)/04 SILK SCARF.flac`,
+    })
+    expect(await exists(filed.relPath)).toBe(true)
+    expect(await albumPage(hotlife.albumId)).toMatchObject({ ownedTrackCount: 1, trackCount: 4 })
+
+    // The remix is on the album its tags name ("Japanese Deluxe Edition" is an edition of it),
+    // on a track list of its edition beside the standard one, at its own number, and filed.
+    const bonus = await fileRow(remix.file.id)
+    expect(bonus).toMatchObject({ albumId: faux.albumId, recordingId: summer, matchStatus: 'matched', matchSource: 'request' })
+    expect(bonus.releaseId).not.toBe(faux.releaseId)
+    expect(await db.select({ position: releaseTracks.position }).from(releaseTracks).where(eq(releaseTracks.id, bonus.releaseTrackId!))).toEqual([{ position: 14 }])
+    expect(await albumRow(faux.albumId)).toMatchObject({ canonicalReleaseId: faux.releaseId })
+    expect(bonus.relPath).toBe(`_Fetched/${girl.name}/Fauxllennium (2016)/14 Summer 2000 (Fcookers Remix).flac`)
+    expect(await exists(bonus.relPath)).toBe(true)
+
+    // The albums their tags made redirect, and the artists made of credits run together are gone.
+    expect(await resolveOne('albums', silk.copyId)).toBe(hotlife.albumId)
+    expect(await resolveOne('albums', remix.copyId)).toBe(faux.albumId)
+    expect(await artistsNamed(silkCredit)).toEqual([])
+    expect(await artistsNamed(summerCredit)).toEqual([])
+    for (const item of [silk, remix]) {
+      expect(await exists(`_Incoming/${item.importId}`)).toBe(false)
+      const [delivery] = await db.select().from(imports).where(eq(imports.id, item.importId))
+      expect(delivery!.stats).toMatchObject({ filesFiled: 1, filesLeftForReview: 0 })
+    }
+    expect(await db.select().from(matchReviews).where(and(eq(matchReviews.status, 'open'), sql`${matchReviews.groupKey} in (${silk.file.groupKey}, ${remix.file.groupKey})`))).toEqual([])
+
+    expect(await repairDeliveries()).toMatchObject({ placed: 0 })
+  }, 120_000)
+
+  it('moves a track off the search stub it was put on onto its album\'s own row, and merges the stub', async () => {
+    // The live "Baggy$$" of 2026-11-22: search showed the EP twice. "UMPA" had been fetched
+    // for the Deezer search stub of the EP and put on a track list built from its file there,
+    // before the EP's MusicBrainz row had a track list; the stub's Deezer id later moved to
+    // that row. The file stayed on the stub, whose page showed one track of one.
+    const band = await createArtist({ name: 'Fcukerrs', mbid: crypto.randomUUID() })
+    const ep = await identified({
+      title: 'Baggy$$', type: 'ep', artist: band, year: 2024,
+      tracks: ['Bon Bon', 'Heart Dub', 'Homie Don’t Shake', 'UMPA', 'I Don’t Wanna', 'Tommy'].map((title) => ({ title, durationMs: 2000 })),
+    })
+    await db.insert(externalIds).values({ provider: 'deezer', entityType: 'album', externalId: 'baggy', entityId: ep.albumId })
+    const stub = newId()
+    await db.insert(albums).values({
+      id: stub, title: 'Baggy$$', artistCredit: band.name, primaryArtistId: band.id, type: 'ep', detailLevel: 0,
+      titleKey: matchKey('Baggy$$'), matchKey: creditKey(band.name, 'Baggy$$'),
+    })
+    await db.insert(albumArtists).values({ albumId: stub, position: 0, artistId: band.id, creditedName: band.name })
+
+    const umpa = await fetchedTheOldWay(ep.tracks[3]!.recordingId, stub, { title: 'UMPA', artist: band.name, album: 'Baggy$$', position: 4, year: 2024 })
+    // Placed on the stub, as placement did while the stub was the only row that could take it.
+    await db.transaction(async (tx) => {
+      await lockCatalog(tx)
+      await placeFiles(tx, { albumId: stub, files: [{ fileId: umpa.file.id, recordingId: ep.tracks[3]!.recordingId }], redirect: true })
+    })
+    await refileImport(umpa.importId)
+    await drainJobs()
+    const wanna = await fetchedTheOldWay(ep.tracks[4]!.recordingId, stub, { title: 'I Don’t Wanna', artist: band.name, album: 'Baggy$$', position: 5, year: 2024 })
+
+    const baggy = async () => {
+      const found = body(await app.inject({ url: `/api/v1/search/library?q=${encodeURIComponent('baggy$$')}`, headers: fan.headers }), SearchResults)
+      return found.albums.filter((album) => album.title === 'Baggy$$' && album.artistCredit === band.name)
+    }
+    expect(await fileRow(umpa.file.id)).toMatchObject({ albumId: stub, matchStatus: 'matched', matchSource: 'request' })
+    expect(await albumPage(stub)).toMatchObject({ trackCount: 1, ownedTrackCount: 1, availability: 'full' })
+
+    await repairDeliveries()
+    await drainJobs()
+
+    // One "Baggy$$": the EP, with both tracks at their places and the stub redirecting to it.
+    expect(await resolveOne('albums', stub)).toBe(ep.albumId)
+    expect(await fileRow(umpa.file.id)).toMatchObject({ albumId: ep.albumId, releaseId: ep.releaseId, releaseTrackId: ep.tracks[3]!.releaseTrackId, matchStatus: 'matched' })
+    expect(await fileRow(wanna.file.id)).toMatchObject({ albumId: ep.albumId, releaseTrackId: ep.tracks[4]!.releaseTrackId, matchStatus: 'matched' })
+    expect((await baggy()).map((album) => album.id)).toEqual([ep.albumId])
+    const page = await albumPage(ep.albumId)
+    expect(page).toMatchObject({ trackCount: 6, ownedTrackCount: 2, availability: 'partial' })
+    expect(page.discs.flatMap((disc) => disc.tracks.filter((track) => track.availability === 'server').map((track) => track.position))).toEqual([4, 5])
+    expect(await db.select().from(releases).where(eq(releases.albumId, ep.albumId))).toHaveLength(1)
+    // Filed files are not moved again: it keeps the folder it was filed in under the stub.
+    expect((await fileRow(umpa.file.id)).relPath).toBe('_Fetched/Fcukerrs/Baggy$$/04 UMPA.flac')
+
+    expect(await repairDeliveries()).toMatchObject({ placed: 0 })
+  }, 120_000)
 })

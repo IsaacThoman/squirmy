@@ -8,6 +8,8 @@ describe('editionFreeTitle', () => {
     expect(editionFreeTitle('Let It Be - Remastered 2009')).toBe('Let It Be')
     expect(editionFreeTitle('Nevermind (30th Anniversary Super Deluxe)')).toBe('Nevermind')
     expect(editionFreeTitle('Nevermind [Deluxe Edition] (Explicit)')).toBe('Nevermind')
+    expect(editionFreeTitle('Fauxllennium (Japanese Deluxe Edition)')).toBe('Fauxllennium')
+    expect(editionFreeTitle('Kid A (Japan)')).toBe('Kid A (Japan)')
     expect(editionFreeTitle("Rumours (Collector's Edition)")).toBe('Rumours')
     expect(editionFreeTitle('Thriller – Special Edition')).toBe('Thriller')
   })

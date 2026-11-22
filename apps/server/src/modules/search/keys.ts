@@ -16,7 +16,9 @@ const strongEditionWords = new Set([
   'deluxe', 'expanded', 'special', 'anniversary', 'remaster', 'remastered', 'remasters', 'explicit', 'clean', 'edited',
   'bonus', 'collectors', 'limited', 'legacy', 'reissue', 'standard',
 ])
-const weakEditionWords = new Set(['super', 'edition', 'version', 'track', 'tracks', 'digital', 'the', 'and'])
+// Regional editions ("Japanese Deluxe Edition") are editions too, but only beside a strong
+// word: "(Japan)" alone may be part of a title.
+const weakEditionWords = new Set(['super', 'edition', 'version', 'track', 'tracks', 'digital', 'the', 'and', 'japan', 'japanese'])
 const ordinal = /^\d+(st|nd|rd|th)?$/
 
 const suffixes = [/\s*\(([^()]*)\)\s*$/, /\s*\[([^[\]]*)\]\s*$/, /\s+[-–—]\s+([^-–—()[\]]+)$/]
