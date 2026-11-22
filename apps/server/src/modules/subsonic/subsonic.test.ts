@@ -4,7 +4,7 @@
  * audio tests with real files are in media.test.ts.
  */
 import { randomUUID } from 'node:crypto'
-import { COMMAND_TRACK_LIMIT } from '@squirmy/contracts'
+import { COMMAND_TRACK_LIMIT, PLAYLIST_ITEM_LIMIT } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -551,6 +551,28 @@ describe('subsonic', () => {
       expect(await lune.client.error('getPlaylists', { username: 'mira' })).toBe(50)
       expect(await lune.client.error('createPlaylist', { songId: song(blueHour, 0) })).toBe(10)
       expect(await lune.client.error('createPlaylist', { name: 'Bad', songId: `tr-${own.id}` })).toBe(70)
+    })
+
+    it('applies the playlist limits: name and comment lengths, and songs per playlist', async () => {
+      const sol = await person('sol5')
+      const count = async () => (await sol.client.call('getPlaylists')).playlists.playlist?.length ?? 0
+      expect(await sol.client.error('createPlaylist', { name: 'x'.repeat(121) })).toBe(0)
+      expect(await sol.client.error('createPlaylist', { name: '   ' })).toBe(0)
+      expect(await count()).toBe(0)
+
+      const many = (length: number) => Array.from({ length }, (_, index) => song(blueHour, index % 3))
+      expect(await sol.client.error('createPlaylist', { name: 'Huge', songId: many(PLAYLIST_ITEM_LIMIT + 1) }, { method: 'POST' })).toBe(0)
+      expect(await count()).toBe(0)
+      const { playlist } = await sol.client.json('createPlaylist', { name: ` ${'y'.repeat(120)} `, songId: many(PLAYLIST_ITEM_LIMIT - 1) }, { method: 'POST' })
+      expect(playlist).toMatchObject({ name: 'y'.repeat(120), songCount: PLAYLIST_ITEM_LIMIT - 1 })
+
+      expect(await sol.client.error('updatePlaylist', { playlistId: playlist.id, comment: 'z'.repeat(2001) })).toBe(0)
+      expect(await sol.client.error('updatePlaylist', { playlistId: playlist.id, name: ' ' })).toBe(0)
+      expect(await sol.client.error('updatePlaylist', { playlistId: playlist.id, songIdToAdd: many(2) })).toBe(0)
+      expect(await sol.client.error('createPlaylist', { playlistId: playlist.id, songId: many(PLAYLIST_ITEM_LIMIT + 1) }, { method: 'POST' })).toBe(0)
+      expect(await getPlaylist(sol.id, playlist.id.slice(3))).toMatchObject({ name: 'y'.repeat(120), description: null, trackCount: PLAYLIST_ITEM_LIMIT - 1 })
+      await sol.client.json('updatePlaylist', { playlistId: playlist.id, comment: 'z'.repeat(2000), songIdToAdd: many(1) })
+      expect(await getPlaylist(sol.id, playlist.id.slice(3))).toMatchObject({ description: 'z'.repeat(2000), trackCount: PLAYLIST_ITEM_LIMIT })
     })
   })
 
