@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
 import { useScrobbling, useUpdateSettings, useUserSettings } from '../data/queries';
 import { useNotice } from '../Notice';
-import { useSignedInApi } from './AccountProvider';
+import { useAccount, useSignedInApi } from './AccountProvider';
 
 export const normalizationOptions: readonly { value: NormalizationMode; label: string }[] = [
   { value: 'auto', label: 'Automatic' },
@@ -19,6 +19,16 @@ export const qualityOptions: readonly { value: StreamQuality; label: string }[] 
 ];
 
 export const normalizationNote = 'Plays every song at a similar volume. Automatic keeps an album’s own dynamics when you play it in order. Squirmy only turns songs down, never up.';
+export const lastFmNote = 'Plays are sent once you have listened to half a song or four minutes of it.';
+export const lastFmAdminNote = 'Last.fm scrobbling isn’t set up on this server. As an admin, you can add a Last.fm API key in the web app’s server settings.';
+
+/** Where a ListenBrainz user finds the token to paste. */
+export const listenBrainzSettingsUrl = 'https://listenbrainz.org/settings/';
+
+export function openListenBrainzSettings() {
+  void WebBrowser.openBrowserAsync(listenBrainzSettingsUrl);
+}
+
 export const qualityNote = 'Original streams the file as it is when this device can play it. High is AAC at 256 kbps. Data Saver uses the least data.';
 
 /** A line about a scrobbling service: who it is connected as, or what is wrong. */
@@ -33,6 +43,7 @@ export function scrobbleDetail(service: ScrobbleService): string {
 /** The signed-in user's settings and scrobbling connections, with the changes the settings screen makes. */
 export function useSettingsScreen() {
   const api = useSignedInApi();
+  const { state } = useAccount();
   const queryClient = useQueryClient();
   const notify = useNotice();
   const settings = useUserSettings();
@@ -62,6 +73,7 @@ export function useSettingsScreen() {
   });
 
   return {
+    isAdmin: state.status === 'signedIn' && state.user.role === 'admin',
     settings: settings.data,
     update: update.mutate,
     listenBrainz: service('listenbrainz'),

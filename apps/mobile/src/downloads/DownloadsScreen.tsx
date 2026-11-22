@@ -16,10 +16,11 @@ export function DownloadsScreen() {
   const { settings, summary } = screen;
   const empty = summary && !summary.collections.length;
   const choose = (item: DownloadItem) => Alert.alert(item.title, item.subtitle, [
-    { text: 'Open', onPress: () => {
-      closeSheet(router);
-      router.navigate(item.collection.href);
-    } },
+    ...item.href ? [{ text: 'Open', onPress: () => {
+      // Opened over the account sheet: both close before the page opens beneath.
+      router.dismissAll();
+      router.navigate(item.href!);
+    } }] : [],
     { text: 'Remove Download', style: 'destructive', onPress: item.remove },
     { text: 'Cancel', style: 'cancel' },
   ]);
@@ -66,8 +67,8 @@ export function DownloadsScreen() {
         {capOptions.map(option => <SheetRow key={option.label} title={option.label} icon="internaldrive"
           selected={screen.cap === option.value} onPress={() => screen.setCap(option.value)} />)}
       </SheetRows>
-      <Text style={styles.note}>{capNote}</Text>
-      {!empty && <SheetRows><SheetRow title="Remove all downloads" icon="trash" color={colors.danger} onPress={screen.removeAll} /></SheetRows>}
+      {screen.cap ? <Text style={styles.note}>{capNote}</Text> : null}
+      {!empty && <SheetRows><SheetRow title="Remove all downloads" icon="trash" destructive onPress={screen.removeAll} /></SheetRows>}
     </SheetFrame>
   </ScrollView>;
 }
