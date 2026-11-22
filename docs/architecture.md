@@ -175,7 +175,7 @@ await schedule('library.scan-all', '0 4 * * *')
 `realtime/` owns the socket.io server. The session protocol is specified in `packages/contracts/src/session.ts`.
 
 - `startRealtime(app)` attaches to the Fastify server before it listens; closing the app closes the socket server. Messages of 1 KiB or more are deflated (`perMessageDeflate`), mostly for `session:queue`, which carries the whole queue.
-- The handshake takes the session token from `auth.token` or the `squirmy_session` cookie and is refused without a valid one.
+- The handshake takes the session token from `auth.token` or the `squirmy_session` cookie and is refused without a valid one. With the cookie, an `Origin` header must match the request's `Host`, `PUBLIC_URL`, or (with `NODE_ENV=development`) the Vite dev server. A socket is disconnected when its session expires; messages are capped at 1 MB.
 - Each socket joins the room `user:<id>`. Admin sockets also join `admins`. Handlers passed to `onConnection` run after that; register socket listeners before the first `await`.
 - `publish(target, event)` and `invalidate(target, keys)` are callable from any process. They `NOTIFY squirmy_events` with a JSON payload; the API process `LISTEN`s on a dedicated connection and forwards to rooms. `target` is `{ user: id }`, `'admins'`, `'all'`, or a list of them, which reaches each socket once however many of them it is in (an admin is in their own room and in `admins`). Keys that do not fit in one notification (8000 bytes) are split across several. `disconnectSockets(userId, { only | except })` closes sockets of revoked sessions the same way.
 - `time:sync` is answered here; the `session:*` events belong to the `sessions` module.

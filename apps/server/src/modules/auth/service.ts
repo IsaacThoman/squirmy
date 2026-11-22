@@ -91,20 +91,22 @@ export async function rememberDevice(executor: Executor, userId: string, device:
  * Resolves a session token. Sessions slide: each use pushes the expiry out again, written
  * at most once a minute.
  */
-export async function authenticateToken(token: string): Promise<{ user: AuthUser; sessionId: string } | null> {
+export async function authenticateToken(token: string): Promise<{ user: AuthUser; sessionId: string; expiresAt: Date } | null> {
   const now = new Date()
   const [row] = await db
-    .select({ user: userColumns, sessionId: authSessions.id, lastSeenAt: authSessions.lastSeenAt })
+    .select({ user: userColumns, sessionId: authSessions.id, lastSeenAt: authSessions.lastSeenAt, expiresAt: authSessions.expiresAt })
     .from(authSessions)
     .innerJoin(users, eq(users.id, authSessions.userId))
     .where(and(eq(authSessions.tokenHash, hashToken(token)), gt(authSessions.expiresAt, now)))
   if (!row || row.user.disabledAt) return null
+  let expiresAt = row.expiresAt
   if (now.getTime() - row.lastSeenAt.getTime() > lastSeenIntervalMs) {
+    expiresAt = new Date(now.getTime() + sessionLifetimeMs)
     await db.update(authSessions)
-      .set({ lastSeenAt: now, expiresAt: new Date(now.getTime() + sessionLifetimeMs) })
+      .set({ lastSeenAt: now, expiresAt })
       .where(eq(authSessions.id, row.sessionId))
   }
-  return { user: row.user, sessionId: row.sessionId }
+  return { user: row.user, sessionId: row.sessionId, expiresAt }
 }
 
 export async function revokeSession(sessionId: string) {
