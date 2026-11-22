@@ -38,7 +38,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `FFMPEG_PATH` | `ffmpeg` | The `ffmpeg` binary. |
 | `FFPROBE_PATH` | `ffprobe` | The `ffprobe` binary. |
 | `FPCALC_PATH` | `fpcalc` | The `fpcalc` binary (Chromaprint), used for AcoustID fingerprints. |
-| `NODE_ENV` | `development` (image: `production`) | Outside production, the API also accepts cross-origin requests from the Vite dev server on port 5173. |
+| `NODE_ENV` | `development` (image: `production`) | Only when it is set to `development` explicitly does the API also accept cross-origin requests with credentials from the Vite dev server on port 5173. The dev server proxies the API, so `npm run dev` does not need it. |
 | `SQUIRMY_VERSION` | unset (image: the build argument) | The version reported by `/api/v1/setup/status` (shown on the sign-in page and in Admin), to Subsonic apps and in the User-Agent sent to metadata services. Release images set it to the release number. Unset or empty, the server reports `dev+<commit>`: the first 7 characters of `SOURCE_COMMIT` when it is set, else the short commit of the git checkout it runs from (read once at start), and `dev` when there is neither, as in an image built without either argument. |
 | `SOURCE_COMMIT` | unset (image: the build argument) | The commit a source build was built from, used for the `dev+<commit>` version above. Pass it with `--build-arg SOURCE_COMMIT=$(git rev-parse HEAD)`. Coolify sets it in the container on every deployment. Ignored unless it is 7 to 40 hexadecimal characters. |
 

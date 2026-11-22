@@ -46,20 +46,38 @@ describe('server kernel', () => {
     expect(Number(row?.score)).toBeGreaterThan(0.5)
   })
 
-  it('answers unknown API routes with a JSON 404 and allows the Vite dev origin', async () => {
-    const app = await buildApp()
-    const missing = await app.inject({ url: '/api/v1/nothing-here' })
-    expect(missing.statusCode).toBe(404)
-    expect(missing.json().error.code).toBe('not_found')
-    const preflight = await app.inject({
-      method: 'OPTIONS',
-      url: '/api/v1/auth/me',
-      headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'GET' },
-    })
-    expect(preflight.headers['access-control-allow-origin']).toBe('http://localhost:5173')
-    const foreign = await app.inject({ url: '/health', headers: { origin: 'https://elsewhere.example' } })
-    expect(foreign.headers['access-control-allow-origin']).toBeUndefined()
-    await app.close()
+  it('answers unknown API routes with a JSON 404 and allows the Vite dev origin only in development', async () => {
+    const preflight = async () => {
+      resetConfig()
+      const app = await buildApp()
+      try {
+        const missing = await app.inject({ url: '/api/v1/nothing-here' })
+        expect(missing.statusCode).toBe(404)
+        expect(missing.json().error.code).toBe('not_found')
+        const foreign = await app.inject({ url: '/health', headers: { origin: 'https://elsewhere.example' } })
+        expect(foreign.headers['access-control-allow-origin']).toBeUndefined()
+        const response = await app.inject({
+          method: 'OPTIONS',
+          url: '/api/v1/auth/me',
+          headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'GET' },
+        })
+        return response.headers['access-control-allow-origin']
+      } finally {
+        await app.close()
+      }
+    }
+    const environment = process.env.NODE_ENV
+    try {
+      process.env.NODE_ENV = 'development'
+      expect(await preflight()).toBe('http://localhost:5173')
+      // Unset defaults to development for everything else, but not for this.
+      delete process.env.NODE_ENV
+      expect(await preflight()).toBeUndefined()
+    } finally {
+      process.env.NODE_ENV = environment
+      resetConfig()
+    }
+    expect(await preflight()).toBeUndefined()
   })
 
   it('compresses JSON and answers unchanged reads with 304', async () => {

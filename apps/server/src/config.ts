@@ -60,15 +60,22 @@ const Env = z.object({
   SOURCE_COMMIT: z.string().optional(),
 })
 
-export type Config = z.infer<typeof Env>
+export type Config = z.infer<typeof Env> & {
+  /**
+   * Whether the Vite dev server's origins may call with credentials. Only when NODE_ENV is
+   * set to development, not when it is merely unset: a bare-metal install that forgot
+   * NODE_ENV must not trust whatever runs on localhost:5173 of a visitor's machine.
+   */
+  devCors: boolean
+}
 
-/** Origins of the Vite dev server, the only cross-origin callers allowed outside production. */
+/** Origins of the Vite dev server, the only cross-origin callers allowed in development. */
 export const devOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173']
 
 let cached: Config | undefined
 
 export function getConfig(): Config {
-  cached ??= Env.parse(process.env)
+  cached ??= { ...Env.parse(process.env), devCors: process.env.NODE_ENV === 'development' }
   return cached
 }
 

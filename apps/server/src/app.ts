@@ -65,7 +65,7 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
   await app.register(compress, { encodings: ['br', 'gzip'], threshold: 1024, customTypes: compressibleTypes })
   await app.register(cookie)
   await app.register(cors, {
-    origin: config.NODE_ENV === 'production' ? false : devOrigins,
+    origin: config.devCors ? devOrigins : false,
     credentials: true,
   })
   // Opt-in per route (login, setup, register). Counters are per process.
