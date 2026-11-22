@@ -34,6 +34,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `SQUIRMY_INBOX_PATH` | unset | A folder watched for music to import, used while the `inboxPath` server setting is unset. See [Adding music](./adding-music.md#the-inbox-folder). |
 | `SQUIRMY_WEB_DIST` | unset (image: `/app/apps/web/dist`) | The built web app to serve. Unset, the server serves only the API; the Vite dev server proxies to it during development. |
 | `SQUIRMY_READ_CACHE_MB` | `64` | Memory the API process may use to keep recent answers for Home, the library lists and album, artist and playlist pages, per user. Changes drop the affected answers at once; anything else is recomputed after five minutes at most. `0` turns the cache off. |
+| `SQUIRMY_DB_POOL_SIZE` | `10` | Database connections each Squirmy process keeps for queries, from 2 to 200. Background jobs keep 6 more of their own, and each process uses one more for locks. Raise it only for a big install where the API is slow while many jobs run, and keep the total for every process under PostgreSQL's `max_connections` (100 by default). |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
 | `FFMPEG_PATH` | `ffmpeg` | The `ffmpeg` binary. Any build from FFmpeg 4 on works; files are opened with `-protocol_whitelist` and `-format_whitelist`, so only local files in audio formats are read. |
 | `FFPROBE_PATH` | `ffprobe` | The `ffprobe` binary, opened with the same restrictions. |

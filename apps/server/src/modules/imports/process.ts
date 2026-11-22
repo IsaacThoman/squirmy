@@ -21,7 +21,8 @@ import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { INCOMING_FOLDER, queryKeys, type ImportStep } from '@squirmy/contracts'
 import { and, eq, sql, type SQL } from 'drizzle-orm'
-import { db, getSql, type Transaction } from '../../database/client.js'
+import { db, type Transaction } from '../../database/client.js'
+import { withSessionLock } from '../../database/locks.js'
 import { imports, libraryRoots, mediaFiles } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { AppError } from '../../lib/errors.js'
@@ -77,20 +78,14 @@ async function load(importId: string): Promise<ImportRow | undefined> {
  * process holds a lock and makes this one return at once.
  */
 export async function processImport(importId: string, options: ProcessOptions = {}): Promise<void> {
-  const connection = await getSql().reserve()
-  const key = `squirmy.import:${importId}`
-  try {
-    const [row] = await connection<{ locked: boolean }[]>`select pg_try_advisory_lock(hashtext(${key})) as locked`
-    if (!row?.locked) return
-    try {
-      while ((await runStep(importId, options))?.status === 'processing');
-    } finally {
-      await connection`select pg_advisory_unlock(hashtext(${key}))`
-    }
-  } finally {
-    connection.release()
-  }
+  // On the lock connection: identification waits for other jobs' queries, so holding a
+  // pooled connection here would let a few imports take the pool those jobs need.
+  await withSessionLock(importLockKey(importId), async () => {
+    while ((await runStep(importId, options))?.status === 'processing');
+  })
 }
+
+const importLockKey = (importId: string) => `squirmy.import:${importId}`
 
 /**
  * Runs the import's current step and moves it on to the next (or to `completed`). Returns
@@ -499,32 +494,22 @@ async function file(row: ImportRow, root: Root, stats: Stats, work: ImportWork, 
  * returns at once.
  */
 export async function refileImport(importId: string, options: ProcessOptions = {}): Promise<void> {
-  const connection = await getSql().reserve()
-  const key = `squirmy.import:${importId}`
-  try {
-    const [lock] = await connection<{ locked: boolean }[]>`select pg_try_advisory_lock(hashtext(${key})) as locked`
-    if (!lock?.locked) return
-    try {
-      const row = await load(importId)
-      if (row?.status !== 'completed') return
-      const root = await targetRoot(row).catch(() => null)
-      if (!root) return
-      const stats: Stats = { ...row.stats }
-      const work: ImportWork = { ...(row.work as ImportWork | null), refiledAt: new Date().toISOString() }
-      delete work.batchId
-      // The caller is a sweep or a job that just ended: neither waits half an hour for a busy root.
-      await file(row, root, stats, work, { ...defaults, organizeWaitMs: 60_000, ...options })
-      const [updated] = await db.update(imports).set({ stats, work, updatedAt: new Date() })
-        .where(and(eq(imports.id, importId), eq(imports.status, 'completed'))).returning()
-      if (!updated) return
-      await announceImport(updated)
-      await invalidate('all', [queryKeys.library(), queryKeys.home()])
-    } finally {
-      await connection`select pg_advisory_unlock(hashtext(${key}))`
-    }
-  } finally {
-    connection.release()
-  }
+  await withSessionLock(importLockKey(importId), async () => {
+    const row = await load(importId)
+    if (row?.status !== 'completed') return
+    const root = await targetRoot(row).catch(() => null)
+    if (!root) return
+    const stats: Stats = { ...row.stats }
+    const work: ImportWork = { ...(row.work as ImportWork | null), refiledAt: new Date().toISOString() }
+    delete work.batchId
+    // The caller is a sweep or a job that just ended: neither waits half an hour for a busy root.
+    await file(row, root, stats, work, { ...defaults, organizeWaitMs: 60_000, ...options })
+    const [updated] = await db.update(imports).set({ stats, work, updatedAt: new Date() })
+      .where(and(eq(imports.id, importId), eq(imports.status, 'completed'))).returning()
+    if (!updated) return
+    await announceImport(updated)
+    await invalidate('all', [queryKeys.library(), queryKeys.home()])
+  })
 }
 
 /** Applies a batch, waiting while another batch holds the root. Gives up quietly after `organizeWaitMs`. */
