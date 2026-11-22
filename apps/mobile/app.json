@@ -2,7 +2,7 @@
   "expo": {
     "name": "Squirmy",
     "slug": "squirmy",
-    "scheme": ["squirmy", "tone"],
+    "scheme": "squirmy",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
