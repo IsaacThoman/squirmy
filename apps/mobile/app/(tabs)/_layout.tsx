@@ -1,10 +1,10 @@
 import { BlurView } from 'expo-blur';
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
 import { NativeTabs } from 'expo-router/native-tabs';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MiniPlayer } from '../../src/MiniPlayer';
+import { usesNativeTabs } from '../../src/tabChrome';
 import { useColors } from '../../src/theme';
 import { Icon } from '../../src/ui';
 
@@ -20,7 +20,7 @@ function Accessory() {
 
 export default function TabLayout() {
   const colors = useColors();
-  if (Platform.OS !== 'ios' || !isLiquidGlassAvailable()) return <FallbackTabs />;
+  if (!usesNativeTabs()) return <FallbackTabs />;
 
   return (
     <NativeTabs tintColor={colors.accent} labelStyle={{ color: colors.muted }} minimizeBehavior="never">

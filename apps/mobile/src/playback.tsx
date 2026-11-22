@@ -21,8 +21,8 @@ import { useNotice } from './Notice';
 import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
-  codecsFor, deviceRows, failureNotices, findEntry, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
-  seedOf,
+  codecsFor, deviceRows, failureNotices, findEntry, isRemote, newlyReady, nextDownloaded, nextRepeat, outputDevice, playableSeeds,
+  qualityFor, seedOf,
 } from './player/session';
 import { watchLoading, type LoadingPhase, type LoadingWatch } from './player/loading';
 import { syncSystemVolume } from './player/systemVolume';
@@ -139,11 +139,14 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
 
       // The lock screen shows the loaded entry; its summary may arrive after it starts.
       let waitingForItem = false;
+      // The entry and summary on the lock screen, to notice when that summary is replaced.
+      let shown: { entryId: string; track: TrackSummary } | null = null;
       const nowPlaying = connectNowPlaying(engine, entryId => {
         const { session, queue } = client.getSnapshot();
         const entry = findEntry({ ...session, ...queue }, entryId);
         const track = entry && tracks.get(entry.trackId, entry.albumId);
         waitingForItem = !track;
+        shown = track ? { entryId, track } : null;
         if (!track) return null;
         return {
           title: track.title,
@@ -162,7 +165,13 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         onSeek: positionMs => send({ type: 'seek', positionMs }),
       });
       const stopWaiting = tracks.subscribe(() => {
-        if (waitingForItem) nowPlaying.refresh();
+        if (waitingForItem) return nowPlaying.refresh();
+        if (!shown) return;
+        // A summary fetched again (a song the server just fetched gained its cover) replaces it.
+        const { session, queue } = client.getSnapshot();
+        const entry = findEntry({ ...session, ...queue }, shown.entryId);
+        const latest = entry && tracks.peek(entry.trackId, entry.albumId);
+        if (latest && latest !== shown.track) nowPlaying.refresh();
       });
 
       // While the server fetches the current song, the phone keeps its audio session (and
@@ -174,6 +183,16 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         nowPlaying.hold(preparing);
       };
       const stopHolding = client.subscribe(holdWhilePreparing);
+
+      // A song the server just fetched has its album and cover now; the summary shown since
+      // it was queued has neither, so the player and the lock screen would keep a blank cover.
+      let lastEntries = client.getSnapshot();
+      const stopRefreshing = client.subscribe(() => {
+        const next = client.getSnapshot();
+        const ready = newlyReady({ ...lastEntries.session, ...lastEntries.queue }, { ...next.session, ...next.queue });
+        lastEntries = next;
+        for (const entry of ready) tracks.refresh(entry.trackId, entry.albumId);
+      });
 
       // Tracks the server could not fetch are skipped by the session: one notice for each
       // that was playing or next. When several fail in a row, or its provider is failing,
@@ -300,6 +319,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         stopSaving();
         stopPreparing();
         stopHolding();
+        stopRefreshing();
         engine.holdAudioSession(false);
         stopAudioSession();
         stopErrors();

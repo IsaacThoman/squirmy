@@ -1,7 +1,7 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button, Host, HStack, List, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, buttonStyle, environment, font, foregroundStyle, frame, labelStyle, lineLimit,
+  accessibilityAddTraits, accessibilityLabel, buttonStyle, dynamicTypeSize, environment, font, foregroundStyle, frame, labelStyle, lineLimit,
   listRowBackground, listRowInsets, listRowSeparatorTint, listStyle, opacity, scrollContentBackground, scrollDisabled, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
@@ -17,7 +17,15 @@ import type { QueueProps } from './QueuePage';
 import { queueRow } from './session';
 import { useColors } from '../theme';
 
-const rowHeight = 54;
+/**
+ * Rows have one height, which sizes the lists that hold them, so their text stops growing at
+ * `rowTextLimit` rather than spill into the next row.
+ */
+const rowHeight = 58;
+const rowTextLimit = dynamicTypeSize({ max: 'xxLarge' });
+// The list takes the limit too: its minimum row height grows with the text size, and past it rows would
+// outgrow `rowHeight` and the last one would be cut off.
+const listModifiers = [listStyle('plain'), scrollContentBackground('hidden'), scrollDisabled(), rowTextLimit];
 const headingHeight = 42;
 /** Up next shows this many entries at first, and this many more each time more are asked for. */
 const upNextPage = 100;
@@ -25,7 +33,7 @@ const rowModifiers = [
   listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
   listRowBackground('clear'),
 ];
-const listModifiers = [listStyle('plain'), scrollContentBackground('hidden'), scrollDisabled()];
+
 const titleFont = font({ textStyle: 'headline', weight: 'semibold' });
 const detailFont = font({ textStyle: 'footnote' });
 const iconOnly = labelStyle('iconOnly');
@@ -96,7 +104,7 @@ export default function QueuePage(_props: QueueProps) {
             <Button label="Clear" onPress={clearHistory} modifiers={[plainButton, foregroundStyle(colors.muted)]} />
           </HStack>
         </QueueBand>
-        <Host style={[styles.list, { height: rowHeight * history.length }]}>
+        <Host ignoreSafeArea="container" style={[styles.list, { height: rowHeight * history.length }]}>
           <List modifiers={listModifiers}>
             {history.map(entry => <VStack key={entry.id} modifiers={[...rowModifiers, listRowSeparatorTint(colors.stroke)]}>
               <QueueTrack entry={entry} handlers={historyHandlers} />
@@ -199,7 +207,7 @@ function QueueRows({ entries, total = entries.length, editing, autoplay = false 
     if (source !== index) actions.moveInQueue(entry.id, index);
   };
 
-  return <Host style={[styles.list, { height: entries.length * rowHeight }]}>
+  return <Host ignoreSafeArea="container" style={[styles.list, { height: entries.length * rowHeight }]}>
     <List modifiers={[...listModifiers, environment({ key: 'editMode', value: editing ? 'active' : 'inactive' })]}>
       <List.ForEach data={entries} keyExtractor={entry => entry.id} recycling={false}
         onMove={entries.length > 1 ? onMove : undefined}>

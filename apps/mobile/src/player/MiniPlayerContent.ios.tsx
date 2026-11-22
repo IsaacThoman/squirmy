@@ -46,8 +46,9 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
                     </View>
                   </RNHostView>
                 )}
-                {/* The bubble has a fixed height, so its two lines stop growing before they overflow it. */}
-                <VStack alignment="leading" spacing={1} modifiers={[dynamicTypeSize({ max: 'xxLarge' })]}>
+                {/* The bubble has a fixed height, so its two lines stop growing before they overflow it
+                    (at xxLarge the subtitle already runs into the progress bar). */}
+                <VStack alignment="leading" spacing={1} modifiers={[dynamicTypeSize({ max: 'xLarge' })]}>
                   <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>
                   {!compact && <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(detached && loading !== 'slow' ? colors.accent : colors.muted), lineLimit(1)]}>{subtitle}</Text>}
                 </VStack>
