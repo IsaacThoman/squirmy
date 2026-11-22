@@ -92,10 +92,14 @@ function sectionSize(section: HomeSection) {
   }
 }
 
+const homeSongLimit = 5;
+
 function HomeRail({ section, link, onOpen, onTrackMenu }: { section: HomeSection } & Pick<BrowseProps, 'link' | 'onOpen' | 'onTrackMenu'>) {
   const styles = useStyles();
   const actions = usePlaybackActions();
-  const seeAll = section.id === 'recently-played' ? () => onOpen(link('playlist', 'recent')) : undefined;
+  // A song row shows its first five; the rest are a page away, since Play plays them all.
+  const seeAll = section.id === 'recently-played' ? () => onOpen(link('playlist', 'recent'))
+    : section.kind === 'tracks' && section.tracks.length > homeSongLimit ? () => onOpen(link('songs', `home~${section.id}`)) : undefined;
   return <View style={styles.homeSection}>
     <SectionTitle title={section.title} onPress={seeAll} />
     {section.kind === 'albums' && <CollectionRail items={section.albums.map(album => albumCollection(album, link))}
@@ -103,7 +107,7 @@ function HomeRail({ section, link, onOpen, onTrackMenu }: { section: HomeSection
     {section.kind === 'artists' && <CollectionRail items={section.artists.map(artist => artistCollection(artist, link))} size={110} />}
     {section.kind === 'playlists' && <CollectionRail items={section.playlists.map(playlist => playlistCollection(playlist, link))} />}
     {section.kind === 'tracks' && <View style={styles.trackList}>
-      <SongList tracks={section.tracks.slice(0, 5)} onTrackMenu={track => onTrackMenu(track)}
+      <SongList tracks={section.tracks.slice(0, homeSongLimit)} onTrackMenu={track => onTrackMenu(track)}
         onPlay={start => actions.playTracks(section.tracks, { start, context: { type: 'other', id: section.id, title: section.title } })} />
     </View>}
   </View>;
