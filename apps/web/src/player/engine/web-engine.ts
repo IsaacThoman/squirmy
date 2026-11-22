@@ -191,11 +191,20 @@ export class WebPlayerEngine implements PlayerEngine {
    * starts it: the play that was asked for, not one the engine decided on.
    */
   unlock(): void {
-    void this.ensureContext().resume().catch(() => {})
+    this.warm()
     if (!this.blocked) return
     this.blocked = false
     this.state = 'paused'
     this.play()
+  }
+
+  /**
+   * Call from a user gesture. Starts the audio output ahead of the first play: opening the
+   * output device takes a moment, which would otherwise come after the stream has loaded,
+   * as silence. Starts nothing the browser held back; that is `unlock`.
+   */
+  warm(): void {
+    void this.ensureContext().resume().catch(() => {})
   }
 
   /** Stops playback and releases the elements and the audio context. */

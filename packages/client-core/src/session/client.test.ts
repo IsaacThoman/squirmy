@@ -795,6 +795,32 @@ describe('SessionClient engine', () => {
     expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'playing' })
   })
 
+  it('starts a song it could not load offline from where it was asked, not from the time waited', async () => {
+    const context = setup()
+    const { client, engine, resolvePlayback, transport, settle, calls } = context
+    let reachable = true
+    resolvePlayback.mockImplementation(async entry => {
+      if (!reachable && entry.trackId === track(3)) throw new ApiError(0, 'network_error', 'Network request failed')
+      return descriptor(entry)
+    })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await settle()
+    transport.disconnect()
+    reachable = false
+    client.dispatch({ type: 'next' })
+    client.dispatch({ type: 'next' })
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(current.trackId).toBe(track(3))
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(engine.getStatus().entryId).not.toBe(current.id)
+    reachable = true
+    await vi.advanceTimersByTimeAsync(3000)
+    await settle()
+    expect(calls('load').at(-1)![1]).toMatchObject({ entryId: current.id, startMs: 0 })
+  })
+
   it('stops the engine when another device takes over', async () => {
     const { server, transport, client, engine } = await playingHere()
     server.apply({ type: 'transfer', deviceId: WEB }, WEB)
@@ -1034,6 +1060,50 @@ describe('SessionClient engine', () => {
     await settle()
     transport.flush()
     expect(calls('load')[0]![1]).toMatchObject({ startMs: 12_000, autoplay: true })
+  })
+
+  it('buffers the current entry ahead of a takeover, and reuses it when the session comes here', async () => {
+    const { server, transport, client, engine, calls, settle, resolvePlayback } = setup()
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 }, WEB)
+    await settle()
+    client.prepareTakeover()
+    client.prepareTakeover()
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(engine.preloaded).toMatchObject({ entryId: current.id, url: `https://music.test/api/v1/stream/${track(1)}` })
+    expect(calls('load')).toEqual([])
+    expect(resolvePlayback).toHaveBeenCalledTimes(1)
+    client.dispatch({ type: 'transfer', deviceId: PHONE })
+    await settle()
+    transport.flush()
+    expect(calls('load')[0]![1]).toMatchObject({ entryId: current.id, autoplay: true })
+    // Resolved once for the takeover; the load took the same answer.
+    expect(resolvePlayback.mock.calls.filter(([entry]) => entry.id === current.id)).toHaveLength(1)
+  })
+
+  it('drops what it buffered for a takeover once another song plays elsewhere', async () => {
+    const { server, transport, client, engine, settle } = setup()
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 }, WEB)
+    await settle()
+    client.prepareTakeover()
+    await settle()
+    expect(engine.preloaded).not.toBeNull()
+    server.apply({ type: 'next' }, WEB)
+    transport.flush()
+    await settle()
+    expect(engine.preloaded).toBeNull()
+    expect(client.getSnapshot().isActiveDevice).toBe(false)
+  })
+
+  it('prepares no takeover on the device that plays', async () => {
+    const { client, engine, settle } = setup()
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await settle()
+    const preloaded = engine.preloaded
+    client.prepareTakeover()
+    await settle()
+    expect(engine.preloaded).toBe(preloaded)
   })
 
   it('waits for a preparing entry, then loads it', async () => {

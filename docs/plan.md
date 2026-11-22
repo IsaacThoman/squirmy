@@ -143,7 +143,7 @@ A device is listed only while its socket is connected, so a paused phone that iO
 - **Artist pages:** image, bio, top tracks, and the full discography with owned albums lit.
 - **Album pages:** track list with per-track availability.
 - **Wantlist.** Gray items can be wanted; a matching import completes them. Off unless the admin turns it on (`wantlistEnabled`): with a provider that can fetch anything it is noise.
-- **Home:** recently added, recently played, new releases from artists you own, and the wantlist when it is on.
+- **Home:** what you played recently and most, your playlists, recently added, new releases from your own artists (no karaoke or tribute acts), and the wantlist when it is on.
 
 ## OpenSubsonic
 
