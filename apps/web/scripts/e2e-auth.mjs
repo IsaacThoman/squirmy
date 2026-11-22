@@ -53,10 +53,10 @@ async function reloadWatchingSidebar(page) {
   return page.evaluate(() => window.__sidebarWidths ?? [])
 }
 
-/** What index.html applied from storage, with every script file blocked so only its inline script runs. */
+/** What the page applied from storage, with every script but /appearance.js blocked so the app never runs. */
 async function beforeAppScript(context) {
   const bare = await context.newPage()
-  await bare.route(() => true, route => (route.request().resourceType() === 'script' ? route.abort() : route.continue()))
+  await bare.route(() => true, route => (route.request().resourceType() === 'script' && !route.request().url().endsWith('/appearance.js') ? route.abort() : route.continue()))
   await bare.goto(`${base}/`)
   const state = await bare.evaluate(() => ({
     dark: document.documentElement.classList.contains('dark'),
@@ -253,7 +253,7 @@ await step('appearance', async () => {
   check('Dark and a color theme apply at once', chosen.dark && Boolean(chosen.theme))
   check('the chosen theme is marked', await theme('Ocean').getAttribute('aria-pressed') === 'true')
   const early = await beforeAppScript(context)
-  check('index.html applies both before the app script runs', early.app === 0 && early.dark && early.theme === chosen.theme, `app ${early.app}, dark ${early.dark}, theme ${early.theme === chosen.theme ? 'same' : (early.theme ?? 'none').slice(0, 40)}`)
+  check('the appearance script applies both before the app script runs', early.app === 0 && early.dark && early.theme === chosen.theme, `app ${early.app}, dark ${early.dark}, theme ${early.theme === chosen.theme ? 'same' : (early.theme ?? 'none').slice(0, 40)}`)
   await page.goto(`${base}/settings/appearance`)
   await settings(page).waitFor()
   const reloaded = await applied()
@@ -264,7 +264,7 @@ await step('appearance', async () => {
   const reset = await applied()
   check('Light and the default theme drop the dark class and the theme stylesheet', !reset.dark && reset.theme === null)
   const earlyLight = await beforeAppScript(context)
-  check('and index.html applies that before the app script runs', earlyLight.app === 0 && !earlyLight.dark && earlyLight.theme === null)
+  check('and the appearance script applies that before the app script runs', earlyLight.app === 0 && !earlyLight.dark && earlyLight.theme === null)
   await mode('System').click()
   await page.keyboard.press('Escape')
   await settings(page).waitFor({ state: 'detached' })

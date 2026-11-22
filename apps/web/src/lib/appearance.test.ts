@@ -255,13 +255,17 @@ describe('useAppearance', () => {
   })
 })
 
-describe('the script in index.html', () => {
-  const scripts = [...readFileSync(join(import.meta.dirname, '../../index.html'), 'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)]
+describe('the appearance script', () => {
+  const page = readFileSync(join(import.meta.dirname, '../../index.html'), 'utf8')
+  const script = readFileSync(join(import.meta.dirname, '../../public/appearance.js'), 'utf8')
   /** Runs it as the browser does while it reads the page, before the app's code. */
-  const boot = () => (new Function(scripts[0][1]) as () => void)()
+  const boot = () => (new Function(script) as () => void)()
 
-  it('is the only inline script', () => {
-    expect(scripts).toHaveLength(1)
+  it('loads, blocking, before the app, and the page has no inline script for the Content-Security-Policy to refuse', () => {
+    expect([...page.matchAll(/<script>([\s\S]*?)<\/script>/g)]).toHaveLength(0)
+    const classic = page.indexOf('<script src="/appearance.js"></script>')
+    expect(classic).toBeGreaterThan(-1)
+    expect(classic).toBeLessThan(page.indexOf('<script type="module"'))
   })
 
   it.each([

@@ -1,8 +1,9 @@
-import type { SearchResults, TrackSummary } from '@squirmy/contracts'
-import { screen, within } from '@testing-library/react'
+import { mergeSearch } from '@squirmy/client-core'
+import type { SearchResults, SearchTopResult, TrackSummary } from '@squirmy/contracts'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Bookmark, Disc3, House } from 'lucide-react'
-import { useState, type ComponentProps } from 'react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { album, artists, libraryAlbums, libraryArtists, libraryTracks, summary, track } from '@/fixtures/catalog'
 import { renderWithApp } from '@/test/render'
@@ -21,8 +22,14 @@ const nightSwimming = track('night-swimming')
 /** Not in the library and not to be had: choosing it opens its album. */
 const softSignalLive = track('soft-signal-live')
 
-const found: SearchResults = { artists: [miraVale, lunePark], albums: [blueHour, lowTide], tracks: [nightSwimming, softSignalLive], provider: null, top: null }
-const everything = 'Search everything for “night” Your library and music you do not have yet'
+const requester = { role: 'admin', canAcquire: true } as const
+/** The library's answer, or both answers, as the shell merges them. */
+const merged = (library: SearchResults, catalog?: SearchResults) => mergeSearch(library, catalog, requester)
+const withTop = (results: SearchResults, top: SearchTopResult) => merged({ ...results, top })
+
+const foundAnswer: SearchResults = { artists: [miraVale, lunePark], albums: [blueHour, lowTide], tracks: [nightSwimming, softSignalLive], provider: null, top: null }
+const found = merged(foundAnswer)
+const everything = 'See all results for “night”'
 const inOrder = ['Mira Vale Artist', 'Lune Park Artist', 'Blue Hour Album · Mira Vale', 'Low Tide Single · Mira Vale', 'Night Swimming Song · Mira Vale', 'Soft Signal (Live) Song · Mira Vale', everything]
 
 type Props = Partial<ComponentProps<typeof SearchDialog>>
@@ -38,6 +45,7 @@ function Harness({ query: initial = '', onQueryChange, ...props }: Props) {
       loading={false}
       destinations={destinations}
       canPlay={(candidate: TrackSummary) => candidate.availability === 'server'}
+      isDimmed={() => false}
       onChoose={() => {}}
       {...props}
       query={query}
@@ -54,7 +62,7 @@ function renderDialog(props: Props = {}) {
   const onOpenChange = vi.fn<(open: boolean) => void>()
   const onQueryChange = vi.fn<(query: string) => void>()
   renderWithApp(<Harness onChoose={onChoose} onOpenChange={onOpenChange} onQueryChange={onQueryChange} {...props} />)
-  return { onChoose, onOpenChange, onQueryChange, field: screen.getByRole('combobox', { name: 'Search your library' }) }
+  return { onChoose, onOpenChange, onQueryChange, field: screen.getByRole('combobox', { name: 'Search' }) }
 }
 
 const options = () => screen.getAllByRole('option')
@@ -105,7 +113,7 @@ describe('SearchDialog', () => {
     ['a song', { type: 'track', id: nightSwimming.id }, 4],
     ['an artist', { type: 'artist', id: lunePark.id }, 1],
   ] as const)('puts the server’s best match first when it is %s', (_kind, top, from) => {
-    renderDialog({ query: 'night', results: { ...found, top } })
+    renderDialog({ query: 'night', results: withTop(foundAnswer, top) })
     expectOptions([inOrder[from], ...inOrder.slice(0, from), ...inOrder.slice(from + 1)])
   })
 
@@ -113,11 +121,12 @@ describe('SearchDialog', () => {
     ['is already first', { type: 'artist', id: miraVale.id }],
     ['is not in the answer', { type: 'track', id: track('amber').id }],
   ] as const)('keeps the order when the best match %s', (_case, top) => {
-    renderDialog({ query: 'night', results: { ...found, top } })
+    renderDialog({ query: 'night', results: withTop(foundAnswer, top) })
     expectOptions(inOrder)
   })
 
-  const many: SearchResults = { artists: libraryArtists.slice(0, 5), albums: libraryAlbums.slice(0, 6), tracks: libraryTracks.slice(0, 8), provider: null }
+  const manyAnswer: SearchResults = { artists: libraryArtists.slice(0, 5), albums: libraryAlbums.slice(0, 6), tracks: libraryTracks.slice(0, 8), provider: null }
+  const many = merged(manyAnswer)
   const kinds = () => options().slice(0, -1).map(option => (option.textContent.includes('Song · ') ? 'song' : option.textContent.includes('Artist') ? 'artist' : 'album'))
 
   it('shows three artists, four albums and five songs at most', () => {
@@ -130,7 +139,7 @@ describe('SearchDialog', () => {
     ['an album', { type: 'album', id: many.albums[5].id }, `${many.albums[5].title} Album · ${many.albums[5].artistCredit}`],
     ['an artist', { type: 'artist', id: many.artists[4].id }, `${many.artists[4].name} Artist`],
   ] as const)('leads with the best match when it is %s further down the answer than the dialog shows', (_kind, top, name) => {
-    renderDialog({ query: 'a', results: { ...many, top } })
+    renderDialog({ query: 'a', results: withTop(manyAnswer, top) })
     expect(options()[0]).toHaveAccessibleName(name)
     expect(screen.getAllByRole('option', { name })).toHaveLength(1)
     expect(options()).toHaveLength(14)
@@ -167,7 +176,7 @@ describe('SearchDialog', () => {
   })
 
   it('chooses the active option with Enter', async () => {
-    const { onChoose } = renderDialog({ query: 'night', results: { ...found, top: { type: 'album', id: lowTide.id } } })
+    const { onChoose } = renderDialog({ query: 'night', results: withTop(foundAnswer, { type: 'album', id: lowTide.id }) })
     await userEvent.keyboard('{Enter}')
     expect(onChoose).toHaveBeenLastCalledWith({ kind: 'album', album: lowTide })
     await userEvent.keyboard('{ArrowDown}{Enter}')
@@ -211,7 +220,7 @@ describe('SearchDialog', () => {
     expect((await hint('Soft Signal \\(Live\\)')).getByText('Open')).toBeInTheDocument()
     expect((await hint('Mira Vale')).getByText('Open')).toBeInTheDocument()
     expect((await hint('Blue Hour')).getByText('Open')).toBeInTheDocument()
-    const all = await hint('Search everything')
+    const all = await hint('See all results')
     expect(all.queryByText('Play')).not.toBeInTheDocument()
     expect(all.queryByText('Open')).not.toBeInTheDocument()
   })
@@ -233,6 +242,25 @@ describe('SearchDialog', () => {
     expect(onQueryChange).toHaveBeenLastCalledWith('night')
     expect(field).toHaveValue('night')
     expectActive(field, 0)
+  })
+
+  it('keeps the picked row picked when the catalog’s results join the list', async () => {
+    const catalog: SearchResults = { artists: [], albums: [summary(album('afterimage'))], tracks: [track('amber')], provider: 'deezer', top: { type: 'track', id: track('amber').id, score: 1 } }
+    // The dialog is modal, so the answer arrives from outside it, as the shell's would.
+    const server = { answer: () => {} }
+    function Growing() {
+      const [results, setResults] = useState(found)
+      useEffect(() => { server.answer = () => setResults(merged(foundAnswer, catalog)) })
+      return <Harness query="night" results={results} />
+    }
+    renderWithApp(<Growing />)
+    const field = screen.getByRole('combobox', { name: 'Search' })
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    expect(screen.getByRole('option', { selected: true })).toHaveAccessibleName('Blue Hour Album · Mira Vale')
+    act(() => server.answer())
+    expect(screen.getByRole('option', { name: /^Amber/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { selected: true })).toHaveAccessibleName('Blue Hour Album · Mira Vale')
+    expect(field).toHaveAttribute('aria-activedescendant', screen.getByRole('option', { selected: true }).id)
   })
 
   it('cuts a pasted query at 200 characters', async () => {

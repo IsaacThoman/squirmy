@@ -3,7 +3,7 @@ import { colorThemeStylesheet, DEFAULT_COLOR_THEME_ID, findColorTheme, type Them
 
 /**
  * How this browser shows the app: light, dark or the system's choice, and a color theme.
- * It is kept in localStorage, per browser, and applied to <html>. `index.html` applies the saved
+ * It is kept in localStorage, per browser, and applied to <html>. `public/appearance.js` applies the saved
  * value before the app loads, so a reload never flashes the wrong colors; keep the two in step.
  */
 export type AppearanceMode = 'light' | 'dark' | 'system'
@@ -78,7 +78,7 @@ function apply(appearance: Appearance) {
   syncThemeColor()
 }
 
-/** The choice as it is kept: with its stylesheet, so index.html can apply it without this module. */
+/** The choice as it is kept: with its stylesheet, so public/appearance.js can apply it without this module. */
 function stored(appearance: Appearance): string {
   return JSON.stringify({ ...appearance, css: colorThemeStylesheet(findColorTheme(appearance.theme)) })
 }
@@ -93,7 +93,7 @@ function save(appearance: Appearance) {
 
 /**
  * Saves the choice again when this version would keep it differently. A theme's colors can
- * change between releases, and index.html applies whichever stylesheet is saved.
+ * change between releases, and public/appearance.js applies whichever stylesheet is saved.
  */
 function refreshSaved(appearance: Appearance) {
   try {

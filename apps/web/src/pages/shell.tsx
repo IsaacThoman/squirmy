@@ -3,13 +3,14 @@
  * dialog, each with the data it needs.
  */
 import type { PlaylistSummary } from '@squirmy/contracts'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { Bookmark, Disc3, Heart, House, ListMusic, MicVocal, Music2, Search, ShieldCheck, Upload } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { HOVER_DELAY_MS, prefetchPage, usePrefetchStartPages, type PrefetchTarget } from '@/api/prefetch'
-import { itemsOf, loadItems, searchQuery, useLikedTracks, usePlaylists } from '@/api/queries'
+import { itemsOf, loadItems, useLikedTracks, usePlaylists } from '@/api/queries'
 import { useApi } from '@/api/services'
+import { useMergedSearch } from '@/api/use-search'
 import { useLogout } from '@/auth/actions'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { AppShell, type SearchDialogState, type SettingsDialogState } from '@/components/layout/AppShell'
@@ -17,12 +18,11 @@ import { ErrorBoundary, ErrorMessage } from '@/components/layout/ErrorBoundary'
 import { SearchDialog, type SearchChoice, type SearchDestination } from '@/components/layout/SearchDialog'
 import { isSettingsSection, useSettingsDialog } from '@/components/settings/settings-dialog'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { canUploadMusic, isPlayable } from '@/lib/catalog'
+import { albumPresentation, canFetch, canUploadMusic, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { toast } from '@/lib/toast'
-import { useDebounced } from '@/lib/use-debounced'
 import { useEventCallback } from '@/lib/use-event-callback'
-import { useOnDemand } from '@/player/on-demand-context'
+import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls } from '@/player/player-context'
 import { usePlayCollections } from '@/player/use-play-collections'
 
@@ -103,14 +103,10 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
   const wantlistEnabled = useWantlistEnabled()
   const user = useCurrentUser()
   const controls = usePlayerControls()
-  const { canRequest } = useOnDemand()
+  const viewer = useViewer()
   const [query, setQuery] = useState('')
   const typed = query.trim()
-  // The library answers fast, so results can follow typing: a search per pause between keys, the previous one cancelled.
-  const term = useDebounced(typed, 100, '')
-  const search = useQuery({ ...searchQuery(api, 'library', term), placeholderData: keepPreviousData, meta: { silent: true } })
-  // The answer shown is for what is typed now, not one kept from an earlier query while the new one loads.
-  const current = term === typed && !search.isPlaceholderData
+  const search = useMergedSearch(query)
   const close = () => onOpenChange(false)
   const destinations = useMemo<SearchDestination[]>(() => [
     { label: 'Home', to: '/', icon: House },
@@ -133,7 +129,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
     clearTimeout(intentTimer.current)
     const target: PrefetchTarget | null = choice.kind === 'artist' ? { kind: 'artist', id: choice.artist.id }
       : choice.kind === 'album' ? { kind: 'album', id: choice.album.id }
-        : choice.kind === 'track' && !isPlayable(choice.track, canRequest) && choice.track.album ? { kind: 'album', id: choice.track.album.id }
+        : choice.kind === 'track' && !isPlayable(choice.track, viewer) && choice.track.album ? { kind: 'album', id: choice.track.album.id }
           : null
     if (target) intentTimer.current = setTimeout(() => prefetchPage(client, api, target), HOVER_DELAY_MS)
   })
@@ -146,7 +142,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
       case 'destination': return void navigate(choice.destination.to)
       case 'all': return void navigate(`/search?q=${encodeURIComponent(choice.query)}`)
       case 'track':
-        if (isPlayable(choice.track, canRequest)) controls.playTracks([choice.track], 0, { type: 'search', id: null, title: 'Search' })
+        if (isPlayable(choice.track, viewer)) controls.playTracks([choice.track], 0, { type: 'search', id: null, title: 'Search' })
         else if (choice.track.album) void navigate(`/album/${choice.track.album.id}`)
         else void navigate(`/search?q=${encodeURIComponent(choice.track.title)}`)
     }
@@ -158,11 +154,12 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
       onOpenChange={next => { if (!next) close() }}
       query={query}
       onQueryChange={setQuery}
-      results={typed ? search.data ?? null : null}
-      stale={Boolean(typed) && !current}
-      loading={typed.length > 0 && (search.isFetching || term !== typed)}
+      results={search.results}
+      stale={search.stale}
+      loading={typed.length > 0 && (!search.results || search.stale || search.catalogPending)}
       destinations={destinations}
-      canPlay={track => isPlayable(track, canRequest)}
+      canPlay={track => isPlayable(track, viewer)}
+      isDimmed={choice => (choice.kind === 'album' ? albumPresentation(choice.album, viewer) === 'dimmed' : !choice.artist.inLibrary && !canFetch(viewer))}
       onChoose={choose}
       onIntent={onIntent}
     />

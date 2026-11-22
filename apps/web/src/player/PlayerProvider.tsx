@@ -7,15 +7,16 @@ import { useUserSettings } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useCurrentUser } from '@/auth/session'
 import { apiArtUrl } from '@/lib/artwork'
-import { canRequestMusic, isPlayable } from '@/lib/catalog'
+import { isPlayable } from '@/lib/catalog'
 import { playableCodecs } from '@/lib/codecs'
 import { browserName, claimTabDevice, saveBrowserName, tabDeviceName } from '@/lib/device'
 import { toast } from '@/lib/toast'
-import { useRealtime } from '@/realtime/realtime-context'
+import { useRealtime, useServerEvent } from '@/realtime/realtime-context'
 import { useEngine } from './engine/engine-context'
 import { AUDIO_BLOCKED_MESSAGE } from './engine/errors'
 import type { WebPlayerEngine } from './engine/web-engine'
 import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './engine/media-session'
+import { failedFetches, watchedOf, type Watched } from './fetch-failures'
 import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
 import { useShortcuts } from './shortcuts'
 
@@ -27,7 +28,7 @@ const MAX_SEEDS = 5000
  * The session client of this tab. Playback is resolved with the user's streaming quality,
  * which `setQuality` keeps current, and the codecs this browser plays.
  */
-function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine) {
+function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine, store: TrackStore) {
   let quality: StreamQuality = 'original'
   const client = new SessionClient({
     transport: createSocketTransport(socket),
@@ -41,6 +42,14 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
       baseUrl: '',
       canBoost: engine.canBoost,
       resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, codecs: playableCodecs().join(',') }),
+      // A failure that may pass is retried by the client. A track the server refused to stream
+      // (gone, or not allowed) is told once and skipped, as one the browser cannot play.
+      onLoadError: (entry, _error, willRetry) => {
+        if (willRetry || client.getSnapshot().session.current?.id !== entry.id) return
+        const title = store.get(entry.trackId, entry.albumId)?.title
+        toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', description: 'Skipped.' })
+        client.dispatch({ type: 'next' })
+      },
     },
   })
   return { client, setQuality: (next: StreamQuality) => { quality = next } }
@@ -71,14 +80,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const pageEngine = useEngine()
   const tab = use(claimTabDevice())
   const settings = useUserSettings().data
-  const canRequest = canRequestMusic(useCurrentUser())
+  const viewer = useCurrentUser()
   // The page's own engine; the dev page's instrumented replacement is not the session's.
   const [engine] = useState(() => {
     if (!pageEngine || !socket) throw new Error('PlayerProvider needs an engine and the realtime socket')
     return pageEngine
   })
-  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine))
   const [store] = useState(() => new TrackStore(request => api.catalog.trackSummaries(request)))
+  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine, store))
   const [clock] = useState(() => new PositionClock(() => client.getPositionMs()))
   const snapshot = useSyncExternalStore(client.subscribe, client.getSnapshot)
   const [, summariesArrived] = useReducer((count: number) => count + 1, 0)
@@ -132,7 +141,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const dispatch = (command: SessionCommand) => client.dispatch(command)
     const latest = () => client.getSnapshot()
     const shown = (entries: readonly QueueEntry[]) => entries.filter(entry => store.get(entry.trackId, entry.albumId))
-    const playable = (track: TrackSummary) => isPlayable(track, canRequest)
+    const playable = (track: TrackSummary) => isPlayable(track, viewer)
     return {
       togglePlay: () => dispatch({ type: latest().session.playing ? 'pause' : 'play' }),
       next: () => dispatch({ type: 'next' }),
@@ -196,9 +205,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         client.rename(tabDeviceName(browserName(), tab.slot))
       },
     }
-  }, [client, store, tab, startRadio, canRequest])
+  }, [client, store, tab, startRadio, viewer])
 
-  useEntryFailures(snapshot, store)
+  useFetchFailures(snapshot, store)
   useEngineErrors(engine, client, store)
   useMediaSession(client, controls, snapshot, track ?? null)
   useShortcuts(controls, clock, snapshot, tab.device.id)
@@ -238,21 +247,44 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   )
 }
 
-/** An on-demand track that could not be fetched is skipped by the session; say so. */
-function useEntryFailures(snapshot: SessionClientSnapshot, store: TrackStore) {
-  const known = useRef(new Map<string, QueueEntry['state']>())
+/** How long a song left current and failed waits for the session to say it paused for an outage. */
+const OUTAGE_GRACE_MS = 1500
+
+/**
+ * Says when music could not be had, without a notice per track during an outage. A song that
+ * was current or next and failed is told once ("Couldn’t play “Song”", "Skipped."); failures
+ * further down the queue and fetches for the library are quiet, their rows simply turn gray.
+ * When the session pauses after failures in a row it says so itself (`playback.unavailable`):
+ * that is told once, and no song after it until something plays again.
+ */
+function useFetchFailures(snapshot: SessionClientSnapshot, store: TrackStore) {
+  const watched = useRef<Watched>({ current: null, next: null })
+  const outage = useRef(false)
+  const held = useRef<ReturnType<typeof setTimeout>[]>([])
+  useEffect(() => () => held.current.forEach(clearTimeout), [])
+  useServerEvent('playback.unavailable', () => {
+    outage.current = true
+    // The failure that paused playback is part of the outage, not a song of its own.
+    held.current.forEach(clearTimeout)
+    held.current = []
+    toast({ title: 'Can’t load music right now', description: 'Playback is paused.' })
+  })
   useEffect(() => {
-    const { session, queue } = snapshot
-    const entries = [...(session.current ? [session.current] : []), ...queue.queue, ...queue.autoplayQueue, ...queue.history]
-    const states = new Map(entries.map(entry => [entry.id, entry.state]))
-    for (const entry of entries) {
-      const before = known.current.get(entry.id)
-      if (entry.state === 'failed' && before && before !== 'failed') {
+    const { session, queue, connection } = snapshot
+    const entries = { current: session.current, queue: queue.queue, autoplayQueue: queue.autoplayQueue, history: queue.history }
+    if (session.current?.state === 'ready') outage.current = false
+    // Offline, the snapshot may miss entries that are still there.
+    const failed = connection === 'online' && !outage.current ? failedFetches(watched.current, entries) : []
+    for (const { entry, held: kept } of failed) {
+      const tell = () => {
         const title = store.get(entry.trackId, entry.albumId)?.title
-        toast({ title: title ? `Couldn’t get “${title}”` : 'Couldn’t get a song', description: 'It was skipped.' })
+        toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play a song', description: 'Skipped.' })
       }
+      // A failed song left current ends the queue, or is the outage the session is about to tell.
+      if (kept) held.current.push(setTimeout(tell, OUTAGE_GRACE_MS))
+      else tell()
     }
-    known.current = states
+    watched.current = watchedOf(entries)
   }, [snapshot, store])
 }
 

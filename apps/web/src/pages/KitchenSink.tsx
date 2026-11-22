@@ -396,11 +396,11 @@ function Music() {
   const player = usePlayer()
   const states: { label: string; track: TrackSummary; nowPlaying?: NowPlaying }[] = [
     { label: 'In library', track: track('soft-signal') },
-    { label: 'Playing', track: track('night-swimming'), nowPlaying: { trackId: track('night-swimming').id, playing: true, preparing: false, onTogglePlay: () => {} } },
-    { label: 'Paused', track: track('blue-in-the-dark'), nowPlaying: { trackId: track('blue-in-the-dark').id, playing: false, preparing: false, onTogglePlay: () => {} } },
-    { label: 'Preparing', track: track('night-swimming-demo'), nowPlaying: { trackId: track('night-swimming-demo').id, playing: true, preparing: true, onTogglePlay: () => {} } },
-    { label: 'On demand', track: track('low-tide-song') },
-    { label: 'Not in library', track: track('soft-signal-live') },
+    { label: 'Playing', track: track('night-swimming'), nowPlaying: { trackId: track('night-swimming').id, playing: true, loading: false, onTogglePlay: () => {} } },
+    { label: 'Paused', track: track('blue-in-the-dark'), nowPlaying: { trackId: track('blue-in-the-dark').id, playing: false, loading: false, onTogglePlay: () => {} } },
+    { label: 'Loading', track: track('night-swimming-demo'), nowPlaying: { trackId: track('night-swimming-demo').id, playing: true, loading: true, onTogglePlay: () => {} } },
+    { label: 'Fetched as it plays', track: track('low-tide-song') },
+    { label: 'Not available', track: track('soft-signal-live') },
     { label: 'Explicit', track: track('after-the-rain') },
   ]
   return (
@@ -458,6 +458,8 @@ function Music() {
       </Group>
 
       <Group title="Player">
+        {/* A song the server fetches: the spinner, then "Still loading…", then it plays. */}
+        <Button size="sm" className="self-start" onClick={() => player.controls.playTracks([track('night-swimming-demo')], 0)}>Play a song that is fetched</Button>
         <div className="overflow-hidden rounded-xl border">
           <PlayerBar player={player} liked onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} />
         </div>

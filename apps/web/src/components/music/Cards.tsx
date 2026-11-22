@@ -1,12 +1,11 @@
 import type { AlbumSummary, ArtistSummary, PlaylistSummary } from '@squirmy/contracts'
-import { BookmarkCheck, BookmarkPlus, CloudDownload, Play } from 'lucide-react'
+import { BookmarkCheck, BookmarkPlus, Play } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { usePrefetch, type PrefetchHandlers } from '@/api/prefetch'
-import { Tooltip } from '@/components/ui/tooltip'
-import { albumTypeLabel, isUnowned } from '@/lib/catalog'
+import { albumPresentation, albumTypeLabel, canFetch } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
-import { useOnDemand } from '@/player/on-demand-context'
+import { useViewer } from '@/player/on-demand-context'
 import { PlaylistCover } from './CollectionArt'
 import { Cover } from './Cover'
 
@@ -16,10 +15,9 @@ type CardProps = {
   subtitle: ReactNode
   art: ReactNode
   onPlay?: () => void
-  /** For music you do not have: a bookmark that adds it to the Wantlist, shown while wanted. */
+  /** For music that does not play: a bookmark that adds it to the Wantlist, shown while wanted. */
   want?: { wanted: boolean; onChange: (wanted: boolean) => void }
   dimmed?: boolean
-  badge?: ReactNode
   /** Round artwork with centered text, for artists. */
   round?: boolean
   /** Starts loading the linked page when the card is hovered, focused or pressed. */
@@ -31,13 +29,12 @@ const overArt = 'absolute bottom-2 right-2 z-10 flex size-10 items-center justif
 const revealed = 'translate-y-1 opacity-0 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/card:translate-y-0 group-hover/card:opacity-100'
 
 /** Artwork, a title and a subtitle, linking to a page. The whole card is the link. */
-function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, round, prefetch }: CardProps) {
+function Card({ to, title, subtitle, art, onPlay, want, dimmed, round, prefetch }: CardProps) {
   return (
     <div className={cn('group/card relative flex min-w-0 flex-col', round && 'items-center text-center')}>
       <div className="relative w-full">
         {art}
         <div aria-hidden className={cn('pointer-events-none absolute inset-0 transition-colors duration-150 group-hover/card:bg-black/10', round ? 'rounded-full' : 'rounded-cover')} />
-        {badge && <div className="absolute left-1.5 top-1.5">{badge}</div>}
         {onPlay && (
           <button type="button" aria-label={`Play ${title}`} onClick={onPlay} className={cn(overArt, revealed, 'bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95')}>
             <Play className="size-4 translate-x-px" fill="currentColor" />
@@ -74,20 +71,20 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, round, pr
 type AlbumCardProps = {
   album: AlbumSummary
   onPlay?: () => void
-  /** Offered on albums you do not have. */
+  /** Offered on albums that do not play, while the server has the Wantlist on. */
   wanted?: boolean
   onWant?: (wanted: boolean) => void
   /** What the line under the title says. Artist pages show the year instead of the artist. */
   subtitle?: 'artist' | 'year'
 }
 
+/**
+ * An album that plays looks the same whether the server has all of it, part of it or none of it
+ * yet: no badge, no count. It is dimmed only when nothing on it would play for this user.
+ */
 export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'artist' }: AlbumCardProps) {
-  const { canRequest } = useOnDemand()
-  const unowned = isUnowned(album)
-  const partial = album.availability === 'partial'
-  // On demand only for people who may fetch music; gray for everyone else.
-  const onDemand = album.availability === 'on_demand' && canRequest
-  const dimmed = album.availability === 'none' || (album.availability === 'on_demand' && !canRequest)
+  const viewer = useViewer()
+  const dimmed = albumPresentation(album, viewer) === 'dimmed'
   const prefetch = usePrefetch({ kind: 'album', id: album.id })
   return (
     <Card
@@ -95,20 +92,19 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
       prefetch={prefetch}
       title={album.title}
       subtitle={subtitle === 'year' ? [album.year, albumTypeLabel(album.type)].filter(Boolean).join(' · ') : album.artistCredit}
-      art={<Cover artwork={album.artwork} dimmed={dimmed} className={cn(onDemand && 'opacity-80')} />}
-      onPlay={unowned ? undefined : onPlay}
-      want={unowned && onWant ? { wanted, onChange: onWant } : undefined}
+      art={<Cover artwork={album.artwork} dimmed={dimmed} />}
+      onPlay={dimmed ? undefined : onPlay}
+      want={dimmed && onWant ? { wanted, onChange: onWant } : undefined}
       dimmed={dimmed}
-      badge={onDemand
-        // Above the card's link, so the tooltip can be reached.
-        ? <Tooltip label="Plays on demand"><span className="relative z-10 flex size-6 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md"><CloudDownload aria-label="Plays on demand" className="size-3.5" /></span></Tooltip>
-        : partial ? <span className="flex h-5 items-center rounded-md bg-black/50 px-1.5 text-xs font-medium tabular text-white backdrop-blur-md">{album.ownedTrackCount} of {album.trackCount}</span> : undefined}
     />
   )
 }
 
 export function ArtistCard({ artist }: { artist: ArtistSummary }) {
   const prefetch = usePrefetch({ kind: 'artist', id: artist.id })
+  const viewer = useViewer()
+  // A requester plays any artist; for others, one with nothing in their library has little that plays.
+  const dimmed = !artist.inLibrary && !canFetch(viewer)
   return (
     <Card
       to={`/artist/${artist.id}`}
@@ -116,8 +112,8 @@ export function ArtistCard({ artist }: { artist: ArtistSummary }) {
       title={artist.name}
       subtitle="Artist"
       round
-      dimmed={!artist.inLibrary}
-      art={artist.image ? <Cover artwork={artist.image} round dimmed={!artist.inLibrary} /> : <Monogram name={artist.name} className={cn(!artist.inLibrary && 'opacity-55')} />}
+      dimmed={dimmed}
+      art={artist.image ? <Cover artwork={artist.image} round dimmed={dimmed} /> : <Monogram name={artist.name} className={cn(dimmed && 'opacity-55')} />}
     />
   )
 }

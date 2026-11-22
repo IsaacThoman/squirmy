@@ -2,9 +2,9 @@
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
-import type { LibrarySort, PlaylistDetail } from '@squirmy/contracts'
+import type { HomeSection, LibrarySort, PlaylistDetail } from '@squirmy/contracts'
 import { queryKeys } from '@squirmy/contracts'
-import { keepPreviousData, useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { CloudOff, Compass } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
@@ -12,10 +12,11 @@ import { errorMessage } from '@/api/errors'
 import { moveItem } from '@/lib/reorder'
 import { useCachedSummary } from '@/api/prefetch'
 import {
-  isNotFound, itemsOf, loadItems, searchQuery, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist, usePlaylists, useWants,
+  isNotFound, itemsOf, loadItems, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist, usePlaylists, useWants,
   type LibraryKind,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
+import { useMergedSearch } from '@/api/use-search'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { Page } from '@/components/layout/Page'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
@@ -31,7 +32,7 @@ import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
 import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
 import { SearchView } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
-import { useDebounced } from '@/lib/use-debounced'
+import { canFetch } from '@/lib/catalog'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
@@ -80,22 +81,32 @@ export function HomePage() {
   const scan = useScanProgress()
   if (home.error) return <ErrorPage error={home.error} onRetry={() => void home.refetch()} />
   const sections = home.data?.sections
-  const albums = (id: string) => sections?.find(section => section.id === id && section.kind === 'albums')
-  const added = albums('recently-added')
-  const played = albums('recently-played')
-  const featured = (played?.kind === 'albums' ? played.albums[0] : undefined) ?? (added?.kind === 'albums' ? added.albums[0] : undefined) ?? null
+  const albums = (id: string) => {
+    const section = sections?.find(candidate => candidate.id === id)
+    return section?.kind === 'albums' ? section.albums : []
+  }
+  // What was played last leads, then what was added; the sections follow in the server's order.
+  const featured = albums('recently-played')[0] ?? albums('recently-added')[0] ?? null
   return (
     <HomeView
       featured={featured}
       sections={sections}
-      empty={Boolean(sections) && !added}
+      empty={Boolean(sections) && sections!.every(isEmptySection)}
       canAddMusic={user.role === 'admin'}
+      canFindMusic={canFetch(user)}
       scan={scan}
       onPlayAlbum={album => void playAlbum(album)}
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
     />
   )
 }
+
+const isEmptySection = (section: HomeSection) => (
+  section.kind === 'albums' ? !section.albums.length
+    : section.kind === 'artists' ? !section.artists.length
+      : section.kind === 'playlists' ? !section.playlists.length
+        : !section.tracks.length
+)
 
 export function AlbumPage() {
   const id = useParams().id ?? ''
@@ -227,21 +238,13 @@ export function WantlistPage() {
 }
 
 export function SearchPage() {
-  const api = useApi()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const { playAlbum } = usePlayCollections()
   const genres = useGenres().data?.items.map(genre => genre.name) ?? []
   const query = params.get('q') ?? ''
   const [typed, setTyped] = useUrlDraft(query)
-  // The searches wait for a pause in the typing, so a word is not searched for letter by letter.
-  const term = useDebounced(query.trim(), 250, '')
-  // The library answers fast, so its last results stay up while the next ones load;
-  // the catalog is slower and its old results would be wrong for longer. A refresh of the
-  // same search (a track fetched on demand changes it) keeps its results on screen.
-  const library = useQuery({ ...searchQuery(api, 'library', term), placeholderData: keepPreviousData })
-  const catalog = useQuery(searchQuery(api, 'catalog', term))
-  const active = term.length > 0
+  const search = useMergedSearch(typed)
   return (
     <SearchView
       query={typed}
@@ -249,11 +252,7 @@ export function SearchPage() {
         setTyped(q)
         setParams(q ? { q } : {}, { replace: true })
       }}
-      library={active ? library.data ?? null : null}
-      catalog={active ? catalog.data ?? null : null}
-      libraryLoading={active && library.isPending}
-      catalogLoading={active && catalog.isPending}
-      unavailable={library.data === null && catalog.data === null}
+      search={search}
       genres={genres}
       onBrowseGenre={genre => void navigate(`/library/albums?genre=${encodeURIComponent(genre)}`)}
       onPlayAlbum={album => void playAlbum(album)}
@@ -280,7 +279,8 @@ function useLibraryPage<K extends LibraryKind>(kind: K) {
   const user = useCurrentUser()
   const filter = useLibraryFilter()
   const genres = useGenres().data?.items.map(genre => genre.name)
-  const list = useLibraryList(kind, { sort: filter.sort, genre: filter.genre })
+  // Artists come in name order only; a sort or genre left in the address would only split the cache.
+  const list = useLibraryList(kind, kind === 'artists' ? { sort: 'recent' } : { sort: filter.sort, genre: filter.genre })
   // While another sort's list stands in, its cursor is not this list's.
   const { isFetchingNextPage, fetchNextPage } = list
   const hasNextPage = list.hasNextPage && !list.isPlaceholderData

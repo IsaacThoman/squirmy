@@ -3,8 +3,9 @@ import { Link } from 'react-router'
 import { Cover } from '@/components/music/Cover'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
-import { playingElsewhere, usePosition, type Player } from '@/player/player-context'
-import { DevicesPopover, PlayingElsewhere } from './Devices'
+import { isLoading, playingElsewhere, usePosition, type Player } from '@/player/player-context'
+import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
+import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
 import { PlayPauseButton, SeekBar, TransportButtons, VolumeControl } from './Transport'
 
 /** The bar is the sidebar's color, so what is hovered in it takes the sidebar's hover color. */
@@ -30,6 +31,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
   const { state, controls } = player
   const item = state.current
   const elsewhere = playingElsewhere(state)
+  const late = useStillLoading(item?.entry)
   return (
     // A landmark, so screen readers can jump to the player and tests can find it by name.
     <section aria-label="Player" className={barClass}>
@@ -53,8 +55,8 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                   ? <Link to={`/album/${item.track.album.id}`} title={item.track.title} className="block truncate text-sm font-medium hover:underline">{item.track.title}</Link>
                   : <p title={item.track.title} className="truncate text-sm font-medium">{item.track.title}</p>}
                 <p className="truncate text-xs text-muted-foreground">
-                  {item.entry.state === 'preparing'
-                    ? <span className="text-primary">Preparing…</span>
+                  {late
+                    ? STILL_LOADING_LABEL
                     : item.track.artists[0]
                       ? <Link to={`/artist/${item.track.artists[0].id}`} className="hover:text-foreground hover:underline">{item.track.artistCredit}</Link>
                       : item.track.artistCredit}
@@ -84,13 +86,16 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
           <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue}><ListMusic /></IconButton>
           <DevicesPopover
             player={player}
-            trigger={<IconButton label="Devices" size="sm" className={cn(elsewhere && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
+            trigger={<IconButton label="Devices" size="sm" className={cn((elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
           />
           <VolumeControl volume={state.volume} onChange={controls.setVolume} className="hidden @[62rem]:flex" />
           <IconButton label="Now Playing" size="sm" disabled={!item} onClick={onOpenNowPlaying} className="hidden @[44rem]:inline-flex"><Maximize2 /></IconButton>
         </div>
       </div>
-      {elsewhere && <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="border-t" />}
+      {/* One strip at a time: a detached tab is never controlling another device. */}
+      {elsewhere
+        ? <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="border-t" />
+        : state.detached && <OnlyOnThisDevice player={player} className="border-t" />}
     </section>
   )
 }
@@ -100,6 +105,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
   const { state, controls } = player
   const item = state.current
   const elsewhere = playingElsewhere(state)
+  const late = useStillLoading(item?.entry)
   if (!item) return null
   return (
     <section aria-label="Player" className={cn(barClass, 'relative pb-[env(safe-area-inset-bottom)]')}>
@@ -108,17 +114,17 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
           <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-10 rounded-[5px]" />
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium">{item.track.title}</span>
-            <span className={cn('block truncate text-xs', elsewhere || item.entry.state === 'preparing' ? 'text-primary' : 'text-muted-foreground')}>
-              {elsewhere ? `Playing on ${elsewhere.name}` : item.entry.state === 'preparing' ? 'Preparing…' : item.track.artistCredit}
+            <span className={cn('block truncate text-xs', elsewhere || state.detached ? 'text-primary' : 'text-muted-foreground')}>
+              {elsewhere ? `Playing on ${elsewhere.name}` : state.detached ? 'Only on this device' : late ? STILL_LOADING_LABEL : item.track.artistCredit}
             </span>
           </span>
         </button>
         <DevicesPopover
           player={player}
-          trigger={<IconButton label="Devices" tooltip={false} size="lg" className={cn('size-11', elsewhere && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
+          trigger={<IconButton label="Devices" tooltip={false} size="lg" className={cn('size-11', (elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
         />
         {/* A 40px disc whose touch target is 44px. */}
-        <PlayPauseButton playing={state.playing} onClick={controls.togglePlay} className="mx-1 size-10 after:absolute after:-inset-0.5 after:rounded-full [&_svg]:size-5" />
+        <PlayPauseButton playing={state.playing} loading={isLoading(state)} onClick={controls.togglePlay} className="mx-1 size-10 after:absolute after:-inset-0.5 after:rounded-full [&_svg]:size-5" />
       </div>
       <MiniProgress durationMs={item.entry.durationMs} />
     </section>
