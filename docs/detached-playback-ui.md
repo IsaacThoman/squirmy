@@ -65,7 +65,7 @@ Errors use the detach table above, with "Couldn't rejoin. Try again." in place o
 
 ## Other devices see it
 
-Every device lists the user's connected devices. A detached one:
+Every device lists the user's live devices (open and answering the server; see "Presence" in the session contract), so a detached device that goes away leaves the list like any other and is back when it reconnects. A detached one:
 
 - is **not** a transfer target (its `canPlay` is false; the server refuses transfers to it), so it never appears among the devices you can move playback to;
 - appears in its own group under the list, **Playing separately**, one row per device: its icon and name, and as subtitle the track it plays (look up `detached.trackId` with the app's track store) followed by "· Paused" when `detached.playing` is false. A row with no track says *Nothing playing*. The rows are not pressable.
