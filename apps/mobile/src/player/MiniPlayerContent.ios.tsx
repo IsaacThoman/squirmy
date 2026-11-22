@@ -1,6 +1,6 @@
 import { Button, Host, HStack, ProgressView, RNHostView, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityHidden, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, onTapGesture, padding, tint,
+  accessibilityHidden, accessibilityHint, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, padding, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -41,6 +41,16 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   const { motion } = usePlayerTransition();
   // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
   // visible rather than hidden so the controls still take touches as the player settles back in.
+  const markerOpensDevices = detached && twoLines && !preview && Boolean(onDevices);
+  const cover = preview ? <Spacer minLength={0} modifiers={[frame({ width: size, height: size })]} /> : (
+    <RNHostView matchContents>
+      <View style={{ width: size, height: size }}>
+        <Cover artwork={track?.album?.artwork} size={size} radius={8} />
+      </View>
+    </RNHostView>
+  );
+  const titleText = <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>;
+  const subtitleText = <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(detached ? colors.accent : colors.muted), lineLimit(1)]}>{subtitle}</Text>;
   const visibility = useAnimatedStyle(() => ({
     opacity: preview || !motion.active.value || !motion.bubble.value ? 1 : 0.02,
   }));
@@ -51,25 +61,33 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
       <Host ignoreSafeArea="container" style={styles.container}>
         <ZStack alignment="bottom">
           <HStack spacing={0} modifiers={[padding({ horizontal: compact ? 10 : 12 }), frame({ maxHeight: Infinity })]}>
-            <Button onPress={onOpen} modifiers={[plainButton, accessibilityLabel(`Open Now Playing, ${title}`)]}>
+            {markerOpensDevices ? <HStack spacing={9}>
+              {/* The marker is a shortcut to the device picker, where Rejoin is, as its symbol beside it is.
+                  It is a button of its own beside the ones that open Now Playing, not a gesture inside one,
+                  so a press at the middle of "Open Now Playing" (as Voice Control makes) still opens it. */}
+              <Button onPress={onOpen} modifiers={[plainButton, accessibilityHidden(true)]}>
+                <HStack modifiers={[frame({ minHeight: 44 }), hitShape]}>{cover}</HStack>
+              </Button>
+              {/* The two lines split the bubble's 44 pt between them, so each reaches its edge. */}
+              <VStack alignment="leading" spacing={0} modifiers={[twoLineLimit]}>
+                <Button onPress={onOpen} modifiers={[plainButton, accessibilityLabel(`Open Now Playing, ${title}`)]}>
+                  <HStack modifiers={[frame({ maxWidth: Infinity, minHeight: 23, alignment: 'bottomLeading' }), hitShape]}>{titleText}</HStack>
+                </Button>
+                <Button onPress={onDevices} modifiers={[plainButton, accessibilityLabel(DETACHED_LABEL), accessibilityHint('Opens playback devices')]}>
+                  <HStack modifiers={[frame({ minHeight: 21, alignment: 'topLeading' }), hitShape]}>{subtitleText}</HStack>
+                </Button>
+              </VStack>
+            </HStack> : <Button onPress={onOpen} modifiers={[plainButton, accessibilityLabel(`Open Now Playing, ${title}`)]}>
               <HStack spacing={9} modifiers={[frame({ minHeight: 44 }), hitShape]}>
-                {preview ? <Spacer minLength={0} modifiers={[frame({ width: size, height: size })]} /> : (
-                  <RNHostView matchContents>
-                    <View style={{ width: size, height: size }}>
-                      <Cover artwork={track?.album?.artwork} size={size} radius={8} />
-                    </View>
-                  </RNHostView>
-                )}
+                {cover}
                 {/* The compact bubble, inline with the shrunken tab bar, is shorter still and keeps the smaller limit. */}
                 <VStack alignment="leading" spacing={1} modifiers={[twoLines || compact ? twoLineLimit : oneLineLimit]}>
-                  <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>
-                  {/* The marker is a shortcut to the device picker, where Rejoin is, as its symbol beside it is. */}
-                  {twoLines && <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(detached ? colors.accent : colors.muted), lineLimit(1),
-                    ...(detached && onDevices && !preview ? [onTapGesture(onDevices)] : [])]}>{subtitle}</Text>}
+                  {titleText}
+                  {twoLines && subtitleText}
                 </VStack>
                 <Spacer minLength={4} />
               </HStack>
-            </Button>
+            </Button>}
             {!compact && <IconButton symbol={detached ? DETACHED_SYMBOL : 'laptopcomputer.and.iphone'} label={deviceLabel}
               size={20} color={colors.accent} onPress={onDevices} />}
             <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={playPauseLabel(session.playing, loading)}
