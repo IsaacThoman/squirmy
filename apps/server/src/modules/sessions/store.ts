@@ -19,6 +19,12 @@ import { OpenPlay } from './plays.js'
 const PERSIST_DELAY_MS = 1000
 /** Command ids remembered per session for de-duplication. */
 const COMMAND_MEMORY = 1000
+/**
+ * The most recent command ids written with the session. A client re-sends the commands it
+ * has seen no state for after every reconnect, a restart included; stored with the state
+ * they produced, they are recognized exactly when their effect survived.
+ */
+const STORED_COMMANDS = 100
 
 export type SessionRecord = {
   userId: string
@@ -38,7 +44,7 @@ export type SessionRecord = {
   writing: Promise<void>
 }
 
-const StoredSession = z.object({ state: SessionState, queue: SessionQueue, play: OpenPlay.nullish() })
+const StoredSession = z.object({ state: SessionState, queue: SessionQueue, play: OpenPlay.nullish(), commandIds: z.array(z.string()).optional() })
 
 const records = new Map<string, SessionRecord>()
 const chains = new Map<string, Promise<unknown>>()
@@ -85,7 +91,7 @@ export async function loadRecord(userId: string, onLoad: (record: SessionRecord)
     session,
     version: row?.version ?? 0,
     queueVersion: row?.queueVersion ?? 0,
-    commandIds: new Set(),
+    commandIds: new Set(stored?.success ? stored.data.commandIds : []),
     play: play && play.entryId === session.current?.id ? play : null,
     requested: new Set(),
     autoplayAskedFor: null,
@@ -120,7 +126,8 @@ export function schedulePersist(record: SessionRecord, onError: (error: unknown)
 /** Writes the session now, after any write already in flight. */
 export function persist(record: SessionRecord): Promise<void> {
   const { state, queue } = splitSession(record.session)
-  const values = { state: { state, queue, play: record.play }, version: record.version, queueVersion: record.queueVersion, updatedAt: new Date() }
+  const commandIds = [...record.commandIds].slice(-STORED_COMMANDS)
+  const values = { state: { state, queue, play: record.play, commandIds }, version: record.version, queueVersion: record.queueVersion, updatedAt: new Date() }
   record.writing = record.writing.catch(() => undefined).then(async () => {
     await db.insert(playbackSessions).values({ userId: record.userId, ...values })
       .onConflictDoUpdate({ target: playbackSessions.userId, set: values })

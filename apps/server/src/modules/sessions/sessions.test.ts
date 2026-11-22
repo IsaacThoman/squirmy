@@ -247,6 +247,16 @@ describe('sessions', () => {
     expect((await getSnapshot(user.id)).state.current?.id).toBe('once.0')
   })
 
+  it('still knows the command ids of a stored session after a restart', async () => {
+    const a = await device('device-a-0022')
+    await a.send(playAlbum(), 'first')
+    expect(await a.send({ type: 'enqueue', tracks: seeds().slice(0, 1), placement: 'last' }, 'added')).toEqual({ ok: true, version: 2 })
+    await sessionsModule.stop!()
+    // A client re-sends what it has no confirmed state for after reconnecting.
+    expect(await a.send({ type: 'enqueue', tracks: seeds().slice(0, 1), placement: 'last' }, 'added')).toEqual({ ok: true, version: 2 })
+    expect((await getSnapshot(user.id)).queue.queue.map((entry) => entry.id)).toEqual(['first.1', 'first.2', 'added.0'])
+  })
+
   it('enforces who may send which command', async () => {
     const stranger = await open('device-x-0004')
     expect(await stranger.send({ type: 'play' })).toEqual({ ok: false, error: 'hello_required' })
