@@ -98,7 +98,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const wantlist = useWantlistEnabled();
   const options = playlist && { playlist: { ...playlist, onRemove: handlers.remove } };
   // Described from what the row already reads; nothing runs until an item is chosen.
-  const actions = trackActions(track, { liked, playable, offline, isCurrent: current, download, onItsOwn, wantlist }, options);
+  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist }, options);
   const perform = (action: TrackAction) => run(track, action, options);
 
   return (
@@ -147,14 +147,14 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
           color={liked ? colors.accent : colors.muted} onPress={() => perform(liked ? quick.unlike : quick.like)} />
         <TrackActionsMenu actions={actions} onRun={perform} label={`More options for ${track.title}`} />
       </HStack>
-      {playable && <SwipeActions.Actions edge="leading">
+      {playable && !current && <SwipeActions.Actions edge="leading">
         <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" modifiers={[swipeLabelStyle, tint('#8071D4')]}
           onPress={() => perform(quick.next)} />
       </SwipeActions.Actions>}
       <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
         {playlist && <Button label="Remove from playlist" systemImage="trash" role="destructive" modifiers={[swipeLabelStyle]}
           onPress={() => handlers.remove(playlist.itemId)} />}
-        {playable && <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" modifiers={[swipeLabelStyle, tint('#8071D4')]}
+        {playable && !current && <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" modifiers={[swipeLabelStyle, tint('#8071D4')]}
           onPress={() => perform(quick.next)} />}
         {playable && <Button label="Play last" systemImage="text.badge.plus" modifiers={[swipeLabelStyle, tint('#3D826D')]}
           onPress={() => perform(quick.last)} />}

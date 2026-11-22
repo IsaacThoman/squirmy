@@ -8,7 +8,7 @@ import { useRealtime } from '../data/realtime';
 import { useCanPlay, useDownloadManager, useTrackDownload } from '../downloads/DownloadsProvider';
 import { songsId, type TrackDownload } from '../downloads/model';
 import { useNotice } from '../Notice';
-import { useIsCurrentTrack, usePlaybackActions } from '../playback';
+import { useCurrentTrackState, usePlaybackActions } from '../playback';
 import { usePlayerTransition } from '../player/transition';
 import { pageHref } from './links';
 import { tabIn } from './tabs';
@@ -107,7 +107,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
   const playable = useCanPlay(track);
   const download = useTrackDownload(track?.id);
   const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
-  const isCurrent = useIsCurrentTrack(track?.id);
+  const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
   const playlists = usePlaylistActions();
   const { perform } = useTrackActionRunner();
@@ -116,7 +116,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
     ...options.playlist,
     onRemove: options.playlist.onRemove ?? ((itemId: string) => playlists.removeItem(options.playlist!.id, itemId)),
   };
-  return trackActions(track, { liked, playable, offline, isCurrent, download, onItsOwn, wantlist }, { playlist })
+  return trackActions(track, { liked, playable, offline, current, download, onItsOwn, wantlist }, { playlist })
     .map(action => ({ ...action, run: () => perform(track, action, { playlist }) }));
 }
 

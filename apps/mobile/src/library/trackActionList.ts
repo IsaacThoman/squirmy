@@ -30,7 +30,8 @@ export type TrackActionState = {
   liked: boolean;
   playable: boolean;
   offline: boolean;
-  isCurrent: boolean;
+  /** Whether the track is the current entry, and if so whether it plays. */
+  current: 'playing' | 'paused' | null;
   download: TrackDownload | undefined;
   /** Downloaded on its own, not only as part of an album or playlist, so it can be removed here. */
   onItsOwn: boolean;
@@ -45,7 +46,7 @@ export type TrackActionState = {
  * only describes the actions; `useTrackActionRunner` carries one out when it is chosen.
  */
 export function trackActions(track: TrackSummary, state: TrackActionState, { playlist }: TrackActionOptions = {}): TrackAction[] {
-  const { liked, playable, offline, isCurrent, download, onItsOwn, wantlist } = state;
+  const { liked, playable, offline, current, download, onItsOwn, wantlist } = state;
   const online = !offline;
   const downloadAction: TrackAction | false = download?.state === 'failed' && onItsOwn
     ? { id: 'retryDownload', title: 'Retry download', icon: 'arrow.clockwise' }
@@ -54,8 +55,10 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
         icon: download.state === 'done' ? 'trash' : 'xmark.circle', destructive: download.state === 'done' }
       : !download && online && track.availability === 'server' && { id: 'download', title: 'Download', icon: 'arrow.down.circle' };
   const items: (TrackAction | false)[] = [
-    playable && { id: isCurrent ? 'resume' : 'play', title: 'Play now', icon: 'play.fill' },
-    playable && { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward' },
+    // The current track can only be resumed; queueing it next would play it twice.
+    playable && current === null && { id: 'play', title: 'Play now', icon: 'play.fill' },
+    playable && current === 'paused' && { id: 'resume', title: 'Play', icon: 'play.fill' },
+    playable && current === null && { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward' },
     playable && { id: 'last', title: 'Play last', icon: 'text.badge.plus' },
     liked
       ? { id: 'unlike', title: 'Unlike', icon: 'heart.slash' }

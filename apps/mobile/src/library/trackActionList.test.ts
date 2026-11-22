@@ -8,7 +8,7 @@ const track = (parts: Partial<TrackSummary> = {}): TrackSummary => ({
   availability: 'server', liked: false, explicit: null, hasLyrics: false, ...parts,
 } as TrackSummary);
 const state = (parts: Partial<TrackActionState> = {}): TrackActionState => ({
-  liked: false, playable: true, offline: false, isCurrent: false, download: undefined, onItsOwn: false, wantlist: true, ...parts,
+  liked: false, playable: true, offline: false, current: null, download: undefined, onItsOwn: false, wantlist: true, ...parts,
 });
 const ids = (...args: Parameters<typeof trackActions>) => trackActions(...args).map(action => action.id);
 
@@ -17,8 +17,10 @@ describe('trackActions', () => {
     expect(ids(track(), state())).toEqual(['play', 'next', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
   });
 
-  it('resumes the current track instead of queueing it again', () => {
-    expect(ids(track(), state({ isCurrent: true }))[0]).toBe('resume');
+  it('offers the current track only Play while paused, and never Play next', () => {
+    expect(ids(track(), state({ current: 'paused' }))).toEqual(['resume', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
+    expect(trackActions(track(), state({ current: 'paused' }))[0]?.title).toBe('Play');
+    expect(ids(track(), state({ current: 'playing' }))).toEqual(['last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
   });
 
   it('unlikes a liked track', () => {

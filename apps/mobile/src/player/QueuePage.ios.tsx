@@ -12,7 +12,7 @@ import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
 import { useLiked, useTrack, useTrackStore } from '../data/library';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner } from '../library/trackActions';
 import { IconButton, Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
-import { useIsCurrentTrack, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
+import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
 import { useColors } from '../theme';
 
@@ -234,13 +234,13 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
   const download = useTrackDownload(entry.trackId);
   const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
   const playable = useCanPlay(track);
-  const isCurrent = useIsCurrentTrack(track?.id);
+  const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
   const downloaded = download?.state === 'done';
   const failed = entry.state === 'failed' || (offline && !downloaded);
   const detail = entry.state === 'failed' ? 'Couldn’t be fetched' : failed ? 'Not downloaded' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
   const title = track?.title ?? '';
-  const actions = track ? trackActions(track, { liked: favorite, playable, offline, isCurrent, download, onItsOwn, wantlist }) : [];
+  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist }) : [];
   return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
     <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, accessibilityLabel(`${title}, ${detail}`)]}>
       <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape]}>
