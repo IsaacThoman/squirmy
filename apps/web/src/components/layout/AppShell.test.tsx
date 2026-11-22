@@ -30,7 +30,7 @@ async function renderShell(route = '/', options?: FakeOptions) {
 const press = (key: string, modifier: 'Control' | 'Meta' = 'Control') => userEvent.keyboard(`{${modifier}>}${key}{/${modifier}}`)
 
 const sidebar = () => screen.getByLabelText('Sidebar')
-const searchField = () => screen.findByRole('combobox', { name: 'Search your library' })
+const searchField = () => screen.findByRole('combobox', { name: 'Search' })
 const settings = () => screen.findByRole('dialog', { name: 'Settings' })
 const settingsSection = async () => within(await settings()).getAllByRole('heading', { level: 2 }).at(-1)?.textContent
 
@@ -94,16 +94,16 @@ describe('AppShell', () => {
       expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()
     })
 
-    it('searches the library as you type and opens the best match with Enter', async () => {
+    it('searches everything as you type and opens the best match with Enter', async () => {
       const { api } = await renderShell()
       await press('k')
       await userEvent.type(await searchField(), 'blue hour')
       const options = within(await screen.findByRole('listbox', { name: 'Results' }))
       expect(await options.findByRole('option', { name: 'Blue Hour Album · Mira Vale' })).toBeInTheDocument()
       expect(api.search.library).toHaveBeenLastCalledWith({ q: 'blue hour', limit: 20 }, expect.anything())
-      expect(api.search.catalog).not.toHaveBeenCalled()
+      await waitFor(() => expect(api.search.catalog).toHaveBeenLastCalledWith({ q: 'blue hour', limit: 20 }, expect.anything()))
       expect(options.getAllByRole('option')[0]).toHaveAccessibleName('Blue Hour Album · Mira Vale')
-      expect(options.getAllByRole('option').at(-1)).toHaveAccessibleName(/^Search everything for “blue hour”/)
+      expect(options.getAllByRole('option').at(-1)).toHaveAccessibleName('See all results for “blue hour”')
 
       await userEvent.keyboard('{Enter}')
       expect(where()).toBe(`/album/${album('blue-hour').id}`)
@@ -125,7 +125,7 @@ describe('AppShell', () => {
       await renderShell()
       await press('k')
       await userEvent.type(await searchField(), 'pale & blue')
-      await userEvent.click(await screen.findByRole('option', { name: /^Search everything for “pale & blue”/ }))
+      await userEvent.click(await screen.findByRole('option', { name: 'See all results for “pale & blue”' }))
       expect(where()).toBe('/search?q=pale%20%26%20blue')
     })
 
@@ -171,6 +171,7 @@ describe('AppShell', () => {
       await userEvent.keyboard('{Escape}')
 
       api.search.library.mockReturnValue(new Promise<never>(() => {}))
+      api.search.catalog.mockReturnValue(new Promise<never>(() => {}))
       await press('k')
       await userEvent.type(await searchField(), 'amber')
       await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'amber', limit: 20 }, expect.anything()))
@@ -189,6 +190,7 @@ describe('AppShell', () => {
       await screen.findByRole('option', { name: 'Blue Hour Album · Mira Vale' })
 
       api.search.library.mockReturnValue(new Promise<never>(() => {}))
+      api.search.catalog.mockReturnValue(new Promise<never>(() => {}))
       await userEvent.clear(field)
       await userEvent.type(field, 'amber')
       await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'amber', limit: 20 }, expect.anything()))

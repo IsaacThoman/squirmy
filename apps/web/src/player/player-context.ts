@@ -71,6 +71,14 @@ export const PlayerContext = createContext<Player | null>(null)
 /** The controls alone. They keep one identity, so readers that only send commands skip every session update. */
 export const PlayerControlsContext = createContext<PlayerControls | null>(null)
 
+/**
+ * Whether the current track's music is still on its way while it should be playing: the
+ * server is fetching it. It looks like buffering, a spinner, and nothing names the fetch.
+ */
+export function isLoading(state: Pick<PlayerState, 'current' | 'playing'>): boolean {
+  return state.playing && state.current?.entry.state === 'preparing'
+}
+
 /** The device that plays when it is not this one. One that dropped off the list during its grace period is still "another device". */
 export function playingElsewhere(state: Pick<PlayerState, 'activeDeviceId' | 'thisDeviceId' | 'devices'>): DeviceInfo | undefined {
   const { activeDeviceId, thisDeviceId, devices } = state

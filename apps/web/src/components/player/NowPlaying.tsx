@@ -1,4 +1,5 @@
-import { ChevronDown, Heart, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
+import type { TrackSummary } from '@squirmy/contracts'
+import { ChevronDown, CircleCheck, CirclePlus, Heart, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { Link } from 'react-router'
 import { Cover } from '@/components/music/Cover'
@@ -6,8 +7,10 @@ import { Dialog } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
+import { useLibrary } from '@/player/library-context'
 import { playingElsewhere, type Player } from '@/player/player-context'
-import { DevicesPopover, PlayingElsewhere } from './Devices'
+import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
+import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
 import { LyricsPane } from './Lyrics'
 import { QueueContent } from './Queue'
 import { SeekBar, TransportButtons, VolumeControl } from './Transport'
@@ -34,6 +37,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   const item = state.current
   const artwork = item?.track.album?.artwork ?? null
   const elsewhere = playingElsewhere(state)
+  const late = useStillLoading(item?.entry)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
 
   return (
@@ -53,7 +57,9 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             <div className="absolute inset-0" style={{ backgroundImage: wash }} />
           </div>
 
-          {elsewhere && <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />}
+          {elsewhere
+            ? <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />
+            : state.detached && <OnlyOnThisDevice player={player} className="relative" />}
 
           <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-5">
             <DialogPrimitive.Close asChild>
@@ -98,14 +104,15 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
                 <h2 className="truncate text-2xl font-semibold tracking-tight">{item?.track.title ?? 'Nothing playing'}</h2>
                 {item && (
                   <p className="truncate text-base text-muted-foreground">
-                    {item.entry.state === 'preparing'
-                      ? <span className="text-primary">Preparing…</span>
+                    {late
+                      ? STILL_LOADING_LABEL
                       : item.track.artists[0]
                         ? <Link to={`/artist/${item.track.artists[0].id}`} onClick={() => onOpenChange(false)} className="hover:text-foreground hover:underline">{item.track.artistCredit}</Link>
                         : item.track.artistCredit}
                   </p>
                 )}
               </div>
+              {item && <LibraryToggle track={item.track} />}
               {item && (
                 <IconButton label={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'} size="lg" onClick={onToggleLike} className={cn('max-md:size-11', liked && 'text-primary hover:text-primary')}>
                   <Heart fill={liked ? 'currentColor' : 'none'} />
@@ -125,5 +132,22 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </Dialog>
+  )
+}
+
+/** Add to library for the song playing, beside its heart. Servers that do not say what is in the library get none. */
+function LibraryToggle({ track }: { track: TrackSummary }) {
+  const library = useLibrary()
+  if (track.inLibrary === undefined) return null
+  const saved = track.inLibrary
+  return (
+    <IconButton
+      label={saved ? 'Remove from library' : 'Add to library'}
+      size="lg"
+      onClick={() => library.setInLibrary({ type: 'track', id: track.id, title: track.title }, !saved)}
+      className={cn('max-md:size-11', saved && 'text-primary hover:text-primary')}
+    >
+      {saved ? <CircleCheck /> : <CirclePlus />}
+    </IconButton>
   )
 }

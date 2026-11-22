@@ -55,9 +55,31 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
     return reply.code(status).send({ error: { code: status >= 500 ? 'internal_error' : 'request_error', message } })
   })
 
-  // No CSP: the SPA and artwork are served from here. Artwork and streams are also loaded
-  // by Subsonic web clients on other origins, which the default same-origin CORP blocks.
-  await app.register(helmet, { contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } })
+  // The web app loads only its own files: no inline scripts (the appearance script is a file of
+  // its own), so script-src is 'self'. Inline styles stay allowed for `style=` and the theme's
+  // <style> element. No upgrade-insecure-requests, so the app keeps working over plain HTTP on a
+  // LAN. Artwork and streams are also loaded by Subsonic web clients on other origins, which the
+  // default same-origin CORP blocks.
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        mediaSrc: ["'self'"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", 'data:'],
+        workerSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'none'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
   // Before compression, so the ETag describes the body and a 304 has nothing to compress.
   app.addHook('onSend', conditionalGet)
   // Brotli (quality 4, fast enough to run per response) or gzip for JSON, Subsonic XML and

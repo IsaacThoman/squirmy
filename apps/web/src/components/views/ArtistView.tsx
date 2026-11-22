@@ -9,11 +9,11 @@ import { SectionHeader } from '@/components/music/SectionHeader'
 import { TrackList } from '@/components/music/TrackList'
 import { Badge } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
-import { isPlayable } from '@/lib/catalog'
+import { albumPresentation, canFetch, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import { useOnDemand } from '@/player/on-demand-context'
+import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls } from '@/player/player-context'
 import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
 
@@ -24,13 +24,14 @@ const groupTitles: Record<AlbumType, string> = {
 
 export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPlayAlbum: (album: AlbumSummary) => void }) {
   const library = useLibrary()
-  const { canRequest } = useOnDemand()
+  const viewer = useViewer()
   const controls = usePlayerControls()
   const context = { type: 'artist' as const, id: artist.id, title: artist.name }
   const actions = useTrackActions(artist.topTracks, context)
   const wants = useAlbumWants()
-  const owned = artist.albums.filter(album => album.availability === 'full' || album.availability === 'partial').length
-  const playable = artist.topTracks.some(track => isPlayable(track, canRequest))
+  // A requester plays everything here, so only someone who may not fetch music is told how much plays.
+  const playing = artist.albums.filter(album => albumPresentation(album, viewer) === 'normal').length
+  const playable = artist.topTracks.some(track => isPlayable(track, viewer))
   const groups = typeOrder
     .map(type => ({ type, albums: artist.albums.filter(album => album.type === type) }))
     .filter(group => group.albums.length)
@@ -41,7 +42,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
     <div>
       <ArtistHeader
         artist={artist}
-        line={owned ? `${plural(owned, 'release')} of ${artist.albums.length} in your library` : `${plural(artist.albums.length, 'release')}, none in your library`}
+        line={canFetch(viewer) || playing === artist.albums.length ? plural(artist.albums.length, 'release') : `${playing} of ${plural(artist.albums.length, 'release')} available`}
         actions={(
           <PlayActions
             title={artist.name}
@@ -50,7 +51,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
             liked={artist.liked}
             onLike={() => library.setLiked('artist', artist.id, !artist.liked)}
           >
-            {artist.inLibrary && (
+            {(artist.inLibrary || canFetch(viewer)) && (
               <IconButton label={`Start ${artist.name} radio`} size="lg" onClick={() => controls.startRadio({ type: 'artist', id: artist.id })}><Radio /></IconButton>
             )}
           </PlayActions>
