@@ -1,7 +1,8 @@
-import type { AlbumSummary, ArtistSummary, SearchResults, SearchTopResult, TrackAvailability, TrackSummary } from '@squirmy/contracts'
+import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchRanked, SearchResults, SearchTopResult, TrackAvailability, TrackSummary } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
 import type { Viewer } from './availability.js'
-import { mergeSearch } from './search.js'
+import { addRecentSearch, parseRecentSearches, RECENT_SEARCH_LIMIT, recentSearchKey, removeRecentSearch } from './recent-searches.js'
+import { mergeSearch, playlistScore, searchItemKey, searchQueue, type SearchItem } from './search.js'
 
 const fetcher: Viewer = { role: 'member', canAcquire: true }
 const member: Viewer = { role: 'member', canAcquire: false }
@@ -22,7 +23,7 @@ const top = (type: SearchTopResult['type'], n: number, score?: number): SearchTo
 
 describe('mergeSearch', () => {
   it('is empty while both answers load, and shows the library alone first', () => {
-    expect(mergeSearch(null, undefined, fetcher)).toEqual({ top: null, artists: [], albums: [], tracks: [] })
+    expect(mergeSearch(null, undefined, fetcher)).toEqual({ items: [], top: null, artists: [], albums: [], tracks: [] })
     const library = results({ tracks: [track(2), track(1)], top: top('track', 1, 3) })
     const merged = mergeSearch(library, null, fetcher)
     expect(ids(merged.tracks)).toEqual([2, 1])
@@ -97,5 +98,90 @@ describe('mergeSearch', () => {
       expect(merged.top).toEqual({ type: 'artist', artist: artist(1) })
       expect(ids(merged.artists)).toEqual([1])
     })
+  })
+
+  describe('the ranked list', () => {
+    const rank = (type: SearchRanked['type'], n: number, score: number): SearchRanked => ({ type, id: uuid(n), score })
+    const keys = (items: readonly SearchItem[]) => items.map(item => searchItemKey(item).replace(/:0+-0+-4000-8000-0*/, ':'))
+
+    it('mixes kinds by score across both answers, an item named twice at its best', () => {
+      const library = results({ albums: [album(10)], tracks: [track(20)], ranked: [rank('album', 10, 0.5), rank('track', 20, 0.4)] })
+      const catalog = results({
+        artists: [artist(1)], tracks: [track(21)],
+        // The catalog also scores the library's album, higher: the provider knows it is popular.
+        ranked: [rank('artist', 1, 0.6), rank('album', 10, 0.9), rank('track', 21, 0.45), rank('track', 99, 1)],
+      })
+      expect(keys(mergeSearch(library, catalog, fetcher).items)).toEqual(['album:10', 'artist:1', 'track:21', 'track:20'])
+      // The library alone shows in its own ranking.
+      expect(keys(mergeSearch(library, null, fetcher).items)).toEqual(['album:10', 'track:20'])
+    })
+
+    it('scores down what the viewer cannot play', () => {
+      const catalog = results({ tracks: [track(1, 'none'), track(2, 'server')], ranked: [rank('track', 1, 0.8), rank('track', 2, 0.6)] })
+      expect(keys(mergeSearch(null, catalog, member).items)).toEqual(['track:2', 'track:1'])
+      expect(keys(mergeSearch(null, results({ ...catalog, ranked: [rank('track', 1, 0.95), rank('track', 2, 0.6)] }), member).items)).toEqual(['track:1', 'track:2'])
+    })
+
+    it('lists what an older server did not rank after, the top result first', () => {
+      const catalog = results({ artists: [artist(1)], albums: [album(10)], tracks: [track(20)], top: top('track', 20, 3) })
+      expect(keys(mergeSearch(null, catalog, fetcher).items)).toEqual(['track:20', 'artist:1', 'album:10'])
+    })
+
+    it('lists identical albums and songs under different ids once', () => {
+      const copy = { ...album(11), title: 'Album 10' }
+      const library = results({ albums: [album(10)], tracks: [{ ...track(20), durationMs: 200_000 }] })
+      const catalog = results({
+        albums: [copy, { ...album(12), title: 'Album 10', year: 2001 }],
+        tracks: [{ ...track(21), title: 'Track 20', durationMs: 201_000 }, { ...track(22), title: 'Track 20', durationMs: 260_000 }],
+        ranked: [rank('album', 11, 1), rank('album', 12, 0.9), rank('track', 21, 0.8), rank('track', 22, 0.7)],
+      })
+      const merged = mergeSearch(library, catalog, fetcher)
+      // Another year is another album (a band's self-titled records); another length is another recording.
+      expect(ids(merged.albums)).toEqual([10, 12])
+      expect(ids(merged.tracks)).toEqual([20, 22])
+      expect(keys(merged.items)).toEqual(['album:12', 'track:22', 'album:10', 'track:20'])
+    })
+
+    it('lists the viewer\'s playlists whose name matches', () => {
+      const playlist = (n: number, name: string): PlaylistSummary => ({
+        id: uuid(n), name, description: null, ownerId: uuid(0), ownerName: 'me', isPublic: false, trackCount: 3, durationMs: 1, artworks: [], updatedAt: '2026-01-01T00:00:00.000Z',
+      })
+      const catalog = results({ artists: [artist(1)], ranked: [rank('artist', 1, 0.5)] })
+      const merged = mergeSearch(null, catalog, fetcher, { playlists: { query: 'road', items: [playlist(40, 'Road Trip'), playlist(41, 'Gym'), playlist(42, 'Night Road')] } })
+      expect(keys(merged.items)).toEqual(['playlist:40', 'artist:1', 'playlist:42'])
+      expect(playlistScore('Café', 'cafe')).toBeGreaterThan(playlistScore('caf', 'cafe'))
+      expect(playlistScore('xyz', 'cafe')).toBe(0)
+    })
+  })
+
+  describe('searchQueue', () => {
+    it('plays the chosen song, then the other songs found that play', () => {
+      const items: SearchItem[] = [{ type: 'track', track: track(1) }, { type: 'artist', artist: artist(2) }, { type: 'track', track: track(3, 'none') }, { type: 'track', track: track(4) }]
+      const playable = (one: TrackSummary) => one.availability !== 'none'
+      expect(searchQueue(items, track(4), playable)).toEqual({ tracks: [track(1), track(4)], start: 1 })
+      expect(searchQueue(items, track(9), playable)).toEqual({ tracks: [track(9)], start: 0 })
+    })
+  })
+})
+
+describe('recent searches', () => {
+  it('keeps the newest first, once each, up to the limit', () => {
+    let list = addRecentSearch([], { type: 'query', query: '  tate ' })
+    list = addRecentSearch(list, { type: 'artist', artist: artist(1) })
+    list = addRecentSearch(list, { type: 'query', query: 'TATE' })
+    expect(list.map(recentSearchKey)).toEqual(['query:tate', `artist:${uuid(1)}`])
+    expect(list[0]).toEqual({ type: 'query', query: 'TATE' })
+    expect(addRecentSearch(list, { type: 'query', query: '   ' })).toEqual(list)
+    for (let n = 0; n < 30; n++) list = addRecentSearch(list, { type: 'query', query: `q${n}` })
+    expect(list).toHaveLength(RECENT_SEARCH_LIMIT)
+    expect(removeRecentSearch(list, 'query:q29')[0]).toEqual({ type: 'query', query: 'q28' })
+  })
+
+  it('reads back what parses and drops the rest', () => {
+    const stored = JSON.stringify([{ type: 'query', query: 'mgmt' }, { type: 'album', album: { id: 'not an album' } }, { type: 'track', track: track(5) }])
+    expect(parseRecentSearches(stored)).toEqual([{ type: 'query', query: 'mgmt' }, { type: 'track', track: track(5) }])
+    expect(parseRecentSearches('{')).toEqual([])
+    expect(parseRecentSearches('{"a":1}')).toEqual([])
+    expect(parseRecentSearches(null)).toEqual([])
   })
 })
