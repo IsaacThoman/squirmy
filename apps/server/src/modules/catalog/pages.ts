@@ -87,7 +87,7 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
 }
 
 /**
- * The artist page: profile, every album the artist is credited on (newest first), and
+ * The artist page: profile, every album the artist is credited on or leads (newest first), and
  * top tracks ranked by completed plays on this server, then popularity, and similar
  * artists from the radio module. Fetches missing detail first.
  */
@@ -103,8 +103,14 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
     db.execute<{ id: string }>(sql`
       select a.id from albums a
       where a.merged_into_id is null
-        and a.id in (select aa.album_id from album_artists aa where aa.artist_id = ${artistId})
-      order by a.release_date desc nulls last, a.year desc nulls last, a.title_key, a.id`),
+        -- Credited, or led without credit rows (the summary then credits the primary artist).
+        and a.id in (
+          select aa.album_id from album_artists aa where aa.artist_id = ${artistId}
+          union select led.id from albums led where led.primary_artist_id = ${artistId}
+        )
+      -- Many rows know only a year (catalog stubs, tags with a year). A full date and a
+      -- bare year compare as text, so '2020' still sorts above '2001-05-01'.
+      order by coalesce(a.release_date, a.year::text) desc nulls last, a.year desc nulls last, a.title_key, a.id`),
     db.execute<{ id: string }>(sql`
       select r.id from recordings r
       where r.merged_into_id is null

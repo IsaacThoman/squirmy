@@ -5,7 +5,7 @@ import { artworkRoutes } from './renditions.js'
 
 export { albumArtFromFiles, artistImageFromFolder, pickEmbeddedPicture, storeEmbeddedPicture, type EmbeddedPicture } from './files.js'
 export { readOriginal } from './recover.js'
-export { assignAlbumArtwork, ensureStored, remoteImage, storeImage, type Asset, type AssetKind, type StoredAsset } from './store.js'
+export { assignAlbumArtwork, ensureStored, remoteImage, retryFailedAfterMs, storeImage, type Asset, type AssetKind, type StoredAsset } from './store.js'
 
 export const artworkModule: ServerModule = {
   name: 'artwork',

@@ -128,6 +128,25 @@ describe('catalog pages', () => {
     ])
   })
 
+  it('orders a discography by year when an album has no release date', async () => {
+    const artist = await createArtist()
+    await createAlbum({ artist, title: 'Dated', year: 2001 })
+    const undated = await createAlbum({ artist, title: 'Undated', year: 2020 })
+    const unknown = await createAlbum({ artist, title: 'Unknown' })
+    await db.update(albums).set({ releaseDate: null }).where(eq(albums.id, undated.albumId))
+    await db.update(albums).set({ releaseDate: null, year: null }).where(eq(albums.id, unknown.albumId))
+    const detail = body(await get(`/artists/${artist.id}`), ArtistDetail)
+    expect(detail.albums.map((album) => album.title)).toEqual(['Undated', 'Dated', 'Unknown'])
+  })
+
+  it('lists an album the artist leads without credit rows', async () => {
+    const artist = await createArtist()
+    const album = await createAlbum({ artist, title: 'Bare' })
+    await db.delete(albumArtists).where(eq(albumArtists.albumId, album.albumId))
+    const detail = body(await get(`/artists/${artist.id}`), ArtistDetail)
+    expect(detail.albums.map((one) => [one.id, one.artists])).toEqual([[album.albumId, [{ id: artist.id, name: artist.name }]]])
+  })
+
   it('returns a track in an album context, and its lyrics', async () => {
     const album = await createAlbum({ owned: true })
     const other = await createAlbum({ tracks: [{ title: 'Elsewhere' }] })
