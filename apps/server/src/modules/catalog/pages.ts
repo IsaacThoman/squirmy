@@ -104,7 +104,9 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
       select a.id from albums a
       where a.merged_into_id is null
         and a.id in (select aa.album_id from album_artists aa where aa.artist_id = ${artistId})
-      order by a.release_date desc nulls last, a.year desc nulls last, a.title_key, a.id`),
+      -- Many rows know only a year (catalog stubs, tags with a year). A full date and a
+      -- bare year compare as text, so '2020' still sorts above '2001-05-01'.
+      order by coalesce(a.release_date, a.year::text) desc nulls last, a.year desc nulls last, a.title_key, a.id`),
     db.execute<{ id: string }>(sql`
       select r.id from recordings r
       where r.merged_into_id is null
