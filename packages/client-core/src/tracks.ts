@@ -78,11 +78,14 @@ export class TrackStore {
   private async fetchBatch(batch: [string, Wanted][]): Promise<void> {
     for (const [key] of batch) this.inFlight.add(key)
     try {
-      const { tracks } = await this.fetchSummaries({ tracks: batch.map(([, wanted]) => wanted) })
+      const { tracks, requestedIds } = await this.fetchSummaries({ tracks: batch.map(([, wanted]) => wanted) })
+      // A merged track comes back under the id it was merged into; `requestedIds` (newer
+      // servers) names the id each summary answers, so it is filed under the one we hold.
+      const answers = tracks.map((track, index) => ({ track, asked: requestedIds?.[index] ?? track.id }))
       for (const [key, wanted] of batch) {
         // The server may present a track in a different album than asked; fall back to any.
-        const found = tracks.find(track => track.id === wanted.id && (track.album?.id ?? null) === wanted.albumId)
-          ?? tracks.find(track => track.id === wanted.id)
+        const found = answers.find(({ track, asked }) => asked === wanted.id && (track.album?.id ?? null) === wanted.albumId)?.track
+          ?? answers.find(({ asked }) => asked === wanted.id)?.track
         if (found) this.cache.set(key, found)
         else this.missing.add(key)
       }

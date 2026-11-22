@@ -77,6 +77,7 @@ describe('GET /search/library', () => {
       const all = [...results.artists.map((item) => ({ ...item, title: item.name })), ...results.albums, ...results.tracks]
       return results.top && [results.top.type, all.find((item) => item.id === results.top!.id)!.title]
     }
+    const scored = async (q: string) => (await search(q)).top?.score
     expect(await top('radiohead')).toEqual(['artist', 'Radiohead'])
     expect(await top('ok computer')).toEqual(['album', 'OK Computer'])
     // An album and its title track tie on text; the album leads.
@@ -84,8 +85,14 @@ describe('GET /search/library', () => {
     expect(await top('karma police')).toEqual(['track', 'Karma Police'])
     expect(await top('radiohead lucky')).toEqual(['track', 'Lucky'])
     expect(await top('para')).toEqual(['track', 'Paranoid Android'])
-    // A typo finds the artist, but nothing matches well enough to lead with.
-    expect(await top('radiohed')).toBeNull()
+    // A typo one character away still leads with the artist, as streaming apps do.
+    expect(await top('radiohed')).toEqual(['artist', 'Radiohead'])
+    expect(await top('paranoid andriod')).toBeNull()
+    // Scored on the same scale as the catalog's top result, so a client can pick between them.
+    expect(await scored('radiohead')).toBe(3)
+    expect(await scored('radiohead ok computer')).toBe(3)
+    expect(await scored('para')).toBe(1)
+    expect(await scored('radiohed')).toBe(1)
   })
 
   it('works from the second character', async () => {
@@ -139,6 +146,12 @@ describe('GET /search/library', () => {
     await createPlay({ userId: user.id, recordingId: beta! })
     await createPlay({ userId: user.id, recordingId: beta! })
     expect((await search('band')).artists.map((artist) => artist.name)).toEqual(['Beta Band', 'Alpha Band'])
+  })
+
+  it('leads with an album whose title starts with an article the query left out', async () => {
+    const store = await createAlbum({ title: 'The Money Store', artist: await createArtist({ name: 'Death Grips' }), owned: true, tracks: [{ title: 'Get Got' }] })
+    expect((await search('money store')).top).toEqual({ type: 'album', id: store.albumId, score: 2 })
+    expect((await search('the money store')).top).toEqual({ type: 'album', id: store.albumId, score: 3 })
   })
 
   it('counts a track credited to an artist as theirs', async () => {

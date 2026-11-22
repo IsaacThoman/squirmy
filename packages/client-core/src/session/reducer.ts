@@ -164,6 +164,9 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
         shuffle,
         playOrder: shuffle ? entries.filter(entry => upcomingIds.has(entry.id)).map(entry => entry.id) : [],
         playedInCycle: [],
+        // Suggestions follow what plays: those made for the old queue would come back
+        // after the new one, often repeating its tracks. The server suggests afresh.
+        autoplayQueue: s.autoplayQueue.length ? [] : s.autoplayQueue,
         context: command.context ?? null,
       }
     }

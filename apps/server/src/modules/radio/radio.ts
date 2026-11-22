@@ -41,10 +41,14 @@ export async function artistRadio(userId: string, artistId: string, options: Sug
   if (!id) throw notFound('No such artist')
   const salt = Math.floor((options.random ?? Math.random)() * 2 ** 32)
   const [top] = await db.execute<{ id: string; name: string }>(sql`
-    select r.id, a.name from recording_artists ra
-    join recordings r on r.id = ra.recording_id and r.merged_into_id is null
-    join artists a on a.id = ra.artist_id
-    where ra.artist_id = ${id} and ${recordingOwned('r.id')}
+    select r.id, a.name from recordings r
+    join artists a on a.id = ${id}
+    -- The artist's tracks as the artist page counts them: credited, or led without credit rows.
+    where r.id in (
+        select ra.recording_id from recording_artists ra where ra.artist_id = ${id}
+        union select led.id from recordings led where led.primary_artist_id = ${id}
+      )
+      and r.merged_into_id is null and ${recordingOwned('r.id')}
     order by (select count(*) from plays p where p.user_id = ${userId} and p.recording_id = r.id) desc,
       exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'recording' and l.entity_id = r.id) desc,
       r.popularity desc nulls last,

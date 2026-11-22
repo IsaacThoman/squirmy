@@ -4,7 +4,8 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, externalIds, likes } from '../../database/schema.js'
+import { albums, externalIds, likes, recordingArtists, recordings } from '../../database/schema.js'
+import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createPlay } from '../../test/catalog.js'
@@ -166,6 +167,30 @@ describe('radio', () => {
     }
     onDemand.clear()
     expect(await run(user.id, { exclude: everyOwned })).toEqual([])
+  })
+
+  it('treats seeds and excluded ids that were merged away as the tracks they became', async () => {
+    const user = await createUser()
+    // A queue keeps the ids it was given; a later merge leaves them redirecting.
+    const alias = new Map<string, string>()
+    for (const track of tracks.filter((one) => one.owned)) {
+      const id = newId()
+      await db.insert(recordings).values({ id, title: 'Old', artistCredit: 'x', titleKey: 'old', matchKey: 'x|old', mergedIntoId: track.recordingId })
+      alias.set(track.recordingId, id)
+    }
+    const others = [...alias.entries()].filter(([id]) => id !== seed.recordingId).map(([, old]) => old)
+    const result = await suggestAutoplay({ userId: user.id, seeds: [alias.get(seed.recordingId)!], exclude: others, limit: WINDOW })
+    expect(result).toEqual([])
+  })
+
+  it('starts an artist radio from a track the artist leads without credit rows', async () => {
+    const user = await signIn()
+    const artist = await createArtist({ name: 'Uncredited' })
+    const album = await createAlbum({ artist, owned: true, tracks: [{ title: 'Only' }] })
+    // Rows from older imports and catalog stubs can carry only the primary artist.
+    await db.delete(recordingArtists).where(eq(recordingArtists.recordingId, album.tracks[0]!.recordingId))
+    const response = await app.inject({ method: 'POST', url: `/api/v1/radio/artist/${artist.id}`, headers: user.headers })
+    expect(body(response, RadioResponse).tracks[0]!.trackId).toBe(album.tracks[0]!.recordingId)
   })
 
   describe('similar artists', () => {

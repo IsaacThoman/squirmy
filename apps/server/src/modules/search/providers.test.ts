@@ -49,4 +49,27 @@ describe('searchCatalog', () => {
     await searchCatalog('radiohead', 5, [deezer])
     expect(deezer.search).toHaveBeenCalledTimes(3)
   })
+
+  it('also asks without trailing edition words, the answer for the whole query first', async () => {
+    const album = (id: string, title: string) => ({
+      id, mbid: null, title, artistCredit: 'Radiohead', artists: [], type: 'album' as const, year: null, releaseDate: null, artworkUrl: null,
+    })
+    const deezer: SearchProvider = {
+      name: 'deezer',
+      idSource: 'deezer',
+      available: async () => true,
+      search: vi.fn(async (query: string) => (query === 'ok computer'
+        ? { ...empty, albums: [album('1', 'OK Computer'), album('2', 'OK Computer OKNOTOK 1997 2017')] }
+        : { ...empty, albums: [album('2', 'OK Computer OKNOTOK 1997 2017')] })),
+    }
+    const { results } = await searchCatalog('OK Computer Deluxe', 5, [deezer])
+    expect(deezer.search).toHaveBeenCalledTimes(2)
+    expect(results.albums.map((one) => one.id)).toEqual(['2', '1'])
+    // Edition words that are the whole query, or words that only look like them, are searched as they are.
+    for (const query of ['deluxe edition', 'taylor swift 1989 taylors version', 'clean bandit']) {
+      vi.mocked(deezer.search).mockClear()
+      await searchCatalog(query, 5, [deezer])
+      expect(deezer.search).toHaveBeenCalledOnce()
+    }
+  })
 })
