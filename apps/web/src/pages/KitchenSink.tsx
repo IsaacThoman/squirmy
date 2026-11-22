@@ -63,7 +63,7 @@ type Sort = (typeof sortOptions)[number]['value']
 const menu: MenuEntry[] = [
   { kind: 'label', label: 'Night Swimming' },
   { label: 'Play next', icon: <Shuffle />, shortcut: '⌘N', onSelect: () => toast({ title: 'Playing next' }) },
-  { label: 'Save to Liked Songs', icon: <Heart />, onSelect: () => toast({ title: 'Saved' }) },
+  { label: 'Save to library', icon: <Heart />, onSelect: () => toast({ title: 'Saved to your library' }) },
   { kind: 'submenu', label: 'Add to playlist', icon: <Plus />, items: playlistSummaries.map(playlist => ({ label: playlist.name, onSelect: () => toast({ title: `Added to ${playlist.name}` }) })) },
   { kind: 'separator' },
   { label: 'Disabled item', onSelect: () => {}, disabled: true },

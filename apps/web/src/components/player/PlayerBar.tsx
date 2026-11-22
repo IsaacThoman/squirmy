@@ -1,7 +1,8 @@
-import { Heart, ListMusic, Maximize2, MessageSquareQuote, MonitorSpeaker, Music2 } from 'lucide-react'
+import { ListMusic, Maximize2, MessageSquareQuote, MonitorSpeaker, Music2 } from 'lucide-react'
 import { Link } from 'react-router'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { Cover } from '@/components/music/Cover'
+import { SaveHeart } from '@/components/music/LibrarySave'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 import { isLoading, playingElsewhere, usePosition, type Player } from '@/player/player-context'
@@ -61,9 +62,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                     : <ArtistLinks track={item.track} />}
                 </p>
               </div>
-              <IconButton label={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'} size="sm" onClick={onToggleLike} className={cn('ml-1 hidden @[44rem]:inline-flex', liked && 'text-primary hover:text-primary')}>
-                <Heart fill={liked ? 'currentColor' : 'none'} />
-              </IconButton>
+              <SaveHeart liked={liked} onToggle={onToggleLike} size="sm" className="ml-1 hidden @[44rem]:inline-flex" />
             </>
           ) : (
             <>

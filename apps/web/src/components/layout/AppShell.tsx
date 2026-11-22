@@ -352,7 +352,7 @@ function useCurrentLike() {
   const library = useLibrary()
   const track = state.current?.track
   const liked = track?.liked ?? false
-  const toggleLike = () => { if (track) library.setLiked('track', track.id, !liked) }
+  const toggleLike = () => { if (track) library.setSaved({ type: 'track', id: track.id, title: track.title }, !liked) }
   return { liked, toggleLike }
 }
 
