@@ -75,7 +75,7 @@ export default function Player() {
   const colors = useColors();
   const styles = useStyles();
   const router = useRouter();
-  const { motion, variants, showPage, close } = usePlayerTransition();
+  const { motion, variants, close } = usePlayerTransition();
   const [page, setPage] = useState<PlayerPage>('player');
   const [seenLyrics, setSeenLyrics] = useState(false);
   const [seenQueue, setSeenQueue] = useState(false);
@@ -105,16 +105,6 @@ export default function Player() {
   const subtitle = preparing ? 'Preparing…' : remote ? `${track?.artistCredit ?? ''} · ${output.name}` : track?.artistCredit ?? '';
   // Phones with a home indicator have rounded displays; a square card would show in their corners.
   const screenCorner = Platform.OS === 'ios' && !Platform.isPad && bottom > 0 ? 40 : 0;
-
-  useEffect(() => {
-    showPage.current = (next) => {
-      if (next === 'lyrics') setSeenLyrics(true);
-      else if (next === 'queue') setSeenQueue(true);
-      setPage(next);
-      if (!motion.active.get()) detail.set(next === 'player' ? 0 : 1);
-    };
-    return () => { showPage.current = null; };
-  }, [detail, motion, showPage]);
 
   useEffect(() => {
     detail.set(withTiming(artworkPage ? 0 : 1, modeMotion));
