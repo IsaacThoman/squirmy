@@ -33,6 +33,17 @@ export type RepeatMode = z.infer<typeof RepeatMode>
 export const QueueEntryState = z.enum(['ready', 'preparing', 'failed'])
 export type QueueEntryState = z.infer<typeof QueueEntryState>
 
+/**
+ * Why a track could not be fetched, which decides what a listener is told (`playback.failed`).
+ * `unavailable`: the provider does not have it (no free offer, a delivery that was not the
+ * track, a recent miss) or this user may not fetch it; playback skips it with a light
+ * notice and goes on. `outage`: the provider is failing or could not be reached; the
+ * session pauses with the reason. `error`: anything else; skipped, and several in a row
+ * pause the session. Servers that do not say why mean `error`.
+ */
+export const EntryFailure = z.enum(['unavailable', 'outage', 'error'])
+export type EntryFailure = z.infer<typeof EntryFailure>
+
 export const QueueEntry = z.object({
   /**
    * Assigned by the reducer as `<commandId>.<n>`. Unique among `current`, `queue`,
@@ -438,13 +449,27 @@ export const ServerEvent = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('import.updated'), importId: Id, status: z.string() }),
   /**
-   * Sent to the sockets in a session when several tracks in a row failed to load and it
-   * paused instead of skipping on, so clients show one notice rather than one per track.
-   * A detached device's own session tells that device alone.
-   * `trackId` is the current entry's track when playback paused. `reason`, when the server
-   * knows one (its provider is failing), is a sentence to show the listener.
+   * Sent to the sockets in a session, just before the state, when playback stopped on a
+   * failed current entry instead of skipping on, so clients show one notice rather than one
+   * per track. A detached device's own session tells that device alone. `trackId` is the
+   * current entry's track when playback stopped. `kind` (left out by older servers; read it
+   * as `outage` with a `reason`, else `failures`):
+   * - `outage`: the provider is failing or unreachable; `reason` is a sentence to show.
+   * - `failures`: several tracks in a row failed for no reason the server knows.
+   * - `exhausted`: the track was not available and nothing after it in the queue is.
    */
-  z.object({ type: z.literal('playback.unavailable'), trackId: Id.nullable(), reason: z.string().nullable().optional() }),
+  /**
+   * Sent to the sockets in a session that holds the track, just before the state that marks
+   * its entries failed: why it could not be fetched. Clients word the notice for a skipped
+   * song with it. Older servers do not send it.
+   */
+  z.object({ type: z.literal('playback.failed'), trackId: Id, failure: EntryFailure }),
+  z.object({
+    type: z.literal('playback.unavailable'),
+    trackId: Id.nullable(),
+    reason: z.string().nullable().optional(),
+    kind: z.enum(['outage', 'failures', 'exhausted']).optional(),
+  }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>
 
