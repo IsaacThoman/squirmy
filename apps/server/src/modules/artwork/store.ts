@@ -124,7 +124,7 @@ export async function remoteImage(url: string, { kind }: { kind: AssetKind }): P
 export type StoredAsset = Asset & { storagePath: string }
 
 /** How long a failed download is left alone before the next request tries again. */
-const retryFailedAfterMs = 60 * 60 * 1000
+export const retryFailedAfterMs = 60 * 60 * 1000
 
 /** Downloads in progress, so concurrent requests for one remote image share a single fetch. */
 const fetching = new Map<string, Promise<StoredAsset>>()

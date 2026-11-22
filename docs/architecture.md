@@ -225,7 +225,7 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 
 ### Catalog read side
 
-- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. Other modules (search, sessions, userdata) use these rather than writing their own. Subsonic builds its own, because its objects describe files (size, codec, path), but takes availability and redirects from the catalog.
+- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. They leave out artwork the art route would answer 404 for: a `missing` asset, or a `failed` download inside the hour before it is tried again. Other modules (search, sessions, userdata) use these rather than writing their own. Subsonic builds its own, because its objects describe files (size, codec, path), but takes availability and redirects from the catalog.
 - Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
 - Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
 - A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
