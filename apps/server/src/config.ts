@@ -58,6 +58,11 @@ const Env = z.object({
   SQUIRMY_VERSION: z.string().optional(),
   /** The commit an image was built from (build argument, or set at run time by Coolify). Without SQUIRMY_VERSION the version is dev+<its first 7 characters>. */
   SOURCE_COMMIT: z.string().optional(),
+}).superRefine((env, context) => {
+  // Ignored silently, everyone would share the proxy's address and its limits.
+  if (env.CLIENT_IP_HEADER && env.TRUST_PROXY.kind === 'none') {
+    context.addIssue({ code: 'custom', path: ['CLIENT_IP_HEADER'], message: 'CLIENT_IP_HEADER needs TRUST_PROXY to trust the proxy that sets it' })
+  }
 })
 
 export type Config = z.infer<typeof Env> & {

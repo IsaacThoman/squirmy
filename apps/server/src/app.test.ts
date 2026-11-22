@@ -216,5 +216,12 @@ describe('server kernel', () => {
       resetConfig()
       await expect(buildApp()).rejects.toThrow(/TRUST_PROXY/)
     })
+
+    it('refuses CLIENT_IP_HEADER without a trusted proxy', async () => {
+      process.env.TRUST_PROXY = 'false'
+      process.env.CLIENT_IP_HEADER = 'CF-Connecting-IP'
+      resetConfig()
+      await expect(buildApp()).rejects.toThrow(/CLIENT_IP_HEADER/)
+    })
   })
 })

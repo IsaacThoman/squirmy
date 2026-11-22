@@ -28,7 +28,7 @@ TRUST_PROXY=true
 
 `TRUST_PROXY=true` is right for one proxy (Caddy, nginx, Traefik) on the same machine or a private network. With a Cloudflare Tunnel in front of that proxy, also set `CLIENT_IP_HEADER`; see [Cloudflare Tunnel](#cloudflare-tunnel). For other layouts, see [What `TRUST_PROXY` does](#what-trust-proxy-does).
 
-Then make port 4747 reachable only by the proxy. If the proxy runs on the same machine, bind the port to localhost:
+Then make port 4747 reachable only by the proxy. This matters for `TRUST_PROXY=true` too: Docker often hands a published port's connections to the container from its own bridge address (always on Docker Desktop and with rootless Docker or Podman, and for IPv6 clients on Linux), so a client on the internet would look like a proxy on a private network and could choose its address. If the proxy runs on the same machine, bind the port to localhost (`SQUIRMY_PORT=127.0.0.1:4747` in `.env` does the same):
 
 ```yaml
     ports:
@@ -43,7 +43,7 @@ Apply with `docker compose up -d`.
 
 ### Coolify with Traefik
 
-Import the repository using the Docker Compose build strategy and select `/compose.yaml`. Set `MUSIC_DIR` to the absolute path of your music folder on the Coolify server. Set `POSTGRES_PASSWORD`, `TRUST_PROXY=true`, and `PUBLIC_URL` to the browser-facing origin (add `CLIENT_IP_HEADER=CF-Connecting-IP` when a Cloudflare Tunnel connects to Coolify's proxy). Set `SQUIRMY_PORT=127.0.0.1:4747` to keep the host port on loopback.
+Import the repository using the Docker Compose build strategy and select `/compose.yaml`. Set `MUSIC_DIR` to the absolute path of your music folder on the Coolify server. Set `POSTGRES_PASSWORD`, `TRUST_PROXY=true`, and `PUBLIC_URL` to the browser-facing origin (add `CLIENT_IP_HEADER=CF-Connecting-IP` when a Cloudflare Tunnel connects to Coolify's proxy, but only if Traefik's public ports 80 and 443 do not answer for this host name: otherwise anyone can send a request to the server's own address with any `CF-Connecting-IP`; see [Cloudflare Tunnel](#cloudflare-tunnel)). Set `SQUIRMY_PORT=127.0.0.1:4747` to keep the host port on loopback.
 
 Assign the domain to the `app` service and set its internal port to `4747`. Coolify creates the Traefik route. If an upstream proxy terminates TLS and connects to Traefik over HTTP, set the Coolify route to HTTP and keep `PUBLIC_URL` set to the public HTTPS origin.
 
@@ -189,7 +189,9 @@ It changes three things:
 
 `CLIENT_IP_HEADER` names a header the outermost proxy sets to the client's address, such as `CF-Connecting-IP` behind Cloudflare. It is read only from a peer `TRUST_PROXY` trusts, and only when it holds a single address; otherwise the `X-Forwarded-For` rule above applies.
 
-Anyone who can reach port 4747 directly can write any `X-Forwarded-*` headers. `true` ignores them from internet addresses, but a number trusts any peer, so with a number keep the port bound to localhost or the Compose network. Docker's published ports bypass host firewalls such as ufw.
+Anyone who can reach port 4747 directly can write any `X-Forwarded-*` headers. `true` ignores them from internet addresses that reach Squirmy as themselves, but Docker's published ports often present outside clients as the bridge address (see [step 1](#_1-configure-squirmy)), and a number trusts any peer. So keep the port bound to localhost or the Compose network whenever `TRUST_PROXY` is set. Docker's published ports also bypass host firewalls such as ufw. If the proxy reaches Squirmy from a global IPv6 address (a Docker IPv6 network on a public prefix), `true` does not trust it: list its address or prefix instead.
+
+`CLIENT_IP_HEADER` needs `TRUST_PROXY`; the server refuses to start with one and not the other.
 
 ## HTTPS and the apps
 
