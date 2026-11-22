@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import { playingElsewhere, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
-import { DevicesPopover, PlayingElsewhere } from './Devices'
+import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
 import { LyricsPane } from './Lyrics'
 import { QueueContent } from './Queue'
 import { SeekBar, TransportButtons, VolumeControl } from './Transport'
@@ -57,7 +57,9 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             <div className="absolute inset-0" style={{ backgroundImage: wash }} />
           </div>
 
-          {elsewhere && <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />}
+          {elsewhere
+            ? <PlayingElsewhere device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />
+            : state.detached && <OnlyOnThisDevice player={player} className="relative" />}
 
           <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-5">
             <DialogPrimitive.Close asChild>
