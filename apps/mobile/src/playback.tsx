@@ -1,5 +1,6 @@
 import {
-  artworkUrl, createInitialSession, randomSeed, SessionClient, splitSession, type SessionClientSnapshot,
+  ApiError, artworkUrl, createInitialSession, randomSeed, SessionClient, splitSession, type SessionClientSnapshot,
+  type SessionPlayer,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
@@ -17,10 +18,11 @@ import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
 import { useNotice } from './Notice';
-import { connectNowPlaying, createPlayerEngine } from './player/engine';
+import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { loadSession, saveSession } from './player/savedSession';
 import {
-  codecsFor, deviceRows, findEntry, isRemote, newlyFailed, nextRepeat, outputDevice, playableSeeds, qualityFor, seedOf,
+  codecsFor, deviceRows, findEntry, isRemote, newlyFailed, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
+  seedOf,
 } from './player/session';
 
 export type { QueueEntry };
@@ -69,17 +71,31 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   // Read when a track is resolved, so a change applies from the next track on.
   const stream = useRef({ settings, network: network.type });
   stream.current = { settings, network: network.type };
-  const live = useRef({ downloads, offline });
-  live.current = { downloads, offline };
+  // Read through refs so the runtime outlives a new API client, store or notice function:
+  // rebuilding it stops the music.
+  const live = useRef({ downloads, offline, api, tracks, notify });
+  live.current = { downloads, offline, api, tracks, notify };
+  const onOffline = useRef<((offline: boolean) => void) | null>(null);
+  useEffect(() => onOffline.current?.(offline), [offline]);
 
   useEffect(() => {
-    if (!socket || !api || !account) return;
+    if (!socket || !live.current.api || !account) return;
+    const { tracks } = live.current;
+    const notify = (message: string) => live.current.notify(message);
     let cancelled = false;
     let teardown: (() => void) | undefined;
     void clientDevice().then(device => {
       if (cancelled) return;
       const send = (command: SessionCommand) => client.dispatch(command);
-      const engine = createPlayerEngine({ onInterrupted: () => send({ type: 'pause' }) });
+      const engine = createPlayerEngine({
+        onInterrupted: () => send({ type: 'pause' }),
+        // Only the entry the call paused, and only if nothing has moved playback since.
+        onResumed: entryId => {
+          const { session, isActiveDevice } = client.getSnapshot();
+          if (isActiveDevice && !session.playing && session.current?.id === entryId) send({ type: 'play' });
+        },
+      });
+      const stopAudioSession = connectAudioSession(engine);
       const saved = loadSession(account);
       if (saved) tracks.prime(saved.tracks);
       const client: SessionClient = new SessionClient({
@@ -91,11 +107,14 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           baseUrl: serverUrl,
           canBoost: false,
           normalization: stream.current.settings?.normalization,
+          onLoadError: (entry, error, willRetry) => loadFailed(entry, error, willRetry),
           resolvePlayback: async entry => {
             const local = live.current.downloads?.playback(entry.trackId);
             if (local) return local;
             const { settings: current, network: type } = stream.current;
             const kind = type === Network.NetworkStateType.CELLULAR ? 'cellular' : type === Network.NetworkStateType.WIFI ? 'wifi' : 'other';
+            const { api } = live.current;
+            if (!api) throw new Error('Signed out');
             return api.streaming.playback(entry.trackId, {
               albumId: entry.albumId ?? undefined,
               quality: qualityFor(current ?? defaultQuality, kind),
@@ -132,6 +151,16 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         if (waitingForItem) nowPlaying.refresh();
       });
 
+      // While the server fetches the current song, the phone keeps its audio session (and
+      // so keeps running when locked) and the lock screen shows the song as buffering.
+      const holdWhilePreparing = () => {
+        const { session, isActiveDevice } = client.getSnapshot();
+        const preparing = isActiveDevice && session.playing && session.current?.state === 'preparing' ? session.current.id : null;
+        engine.holdAudioSession(preparing !== null);
+        nowPlaying.hold(preparing);
+      };
+      const stopHolding = client.subscribe(holdWhilePreparing);
+
       // On-demand tracks the server could not fetch are skipped by the session; say so.
       let previous = client.getSnapshot();
       const stopWatching = client.subscribe(() => {
@@ -146,41 +175,63 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       // A file that will not play is skipped. When the next one fails as well, the
       // connection is the likelier cause, so playback pauses instead.
       let lastSkip = -Infinity;
-      // Offline, only downloads can play: an entry that is not one is passed over, with one notice per spell offline.
-      let skipped: string | null = null;
-      const skipUndownloaded = () => {
-        const { session, isActiveDevice } = client.getSnapshot();
+      // Offline, only downloads can play. One notice per spell offline.
+      let toldOffline = false;
+      /**
+       * Moves past an entry that can't be streamed offline, straight to the next download
+       * in one command (walking there with `next` replays every step), or pauses when
+       * there is none. False when the current entry is a download, which plays anyway.
+       */
+      const skipToDownload = (pauseIfNone: boolean) => {
+        const { session, queue, isActiveDevice } = client.getSnapshot();
         const current = session.current;
-        if (!live.current.offline) skipped = null;
-        if (!live.current.offline || !isActiveDevice || !current || current.state !== 'ready') return false;
-        if (live.current.downloads?.isDownloaded(current.trackId) || skipped === current.id) return false;
-        if (skipped === null) notify('Skipped songs that aren’t downloaded.');
-        skipped = current.id;
-        send({ type: 'next' });
+        const downloads = live.current.downloads;
+        if (!isActiveDevice || !current || downloads?.isDownloaded(current.trackId)) return false;
+        const target = downloads ? nextDownloaded({ ...queue, autoplay: session.autoplay }, id => downloads.isDownloaded(id)) : null;
+        if (!target && !pauseIfNone) return false;
+        if (!toldOffline) notify(target ? 'Skipped songs that aren’t downloaded.' : 'Only downloaded songs play offline.');
+        toldOffline = true;
+        send(target ? { type: 'playQueueEntry', entryId: target.id } : { type: 'pause' });
         return true;
       };
-      const stopSkipping = client.subscribe(() => {
+      onOffline.current = offline => {
+        if (!offline) {
+          toldOffline = false;
+          return;
+        }
+        // The server can't finish fetching a song for a phone it can't reach.
         const { session } = client.getSnapshot();
-        const status = engine.getStatus();
-        // A stream that is still playing from its buffer is left to finish.
-        if (!session.playing || (status.entryId === session.current?.id && (status.state === 'playing' || status.state === 'buffering'))) return;
-        skipUndownloaded();
+        if (session.playing && session.current?.state === 'preparing') skipToDownload(true);
+      };
+      const stopPreparing = client.subscribe(() => {
+        const { session } = client.getSnapshot();
+        if (live.current.offline && session.playing && session.current?.state === 'preparing') skipToDownload(true);
       });
 
-      const stopErrors = engine.subscribe(event => {
-        if (event.type !== 'error') return;
+      const failed = (entryId: string, message: string) => {
         const { session, connection } = client.getSnapshot();
-        if (session.current?.id !== event.entryId || skipUndownloaded()) return;
+        if (session.current?.id !== entryId || (live.current.offline && skipToDownload(true))) return;
         const title = tracks.get(session.current.trackId, session.current.albumId)?.title;
         if (connection === 'online' && Date.now() - lastSkip > errorSkipWindowMs) {
           lastSkip = Date.now();
-          notify(title ? `Couldn’t play “${title}”. ${event.message}` : event.message);
+          notify(title ? `Couldn’t play “${title}”. ${message}` : message);
           send({ type: 'next' });
         } else {
-          notify(event.message);
+          notify(message);
           send({ type: 'pause' });
         }
+      };
+      const stopErrors = engine.subscribe(event => {
+        if (event.type === 'error') failed(event.entryId, event.message);
       });
+      const loadFailed: NonNullable<SessionPlayer['onLoadError']> = (entry, error, willRetry) => {
+        if (!willRetry) return failed(entry.id, refusalMessage(error));
+        // A stream the phone can't reach: offline, a download plays instead. Otherwise
+        // the client keeps trying, so a short drop resumes where it was.
+        if (error instanceof ApiError && error.status === 0 && client.getSnapshot().session.current?.id === entry.id) {
+          skipToDownload(live.current.offline);
+        }
+      };
 
       let saveTimer: ReturnType<typeof setTimeout> | undefined;
       const save = () => {
@@ -196,14 +247,19 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       });
 
       client.start();
+      holdWhilePreparing();
       setRuntime({ client, device });
       teardown = () => {
         // Not saved here: this runs on sign-out too, after the account's data was removed.
         clearTimeout(saveTimer);
         appState.remove();
         stopSaving();
-        stopSkipping();
+        stopPreparing();
+        stopHolding();
+        engine.holdAudioSession(false);
+        stopAudioSession();
         stopErrors();
+        onOffline.current = null;
         stopWatching();
         stopWaiting();
         nowPlaying.disconnect();
@@ -215,7 +271,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       teardown?.();
       setRuntime(null);
     };
-  }, [account, api, notify, serverUrl, socket, tracks]);
+  }, [account, serverUrl, socket]);
 
   // Where a track plays from changed: resolve entries again.
   useEffect(() => {
@@ -228,6 +284,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   }, [normalization, runtime]);
 
   return <RuntimeContext.Provider value={runtime}>{children}</RuntimeContext.Provider>;
+}
+
+/** What the server said when it refused to serve a track. */
+function refusalMessage(error: unknown): string {
+  if (error instanceof ApiError && (error.status === 404 || error.status === 410)) return 'The server couldn’t find this track.';
+  return 'The server wouldn’t play this track.';
 }
 
 function useSnapshot(): SessionClientSnapshot {

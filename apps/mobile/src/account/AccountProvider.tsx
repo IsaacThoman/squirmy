@@ -29,9 +29,9 @@ export function createQueryClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000, gcTime: cacheMaxAgeMs } } });
 }
 
-function apiFor(server: Server, token: string | null, timeoutMs: number, onUnauthorized?: () => void): Api {
+function apiFor(serverUrl: string, token: string | null, timeoutMs: number, onUnauthorized?: () => void): Api {
   return createApiClient({
-    baseUrl: server.url,
+    baseUrl: serverUrl,
     getToken: () => token,
     client: clientName,
     fetch: fetchWithTimeout(timeoutMs),
@@ -49,7 +49,7 @@ async function restore(queryClient: QueryClient): Promise<{ event: AuthEvent; of
   if (!stored.server || !stored.token) return { event: { type: 'restored', ...stored }, offline: false };
   if (stored.user) await restoreCache(queryClient, cacheBuster(stored.server.url, stored.user.id));
   try {
-    const user = await apiFor(stored.server, stored.token, restoreTimeoutMs).auth.me();
+    const user = await apiFor(stored.server.url, stored.token, restoreTimeoutMs).auth.me();
     return { event: { type: 'restored', ...stored, user }, offline: false };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
@@ -107,8 +107,11 @@ export function AccountProvider({ children }: PropsWithChildren) {
     void saveAccount(server, state.status === 'signedIn' ? { token: state.token, user: state.user } : undefined);
   }, [state]);
 
-  const api = useMemo(() => server && apiFor(server, token, requestTimeoutMs,
-    token ? () => dispatch({ type: 'unauthorized', token }) : undefined), [server, token]);
+  // Keyed on the URL, not the server object: a rename or update must not replace the client,
+  // since playback and downloads are built on it.
+  const serverUrl = server?.url ?? null;
+  const api = useMemo(() => serverUrl === null ? null : apiFor(serverUrl, token, requestTimeoutMs,
+    token ? () => dispatch({ type: 'unauthorized', token }) : undefined), [serverUrl, token]);
 
   // Keeps the user fresh and notices a revoked session (a 401 signs out through `onUnauthorized`).
   const me = useQuery({

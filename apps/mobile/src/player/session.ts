@@ -138,3 +138,16 @@ export function newlyFailed(before: Entries, after: Entries): QueueEntry[] {
 export function findEntry(session: Entries, entryId: string): QueueEntry | undefined {
   return allEntries(session).find(entry => entry.id === entryId);
 }
+
+/**
+ * Where playback goes offline when the current entry can't be streamed: the first
+ * downloaded, ready entry that `next` would reach (Up Next, then autoplay suggestions
+ * when autoplay is on). Null when there is none.
+ */
+export function nextDownloaded(
+  session: Pick<SessionState, 'autoplay'> & Pick<SessionQueue, 'queue' | 'autoplayQueue'>,
+  isDownloaded: (trackId: string) => boolean,
+): QueueEntry | null {
+  const candidates = session.autoplay ? [...session.queue, ...session.autoplayQueue] : session.queue;
+  return candidates.find(entry => entry.state === 'ready' && isDownloaded(entry.trackId)) ?? null;
+}
