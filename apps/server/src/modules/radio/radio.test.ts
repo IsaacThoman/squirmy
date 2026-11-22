@@ -1,17 +1,17 @@
 import { RadioResponse, type QueueSeed } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, externalIds, likes } from '../../database/schema.js'
+import { albums, externalIds, likes, recordingArtists } from '../../database/schema.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
-import { suggest, WINDOW } from './ranking.js'
+import { OWNED_FIRST, suggest, WINDOW } from './ranking.js'
 import { similarArtists } from './similar.js'
 import { suggestAutoplay } from './suggest.js'
 
@@ -66,7 +66,7 @@ describe('radio', () => {
     const rockA = await shelf('Rock A', 'Rock', 1997, 2)
     for (const name of ['Rock B', 'Rock C', 'Rock D', 'Rock E', 'Rock F']) await shelf(name, 'Rock', 1997, 2)
     for (const name of ['Jazz A', 'Jazz B', 'Jazz C']) await shelf(name, 'Jazz', 1961, 2)
-    await shelf('Rock A unowned', 'Rock', 1997, 1, { owned: false, artist: rockA })
+    await shelf('Rock A unowned', 'Rock', 1997, 4, { owned: false, artist: rockA })
     seed = tracks[0]!
     app = await buildApp()
   })
@@ -151,21 +151,68 @@ describe('radio', () => {
     expect(others.some((other) => JSON.stringify(other) !== JSON.stringify(first))).toBe(true)
   })
 
-  it('falls back to on-demand tracks only when no owned track qualifies', async () => {
-    const user = await createUser()
-    const unowned = tracks.filter((track) => !track.owned)
-    for (const track of unowned) onDemand.add(track.recordingId)
-    expect((await run(user.id)).every((item) => item.state === 'ready')).toBe(true)
-
-    const everyOwned = tracks.filter((track) => track.owned).map((track) => track.recordingId)
-    const result = await run(user.id, { exclude: everyOwned })
-    expect(result.length).toBeGreaterThan(0)
-    for (const item of result) {
-      expect(unowned.map((track) => track.recordingId)).toContain(item.trackId)
-      expect(item.state).toBe('preparing')
+  describe('on-demand tracks', () => {
+    // A server holding three owned tracks: the seed and two others that can follow it.
+    const library = () => {
+      const others = tracks.filter((track) => track.owned && track.recordingId !== seed.recordingId)
+      const kept = [others.find((track) => track.genre === 'Rock' && track.artistId !== seed.artistId)!, others.find((track) => track.genre === 'Jazz')!]
+      return { kept: kept.map((track) => track.recordingId), exclude: others.filter((track) => !kept.includes(track)).map((track) => track.recordingId) }
     }
-    onDemand.clear()
-    expect(await run(user.id, { exclude: everyOwned })).toEqual([])
+    beforeEach(() => {
+      for (const track of tracks.filter((one) => !one.owned)) onDemand.add(track.recordingId)
+    })
+
+    it('ranks them with owned tracks for a requester, the first two owned', async () => {
+      const { kept, exclude } = library()
+      for (const user of [await createUser({ canAcquire: true }), await createUser({ role: 'admin' })]) {
+        for (const random of [1, 2, 3]) {
+          const result = await run(user.id, { random, exclude })
+          expect(result).toHaveLength(WINDOW)
+          expect(OWNED_FIRST).toBe(2)
+          expect(result.slice(0, 2).map((item) => item.state)).toEqual(['ready', 'ready'])
+          expect(result.slice(0, 2).map((item) => item.trackId).toSorted()).toEqual(kept.toSorted())
+          for (const item of result.slice(2)) {
+            expect(item.state).toBe('preparing')
+            expect(byId(item.trackId).owned).toBe(false)
+          }
+        }
+      }
+    })
+
+    it('suggests them first for a requester when nothing owned qualifies', async () => {
+      const user = await createUser({ canAcquire: true })
+      const result = await run(user.id, { exclude: tracks.filter((track) => track.owned).map((track) => track.recordingId) })
+      expect(result).toHaveLength(WINDOW)
+      expect(result.every((item) => item.state === 'preparing')).toBe(true)
+      onDemand.clear()
+      expect(await run(user.id, { exclude: tracks.filter((track) => track.owned).map((track) => track.recordingId) })).toEqual([])
+    })
+
+    it('never suggests them to a user who may not have tracks fetched', async () => {
+      const { kept, exclude } = library()
+      const user = await createUser()
+      const result = await run(user.id, { exclude })
+      expect(result.map((item) => item.trackId).toSorted()).toEqual(kept.toSorted())
+      expect(result.every((item) => item.state === 'ready')).toBe(true)
+      expect(await run(user.id, { exclude: tracks.filter((track) => track.owned).map((track) => track.recordingId) })).toEqual([])
+    })
+
+    it('counts tracks an artist leads without credit rows as the artist\'s', async () => {
+      const user = await createUser({ canAcquire: true })
+      const artist = await createArtist({ name: 'Uncredited lead' })
+      const owned = await createAlbum({ artist, owned: true, tracks: [{ title: 'Led 1' }] })
+      const remote = [await createAlbum({ artist, tracks: [{ title: 'Led 2' }] }), await createAlbum({ artist, tracks: [{ title: 'Led 3' }] })]
+      for (const album of [owned, ...remote]) {
+        tracks.push(...album.tracks.map((track) => ({ recordingId: track.recordingId, albumId: album.albumId, artistId: artist.id, genre: 'None', owned: album === owned })))
+      }
+      // Rows from older imports and catalog stubs can carry only the primary artist.
+      const led = remote.map((album) => album.tracks[0]!.recordingId)
+      await db.delete(recordingArtists).where(inArray(recordingArtists.recordingId, [owned.tracks[0]!.recordingId, ...led]))
+      for (const id of led) onDemand.add(id)
+      // On-demand candidates come from the artist, similar-artist and liked pools only.
+      const result = await run(user.id, { seeds: [owned.tracks[0]!.recordingId] })
+      expect(result.map((item) => item.trackId)).toEqual(expect.arrayContaining(led))
+    })
   })
 
   describe('similar artists', () => {
