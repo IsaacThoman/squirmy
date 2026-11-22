@@ -13,6 +13,7 @@
  * Ready may come before the job ends: `acquisition.finish` announces recordings as soon as
  * a delivered file is usable, while the import is still identifying.
  */
+import type { EntryFailure } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db, getSql } from '../../database/client.js'
@@ -20,10 +21,14 @@ import { uuidArray } from '../catalog/sql.js'
 import { ownedRecordings } from './catalog.js'
 import { markRecordingFailed, markRecordingReady } from '../sessions/index.js'
 import { OUTAGE_REASON } from './health.js'
+import { currentMisses } from './misses.js'
 import { activeProviders } from './providers.js'
 
-/** `outage`: the recordings failed because their provider is failing (health.ts). */
-export type Outcome = { ready: string[]; failed: string[]; outage?: boolean }
+/**
+ * `cause`: why the `failed` recordings failed (see `EntryFailure`); `error` when left out.
+ * `outage` is how workers before `cause` said `cause: 'outage'`.
+ */
+export type Outcome = { ready: string[]; failed: string[]; cause?: EntryFailure; outage?: boolean }
 
 const channel = 'squirmy_acquisition'
 const maxPayloadBytes = 7900
@@ -45,7 +50,7 @@ export async function announceOutcome(outcome: Partial<Outcome>) {
     const payload = JSON.stringify({
       ready: slice.filter((item) => item.ready).map((item) => item.id),
       failed: slice.filter((item) => !item.ready).map((item) => item.id),
-      ...(outcome.outage ? { outage: true } : {}),
+      ...(outcome.cause ? { cause: outcome.cause } : {}),
     })
     if (Buffer.byteLength(payload) > maxPayloadBytes) throw new Error('Acquisition outcome too large')
     await getSql()`select pg_notify(${channel}, ${payload})`
@@ -53,16 +58,17 @@ export async function announceOutcome(outcome: Partial<Outcome>) {
 }
 
 /** Applies an outcome to the loaded sessions. Must run in the API process. */
-export async function applyOutcome({ ready, failed, outage }: Outcome) {
+export async function applyOutcome({ ready, failed, cause, outage }: Outcome) {
   for (const id of ready) await markRecordingReady(id)
-  for (const id of failed) await markRecordingFailed(id, outage ? OUTAGE_REASON : undefined)
+  const failure = cause ?? (outage ? 'outage' : 'error')
+  for (const id of failed) await markRecordingFailed(id, failure === 'outage' ? { failure, reason: OUTAGE_REASON } : { failure })
 }
 
 /**
- * The outcome for recordings of jobs that finished in the last few minutes, as the database
- * tells it now.
+ * The outcomes for recordings of jobs that finished in the last few minutes, as the database
+ * tells it now. A failed recording with a miss that counts is `unavailable`, as its job said.
  */
-export async function recentOutcome(now = Date.now()): Promise<Outcome> {
+export async function recentOutcomes(now = Date.now()): Promise<Outcome[]> {
   const rows = await db.execute<{ id: string; working: boolean }>(sql`
     with recent as (
       select distinct unnest(recording_ids) as id from acquisition_jobs
@@ -71,10 +77,12 @@ export async function recentOutcome(now = Date.now()): Promise<Outcome> {
     select recent.id, exists (select 1 from acquisition_jobs j where j.completed_at is null and j.recording_ids @> array[recent.id]) as working
     from recent`)
   const owned = await ownedRecordings(rows.map((row) => row.id))
-  return {
-    ready: rows.filter((row) => owned.has(row.id)).map((row) => row.id),
-    failed: rows.filter((row) => !owned.has(row.id) && !row.working).map((row) => row.id),
-  }
+  const failed = rows.filter((row) => !owned.has(row.id) && !row.working).map((row) => row.id)
+  const missed = new Set((await currentMisses(failed)).map((miss) => miss.id))
+  return [
+    { ready: rows.filter((row) => owned.has(row.id)).map((row) => row.id), failed: failed.filter((id) => missed.has(id)), cause: 'unavailable' },
+    { ready: [], failed: failed.filter((id) => !missed.has(id)) },
+  ]
 }
 
 /** Starts listening for outcomes and reconciling. API roles call it from the module's `start`. */
@@ -90,7 +98,7 @@ export async function startOutcomes() {
   timer = setInterval(() => {
     void (async () => {
       if ((await activeProviders()).length === 0) return
-      await applyOutcome(await recentOutcome())
+      for (const outcome of await recentOutcomes()) await applyOutcome(outcome)
     })().catch(report)
   }, timing.reconcileMs)
   timer.unref()

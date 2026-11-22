@@ -1,4 +1,6 @@
-import { randomSeed, SessionClient, TrackStore, type ApiClient, type SessionClientSnapshot } from '@squirmy/client-core'
+import {
+  PlaybackNoticeWatcher, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
+} from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import { queryKeys, type ClientDevice, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary } from '@squirmy/contracts'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -11,12 +13,11 @@ import { isPlayable } from '@/lib/catalog'
 import { playableCodecs } from '@/lib/codecs'
 import { browserName, claimTabDevice, saveBrowserName } from '@/lib/device'
 import { toast } from '@/lib/toast'
-import { useRealtime, useServerEvent } from '@/realtime/realtime-context'
+import { useRealtime } from '@/realtime/realtime-context'
 import { useEngine } from './engine/engine-context'
 import { AUDIO_BLOCKED_MESSAGE } from './engine/errors'
 import type { WebPlayerEngine } from './engine/web-engine'
 import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './engine/media-session'
-import { failedFetches, watchedOf, type Watched } from './fetch-failures'
 import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
 import { useShortcuts } from './shortcuts'
 
@@ -207,7 +208,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [client, store, tab, startRadio, viewer])
 
-  useFetchFailures(snapshot, store)
+  usePlaybackNotices(client, store)
+  useFreshSummaries(client, store, socket!)
   useEngineErrors(engine, client, store)
   useMediaSession(client, controls, snapshot, track ?? null)
   useShortcuts(controls, clock, snapshot, tab.device.id)
@@ -247,45 +249,46 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   )
 }
 
-/** How long a song left current and failed waits for the session to say it paused for an outage. */
-const OUTAGE_GRACE_MS = 1500
+const RUN_TOAST = 'playback-unavailable'
 
 /**
- * Says when music could not be had, without a notice per track during an outage. A song that
- * was current or next and failed is told once ("Couldn’t play “Song”", "Skipped."); failures
- * further down the queue and fetches for the library are quiet, their rows simply turn gray.
- * When the session pauses after failures in a row it says so itself (`playback.unavailable`):
- * that is told once, and no song after it until something plays again.
+ * Says when music could not be had, worded as on every client (client-core's
+ * `PlaybackNoticeWatcher`): one notice per song that was playing or next and was skipped,
+ * one notice that counts a run of songs the provider does not have, and one when playback stops on a
+ * failure instead (an outage, failures in a row, or nothing left that is available), with
+ * no more per song until playback resumes. Failures further down the queue and fetches for
+ * the library are quiet: their rows simply turn gray.
  */
-function useFetchFailures(snapshot: SessionClientSnapshot, store: TrackStore) {
-  const watched = useRef<Watched>({ current: null, next: null })
-  const outage = useRef(false)
-  const held = useRef<ReturnType<typeof setTimeout>[]>([])
-  useEffect(() => () => held.current.forEach(clearTimeout), [])
-  useServerEvent('playback.unavailable', event => {
-    outage.current = true
-    // The failure that paused playback is part of the outage, not a song of its own.
-    held.current.forEach(clearTimeout)
-    held.current = []
-    toast({ title: 'Can’t load music right now', description: event.reason ? `${event.reason} Playback is paused.` : 'Playback is paused.' })
-  })
+function usePlaybackNotices(client: SessionClient, store: TrackStore) {
   useEffect(() => {
-    const { session, queue, connection } = snapshot
-    const entries = { current: session.current, queue: queue.queue, autoplayQueue: queue.autoplayQueue, history: queue.history }
-    if (session.current?.state === 'ready') outage.current = false
-    // Offline, the snapshot may miss entries that are still there.
-    const failed = connection === 'online' && !outage.current ? failedFetches(watched.current, entries) : []
-    for (const { entry, held: kept } of failed) {
-      const tell = () => {
-        const title = store.get(entry.trackId, entry.albumId)?.title
-        toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play a song', description: 'Skipped.' })
-      }
-      // A failed song left current ends the queue, or is the outage the session is about to tell.
-      if (kept) held.current.push(setTimeout(tell, OUTAGE_GRACE_MS))
-      else tell()
+    const watcher = new PlaybackNoticeWatcher(trackId => client.failureOf(trackId))
+    const tell = ({ message, detail }: PlaybackNotice, key?: string) => toast({ key, title: message, description: detail })
+    const look = () => {
+      const { skipped, unavailable, stopped } = watcher.update(client.getSnapshot())
+      for (const { entry, failure } of skipped) tell(skipNotice(store.get(entry.trackId, entry.albumId)?.title, failure))
+      // One notice for a run of songs not to be had, and for the stop that may end it.
+      if (unavailable) tell(unavailableNotice(unavailable, store.get(unavailable.entry.trackId, unavailable.entry.albumId)?.title), RUN_TOAST)
+      if (stopped) tell(stopped, RUN_TOAST)
     }
-    watched.current = watchedOf(entries)
-  }, [snapshot, store])
+    look()
+    return client.subscribe(look)
+  }, [client, store])
+}
+
+/**
+ * Reads tracks' summaries again when their details change on the server: a song it just
+ * fetched (its album and cover come with the file), and any track an invalidation names.
+ * The queue, the player and the system's media controls all show the store's summaries.
+ */
+function useFreshSummaries(client: SessionClient, store: TrackStore, socket: SquirmySocket) {
+  useEffect(() => refreshFetchedTracks(client, store), [client, store])
+  useEffect(() => {
+    const refresh = ({ keys }: { keys: readonly (readonly unknown[])[] }) => store.refreshInvalidated(keys)
+    socket.on('invalidate', refresh)
+    return () => {
+      socket.off('invalidate', refresh)
+    }
+  }, [socket, store])
 }
 
 /** A track the browser cannot play (gone, or a format it refuses) is reported and skipped. */

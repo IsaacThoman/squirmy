@@ -92,10 +92,10 @@ class FakeServer implements Held {
    * `playback.unavailable` (`eventFirst`, as it does now, or after the state as it used to),
    * and pauses on the current entry marked failed.
    */
-  pauseOnFailure(reason: string | null, eventFirst = true): void {
+  pauseOnFailure(reason: string | null, eventFirst = true, kind?: 'outage' | 'failures' | 'exhausted'): void {
     const trackId = this.session.current!.trackId
     const tell = () => {
-      for (const transport of this.transports) transport.push('event', { type: 'playback.unavailable', trackId, reason })
+      for (const transport of this.transports) transport.push('event', { type: 'playback.unavailable', trackId, reason, ...(kind ? { kind } : {}) })
     }
     if (eventFirst) tell()
     const paused = reduceSession(this.session, { command: { type: 'pause' }, now: this.now(), commandId: `server-${(this.serial += 1)}` })
@@ -493,13 +493,13 @@ describe('SessionClient outage', () => {
   it('shows the pause and its reason in the same snapshot', async () => {
     const { client, seen } = await paused(true)
     // Told before the pause arrived, the outage waited for it.
-    expect(seen).toEqual([{ playing: false, outage: { trackId: track(1), reason: REASON } }])
-    expect(client.getSnapshot().outage).toEqual({ trackId: track(1), reason: REASON })
+    expect(seen).toEqual([{ playing: false, outage: { trackId: track(1), kind: 'outage', reason: REASON } }])
+    expect(client.getSnapshot().outage).toEqual({ trackId: track(1), kind: 'outage', reason: REASON })
   })
 
   it('takes a reason that comes after the pause, as from an older server', async () => {
     const { seen } = await paused(false)
-    expect(seen).toEqual([{ playing: false, outage: null }, { playing: false, outage: { trackId: track(1), reason: REASON } }])
+    expect(seen).toEqual([{ playing: false, outage: null }, { playing: false, outage: { trackId: track(1), kind: 'outage', reason: REASON } }])
   })
 
   it('forgets the outage once the session plays again, here or elsewhere', async () => {
@@ -532,7 +532,37 @@ describe('SessionClient outage', () => {
     expect(client.getSnapshot()).toBe(before)
     server.pauseOnFailure(null)
     await settle()
-    expect(client.getSnapshot().outage).toEqual({ trackId: track(1), reason: null })
+    expect(client.getSnapshot().outage).toEqual({ trackId: track(1), kind: 'failures', reason: null })
+  })
+
+  it('takes the kind the server gives', async () => {
+    const { server, client, settle } = setup({ canPlay: false })
+    await settle()
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await settle()
+    server.pauseOnFailure(null, true, 'exhausted')
+    await settle()
+    expect(client.getSnapshot().outage).toEqual({ trackId: track(1), kind: 'exhausted', reason: null })
+  })
+})
+
+describe('SessionClient failureOf', () => {
+  it('remembers why tracks failed, as the server said, keeping the most recent', async () => {
+    const { client, transport, settle } = setup({ canPlay: false })
+    await settle()
+    expect(client.failureOf(track(1))).toBeUndefined()
+    transport.push('event', { type: 'playback.failed', trackId: track(1), failure: 'unavailable' })
+    transport.push('event', { type: 'playback.failed', trackId: track(2), failure: 'error' })
+    await settle()
+    expect(client.failureOf(track(1))).toBe('unavailable')
+    expect(client.failureOf(track(2))).toBe('error')
+    // Told again, the newer reason wins and counts as recent.
+    transport.push('event', { type: 'playback.failed', trackId: track(1), failure: 'outage' })
+    for (let n = 3; n < 202; n += 1) transport.push('event', { type: 'playback.failed', trackId: track(n), failure: 'unavailable' })
+    await settle()
+    expect(client.failureOf(track(1))).toBe('outage')
+    expect(client.failureOf(track(2))).toBeUndefined()
+    expect(client.failureOf(track(201))).toBe('unavailable')
   })
 })
 
