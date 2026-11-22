@@ -12,6 +12,8 @@ docker compose logs -f app
 
 HTTP requests and errors are JSON lines; the library, watchers and imports add plain lines such as `Not watching /music: it is a network mount.`. For more detail, set `LOG_LEVEL: debug` under the `app` service's `environment:` in `compose.yaml` and run `docker compose up -d`. Valid levels are `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` and `silent`.
 
+Request lines show the URL with the values of credential parameters replaced by `[redacted]`: Subsonic `p`, `t`, `s` and `apiKey`, stream signatures (`sig`) and Last.fm's `token` and `state`. Logs kept from earlier versions may hold them in clear: treat those logs as secret, or delete them and have users replace their app passwords if the logs were shared.
+
 **Jobs.** **Admin → Jobs** lists every background queue with its **Queued**, **Active** and **Failed** counts, refreshed every few seconds. The names say what they do:
 
 | Queue | Work |

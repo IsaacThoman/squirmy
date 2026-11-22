@@ -15,6 +15,7 @@ import { db } from './database/client.js'
 import { SESSION_COOKIE } from './lib/auth.js'
 import { conditionalGet } from './lib/conditional.js'
 import { AppError, forbidden } from './lib/errors.js'
+import { loggerOptions } from './lib/log.js'
 import { headerAddress, trustFunction } from './lib/proxy.js'
 import { modules } from './modules/index.js'
 import { authenticateToken } from './modules/auth/service.js'
@@ -31,11 +32,11 @@ function bearerToken(request: FastifyRequest) {
 }
 
 /** Builds the HTTP application. It does not listen; index.ts and tests do that. */
-export async function buildApp(): Promise<FastifyInstance> {
+export async function buildApp(options: { logStream?: { write(line: string): void } } = {}): Promise<FastifyInstance> {
   const config = getConfig()
   const trust = trustFunction(config.TRUST_PROXY)
   const app = Fastify({
-    logger: config.LOG_LEVEL === 'silent' ? false : { level: config.LOG_LEVEL },
+    logger: loggerOptions(options.logStream ? 'info' : config.LOG_LEVEL, options.logStream),
     trustProxy: trust,
     // Uploads stream to disk; this only bounds JSON bodies.
     bodyLimit: 4 * 1024 * 1024,

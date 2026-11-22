@@ -24,6 +24,20 @@ describe('server kernel', () => {
     await app.close()
   })
 
+  it('keeps credentials in query parameters out of the request log', async () => {
+    const lines: string[] = []
+    const app = await buildApp({ logStream: { write: (line) => { lines.push(line) } } })
+    try {
+      await app.inject({ url: '/rest/ping.view?u=mira&p=hunter2-secret&f=json', headers: { authorization: 'Bearer bearer-secret', cookie: 'squirmy_session=cookie-secret' } })
+      await app.inject({ url: '/api/v1/stream/abc?exp=1&uid=u&sig=signature-secret' })
+      const log = lines.join('')
+      expect(log).toContain('/rest/ping.view?u=mira&p=[redacted]&f=json')
+      expect(log).not.toMatch(/hunter2-secret|bearer-secret|cookie-secret|signature-secret/)
+    } finally {
+      await app.close()
+    }
+  })
+
   it('has a migrated database with trigram search', async () => {
     await db.insert(users).values({ id: newId(), username: 'Isaac', usernameKey: 'isaac', passwordHash: 'x' })
     const rows = await db.select().from(users)
