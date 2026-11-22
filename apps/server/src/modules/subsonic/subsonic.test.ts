@@ -15,7 +15,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist, createLibraryRoot, createUser } from '../../test/factories.js'
 import { createAppPassword } from '../auth/service.js'
 import { listHistory } from '../userdata/history.js'
-import { getRatings, likeEntity, listLikes } from '../userdata/likes.js'
+import { likeEntity, listLikes } from '../userdata/likes.js'
 import { addPlaylistItems, createPlaylist, getPlaylist } from '../userdata/playlists.js'
 import { similarArtists } from '../radio/index.js'
 import { getSnapshot } from '../sessions/index.js'
@@ -460,7 +460,6 @@ describe('subsonic', () => {
 
     it('rates, and clears a rating with 0', async () => {
       await mira.client.call('setRating', { id: song(blueHour, 2), rating: 3 })
-      expect(await getRatings(mira.id, 'track', [blueHour.tracks[2]!.recordingId])).toEqual(new Map([[blueHour.tracks[2]!.recordingId, 3]]))
       expect((await mira.client.call('getSong', { id: song(blueHour, 2) })).song.userRating).toBe(3)
       await mira.client.call('setRating', { id: song(blueHour, 2), rating: 0 })
       expect((await mira.client.call('getSong', { id: song(blueHour, 2) })).song.userRating).toBeUndefined()

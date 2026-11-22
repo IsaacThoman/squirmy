@@ -388,14 +388,6 @@ export async function searchReleases(query: { artist: string; release: string; t
   return (data?.releases ?? []).map(releaseSummary)
 }
 
-/** Recordings by title and artist; an ISRC raises the score of recordings that carry it. */
-export async function searchRecordings(query: { artist: string; recording: string; isrc?: string }, options: { limit?: number } = {}): Promise<MbRecording[]> {
-  let lucene = `recording:${phrase(query.recording)} AND artist:${phrase(query.artist)}`
-  if (query.isrc) lucene += ` isrc:${phrase(query.isrc)}`
-  const data = await get<{ recordings: RawRecording[] }>('recording', { query: lucene, limit: String(options.limit ?? 25) }, searchTtl)
-  return (data?.recordings ?? []).map(recording)
-}
-
 /** One artist with aliases, genres and external links, or null. */
 export async function getArtist(mbid: string): Promise<MbArtist | null> {
   const raw = await get<RawArtist>(`artist/${mbid}`, { inc: 'url-rels genres aliases' })
@@ -515,7 +507,6 @@ export async function findReleasesByBarcode(barcode: string): Promise<MbReleaseS
   return (data?.releases ?? []).filter((release) => release.barcode?.replace(/^0+/, '') === wanted).map(releaseSummary)
 }
 
-/** Recordings carrying an ISRC. Empty when the ISRC is unknown. */
 export async function findRecordingsByIsrc(isrc: string): Promise<MbRecordingSummary[]> {
   const data = await get<{ recordings: RawRecording[] }>(`isrc/${encodeURIComponent(isrc.toUpperCase())}`, { inc: 'artist-credits isrcs' })
   return (data?.recordings ?? []).map(recordingSummary)
