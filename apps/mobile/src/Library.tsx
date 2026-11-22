@@ -109,7 +109,9 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   // A Home saved before the wantlist was switched off, or from an older server, may still have it.
   const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
   const albums = (id: string) => sections.find((section): section is Extract<HomeSection, { kind: 'albums' }> => section.kind === 'albums' && section.id === id)?.albums;
-  const hero = albums('recently-played')?.[0] ?? albums('recently-added')?.[0];
+  // The first thing on Home: something that plays, never a gray card of an album nobody can play.
+  const playable = (album: AlbumSummary) => album.availability !== 'none';
+  const hero = albums('recently-played')?.find(playable) ?? albums('recently-added')?.find(playable);
   const heroSize = width - gutter * 2;
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
 
@@ -326,7 +328,8 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     if (navigation.isFocused()) searchInput.current?.focus();
   }), [navigation, tabs]);
 
-  const active = Boolean(query.trim());
+  // The server answers nothing under two characters; keep the genres until a search can find something.
+  const active = query.trim().length >= 2;
   const answered = search.library.data !== undefined || search.catalog.data !== undefined;
   const genreNames = (genres.data ?? []).slice(0, 6).map(genre => genre.name);
   const genreCovers = useGenreCovers(genreNames);
@@ -334,7 +337,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
       <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Search</Text>
-      {active && search.pending && !offline && <ActivityIndicator color={colors.muted} />}
+      {active && answered && search.pending && !offline && <ActivityIndicator color={colors.muted} />}
       <OfflineBadge />
     </View>
     <View style={styles.searchHeader}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists" /></View>
@@ -356,7 +359,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
         ? <SearchResultsView library={search.library.data} catalog={search.catalog.data} link={link} onTrackMenu={onTrackMenu} />
         : search.library.isError && search.catalog.isError
           ? <EmptyState icon="wifi.exclamationmark" title="Search isn’t available" description="Check your connection to the server." />
-          : null}
+          : <View style={styles.searching}><ActivityIndicator color={colors.muted} /></View>}
     </ScrollView>
   </View>;
 }
@@ -379,6 +382,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   sortRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 43, marginBottom: 4 },
   songs: { marginHorizontal: -4 },
   more: { marginVertical: 20 },
+  searching: { paddingVertical: 48, alignItems: 'center' },
   searchHeader: { marginHorizontal: gutter, marginTop: 13, marginBottom: 25 },
   genres: { paddingHorizontal: gutter },
   resultSection: { marginBottom: 23 },

@@ -32,6 +32,11 @@ export type DeviceRow = {
  */
 export function deviceRows(devices: readonly DeviceInfo[], thisDevice: DeviceInfo, activeDeviceId: string | null): DeviceRow[] {
   const others = devices.filter(device => device.id !== thisDevice.id && device.canPlay);
+  // The session can name a player before the device list has caught up with it (it just
+  // connected). Without a row of its own the output would fall back to this phone, and the
+  // sheet would say "Playing on This iPhone" while the phone is silent.
+  const known = activeDeviceId === null || activeDeviceId === thisDevice.id || others.some(device => device.id === activeDeviceId);
+  if (!known) others.push({ id: activeDeviceId, name: 'Another device', kind: 'other', canPlay: true, isActive: true });
   return [thisDevice, ...others].map(device => {
     const active = device.id === activeDeviceId;
     const isThisDevice = device.id === thisDevice.id;
