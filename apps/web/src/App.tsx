@@ -5,7 +5,7 @@ import { Page } from '@/components/layout/Page'
 import { Spinner } from '@/components/ui/feedback'
 import { LoginPage, RegisterPage, SetupPage } from '@/pages/account'
 import {
-  AlbumPage, ArtistPage, HomePage, LibraryPage, LibraryRedirect, LikedPage, NotFoundPage, PlaylistPage, SearchPage, WantlistPage,
+  AlbumPage, ArtistPage, ArtistReleasesPage, HomePage, LibraryPage, LibraryRedirect, LikedPage, NotFoundPage, PlaylistPage, SearchPage, WantlistPage,
 } from '@/pages/music'
 import { SettingsRoute, ShellPage } from '@/pages/shell'
 
@@ -59,6 +59,7 @@ export function AppRoutes() {
               <Route path="wantlist" element={<WantlistPage />} />
               <Route path="album/:id" element={<AlbumPage />} />
               <Route path="artist/:id" element={<ArtistPage />} />
+              <Route path="artist/:id/releases/:section" element={<ArtistReleasesPage />} />
               <Route path="playlist/:id" element={<PlaylistPage />} />
               <Route path="settings" element={<SettingsRoute />} />
               <Route path="settings/:section" element={<SettingsRoute />} />
