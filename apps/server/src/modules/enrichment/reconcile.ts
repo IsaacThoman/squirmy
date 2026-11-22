@@ -7,8 +7,10 @@
  * (a stub written while the discography ran, an artist merged after it, a store's type
  * that disagrees with MusicBrainz's).
  *
- * Within one artist (primary artist), rows whose titles share a `releaseKey` are one
- * release. "Anchors" are rows with an MBID or files; "loose" rows have neither. A loose row
+ * Within one artist (primary artist), rows whose titles share a `labelFreeKey` are one
+ * edition of one release; titles that differ by edition words ("(Deluxe Edition)", "3am
+ * Edition") are distinct editions and never merge. "Anchors" are rows with an MBID or
+ * files, and edition rows (`edition_of_id`); "loose" rows have none of those. A loose row
  * merges into the anchor that fits it, else into the best loose row of the same release.
  * Anchors are never merged here: two MusicBrainz groups stay two rows (the artist page
  * shows one of them, `catalog/pages.ts`). Merges leave redirects and move files, editions,
@@ -20,7 +22,7 @@ import { sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import { lockUpserts } from '../matching/apply.js'
 import { mergeAlbum } from '../matching/merge.js'
-import { releaseKey } from '../search/keys.js'
+import { labelFreeKey } from '../search/keys.js'
 import { changed } from './rows.js'
 
 export type ReleaseRow = {
@@ -33,6 +35,8 @@ export type ReleaseRow = {
   detailLevel: number
   hasFiles: boolean
   hasArtwork: boolean
+  /** A store album kept as one edition of a release group (`albums.edition_of_id`). */
+  isEdition?: boolean
 }
 
 /** Store and MusicBrainz types of one release often disagree within these families (Deezer's "ep" is MusicBrainz's "single"). */
@@ -75,15 +79,19 @@ function compareRows(a: ReleaseRow, b: ReleaseRow): number {
 export function planReleaseMerges(rows: readonly ReleaseRow[]): [from: ReleaseRow, into: ReleaseRow][] {
   const groups = new Map<string, ReleaseRow[]>()
   for (const row of rows) {
-    const key = releaseKey(row.title)
+    // The same edition only: "Miss Anthropocene (Deluxe Edition)" is another edition of
+    // "Miss Anthropocene", whose songs its page must keep (the artist page lists the two
+    // once, `catalog/pages.ts`).
+    const key = labelFreeKey(row.title)
     if (!key) continue
     groups.set(key, [...(groups.get(key) ?? []), row])
   }
   const merges: [ReleaseRow, ReleaseRow][] = []
   for (const group of groups.values()) {
     if (group.length < 2) continue
-    const anchors = group.filter((row) => row.mbid || row.hasFiles)
-    const loose = group.filter((row) => !row.mbid && !row.hasFiles)
+    const anchored = (row: ReleaseRow) => Boolean(row.mbid || row.hasFiles || row.isEdition)
+    const anchors = group.filter(anchored)
+    const loose = group.filter((row) => !anchored(row))
     const left: ReleaseRow[] = []
     for (const row of loose) {
       const into = anchorFor(row, anchors)
@@ -107,7 +115,7 @@ async function artistRows(tx: Transaction, artistId: string): Promise<ReleaseRow
   return tx.execute<ReleaseRow>(sql`
     select a.id, a.title, a.type, a.type_guessed as "typeGuessed", a.mbid, a.year, a.detail_level as "detailLevel",
       exists (select 1 from media_files f where f.album_id = a.id) as "hasFiles",
-      a.artwork_asset_id is not null as "hasArtwork"
+      a.artwork_asset_id is not null as "hasArtwork", a.edition_of_id is not null as "isEdition"
     from albums a
     where a.primary_artist_id = ${artistId} and a.merged_into_id is null`)
 }

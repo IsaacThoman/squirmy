@@ -50,10 +50,32 @@ async function deezerArtistRow(tx: Transaction, artist: DeezerArtistRef): Promis
   return id
 }
 
-/** The recording row for a Deezer track: the one carrying its id, else a new provider-only row with its credits. */
+/**
+ * The recording row for a Deezer track: the one carrying its id, else the one recording
+ * with its ISRC (the same sound on another edition, or MusicBrainz's row), else a new
+ * provider-only row with its credits. A deluxe edition's track list then shares the
+ * standard songs' rows instead of listing each song twice. A known row learns Deezer's
+ * explicit flag when it has none.
+ */
 async function deezerRecordingRow(tx: Transaction, track: DeezerTrack, artistRow: (artist: DeezerArtistRef) => Promise<string>): Promise<string> {
-  const existing = await linked(tx, 'recording', track.id)
-  if (existing) return existing
+  const isrc = track.isrc?.toUpperCase()
+  let existing = await linked(tx, 'recording', track.id)
+  if (!existing && isrc) {
+    const same = await tx.execute<{ id: string }>(sql`
+      select r.id from recordings r where r.isrcs @> array[${isrc}]::text[] and r.merged_into_id is null
+      order by exists (select 1 from media_files f where f.recording_id = r.id and f.missing_since is null) desc, r.mbid is not null desc, r.id
+      limit 2`)
+    // Two rows with one ISRC are already a muddle (a re-release counted as a new
+    // recording); a third would not help, but neither would guessing between them.
+    if (same.length === 1) {
+      existing = same[0]!.id
+      await tx.insert(externalIds).values({ provider: 'deezer', entityType: 'recording', externalId: String(track.id), entityId: existing }).onConflictDoNothing()
+    }
+  }
+  if (existing) {
+    await tx.update(recordings).set({ explicit: track.explicit }).where(and(eq(recordings.id, existing), isNull(recordings.explicit)))
+    return existing
+  }
   const credited = track.artists.length > 0 ? track.artists : [track.artist]
   const artistCredit = credited.map((artist) => artist.name).join(', ')
   const id = newId()
@@ -86,7 +108,8 @@ async function deezerRecordingRow(tx: Transaction, track: DeezerTrack, artistRow
 export async function buildFromDeezer(albumId: string, album: DeezerAlbum): Promise<void> {
   await db.transaction(async (tx) => {
     await lockUpserts(tx)
-    const [row] = await tx.select({ primaryArtistId: albums.primaryArtistId, genres: albums.genres }).from(albums).where(eq(albums.id, albumId))
+    const [row] = await tx.select({ primaryArtistId: albums.primaryArtistId, genres: albums.genres, mbid: albums.mbid, title: albums.title })
+      .from(albums).where(eq(albums.id, albumId))
     if (!row) return
     const artistIds = new Map<number, string>()
     if (row.primaryArtistId) artistIds.set(album.artist.id, row.primaryArtistId)
@@ -131,6 +154,19 @@ export async function buildFromDeezer(albumId: string, album: DeezerAlbum): Prom
     }
     if (kept.length > 0) await tx.delete(releaseTracks).where(and(eq(releaseTracks.releaseId, releaseId), notInArray(releaseTracks.id, kept)))
 
+    // A collaboration ("Watch the Throne") credits every main artist Deezer lists, not only
+    // the one search saw. MusicBrainz's credits stand once the album has its id.
+    if (!row.mbid && album.artists.length > 1) {
+      const credited = []
+      for (const artist of album.artists) credited.push({ artist, id: await artistRow(artist) })
+      const artistCredit = album.artists.map((artist) => artist.name).join(', ')
+      await tx.delete(albumArtists).where(eq(albumArtists.albumId, albumId))
+      await tx.insert(albumArtists).values(credited.map((one, position) => ({
+        albumId, position, artistId: one.id, creditedName: one.artist.name, joinPhrase: position < credited.length - 1 ? ', ' : '',
+      })))
+      await tx.update(albums).set({ artistCredit, matchKey: creditKey(artistCredit, row.title) }).where(eq(albums.id, albumId))
+    }
+
     // A row known only from a track's album reference takes the type and date Deezer states.
     const guessed = sql`(${albums.typeGuessed} and ${albums.mbid} is null)`
     await tx.update(albums).set({
@@ -148,8 +184,43 @@ export async function buildFromDeezer(albumId: string, album: DeezerAlbum): Prom
 }
 
 /**
+ * Credits the featured artists of a Deezer-built track list. Deezer's album track list
+ * names only each track's main artist ("Hurricane" without The Weeknd and Lil Baby), so
+ * each track is looked up on its own. Only recordings without an MBID change: MusicBrainz
+ * credits stand. Returns how many recordings gained artists.
+ */
+export async function creditDeezerTracks(album: DeezerAlbum): Promise<number> {
+  let credited = 0
+  for (const listed of album.tracks) {
+    const recordingId = await db.transaction((tx) => linked(tx, 'recording', listed.id))
+    if (!recordingId) continue
+    const [row] = await db.execute<{ mbid: string | null; title: string; credits: number }>(sql`
+      select r.mbid, r.title, (select count(*)::int from recording_artists ra where ra.recording_id = r.id) as credits
+      from recordings r where r.id = ${recordingId}`)
+    if (!row || row.mbid) continue
+    const track = await deezer.getTrack(listed.id)
+    if (!track || track.artists.length <= row.credits) continue
+    await db.transaction(async (tx) => {
+      await lockUpserts(tx)
+      const ids: string[] = []
+      for (const artist of track.artists) ids.push(await deezerArtistRow(tx, artist))
+      const artistCredit = track.artists.map((artist) => artist.name).join(', ')
+      await tx.delete(recordingArtists).where(eq(recordingArtists.recordingId, recordingId))
+      await tx.insert(recordingArtists).values(track.artists.map((artist, position) => ({
+        recordingId, position, artistId: ids[position]!, creditedName: artist.name, joinPhrase: position < track.artists.length - 1 ? ', ' : '',
+      })))
+      await tx.update(recordings).set({ artistCredit, matchKey: creditKey(artistCredit, row.title), updatedAt: new Date() }).where(eq(recordings.id, recordingId))
+      await tx.update(releaseTracks).set({ artistCredit }).where(and(eq(releaseTracks.recordingId, recordingId), eq(releaseTracks.title, row.title)))
+    })
+    credited++
+  }
+  return credited
+}
+
+/**
  * Records the Deezer ids of an album and of the recordings on its canonical release,
- * matched by ISRC, else by position and title. A search stub that already carries one of
+ * matched by ISRC, else by position and title, and Deezer's explicit flag on recordings
+ * that have none, when matched by ISRC or the album is Deezer's explicit version. A search stub that already carries one of
  * those ids is merged into the catalog row.
  */
 export async function linkDeezerAlbum(albumId: string, album: DeezerAlbum): Promise<void> {
@@ -160,9 +231,17 @@ export async function linkDeezerAlbum(albumId: string, album: DeezerAlbum): Prom
     where a.id = ${albumId}`)
   for (const [index, track] of album.tracks.entries()) {
     const isrc = track.isrc?.toUpperCase()
-    const match = (isrc ? tracks.find((row) => row.isrcs.includes(isrc)) : undefined)
+    const byIsrc = isrc ? tracks.find((row) => row.isrcs.includes(isrc)) : undefined
+    const match = byIsrc
       ?? tracks.find((row) => row.disc === (track.discNumber ?? 1) && row.position === (track.trackNumber ?? index + 1) && row.titleKey === matchKey(track.title))
-    if (match) await linkExternalId('deezer', 'recording', String(track.id), match.id)
+    if (!match) continue
+    await linkExternalId('deezer', 'recording', String(track.id), match.id)
+    // MusicBrainz has no explicit flag. Deezer's holds for the same sound: the same ISRC,
+    // or the same place on the album's explicit version; a clean edit at that place is
+    // another recording.
+    if (byIsrc || album.explicit) {
+      await db.update(recordings).set({ explicit: track.explicit }).where(and(eq(recordings.id, match.id), isNull(recordings.explicit)))
+    }
   }
 }
 
