@@ -2,8 +2,8 @@ import { queryKeys, type AlbumSummary, type AlbumType, type HistoryItem, type Pl
 import { formatTotalDuration } from '@squirmy/client-core';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useMemo, useState, type ReactNode } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { ActionSheetIOS, ActivityIndicator, Alert, FlatList, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue,
 } from 'react-native-reanimated';
@@ -21,12 +21,12 @@ import {
 } from '../downloads/DownloadsProvider';
 import { albumCollectionId, likedId as likedDownloadId, playlistCollectionId } from '../downloads/model';
 import { useNotice } from '../Notice';
-import { usePlaybackState } from '../playback';
+import { usePlaybackActions } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
 import { AlbumStatusBlur } from './AlbumStatusBlur';
 import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
-import { CollectionGrid } from './BrowseControls';
+import { CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
@@ -36,11 +36,16 @@ import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
 import { underStatusBar, useRefreshControl } from './refresh';
 import { displayFontScale } from '../fontScale';
-import { SongList } from './SongList';
+import { SongList, useSongListItems, type SongListProps } from './SongList';
+import { chunk, type SongListItems, type SongRowItem } from './rows';
 import { usePlayAll } from './usePlayAll';
 import { ZoomTarget } from './ZoomLink';
 
 const albumNavSize = 44;
+/** Rows drawn per batch, and screens' worth kept around the visible part, by long song lists. */
+const listBatch = 14;
+const listWindow = 7;
+const gridRowKey = (row: readonly Collection[]) => row[0]!.key;
 
 export type PageProps = BrowseProps & { id: string; onBack: () => void };
 
@@ -73,7 +78,10 @@ type DetailProps = {
   /** Reloads what the page shows, for pull to refresh. */
   onRefresh: () => Promise<unknown>;
   bottomInset: number;
-  children: ReactNode;
+  /** Shown under the header; with `list`, above its rows. */
+  children?: ReactNode;
+  /** A long list of songs, drawn as it scrolls into view rather than all at once. */
+  list?: SongListItems & { footer?: ReactElement | false };
 };
 
 /**
@@ -82,7 +90,7 @@ type DetailProps = {
  * once the title scrolls under the buttons, they get a bar of their own with the title in it.
  */
 function DetailPage({
-  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, onRefresh, bottomInset, children,
+  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, onRefresh, bottomInset, children, list,
 }: DetailProps) {
   const colors = useColors();
   const styles = useStyles();
@@ -114,6 +122,21 @@ function DetailPage({
     opacity: interpolate(scrollOffset.value, [titleUnderBar, titleUnderBar + 24], [0, 1], Extrapolation.CLAMP),
   }));
   const headerColor = tint ? interpolateColor(colors.albumTint, [0, 1], [colors.background, tint], 'RGB', { gamma: 1 }) : colors.background;
+  const renderRow = list?.renderItem;
+  const renderItem = useCallback((info: { item: SongRowItem }) => <View style={styles.trackList}>{renderRow!(info)}</View>, [renderRow, styles]);
+  const header = <>
+    <View style={[styles.header, { paddingTop: statusBar.contentTop + albumNavSize + 12 }]}>
+      {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
+        locations={[0, 1]} style={StyleSheet.absoluteFill} />}
+      {/* The shadow needs the cover's shape and an opaque fill to be drawn efficiently. */}
+      <ZoomTarget style={StyleSheet.flatten([styles.art, { borderRadius: artRadius }])}><CollectionCover item={item} size={artSize} radius={artRadius} /></ZoomTarget>
+      <AlbumMetadata title={title} artist={artist} artistLinks={artistLinks} info={info} />
+      {buttons && buttons.length > 0 && <AlbumPlaybackButtons title={title} actions={buttons} />}
+      {status}
+    </View>
+    {description ? <ExpandableText text={description} lines={6} /> : null}
+    {children}
+  </>;
 
   return <View style={styles.page}>
     <Animated.View pointerEvents="none" style={[styles.overscrollFill, { backgroundColor: headerColor }, overscrollStyle]} />
@@ -132,21 +155,20 @@ function DetailPage({
         {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
       </View>
     </View>
-    <Animated.ScrollView contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
-      refreshControl={refreshControl} {...statusBar.props} contentContainerStyle={{ paddingBottom: bottomInset }}
-      showsVerticalScrollIndicator={false}>
-      <View style={[styles.header, { paddingTop: statusBar.contentTop + albumNavSize + 12 }]}>
-        {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
-          locations={[0, 1]} style={StyleSheet.absoluteFill} />}
-        {/* The shadow needs the cover's shape and an opaque fill to be drawn efficiently. */}
-        <ZoomTarget style={StyleSheet.flatten([styles.art, { borderRadius: artRadius }])}><CollectionCover item={item} size={artSize} radius={artRadius} /></ZoomTarget>
-        <AlbumMetadata title={title} artist={artist} artistLinks={artistLinks} info={info} />
-        {buttons && buttons.length > 0 && <AlbumPlaybackButtons title={title} actions={buttons} />}
-        {status}
-      </View>
-      {description ? <ExpandableText text={description} lines={6} /> : null}
-      {children}
-    </Animated.ScrollView>
+    {list ? (
+      <Animated.FlatList data={list.data} renderItem={renderItem} keyExtractor={list.keyExtractor}
+        ListHeaderComponent={header} ListFooterComponent={list.footer || undefined}
+        initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
+        contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
+        refreshControl={refreshControl} {...statusBar.props} contentContainerStyle={{ paddingBottom: bottomInset }}
+        showsVerticalScrollIndicator={false} />
+    ) : (
+      <Animated.ScrollView contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
+        refreshControl={refreshControl} {...statusBar.props} contentContainerStyle={{ paddingBottom: bottomInset }}
+        showsVerticalScrollIndicator={false}>
+        {header}
+      </Animated.ScrollView>
+    )}
   </View>;
 }
 
@@ -177,14 +199,14 @@ function PageFallback({ query, what, onBack }: { query: Parameters<typeof QueryS
   </View>;
 }
 
-function TrackSection({ title, detail, children }: { title: string; detail?: string; children: ReactNode }) {
+function TrackSection({ title, detail, children }: { title: string; detail?: string; children?: ReactNode }) {
   const styles = useStyles();
   return <>
     <View style={styles.trackListHeader}>
       <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.trackListTitle}>{title}</Text>
       {detail && <Text style={styles.trackCount}>{detail}</Text>}
     </View>
-    <View style={styles.trackList}>{children}</View>
+    {children && <View style={styles.trackList}>{children}</View>}
   </>;
 }
 
@@ -214,7 +236,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const queryClient = useQueryClient();
   const kept = useDownloadedAlbum(id);
   const data = album.data ?? kept;
-  const { actions } = usePlaybackState();
+  const actions = usePlaybackActions();
   const { canPlay, offline } = useAvailability();
   const download = useDownloadActions();
   const liked = useLiked('album', id, data?.liked);
@@ -294,7 +316,7 @@ function TrackListPage({ item, title, info, tracks, playAll, context, empty, loa
   download?: ReturnType<typeof useDownloadControl>;
   props: PageProps;
 }) {
-  const { actions } = usePlaybackState();
+  const actions = usePlaybackActions();
   const { canPlay } = useAvailability();
   const play = (shuffle?: boolean, start?: number) => {
     tapFeedback();
@@ -302,13 +324,13 @@ function TrackListPage({ item, title, info, tracks, playAll, context, empty, loa
     if (playAll) playAll.run(start, Boolean(shuffle), playTracks);
     else playTracks(tracks);
   };
+  const songs = useSongListItems({ tracks, onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) });
   return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play, playAll?.busy)}
     nav={download ? [download.nav] : []} status={download?.status}
-    onBack={props.onBack} onEndReached={loadMore} onRefresh={refresh} bottomInset={props.bottomInset ?? 155}>
-    {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)}>
-      <SongList tracks={tracks} onPlay={start => play(undefined, start)} onTrackMenu={track => props.onTrackMenu(track)} />
-      {loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} />}
-    </TrackSection> : <EmptyState icon={item.special === 'liked' ? 'heart' : 'clock.arrow.circlepath'} {...empty} />}
+    onBack={props.onBack} onEndReached={loadMore} onRefresh={refresh} bottomInset={props.bottomInset ?? 155}
+    list={tracks.length ? { ...songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
+    {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)} />
+      : <EmptyState icon={item.special === 'liked' ? 'heart' : 'clock.arrow.circlepath'} {...empty} />}
   </DetailPage>;
 }
 
@@ -345,7 +367,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const playlist = usePlaylist(id);
   const kept = useDownloadedPlaylist(id);
   const data = playlist.data ?? kept;
-  const { actions } = usePlaybackState();
+  const actions = usePlaybackActions();
   const { canPlay } = useAvailability();
   const { offline } = useRealtime();
   const edits = usePlaylistActions();
@@ -353,16 +375,29 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const [editing, setEditing] = useState(false);
   const control = useDownloadControl(playlistCollectionId(id), data?.name ?? '',
     playlist.data?.items.some(item => item.track.availability === 'server') ? () => download.playlist(playlist.data!) : null);
+  const items = data?.items;
+  const tracks = useMemo(() => items?.map(item => item.track) ?? [], [items]);
+  // The kept copy has no item ids, and edits need the server.
+  const mine = Boolean(data) && state.status === 'signedIn' && data!.ownerId === state.user.id && Boolean(playlist.data) && !offline;
+  const play = (shuffle?: boolean, start?: number) => {
+    if (!data) return;
+    tapFeedback();
+    actions.playTracks(tracks, { start, shuffle, context: { type: 'playlist', id: data.id, title: data.name } });
+  };
+  const itemIds = useMemo(() => items?.map(item => item.itemId) ?? [], [items]);
+  const songListProps: SongListProps = {
+    tracks,
+    onPlay: start => play(undefined, start),
+    onTrackMenu: (track, index) => onTrackMenu(track, mine ? { id, itemId: itemIds[index]! } : undefined),
+    playlist: mine ? {
+      id, itemIds, editing,
+      onMove: (itemId, toIndex) => edits.move(id, itemId, toIndex),
+      onRemove: itemId => edits.removeItem(id, itemId),
+    } : undefined,
+  };
+  const songs = useSongListItems(songListProps);
   useBackSwipeOnly();
   if (!data) return <PageFallback query={playlist} what="this playlist" onBack={onBack} />;
-  const tracks = data.items.map(item => item.track);
-  // The kept copy has no item ids, and edits need the server.
-  const mine = state.status === 'signedIn' && data.ownerId === state.user.id && Boolean(playlist.data) && !offline;
-  const context: PlaybackContext = { type: 'playlist', id: data.id, title: data.name };
-  const play = (shuffle?: boolean, start?: number) => {
-    tapFeedback();
-    actions.playTracks(tracks, { start, shuffle, context });
-  };
   const rename = () => onOpen({ pathname: '/name-playlist', params: { mode: 'rename', id: data.id, name: data.name } });
   const remove = () => Alert.alert(`Delete “${data.name}”?`, 'This can’t be undone.', [
     { text: 'Cancel', style: 'cancel' },
@@ -398,15 +433,10 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       mine && { icon: 'ellipsis', label: `Manage ${data.name}`, onPress: manage },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
-    onBack={onBack} onRefresh={playlist.refetch} bottomInset={bottomInset}>
+    // Reordering drags rows within one native list, so while editing every row is drawn.
+    onBack={onBack} onRefresh={playlist.refetch} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)}>
-      <SongList tracks={tracks} onPlay={start => play(undefined, start)}
-        onTrackMenu={(track, index) => onTrackMenu(track, mine ? { id: data.id, itemId: data.items[index]!.itemId } : undefined)}
-        playlist={mine ? {
-          id: data.id, itemIds: data.items.map(item => item.itemId), editing,
-          onMove: (itemId, toIndex) => edits.move(data.id, itemId, toIndex),
-          onRemove: itemId => edits.removeItem(data.id, itemId),
-        } : undefined} />
+      {editing && <SongList {...songListProps} />}
     </TrackSection> : <EmptyState icon="music.note.list" title="No songs yet"
       description="Add songs from any song’s menu with Add to playlist." />}
   </DetailPage>;
@@ -417,7 +447,7 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
   const api = useSignedInApi();
   const notify = useNotice();
   const artist = useArtist(id);
-  const { actions } = usePlaybackState();
+  const actions = usePlaybackActions();
   const { canPlay, offline } = useAvailability();
   const liked = useLiked('artist', id, artist.data?.liked);
   const { setLiked } = useLibraryActions();
@@ -477,24 +507,24 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
   const { width } = useWindowDimensions();
   const albums = useGenreAlbums(id);
   const offlineDim = useOfflineDim();
-  const onScroll = useAnimatedScrollHandler(event => {
-    if (nearEnd(event)) scheduleOnRN(albums.loadMore);
-  });
   const refreshControl = useRefreshControl(albums.refetch);
   const columns = width >= 650 ? 4 : 3;
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
+  const rows = useMemo(() => chunk(albums.items.map(album => offlineDim(albumCollection(album, link))), columns), [albums.items, columns, link, offlineDim]);
+  const renderRow = useCallback(({ item: row }: { item: Collection[] }) => <CollectionGridRow items={row.map(item => ({
+    id: item.key, title: item.title, subtitle: item.subtitle, size, cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
+  }))} />, [size]);
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
     <View style={styles.fallbackNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
-    <Animated.ScrollView contentContainerStyle={[styles.genreBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
-      onScroll={onScroll} scrollEventThrottle={100} refreshControl={refreshControl}>
-      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.genreTitle}>{id}</Text>
-      {!albums.data && <QueryState query={albums} what={id} />}
-      <CollectionGrid columns={columns} items={albums.items.map(album => {
-        const item = offlineDim(albumCollection(album, link));
-        return { id: item.key, title: item.title, subtitle: item.subtitle, size, cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim };
-      })} />
-      {albums.isFetchingNextPage && <ActivityIndicator style={styles.more} />}
-    </Animated.ScrollView>
+    <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey} refreshControl={refreshControl}
+      initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
+      contentContainerStyle={[styles.genreBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
+      onEndReached={albums.loadMore} onEndReachedThreshold={1.5}
+      ListHeaderComponent={<>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.genreTitle}>{id}</Text>
+        {!albums.data && <QueryState query={albums} what={id} />}
+      </>}
+      ListFooterComponent={albums.isFetchingNextPage ? <ActivityIndicator style={styles.more} /> : undefined} />
   </View>;
 }
 

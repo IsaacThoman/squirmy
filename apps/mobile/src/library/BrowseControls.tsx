@@ -24,7 +24,8 @@ export type LinkedButtonProps<T> = Omit<T, 'href'> & { onPress?: () => void };
 export type GenreCardProps = { title: string; color: string; width: number; cover: ReactElement; onPress: () => void };
 /** `busy` shows that a play is waiting on the server; the play button ignores taps meanwhile. */
 export type HeroActionsProps = { title: string; artist: string; onOpen: () => void; onPlay: () => void; busy?: boolean };
-export type CollectionGridProps = { items: readonly (CollectionButtonProps & { id: string })[]; columns: number };
+/** One row of a grid of collections; a long grid is a virtualized list of these. */
+export type CollectionGridRowProps = { items: readonly (CollectionButtonProps & { id: string })[] };
 export type GenreGridProps = { items: readonly (GenreCardProps & { id: string })[] };
 /**
  * The search result to lead with. With `href` it opens that page, which zooms out of its
@@ -93,7 +94,7 @@ function TileButton({ title, subtitle, cover, size, dim, onPress }: LinkedButton
   </Pressable>;
 }
 
-export function CollectionGrid({ items }: CollectionGridProps) {
+export function CollectionGridRow({ items }: CollectionGridRowProps) {
   const styles = useStyles();
   return <View style={styles.collectionGrid}>
     {items.map(({ id, ...item }) => <CollectionTile key={id} {...item} />)}
@@ -190,7 +191,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
   collectionTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
   subtitle: { color: colors.muted, fontSize: 13, marginTop: 3 },
-  collectionGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 19 },
+  collectionGrid: { flexDirection: 'row', columnGap: 12, marginBottom: 19 },
   genreGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   genre: { minHeight: 106, padding: 12, borderRadius: 15, overflow: 'hidden' },
   genreTitle: { color: '#F5F2FF', fontSize: 17, fontWeight: '700' },

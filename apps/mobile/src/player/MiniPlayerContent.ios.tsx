@@ -3,10 +3,13 @@ import { accessibilityHidden, accessibilityLabel, dynamicTypeSize, font, foregro
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { IconButton, hitShape, plainButton } from '../native/Controls';
-import { usePlaybackState, usePosition } from '../playback';
+import { useCurrentDurationMs, usePlaybackState, usePositionEvery } from '../playback';
 import { Cover } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
+import { usePlayerShown } from './visibility';
+
+const progressIntervalMs = 1000;
 import { useColors } from '../theme';
 
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
@@ -51,18 +54,22 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
             <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={session.playing ? 'Pause' : 'Play'}
               size={22} onPress={preview ? undefined : actions.playPause} />
           </HStack>
-          {!compact && <Progress />}
+          {!compact && <Progress preview={preview} />}
         </ZStack>
       </Host>
     </Animated.View>
   </View>;
 }
 
-/** The only part of the bubble that follows the playback clock, so each tick redraws just this. */
-function Progress() {
+/**
+ * The only part of the bubble that follows the playback clock, so each tick redraws just this.
+ * A thin bar moves about a point a second, so it reads the clock once a second, and only
+ * while it can be seen: the bubble's own while Now Playing is away, the preview's while it is up.
+ */
+function Progress({ preview }: { preview: boolean }) {
   const colors = useColors();
-  const { durationMs } = usePlaybackState();
-  const position = usePosition();
+  const durationMs = useCurrentDurationMs();
+  const position = usePositionEvery(progressIntervalMs, usePlayerShown() === preview);
   const fraction = durationMs > 0 ? Math.min(1, position / durationMs) : 0;
   return <ProgressView value={fraction}
     modifiers={[tint(colors.accent), padding({ horizontal: 26, bottom: 1 }), accessibilityHidden(true)]} />;

@@ -12,7 +12,7 @@ import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { StyleSheet, View } from 'react-native';
 import { IconButton, Symbol, hitShape, plainButton } from '../native/Controls';
 import type {
-  BrowseButtonProps, CollectionButtonProps, CollectionGridProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
+  BrowseButtonProps, CollectionButtonProps, CollectionGridRowProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
   LinkedButtonProps, SearchFieldProps, TopResultProps,
 } from './BrowseControls';
 import { unavailableOpacity, useColors } from '../theme';
@@ -99,8 +99,10 @@ export function CollectionTile(props: CollectionButtonProps) {
   </Host>;
 }
 
-export function CollectionGrid({ items, columns }: CollectionGridProps) {
-  return <TileGrid items={items} columns={columns} verticalSpacing={19} render={item => <CollectionTileButton {...item} />} />;
+export function CollectionGridRow({ items }: CollectionGridRowProps) {
+  return <View style={styles.gridRow}>
+    {items.map(({ id, ...item }) => <CollectionTile key={id} {...item} />)}
+  </View>;
 }
 
 function CollectionTileButton({ href, ...props }: CollectionButtonProps) {
@@ -246,4 +248,5 @@ function TopResultButton({ title, subtitle, cover, size, dim, zoom, playable, on
 const styles = StyleSheet.create({
   search: { height: 46 },
   filters: { height: 37 },
+  gridRow: { flexDirection: 'row', columnGap: 12, marginBottom: 19 },
 });

@@ -3,11 +3,16 @@ import * as Haptics from 'expo-haptics';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
-import { useLibraryActions, useLiked } from '../data/library';
+import { memo, useCallback, useMemo } from 'react';
+import { useLiked } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
 import { trackMark, unavailableReason } from '../downloads/model';
-import { usePlaybackState, useTrackPreparing } from '../playback';
+import { useCurrentTrackState, useTrackPreparing } from '../playback';
+import {
+  sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
+} from './rows';
+import { useTrackActionRunner, type TrackAction } from './trackActions';
 import { Cover, Icon } from '../ui';
 import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
 
@@ -30,13 +35,22 @@ export type SongListProps = {
   };
 };
 
-export function SongList({ tracks, numbered, onPlay, onTrackMenu, playlist }: SongListProps) {
-  return tracks.map((track, index) => (
-    <SongRow key={playlist?.itemIds[index] ?? `${track.id}:${index}`} track={track}
-      number={numbered ? track.position ?? index + 1 : undefined}
-      onPlay={() => onPlay(index)} onMenu={() => onTrackMenu(track, index)}
-      onRemove={playlist && (() => playlist.onRemove(playlist.itemIds[index]!))} />
-  ));
+const rowHeight = 58;
+
+export function SongList(props: SongListProps) {
+  const handlers = useSongRowHandlers(props);
+  const { run } = useTrackActionRunner();
+  return songRows(props).map(item => <SongRow key={item.key} item={item} handlers={handlers} run={run} />);
+}
+
+/** The rows of a long list, for a virtualized list to render. */
+export function useSongListItems(props: SongListProps): SongListItems {
+  const { tracks, numbered, playlist } = props;
+  const handlers = useSongRowHandlers(props);
+  const { run } = useTrackActionRunner();
+  const data = useMemo(() => songRows({ tracks, numbered, playlist }), [numbered, playlist, tracks]);
+  const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongRow item={item} handlers={handlers} run={run} />, [handlers, run]);
+  return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }
 
 function tapFeedback() {
@@ -59,22 +73,27 @@ function SwipeAction({ translation, icon, danger, onPress }: { translation: Shar
   );
 }
 
-function SongRow({ track, number, onPlay, onMenu, onRemove }: {
-  track: TrackSummary; number?: number; onPlay: () => void; onMenu: () => void; onRemove?: () => void;
+const playNextAction: TrackAction = { id: 'next', title: 'Play next', icon: 'text.badge.plus' };
+
+const SongRow = memo(function SongRow({ item, handlers, run }: {
+  item: SongRowItem; handlers: SongRowHandlers; run: ReturnType<typeof useTrackActionRunner>['run'];
 }) {
+  const { track, number, index } = item;
   const colors = useColors();
   const styles = useStyles();
-  const { session, actions } = usePlaybackState();
   const liked = useLiked('track', track.id, track.liked);
-  const { setLiked } = useLibraryActions();
-  const current = session.current?.trackId === track.id;
+  const playing = useCurrentTrackState(track.id);
+  const current = playing !== null;
   const playable = useCanPlay(track);
   const { offline } = useRealtime();
   const mark = trackMark(useTrackDownload(track.id), track, playable);
   const preparing = useTrackPreparing(track.id);
+  const onPlay = () => handlers.play(index);
+  const onMenu = () => handlers.menu(track, index);
+  const onRemove = item.playlist && (() => handlers.remove(item.playlist!.itemId));
   const playNext = () => {
     tapFeedback();
-    actions.enqueue([track], 'next');
+    run(track, playNextAction);
   };
   const swipe = onRemove ? { icon: 'trash', danger: true, run: onRemove } : playable ? { icon: 'text.badge.plus', danger: false, run: playNext } : null;
   return <ReanimatedSwipeable
@@ -97,7 +116,7 @@ function SongRow({ track, number, onPlay, onMenu, onRemove }: {
         accessibilityActions={playable ? [{ name: 'playNext', label: 'Play next' }] : undefined}
         onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'playNext') playNext(); }}>
         {typeof number === 'number' ? <View style={styles.songPosition}>
-          {current ? <Icon name={session.playing ? 'waveform' : 'pause.fill'} size={17} color={colors.accent} /> : <Text style={styles.songNumber}>{number}</Text>}
+          {current ? <Icon name={playing === 'playing' ? 'waveform' : 'pause.fill'} size={17} color={colors.accent} /> : <Text style={styles.songNumber}>{number}</Text>}
         </View> : <Cover artwork={track.album?.artwork} size={42} radius={8} />}
         <View style={styles.flex}>
           <Text numberOfLines={1} style={[styles.rowTitle, current && styles.currentTitle]}>{track.title}</Text>
@@ -108,7 +127,7 @@ function SongRow({ track, number, onPlay, onMenu, onRemove }: {
         </View>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={liked ? `Unlike ${track.title}` : `Like ${track.title}`} accessibilityState={{ selected: liked }}
-        onPress={() => { tapFeedback(); setLiked('track', track.id, !liked); }} style={styles.rowIcon}>
+        onPress={() => { tapFeedback(); run(track, { id: liked ? 'unlike' : 'like', title: '', icon: '' }); }} style={styles.rowIcon}>
         <Icon name={liked ? 'heart.fill' : 'heart'} size={19} color={liked ? colors.accent : colors.muted} />
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${track.title}`} onPress={onMenu} style={styles.rowIcon}>
@@ -116,7 +135,7 @@ function SongRow({ track, number, onPlay, onMenu, onRemove }: {
       </Pressable>
     </View>
   </ReanimatedSwipeable>;
-}
+}, (a, b) => a.handlers === b.handlers && a.run === b.run && sameRow(a.item, b.item));
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   flex: { flex: 1 },

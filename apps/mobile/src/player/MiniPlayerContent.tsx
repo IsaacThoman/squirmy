@@ -1,10 +1,13 @@
 import type { ComponentRef, Ref } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { usePlaybackState, usePosition } from '../playback';
+import { useCurrentDurationMs, usePlaybackState, usePositionEvery } from '../playback';
 import { Cover, Icon } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import { createThemedStyles, useColors } from '../theme';
+import { usePlayerShown } from './visibility';
+
+const progressIntervalMs = 1000;
 
 type BubbleView = ComponentRef<typeof View>;
 type Appearance = { compact?: boolean; native?: boolean };
@@ -55,17 +58,21 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
           onPress={preview ? undefined : actions.playPause} style={styles.control}>
           <Icon name={session.playing ? 'pause.fill' : 'play.fill'} size={23} />
         </Pressable>
-        {!compact && <Progress />}
+        {!compact && <Progress preview={preview} />}
       </Animated.View>
     </View>
   );
 }
 
-/** The only part of the bubble that follows the playback clock, so each tick redraws just this. */
-function Progress() {
+/**
+ * The only part of the bubble that follows the playback clock, so each tick redraws just this.
+ * A thin bar moves about a point a second, so it reads the clock once a second, and only
+ * while it can be seen: the bubble's own while Now Playing is away, the preview's while it is up.
+ */
+function Progress({ preview }: { preview: boolean }) {
   const styles = useStyles();
-  const { durationMs } = usePlaybackState();
-  const position = usePosition();
+  const durationMs = useCurrentDurationMs();
+  const position = usePositionEvery(progressIntervalMs, usePlayerShown() === preview);
   const fraction = durationMs > 0 ? Math.min(1, position / durationMs) : 0;
   return (
     <View style={styles.progress} pointerEvents="none">

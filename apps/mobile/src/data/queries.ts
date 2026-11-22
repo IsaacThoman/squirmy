@@ -20,14 +20,14 @@ function useApiQuery<T>(queryKey: readonly unknown[], fetch: (api: Api) => Promi
 }
 
 /** A cursor-paginated list. `items` flattens the pages loaded so far. */
-function usePagedQuery<T>(queryKey: readonly unknown[], fetch: (api: Api, cursor: string | undefined) => Promise<Page<T>>) {
+function usePagedQuery<T>(queryKey: readonly unknown[], fetch: (api: Api, cursor: string | undefined) => Promise<Page<T>>, enabled = true) {
   const api = useSignedInApi();
   const query = useInfiniteQuery({
     queryKey,
     queryFn: ({ pageParam }) => fetch(api!, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: last => last.nextCursor ?? undefined,
-    enabled: Boolean(api),
+    enabled: Boolean(api) && enabled,
   });
   const items = query.data?.pages.flatMap(page => page.items) ?? [];
   return { ...query, items, loadMore: () => { if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage(); } };
@@ -48,18 +48,18 @@ export function useHome() {
     home => home.sections.flatMap(section => section.kind === 'tracks' ? section.tracks : [])));
 }
 
-export function useLibraryAlbums(sort: LibrarySort) {
-  return usePagedQuery([...queryKeys.libraryAlbums(), sort], (api, cursor) => api.catalog.albums({ sort, cursor, limit: pageSize }));
+export function useLibraryAlbums(sort: LibrarySort, enabled = true) {
+  return usePagedQuery([...queryKeys.libraryAlbums(), sort], (api, cursor) => api.catalog.albums({ sort, cursor, limit: pageSize }), enabled);
 }
 
-export function useLibraryArtists(sort: LibrarySort) {
-  return usePagedQuery([...queryKeys.libraryArtists(), sort], (api, cursor) => api.catalog.artists({ sort, cursor, limit: pageSize }));
+export function useLibraryArtists(sort: LibrarySort, enabled = true) {
+  return usePagedQuery([...queryKeys.libraryArtists(), sort], (api, cursor) => api.catalog.artists({ sort, cursor, limit: pageSize }), enabled);
 }
 
-export function useLibraryTracks(sort: LibrarySort) {
+export function useLibraryTracks(sort: LibrarySort, enabled = true) {
   const prime = usePrime();
   return usePagedQuery([...queryKeys.libraryTracks(), sort],
-    async (api, cursor) => prime(await api.catalog.tracks({ sort, cursor, limit: pageSize }), page => page.items));
+    async (api, cursor) => prime(await api.catalog.tracks({ sort, cursor, limit: pageSize }), page => page.items), enabled);
 }
 
 export function useLikedTracks() {
@@ -74,8 +74,8 @@ export function useHistory() {
     async (api, cursor) => prime(await api.userdata.history({ cursor, limit: pageSize }), page => page.items.map(item => item.track)));
 }
 
-export function usePlaylists() {
-  return usePagedQuery([...queryKeys.playlists(), 'list'], (api, cursor) => api.userdata.playlists({ cursor, limit: pageSize }));
+export function usePlaylists(enabled = true) {
+  return usePagedQuery([...queryKeys.playlists(), 'list'], (api, cursor) => api.userdata.playlists({ cursor, limit: pageSize }), enabled);
 }
 
 export function useAlbum(id: string) {
@@ -181,6 +181,29 @@ export function useSearch(text: string) {
   const library = useQuery(search('library'));
   const catalog = useQuery(search('catalog'));
   return { query: q, library, catalog, pending: text.trim() !== q || library.isFetching || catalog.isFetching };
+}
+
+/** The most matches the library filter shows of each kind; the server answers up to this many. */
+export const libraryMatchLimit = 50;
+/** The server's library search ignores queries shorter than this. */
+export const libraryMatchMinLength = 2;
+
+/**
+ * Albums, artists and songs in the library matching `text`, searched on the server once
+ * typing pauses, best matches first. Disabled below `libraryMatchMinLength` characters.
+ */
+export function useLibraryMatches(text: string) {
+  const q = useDebounced(text.trim(), searchDelayMs);
+  const api = useSignedInApi();
+  const prime = usePrime();
+  const query = useQuery({
+    queryKey: [...queryKeys.search(), 'library', q, libraryMatchLimit],
+    queryFn: async () => prime(await api!.search.library({ q, limit: libraryMatchLimit }), results => results.tracks),
+    enabled: Boolean(api) && [...q].length >= libraryMatchMinLength,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  });
+  return { ...query, pending: text.trim() !== q || query.isFetching };
 }
 
 export function useUserSettings() {
