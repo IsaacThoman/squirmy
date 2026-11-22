@@ -1,7 +1,8 @@
 /**
  * Album and song lists. Each query returns ids in list order, `size` rows from `offset`,
- * over owned music in the music folder when one is given; the builders then hydrate a
- * page with a fixed number of queries.
+ * over the user's library (sql.ts) in the music folder when one is given; the builders
+ * then hydrate a page with a fixed number of queries. Starred songs only need a present
+ * file: the user picked them, and they play without waiting.
  */
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
@@ -12,7 +13,7 @@ import { rootParam } from '../folders.js'
 import { nowPlaying } from '../now-playing.js'
 import { invalidParameter, missingParameter, type Context, type Handler, type Params, type Payload } from '../protocol.js'
 import { songs } from '../songs.js'
-import { albumHasGenre, hasPresentFile, presentFiles } from '../sql.js'
+import { albumHasGenre, hasPresentFile, libraryAlbum, libraryAlbumIds, libraryFile } from '../sql.js'
 
 const ids = async (query: SQL) => (await db.execute<{ id: string }>(query)).map((row) => row.id)
 
@@ -21,14 +22,15 @@ async function albumListIds(userId: string, params: Params, rootId: string | und
   const type = params.required('type')
   const size = params.int('size', 10, { min: 0, max: 500 })
   const offset = params.int('offset', 0, { min: 0 })
-  const owned = hasPresentFile('album_id', 'a.id', rootId)
+  const owned = libraryAlbum('a.id', userId, rootId)
   const page = sql`offset ${offset} limit ${size}`
   switch (type) {
     case 'random':
       return ids(sql`select a.id from albums a where ${owned} order by random() limit ${size}`)
     case 'newest':
       return ids(sql`
-        select f.album_id as id from media_files f where f.album_id is not null and ${presentFiles('f', rootId)}
+        select f.album_id as id from media_files f
+        where f.album_id in (${libraryAlbumIds(userId, rootId)}) and ${libraryFile('f', userId, rootId)}
         group by f.album_id order by max(f.added_at) desc, f.album_id desc ${page}`)
     case 'alphabeticalByName':
       return ids(sql`select a.id from albums a where ${owned} order by ${sortKeys.title('a')}, a.id ${page}`)
@@ -76,12 +78,12 @@ async function getRandomSongs({ user, params }: Context): Promise<Payload> {
   const toYear = params.int('toYear')
   const rootId = await rootParam(params)
   const filtered = genre !== undefined || fromYear !== undefined || toYear !== undefined
-  // One random pass over the present files (a top-N sort, not a full one). A track with
+  // One random pass over the library files (a top-N sort, not a full one). A track with
   // several files can come up twice, so a few more are drawn and repeats dropped.
   const picked = await db.execute<{ id: string; albumId: string | null }>(sql`
     select f.recording_id as id, f.album_id as "albumId" from media_files f
     ${filtered ? sql`join albums a on a.id = f.album_id` : sql``}
-    where f.recording_id is not null and ${presentFiles('f', rootId)}
+    where f.recording_id is not null and ${libraryFile('f', user.id, rootId)}
       ${genre ? sql`and ${albumHasGenre('a', genre)}` : sql``}
       ${fromYear !== undefined ? sql`and a.year >= ${fromYear}` : sql``}
       ${toYear !== undefined ? sql`and a.year <= ${toYear}` : sql``}
@@ -99,13 +101,13 @@ async function getSongsByGenre({ user, params }: Context): Promise<Payload> {
     select f.recording_id as id, a.id as "albumId" from media_files f
     join albums a on a.id = f.album_id
     left join release_tracks rt on rt.id = f.release_track_id
-    where f.recording_id is not null and ${presentFiles('f', rootId)} and ${albumHasGenre('a', genre)}
+    where f.recording_id is not null and ${libraryFile('f', user.id, rootId)} and ${albumHasGenre('a', genre)}
     order by ${sortKeys.title('a')}, a.id, rt.disc nulls last, rt.position nulls last, f.recording_id, f.id
     offset ${offset} limit ${count}`)
   return { songsByGenre: { song: await songs(user.id, rows) } }
 }
 
-/** The user's starred artists, albums and songs that are in the library, newest first. */
+/** The user's starred artists and albums that are in their library, and starred songs with a present file, newest first. */
 async function starred({ user, params, baseUrl }: Context, id3: boolean): Promise<Payload> {
   const rootId = await rootParam(params)
   const liked = (type: 'artist' | 'album' | 'recording') => ids(sql`

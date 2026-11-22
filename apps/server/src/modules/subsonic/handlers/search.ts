@@ -1,9 +1,10 @@
 /**
- * search3 and search2 over owned music. A query goes to the search module's library
- * search, so Subsonic apps get the ranking and typo tolerance of Squirmy's own apps. An
- * empty query (or `""`, which several clients send) returns everything, which sync clients
- * page through with the offsets: artists and albums in name order, songs in id order
- * straight off the present-file index.
+ * search3 and search2 over the user's library (sql.ts). A query goes to the search
+ * module's library search, so Subsonic apps get the ranking and typo tolerance of
+ * Squirmy's own apps; it ranks every track with a present file, so what it finds is kept
+ * to the library here. An empty query (or `""`, which several clients send) returns
+ * everything, which sync clients page through with the offsets: artists and albums in
+ * name order, songs in id order straight off the present-file index.
  */
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
@@ -16,7 +17,7 @@ import { artistID3, artistRows, indexArtist } from '../artists.js'
 import { rootParam } from '../folders.js'
 import type { Context, Handler, Params, Payload } from '../protocol.js'
 import { songs } from '../songs.js'
-import { hasPresentFile, presentFiles } from '../sql.js'
+import { libraryAlbum, libraryFile, libraryRecording } from '../sql.js'
 
 type Page = { count: number; offset: number }
 type Kind = 'artist' | 'album' | 'song'
@@ -27,18 +28,18 @@ const page = (params: Params, kind: Kind): Page => ({
 })
 
 /** Everything of a kind, as `from … where …`, and its order. The last key of each order is unique. */
-function listing(kind: Kind, rootId?: string): { source: SQL; id: SQL; ordering: Ordering } {
+function listing(kind: Kind, userId: string, rootId?: string): { source: SQL; id: SQL; ordering: Ordering } {
   switch (kind) {
     case 'artist':
       return {
         id: sql`ar.id`,
-        source: sql`from artists ar where exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${hasPresentFile('album_id', 'aa.album_id', rootId)})`,
+        source: sql`from artists ar where exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${libraryAlbum('aa.album_id', userId, rootId)})`,
         ordering: { name: 'subsonic:artists', keys: [{ expression: sortKeys.name('ar'), type: 'text' }, { expression: sql.raw('ar.id'), type: 'uuid' }] },
       }
     case 'album':
       return {
         id: sql`a.id`,
-        source: sql`from albums a where ${hasPresentFile('album_id', 'a.id', rootId)}`,
+        source: sql`from albums a where ${libraryAlbum('a.id', userId, rootId)}`,
         ordering: { name: 'subsonic:albums', keys: [{ expression: sortKeys.title('a'), type: 'text' }, { expression: sql.raw('a.id'), type: 'uuid' }] },
       }
     case 'song':
@@ -46,21 +47,22 @@ function listing(kind: Kind, rootId?: string): { source: SQL; id: SQL; ordering:
         id: sql`f.recording_id`,
         source: sql`from (
           select distinct present.recording_id from media_files present
-          where present.recording_id is not null and ${presentFiles('present', rootId)}
+          where present.recording_id is not null and ${libraryFile('present', userId, rootId)}
         ) f where true`,
         ordering: { name: 'subsonic:songs', keys: [{ expression: sql.raw('f.recording_id'), type: 'uuid' }] },
       }
   }
 }
 
-/** Of `ids`, in order, those with a present file in the root. */
-async function inRoot(kind: Kind, ids: string[], rootId: string): Promise<string[]> {
+/** Of `ids`, in order, those in the user's library (and the root, when given). */
+async function inLibrary(kind: Kind, ids: string[], userId: string, rootId?: string): Promise<string[]> {
   if (ids.length === 0) return []
   const rows = await db.execute<{ id: string }>(kind === 'artist'
     ? sql`select ar.id from artists ar where ar.id = any(${uuidArray(ids)})
-        and exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${hasPresentFile('album_id', 'aa.album_id', rootId)})`
-    : sql`select t.id from ${sql.raw(kind === 'album' ? 'albums' : 'recordings')} t where t.id = any(${uuidArray(ids)})
-        and ${hasPresentFile(kind === 'album' ? 'album_id' : 'recording_id', 't.id', rootId)}`)
+        and exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${libraryAlbum('aa.album_id', userId, rootId)})`
+    : kind === 'album'
+      ? sql`select t.id from albums t where t.id = any(${uuidArray(ids)}) and ${libraryAlbum('t.id', userId, rootId)}`
+      : sql`select t.id from recordings t where t.id = any(${uuidArray(ids)}) and ${libraryRecording('t.id', userId, rootId)}`)
   const kept = new Set(rows.map((row) => row.id))
   return ids.filter((id) => kept.has(id))
 }
@@ -73,7 +75,7 @@ async function searchPages(userId: string, key: string, pages: Record<Kind, Page
   const pick = async (kind: Kind, ids: string[]) => {
     const { count, offset } = pages[kind]
     if (count === 0) return []
-    return (rootId ? await inRoot(kind, ids, rootId) : ids).slice(offset, offset + count)
+    return (await inLibrary(kind, ids, userId, rootId)).slice(offset, offset + count)
   }
   const [artist, album, song] = await Promise.all([pick('artist', found.artists), pick('album', found.albums), pick('song', found.tracks)])
   return { artist, album, song }
@@ -88,7 +90,7 @@ const continuations = new Map<string, { offset: number; cursor: string }>()
 
 async function pageIds(userId: string, kind: Kind, { count, offset }: Page, rootId?: string): Promise<string[]> {
   if (count === 0) return []
-  const { source, id, ordering } = listing(kind, rootId)
+  const { source, id, ordering } = listing(kind, userId, rootId)
   const slot = `${userId}|${kind}|${rootId ?? ''}`
   const continued = continuations.get(slot)
   const cursor = continued?.offset === offset ? continued.cursor : undefined

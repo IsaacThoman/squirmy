@@ -1,13 +1,15 @@
 /**
  * Browsing, by ID3 tags (getArtists, getArtist, getAlbum, getSong…) and by folders for
  * older clients (getIndexes, getMusicDirectory), both over the same ids: an artist is a
- * folder of albums, an album a folder of songs.
+ * folder of albums, an album a folder of songs. Lists are the user's library (sql.ts);
+ * `getSong` finds any song with a present file, as streams do.
  */
 import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
 import { matchKey } from '../../../lib/text.js'
 import { albumTrackList } from '../../catalog/pages.js'
 import { resolveOne, type MergeableTable } from '../../catalog/redirects.js'
+import { uuidArray } from '../../catalog/sql.js'
 import { similarArtists } from '../../radio/index.js'
 import { suggestAutoplay } from '../../radio/suggest.js'
 import { albumAsChild, albums } from '../albums.js'
@@ -16,7 +18,7 @@ import { rootParam } from '../folders.js'
 import { albumId, artistId, expectId, trackId, type IdKind } from '../ids.js'
 import { notFound, type Context, type Handler, type Payload } from '../protocol.js'
 import { songs } from '../songs.js'
-import { hasPresentFile, presentFiles } from '../sql.js'
+import { libraryAlbum, libraryAlbumIds, libraryFile, libraryRecording, presentFiles } from '../sql.js'
 
 const tables: Partial<Record<IdKind, MergeableTable>> = { artist: 'artists', album: 'albums', track: 'recordings' }
 const nouns: Partial<Record<IdKind, string>> = { artist: 'Artist', album: 'Album', track: 'Song' }
@@ -28,17 +30,17 @@ export async function resolve(kind: 'artist' | 'album' | 'track', id: string): P
   return resolved
 }
 
-/** Owned albums the artist is an album artist of, oldest first. */
-async function artistAlbumIds(artist: string, rootId?: string): Promise<string[]> {
+/** Library albums the artist is an album artist of, oldest first. */
+async function artistAlbumIds(userId: string, artist: string, rootId?: string): Promise<string[]> {
   const rows = await db.execute<{ id: string }>(sql`
     select a.id from albums a
-    where a.id in (select aa.album_id from album_artists aa where aa.artist_id = ${artist}) and ${hasPresentFile('album_id', 'a.id', rootId)}
+    where a.id in (select aa.album_id from album_artists aa where aa.artist_id = ${artist}) and ${libraryAlbum('a.id', userId, rootId)}
     order by a.year nulls last, a.release_date nulls last, a.title_key, a.id`)
   return rows.map((row) => row.id)
 }
 
 /**
- * Songs filed under an album, in the order of the catalog's track list. Songs the release does
+ * Library songs filed under an album, in the order of the catalog's track list. Songs the release does
  * not number (bonus tracks) are numbered after the last track of their disc, so clients that
  * sort by number put them last and no two songs share one.
  */
@@ -47,7 +49,7 @@ async function albumSongs(userId: string, album: string): Promise<Payload[]> {
     albumTrackList(album),
     db.execute<{ id: string }>(sql`
       select distinct f.recording_id as id from media_files f
-      where f.album_id = ${album} and f.recording_id is not null and ${presentFiles('f')}`),
+      where f.album_id = ${album} and f.recording_id is not null and ${libraryFile('f', userId)}`),
   ])
   // The songs whose files are filed under this album.
   const own = new Set(filed.map((row) => row.id))
@@ -69,7 +71,7 @@ async function getArtistPayload({ user, params, baseUrl }: Context) {
   const artist = await resolve('artist', expectId(params.required('id'), 'artist').id)
   const [row] = await artistRows(user.id, [artist])
   if (!row) throw notFound('Artist')
-  return { row, albums: await albums(user.id, await artistAlbumIds(artist)), baseUrl }
+  return { row, albums: await albums(user.id, await artistAlbumIds(user.id, artist)), baseUrl }
 }
 
 async function getAlbum({ user, params }: Context): Promise<Payload> {
@@ -104,8 +106,12 @@ async function getMusicDirectory(context: Context): Promise<Payload> {
 
 async function getIndexes({ user, params, baseUrl }: Context): Promise<Payload> {
   const rootId = await rootParam(params)
+  // A save changes the index as much as a scanned file does.
   const [changed] = await db.execute<{ at: string | null }>(sql`
-    select (extract(epoch from max(f.updated_at)) * 1000)::int8::text as at from media_files f where ${presentFiles('f', rootId)}`)
+    select (extract(epoch from greatest(
+      (select max(f.updated_at) from media_files f where ${libraryFile('f', user.id, rootId)}),
+      (select max(kept.created_at) from library_items kept where kept.user_id = ${user.id})
+    )) * 1000)::int8::text as at`)
   const lastModified = Number(changed?.at ?? 0)
   const since = params.int('ifModifiedSince')
   if (since !== undefined && since >= lastModified) return { indexes: { lastModified, ignoredArticles: IGNORED_ARTICLES } }
@@ -166,15 +172,15 @@ async function albumInfo({ params, baseUrl }: Context): Promise<Payload> {
   }
 }
 
-/** Owned tracks credited to the artist, most played on this server first, then most popular. */
-async function topTrackIds(artist: string, limit: number): Promise<string[]> {
+/** Library tracks credited to the artist, most played on this server first, then most popular. */
+async function topTrackIds(userId: string, artist: string, limit: number): Promise<string[]> {
   const rows = await db.execute<{ id: string }>(sql`
     select r.id from recordings r
     where r.id in (
         select ra.recording_id from recording_artists ra where ra.artist_id = ${artist}
         union select led.id from recordings led where led.primary_artist_id = ${artist}
       )
-      and r.merged_into_id is null and ${hasPresentFile('recording_id', 'r.id')}
+      and r.merged_into_id is null and ${libraryRecording('r.id', userId)}
     order by (select count(*) from plays p where p.recording_id = r.id and p.completed) desc,
       r.popularity desc nulls last, r.title_key, r.id
     limit ${limit}`)
@@ -187,20 +193,21 @@ async function getTopSongs({ user, params }: Context): Promise<Payload> {
   if (params.has('id')) {
     artist = await resolve('artist', expectId(params.required('id'), 'artist').id)
   } else {
-    // By name: the library artist with that name, preferring one with owned albums.
+    // By name: the artist with that name, preferring one with library albums.
     const [row] = await db.execute<{ id: string }>(sql`
       select ar.id from artists ar where ar.name_key = ${matchKey(params.required('artist'))} and ar.merged_into_id is null
-      order by exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${hasPresentFile('album_id', 'aa.album_id')}) desc, ar.id
+      order by exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${libraryAlbum('aa.album_id', user.id)}) desc, ar.id
       limit 1`)
     artist = row?.id
   }
-  const ids = artist ? await topTrackIds(artist, count) : []
+  const ids = artist ? await topTrackIds(user.id, artist, count) : []
   return { topSongs: { song: await songs(user.id, ids.map((id) => ({ id }))) } }
 }
 
 /**
  * Songs like the given artist, album or song: the radio module's suggestions from its
- * tracks, or, while it has none, random owned tracks by the same artist.
+ * tracks that are in the library, or, while there are none, random library tracks by the
+ * same artist.
  */
 async function similarSongs({ user, params }: Context): Promise<Payload[]> {
   const parsed = expectId(params.required('id'), 'artist', 'album', 'track')
@@ -210,25 +217,30 @@ async function similarSongs({ user, params }: Context): Promise<Payload[]> {
   const seeds = parsed.kind === 'track' ? [id]
     : parsed.kind === 'album' ? (await db.execute<{ id: string }>(sql`
         select distinct f.recording_id as id from media_files f where f.album_id = ${id} and f.recording_id is not null and ${presentFiles('f')}`)).map((row) => row.id)
-    : await topTrackIds(id, 10)
+    : await topTrackIds(user.id, id, 10)
   // Like a song or an album means other songs; like an artist may include its own.
   const exclude = parsed.kind === 'artist' ? [] : seeds
   const suggested = count > 0 ? await suggestAutoplay({ userId: user.id, seeds, exclude, limit: count }) : []
-  if (suggested.length > 0) return songs(user.id, suggested.map((seed) => ({ id: seed.trackId, albumId: seed.albumId })))
+  // Radio suggests what this user can play, which can be music to fetch or cached files.
+  const kept = suggested.length === 0 ? new Set<string>() : new Set((await db.execute<{ id: string }>(sql`
+    select r.id from recordings r where r.id = any(${uuidArray(suggested.map((seed) => seed.trackId))})
+      and ${libraryRecording('r.id', user.id)}`)).map((row) => row.id))
+  const inLibrary = suggested.filter((seed) => kept.has(seed.trackId))
+  if (inLibrary.length > 0) return songs(user.id, inLibrary.map((seed) => ({ id: seed.trackId, albumId: seed.albumId })))
   const rows = await db.execute<{ id: string }>(sql`
     select r.id from recordings r
     where r.id in (select ra.recording_id from recording_artists ra where ra.artist_id = ${artist})
-      and r.id <> all(${`{${exclude.join(',')}}`}::uuid[]) and ${hasPresentFile('recording_id', 'r.id')}
+      and r.id <> all(${`{${exclude.join(',')}}`}::uuid[]) and ${libraryRecording('r.id', user.id)}
     order by random() limit ${count}`)
   return songs(user.id, rows.map((row) => ({ id: row.id })))
 }
 
-/** Genres of owned albums. A song counts once per album it is on. */
-async function getGenres(): Promise<Payload> {
+/** Genres of library albums. A song counts once per album it is on. */
+async function getGenres({ user }: Context): Promise<Payload> {
   const rows = await db.execute<{ value: string; songCount: number; albumCount: number }>(sql`
     with owned as (
       select f.album_id, count(distinct f.recording_id)::int as songs from media_files f
-      where f.album_id is not null and ${presentFiles('f')} group by f.album_id
+      where f.album_id in (${libraryAlbumIds(user.id)}) and ${libraryFile('f', user.id)} group by f.album_id
     )
     select mode() within group (order by genre) as value, sum(owned.songs)::int as "songCount", count(*)::int as "albumCount"
     from owned join albums a on a.id = owned.album_id cross join unnest(a.genres) as genre
