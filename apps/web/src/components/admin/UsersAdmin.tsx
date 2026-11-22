@@ -1,13 +1,12 @@
 import { CreateInviteRequest, CreateUserRequest, Password, UpdateUserRequest, type Invite, type User, type UserRole } from '@squirmy/contracts'
-import { Copy, MoreHorizontal, Plus, UserPlus } from 'lucide-react'
+import { Check, Copy, KeyRound, MoreHorizontal, Pencil, Plus, Ticket, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { z } from 'zod'
 import { useFormSubmit } from '@/api/errors'
-import { SettingRow, SettingsSection } from '@/components/layout/Settings'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
 import { ConfirmDialog, Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
-import { Badge, Skeleton } from '@/components/ui/feedback'
+import { Badge, EmptyState, Skeleton } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { Field, Input } from '@/components/ui/input'
 import { DropdownMenu } from '@/components/ui/menu'
@@ -16,6 +15,7 @@ import { Switch } from '@/components/ui/switch'
 import { formatDate, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AdminHeader, DialogForm } from './AdminLayout'
+import { cardClass, DataTable, OptionGroup, OptionRow, Panel, Td, Th, Tr } from './Panel'
 
 type UsersAdminProps = {
   /** Undefined while loading. */
@@ -39,68 +39,123 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
   const close = (open: boolean) => { if (!open) setDialog(null) }
   const name = (user: User) => user.displayName ?? user.username
   return (
-    <div className="flex flex-col gap-9">
+    <div>
       <AdminHeader title="Users & invites" description="Everyone shares one library. Likes, playlists, history and playback are each person’s own.">
-        <Button onClick={() => setDialog({ kind: 'create' })}><UserPlus />Add user</Button>
-        <Button variant="primary" onClick={() => setDialog({ kind: 'invite' })}><Plus />Invite someone</Button>
+        <Button size="sm" variant="outline" onClick={() => setDialog({ kind: 'create' })}><UserPlus />Add user</Button>
+        <Button size="sm" variant="primary" onClick={() => setDialog({ kind: 'invite' })}><Plus />Invite someone</Button>
       </AdminHeader>
 
-      <SettingsSection title="Users" className="-mt-6">
-        {!users && <LoadingRows />}
-        {users?.map(user => (
-          <SettingRow
-            key={user.id}
-            label={(
-              <span className="flex items-center gap-3">
-                <span aria-hidden className={cn('flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold', user.role === 'admin' ? 'bg-accent text-on-accent' : 'bg-surface text-muted')}>
-                  {name(user).slice(0, 1).toUpperCase()}
-                </span>
-                <span className="min-w-0">
-                  <span className={cn('block truncate', user.disabled && 'text-quiet line-through')}>{name(user)}{user.id === currentUserId && <span className="font-normal text-muted"> (you)</span>}</span>
-                  <span className="block truncate text-[13px] font-normal text-muted" title={`@${user.username}`}>@{user.username} · joined {formatDate(user.createdAt)}</span>
-                </span>
-              </span>
-            )}
-          >
-            {user.disabled && <Badge tone="danger">Disabled</Badge>}
-            {user.canUpload && <Badge tone="outline">Upload</Badge>}
-            {user.canAcquire && <Badge tone="outline">Fetch</Badge>}
-            <Badge tone={user.role === 'admin' ? 'accent' : 'neutral'}>{user.role}</Badge>
-            <DropdownMenu
-              entries={[
-                { label: 'Edit…', onSelect: () => setDialog({ kind: 'edit', user }) },
-                { label: 'Reset password…', onSelect: () => setDialog({ kind: 'password', user }) },
-                { kind: 'separator' },
-                user.disabled
-                  ? { label: 'Enable account', onSelect: () => void onUpdateUser(user.id, { disabled: false }).catch(() => {}) }
-                  : { label: 'Disable account…', danger: true, onSelect: () => setDialog({ kind: 'disable', user }) },
-                { label: 'Delete account…', danger: true, disabled: user.id === currentUserId, onSelect: () => setDialog({ kind: 'delete', user }) },
-              ]}
-              trigger={<IconButton label={`Manage ${user.username}`} size="sm"><MoreHorizontal /></IconButton>}
-            />
-          </SettingRow>
-        ))}
-      </SettingsSection>
+      <div className="flex flex-col gap-7">
+        <Panel title={<>Users{users && <span className="ml-1.5 font-normal tabular text-muted-foreground">{users.length}</span>}</>}>
+          <DataTable>
+            <thead>
+              <tr className="border-b">
+                <Th className="w-full">User</Th>
+                <Th className="max-sm:hidden">Role</Th>
+                <Th className="max-sm:hidden">Joined</Th>
+                <Th><span className="sr-only">Actions</span></Th>
+              </tr>
+            </thead>
+            <tbody>
+              {!users && <LoadingRows columns={4} />}
+              {users?.map(user => {
+                const access = (
+                  <>
+                    <Badge tone={user.role === 'admin' ? 'accent' : 'neutral'} className="capitalize">{user.role}</Badge>
+                    {user.canUpload && <Badge tone="outline">Upload</Badge>}
+                    {user.canAcquire && <Badge tone="outline">Fetch</Badge>}
+                  </>
+                )
+                return (
+                  <Tr key={user.id}>
+                    {/* The one column that gives way: it takes what the others leave and cuts long names short. */}
+                    <Td className="w-full max-w-0">
+                      <span className="flex items-center gap-2.5">
+                        <span aria-hidden className={cn('flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-medium', user.role === 'admin' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground', user.disabled && 'opacity-50')}>
+                          {name(user).slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className={cn('truncate font-medium', user.disabled && 'text-muted-foreground line-through')}>{name(user)}</span>
+                            {user.id === currentUserId && <span className="shrink-0 text-muted-foreground">(you)</span>}
+                            {user.disabled && <Badge tone="danger">Disabled</Badge>}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground" title={`@${user.username}`}>@{user.username}<span className="sm:hidden"> · joined {formatDate(user.createdAt)}</span></span>
+                          {/* Where the role and joined columns do not fit, they are under the name. */}
+                          <span className="mt-1.5 flex flex-wrap gap-1 sm:hidden">{access}</span>
+                        </span>
+                      </span>
+                    </Td>
+                    <Td className="max-sm:hidden"><span className="flex items-center gap-1">{access}</span></Td>
+                    <Td className="whitespace-nowrap tabular text-muted-foreground max-sm:hidden">{formatDate(user.createdAt)}</Td>
+                    <Td className="py-1 text-right">
+                      <DropdownMenu
+                        entries={[
+                          { label: 'Edit…', icon: <Pencil />, onSelect: () => setDialog({ kind: 'edit', user }) },
+                          { label: 'Reset password…', icon: <KeyRound />, onSelect: () => setDialog({ kind: 'password', user }) },
+                          { kind: 'separator' },
+                          user.disabled
+                            ? { label: 'Enable account', icon: <UserCheck />, onSelect: () => void onUpdateUser(user.id, { disabled: false }).catch(() => {}) }
+                            : { label: 'Disable account…', icon: <UserX />, danger: true, onSelect: () => setDialog({ kind: 'disable', user }) },
+                          { label: 'Delete account…', icon: <Trash2 />, danger: true, disabled: user.id === currentUserId, onSelect: () => setDialog({ kind: 'delete', user }) },
+                        ]}
+                        trigger={<IconButton label={`Manage ${user.username}`} size="sm"><MoreHorizontal /></IconButton>}
+                      />
+                    </Td>
+                  </Tr>
+                )
+              })}
+            </tbody>
+          </DataTable>
+        </Panel>
 
-      <SettingsSection title="Invites" description="Share a link. Each one works once.">
-        {!invites && <LoadingRows />}
-        {invites?.length === 0 && <SettingRow label="No invites" description="Create one to let someone join." />}
-        {invites?.map(invite => {
-          const state = inviteState(invite)
-          return (
-            <SettingRow
-              key={invite.id}
-              label={<code className={cn('font-mono text-[14px] tracking-wide', state !== 'open' && 'text-quiet')}>{invite.code}</code>}
-              description={state === 'used' ? `Used by @${invite.usedBy}` : invite.expiresAt ? `${state === 'expired' ? 'Expired' : 'Expires'} ${formatRelative(invite.expiresAt)}` : 'Never expires'}
-            >
-              {state === 'expired' && <Badge tone="outline">Expired</Badge>}
-              <Badge tone={invite.role === 'admin' ? 'accent' : 'neutral'}>{invite.role}</Badge>
-              {state === 'open' && <CopyLinkButton link={inviteLink(invite)} />}
-              {state !== 'used' && <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: 'revoke', invite })}>{state === 'open' ? 'Revoke' : 'Remove'}</Button>}
-            </SettingRow>
-          )
-        })}
-      </SettingsSection>
+        <Panel title="Invites" description="Share a link. Each one works once.">
+          {invites?.length === 0 ? (
+            <EmptyState className={cn(cardClass, 'py-10')} icon={<Ticket />} title="No invites" description="Create one to let someone join." />
+          ) : (
+            <DataTable>
+              <thead>
+                <tr className="border-b">
+                  <Th className="w-full">Code</Th>
+                  <Th className="max-sm:hidden">Role</Th>
+                  <Th className="max-sm:hidden">Status</Th>
+                  <Th><span className="sr-only">Actions</span></Th>
+                </tr>
+              </thead>
+              <tbody>
+                {!invites && <LoadingRows columns={4} />}
+                {invites?.map(invite => {
+                  const state = inviteState(invite)
+                  const status = state === 'used' ? `Used by @${invite.usedBy}` : invite.expiresAt ? `${state === 'expired' ? 'Expired' : 'Expires'} ${formatRelative(invite.expiresAt)}` : 'Never expires'
+                  const badges = (
+                    <>
+                      <Badge tone={invite.role === 'admin' ? 'accent' : 'neutral'} className="capitalize">{invite.role}</Badge>
+                      {state === 'expired' && <Badge tone="outline">Expired</Badge>}
+                    </>
+                  )
+                  return (
+                    <Tr key={invite.id}>
+                      <Td className="w-full max-w-0">
+                        <code className={cn('block truncate font-mono text-xs', state !== 'open' && 'text-muted-foreground')}>{invite.code}</code>
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground sm:hidden">{status}</span>
+                        <span className="mt-1.5 flex flex-wrap gap-1 sm:hidden">{badges}</span>
+                      </Td>
+                      <Td className="max-sm:hidden"><span className="flex items-center gap-1">{badges}</span></Td>
+                      <Td className="whitespace-nowrap text-muted-foreground max-sm:hidden">{status}</Td>
+                      <Td className="py-1">
+                        <span className="flex items-center justify-end gap-1">
+                          {state === 'open' && <CopyLinkButton link={inviteLink(invite)} />}
+                          {state !== 'used' && <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDialog({ kind: 'revoke', invite })}><Trash2 className="sm:hidden" /><span className="max-sm:sr-only">{state === 'open' ? 'Revoke' : 'Remove'}</span></Button>}
+                        </span>
+                      </Td>
+                    </Tr>
+                  )
+                })}
+              </tbody>
+            </DataTable>
+          )}
+        </Panel>
+      </div>
 
       <CreateUserDialog open={dialog?.kind === 'create'} onOpenChange={close} onCreate={onCreateUser} />
       <InviteDialog open={dialog?.kind === 'invite'} onOpenChange={close} onCreate={onCreateInvite} inviteLink={inviteLink} />
@@ -139,31 +194,30 @@ function inviteState(invite: Invite, now = Date.now()): 'open' | 'used' | 'expir
   return invite.expiresAt && Date.parse(invite.expiresAt) <= now ? 'expired' : 'open'
 }
 
-function LoadingRows() {
-  return [0, 1].map(index => <SettingRow key={index} label={<Skeleton className="h-5 w-40" />} description={<Skeleton className="mt-1 h-4 w-56" />} />)
+function LoadingRows({ columns }: { columns: number }) {
+  return [0, 1].map(index => (
+    <tr key={index} className="border-b last:border-0">
+      <td colSpan={columns} className="px-4 py-2.5"><Skeleton className="h-4 w-40" /><Skeleton className="mt-1.5 h-3 w-56 max-w-full" /></td>
+    </tr>
+  ))
 }
 
 function CopyLinkButton({ link }: { link: string }) {
   const [copied, setCopied] = useState(false)
   const copy = () => navigator.clipboard.writeText(link).then(() => setCopied(true), () => {})
-  return <Button size="sm" variant="outline" onClick={() => void copy()}><Copy />{copied ? 'Copied' : 'Copy link'}</Button>
+  return <Button size="sm" variant="ghost" onClick={() => void copy()}>{copied ? <Check /> : <Copy />}<span className="max-sm:sr-only">{copied ? 'Copied' : 'Copy link'}</span></Button>
 }
 
 type Access = { role: UserRole; canUpload: boolean; canAcquire: boolean }
 
-/** Rows on a card of their own inside a dialog. */
-function RowGroup({ children }: { children: ReactNode }) {
-  return <div className="divide-y divide-stroke overflow-hidden rounded-2xl ring-1 ring-stroke">{children}</div>
-}
-
 function AccessFields({ value, onChange, roleLocked }: { value: Access; onChange: (value: Access) => void; roleLocked?: ReactNode }) {
   return (
     <>
-      <SettingRow label="Role" description={roleLocked ?? 'Admins manage folders, users and settings.'}>
-        <Select label="Role" value={value.role} onValueChange={role => onChange({ ...value, role })} options={roleOptions} />
-      </SettingRow>
-      <SettingRow label="Can upload music"><Switch aria-label="Can upload music" checked={value.canUpload} onCheckedChange={canUpload => onChange({ ...value, canUpload })} /></SettingRow>
-      <SettingRow label="Can fetch missing music" description="Through an acquisition provider."><Switch aria-label="Can fetch missing music" checked={value.canAcquire} onCheckedChange={canAcquire => onChange({ ...value, canAcquire })} /></SettingRow>
+      <OptionRow label="Role" description={roleLocked ?? 'Admins manage folders, users and settings.'}>
+        <Select label="Role" size="sm" value={value.role} onValueChange={role => onChange({ ...value, role })} options={roleOptions} />
+      </OptionRow>
+      <OptionRow label="Can upload music"><Switch aria-label="Can upload music" checked={value.canUpload} onCheckedChange={canUpload => onChange({ ...value, canUpload })} /></OptionRow>
+      <OptionRow label="Can fetch missing music" description="Through an acquisition provider."><Switch aria-label="Can fetch missing music" checked={value.canAcquire} onCheckedChange={canAcquire => onChange({ ...value, canAcquire })} /></OptionRow>
     </>
   )
 }
@@ -196,7 +250,7 @@ function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
           <Field label="Password" htmlFor="new-password" error={form.errors.password} hint="At least 8 characters.">
             <Input id="new-password" type="password" autoComplete="new-password" value={value.password} onChange={event => setValue({ ...value, password: event.target.value })} aria-invalid={!!form.errors.password} />
           </Field>
-          <RowGroup><AccessFields value={value} onChange={access => setValue({ ...value, ...access })} /></RowGroup>
+          <OptionGroup><AccessFields value={value} onChange={access => setValue({ ...value, ...access })} /></OptionGroup>
         </DialogForm>
       </DialogContent>
     </Dialog>
@@ -216,9 +270,9 @@ function EditUserDialog({ user, isSelf, onOpenChange, onSave }: { user: User; is
           <Field label="Display name" htmlFor="edit-display-name" error={form.errors.displayName}>
             <Input id="edit-display-name" value={value.displayName} onChange={event => setValue({ ...value, displayName: event.target.value })} placeholder={user.username} aria-invalid={!!form.errors.displayName} autoFocus />
           </Field>
-          <RowGroup>
+          <OptionGroup>
             <AccessFields value={value} onChange={access => setValue({ ...value, ...access })} roleLocked={isSelf && value.role === 'member' ? 'You lose access to Admin when you save.' : undefined} />
-          </RowGroup>
+          </OptionGroup>
         </DialogForm>
       </DialogContent>
     </Dialog>
@@ -235,7 +289,7 @@ function ResetPasswordDialog({ user, onOpenChange, onReset }: { user: User; onOp
   }
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent title={`New password for @${user.username}`} description="They are signed out everywhere. App passwords keep working.">
+      <DialogContent title={`New password for @${user.username}`} description="They are signed out everywhere, and their app passwords are deleted.">
         <DialogForm onSubmit={() => void submit()} errors={form.errors} pending={form.pending} submitLabel="Set password">
           <Field label="New password" htmlFor="reset-password" error={form.errors.password} hint="At least 8 characters.">
             <Input id="reset-password" type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} aria-invalid={!!form.errors.password} autoFocus />
@@ -270,16 +324,16 @@ function InviteDialog({ open, onOpenChange, onCreate, inviteLink }: { open: bool
         {created ? (
           <div className="flex flex-col gap-4">
             <CopyField value={inviteLink(created)} label="Invite link" />
-            <DialogFooter><DialogClose asChild><Button>Done</Button></DialogClose></DialogFooter>
+            <DialogFooter><DialogClose asChild><Button variant="outline">Done</Button></DialogClose></DialogFooter>
           </div>
         ) : (
           <DialogForm onSubmit={() => void form.submit({ ...access, expiresInDays: expiry === 'never' ? null : Number(expiry) })} errors={form.errors} pending={form.pending} submitLabel="Create invite">
-            <RowGroup>
+            <OptionGroup>
               <AccessFields value={access} onChange={setAccess} />
-              <SettingRow label="Link expires">
-                <Select label="Link expires" value={expiry} onValueChange={setExpiry} options={expiryOptions} />
-              </SettingRow>
-            </RowGroup>
+              <OptionRow label="Link expires">
+                <Select label="Link expires" size="sm" value={expiry} onValueChange={setExpiry} options={expiryOptions} />
+              </OptionRow>
+            </OptionGroup>
           </DialogForm>
         )}
       </DialogContent>

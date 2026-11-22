@@ -130,12 +130,12 @@ describe('sessions end to end', () => {
   const current = (target: Device) => target.client.getSnapshot().session.current
   const engineState = (target: Device) => target.engine.getStatus()
 
-  /** Waits until the server and every client agree on the session's state and queue. */
+  /** Waits until the server and every client in the shared session agree on its state and queue. */
   async function settled(): Promise<void> {
     await eventually(async () => {
       const { state, queue } = await getSnapshot(userId)
       for (const target of devices) {
-        if (target.client.getSnapshot().connection !== 'online') continue
+        if (target.client.getSnapshot().connection !== 'online' || target.client.getSnapshot().detached) continue
         expect(target.client.getSnapshot().session).toEqual(state)
         expect(target.client.getSnapshot().queue).toEqual(queue)
       }
@@ -150,7 +150,8 @@ describe('sessions end to end', () => {
     const first = current(a)!
     expect(first).toMatchObject({ trackId: album.tracks[0]!.recordingId, durationMs: 200_000 })
     expect(b.client.getSnapshot()).toMatchObject({ isActiveDevice: false, session: { activeDeviceId: 'device-a-e2e1', playing: true } })
-    expect(b.client.getSnapshot().devices.find((item) => item.isActive)?.id).toBe('device-a-e2e1')
+    // Device lists reach the user's sockets separately from session updates, so `settled` does not cover them.
+    await eventually(() => expect(b.client.getSnapshot().devices.find((item) => item.isActive)?.id).toBe('device-a-e2e1'))
     await eventually(() => expect(engineState(a)).toEqual({ entryId: first.id, state: 'playing', positionMs: 0 }))
     expect(engineState(b).state).toBe('idle')
 
@@ -189,7 +190,7 @@ describe('sessions end to end', () => {
     await eventually(() => expect(engineState(a)).toEqual({ entryId: null, state: 'idle', positionMs: 0 }))
     await eventually(() => expect(engineState(b)).toEqual({ entryId: second, state: 'playing', positionMs: 15_000 }))
     expect(b.client.getSnapshot().isActiveDevice).toBe(true)
-    expect(a.client.getSnapshot().devices.find((item) => item.isActive)?.id).toBe('device-b-e2e1')
+    await eventually(() => expect(a.client.getSnapshot().devices.find((item) => item.isActive)?.id).toBe('device-b-e2e1'))
   })
 
   it('lets a device advance while offline and applies its commands when it returns', async () => {
@@ -261,5 +262,56 @@ describe('sessions end to end', () => {
     await settled()
     expect(b.client.getSnapshot().session).toMatchObject({ activeDeviceId: 'device-a-e2e4', playing: true, positionMs: 42_000 })
     expect(engineState(a)).toMatchObject({ state: 'playing', positionMs: 42_000 })
+  })
+
+  it('detaches a playing device without a gap, plays on its own, and brings its queue back', async () => {
+    const elsewhere = await createAlbum({ owned: true, tracks: [{ title: 'Elsewhere', durationMs: 200_000 }] })
+    const a = await device('device-a-e2e5')
+    const b = await device('device-b-e2e5')
+    expect(a.client.getSnapshot()).toMatchObject({ detached: false, canDetach: true })
+    a.client.dispatch(playAlbum())
+    await settled()
+    const first = current(a)!
+    await eventually(() => expect(engineState(a)).toMatchObject({ entryId: first.id, state: 'playing' }))
+    const loads = () => a.engine.calls.filter(([method]) => method === 'load').length
+    const loaded = loads()
+    time += 30_000
+
+    expect(await a.client.detach()).toEqual({ ok: true })
+    expect(a.client.getSnapshot()).toMatchObject({ detached: true, isActiveDevice: true, session: { current: { id: first.id }, playing: true } })
+    expect(engineState(a)).toMatchObject({ entryId: first.id, state: 'playing', positionMs: 30_000 })
+    expect(loads()).toBe(loaded)
+    await settled()
+    expect(b.client.getSnapshot().session).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 30_000 })
+    await eventually(() => expect(b.client.getSnapshot().devices.find((item) => item.id === 'device-a-e2e5')).toMatchObject({ canPlay: false, detached: { playing: true } }))
+
+    // The two sessions go their own ways.
+    b.client.dispatch({
+      type: 'playTracks',
+      tracks: elsewhere.tracks.map((track) => ({ trackId: track.recordingId, albumId: elsewhere.albumId, durationMs: 0 })),
+      seed: 2,
+    })
+    await settled()
+    await eventually(() => expect(engineState(b)).toMatchObject({ state: 'playing' }))
+    a.client.dispatch({ type: 'next' })
+    await eventually(() => expect(current(a)!.trackId).toBe(album.tracks[1]!.recordingId))
+    expect(current(b)!.trackId).toBe(elsewhere.tracks[0]!.recordingId)
+    expect(engineState(a)).toMatchObject({ state: 'playing' })
+    expect(engineState(b)).toMatchObject({ state: 'playing' })
+
+    // The server remembers: a reconnect lands back in the device's own session.
+    await offline(a)
+    await online(a)
+    expect(a.client.getSnapshot()).toMatchObject({ detached: true, session: { current: { trackId: album.tracks[1]!.recordingId } } })
+    expect(engineState(a)).toMatchObject({ state: 'playing' })
+
+    time += 10_000
+    expect(await a.client.attach({ bringQueue: true })).toEqual({ ok: true })
+    expect(a.client.getSnapshot()).toMatchObject({ detached: false, isActiveDevice: true })
+    await settled()
+    expect(current(b)!.trackId).toBe(album.tracks[1]!.recordingId)
+    expect(b.client.getSnapshot().session).toMatchObject({ activeDeviceId: 'device-a-e2e5', playing: true })
+    await eventually(() => expect(engineState(b).state).toBe('idle'))
+    expect(engineState(a)).toMatchObject({ state: 'playing' })
   })
 })

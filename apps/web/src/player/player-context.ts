@@ -1,3 +1,4 @@
+import type { SessionMoveResult } from '@squirmy/client-core'
 import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useSyncExternalStore } from 'react'
 
@@ -23,6 +24,10 @@ export type PlayerState = {
   thisDeviceId: string
   activeDeviceId: string | null
   lyrics: Lyrics | null
+  /** This tab plays on its own: everything above is its own session, not the one the user's other devices share. */
+  detached: boolean
+  /** `detach` can work: this tab plays and the server supports it. */
+  canDetach: boolean
 }
 
 export type PlayOptions = { shuffle?: boolean }
@@ -51,6 +56,10 @@ export type PlayerControls = {
   clearQueue: () => void
   clearHistory: () => void
   transfer: (deviceId: string) => void
+  /** Takes this tab out of the shared session into one of its own. Resolves once the server has answered. */
+  detach: () => Promise<SessionMoveResult>
+  /** Puts this tab back in the shared session; `bringQueue` makes the shared session what this tab was playing. */
+  attach: (options?: { bringQueue?: boolean }) => Promise<SessionMoveResult>
   /** Renames this browser in every device list; null goes back to the name from the user agent. */
   renameDevice: (name: string | null) => void
 }
@@ -58,6 +67,17 @@ export type PlayerControls = {
 export type Player = { state: PlayerState; controls: PlayerControls }
 
 export const PlayerContext = createContext<Player | null>(null)
+
+/** The controls alone. They keep one identity, so readers that only send commands skip every session update. */
+export const PlayerControlsContext = createContext<PlayerControls | null>(null)
+
+/**
+ * Whether the current track's music is still on its way while it should be playing: the
+ * server is fetching it. It looks like buffering, a spinner, and nothing names the fetch.
+ */
+export function isLoading(state: Pick<PlayerState, 'current' | 'playing'>): boolean {
+  return state.playing && state.current?.entry.state === 'preparing'
+}
 
 /** The device that plays when it is not this one. One that dropped off the list during its grace period is still "another device". */
 export function playingElsewhere(state: Pick<PlayerState, 'activeDeviceId' | 'thisDeviceId' | 'devices'>): DeviceInfo | undefined {
@@ -70,6 +90,13 @@ export function usePlayer() {
   const player = useContext(PlayerContext)
   if (!player) throw new Error('usePlayer needs a player provider')
   return player
+}
+
+/** The player's commands, for components that show nothing of the session: they do not re-render as it changes. */
+export function usePlayerControls() {
+  const controls = useContext(PlayerControlsContext)
+  if (!controls) throw new Error('usePlayerControls needs a player provider')
+  return controls
 }
 
 /**

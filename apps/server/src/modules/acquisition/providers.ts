@@ -28,6 +28,11 @@ const cacheMs = 30_000
 
 let cache: { value: ActiveProvider[]; at: number } | undefined
 
+/** The coverage that counts: the admin's override, else what the provider declared. */
+function coverageOf(row: Pick<ProviderRow, 'coverage' | 'coverageOverride'>): ProviderCoverage {
+  return (row.coverageOverride ?? row.coverage) as ProviderCoverage
+}
+
 export function toProvider(row: ProviderRow): AcquisitionProvider {
   const capabilities = ProviderCapabilities.safeParse(row.capabilities)
   return {
@@ -35,7 +40,7 @@ export function toProvider(row: ProviderRow): AcquisitionProvider {
     name: row.name,
     baseUrl: row.baseUrl,
     enabled: row.enabled,
-    coverage: row.coverage as ProviderCoverage,
+    coverage: coverageOf(row),
     priority: row.priority,
     capabilities: row.capabilities && capabilities.success ? capabilities.data : null,
     lastOkAt: row.lastOkAt?.toISOString() ?? null,
@@ -57,7 +62,7 @@ export async function activeProviders(): Promise<ActiveProvider[]> {
     if (!capabilities.success) return []
     return [{
       id: row.id, name: row.name, baseUrl: row.baseUrl, secret: decrypt(secretPurpose, row.secretEncrypted),
-      coverage: capabilities.data.coverage, priority: row.priority, capabilities: capabilities.data,
+      coverage: (row.coverageOverride as ProviderCoverage | null) ?? capabilities.data.coverage, priority: row.priority, capabilities: capabilities.data,
     }]
   })
   cache = { value, at: Date.now() }
@@ -109,6 +114,7 @@ export async function updateProvider(providerId: string, patch: UpdateAcquisitio
     ...(patch.secret === undefined ? {} : { secretEncrypted: encrypt(secretPurpose, patch.secret) }),
     ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
     ...(patch.priority === undefined ? {} : { priority: patch.priority }),
+    ...(patch.coverage === undefined ? {} : { coverageOverride: patch.coverage }),
     updatedAt: new Date(),
   }).where(eq(acquisitionProviders.id, providerId)).returning()
   invalidateProviders()
@@ -124,8 +130,10 @@ export async function deleteProvider(providerId: string): Promise<void> {
 }
 
 /**
- * `GET {baseUrl}/capabilities`: stores the capabilities and coverage with `last_ok_at`, or
- * the failure as `last_error`. Never throws for a provider's fault.
+ * `GET {baseUrl}/capabilities`: stores the capabilities and declared coverage with
+ * `last_ok_at`, or the failure as `last_error`. An admin's coverage override is kept: it
+ * is the operator's word on what this provider can fetch, whatever it says of itself.
+ * Never throws for a provider's fault.
  */
 export async function testProvider(providerId: string): Promise<AcquisitionProvider> {
   const row = await providerEndpoint(providerId)

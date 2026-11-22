@@ -2,8 +2,9 @@ import type { QueueEntry, TrackSummary } from '@squirmy/contracts'
 import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { LibraryContext, type LibraryActions } from '@/player/library-context'
 import { OnDemandContext, type OnDemand } from '@/player/on-demand-context'
-import { PlayerContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem } from '@/player/player-context'
+import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem } from '@/player/player-context'
 import { ArtUrlContext } from '@/lib/artwork'
+import { STILL_LOADING_MS } from '@/player/use-still-loading'
 import { toast } from '@/lib/toast'
 import { fixtureArtUrl, lyricsFor, playlistSummaries, track } from './catalog'
 import { devices, thisDeviceId } from './server'
@@ -30,11 +31,13 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
     return () => clearInterval(timer)
   }, [advancing])
 
-  // An on-demand track is fetched by the server; pretend it arrives a few seconds later.
-  const preparing = [state.current, ...state.queue].some(item => item?.entry.state === 'preparing')
+  // An on-demand track is fetched by the server; pretend it arrives some seconds later, after
+  // the player has said "Still loading…", so the dev pages show that too.
+  // Keyed by the entries waiting, so a song played later waits its own full time.
+  const preparing = [state.current, ...state.queue].flatMap(item => (item?.entry.state === 'preparing' ? [item.entry.id] : [])).join()
   useEffect(() => {
     if (!preparing) return
-    const timer = setTimeout(() => dispatch({ type: 'ready' }), 4000)
+    const timer = setTimeout(() => dispatch({ type: 'ready' }), STILL_LOADING_MS + 2000)
     return () => clearTimeout(timer)
   }, [preparing])
 
@@ -61,6 +64,14 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
       clearQueue: () => dispatch({ type: 'patch', patch: () => ({ queue: [] }) }),
       clearHistory: () => dispatch({ type: 'patch', patch: () => ({ history: [] }) }),
       transfer: deviceId => dispatch({ type: 'patch', patch: state => ({ activeDeviceId: deviceId, devices: state.devices.map(device => ({ ...device, isActive: device.id === deviceId })) }) }),
+      detach: async () => {
+        dispatch({ type: 'patch', patch: () => ({ detached: true }) })
+        return { ok: true }
+      },
+      attach: async () => {
+        dispatch({ type: 'patch', patch: () => ({ detached: false }) })
+        return { ok: true }
+      },
       renameDevice: () => {},
     }
   }, [])
@@ -71,9 +82,11 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
     <ArtUrlContext value={fixtureArtUrl}>
       <LibraryContext value={library}>
         <OnDemandContext value={onDemand}>
-          <PlayerContext value={player}>
-            <PositionContext value={positionClock.shown}>{children}</PositionContext>
-          </PlayerContext>
+          <PlayerControlsContext value={controls}>
+            <PlayerContext value={player}>
+              <PositionContext value={positionClock.shown}>{children}</PositionContext>
+            </PlayerContext>
+          </PlayerControlsContext>
         </OnDemandContext>
       </LibraryContext>
     </ArtUrlContext>
@@ -81,14 +94,16 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
 }
 
 /** Everyone may request; nothing is fetched apart from what the fake session prepares. */
-const onDemand: OnDemand = { canRequest: true, isPreparing: () => false, getAlbum: async () => {}, albumFetch: () => null }
+const onDemand: OnDemand = { viewer: { role: 'admin', canAcquire: true } }
 
 function useFixtureLibrary(): LibraryActions {
   const [wanted, setWanted] = useState(() => new Map<string, boolean>())
   return useMemo(() => ({
+    wantlistEnabled: true,
     isWanted: (id, fromServer = false) => wanted.get(id) ?? fromServer,
     setLiked: () => {},
     setWanted: (target, value) => setWanted(map => new Map(map).set(target.type === 'album' ? target.album.id : target.track.id, value)),
+    setInLibrary: (target, inLibrary) => toast({ title: inLibrary ? 'Added to your library' : 'Removed from your library', description: target.title }),
     playlists: playlistSummaries,
     addToPlaylist: playlist => toast({ title: `Added to ${playlist.name}` }),
     newPlaylist: () => toast({ title: 'New playlists need the server' }),
@@ -228,6 +243,8 @@ function init(initial?: Partial<PlayerState>): Clock {
       thisDeviceId,
       activeDeviceId: thisDeviceId,
       lyrics: null,
+      detached: false,
+      canDetach: true,
     }, current),
     ...initial,
   }

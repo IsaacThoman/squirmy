@@ -1,10 +1,11 @@
 import type { AlbumSummary, PlaybackContext, TrackSummary } from '@squirmy/contracts'
 import { useMemo } from 'react'
 import type { NowPlaying, TrackAction } from '@/components/music/TrackList'
+import { albumPresentation } from '@/lib/catalog'
 import { toast } from '@/lib/toast'
 import { useLibrary } from './library-context'
-import { useOnDemand } from './on-demand-context'
-import { usePlayer } from './player-context'
+import { useViewer } from './on-demand-context'
+import { isLoading, usePlayer } from './player-context'
 
 type TrackActionOptions = {
   /** Plays from a row; defaults to playing `tracks` from that row on. */
@@ -18,15 +19,15 @@ type TrackActionOptions = {
 export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContext, options: TrackActionOptions = {}) {
   const { state, controls } = usePlayer()
   const library = useLibrary()
-  const onDemand = useOnDemand()
   const current = state.current
+  const loading = isLoading(state)
 
   const nowPlaying = useMemo<NowPlaying | null>(() => current && {
     trackId: current.track.id,
     playing: state.playing,
-    preparing: current.entry.state === 'preparing',
+    loading,
     onTogglePlay: controls.togglePlay,
-  }, [current, state.playing, controls])
+  }, [current, state.playing, loading, controls])
 
   const onAction = (action: TrackAction, track: TrackSummary, index: number) => {
     if (action === 'play-next' || action === 'enqueue') {
@@ -39,6 +40,8 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
       const wanted = !library.isWanted(track.id)
       library.setWanted({ type: 'track', track }, wanted)
       toast({ title: wanted ? 'Added to Wantlist' : 'Removed from Wantlist', description: track.title })
+    } else if (action === 'library') {
+      library.setInLibrary({ type: 'track', id: track.id, title: track.title }, !track.inLibrary)
     } else if (action === 'radio') {
       controls.startRadio({ type: 'track', id: track.id })
     } else if (action === 'remove') {
@@ -55,9 +58,7 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
 
   return {
     nowPlaying,
-    isWanted: (track: TrackSummary) => library.isWanted(track.id),
-    isPreparing: onDemand.isPreparing,
-    canRequest: onDemand.canRequest,
+    isWanted: library.wantlistEnabled ? (track: TrackSummary) => library.isWanted(track.id) : undefined,
     playlists: library.playlists,
     onPlay: options.onPlay ?? ((index: number) => controls.playTracks(tracks, index, context)),
     onMove: options.onMove,
@@ -65,10 +66,14 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
   }
 }
 
-/** Props for album cards that offer music you do not have to the Wantlist. */
+/**
+ * Props for album cards that offer music that does not play to the Wantlist; none while the
+ * server has it off, and none for what plays (for a requester, nearly everything).
+ */
 export function useAlbumWants() {
   const library = useLibrary()
-  return (album: AlbumSummary) => ({
+  const viewer = useViewer()
+  return (album: AlbumSummary): { wanted?: boolean; onWant?: (wanted: boolean) => void } => (!library.wantlistEnabled || albumPresentation(album, viewer) !== 'dimmed' ? {} : {
     wanted: library.isWanted(album.id),
     onWant: (wanted: boolean) => {
       library.setWanted({ type: 'album', album }, wanted)

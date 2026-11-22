@@ -13,6 +13,7 @@
 import {
   bigint,
   boolean,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -38,8 +39,10 @@ export type CatalogEntityType = 'artist' | 'album' | 'release' | 'recording'
 export type LikeEntityType = 'recording' | 'album' | 'artist'
 export type LibraryRootMode = 'read_only' | 'managed'
 export type MatchStatus = 'pending' | 'matched' | 'review' | 'unmatched'
-export type MatchSource = 'tags' | 'tags-mbid' | 'search' | 'acoustid' | 'manual'
+/** How a file's links were decided. `request`: the file was delivered for an acquisition request that named them. */
+export type MatchSource = 'tags' | 'tags-mbid' | 'search' | 'acoustid' | 'manual' | 'request'
 export type ImportKind = 'upload' | 'inbox' | 'acquisition'
+export type AcquisitionOrigin = 'play' | 'prefetch' | 'download' | 'library'
 export type ImportStatus = 'receiving' | 'processing' | 'completed' | 'failed'
 export type ImportStep = 'extracting' | 'moving' | 'identifying' | 'filing'
 
@@ -471,6 +474,12 @@ export const mediaFiles = pgTable('media_files', {
   matchSource: text('match_source').$type<MatchSource>(),
   /** scan | upload | inbox | provider:<provider id> */
   source: text('source').notNull().default('scan'),
+  /**
+   * A provider delivered the file, so it is cache rather than collection: it never makes
+   * anything part of a user's library by itself (docs/architecture.md, "Availability").
+   * Generated, so it cannot drift from `source`.
+   */
+  cached: boolean('cached').notNull().generatedAlwaysAs(sql`source like 'provider:%'`),
   importId: uuid('import_id'),
   /** 0 discovered, 1 tags read (playable), 2 audio hash and loudness done. */
   probeStage: smallint('probe_stage').notNull().default(0),
@@ -499,6 +508,10 @@ export const mediaFiles = pgTable('media_files', {
   index('media_files_present_recent').on(t.addedAt, t.id).where(sql`${t.missingSince} is null`),
   index('media_files_present_album').on(t.albumId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
   index('media_files_present_recording').on(t.recordingId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
+  // Present collection files only: library membership and its "recently added" walks.
+  index('media_files_collection_recent').on(t.addedAt, t.id).where(sql`${t.missingSince} is null and not ${t.cached}`),
+  index('media_files_collection_album').on(t.albumId, t.addedAt, t.id).where(sql`${t.missingSince} is null and not ${t.cached}`),
+  index('media_files_collection_recording').on(t.recordingId, t.addedAt, t.id).where(sql`${t.missingSince} is null and not ${t.cached}`),
   index('media_files_import').on(t.importId),
 ])
 
@@ -626,6 +639,25 @@ export const playbackSessions = pgTable('playback_sessions', {
   updatedAt: updatedAt(),
 })
 
+/**
+ * The own session of a detached device: shaped like `playback_sessions`, at most one per
+ * device. Deleted when the device attaches, and once its device has not been seen for
+ * seven days, at the user's next hello or detach.
+ */
+export const detachedSessions = pgTable('detached_sessions', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  deviceId: text('device_id').notNull(),
+  state: jsonb('state').$type<unknown>().notNull(),
+  version: bigint('version', { mode: 'number' }).notNull().default(0),
+  queueVersion: bigint('queue_version', { mode: 'number' }).notNull().default(0),
+  /** When the device was last connected; the session is discarded seven days after. */
+  lastSeenAt: at('last_seen_at').notNull().defaultNow(),
+  updatedAt: updatedAt(),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.deviceId] }),
+  foreignKey({ columns: [t.userId, t.deviceId], foreignColumns: [devices.userId, devices.id] }).onDelete('cascade'),
+])
+
 export const likes = pgTable('likes', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   entityType: text('entity_type').$type<LikeEntityType>().notNull(),
@@ -634,6 +666,23 @@ export const likes = pgTable('likes', {
 }, (t) => [
   primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
   index('likes_user_recent').on(t.userId, t.entityType, t.createdAt),
+])
+
+/**
+ * What a user added to their library, beyond the server's collection (files that were not
+ * delivered by a provider), which every user has. A save needs no file: the album shows in
+ * the library at once and its files arrive later. Not deleted with the files.
+ */
+export const libraryItems = pgTable('library_items', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  entityType: text('entity_type').$type<'album' | 'recording'>().notNull(),
+  entityId: uuid('entity_id').notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
+  index('library_items_user_recent').on(t.userId, t.entityType, t.createdAt.desc(), t.entityId.desc()),
+  // Who keeps an entity, whatever the user: merges and cache pinning look rows up this way.
+  index('library_items_entity').on(t.entityType, t.entityId),
 ])
 
 /** 1..5 stars. Exists for Subsonic clients. */
@@ -717,8 +766,13 @@ export const acquisitionProviders = pgTable('acquisition_providers', {
   baseUrl: text('base_url').notNull(),
   secretEncrypted: text('secret_encrypted').notNull(),
   enabled: boolean('enabled').notNull().default(true),
-  /** assume_available | must_resolve */
+  /** assume_available | must_resolve, as the provider last declared it in `capabilities`. */
   coverage: text('coverage').notNull().default('must_resolve'),
+  /**
+   * The admin's choice of coverage, which wins over the declared one and which a later
+   * `capabilities` answer never changes. Null follows the provider.
+   */
+  coverageOverride: text('coverage_override'),
   priority: integer('priority').notNull().default(0),
   capabilities: jsonb('capabilities').$type<Record<string, unknown>>(),
   lastOkAt: at('last_ok_at'),
@@ -748,6 +802,11 @@ export const acquisitionJobs = pgTable('acquisition_jobs', {
   /** SHA-256 of the job-scoped token the provider uses to deliver files. */
   uploadTokenHash: text('upload_token_hash'),
   importId: uuid('import_id'),
+  /**
+   * Why it was asked for: play | prefetch | download | library. Waiting jobs start in that
+   * order within a provider's `maxConcurrent`, so a prefetch never holds up what is playing.
+   */
+  origin: text('origin').$type<AcquisitionOrigin>().notNull().default('play'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
   completedAt: at('completed_at'),

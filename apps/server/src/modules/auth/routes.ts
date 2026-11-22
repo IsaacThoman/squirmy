@@ -5,16 +5,19 @@ import {
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
+import { getConfig } from '../../config.js'
 import { db, type Executor } from '../../database/client.js'
 import { invites, users } from '../../database/schema.js'
 import { requireUser, SESSION_COOKIE, type AuthUser } from '../../lib/auth.js'
 import { AppError, badRequest, conflict, forbidden, notFound, unauthorized } from '../../lib/errors.js'
+import { FailureCounter, KnownPlaces } from '../../lib/failures.js'
+import { addressKey, networkKey } from '../../lib/proxy.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { getVersion } from '../../lib/version.js'
 import { disconnectSockets } from '../../realtime/index.js'
 import {
-  countUsers, createAppPassword, createSession, deleteAppPassword, hashPassword, insertUser, listAppPasswords, revokeSession,
-  revokeUserSessions, toUser, usernameKey, verifyCredentials,
+  countUsers, createAppPassword, createSession, deleteAppPassword, hashPassword, insertUser, listAppPasswords, revokeAppPasswords,
+  revokeSession, revokeUserSessions, toUser, usernameKey, verifyCredentials,
 } from './service.js'
 
 const cookieMaxAgeSeconds = 180 * 24 * 60 * 60
@@ -29,18 +32,36 @@ function limiter(app: FastifyInstance, name: string, max: number, key: (request:
     const result = await check(request)
     if (result.isAllowed || !result.isExceeded) return
     reply.header('retry-after', result.ttlInSeconds)
-    throw new AppError(429, 'rate_limited', `Too many attempts. Try again in ${result.ttlInSeconds} seconds.`)
+    throw tooMany(result.ttlInSeconds)
   }
 }
 
+function tooMany(seconds: number): AppError {
+  return new AppError(429, 'rate_limited', `Too many attempts. Try again in ${seconds} seconds.`)
+}
+
 const isWeb = (request: FastifyRequest) => request.headers['x-squirmy-client'] === 'web'
+
+/**
+ * Whether the browser reached the server over HTTPS. A proxy or tunnel that terminates TLS
+ * and does not forward the protocol makes the request look like plain HTTP, so an https
+ * PUBLIC_URL also counts for requests to its host name. Other names (a LAN address over
+ * plain HTTP) keep a cookie browsers accept there.
+ */
+function isHttps(request: FastifyRequest): boolean {
+  if (request.protocol === 'https') return true
+  const publicUrl = getConfig().PUBLIC_URL
+  if (!publicUrl?.startsWith('https://')) return false
+  // A trailing dot names the same host to DNS and to the browser.
+  return new URL(publicUrl).hostname.replace(/\.$/, '') === request.hostname.toLowerCase().replace(/\.$/, '')
+}
 
 function setSessionCookie(request: FastifyRequest, reply: FastifyReply, token: string) {
   reply.setCookie(SESSION_COOKIE, token, {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
-    secure: request.protocol === 'https',
+    secure: isHttps(request),
     maxAge: cookieMaxAgeSeconds,
   })
 }
@@ -58,12 +79,20 @@ async function signIn(request: FastifyRequest, reply: FastifyReply, executor: Ex
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  const loginPerIp = limiter(app, 'login-ip', 20, (request) => request.ip)
-  const loginPerUsername = limiter(app, 'login-user', 5, (request) =>
-    usernameKey(String((request.body as { username?: unknown } | undefined)?.username ?? '')))
-  const setupPerIp = limiter(app, 'setup-ip', 10, (request) => request.ip)
-  const registerPerIp = limiter(app, 'register-ip', 10, (request) => request.ip)
-  const passwordPerUser = limiter(app, 'password-user', 10, (request) => request.user?.id ?? request.ip)
+  const loginPerIp = limiter(app, 'login-ip', 20, (request) => addressKey(request.ip))
+  // Failed sign-ins only. Per username and address, so someone guessing from one place
+  // cannot lock the owner out from another; per username and IPv6 /48, since one client
+  // can hold many /64s; and per username across every address, a ceiling against guessing
+  // from many places at once. Addresses the account signed in from lately are exempt from
+  // that ceiling, so an attack spread over many addresses cannot lock the owner out of
+  // the places they actually use.
+  const failuresHere = new FailureCounter(5, 60_000)
+  const failuresNearby = new FailureCounter(10, 60_000)
+  const failuresAnywhere = new FailureCounter(30, 60_000)
+  const knownPlaces = new KnownPlaces(30 * 24 * 60 * 60 * 1000)
+  const setupPerIp = limiter(app, 'setup-ip', 10, (request) => addressKey(request.ip))
+  const registerPerIp = limiter(app, 'register-ip', 10, (request) => addressKey(request.ip))
+  const passwordPerUser = limiter(app, 'password-user', 10, (request) => request.user?.id ?? addressKey(request.ip))
 
   app.get('/setup/status', async (): Promise<SetupStatus> => {
     const settings = await getServerSettings()
@@ -87,10 +116,32 @@ export async function authRoutes(app: FastifyInstance) {
     })
   })
 
-  app.post('/auth/login', { preHandler: [loginPerIp, loginPerUsername] }, async (request, reply): Promise<AuthResponse> => {
+  app.post('/auth/login', { preHandler: loginPerIp }, async (request, reply): Promise<AuthResponse> => {
     const body = LoginRequest.parse(request.body)
+    const name = usernameKey(body.username)
+    const here = `${name}\n${addressKey(request.ip)}`
+    const nearby = `${name}\n${networkKey(request.ip)}`
+    const known = knownPlaces.has(here)
+    const wait = Math.max(
+      failuresHere.blockedFor(here),
+      failuresNearby.blockedFor(nearby),
+      known ? 0 : failuresAnywhere.blockedFor(name),
+    )
+    if (wait > 0) {
+      reply.header('retry-after', wait)
+      throw tooMany(wait)
+    }
+    // Counted before the password check and taken back on success, in the same tick as
+    // the checks above, so concurrent attempts cannot all slip past the limits.
+    failuresHere.fail(here)
+    failuresNearby.fail(nearby)
+    failuresAnywhere.fail(name)
     const user = await verifyCredentials(body.username, body.password)
     if (!user) throw unauthorized('Wrong username or password', 'invalid_credentials')
+    failuresHere.clear(here)
+    failuresNearby.undo(nearby)
+    failuresAnywhere.undo(name)
+    knownPlaces.add(here)
     if (user.disabledAt) throw forbidden('This account is disabled', 'account_disabled')
     return signIn(request, reply, db, user, body.device)
   })
@@ -151,6 +202,7 @@ export async function authRoutes(app: FastifyInstance) {
     await db.transaction(async (tx) => {
       await tx.update(users).set({ passwordHash: await hashPassword(body.newPassword), updatedAt: new Date() }).where(eq(users.id, current.id))
       await revokeUserSessions(tx, current.id, request.authSessionId ?? undefined)
+      if (!body.keepAppPasswords) await revokeAppPasswords(tx, current.id)
     })
     await disconnectSockets(current.id, { except: request.authSessionId ?? undefined })
     return { ok: true }
@@ -161,9 +213,15 @@ export async function authRoutes(app: FastifyInstance) {
     return { items: await listAppPasswords(user.id), nextCursor: null }
   })
 
-  app.post('/auth/app-passwords', async (request, reply): Promise<AppPassword> => {
+  app.post('/auth/app-passwords', { preHandler: passwordPerUser }, async (request, reply): Promise<AppPassword> => {
     const user = requireUser(request)
+    const sent = request.body as { currentPassword?: unknown } | undefined
+    if (typeof sent?.currentPassword !== 'string' || !sent.currentPassword) {
+      throw badRequest('Enter your current password to create an app password', 'current_password_required')
+    }
     const body = CreateAppPasswordRequest.parse(request.body)
+    const verified = await verifyCredentials(user.username, body.currentPassword)
+    if (!verified || verified.id !== user.id) throw forbidden('The current password is wrong', 'invalid_credentials')
     reply.code(201)
     return createAppPassword(user.id, body.name)
   })

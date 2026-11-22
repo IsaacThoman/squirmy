@@ -1,4 +1,5 @@
 export * from './session/reducer.js'
+export * from './session/scope.js'
 export * from './session/client.js'
 export type * from './session/transport.js'
 export * from './engine.js'

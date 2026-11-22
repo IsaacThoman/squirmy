@@ -19,7 +19,7 @@ receiving → extracting → moving → identifying → filing → completed
 ```
 
 1. **Receiving.** Files arrive in the data folder's `staging/` area. Accepted are audio files, `cover.*` and `folder.*` images, `.lrc`, `.cue` and `.log` files, and `.zip` archives. Paths are checked: nothing absolute, no `..`, at most 8 levels deep counting the file name.
-2. **Extracting.** Zip archives are unpacked. An archive with an unsafe path, a symbolic link, encryption, more than 10,000 entries, or more data than the import may hold is refused whole. Zips inside zips are skipped.
+2. **Extracting.** Zip archives are unpacked. An archive with an unsafe path, a symbolic link, encryption, more than 10,000 entries, more data than the import may hold, or contents more than 20 times its own size is refused whole. Zips inside zips are skipped.
 3. **Moving.** The files move into `<managed folder>/_Incoming/<import id>/`.
 4. **Identifying.** That folder is scanned. Once every file's audio has been hashed, duplicates are deleted and counted under `duplicatesSkipped`: a file is a **duplicate** when the library already has its audio, when an earlier import that is still processing has it, or when another file in the same import does. Retagged copies count as duplicates too, because the comparison is on the audio, not the tags. The rest is then identified like any other music. This step waits until every file is identified, or for an hour at most.
 5. **Filing.** Albums identified with confidence are moved to their place under the [naming template](./organizing.md#the-naming-template). The `_Incoming/<import id>/` folder is removed once no audio is left in it.
@@ -34,8 +34,14 @@ Albums that were not identified confidently stay in `<managed folder>/_Incoming/
 |---|---|---|
 | `importMaxFileBytes` | 4 GiB | Largest single file, zip archives included. A larger file is refused with 413. |
 | `importMaxBytes` | 64 GiB | Largest import, counting what its archives extract to. |
+| `importMaxActivePerUser` | 3 | Uploads one member may have receiving or processing at once; one more is refused with 429 `too_many_imports`. Admins, the inbox and acquisition are not counted. |
 
-Change them in **Admin → Server settings → Imports**. A reverse proxy in front needs a matching body size limit; see [Reverse proxies](./reverse-proxy.md).
+Change the sizes in **Admin → Server settings → Imports**; `importMaxActivePerUser` is set through the API ([Configuration](./configuration.md#through-the-api)). `importMaxFileBytes` may be raised up to 16 GiB, the most one file can be. A reverse proxy in front needs a matching body size limit; see [Reverse proxies](./reverse-proxy.md).
+
+Two limits are fixed:
+
+- **Free disk space.** An upload, or the extraction of a zip, that would leave less than 1 GiB free on the staging disk is refused with 507 `insufficient_storage`. The length of the request counts, and a file is checked again as it arrives. An import whose zip has no room fails with a message saying so; upload it again once there is space.
+- **Zip expansion.** A zip whose contents would be more than 20 times its own size (beyond the first 64 MiB) is refused as unsafe. Zipped music is about its own size; that ratio is a zip bomb.
 
 An import that receives no files for a day is failed and cleaned up.
 
@@ -45,7 +51,7 @@ Admins can always upload; members need **Can upload music** (see [Users and acce
 
 ### In the web app
 
-**Add music** is in the sidebar and in the account menu for everyone who may upload.
+**Add music** is in the sidebar for everyone who may upload.
 
 1. Drop album folders, files or zip archives on the page, or use **Choose a folder** or **Choose files**. Folders keep their structure. The list shows every file before anything is sent, and files over the size limit are marked and left out.
 2. Press **Upload**. Each file shows its progress, and the bar above shows all of it. **Pause** stops sending and **Resume** carries on where it stopped; **Cancel** throws away what was sent. Keep the tab open until the upload finishes; other pages of the app can be used meanwhile.
@@ -101,7 +107,7 @@ The inbox is a folder on the server that Squirmy empties into the library. Copy 
          - /srv/inbox:/inbox
    ```
 
-   Or set the `inboxPath` server setting instead, which takes precedence. The inbox may not be inside a library folder or the data folder, and the server needs write access to it.
+   Or set the `inboxPath` server setting instead, which takes precedence. The inbox must be a folder of its own, such as `/inbox`, `/srv/music/inbox` or `/var/lib/squirmy/inbox`: the file system root, a home folder, a system folder (`/etc`, `/usr`, `/var/log` and the like) or a folder around one is refused with `inbox_system_folder`, since the inbox moves everything in it. It also may not be inside a library folder or the data folder, and the server needs write access to it. The same rules apply to `SQUIRMY_INBOX_PATH`; a refused inbox is not watched, and the worker log says why.
 2. Run `docker compose up -d`.
 3. Copy music into it.
 

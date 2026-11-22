@@ -1,4 +1,4 @@
-import { ApiError, createInitialSession, queueChanged, reduceSession, splitSession, type ApiClient } from '@squirmy/client-core'
+import { ApiError, createInitialSession, queueChanged, reduceSession, splitSession, type AnySessionCommand, type ApiClient, type Session } from '@squirmy/client-core'
 import type { SquirmySocket } from '@squirmy/client-core/socket'
 import {
   DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
@@ -50,13 +50,28 @@ export class FakeSocket {
     }
     if (event === 'time:sync') return ack(null, { clientTime: payload, serverTime: Date.now() })
     const { command, commandId } = payload as CommandEnvelope
+    const next = reduceSession(this.session, { command, now: Date.now(), commandId, deviceId: this.deviceId })
+    ack(null, { ok: true, version: this.version + (next === this.session ? 0 : 1) })
+    this.commit(next)
+  }
+
+  /** A change the server makes on its own, such as a fetch that failed (`setEntryState`), told to the device. */
+  serverApply(command: AnySessionCommand) {
+    this.commit(reduceSession(this.session, { command, now: Date.now(), commandId: `server-${this.version}` }))
+  }
+
+  /** Replaces the session as the server would, for changes no command makes (pausing on a failure in a row). */
+  serverSet(edit: (session: Session) => Session) {
+    this.commit(edit(this.session))
+  }
+
+  private commit(next: Session) {
     const previous = this.session
-    this.session = reduceSession(previous, { command, now: Date.now(), commandId, deviceId: this.deviceId })
-    if (this.session !== previous) this.version += 1
-    ack(null, { ok: true, version: this.version })
-    if (this.session === previous) return
-    const { state, queue } = splitSession(this.session)
-    if (queueChanged(previous, this.session)) this.serverEmit('session:queue', { version: this.version, queueVersion: this.version, queue })
+    if (next === previous) return
+    this.session = next
+    this.version += 1
+    const { state, queue } = splitSession(next)
+    if (queueChanged(previous, next)) this.serverEmit('session:queue', { version: this.version, queueVersion: this.version, queue })
     this.serverEmit('session:state', { version: this.version, state })
   }
 
@@ -143,7 +158,7 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
   const socket = new FakeSocket()
   const api = {
     auth: {
-      setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, ...status })),
+      setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, wantlistEnabled: true, ...status })),
       me: vi.fn(async () => {
         if (user) return user
         throw new ApiError(401, 'unauthorized', 'Sign in to continue')
@@ -179,6 +194,8 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       deleteRoot: vi.fn(async () => ({ ok: true as const })),
       scanRoot: vi.fn(async () => ({ queued: true })),
       stats: vi.fn(async () => stats),
+      save: vi.fn(async () => ok),
+      remove: vi.fn(async () => ok),
     },
     matching: {
       reviews: vi.fn(async () => list([])),
@@ -205,8 +222,10 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       trackSummaries: vi.fn(async ({ tracks }: TrackSummariesRequest) => ({ tracks: tracks.flatMap(({ id }) => allTracks.filter(track => track.id === id).slice(0, 1)) })),
     },
     streaming: {
-      playback: vi.fn(async () => {
-        throw notFound()
+      // No audio in tests: a failure that may pass, which the session client retries. A test of a
+      // refused track makes it a 404.
+      playback: vi.fn(async (): Promise<never> => {
+        throw new Error('No audio in tests')
       }),
     },
     userdata: {

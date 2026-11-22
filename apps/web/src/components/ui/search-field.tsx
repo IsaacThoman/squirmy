@@ -8,18 +8,19 @@ type SearchFieldProps = Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'si
   size?: 'md' | 'lg'
 }
 
-export function SearchField({ value, onValueChange, size = 'md', className, placeholder = 'Search', ...props }: SearchFieldProps) {
+export function SearchField({ value, onValueChange, size = 'md', className, placeholder = 'Search', onKeyDown, ...props }: SearchFieldProps) {
   const input = useRef<HTMLInputElement>(null)
   return (
     <div className={cn('group relative flex items-center', className)}>
-      <Search aria-hidden className={cn('pointer-events-none absolute left-3.5 text-quiet transition-colors group-focus-within:text-foreground', size === 'lg' ? 'size-5' : 'size-[18px]')} />
+      <Search aria-hidden className={cn('pointer-events-none absolute text-muted-foreground', size === 'lg' ? 'left-3.5 size-[18px]' : 'left-3 size-4')} />
       <input
         ref={input}
         type="search"
         value={value}
         onChange={event => onValueChange(event.target.value)}
         onKeyDown={event => {
-          if (event.key === 'Escape' && value) {
+          onKeyDown?.(event)
+          if (event.key === 'Escape' && value && !event.defaultPrevented) {
             event.preventDefault()
             onValueChange('')
           }
@@ -29,8 +30,9 @@ export function SearchField({ value, onValueChange, size = 'md', className, plac
         autoComplete="off"
         spellCheck={false}
         className={cn(
-          'w-full min-w-0 rounded-full border border-transparent bg-surface text-foreground transition duration-150 placeholder:text-quiet hover:border-stroke focus-visible:border-accent focus-visible:bg-background focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-selection [&::-webkit-search-cancel-button]:hidden',
-          size === 'lg' ? 'h-13 pl-11 pr-12 text-[17px]' : 'h-10 pl-10 pr-10 text-sm',
+          'w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/30 [&::-webkit-search-cancel-button]:hidden',
+          // 16px on phones: iOS zooms into any smaller field that gets focus.
+          size === 'lg' ? 'h-11 rounded-lg pl-10 pr-10 text-base' : 'h-9 pl-9 pr-9 text-base md:text-sm',
         )}
         {...props}
       />
@@ -42,7 +44,7 @@ export function SearchField({ value, onValueChange, size = 'md', className, plac
             onValueChange('')
             input.current?.focus()
           }}
-          className="absolute right-2 flex size-7 items-center justify-center rounded-full text-muted transition hover:bg-overlay hover:text-foreground"
+          className="absolute right-1.5 flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="size-4" />
         </button>

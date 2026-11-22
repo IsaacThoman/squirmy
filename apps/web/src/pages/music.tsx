@@ -2,22 +2,22 @@
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
-import type { AlbumSummary, LibrarySort, PlaybackContext, PlaylistDetail, PlaylistSummary, SearchResults, TrackSummary } from '@squirmy/contracts'
+import type { HomeSection, LibrarySort, PlaylistDetail } from '@squirmy/contracts'
 import { queryKeys } from '@squirmy/contracts'
-import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryKey, type UseQueryResult } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { CloudOff, Compass } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { useState, type ReactNode } from 'react'
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { moveItem } from '@/lib/reorder'
+import { useCachedSummary } from '@/api/prefetch'
 import {
-  albumQuery, isNotFound, itemsOf, loadItems, playlistQuery, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist,
-  usePlaylists, useWants, type LibraryKind,
+  isNotFound, itemsOf, loadItems, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist, usePlaylists, useWants,
+  type LibraryKind,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
-import { useLogout } from '@/auth/actions'
-import { useCurrentUser } from '@/auth/session'
-import { AppShell } from '@/components/layout/AppShell'
+import { useMergedSearch } from '@/api/use-search'
+import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { Page } from '@/components/layout/Page'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
 import { CollectionSkeleton } from '@/components/music/Skeletons'
@@ -29,33 +29,16 @@ import { ArtistView } from '@/components/views/ArtistView'
 import { HomeView, type ScanProgress } from '@/components/views/HomeView'
 import { LibraryAlbumsView, LibraryArtistsView, LibraryPlaylistsView, LibrarySongsView, type LibraryListProps } from '@/components/views/LibraryView'
 import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
+import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
 import { SearchView } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
-import { plural } from '@/lib/format'
+import { canFetch } from '@/lib/catalog'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
-import { usePlayer, type PlayOptions } from '@/player/player-context'
+import { usePlayerControls, type PlayOptions } from '@/player/player-context'
+import { usePlayCollections } from '@/player/use-play-collections'
 import { useServerEvent } from '@/realtime/realtime-context'
-
-/** Play buttons on cards: the album or playlist is fetched (or read from the cache) first. */
-function usePlayCollections() {
-  const api = useApi()
-  const queryClient = useQueryClient()
-  const { controls } = usePlayer()
-  const play = async <T,>(query: { queryKey: QueryKey; queryFn: () => Promise<T> }, tracks: (data: T) => TrackSummary[], context: (data: T) => PlaybackContext) => {
-    try {
-      const data = await queryClient.fetchQuery(query)
-      controls.playTracks(tracks(data), 0, context(data))
-    } catch (error) {
-      toast({ title: errorMessage(error) })
-    }
-  }
-  return {
-    playAlbum: (album: AlbumSummary) => play(albumQuery(api, album.id), detail => detail.discs.flatMap(disc => disc.tracks), detail => ({ type: 'album', id: detail.id, title: detail.title })),
-    playPlaylist: (playlist: PlaylistSummary) => play(playlistQuery(api, playlist.id), detail => detail.items.map(item => item.track), detail => ({ type: 'playlist', id: detail.id, title: detail.name })),
-  }
-}
 
 export function NotFoundPage() {
   return (
@@ -68,7 +51,7 @@ export function NotFoundPage() {
 function ErrorPage({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   return (
     <Page>
-      <EmptyState icon={<CloudOff />} title="This page did not load" description={errorMessage(error)} action={<Button variant="primary" onClick={onRetry}>Try again</Button>} className="pt-24" />
+      <EmptyState icon={<CloudOff />} title="This page did not load" description={errorMessage(error)} action={<Button variant="primary" onClick={onRetry}>Try again</Button>} />
     </Page>
   )
 }
@@ -78,23 +61,6 @@ function Loaded<T>({ query, skeleton, children }: { query: UseQueryResult<T>; sk
   if (query.data !== undefined) return children(query.data)
   if (query.error) return isNotFound(query.error) ? <NotFoundPage /> : <ErrorPage error={query.error} onRetry={() => void query.refetch()} />
   return skeleton
-}
-
-const likedLabel = (count: number, more: boolean) => (more ? `${count.toLocaleString()}+ songs` : plural(count, 'song'))
-
-export function ShellPage() {
-  const user = useCurrentUser()
-  const logout = useLogout()
-  const playlists = usePlaylists().data?.items ?? []
-  const liked = useLikedTracks()
-  return (
-    <AppShell
-      user={user}
-      onLogout={logout}
-      playlists={playlists}
-      likedCount={liked.data ? likedLabel(itemsOf(liked.data).length, liked.hasNextPage) : 'Playlist'}
-    />
-  )
 }
 
 /** Files read so far by the scans running now, from the server's progress events. */
@@ -115,16 +81,19 @@ export function HomePage() {
   const scan = useScanProgress()
   if (home.error) return <ErrorPage error={home.error} onRetry={() => void home.refetch()} />
   const sections = home.data?.sections
-  const albums = (id: string) => sections?.find(section => section.id === id && section.kind === 'albums')
-  const added = albums('recently-added')
-  const played = albums('recently-played')
-  const featured = (played?.kind === 'albums' ? played.albums[0] : undefined) ?? (added?.kind === 'albums' ? added.albums[0] : undefined) ?? null
+  const albums = (id: string) => {
+    const section = sections?.find(candidate => candidate.id === id)
+    return section?.kind === 'albums' ? section.albums : []
+  }
+  // What was played last leads, then what was added; the sections follow in the server's order.
+  const featured = albums('recently-played')[0] ?? albums('recently-added')[0] ?? null
   return (
     <HomeView
       featured={featured}
       sections={sections}
-      empty={Boolean(sections) && !added}
+      empty={Boolean(sections) && sections!.every(isEmptySection)}
       canAddMusic={user.role === 'admin'}
+      canFindMusic={canFetch(user)}
       scan={scan}
       onPlayAlbum={album => void playAlbum(album)}
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
@@ -132,16 +101,27 @@ export function HomePage() {
   )
 }
 
+const isEmptySection = (section: HomeSection) => (
+  section.kind === 'albums' ? !section.albums.length
+    : section.kind === 'artists' ? !section.artists.length
+      : section.kind === 'playlists' ? !section.playlists.length
+        : !section.tracks.length
+)
+
 export function AlbumPage() {
   const id = useParams().id ?? ''
-  return <Loaded query={useAlbum(id)} skeleton={<CollectionSkeleton />}>{album => <AlbumView key={album.id} album={album} />}</Loaded>
+  const query = useAlbum(id)
+  const summary = useCachedSummary('album', id, query.data === undefined)
+  return <Loaded query={query} skeleton={summary ? <AlbumPreview album={summary} /> : <CollectionSkeleton />}>{album => <AlbumView key={album.id} album={album} />}</Loaded>
 }
 
 export function ArtistPage() {
   const { playAlbum } = usePlayCollections()
   const id = useParams().id ?? ''
+  const query = useArtist(id)
+  const summary = useCachedSummary('artist', id, query.data === undefined)
   return (
-    <Loaded query={useArtist(id)} skeleton={<CollectionSkeleton round />}>
+    <Loaded query={query} skeleton={summary ? <ArtistPreview artist={summary} /> : <CollectionSkeleton round />}>
       {artist => <ArtistView key={artist.id} artist={artist} onPlayAlbum={album => void playAlbum(album)} />}
     </Loaded>
   )
@@ -227,7 +207,7 @@ function EditablePlaylist({ playlist }: { playlist: PlaylistDetail }) {
 
 export function LikedPage() {
   const liked = useLikedTracks()
-  const { controls } = usePlayer()
+  const controls = usePlayerControls()
   const context = { type: 'liked', id: null, title: 'Liked Songs' } as const
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = liked
   const play = async (index: number, options?: PlayOptions) => controls.playTracks(await loadItems(liked, 5000), index, context, options)
@@ -246,7 +226,9 @@ export function LikedPage() {
 }
 
 export function WantlistPage() {
-  const wants = useWants().data?.items
+  const enabled = useWantlistEnabled()
+  const wants = useWants(enabled).data?.items
+  if (!enabled) return <Navigate to="/" replace />
   return (
     <WantlistView
       albums={wants?.flatMap(item => (item.type === 'album' ? [item.album] : []))}
@@ -255,44 +237,14 @@ export function WantlistPage() {
   )
 }
 
-/** `value`, once it has stopped changing for `delayMs`; `initial` until then. */
-function useDebounced<T>(value: T, delayMs: number, initial: T): T {
-  const [settled, setSettled] = useState(initial)
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(value), delayMs)
-    return () => clearTimeout(timer)
-  }, [value, delayMs])
-  return settled
-}
-
-/** A search route that is not there yet answers 404: no results, and a note that search is missing. */
-const orMissing = (request: Promise<SearchResults>) => request.catch((error: unknown) => {
-  if (isNotFound(error)) return null
-  throw error
-})
-
 export function SearchPage() {
-  const api = useApi()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const { playAlbum } = usePlayCollections()
   const genres = useGenres().data?.items.map(genre => genre.name) ?? []
   const query = params.get('q') ?? ''
   const [typed, setTyped] = useUrlDraft(query)
-  // Typing into the top bar opens this page with the first letter; that alone is not a search.
-  const term = useDebounced(query.trim(), 250, '')
-  const search = (kind: 'library' | 'catalog') => ({
-    queryKey: [...queryKeys.search(), kind, term],
-    queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20 }, { signal })),
-    enabled: term.length > 0,
-    staleTime: 60_000,
-  })
-  // The library answers fast, so its last results stay up while the next ones load;
-  // the catalog is slower and its old results would be wrong for longer. A refresh of the
-  // same search (a track fetched on demand changes it) keeps its results on screen.
-  const library = useQuery({ ...search('library'), placeholderData: keepPreviousData })
-  const catalog = useQuery(search('catalog'))
-  const active = term.length > 0
+  const search = useMergedSearch(typed)
   return (
     <SearchView
       query={typed}
@@ -300,11 +252,7 @@ export function SearchPage() {
         setTyped(q)
         setParams(q ? { q } : {}, { replace: true })
       }}
-      library={active ? library.data ?? null : null}
-      catalog={active ? catalog.data ?? null : null}
-      libraryLoading={active && library.isPending}
-      catalogLoading={active && catalog.isPending}
-      unavailable={library.data === null && catalog.data === null}
+      search={search}
       genres={genres}
       onBrowseGenre={genre => void navigate(`/library/albums?genre=${encodeURIComponent(genre)}`)}
       onPlayAlbum={album => void playAlbum(album)}
@@ -331,8 +279,11 @@ function useLibraryPage<K extends LibraryKind>(kind: K) {
   const user = useCurrentUser()
   const filter = useLibraryFilter()
   const genres = useGenres().data?.items.map(genre => genre.name)
-  const list = useLibraryList(kind, { sort: filter.sort, genre: filter.genre })
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = list
+  // Artists come in name order only; a sort or genre left in the address would only split the cache.
+  const list = useLibraryList(kind, kind === 'artists' ? { sort: 'recent' } : { sort: filter.sort, genre: filter.genre })
+  // While another sort's list stands in, its cursor is not this list's.
+  const { isFetchingNextPage, fetchNextPage } = list
+  const hasNextPage = list.hasNextPage && !list.isPlaceholderData
   const props = {
     items: list.data && itemsOf(list.data),
     more: hasNextPage,
@@ -361,7 +312,7 @@ export function LibraryArtistsPage() {
 const SONGS_AFTER = 300
 
 export function LibrarySongsPage() {
-  const { controls } = usePlayer()
+  const controls = usePlayerControls()
   const { list, props } = useLibraryPage('tracks')
   if (list.error) return <ErrorPage error={list.error} onRetry={() => void list.refetch()} />
   const play = async (index: number) => controls.playTracks(await loadItems(list, index + SONGS_AFTER), index, { type: 'other', id: null, title: 'Songs' })

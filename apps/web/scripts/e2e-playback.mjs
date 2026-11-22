@@ -1,6 +1,6 @@
 // Walks playback in real Chromium against a real server with the demo library: albums,
-// transport, the queue, likes, playlists, lyrics, gapless track ends, then two devices of
-// one user and a second user who must see none of it.
+// transport, the queue, likes, the search page, quick search (Cmd/Ctrl+K), playlists, lyrics,
+// gapless track ends, then two devices of one user and a second user who must see none of it.
 //
 // 1. node scripts/e2e-playback.mjs --prepare <music dir>
 //    Writes a synced .lrc next to "Mira Vale/Blue Hour/01 Night Swimming.flac" from
@@ -107,6 +107,8 @@ async function advancing(page) {
 const nowPlayingTitle = async page => (await page.title()).split(' · ')[0]
 const seekValue = async page => Number(await page.getByRole('slider', { name: 'Seek' }).first().getAttribute('aria-valuenow'))
 const transport = (page, name) => page.getByRole('button', { name, exact: true }).first()
+/** The user's playlists, Liked Songs first, in the sidebar. */
+const sidebarPlaylists = page => page.getByRole('complementary', { name: 'Sidebar' }).getByRole('list', { name: 'Playlists' })
 
 /** Seeks by clicking the seek bar at `fraction` of its width. */
 async function seekTo(page, fraction) {
@@ -200,7 +202,7 @@ await step('likes', async () => {
   const row = page.getByRole('list', { name: 'Liked Songs tracks' }).getByText('Night Swimming', { exact: true })
   await row.waitFor({ timeout: 5000 })
   check('a liked track is in Liked Songs', true)
-  check('the sidebar counts it', await page.getByRole('navigation', { name: 'Main' }).getByText('1 song', { exact: true }).isVisible())
+  check('the sidebar counts it', await sidebarPlaylists(page).getByRole('link', { name: /Liked Songs/ }).getByText('1 song', { exact: true }).isVisible())
 })
 
 await step('search', async () => {
@@ -209,16 +211,75 @@ await step('search', async () => {
     const url = new URL(request.url())
     if (url.pathname.startsWith('/api/v1/search/')) asked.push(`${url.pathname.split('/').pop()}:${url.searchParams.get('q')}`)
   }
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Search' }).click()
+  await page.getByRole('heading', { name: 'Search', level: 1 }).waitFor()
   page.on('request', listen)
-  await page.getByRole('searchbox', { name: 'Search' }).first().pressSequentially('blue hour', { delay: 40 })
-  const results = page.getByRole('region', { name: 'In your library' })
+  await page.getByRole('searchbox', { name: 'Search' }).pressSequentially('blue hour', { delay: 40 })
+  const results = page.getByRole('main')
   await results.getByRole('link', { name: 'Blue Hour', exact: true }).first().waitFor()
   await sleep(500)
   page.off('request', listen)
   check('library results come from the server', true)
   check('typing sends only the settled query, to both searches', asked.length === 2 && asked.includes('library:blue hour') && asked.includes('catalog:blue hour'), asked.join(', '))
-  const order = await page.getByRole('region').evaluateAll(regions => regions.map(region => region.getAttribute('aria-label') ?? document.getElementById(region.getAttribute('aria-labelledby'))?.textContent))
-  check('the top result leads, then your library', order[0] === 'Top result' && order[1] === 'In your library', order.join(' / '))
+  const order = await results.getByRole('heading', { level: 2 }).allTextContents()
+  check('one set of results, the top result first and no section named for the library', order[0] === 'Top result' && !order.some(name => /library|discover/i.test(name)), order.join(' / '))
+})
+
+await step('quick search', async () => {
+  const dialog = page.getByRole('dialog', { name: 'Search' })
+  const field = dialog.getByRole('combobox', { name: 'Search' })
+  const options = dialog.getByRole('option')
+  const selected = () => dialog.locator('[role="option"][aria-selected="true"]').textContent()
+  /** Moves the highlight with the arrow keys to the first option matching `pattern`. */
+  async function arrowTo(pattern) {
+    const texts = await options.allTextContents()
+    const index = texts.findIndex(text => pattern.test(text))
+    if (index < 0) throw new Error(`no option like ${pattern}: ${texts.join(' | ')}`)
+    for (let press = 0; press < index; press += 1) await field.press('ArrowDown')
+    return selected()
+  }
+
+  await page.goto(`${base}/library/artists`)
+  await page.getByRole('heading', { name: 'Library', level: 1 }).waitFor()
+  await page.keyboard.press('ControlOrMeta+k')
+  await field.waitFor()
+  check('Ctrl/Cmd+K opens quick search with the field focused', await field.evaluate(element => element === document.activeElement))
+  check('with nothing typed it offers places to go', (await dialog.getByRole('listbox', { name: 'Go to' }).getByRole('option').allTextContents()).includes('Albums'))
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'detached' })
+  check('Escape closes it', true)
+
+  await page.keyboard.press('ControlOrMeta+k')
+  await field.pressSequentially('blue hour', { delay: 30 })
+  await dialog.getByRole('listbox', { name: 'Results' }).getByRole('option', { name: /Blue Hour/ }).first().waitFor()
+  await sleep(400)
+  const albumOption = await arrowTo(/^Blue Hour(Album|EP|Single)/)
+  check('the arrow keys move the highlight', albumOption.startsWith('Blue Hour'), albumOption)
+  await field.press('Enter')
+  await page.waitForURL(`**/album/${blueHour.id}`)
+  await dialog.waitFor({ state: 'detached' })
+  check('Enter opens the album and closes the dialog', true)
+
+  await page.keyboard.press('ControlOrMeta+k')
+  await field.pressSequentially('underwater light', { delay: 30 })
+  await dialog.getByRole('option', { name: /Underwater Light/ }).first().waitFor()
+  await sleep(400)
+  const songOption = await arrowTo(/^Underwater LightSong/)
+  check('a song offers to play', songOption.includes('Play'), songOption)
+  await field.press('Enter')
+  await dialog.waitFor({ state: 'detached' })
+  await page.getByRole('link', { name: 'Underwater Light', exact: true }).first().waitFor()
+  check('Enter on a song plays it', await nowPlayingTitle(page) === 'Underwater Light' && await advancing(page), await page.title())
+
+  await page.keyboard.press('ControlOrMeta+k')
+  await field.pressSequentially('mira', { delay: 30 })
+  await dialog.getByRole('option', { name: /See all results for/ }).waitFor()
+  await sleep(400)
+  await arrowTo(/^See all results for/)
+  await field.press('Enter')
+  await page.waitForURL(url => url.pathname === '/search' && url.searchParams.get('q') === 'mira')
+  check('the last option opens the search page for the query', await page.getByRole('searchbox', { name: 'Search' }).inputValue() === 'mira')
+  await transport(page, 'Pause').click()
 })
 
 await step('playlists', async () => {
@@ -234,7 +295,7 @@ await step('playlists', async () => {
     await page.getByRole('menuitem', { name: 'E2E Mix' }).click()
     await page.getByText('Added to E2E Mix').first().waitFor()
   }
-  const sidebarLink = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /E2E Mix/ })
+  const sidebarLink = sidebarPlaylists(page).getByRole('link', { name: /E2E Mix/ })
   await page.getByRole('list', { name: 'Blue Hour tracks' }).getByRole('listitem').filter({ hasText: 'Stay Until Morning' }).dragTo(sidebarLink)
   await page.getByText('Added to E2E Mix').first().waitFor()
   await sidebarLink.click()
@@ -255,7 +316,19 @@ await step('playlists', async () => {
 
 await step('lyrics', async () => {
   await page.goto(`${base}/album/${blueHour.id}`)
-  await page.getByRole('button', { name: 'Play Night Swimming' }).click()
+  // A pointer click where the hover play button shows, as a user does, not a click Playwright aims at the button.
+  const tracks = page.getByRole('list', { name: 'Blue Hour tracks' })
+  await tracks.getByRole('listitem').filter({ hasText: 'Night Swimming' }).first().hover()
+  const box = await page.getByRole('button', { name: 'Play Night Swimming' }).boundingBox()
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  const started = await until(() => nowPlayingTitle(page), title => title === 'Night Swimming', 3000)
+  const onTop = await page.evaluate(([x, y]) => {
+    const element = document.elementFromPoint(x, y)
+    return `${element.tagName.toLowerCase()} “${element.getAttribute('aria-label') ?? element.textContent}”`
+  }, [box.x + box.width / 2, box.y + box.height / 2])
+  check('clicking a track row\'s play button plays it', started === 'Night Swimming', `${onTop} is on top; playing ${started}`)
+  // Double clicking the row plays it too, so the walk carries on that way if the button failed.
+  if (started !== 'Night Swimming') await tracks.getByText('Night Swimming', { exact: true }).dblclick()
   await page.getByRole('link', { name: 'Night Swimming', exact: true }).waitFor()
   await page.getByRole('button', { name: 'Lyrics', exact: true }).click()
   await page.getByRole('button', { name: 'Blue on the water' }).click()
@@ -291,8 +364,19 @@ await step('a second device', async () => {
   await a.page.getByRole('menuitem', { name: 'Settings' }).click()
   await a.page.getByLabel('This browser’s name').fill('E2E Speaker')
   await a.page.getByLabel('This browser’s name').press('Enter')
+  await a.page.getByText('Browser renamed', { exact: true }).first().waitFor({ timeout: 5000 }).catch(() => { throw new Error('no “Browser renamed” notice') })
+  await a.page.keyboard.press('Escape')
+  const settings = a.page.getByRole('dialog', { name: 'Settings' })
+  const closed = await settings.waitFor({ state: 'detached', timeout: 2000 }).then(() => true, () => false)
+  check('Escape closes Settings while the “Browser renamed” notice shows', closed, closed ? '' : 'the first Escape only dismissed the notice')
+  // A user presses it again.
+  if (!closed) await a.page.keyboard.press('Escape')
+  await settings.waitFor({ state: 'detached', timeout: 5000 }).catch(() => { throw new Error('Escape did not close Settings') })
   await b.page.goto(`${base}/`)
-  await b.page.getByText('Playing on E2E Speaker').filter({ visible: true }).waitFor({ timeout: 8000 })
+  await b.page.getByText('Playing on E2E Speaker').filter({ visible: true }).waitFor({ timeout: 8000 }).catch(async () => {
+    const session = await api(a.context, 'GET', '/me/session')
+    throw new Error(`the second device does not say “Playing on E2E Speaker” (session ${session.state.playing ? 'playing' : 'paused'}, first device ${(await sounding(a.page)) ? 'sounding' : 'silent'})`)
+  })
   check('it shows where the music plays, by the renamed device', true)
   const playing = await nowPlayingTitle(a.page)
   const shown = await until(() => nowPlayingTitle(b.page), title => title === playing)

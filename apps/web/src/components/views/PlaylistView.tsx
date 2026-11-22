@@ -2,7 +2,7 @@ import type { PlaybackContext, PlaylistDetail, TrackSummary } from '@squirmy/con
 import { Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
-import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
+import { LikedCover, likedTint, PlaylistCover } from '@/components/music/CollectionArt'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
 import { TrackList, VirtualTrackList } from '@/components/music/TrackList'
 import { Button } from '@/components/ui/button'
@@ -11,9 +11,8 @@ import { IconButton } from '@/components/ui/icon-button'
 import { DropdownMenu } from '@/components/ui/menu'
 import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
-import type { PlayOptions } from '@/player/player-context'
-import { usePlayer } from '@/player/player-context'
-import { useOnDemand } from '@/player/on-demand-context'
+import { usePlayerControls, type PlayOptions } from '@/player/player-context'
+import { useViewer } from '@/player/on-demand-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 type PlaylistViewProps = {
@@ -35,7 +34,7 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
       title={playlist.name}
       art={<PlaylistCover artworks={playlist.artworks} />}
       tint={playlist.artworks[0]?.color}
-      byline={<span className="text-muted">{playlist.ownerName}</span>}
+      byline={<span className="text-muted-foreground">{playlist.ownerName}</span>}
       description={playlist.description}
       tracks={tracks}
       addedAt={playlist.items.map(item => item.addedAt)}
@@ -84,7 +83,7 @@ export function LikedView({ tracks, complete, onEndReached, onPlay }: LikedViewP
       kind="Playlist"
       title="Liked Songs"
       art={<LikedCover />}
-      tint="#7862B4"
+      tint={likedTint}
       tracks={tracks}
       count={complete ? undefined : `${tracks.length.toLocaleString()}+ songs`}
       durationMs={complete ? tracks.reduce((sum, track) => sum + track.durationMs, 0) : null}
@@ -121,11 +120,11 @@ type TrackCollectionProps = {
 }
 
 function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, count, durationMs, context, onPlay, onMove, onRemove, virtual, menu, empty }: TrackCollectionProps) {
-  const { controls } = usePlayer()
+  const controls = usePlayerControls()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
   const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove })
-  const { canRequest } = useOnDemand()
-  const playable = tracks.some(track => isPlayable(track, canRequest))
+  const viewer = useViewer()
+  const playable = tracks.some(track => isPlayable(track, viewer))
   const size = tracks.length ? [count ?? plural(tracks.length, 'song'), durationMs !== null && formatTotalDuration(durationMs)].filter(Boolean).join(', ') : 'No songs yet'
   return (
     <div>
@@ -136,6 +135,7 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
         tint={tint}
         byline={byline}
         meta={[size]}
+        description={description}
         actions={(
           <PlayActions
             title={title}
@@ -146,13 +146,12 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
           </PlayActions>
         )}
       />
-      <div className="px-(--gutter) pb-12">
-        {description && <p className="-mt-2 mb-6 max-w-3xl text-[15px] leading-relaxed text-muted">{description}</p>}
+      <div className="px-(--gutter) pb-10">
         {!tracks.length
           ? empty
           : virtual
-            ? <VirtualTrackList label={`${title} tracks`} tracks={tracks} variant="playlist" onEndReached={virtual.onEndReached} {...actions} />
-            : <TrackList label={`${title} tracks`} tracks={tracks} addedAt={addedAt} variant="playlist" {...actions} />}
+            ? <div className="-mx-2"><VirtualTrackList label={`${title} tracks`} tracks={tracks} variant="playlist" onEndReached={virtual.onEndReached} {...actions} /></div>
+            : <div className="-mx-2"><TrackList label={`${title} tracks`} tracks={tracks} addedAt={addedAt} variant="playlist" {...actions} /></div>}
       </div>
     </div>
   )

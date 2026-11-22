@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
 import type { QueueItem } from '@/player/player-context'
-import { OnDemandContext, type OnDemand } from '@/player/on-demand-context'
 import { renderWithApp } from '@/test/render'
 import { SortableQueue } from './Queue'
 
@@ -52,13 +51,19 @@ describe('SortableQueue', () => {
     expect(onPlay).toHaveBeenCalledWith('e2')
   })
 
-  it('says Preparing only for entries being fetched', () => {
+  it('shows upcoming songs that wait to be fetched like any other', () => {
     const waiting = items.map(item => ({ ...item, track: { ...item.track, availability: 'on_demand' as const }, entry: { ...item.entry, state: 'preparing' as const } }))
-    const onDemand: OnDemand = { canRequest: true, isPreparing: track => track.id === waiting[0].track.id, getAlbum: async () => {}, albumFetch: () => null }
-    renderWithApp(<OnDemandContext value={onDemand}><SortableQueue items={waiting} onMove={vi.fn()} onRemove={vi.fn()} onPlay={vi.fn()} /></OnDemandContext>)
-    expect(screen.getAllByText('Preparing…')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Play Soft Signal' })).toHaveTextContent('Preparing…')
-    expect(screen.getAllByLabelText('Plays on demand')).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'Play Amber' })).not.toHaveTextContent('Preparing…')
+    renderWithApp(<SortableQueue items={waiting} onMove={vi.fn()} onRemove={vi.fn()} onPlay={vi.fn()} />)
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByText(/preparing|on demand/i)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Play Amber' })).toHaveTextContent('Amber')
+  })
+
+  it('grays out a song that could not be had and says “Not available”', () => {
+    const failed = items.map((item, index) => (index === 1 ? { ...item, entry: { ...item.entry, state: 'failed' as const } } : item))
+    renderWithApp(<SortableQueue items={failed} onMove={vi.fn()} onRemove={vi.fn()} onPlay={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'Play Amber' })).toBeNull()
+    expect(screen.getByText('Not available')).toBeInTheDocument()
+    expect(screen.getByText('Amber')).toHaveClass('text-muted-foreground')
   })
 })

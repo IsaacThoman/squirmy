@@ -1,6 +1,7 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
-import { queryKeys, type AlbumSummary, type ArtistSummary, type LibrarySort, type Page, type TrackSummary } from '@squirmy/contracts'
-import { useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
+import { queryKeys, type AlbumSummary, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
+import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
+import { awaitsTrackList } from '@/lib/catalog'
 import { useApi } from './services'
 
 /**
@@ -28,21 +29,32 @@ const silent = { silent: true }
 /** Imports: their list, each one, and the upload options. `import.updated` refreshes them all. */
 export const importsKey = ['imports'] as const
 
+export const homeQuery = (api: ApiClient) => ({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home(), meta: silent })
+
 export function useHome() {
-  const api = useApi()
-  return useQuery({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home(), meta: silent })
+  return useQuery(homeQuery(useApi()))
 }
 
 export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.album(id), queryFn: () => api.catalog.album(id), meta: silent })
+export const artistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.artist(id), queryFn: () => api.catalog.artist(id), meta: silent })
 export const playlistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.playlist(id), queryFn: () => api.userdata.playlist(id), meta: silent })
 
+/**
+ * How often, and for how many answers, an album whose songs are still being looked up asks
+ * again, should the server's invalidation not come: a minute, then the page waits for it.
+ */
+const TRACK_LIST_POLL_MS = 3000
+const TRACK_LIST_POLLS = 20
+
 export function useAlbum(id: string) {
-  return useQuery(albumQuery(useApi(), id))
+  return useQuery({
+    ...albumQuery(useApi(), id),
+    refetchInterval: query => (query.state.data && awaitsTrackList(query.state.data) && query.state.dataUpdateCount < TRACK_LIST_POLLS ? TRACK_LIST_POLL_MS : false),
+  })
 }
 
 export function useArtist(id: string) {
-  const api = useApi()
-  return useQuery({ queryKey: queryKeys.artist(id), queryFn: () => api.catalog.artist(id), meta: silent })
+  return useQuery(artistQuery(useApi(), id))
 }
 
 export function usePlaylist(id: string) {
@@ -59,9 +71,9 @@ export function usePlaylists() {
   })
 }
 
-export function useWants() {
+export function useWants(enabled = true) {
   const api = useApi()
-  return useQuery({ queryKey: queryKeys.wants(), queryFn: () => everything(cursor => api.userdata.wants({ cursor, limit: 200 })), meta: silent })
+  return useQuery({ queryKey: queryKeys.wants(), queryFn: () => everything(cursor => api.userdata.wants({ cursor, limit: 200 })), enabled, meta: silent })
 }
 
 export function useGenres() {
@@ -81,16 +93,20 @@ const libraryKeys = { albums: queryKeys.libraryAlbums, artists: queryKeys.librar
 const pageSizes: Record<LibraryKind, number> = { albums: 60, artists: 60, tracks: 100 }
 
 /** One of the library's lists, a page at a time as it scrolls. */
-export function useLibraryList<K extends LibraryKind>(kind: K, filter: LibraryFilter) {
-  const api = useApi()
+export const libraryListQuery = <K extends LibraryKind>(api: ApiClient, kind: K, filter: LibraryFilter) => {
   const fetchers = { albums: api.catalog.albums, artists: api.catalog.artists, tracks: api.catalog.tracks }
-  return useInfiniteQuery({
+  return infiniteQueryOptions({
     queryKey: [...libraryKeys[kind](), filter],
     queryFn: ({ pageParam }) => fetchers[kind]({ ...filter, cursor: pageParam, limit: pageSizes[kind] }) as Promise<Page<LibraryItems[K]>>,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.nextCursor ?? undefined,
     meta: silent,
   })
+}
+
+/** A new sort or genre keeps the current list on screen until its own first page arrives. */
+export function useLibraryList<K extends LibraryKind>(kind: K, filter: LibraryFilter) {
+  return useInfiniteQuery({ ...libraryListQuery(useApi(), kind, filter), placeholderData: keepPreviousData })
 }
 
 export function useLikedTracks() {
@@ -117,6 +133,20 @@ export async function loadItems<T>(query: PagedResult<T>, limit: number): Promis
   }
   return itemsOf(state.data).slice(0, limit)
 }
+
+/** A search route that is not there yet answers 404: no results, and a note that search is missing. */
+const orMissing = (request: Promise<SearchResults>) => request.catch((error: unknown) => {
+  if (isNotFound(error)) return null
+  throw error
+})
+
+/** One search of the library or the catalog. The search page and the search dialog share its answers. */
+export const searchQuery = (api: ApiClient, kind: 'library' | 'catalog', term: string) => ({
+  queryKey: [...queryKeys.search(), kind, term],
+  queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20 }, { signal })),
+  enabled: term.length > 0,
+  staleTime: 60_000,
+})
 
 export function useUserSettings() {
   const api = useApi()

@@ -8,6 +8,7 @@ import {
   type QueueEntry,
   SessionCommand,
   type SessionHelloAck,
+  type SessionMoveAck,
   type SessionQueue,
   type SessionState,
 } from '@squirmy/contracts'
@@ -34,7 +35,22 @@ export type SessionClientSnapshot = {
   connection: ConnectionStatus
   /** This device outputs the audio. */
   isActiveDevice: boolean
+  /**
+   * This device is detached: `session` and `queue` are its own session, which no other
+   * device sees or controls, and not the user's shared one.
+   */
+  detached: boolean
+  /** Detaching is possible: this device can play and the server said it supports it. False until a hello has. */
+  canDetach: boolean
 }
+
+/**
+ * How `detach` and `attach` end. Errors from this client: `offline` (they need the
+ * server), `unsupported` (see `canDetach`), `busy` (another one is under way), `timeout`,
+ * `disconnected` (the connection dropped and the next hello showed it had not happened),
+ * `disposed`. Others are the server's; see `SessionMoveAck`.
+ */
+export type SessionMoveResult = { ok: true } | { ok: false; error: string }
 
 /** Audio output of a device that can play. */
 export type SessionPlayer = {
@@ -75,6 +91,8 @@ export type SavedSession = {
   pending: { commandId: string; command: SessionCommand; at: number; ackVersion: number | null }[]
   /** Estimated server time of the save. */
   savedAt: number
+  /** The saved session is this device's own: it was detached. Absent in saves made before detaching existed. */
+  detached?: boolean
 }
 
 export type SessionClientOptions = {
@@ -87,6 +105,12 @@ export type SessionClientOptions = {
    * playing it, it comes back paused at the saved position: the audio stopped with the app.
    */
   restore?: SavedSession
+  /**
+   * Called when this device was detached and a hello finds it back in the shared session
+   * without having asked: the server no longer holds its own session (`expired`: it was
+   * away past the server's keep time; `missing`: cleaned up earlier or ended elsewhere).
+   */
+  onDetachedEnded?: (reason: 'expired' | 'missing') => void
   /** Local clock. Defaults to `Date.now`. */
   now?: () => number
   /** After the session's position moves, the engine is re-seeked only when it is further off than this. Defaults to 1000. */
@@ -126,6 +150,17 @@ type Pending = {
   sentEpoch: number | null
 }
 
+/** A `detach` or `attach` the server has not answered yet. */
+type Move = {
+  /** Whether the device is detached once it succeeds. */
+  detached: boolean
+  /** Commands made before the request: they were for the session being left. */
+  before: Set<Pending>
+  /** The server did not answer in time; a fresh hello is finding out whether it happened. */
+  timedOut: boolean
+  resolve: (result: SessionMoveResult) => void
+}
+
 /**
  * One client's view of the user's playback session: keeps it in sync with the server,
  * applies commands optimistically, and drives the audio engine while this device is the
@@ -148,6 +183,17 @@ type Pending = {
  * it is still the active device, commands made offline are followed by the engine's
  * position, so the music does not jump back to where they were replayed.
  *
+ * **Detaching.** `detach()` moves this device into a session of its own and `attach()`
+ * back into the shared one (see "Detaching" in the session contract). Both need the
+ * server and resolve once it has answered; nothing is applied optimistically, and the
+ * audio is not touched unless the session the device lands in says so. The answer
+ * replaces the server state held here; commands made before the request are forgotten
+ * (the server had them when it copied or discarded the session) and commands made after
+ * it go to the new session. The server remembers which session a device is in, so every
+ * hello may answer with either: when it is not the one this client held, the commands
+ * waiting to be sent are dropped, because they were made for the other session. While
+ * detached, everything above applies to the device's own session unchanged.
+ *
  * **Engine.** While active, the client loads the current entry, preloads the one that
  * would follow it, follows play/pause/seek, applies `volumes[device] × normalization`,
  * and on the engine's `ended` advances locally with `trackEnded` without waiting for the
@@ -161,8 +207,13 @@ export class SessionClient {
   private readonly now: () => number
   private readonly driftThresholdMs: number
   private readonly reportIntervalMs: number
+  private readonly onDetachedEnded: SessionClientOptions['onDetachedEnded']
 
   private server: { version: number; session: Session } | null = null
+  /** The server state held is this device's own session. */
+  private detached = false
+  private serverDetaches = false
+  private move: Move | null = null
   private heldQueue: { version: number; queue: SessionQueue } | null = null
   private pending: Pending[] = []
   private local: Session = createInitialSession()
@@ -214,9 +265,13 @@ export class SessionClient {
     this.driftThresholdMs = options.driftThresholdMs ?? 1000
     this.reportIntervalMs = options.reportIntervalMs ?? 10_000
     this.normalization = options.player?.normalization ?? 'auto'
+    this.onDetachedEnded = options.onDetachedEnded
     if (options.restore) this.restore(options.restore)
     const { state, queue } = splitSession(this.local)
-    this.snapshot = { session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive() }
+    this.snapshot = {
+      session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive(),
+      detached: this.detached, canDetach: this.canDetach(),
+    }
   }
 
   /** Subscribes to the transport and the engine, and says hello if already connected. Call once. */
@@ -226,6 +281,10 @@ export class SessionClient {
       transport.onConnectionChange(connected => (connected ? this.connect() : this.disconnected())),
       transport.on('session:state', update => this.onState(update)),
       transport.on('session:queue', update => this.onQueue(update)),
+      transport.on('session:moved', update => {
+        // Before the hello is answered there is nothing to replace; its answer says the same.
+        if (this.connection === 'online') this.onMoved(update)
+      }),
       transport.on('devices', devices => {
         this.devices = devices
         this.publish()
@@ -245,6 +304,7 @@ export class SessionClient {
   dispose(): void {
     for (const undo of this.cleanup.splice(0)) undo()
     this.attempt += 1
+    this.settleMove({ ok: false, error: 'disposed' })
     this.stopEngine()
   }
 
@@ -254,9 +314,33 @@ export class SessionClient {
    */
   dispatch(command: SessionCommand): void {
     const parsed = SessionCommand.parse(command)
+    // The server refuses these. Applying one until it does would stop this device's audio
+    // for the round trip, so it is not tried at all.
+    if (parsed.type === 'transfer' && this.outOfSession(parsed.deviceId)) return
     this.enqueue(parsed, this.newCommandId())
     this.recompute(parsed.type === 'seek')
     this.flush()
+  }
+
+  /**
+   * Moves this device out of the shared session into a session of its own, which starts
+   * as a copy of the shared one. If this device was playing, it keeps playing there and
+   * the shared session pauses; otherwise the copy is paused. Resolves once the server has
+   * answered; resolves `ok` at once when already detached.
+   */
+  detach(): Promise<SessionMoveResult> {
+    return this.requestMove('session:detach', {}, true)
+  }
+
+  /**
+   * Moves this device back into the shared session as a remote; its own session stops and
+   * is discarded. With `bringQueue` the shared session becomes what this device's own was
+   * and this device its active device, so it carries on playing and the user's other
+   * devices follow it (refused with `nothing_to_bring` when there is nothing in it).
+   * Resolves `ok` at once when not detached.
+   */
+  attach(options: { bringQueue?: boolean } = {}): Promise<SessionMoveResult> {
+    return this.requestMove('session:attach', options.bringQueue ? { bringQueue: true } : {}, false)
   }
 
   /** For `useSyncExternalStore`. Returns the same object until something changes. */
@@ -295,6 +379,7 @@ export class SessionClient {
       queue,
       pending: this.pending.map(({ commandId, command, at, ackVersion }) => ({ commandId, command, at, ackVersion })),
       savedAt: this.serverNow(),
+      detached: this.detached,
     }
   }
 
@@ -344,6 +429,7 @@ export class SessionClient {
 
   private restore(saved: SavedSession): void {
     this.server = { version: saved.version, session: joinSession(saved.state, saved.queue) }
+    this.detached = saved.detached ?? false
     // Replays skip validation, so what comes from storage is checked once here.
     this.pending = saved.pending.flatMap(pending => {
       const parsed = SessionCommand.safeParse(pending.command)
@@ -363,7 +449,8 @@ export class SessionClient {
     const attempt = ++this.attempt
     this.setConnection('connecting')
     const sentAt = this.now()
-    this.transport.request('session:hello', { device: this.device, canPlay: Boolean(this.player) }, REQUEST_TIMEOUT_MS, (_error, reply) => {
+    const hello = { device: this.device, canPlay: Boolean(this.player), detached: this.detached }
+    this.transport.request('session:hello', hello, REQUEST_TIMEOUT_MS, (_error, reply) => {
       if (attempt !== this.attempt) return
       if (reply) return this.onHello(reply, sentAt, attempt)
       setTimer(() => {
@@ -377,24 +464,103 @@ export class SessionClient {
     this.addClockSample(sentAt, reply.serverTime, this.now())
     this.epoch += 1
     const wasPlayingHere = this.isActive() && this.engineIsPlaying()
-    const { snapshot } = reply
-    this.server = { version: snapshot.version, session: joinSession(snapshot.state, snapshot.queue) }
-    this.heldQueue = null
-    this.devices = reply.devices
+    const wasDetached = this.detached
+    this.adopt(reply)
     this.connection = 'online'
 
-    const active = snapshot.state.activeDeviceId
+    // The server says which session this device is in. When it is not the one held here,
+    // what waits to be sent was made for the other one.
+    const moved = this.detached !== wasDetached
+    const asked = this.move
+    if (asked) {
+      // The answer to a detach or attach was lost with the connection; this is it.
+      this.move = null
+      if (moved) this.pending = this.pending.filter(pending => !asked.before.has(pending))
+      asked.resolve(moved ? { ok: true } : { ok: false, error: asked.timedOut ? 'timeout' : 'disconnected' })
+    } else if (moved) {
+      this.pending = []
+    }
+
+    const active = reply.snapshot.state.activeDeviceId
     if (active !== null && active !== this.device.id) {
       this.pending = this.pending.filter(pending => !PLAYBACK_COMMANDS.has(pending.command.type))
     }
     this.prune()
-    if (active === null) this.reclaim(wasPlayingHere)
-    else if (active === this.device.id && wasPlayingHere && this.pending.some(pending => PLAYBACK_COMMANDS.has(pending.command.type))) {
+    // After a change of session there is nothing to take back: what played here while
+    // offline belonged to the session this device is no longer in.
+    if (!moved && active === null) this.reclaim(wasPlayingHere)
+    else if (!moved && active === this.device.id && wasPlayingHere && this.pending.some(pending => PLAYBACK_COMMANDS.has(pending.command.type))) {
       this.sendEnginePosition()
     }
     this.recompute()
     this.flush()
     this.syncClock(attempt, CLOCK_SAMPLES - 1)
+    if (moved && wasDetached && !asked) this.onDetachedEnded?.(reply.detachedEnded ?? 'missing')
+  }
+
+  /** Makes a hello's answer (or a move's, which has the same shape) the server state held here. */
+  private adopt(reply: SessionHelloAck): void {
+    const { snapshot } = reply
+    this.server = { version: snapshot.version, session: joinSession(snapshot.state, snapshot.queue) }
+    this.heldQueue = null
+    this.devices = reply.devices
+    this.detached = snapshot.scope?.type === 'device'
+    this.serverDetaches = reply.capabilities?.includes('detach') ?? false
+  }
+
+  /**
+   * The server moved this device to another session: on this client's request, or on that
+   * of another socket of the device. Acks arrive in order, so a command acked by now was
+   * applied to the session left behind and is in the new one only as far as the server
+   * carried it over; one not acked yet is applied to the new session.
+   */
+  private onMoved(reply: SessionHelloAck): void {
+    this.adopt(reply)
+    this.pending = this.pending.filter(pending => pending.ackVersion === null)
+    this.recompute()
+    this.flush()
+  }
+
+  private requestMove(event: 'session:detach' | 'session:attach', request: { bringQueue?: boolean }, detached: boolean): Promise<SessionMoveResult> {
+    if (this.move) return Promise.resolve({ ok: false, error: 'busy' })
+    if (this.detached === detached) return Promise.resolve({ ok: true })
+    if (this.connection !== 'online') return Promise.resolve({ ok: false, error: 'offline' })
+    if (!this.canDetach()) return Promise.resolve({ ok: false, error: 'unsupported' })
+    return new Promise(resolve => {
+      const move: Move = { detached, before: new Set(this.pending), timedOut: false, resolve }
+      this.move = move
+      const epoch = this.epoch
+      this.transport.request(event, request, REQUEST_TIMEOUT_MS, (_error: Error | null, reply?: SessionMoveAck) => {
+        if (this.move !== move) return
+        // Lost to a disconnect: the next hello says which session this device is in.
+        if (!reply && (epoch !== this.epoch || this.connection !== 'online')) return
+        if (!reply) {
+          // The server may still have done it, and moved this socket. A hello says where it is.
+          move.timedOut = true
+          return this.connect()
+        }
+        this.move = null
+        if (!reply.ok) return resolve({ ok: false, error: reply.error })
+        this.onMoved(reply)
+        resolve({ ok: true })
+      })
+    })
+  }
+
+  private settleMove(result: SessionMoveResult): void {
+    const move = this.move
+    this.move = null
+    move?.resolve(result)
+  }
+
+  private canDetach(): boolean {
+    return Boolean(this.player) && this.serverDetaches
+  }
+
+  /** A device playback cannot be moved to: the session held here does not include it. */
+  private outOfSession(deviceId: string): boolean {
+    if (this.detached) return deviceId !== this.device.id
+    return this.devices.some(device => device.id === deviceId && device.detached !== undefined)
   }
 
   /**
@@ -535,11 +701,13 @@ export class SessionClient {
     const session = shallowEqual(previous.session, state) ? previous.session : state
     const queueHalf = shallowEqual(previous.queue, queue) ? previous.queue : queue
     const isActiveDevice = this.isActive()
+    const canDetach = this.canDetach()
     if (
       session === previous.session && queueHalf === previous.queue && this.devices === previous.devices
       && this.connection === previous.connection && isActiveDevice === previous.isActiveDevice
+      && this.detached === previous.detached && canDetach === previous.canDetach
     ) return
-    this.snapshot = { session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice }
+    this.snapshot = { session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach }
     for (const listener of [...this.listeners]) listener()
   }
 

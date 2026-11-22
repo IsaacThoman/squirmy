@@ -22,8 +22,8 @@ export function FolderPicker({ path, listing, error, onBrowse }: FolderPickerPro
     setTyped(null)
   }
   return (
-    <div className="overflow-hidden rounded-xl bg-surface ring-1 ring-transparent focus-within:ring-stroke">
-      <div className="flex items-center gap-1 border-b border-stroke p-1.5">
+    <div className="overflow-hidden rounded-lg border">
+      <div className="flex items-center gap-1 border-b bg-muted/40 p-1">
         <IconButton label="Parent folder" size="sm" disabled={!listing?.parent} onClick={() => listing?.parent && onBrowse(listing.parent)}><ArrowUp /></IconButton>
         <input
           aria-label="Folder path"
@@ -37,15 +37,15 @@ export function FolderPicker({ path, listing, error, onBrowse }: FolderPickerPro
           onBlur={go}
           spellCheck={false}
           autoCapitalize="none"
-          className="h-8 min-w-0 flex-1 rounded-lg bg-transparent px-2 font-mono text-[13px] text-foreground outline-none focus-visible:bg-overlay"
+          className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 font-mono text-base text-foreground outline-none focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-ring md:text-xs"
         />
       </div>
       <ScrollArea className="h-48">
-        {error && <p role="alert" className="px-4 py-3 text-sm font-medium text-danger">{error}</p>}
+        {error && <p role="alert" className="px-3 py-2.5 text-sm text-destructive">{error}</p>}
         {!error && !listing && (
-          <div className="flex flex-col gap-2 p-3">{[0, 1, 2, 3].map(index => <Skeleton key={index} className="h-6" />)}</div>
+          <div className="flex flex-col gap-3 px-3.5 py-3">{[0, 1, 2, 3].map(index => <Skeleton key={index} className="h-4" style={{ width: `${[45, 60, 35, 50][index]}%` }} />)}</div>
         )}
-        {!error && listing?.directories.length === 0 && <p className="px-4 py-3 text-sm text-quiet">No folders inside this one.</p>}
+        {!error && listing?.directories.length === 0 && <p className="px-3 py-2.5 text-sm text-muted-foreground">No folders inside this one.</p>}
         {!error && listing && listing.directories.length > 0 && (
           <ul className="p-1">
             {listing.directories.map(directory => (
@@ -53,11 +53,11 @@ export function FolderPicker({ path, listing, error, onBrowse }: FolderPickerPro
                 <button
                   type="button"
                   onClick={() => onBrowse(directory.path)}
-                  className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm font-medium transition-colors hover:bg-overlay focus-visible:bg-overlay focus-visible:outline-none"
+                  className="flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent"
                 >
-                  <Folder aria-hidden className="size-4 shrink-0 text-accent" />
+                  <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">{directory.name}</span>
-                  <ChevronRight aria-hidden className="size-4 shrink-0 text-quiet" />
+                  <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/60" />
                 </button>
               </li>
             ))}

@@ -1,6 +1,6 @@
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { INCOMING_FOLDER, queryKeys, type ScanStats } from '@squirmy/contracts'
+import { FETCHED_FOLDER, INCOMING_FOLDER, queryKeys, type ScanStats } from '@squirmy/contracts'
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { imports, libraryRoots, mediaFiles } from '../../database/schema.js'
@@ -19,6 +19,8 @@ export type ScanJob = { rootId: string; paths?: string[] }
 
 const batchSize = 500
 const pageSize = 1000
+/** `media_files.source` of a file the scanner finds under `_Fetched/`: a delivery of unknown origin. */
+export const FETCHED_SOURCE = 'provider:unknown'
 
 type Row = { id: string; relPath: string; size: number; mtime: Date; missingSince: Date | null }
 
@@ -51,7 +53,8 @@ class ScanWriter {
   private returned: string[] = []
   private missing: string[] = []
 
-  constructor(private readonly rootId: string) {}
+  /** `managed`: only a managed root has a `_Fetched/` folder that Organize filed deliveries in. */
+  constructor(private readonly rootId: string, private readonly managed: boolean) {}
 
   async add(entry: WalkEntry) {
     this.added.push(entry)
@@ -89,6 +92,11 @@ class ScanWriter {
         mtime: entry.mtime,
         container: containerFromExtension(path.extname(entry.relPath).slice(1)),
         codec: 'unknown',
+        // Only provider deliveries are filed under a managed root's `_Fetched/`. A file found
+        // there with no row (the database was restored without it) stays cache rather than
+        // joining every user's library as if someone had brought it. A read-only root is
+        // never cache: whatever it holds, the server must not delete.
+        ...(this.managed && entry.relPath.startsWith(`${FETCHED_FOLDER}/`) ? { source: FETCHED_SOURCE } : {}),
       }))).onConflictDoNothing({ target: [mediaFiles.rootId, mediaFiles.relPath] }).returning({ id: mediaFiles.id })
       this.stats.filesAdded += inserted.length
       probe.push(...inserted.map((row) => row.id))
@@ -168,7 +176,7 @@ export async function scanRoot({ rootId, paths }: ScanJob): Promise<ScanStats | 
   if (full) await db.update(libraryRoots).set({ lastScanStartedAt: new Date(started) }).where(eq(libraryRoots.id, rootId))
   await invalidate('admins', [queryKeys.adminRoots()])
 
-  const writer = new ScanWriter(rootId)
+  const writer = new ScanWriter(rootId, root.mode === 'managed')
   const held = await heldByImports(rootId)
   let lastProgress = 0
   const onError = (relPath: string, error: unknown) => {

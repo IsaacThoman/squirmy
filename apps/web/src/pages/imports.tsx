@@ -14,8 +14,7 @@ import { useCurrentUser } from '@/auth/session'
 import { ImportDetail } from '@/components/imports/ImportDetail'
 import { ImportsList } from '@/components/imports/ImportsList'
 import { NotTaken, UploadPanel } from '@/components/imports/UploadPanel'
-import { Page } from '@/components/layout/Page'
-import { PageTitle, SectionHeader } from '@/components/music/SectionHeader'
+import { Page, PageHeader } from '@/components/layout/Page'
 import { Button } from '@/components/ui/button'
 import { EmptyState, Skeleton } from '@/components/ui/feedback'
 import { canUploadMusic } from '@/lib/catalog'
@@ -95,9 +94,12 @@ export function ImportsPage() {
   const user = useCurrentUser()
   if (!canUploadMusic(user)) {
     return (
-      <Page>
-        <EmptyState icon={<UploadIcon />} title="Uploading is not on for your account" description="Ask an admin of this server to let you upload music." className="pt-24" />
-      </Page>
+      <>
+        <PageHeader title="Add music" />
+        <Page>
+          <EmptyState icon={<UploadIcon />} title="Uploading is not on for your account" description="Ask an admin of this server to let you upload music." className="pt-24" />
+        </Page>
+      </>
     )
   }
   return <AddMusic />
@@ -136,46 +138,46 @@ function AddMusic() {
   }
 
   return (
-    <Page className="flex max-w-4xl flex-col gap-9">
-      <div>
-        <PageTitle>Add music</PageTitle>
-        <p className="mt-1 max-w-xl text-[15px] text-muted">Upload albums from this computer. The server identifies them and files them into the library, and anything it cannot place waits for review.</p>
-      </div>
+    <>
+      <PageHeader title="Add music" />
+      <Page className="flex max-w-4xl flex-col gap-8">
+        <p className="max-w-2xl text-sm text-muted-foreground">Upload albums from this computer. The server identifies them and files them into the library, and anything it cannot place waits for review.</p>
 
-      {committed && live.item.data ? (
-        <section aria-label="Upload" className="flex flex-col gap-4">
-          <ImportDetail item={live.item.data} albums={live.albums} isAdmin={isAdmin}>
-            {snapshot && <NotTaken files={snapshot.files} />}
-          </ImportDetail>
-          <div><Button variant="primary" onClick={() => setActive(null)}><UploadIcon />Upload more</Button></div>
+        {committed && live.item.data ? (
+          <section aria-label="Upload" className="flex flex-col gap-4">
+            <ImportDetail item={live.item.data} albums={live.albums} isAdmin={isAdmin}>
+              {snapshot && <NotTaken files={snapshot.files} />}
+            </ImportDetail>
+            <div><Button variant="primary" onClick={() => setActive(null)}><UploadIcon />Upload more</Button></div>
+          </section>
+        ) : (
+          <UploadPanel
+            options={options.data}
+            isAdmin={isAdmin}
+            upload={snapshot}
+            reading={reading}
+            onDrop={transfer => {
+              setReading(true)
+              droppedFiles(transfer).then(choose, () => toast({ title: 'That could not be read', description: 'Try choosing the folder instead.' })).finally(() => setReading(false))
+            }}
+            onPick={files => choose(pickedFiles(files))}
+            onStart={() => void upload?.start()}
+            onPause={() => upload?.pause()}
+            onCancel={() => {
+              void upload?.cancel()
+              setActive(null)
+              toast({ title: 'Upload cancelled', description: 'Nothing from it was kept.' })
+            }}
+            onClear={() => setActive(null)}
+          />
+        )}
+
+        <section aria-labelledby="recent-imports">
+          <h2 id="recent-imports" className="mb-3 text-base font-semibold">{isAdmin ? 'Recent imports' : 'Your imports'}</h2>
+          <ImportsList imports={recent.data} ownerOf={ownerOf} onCancel={item => cancelImport.mutate(item)} />
         </section>
-      ) : (
-        <UploadPanel
-          options={options.data}
-          isAdmin={isAdmin}
-          upload={snapshot}
-          reading={reading}
-          onDrop={transfer => {
-            setReading(true)
-            droppedFiles(transfer).then(choose, () => toast({ title: 'That could not be read', description: 'Try choosing the folder instead.' })).finally(() => setReading(false))
-          }}
-          onPick={files => choose(pickedFiles(files))}
-          onStart={() => void upload?.start()}
-          onPause={() => upload?.pause()}
-          onCancel={() => {
-            void upload?.cancel()
-            setActive(null)
-            toast({ title: 'Upload cancelled', description: 'Nothing from it was kept.' })
-          }}
-          onClear={() => setActive(null)}
-        />
-      )}
-
-      <section aria-labelledby="recent-imports">
-        <SectionHeader id="recent-imports" title={isAdmin ? 'Recent imports' : 'Your imports'} />
-        <ImportsList imports={recent.data} ownerOf={ownerOf} onCancel={item => cancelImport.mutate(item)} />
-      </section>
-    </Page>
+      </Page>
+    </>
   )
 }
 
@@ -186,16 +188,24 @@ export function ImportPage() {
   const { item, albums } = useImport(id)
   const ownerOf = useOwners()
   const cancelImport = useCancelImport()
-  if (item.error) return isNotFound(item.error) || (item.error instanceof ApiError && item.error.code === 'invalid_request') ? <NotFoundPage /> : <Page><EmptyState icon={<UploadIcon />} title="This import did not load" description={item.error.message} className="pt-24" /></Page>
+  if (item.error) {
+    if (isNotFound(item.error) || (item.error instanceof ApiError && item.error.code === 'invalid_request')) return <NotFoundPage />
+    return (
+      <>
+        <PageHeader title="Import" />
+        <Page><EmptyState icon={<UploadIcon />} title="This import did not load" description={item.error.message} className="pt-24" /></Page>
+      </>
+    )
+  }
   return (
-    <Page className="flex max-w-4xl flex-col gap-6">
-      <div>
-        <Link to="/imports" className="mb-2 inline-flex items-center gap-1 text-[13px] font-semibold text-muted hover:text-foreground"><ChevronLeft className="size-4" />Add music</Link>
-        <PageTitle>Import</PageTitle>
-      </div>
-      {item.data
-        ? <ImportDetail item={item.data} owner={ownerOf(item.data)} albums={albums} isAdmin={user.role === 'admin'} onCancel={() => cancelImport.mutate(item.data)} />
-        : <Skeleton className="h-64 rounded-2xl" />}
-    </Page>
+    <>
+      <PageHeader title="Import" />
+      <Page className="flex max-w-4xl flex-col gap-4">
+        <Link to="/imports" className="-ml-1 inline-flex items-center gap-1 self-start rounded-md pr-1.5 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><ChevronLeft className="size-4" />Add music</Link>
+        {item.data
+          ? <ImportDetail item={item.data} owner={ownerOf(item.data)} albums={albums} isAdmin={user.role === 'admin'} onCancel={() => cancelImport.mutate(item.data)} />
+          : <Skeleton className="h-64 rounded-xl" />}
+      </Page>
+    </>
   )
 }

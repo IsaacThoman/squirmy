@@ -15,6 +15,8 @@ import { db } from './database/client.js'
 import { SESSION_COOKIE } from './lib/auth.js'
 import { conditionalGet } from './lib/conditional.js'
 import { AppError, forbidden } from './lib/errors.js'
+import { loggerOptions } from './lib/log.js'
+import { headerAddress, trustFunction } from './lib/proxy.js'
 import { modules } from './modules/index.js'
 import { authenticateToken } from './modules/auth/service.js'
 
@@ -30,11 +32,12 @@ function bearerToken(request: FastifyRequest) {
 }
 
 /** Builds the HTTP application. It does not listen; index.ts and tests do that. */
-export async function buildApp(): Promise<FastifyInstance> {
+export async function buildApp(options: { logStream?: { write(line: string): void } } = {}): Promise<FastifyInstance> {
   const config = getConfig()
+  const trust = trustFunction(config.TRUST_PROXY)
   const app = Fastify({
-    logger: config.LOG_LEVEL === 'silent' ? false : { level: config.LOG_LEVEL },
-    trustProxy: config.TRUST_PROXY,
+    logger: loggerOptions(options.logStream ? 'info' : config.LOG_LEVEL, options.logStream),
+    trustProxy: trust,
     // Uploads stream to disk; this only bounds JSON bodies.
     bodyLimit: 4 * 1024 * 1024,
   })
@@ -52,9 +55,31 @@ export async function buildApp(): Promise<FastifyInstance> {
     return reply.code(status).send({ error: { code: status >= 500 ? 'internal_error' : 'request_error', message } })
   })
 
-  // No CSP: the SPA and artwork are served from here. Artwork and streams are also loaded
-  // by Subsonic web clients on other origins, which the default same-origin CORP blocks.
-  await app.register(helmet, { contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } })
+  // The web app loads only its own files: no inline scripts (the appearance script is a file of
+  // its own), so script-src is 'self'. Inline styles stay allowed for `style=` and the theme's
+  // <style> element. No upgrade-insecure-requests, so the app keeps working over plain HTTP on a
+  // LAN. Artwork and streams are also loaded by Subsonic web clients on other origins, which the
+  // default same-origin CORP blocks.
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        mediaSrc: ["'self'"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", 'data:'],
+        workerSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'none'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
   // Before compression, so the ETag describes the body and a 304 has nothing to compress.
   app.addHook('onSend', conditionalGet)
   // Brotli (quality 4, fast enough to run per response) or gzip for JSON, Subsonic XML and
@@ -62,12 +87,25 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(compress, { encodings: ['br', 'gzip'], threshold: 1024, customTypes: compressibleTypes })
   await app.register(cookie)
   await app.register(cors, {
-    origin: config.NODE_ENV === 'production' ? false : devOrigins,
+    origin: config.devCors ? devOrigins : false,
     credentials: true,
   })
   // Opt-in per route: login, setup, register, password changes and provider deliveries. Counters are per process.
-  await app.register(rateLimit, { global: false })
+  // A larger store than the default 5000 keys, so a flood of new keys cannot evict the
+  // counters of the addresses it is attacking.
+  await app.register(rateLimit, { global: false, cache: 50_000 })
   await app.register(multipart, { limits: { fileSize: 16 * 1024 ** 3 } })
+
+  if (config.CLIENT_IP_HEADER) {
+    const header = config.CLIENT_IP_HEADER
+    // First hook, so every limiter and session record sees the same address. (Fastify's
+    // "incoming request" line is written before hooks run and shows the proxy's.)
+    // Fastify defines `ip` as a getter on the prototype; an own property shadows it.
+    app.addHook('onRequest', async (request) => {
+      const address = headerAddress(request.headers[header], request.raw.socket?.remoteAddress, trust)
+      if (address) Object.defineProperty(request, 'ip', { value: address, enumerable: true })
+    })
+  }
 
   app.decorateRequest('user', null)
   app.decorateRequest('authSessionId', null)

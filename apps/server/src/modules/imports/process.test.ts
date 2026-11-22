@@ -7,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { INCOMING_FOLDER } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import sharp from 'sharp'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albums, imports, mediaFiles, organizeBatches, recordings, wants } from '../../database/schema.js'
@@ -26,8 +26,9 @@ import { matchingModule } from '../matching/index.js'
 import { realFileOps, type FileOps } from '../organize/files.js'
 import { planOrganize } from '../organize/plan.js'
 import { wantEntity } from '../userdata/wants.js'
-import { processImport, runStep, type ProcessOptions } from './process.js'
+import { ImportFailure, processImport, runStep, type ProcessOptions } from './process.js'
 import { addImportFile, commitImport, createImport, getImport, importAlbums, type ImportWork } from './service.js'
+import { disk, MIN_FREE_BYTES } from './space.js'
 import { stagingDir, stagingRoot } from './staging.js'
 import { writeZip } from '../../test/zip.js'
 
@@ -214,6 +215,22 @@ describe('import processing', () => {
     expect(want!.fulfilledAt).not.toBeNull()
     expect(await importAlbums(id)).toMatchObject([{ album: { id: album!.id, title: 'OK Computer', availability: 'full' }, files: 12, filed: true }])
   }, 120_000)
+
+  it('does not extract an archive the disk has no room for', async () => {
+    await managedRoot()
+    const archive = await writeZip(path.join(fixtures, 'Roomy.zip'), okFlac.slice(0, 2).map((file) => ({ name: `Roomy/${path.basename(file)}`, data: file })))
+    const id = await receive([{ from: archive, to: 'Roomy.zip' }])
+    await commitImport(id)
+    const free = vi.spyOn(disk, 'freeBytes').mockResolvedValue(MIN_FREE_BYTES + 1024)
+    try {
+      await expect(runStep(id, fast)).rejects.toThrow(ImportFailure)
+      await expect(runStep(id, fast)).rejects.toThrow(/disk space/)
+      expect(await tree(stagingDir(id))).toEqual(['Roomy.zip'])
+    } finally {
+      free.mockRestore()
+    }
+    expect(await runStep(id, fast)).toMatchObject({ step: 'moving', stats: { filesExtracted: 2 } })
+  })
 
   it('removes audio the library already has, and repeats within one import', async () => {
     const root = await managedRoot()
@@ -458,5 +475,25 @@ describe('import processing', () => {
     await drainJobs({ timeoutMs: 60_000 })
     // The scan it queued still brings the file into the library.
     expect(await db.select({ importId: mediaFiles.importId }).from(mediaFiles).where(and(eq(mediaFiles.rootId, root.id)))).toHaveLength(1)
+  })
+
+  it('keeps an upload whose audio the server has only as a provider delivery', async () => {
+    const root = await managedRoot()
+    // A delivery, hashed, in the root's cache folder.
+    const tone = await makeTone(fixtures, { path: 'cached/again.flac', durationSec: 1, frequency: 523, tags: { title: 'Heard Before', artist: 'Cache Act' } })
+    await mkdir(path.join(root.path, '_Fetched'), { recursive: true })
+    await link(tone, path.join(root.path, '_Fetched', 'again.flac'))
+    await scanRoot({ rootId: root.id })
+    await drainJobs({ timeoutMs: 60_000 })
+    const [delivered] = await db.select().from(mediaFiles).where(eq(mediaFiles.rootId, root.id))
+    expect(delivered).toMatchObject({ source: 'provider:unknown', cached: true, probeStage: 2 })
+
+    const id = await receive([{ from: tone, to: 'mine.flac' }])
+    const done = await run(id)
+    // Cache may be evicted at any time; the owner's copy is never the one dropped for it.
+    expect(done.counts).toMatchObject({ audioFiles: 1, duplicatesSkipped: 0 })
+    const kept = await rowsOf(id)
+    expect(kept).toHaveLength(1)
+    expect(kept[0]).toMatchObject({ source: 'upload', cached: false, audioHash: delivered!.audioHash })
   })
 })
