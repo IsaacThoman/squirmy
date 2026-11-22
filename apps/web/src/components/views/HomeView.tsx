@@ -144,7 +144,8 @@ function Hero({ album, label, onPlay }: { album: AlbumSummary; label: string; on
           <p className="mt-1.5 truncate text-sm text-white/75 sm:text-base">{album.artistCredit}{album.year && ` · ${album.year}`}</p>
           <div className="mt-4 flex gap-2 sm:mt-5">
             <Button variant="primary" onClick={onPlay} className="bg-white text-black hover:bg-white/90 focus-visible:ring-white"><Play fill="currentColor" />Play</Button>
-            <Button asChild variant="ghost" className="bg-white/15 text-white backdrop-blur-md hover:bg-white/25 hover:text-white focus-visible:ring-white max-sm:hidden dark:hover:bg-white/25">
+            {/* A dark glass, not a light one: white on a light glass falls under 4.5:1 over pale artwork. */}
+            <Button asChild variant="ghost" className="bg-black/35 text-white ring-1 ring-inset ring-white/20 backdrop-blur-md hover:bg-black/50 hover:text-white focus-visible:ring-white max-sm:hidden dark:hover:bg-black/50">
               <Link to={`/album/${album.id}`}>Open album</Link>
             </Button>
           </div>

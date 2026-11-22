@@ -14,7 +14,7 @@ import type { Player, QueueItem } from '@/player/player-context'
 const rowHeight = 48
 
 const labelClass = 'text-[11px] font-medium uppercase tracking-wider text-muted-foreground'
-const toggleClass = 'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary/30 aria-pressed:bg-primary/10 aria-pressed:text-primary [&_svg]:size-3.5'
+const toggleClass = 'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary/30 aria-pressed:bg-primary/10 aria-pressed:text-foreground aria-pressed:[&_svg]:text-primary [&_svg]:size-3.5'
 
 /**
  * The whole queue: what is playing, up next, autoplay and history. `modes` shows shuffle and repeat
