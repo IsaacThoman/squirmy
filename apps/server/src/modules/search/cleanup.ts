@@ -4,11 +4,13 @@
  * A stub goes when it is older than `stubMaxAgeDays`, never gained detail (albums and
  * artists at `detail_level` 0 with no MusicBrainz releases; recordings on no release),
  * is not a merge redirect or target, and nothing points at it: no file, like, rating,
- * want, playlist item, play, stored playback session, acquisition still running, album
- * hint of a kept recording or credit. Their `external_ids` rows go with them; `assets` are left alone.
+ * want, library save, playlist item, play, stored playback session, acquisition still
+ * running, album hint of a kept recording or credit. Their `external_ids` rows go with
+ * them; `assets` are left alone.
  */
 import { sql, type SQL } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
+import { invalidate } from '../../realtime/index.js'
 import { uuidArray } from '../catalog/sql.js'
 import { lockCatalog } from '../library/cleanup.js'
 import { lockStubs } from './materialize.js'
@@ -32,6 +34,7 @@ function unreferenced(type: 'recording' | 'album' | 'artist', table: string, ali
   return sql`${userData}
     and not exists (select 1 from acquisition_jobs j where ${fetching} and j.status not in ('completed', 'failed', 'rejected'))
     and not exists (select 1 from wants where entity_type = ${type} and entity_id = ${id})
+    and not exists (select 1 from library_items where entity_type = ${type} and entity_id = ${id})
     and not exists (select 1 from playlist_items where ${column} = ${id})
     and not exists (select 1 from plays where ${column} = ${id})`
 }
@@ -43,7 +46,7 @@ async function ids(tx: Transaction, query: SQL): Promise<string[]> {
 /** Deletes unkept stubs created before `now` minus `stubMaxAgeDays`, and returns how many of each. */
 export async function cleanupStubs(now = new Date()) {
   const cutoff = new Date(now.getTime() - stubMaxAgeDays * 86_400_000).toISOString()
-  return db.transaction(async (tx) => {
+  const deleted = await db.transaction(async (tx) => {
     // The library lock first: ingest may link files to a stub while this runs.
     await lockCatalog(tx)
     await lockStubs(tx)
@@ -83,4 +86,14 @@ export async function cleanupStubs(now = new Date()) {
     }
     return { recordings: recordings.length, albums: albums.length, artists: artists.length }
   })
+  // An artist page can list a stub album and a stub has its own page; nothing a user kept
+  // shows one, so the whole of each kind is refetched rather than naming thousands of ids.
+  // Runs in the worker: the API process drops its cached reads when the NOTIFY arrives.
+  const keys = [
+    ...deleted.recordings > 0 ? [['track']] : [],
+    ...deleted.albums > 0 ? [['album']] : [],
+    ...deleted.artists > 0 ? [['artist']] : [],
+  ]
+  if (keys.length > 0) await invalidate('all', keys)
+  return deleted
 }

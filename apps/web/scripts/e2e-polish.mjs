@@ -2,7 +2,7 @@
 // and was started the way the Docker image starts it, with the music folder in its
 // configuration: the setup wizard starting from that folder, the version, a managed
 // folder's naming template and Organize's mention of it, search leading with its top
-// result (typing into the top bar), the server's ListenBrainz key described as a lookup
+// result (typing into the search page's field), the server's ListenBrainz key described as a lookup
 // key, and the queue saying "Preparing…" only for entries being fetched. Identification and
 // catalog search talk to MusicBrainz and Deezer, so a run takes a few minutes.
 //
@@ -217,14 +217,16 @@ await step('search leads with the top result', async () => {
   // The scan must have read the album's tags before the library can find it.
   await until(() => get('/search/library?q=OK%20Computer&limit=20'), results => results.top?.type === 'album', minutes(2), 1000)
   const expected = await get('/search/library?q=OK%20Computer&limit=20')
-  await page.goto(`${base}/`)
+  await page.goto(`${base}/search`)
+  await heading('Search').waitFor()
   const search = page.getByRole('searchbox', { name: 'Search' })
+  check('the search page\'s field takes focus', await search.evaluate(element => element === document.activeElement))
   // Fast typing, a mistake and its correction: nothing may be dropped or arrive out of order.
   await search.pressSequentially('OK Computr', { delay: 15 })
   await search.press('Backspace')
   await search.pressSequentially('er', { delay: 15 })
   await page.waitForFunction(() => new URL(location.href).searchParams.get('q') === 'OK Computer')
-  check('the top bar keeps every letter', await search.inputValue() === 'OK Computer', page.url())
+  check('the search field keeps every letter', await search.inputValue() === 'OK Computer', page.url())
   const top = page.getByRole('region', { name: 'Top result' })
   await top.waitFor()
   check('the top result is the server\'s', await top.getByRole('link', { name: 'OK Computer' }).getAttribute('href') === `/album/${expected.top.id}` && await top.getByText('Album').isVisible())

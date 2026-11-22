@@ -7,7 +7,6 @@ import { engineState, playbackErrorMessage } from './state';
 export type NativePlayer = {
   readonly playing: boolean;
   readonly isLoaded: boolean;
-  readonly isBuffering: boolean;
   readonly currentTime: number;
   readonly duration: number;
   volume: number;
@@ -24,14 +23,24 @@ export type NativePlayer = {
 
 export type NativeStatus = { didJustFinish: boolean; error?: string | null };
 
+/** A player that starts over at its end. */
+export type LoopingPlayer = Pick<NativePlayer, 'play' | 'pause' | 'remove' | 'release'> & { loop: boolean };
+
 export type ExpoAudioEngineOptions = {
   /** Creates a paused player that starts buffering `url`. */
   createPlayer: (url: string) => NativePlayer;
   /**
+   * Creates a player for a short silent clip, looped while the engine holds the audio
+   * session (`holdAudioSession`).
+   */
+  createSilence?: () => LoopingPlayer;
+  /**
    * The system paused playback (an incoming call, Siri, unplugged headphones). The engine
-   * reports `paused` and stays paused; the caller dispatches a session `pause`.
+   * reports `paused`; the caller dispatches a session `pause`.
    */
   onInterrupted?: (entryId: string) => void;
+  /** An interruption of `entryId` ended and iOS says to carry on; the caller dispatches `play`. */
+  onResumed?: (entryId: string) => void;
   now?: () => number;
   /** How often to look for stalls while playing, which no native event reports. */
   pollIntervalMs?: number;
@@ -61,7 +70,8 @@ type Slot = {
  * Gain is the player's volume, so it can only attenuate (`canBoost: false`). The engine
  * never resumes on its own: `expo-audio` resumes players after an interruption ends, so a
  * player the system paused is muted until the engine is told to play again, and paused
- * if it starts anyway.
+ * if it starts anyway. The audio session's events say what the system did:
+ * `interrupt`/`endInterruption` for a call or Siri, `routeLost` for unplugged headphones.
  */
 export class ExpoAudioEngine implements PlayerEngine {
   private current: Slot | null = null;
@@ -73,6 +83,10 @@ export class ExpoAudioEngine implements PlayerEngine {
   private seekTarget: number | null = null;
   private seekSerial = 0;
   private poll: ReturnType<typeof setInterval> | null = null;
+  /** The entry an interruption paused, to resume when it ends. */
+  private interruptedEntryId: string | null = null;
+  private holding = false;
+  private silence: LoopingPlayer | null = null;
   private readonly listeners = new Set<(event: EngineEvent) => void>();
   private readonly now: () => number;
 
@@ -83,6 +97,7 @@ export class ExpoAudioEngine implements PlayerEngine {
   load(request: EngineLoad): void {
     this.release(this.current);
     this.current = null;
+    this.interruptedEntryId = null;
     let slot: Slot;
     if (this.next && this.next.entryId === request.entryId && this.next.url === request.url) {
       slot = this.next;
@@ -98,6 +113,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.seekTarget = null;
     this.seekSerial += 1;
     this.setState('loading', true);
+    this.syncSilence();
     this.update();
   }
 
@@ -114,6 +130,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     const slot = this.current;
     if (!slot || slot.failed || this.state === 'loading' || this.state === 'playing') return;
     this.wantsPlay = true;
+    this.interruptedEntryId = null;
     if (slot.finished) {
       // Playing an entry that ended starts it over, as a player's play button does.
       slot.finished = false;
@@ -127,6 +144,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     const slot = this.current;
     if (!slot) return;
     this.wantsPlay = false;
+    this.interruptedEntryId = null;
     slot.finished = false;
     slot.player.pause();
     this.update();
@@ -167,7 +185,40 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.next = null;
     this.wantsPlay = false;
     this.seekTarget = null;
+    this.interruptedEntryId = null;
     this.setState('idle', true);
+    this.syncSilence();
+  }
+
+  /** iOS paused the audio for a call, Siri or another app. */
+  interrupt(): void {
+    const slot = this.current;
+    if (!slot || !this.wantsPlay) return;
+    this.interruptedEntryId = slot.entryId;
+    this.systemPause(slot);
+  }
+
+  /** The interruption is over; `shouldResume` is iOS saying playback should carry on, as after a call. */
+  endInterruption(shouldResume: boolean): void {
+    const entryId = this.interruptedEntryId;
+    this.interruptedEntryId = null;
+    if (entryId && shouldResume && this.current?.entryId === entryId) this.options.onResumed?.(entryId);
+  }
+
+  /** The output went away (headphones unplugged): paused for good, as in every iOS player. */
+  routeLost(): void {
+    this.interruptedEntryId = null;
+    if (this.current && this.wantsPlay) this.systemPause(this.current);
+  }
+
+  /**
+   * While `hold` and nothing is loaded, loops silence. iOS suspends a backgrounded app that
+   * plays nothing, so without it the app would be asleep by the time a track it waits for
+   * (one the server is still fetching) can play.
+   */
+  holdAudioSession(hold: boolean): void {
+    this.holding = hold;
+    this.syncSilence();
   }
 
   getStatus(): EngineStatus {
@@ -237,7 +288,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     }
     if (!this.wantsPlay && player.playing) player.pause();
     if (player.playing) slot.started = true;
-    const { state, interrupted } = engineState({
+    this.setState(engineState({
       failed: slot.failed,
       finished: slot.finished,
       ready: slot.ready,
@@ -245,16 +296,30 @@ export class ExpoAudioEngine implements PlayerEngine {
       started: slot.started,
       sincePlay: this.now() - this.playCalledAt,
       playing: player.playing,
-      waiting: player.isBuffering,
-    });
-    if (interrupted) {
-      this.wantsPlay = false;
-      // `expo-audio` resumes interrupted players by itself; keep that silent until asked.
-      player.muted = true;
-      player.pause();
+    }));
+  }
+
+  private systemPause(slot: Slot): void {
+    this.wantsPlay = false;
+    // `expo-audio` resumes interrupted players by itself; keep that silent until asked.
+    slot.player.muted = true;
+    slot.player.pause();
+    this.update();
+    this.options.onInterrupted?.(slot.entryId);
+  }
+
+  private syncSilence(): void {
+    const wanted = this.holding && !this.current;
+    if (wanted && !this.silence && this.options.createSilence) {
+      this.silence = this.options.createSilence();
+      this.silence.loop = true;
+      this.silence.play();
+    } else if (!wanted && this.silence) {
+      this.silence.pause();
+      this.silence.remove();
+      this.silence.release();
+      this.silence = null;
     }
-    this.setState(state);
-    if (interrupted) this.options.onInterrupted?.(slot.entryId);
   }
 
   private becomeReady(slot: Slot): void {

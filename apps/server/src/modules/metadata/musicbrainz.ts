@@ -196,6 +196,14 @@ const lookupTtl = 7 * 86400
 const searchTtl = 86400
 const pageSize = 100
 
+/**
+ * Whether a host is one of MusicBrainz's own servers (musicbrainz.org, beta., www.), which
+ * allow one request per second. An operator's own mirror has no limit.
+ */
+export function isRateLimitedHost(hostname: string) {
+  return hostname === 'musicbrainz.org' || hostname.endsWith('.musicbrainz.org')
+}
+
 /** Calls the web service and returns its JSON, or null when disabled or not found. */
 async function get<T>(path: string, params: Record<string, string>, ttlSeconds = lookupTtl): Promise<T | null> {
   const settings = await getServerSettings()
@@ -203,8 +211,7 @@ async function get<T>(path: string, params: Record<string, string>, ttlSeconds =
   const url = new URL(`ws/2/${path}`, settings.musicBrainzBaseUrl.replace(/\/*$/, '/'))
   for (const [name, value] of Object.entries(params)) url.searchParams.set(name, value)
   url.searchParams.set('fmt', 'json')
-  // The public server allows one request per second; an operator's own mirror has no limit.
-  const limited = url.hostname === 'musicbrainz.org'
+  const limited = isRateLimitedHost(url.hostname)
   const result = await cachedFetch(provider, url.toString(), {
     ttlSeconds,
     headers: { Accept: 'application/json' },
@@ -381,14 +388,6 @@ export async function searchReleases(query: { artist: string; release: string; t
   return (data?.releases ?? []).map(releaseSummary)
 }
 
-/** Recordings by title and artist; an ISRC raises the score of recordings that carry it. */
-export async function searchRecordings(query: { artist: string; recording: string; isrc?: string }, options: { limit?: number } = {}): Promise<MbRecording[]> {
-  let lucene = `recording:${phrase(query.recording)} AND artist:${phrase(query.artist)}`
-  if (query.isrc) lucene += ` isrc:${phrase(query.isrc)}`
-  const data = await get<{ recordings: RawRecording[] }>('recording', { query: lucene, limit: String(options.limit ?? 25) }, searchTtl)
-  return (data?.recordings ?? []).map(recording)
-}
-
 /** One artist with aliases, genres and external links, or null. */
 export async function getArtist(mbid: string): Promise<MbArtist | null> {
   const raw = await get<RawArtist>(`artist/${mbid}`, { inc: 'url-rels genres aliases' })
@@ -506,10 +505,4 @@ export async function findReleasesByBarcode(barcode: string): Promise<MbReleaseS
   const wanted = escapeQuery(barcode.trim().replace(/^0+/, ''))
   const data = await get<{ releases: RawRelease[] }>('release', { query: `barcode:${wanted} OR barcode:0${wanted}`, limit: '25' }, searchTtl)
   return (data?.releases ?? []).filter((release) => release.barcode?.replace(/^0+/, '') === wanted).map(releaseSummary)
-}
-
-/** Recordings carrying an ISRC. Empty when the ISRC is unknown. */
-export async function findRecordingsByIsrc(isrc: string): Promise<MbRecordingSummary[]> {
-  const data = await get<{ recordings: RawRecording[] }>(`isrc/${encodeURIComponent(isrc.toUpperCase())}`, { inc: 'artist-credits isrcs' })
-  return (data?.recordings ?? []).map(recordingSummary)
 }

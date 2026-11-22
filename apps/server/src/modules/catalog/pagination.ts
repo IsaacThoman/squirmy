@@ -78,6 +78,17 @@ export function after(ordering: Ordering, cursor: string | undefined): SQL {
 }
 
 /**
+ * Condition: the first key is at or beyond the cursor's (`true` without one). Redundant
+ * with `after`, but where the keys come from two joined tables a row comparison cannot
+ * start an index scan, and this can.
+ */
+export function leadingBound(ordering: Ordering, cursor: string | undefined): SQL {
+  if (!cursor) return sql`true`
+  const key = ordering.keys[0]!
+  return sql`${key.expression} ${sql.raw(key.descending ? '<=' : '>=')} ${decode(ordering, cursor)[0]}::${sql.raw(key.type)}`
+}
+
+/**
  * Turns `limit + 1` fetched rows into a page: the extra row only signals that another
  * page exists, and the cursor points at the last row returned.
  */

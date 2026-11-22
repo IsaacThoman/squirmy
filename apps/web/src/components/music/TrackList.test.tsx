@@ -23,9 +23,10 @@ describe('TrackRow', () => {
 
   it('grays out a track that is not in the library and cannot be played', async () => {
     const { onPlay, row } = renderRow('soft-signal-live')
-    expect(row).toHaveAttribute('aria-disabled', 'true')
+    // Not the whole row: its heart and More options still work.
+    expect(row).not.toHaveAttribute('aria-disabled')
     expect(within(row).queryByRole('button', { name: /^Play / })).toBeNull()
-    expect(within(row).getByText('Soft Signal (Live)')).toHaveClass('text-quiet')
+    expect(within(row).getByText('Soft Signal (Live)')).toHaveClass('text-muted-foreground')
     expect(within(row).getByText('(not in your library)')).toBeInTheDocument()
     await userEvent.dblClick(row)
     expect(onPlay).not.toHaveBeenCalled()
@@ -39,7 +40,7 @@ describe('TrackRow', () => {
 
   it('shows an on-demand track as unavailable, and why, to someone who may not fetch music', async () => {
     const { onPlay, row } = renderRow('low-tide-song', { canRequest: false })
-    expect(row).toHaveAttribute('aria-disabled', 'true')
+    expect(row).not.toHaveAttribute('aria-disabled')
     expect(row).toHaveAttribute('title', REQUEST_NOT_ALLOWED)
     expect(within(row).queryByRole('button', { name: 'Play Low Tide' })).toBeNull()
     expect(within(row).queryByLabelText('Plays on demand')).toBeNull()

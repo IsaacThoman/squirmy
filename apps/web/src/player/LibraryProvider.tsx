@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router'
 import { patchEntity } from '@/api/patch'
 import { usePlaylists, useWants } from '@/api/queries'
 import { useApi } from '@/api/services'
-import { useCurrentUser } from '@/auth/session'
+import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
 import { plural } from '@/lib/format'
 import { toast } from '@/lib/toast'
@@ -30,7 +30,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const user = useCurrentUser()
-  const wants = useWants().data
+  const wantlistEnabled = useWantlistEnabled()
+  const wants = useWants(wantlistEnabled).data
   const allPlaylists = usePlaylists().data
   const [draft, setDraft] = useState<{ tracks: TrackSummary[] } | null>(null)
 
@@ -91,13 +92,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const { mutate: addTo } = add
 
   const actions = useMemo<LibraryActions>(() => ({
+    wantlistEnabled,
     isWanted: (id, fromServer = false) => fromServer || wantedIds.has(id),
     setLiked: (type, id, liked) => setLiked({ type, id, liked }),
     setWanted: (target, wanted) => setWanted({ target, wanted }),
     playlists,
     addToPlaylist: (playlist, tracks) => { if (tracks.length) addTo({ playlist, tracks }) },
     newPlaylist: (tracks = []) => setDraft({ tracks }),
-  }), [wantedIds, playlists, setLiked, setWanted, addTo])
+  }), [wantlistEnabled, wantedIds, playlists, setLiked, setWanted, addTo])
 
   return (
     <LibraryContext value={actions}>

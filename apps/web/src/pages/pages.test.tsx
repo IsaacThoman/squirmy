@@ -17,7 +17,6 @@ const routes: [string, string | RegExp][] = [
   ['/album/00000000-0000-4000-8200-000000000001', 'Blue Hour'],
   ['/artist/00000000-0000-4000-8100-000000000001', 'Mira Vale'],
   ['/playlist/00000000-0000-4000-8400-000000000001', 'After Dark'],
-  ['/settings', 'Settings'],
   ['/imports', 'Add music'],
   ['/imports/00000000-0000-4000-8a00-000000000001', 'Import'],
   ['/admin/library', 'Admin'],
@@ -33,6 +32,8 @@ const routes: [string, string | RegExp][] = [
   ['/nowhere', 'Nothing here'],
 ]
 
+const LAZY_DEV_PAGE_MS = 15_000
+
 const signedOut: [string, string][] = [
   ['/login', 'Sign in to Squirmy'],
   ['/register?invite=ABC', 'Join Squirmy'],
@@ -41,7 +42,23 @@ const signedOut: [string, string][] = [
 describe('pages', () => {
   it.each(routes)('%s renders', async (route, heading) => {
     renderWithApp(<AppRoutes />, route)
-    expect(await screen.findByRole('heading', { level: heading === 'Nothing here' ? 3 : 1, name: heading })).toBeInTheDocument()
+    // The dev pages are the largest lazy chunks, and under a full parallel run their first import can take a while.
+    const wait = route.startsWith('/dev/') ? { timeout: LAZY_DEV_PAGE_MS } : undefined
+    expect(await screen.findByRole('heading', { level: heading === 'Nothing here' ? 3 : 1, name: heading }, wait)).toBeInTheDocument()
+  }, LAZY_DEV_PAGE_MS + 2000)
+
+  it('/wantlist goes home while the server has the wantlist off', async () => {
+    renderWithApp(<AppRoutes />, '/wantlist', fakeServices({ status: { wantlistEnabled: false } }).services)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Listen now' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Wantlist' })).not.toBeInTheDocument()
+  })
+
+  it.each(['/settings', '/settings/appearance'])('%s opens the settings dialog over the home page', async route => {
+    renderWithApp(<AppRoutes />, route)
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+    // The dialog is modal, so the page behind it is out of reach while it is open.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Listen now', hidden: true })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
   })
 
   it.each(signedOut)('%s renders signed out', async (route, heading) => {

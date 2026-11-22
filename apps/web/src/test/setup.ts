@@ -9,6 +9,14 @@ afterEach(cleanup)
 // reports which element was not found.
 configure({ asyncUtilTimeout: 4000 })
 
+// Node 25 and later have a localStorage of their own, which is off without a file to keep it in
+// and hides jsdom's. Tests get jsdom's, as they do on older Nodes.
+Object.defineProperty(globalThis, 'localStorage', {
+  value: (globalThis as unknown as { jsdom: { window: Window } }).jsdom.window.localStorage,
+  configurable: true,
+  writable: true,
+})
+
 // jsdom lacks the layout APIs Radix and the virtualizer reach for.
 class ResizeObserverStub {
   observe() {}

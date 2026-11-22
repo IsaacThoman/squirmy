@@ -2,6 +2,7 @@ import type { AlbumSummary, ArtistSummary, PlaylistSummary } from '@squirmy/cont
 import { BookmarkCheck, BookmarkPlus, CloudDownload, Play } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import { usePrefetch, type PrefetchHandlers } from '@/api/prefetch'
 import { Tooltip } from '@/components/ui/tooltip'
 import { albumTypeLabel, isUnowned } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
@@ -19,24 +20,27 @@ type CardProps = {
   want?: { wanted: boolean; onChange: (wanted: boolean) => void }
   dimmed?: boolean
   badge?: ReactNode
-  centered?: boolean
+  /** Round artwork with centered text, for artists. */
+  round?: boolean
+  /** Starts loading the linked page when the card is hovered, focused or pressed. */
+  prefetch?: PrefetchHandlers
 }
 
-/** Artwork, a title and a subtitle, linking to a page. A play button rises on hover. */
-function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered }: CardProps) {
+/** A button over the corner of a card's artwork. It rises in when the card is hovered or it takes focus. */
+const overArt = 'absolute bottom-2 right-2 z-10 flex size-10 items-center justify-center rounded-full outline-none transition duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+const revealed = 'translate-y-1 opacity-0 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/card:translate-y-0 group-hover/card:opacity-100'
+
+/** Artwork, a title and a subtitle, linking to a page. The whole card is the link. */
+function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, round, prefetch }: CardProps) {
   return (
-    <div className={cn('group/card relative flex min-w-0 flex-col rounded-2xl p-2 -m-2 transition-colors duration-150 hover:bg-overlay focus-within:bg-overlay', centered && 'items-center text-center')}>
+    <div className={cn('group/card relative flex min-w-0 flex-col', round && 'items-center text-center')}>
       <div className="relative w-full">
         {art}
-        {badge && <div className="absolute left-2 top-2">{badge}</div>}
+        <div aria-hidden className={cn('pointer-events-none absolute inset-0 transition-colors duration-150 group-hover/card:bg-black/10', round ? 'rounded-full' : 'rounded-cover')} />
+        {badge && <div className="absolute left-1.5 top-1.5">{badge}</div>}
         {onPlay && (
-          <button
-            type="button"
-            aria-label={`Play ${title}`}
-            onClick={onPlay}
-            className="absolute bottom-2 right-2 z-10 flex size-11 translate-y-2 items-center justify-center rounded-full bg-accent text-on-accent opacity-0 shadow-cover transition duration-150 hover:scale-105 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/card:translate-y-0 group-hover/card:opacity-100"
-          >
-            <Play className="size-5 translate-x-px" fill="currentColor" />
+          <button type="button" aria-label={`Play ${title}`} onClick={onPlay} className={cn(overArt, revealed, 'bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95')}>
+            <Play className="size-4 translate-x-px" fill="currentColor" />
           </button>
         )}
         {want && !onPlay && (
@@ -45,19 +49,24 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered 
             aria-label={want.wanted ? `Remove ${title} from Wantlist` : `Add ${title} to Wantlist`}
             aria-pressed={want.wanted}
             onClick={() => want.onChange(!want.wanted)}
-            className={cn(
-              'absolute bottom-2 right-2 z-10 flex size-10 items-center justify-center rounded-full bg-sheet text-accent shadow-cover transition duration-150 hover:scale-105',
-              !want.wanted && 'translate-y-2 opacity-0 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/card:translate-y-0 group-hover/card:opacity-100',
-            )}
+            className={cn(overArt, 'border bg-popover shadow-md hover:bg-accent', want.wanted ? 'text-primary' : cn(revealed, 'text-popover-foreground'))}
           >
-            {want.wanted ? <BookmarkCheck className="size-5" /> : <BookmarkPlus className="size-5" />}
+            {want.wanted ? <BookmarkCheck className="size-4" /> : <BookmarkPlus className="size-4" />}
           </button>
         )}
       </div>
-      <Link to={to} title={title} className={cn('mt-2.5 truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none', dimmed && 'text-quiet', 'w-full')}>
+      <Link
+        to={to}
+        title={title}
+        {...prefetch}
+        className={cn(
+          'mt-2 w-full truncate text-sm font-medium outline-none after:absolute after:-inset-1 after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-ring',
+          dimmed && 'text-muted-foreground',
+        )}
+      >
         {title}
       </Link>
-      <div className={cn('mt-0.5 w-full truncate text-[13px] text-muted', dimmed && 'text-quiet')}>{subtitle}</div>
+      <div className={cn('w-full truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{subtitle}</div>
     </div>
   )
 }
@@ -79,9 +88,11 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
   // On demand only for people who may fetch music; gray for everyone else.
   const onDemand = album.availability === 'on_demand' && canRequest
   const dimmed = album.availability === 'none' || (album.availability === 'on_demand' && !canRequest)
+  const prefetch = usePrefetch({ kind: 'album', id: album.id })
   return (
     <Card
       to={`/album/${album.id}`}
+      prefetch={prefetch}
       title={album.title}
       subtitle={subtitle === 'year' ? [album.year, albumTypeLabel(album.type)].filter(Boolean).join(' · ') : album.artistCredit}
       art={<Cover artwork={album.artwork} dimmed={dimmed} className={cn(onDemand && 'opacity-80')} />}
@@ -89,29 +100,32 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
       want={unowned && onWant ? { wanted, onChange: onWant } : undefined}
       dimmed={dimmed}
       badge={onDemand
-        ? <Tooltip label="Plays on demand"><span className="flex size-7 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md"><CloudDownload aria-label="Plays on demand" className="size-4" /></span></Tooltip>
-        : partial ? <span className="rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-md">{album.ownedTrackCount} of {album.trackCount}</span> : undefined}
+        // Above the card's link, so the tooltip can be reached.
+        ? <Tooltip label="Plays on demand"><span className="relative z-10 flex size-6 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md"><CloudDownload aria-label="Plays on demand" className="size-3.5" /></span></Tooltip>
+        : partial ? <span className="flex h-5 items-center rounded-md bg-black/50 px-1.5 text-xs font-medium tabular text-white backdrop-blur-md">{album.ownedTrackCount} of {album.trackCount}</span> : undefined}
     />
   )
 }
 
 export function ArtistCard({ artist }: { artist: ArtistSummary }) {
+  const prefetch = usePrefetch({ kind: 'artist', id: artist.id })
   return (
     <Card
       to={`/artist/${artist.id}`}
+      prefetch={prefetch}
       title={artist.name}
       subtitle="Artist"
-      centered
+      round
       dimmed={!artist.inLibrary}
-      art={artist.image ? <Cover artwork={artist.image} round dimmed={!artist.inLibrary} /> : <Monogram name={artist.name} />}
+      art={artist.image ? <Cover artwork={artist.image} round dimmed={!artist.inLibrary} /> : <Monogram name={artist.name} className={cn(!artist.inLibrary && 'opacity-55')} />}
     />
   )
 }
 
-/** A round initial for artists with no image. */
+/** A round initial for artists with no image. A `className` sets its size and the size of its letter. */
 export function Monogram({ name, className }: { name: string; className?: string }) {
   return (
-    <div aria-hidden className={cn('flex aspect-square w-full items-center justify-center rounded-full bg-surface text-[clamp(1rem,5vw,2.75rem)] font-bold text-quiet shadow-[inset_0_0_0_1px_var(--stroke)]', className)}>
+    <div aria-hidden className={cn('flex aspect-square w-full select-none items-center justify-center rounded-full bg-muted text-4xl font-medium text-muted-foreground ring-1 ring-inset ring-foreground/10', className)}>
       {name.slice(0, 1).toUpperCase()}
     </div>
   )
@@ -131,10 +145,10 @@ export function PlaylistCard({ playlist, onPlay }: { playlist: PlaylistSummary; 
 
 /** A responsive grid of cards that fills the width. */
 export function CardGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))]', className)}>{children}</div>
+  return <div className={cn('grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]', className)}>{children}</div>
 }
 
-/** A colored tile for browsing a genre, with a cover tilted into the corner. */
+/** A colored tile for browsing a genre, with a cover tilted into the corner, or a record where there is none. */
 export function GenreTile({ name, color, art, onClick }: { name: string; color: string; art?: ReactNode; onClick: () => void }) {
   return (
     <button
@@ -142,12 +156,18 @@ export function GenreTile({ name, color, art, onClick }: { name: string; color: 
       onClick={onClick}
       aria-label={`Browse ${name}`}
       style={{ backgroundColor: color }}
-      className="group relative h-28 overflow-hidden rounded-2xl p-4 text-left transition duration-150 hover:brightness-110 active:scale-[0.98]"
+      className="group relative h-24 overflow-hidden rounded-xl p-3.5 text-left outline-none transition-[filter] duration-150 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
-      <span className="relative z-10 text-[17px] font-bold text-[#F5F2FF]">{name}</span>
+      <span className="relative z-10 line-clamp-2 max-w-[70%] text-base font-semibold leading-snug text-white">{name}</span>
       {art
-        ? <div className="absolute -bottom-3 -right-2 w-[5.5rem] rotate-[19deg] shadow-cover transition-transform duration-200 group-hover:rotate-[14deg] group-hover:scale-105">{art}</div>
-        : <span aria-hidden className="absolute -bottom-6 -right-3 text-[5.5rem] font-black leading-none tracking-tighter text-white/12 transition-transform duration-200 group-hover:-rotate-6">{name.slice(0, 2)}</span>}
+        ? <div className="absolute -bottom-2 -right-2 w-16 rotate-12 shadow-cover">{art}</div>
+        : (
+          <span aria-hidden className="absolute -bottom-9 -right-9 flex size-28 items-center justify-center rounded-full border border-white/15 bg-white/5">
+            <span className="flex size-[4.5rem] items-center justify-center rounded-full border border-white/15">
+              <span className="size-7 rounded-full bg-white/15" />
+            </span>
+          </span>
+        )}
     </button>
   )
 }

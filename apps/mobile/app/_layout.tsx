@@ -19,7 +19,7 @@ import { useAppearance, useColors } from '../src/theme';
 // Sheets opened by a link or a restored route still get the tabs beneath them.
 export const unstable_settings = { anchor: '(tabs)' };
 
-// Held until the stored session is checked, so launch never flashes the wrong screen.
+// Held until the stored session and the saved library are read, so launch never flashes the wrong screen.
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {

@@ -12,13 +12,20 @@
  *    artists, never the same artist twice in a row. The rules relax only when the
  *    candidates cannot satisfy them (a small library).
  *
- * Only owned tracks are suggested. When none qualifies, tracks an acquisition provider
- * can supply (`on_demand`) are ranked the same way, from the artist, similar-artist and
- * liked pools.
+ * For a user who may have tracks fetched (an admin, or `canAcquire`), tracks an acquisition
+ * provider can supply (`on_demand`) from the artist, similar-artist and liked pools are
+ * ranked together with the owned ones, so a server that holds few files still has a radio.
+ * The first `OWNED_FIRST` picks are owned whenever an owned track qualifies: they play at
+ * once while the fetches of the later ones run. Everyone else gets owned tracks only.
+ *
+ * An artist's tracks are the ones it is credited on, plus the ones it leads
+ * (`primary_artist_id`): rows from older imports and catalog stubs can lack credit rows.
  */
+import { canFetch } from '@squirmy/client-core'
 import type { QueueSeed } from '@squirmy/contracts'
-import { sql, type SQL } from 'drizzle-orm'
+import { eq, sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
+import { users } from '../../database/schema.js'
 import { onDemandRecordings } from '../acquisition/coverage.js'
 import { uuidArray } from '../catalog/sql.js'
 import { similarArtists } from './similar.js'
@@ -74,10 +81,13 @@ const CO_LISTENED_FULL = 4
 /** Seed artists whose similar artists are looked up, most recent first. */
 const SIMILAR_LOOKUPS = 3
 const SIMILAR_TIMEOUT_MS = 2500
+/** Leading picks that must be owned when an owned track qualifies. */
+export const OWNED_FIRST = 2
 
 type Seed = { id: string; artistIds: string[]; primaryArtistId: string | null; albumId: string | null; year: number | null; genres: string[] }
 
 type Candidate = Seed & {
+  owned: boolean
   durationMs: number
   liked: boolean
   likedArtist: boolean
@@ -107,10 +117,31 @@ function albumOf(recording: string): SQL {
     (select rel.album_id from release_tracks rt join releases rel on rel.id = rt.release_id where rt.recording_id = ${recording} order by rel.album_id limit 1))`)
 }
 
+/** Puts the lead artist among the credited ones, for rows that have no credit rows for it. */
+function withLead<T extends { artistIds: string[]; primaryArtistId: string | null }>(row: T): T {
+  const lead = row.primaryArtistId
+  return lead && !row.artistIds.includes(lead) ? { ...row, artistIds: [...row.artistIds, lead] } : row
+}
+
+/**
+ * Recordings by an artist that `artistIs` accepts: credited, or led without being
+ * credited. `artistIs` gets the artist id column to test.
+ */
+function byArtist(artistIs: (column: SQL) => SQL): SQL {
+  return sql`(select ra.recording_id as id from recording_artists ra where ${artistIs(sql`ra.artist_id`)}
+    union select led.id from recordings led where ${artistIs(sql`led.primary_artist_id`)} and led.merged_into_id is null)`
+}
+
+/** Whether tracks may be fetched for the user, by the rule acquisition applies to a request. */
+async function isRequester(userId: string): Promise<boolean> {
+  const [user] = await db.select({ role: users.role, canAcquire: users.canAcquire, disabledAt: users.disabledAt }).from(users).where(eq(users.id, userId))
+  return Boolean(user && !user.disabledAt && canFetch(user))
+}
+
 /** Artists, album, year and genres of each recording, in the order given; missing ids are left out. */
 async function describe(ids: readonly string[]): Promise<Seed[]> {
   if (ids.length === 0) return []
-  return db.execute<Seed>(sql`
+  const rows = await db.execute<Seed>(sql`
     select r.id, r.primary_artist_id as "primaryArtistId", al.id as "albumId", al.year,
       array(select ra.artist_id::text from recording_artists ra where ra.recording_id = r.id order by ra.position) as "artistIds",
       coalesce(al.genres, '{}') || coalesce(ar.genres, '{}') as genres
@@ -119,6 +150,7 @@ async function describe(ids: readonly string[]): Promise<Seed[]> {
     left join albums al on al.id = ${albumOf('r.id')}
     left join artists ar on ar.id = r.primary_artist_id
     order by s.n`)
+  return rows.map(withLead)
 }
 
 /** Waits for `promise` at most `ms`, settling with `fallback` instead of throwing. */
@@ -169,21 +201,21 @@ async function gather(userId: string, profile: Profile, owned: boolean, salt: nu
   const genres = sql`${`{${[...new Set(profile.seeds.flatMap((seed) => seed.genres))].map((genre) => JSON.stringify(genre)).join(',')}}`}::text[]`
   const [fromYear, toYear] = profile.years.length ? [Math.min(...profile.years) - 3, Math.max(...profile.years) + 3] : [0, -1]
 
+  const seedArtists = uuidArray([...profile.artists])
   const pools: SQL[] = [
-    sql`select ra.recording_id, 0 from recording_artists ra
-      where ra.artist_id = any(${uuidArray([...profile.artists])}) and ${ownership('ra.recording_id')}
-      order by ${shuffle('ra.recording_id')} limit 80`,
-    sql`select pick.recording_id, 0 from unnest(${uuidArray([...profile.similar.keys()])}) s(id) cross join lateral (
-        select ra.recording_id from recording_artists ra where ra.artist_id = s.id and ${ownership('ra.recording_id')}
-        order by ${shuffle('ra.recording_id')} limit 10) pick`,
+    sql`select t.id, 0 from ${byArtist((column) => sql`${column} = any(${seedArtists})`)} t
+      where ${ownership('t.id')}
+      order by ${shuffle('t.id')} limit 80`,
+    sql`select pick.id, 0 from unnest(${uuidArray([...profile.similar.keys()])}) s(id) cross join lateral (
+        select t.id from ${byArtist((column) => sql`${column} = s.id`)} t where ${ownership('t.id')}
+        order by ${shuffle('t.id')} limit 10) pick`,
     sql`select l.entity_id, 0 from likes l
       where l.user_id = ${userId} and l.entity_type = 'recording' and ${ownership('l.entity_id')}
       order by ${shuffle('l.entity_id')} limit 60`,
-    sql`select ra.recording_id, 0 from (
-        select entity_id from likes where user_id = ${userId} and entity_type = 'artist' order by ${shuffle('entity_id')} limit 20
-      ) l join recording_artists ra on ra.artist_id = l.entity_id
-      where ${ownership('ra.recording_id')}
-      order by ${shuffle('ra.recording_id')} limit 60`,
+    sql`select t.id, 0 from ${byArtist((column) => sql`${column} in (
+        select entity_id from likes where user_id = ${userId} and entity_type = 'artist' order by ${shuffle('entity_id')} limit 20)`)} t
+      where ${ownership('t.id')}
+      order by ${shuffle('t.id')} limit 60`,
   ]
   if (owned) {
     pools.push(
@@ -218,9 +250,9 @@ async function gather(userId: string, profile: Profile, owned: boolean, salt: nu
 }
 
 /** Features of the candidates that can be suggested: not merged away, owned (or not, per `owned`). */
-async function features(userId: string, ids: readonly string[], owned: boolean): Promise<Omit<Candidate, 'coListened' | 'score'>[]> {
+async function features(userId: string, ids: readonly string[], owned: boolean): Promise<Omit<Candidate, 'owned' | 'coListened' | 'score'>[]> {
   if (ids.length === 0) return []
-  return db.execute(sql`
+  const rows = await db.execute<Omit<Candidate, 'owned' | 'coListened' | 'score'>>(sql`
     select r.id, r.primary_artist_id as "primaryArtistId", al.id as "albumId", al.year,
       array(select ra.artist_id::text from recording_artists ra where ra.recording_id = r.id order by ra.position) as "artistIds",
       coalesce(al.genres, '{}') || coalesce(ar.genres, '{}') as genres,
@@ -242,6 +274,7 @@ async function features(userId: string, ids: readonly string[], owned: boolean):
     left join artists ar on ar.id = r.primary_artist_id
     where (f.id is not null) = ${owned}
     order by r.id`)
+  return rows.map(withLead)
 }
 
 function score(candidate: Omit<Candidate, 'score'>, profile: Profile, random: () => number): number {
@@ -282,7 +315,10 @@ function fits(candidate: Candidate, placed: Placed, recent: Placed[], level: (ty
   return !placed.bySeedArtist || count((one) => one.bySeedArtist) < level.bySeedArtists
 }
 
-/** Picks `limit` candidates in score order under the variety rules, continuing after `history`. */
+/**
+ * Picks `limit` candidates in score order under the variety rules, continuing after
+ * `history`. The first `OWNED_FIRST` are owned while an owned candidate is left.
+ */
 function pick(ranked: Candidate[], history: Placed[], profile: Profile, limit: number): Candidate[] {
   const placedOf = (candidate: Candidate): Placed => ({
     artistId: candidate.primaryArtistId ?? candidate.artistIds[0] ?? null,
@@ -294,9 +330,10 @@ function pick(ranked: Candidate[], history: Placed[], profile: Profile, limit: n
   const chosen: Candidate[] = []
   while (chosen.length < limit && left.length > 0) {
     const recent = sequence.slice(-(WINDOW - 1))
+    const ownedOnly = chosen.length < OWNED_FIRST && left.some((candidate) => candidate.owned)
     let index = -1
     for (const level of levels) {
-      index = left.findIndex((candidate) => fits(candidate, placedOf(candidate), recent, level))
+      index = left.findIndex((candidate) => (!ownedOnly || candidate.owned) && fits(candidate, placedOf(candidate), recent, level))
       if (index >= 0) break
     }
     const [next] = left.splice(index, 1)
@@ -308,13 +345,13 @@ function pick(ranked: Candidate[], history: Placed[], profile: Profile, limit: n
 
 /**
  * Up to `limit` tracks to play after the seeds, best first, as queue seeds: owned tracks
- * `ready`, on-demand ones (only when no owned track qualifies) `preparing`. Never returns
- * a seed or an excluded track. See the top of this file for the method.
+ * `ready`, on-demand ones (for a user who may have tracks fetched) `preparing`. Never
+ * returns a seed or an excluded track. See the top of this file for the method.
  */
 export async function suggest(request: SuggestRequest, options: SuggestOptions = {}): Promise<QueueSeed[]> {
   const random = options.random ?? Math.random
   if (request.limit <= 0) return []
-  const seeds = await describe(request.seeds)
+  const [seeds, requester] = await Promise.all([describe(request.seeds), isRequester(request.userId)])
   const profile = profileOf(seeds, seeds.length ? await similarTo(seeds, options.similarTimeoutMs ?? SIMILAR_TIMEOUT_MS) : new Map())
   const banned = new Set([...request.seeds, ...request.exclude])
   // Seeds count towards the artist and album limits, not the limit on seed artists.
@@ -325,26 +362,22 @@ export async function suggest(request: SuggestRequest, options: SuggestOptions =
   }))
   const salt = Math.floor(random() * 2 ** 32)
 
-  for (const owned of [true, false]) {
+  const found = await Promise.all((requester ? [true, false] : [true]).map(async (owned) => {
     const near = await gather(request.userId, profile, owned, salt)
-    let found = await features(request.userId, [...near.keys()].filter((id) => !banned.has(id)), owned)
+    let rows = await features(request.userId, [...near.keys()].filter((id) => !banned.has(id)), owned)
     if (!owned) {
-      const available = await onDemandRecordings(found.map((candidate) => candidate.id))
-      found = found.filter((candidate) => available.has(candidate.id))
+      const available = await onDemandRecordings(rows.map((candidate) => candidate.id))
+      rows = rows.filter((candidate) => available.has(candidate.id))
     }
-    if (found.length === 0) continue
-    const ranked = found
-      .map((candidate) => {
-        const withNear = { ...candidate, coListened: near.get(candidate.id) ?? 0 }
-        return { ...withNear, score: score(withNear, profile, random) }
-      })
-      .sort((a, b) => b.score - a.score)
-    return pick(ranked, history, profile, request.limit).map((candidate) => ({
-      trackId: candidate.id,
-      albumId: candidate.albumId,
-      durationMs: candidate.durationMs,
-      state: owned ? 'ready' : 'preparing',
-    }))
-  }
-  return []
+    return rows.map((candidate) => ({ ...candidate, owned, coListened: near.get(candidate.id) ?? 0 }))
+  }))
+  const ranked = found.flat()
+    .map((candidate) => ({ ...candidate, score: score(candidate, profile, random) }))
+    .sort((a, b) => b.score - a.score)
+  return pick(ranked, history, profile, request.limit).map((candidate) => ({
+    trackId: candidate.id,
+    albumId: candidate.albumId,
+    durationMs: candidate.durationMs,
+    state: candidate.owned ? 'ready' : 'preparing',
+  }))
 }

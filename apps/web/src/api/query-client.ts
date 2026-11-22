@@ -38,7 +38,8 @@ export function createQueryClient(): QueryClient {
       },
     }),
     defaultOptions: {
-      queries: { staleTime: 30_000, retry: (failures, error) => failures < 2 && retriable(error) },
+      // Pages stay in memory for a day so the persisted cache (api/persist.ts) keeps what was visited.
+      queries: { staleTime: 30_000, gcTime: 24 * 60 * 60 * 1000, retry: (failures, error) => failures < 2 && retriable(error) },
       mutations: { retry: false },
     },
   })

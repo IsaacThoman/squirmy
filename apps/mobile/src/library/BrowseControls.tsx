@@ -1,6 +1,6 @@
 import type { Href } from 'expo-router';
 import { useImperativeHandle, useRef, type ComponentRef, type ReactElement, type Ref } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '../ui';
 import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
 import { ZoomLink } from './ZoomLink';
@@ -22,17 +22,18 @@ export type CollectionButtonProps = { title: string; subtitle: string; cover: Re
 /** The button a `ZoomLink` wraps. The link supplies `onPress`. */
 export type LinkedButtonProps<T> = Omit<T, 'href'> & { onPress?: () => void };
 export type GenreCardProps = { title: string; color: string; width: number; cover: ReactElement; onPress: () => void };
-export type HeroActionsProps = { title: string; artist: string; onOpen: () => void; onPlay: () => void };
-export type CollectionGridProps = { items: readonly (CollectionButtonProps & { id: string })[]; columns: number };
+/** `busy` shows that a play is waiting on the server; the play button ignores taps meanwhile. */
+export type HeroActionsProps = { title: string; artist: string; onOpen: () => void; onPlay: () => void; busy?: boolean };
+/** One row of a grid of collections; a long grid is a virtualized list of these. */
+export type CollectionGridRowProps = { items: readonly (CollectionButtonProps & { id: string })[] };
 export type GenreGridProps = { items: readonly (GenreCardProps & { id: string })[] };
-export type AlbumMetadataProps = { title: string; info: string; artist?: string };
 /**
  * The search result to lead with. With `href` it opens that page, which zooms out of its
  * cover; without, pressing it runs `onPress`. `onPlay` adds a play button.
  */
 export type TopResultProps = {
   title: string; subtitle: string; cover: ReactElement; size: number; href?: Href; dim?: boolean;
-  onPress?: () => void; onPlay?: () => void;
+  onPress?: () => void; onPlay?: () => void; busy?: boolean;
 };
 
 export function SearchField({ value, onChange, placeholder, autoFocus, inputRef }: SearchFieldProps) {
@@ -93,7 +94,7 @@ function TileButton({ title, subtitle, cover, size, dim, onPress }: LinkedButton
   </Pressable>;
 }
 
-export function CollectionGrid({ items }: CollectionGridProps) {
+export function CollectionGridRow({ items }: CollectionGridRowProps) {
   const styles = useStyles();
   return <View style={styles.collectionGrid}>
     {items.map(({ id, ...item }) => <CollectionTile key={id} {...item} />)}
@@ -134,27 +135,33 @@ export function GenreGrid({ items }: GenreGridProps) {
   </View>;
 }
 
-export function HeroActions({ title, artist, onOpen, onPlay }: HeroActionsProps) {
+export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActionsProps) {
   const styles = useStyles();
+  const colors = useColors();
   return <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onOpen} style={[StyleSheet.absoluteFill, styles.heroOpen]}>
       <Text style={styles.heroTitle}>{title}</Text>
       <Text style={[styles.subtitle, styles.heroSubtitle]}>{artist}</Text>
     </Pressable>
-    <View style={styles.heroPlay}><BrowseButton icon="play.fill" label={`Play ${title}`} onPress={onPlay} glass /></View>
+    <View style={styles.heroPlay}>{busy
+      ? <ActivityIndicator accessibilityLabel={`Starting ${title}`} color={colors.text} style={styles.busy} />
+      : <BrowseButton icon="play.fill" label={`Play ${title}`} onPress={onPlay} glass />}</View>
   </View>;
 }
 
-export function TopResult({ href, onPlay, ...props }: TopResultProps) {
+export function TopResult({ href, onPlay, busy, ...props }: TopResultProps) {
   const styles = useStyles();
+  const colors = useColors();
   return <View style={styles.topResult}>
     {href ? <ZoomLink href={href}><TopResultButton {...props} playable={Boolean(onPlay)} /></ZoomLink>
       : <TopResultButton {...props} playable={Boolean(onPlay)} />}
-    {onPlay && <View style={styles.topPlay}><BrowseButton icon="play.fill" label={`Play ${props.title}`} onPress={onPlay} glass /></View>}
+    {onPlay && <View style={styles.topPlay}>{busy
+      ? <ActivityIndicator accessibilityLabel={`Starting ${props.title}`} color={colors.text} style={styles.busy} />
+      : <BrowseButton icon="play.fill" label={`Play ${props.title}`} onPress={onPlay} glass />}</View>}
   </View>;
 }
 
-function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay'> & { playable: boolean }) {
+function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omit<TopResultProps, 'href' | 'onPlay' | 'busy'> & { playable: boolean }) {
   const colors = useColors();
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
@@ -166,15 +173,6 @@ function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omi
     </View>
     {!playable && <Icon name="chevron.right" size={12} color={colors.muted} />}
   </Pressable>;
-}
-
-export function AlbumMetadata({ title, info, artist }: AlbumMetadataProps) {
-  const styles = useStyles();
-  return <View style={styles.metadata}>
-    <Text accessibilityRole="header" style={styles.albumTitle}>{title}</Text>
-    {artist && <Text style={styles.artist}>{artist}</Text>}
-    <Text style={styles.subtitle}>{info}</Text>
-  </View>;
 }
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
@@ -193,7 +191,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
   collectionTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
   subtitle: { color: colors.muted, fontSize: 13, marginTop: 3 },
-  collectionGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 19 },
+  collectionGrid: { flexDirection: 'row', columnGap: 12, marginBottom: 19 },
   genreGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   genre: { minHeight: 106, padding: 12, borderRadius: 15, overflow: 'hidden' },
   genreTitle: { color: '#F5F2FF', fontSize: 17, fontWeight: '700' },
@@ -207,7 +205,5 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   topPlayable: { paddingRight: 72 },
   topTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   topPlay: { position: 'absolute', right: 14 },
-  metadata: { alignItems: 'center', gap: 3 },
-  albumTitle: { color: colors.text, fontWeight: '800', fontSize: 31, textAlign: 'center' },
-  artist: { color: colors.text, fontSize: 17, textAlign: 'center' },
+  busy: { width: 44, height: 44 },
 }));

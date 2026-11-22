@@ -1,17 +1,16 @@
 import type { AlbumSummary, ArtistSummary, LibrarySort, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
 import { Disc3, FolderPlus, ListMusic, MicVocal, Plus, SearchX } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { Link, NavLink } from 'react-router'
-import { Page } from '@/components/layout/Page'
+import { useCallback, useSyncExternalStore, type ReactNode } from 'react'
+import { Link } from 'react-router'
+import { HeaderLink, Page, PageHeader } from '@/components/layout/Page'
+import { useScrollContainer } from '@/components/layout/scroll-context'
 import { AlbumCard, ArtistCard, CardGrid, PlaylistCard } from '@/components/music/Cards'
-import { PageTitle } from '@/components/music/SectionHeader'
 import { GridSkeleton, TrackRowsSkeleton } from '@/components/music/Skeletons'
 import { VirtualTrackList } from '@/components/music/TrackList'
 import { VirtualGrid } from '@/components/music/VirtualGrid'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { Select, type SelectOption } from '@/components/ui/select'
-import { pillClass } from '@/components/ui/tabs'
 import { plural } from '@/lib/format'
 import { useTrackActions } from '@/player/use-track-actions'
 
@@ -49,21 +48,43 @@ export type LibraryListProps<T> = {
   canAddMusic: boolean
 }
 
+/**
+ * Whether the page is narrower than `width`. That is the room the shell leaves the page, which the
+ * sidebar and the queue take from, not the window's width.
+ */
+function usePageNarrowerThan(width: number) {
+  const page = useScrollContainer()
+  const watch = useCallback((onChange: () => void) => {
+    if (!page) return () => {}
+    const observer = new ResizeObserver(onChange)
+    observer.observe(page)
+    return () => observer.disconnect()
+  }, [page])
+  // The window stands in until the page has been laid out.
+  return useSyncExternalStore(watch, () => (page?.clientWidth || window.innerWidth) < width)
+}
+
+/** A library list under the header that switches between them. */
 function LibraryPage({ count, controls, children }: { count?: string; controls?: ReactNode; children: ReactNode }) {
+  // The count and the controls are in the header bar while it has room for them beside the
+  // sections. On a narrower page, a phone's above all, they go in a row under it.
+  const narrow = usePageNarrowerThan(800)
+  const summary = count && <span className="shrink-0 text-xs tabular text-muted-foreground">{count}</span>
   return (
-    <Page className="flex flex-col gap-5">
-      <PageTitle>Library</PageTitle>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav aria-label="Library sections" className="flex gap-2 overflow-x-auto [scrollbar-width:none]">
-          {tabs.map(tab => <NavLink key={tab.to} to={tab.to} className={pillClass}>{tab.label}</NavLink>)}
-        </nav>
-        <div className="flex flex-wrap items-center gap-3">
-          {count && <span className="text-[13px] font-medium text-quiet">{count}</span>}
-          {controls}
-        </div>
-      </div>
-      <div className="mt-2">{children}</div>
-    </Page>
+    <>
+      <PageHeader title="Library" className="max-md:gap-2" nav={tabs.map(tab => <HeaderLink key={tab.to} to={tab.to}>{tab.label}</HeaderLink>)}>
+        {!narrow && (summary || controls) ? <>{summary}{controls}</> : null}
+      </PageHeader>
+      <Page>
+        {narrow && (summary || controls) && (
+          <div className="mb-4 flex min-h-8 flex-wrap items-center justify-between gap-2">
+            {controls && <div className="flex items-center gap-2">{controls}</div>}
+            {summary}
+          </div>
+        )}
+        {children}
+      </Page>
+    </>
   )
 }
 
@@ -73,18 +94,24 @@ function listCount<T>({ items, more }: Pick<LibraryListProps<T>, 'items' | 'more
 }
 
 function ListControls<T>({ sort, onSortChange, genres, genre, onGenreChange }: LibraryListProps<T>) {
+  const tight = usePageNarrowerThan(480)
+  // A genre from the URL that the library does not have is still the one chosen, so it is listed.
+  const names = genres && genre && !genres.includes(genre) ? [genre, ...genres] : genres
   return (
     <>
-      {genres && genres.length > 0 && onGenreChange && (
+      {names && names.length > 0 && onGenreChange && (
         <Select
           label="Genre"
           prefix="Genre:"
           value={genre ?? allGenres}
           onValueChange={value => onGenreChange(value === allGenres ? undefined : value)}
-          options={[{ value: allGenres, label: 'All' }, ...genres.map(name => ({ value: name, label: name }))]}
+          options={[{ value: allGenres, label: 'All' }, ...names.map(name => ({ value: name, label: name }))]}
+          size="sm"
+          className="max-w-44"
         />
       )}
-      <Select label="Sort by" prefix="Sort:" value={sort} onValueChange={onSortChange} options={sortOptions} />
+      {/* The sorts explain themselves, so on a phone the prefix makes way for the count beside the controls. */}
+      <Select label="Sort by" prefix={tight ? undefined : 'Sort:'} value={sort} onValueChange={onSortChange} options={sortOptions} size="sm" />
     </>
   )
 }
@@ -156,8 +183,12 @@ export function LibraryPlaylistsView({ playlists, onCreate, onPlayPlaylist }: { 
           ? (
             <CardGrid>
               {playlists.map(playlist => <PlaylistCard key={playlist.id} playlist={playlist} onPlay={() => onPlayPlaylist(playlist)} />)}
-              <button type="button" onClick={onCreate} className="flex aspect-square flex-col items-center justify-center gap-2 rounded-cover border-2 border-dashed border-stroke text-sm font-semibold text-muted transition hover:border-accent hover:text-accent">
-                <Plus className="size-7" />New playlist
+              <button
+                type="button"
+                onClick={onCreate}
+                className="flex aspect-square flex-col items-center justify-center gap-2 self-start rounded-cover border border-dashed border-input text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Plus className="size-5" />New playlist
               </button>
             </CardGrid>
           )

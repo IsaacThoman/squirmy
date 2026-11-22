@@ -1,5 +1,5 @@
 module.exports = ({ config }) => {
-  const variant = process.env.SQUIRMY_APP_VARIANT ?? process.env.TONE_APP_VARIANT;
+  const variant = process.env.SQUIRMY_APP_VARIANT;
   const development = variant === 'development';
   const plugins = [...config.plugins, ['expo-dev-client', { addGeneratedScheme: false }]];
 
@@ -8,7 +8,7 @@ module.exports = ({ config }) => {
   return {
     ...config,
     name: 'Squirmy Dev',
-    scheme: ['squirmy-dev', 'tone-dev'],
+    scheme: 'squirmy-dev',
     ios: {
       ...config.ios,
       bundleIdentifier: 'com.isaacthoman.music.dev',

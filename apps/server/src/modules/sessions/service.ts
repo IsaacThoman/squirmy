@@ -28,8 +28,17 @@ const DRIFT_THRESHOLD_MS = 1000
 const AUTOPLAY_LOW_WATER = 3
 const AUTOPLAY_BATCH = 10
 const AUTOPLAY_SEEDS = 10
-/** On-demand entries are requested while they are current or among this many next. */
-const PREPARE_AHEAD = 2
+/**
+ * On-demand entries are requested while they are current or among this many next. Fetches
+ * take seconds, so a few ahead keep skips and track changes from waiting on one.
+ */
+const PREPARE_AHEAD = 5
+/**
+ * Current entries whose fetch fails in a row, with none ready in between, before the
+ * session pauses instead of skipping on: during a provider outage every fetch fails, and
+ * skipping would run down the queue one failure at a time.
+ */
+const FAILURES_BEFORE_PAUSE = 3
 /** Own sessions a user may keep; detaching beyond this drops the one gone longest, unless all are connected. */
 const MAX_DETACHED = 8
 /** An own session is discarded once its device has not been seen for this long. */
@@ -90,7 +99,8 @@ async function recheck(record: SessionRecord): Promise<void> {
   const tracks = await lookupTracks(preparing)
   for (const trackId of preparing) {
     const availability = tracks.get(trackId)?.availability ?? 'none'
-    if (availability !== 'on_demand') applyServer(record, { type: 'setEntryState', trackId, state: availability === 'server' ? 'ready' : 'failed' })
+    if (availability === 'server') applyServer(record, { type: 'setEntryState', trackId, state: 'ready' })
+    else if (availability === 'none') applyFailure(record, trackId)
   }
   const active = record.session.activeDeviceId
   if (active && !connectedDevice(record.userId, active)) startGrace(record, active)
@@ -159,6 +169,7 @@ function commit(record: SessionRecord, next: Session, now = settings.now()): Cha
   record.version += 1
   if (queue) record.queueVersion += 1
   record.session = next
+  if (next.current?.state === 'ready') record.failedInARow = 0
   const { open, closed } = followPlay(record.play, previous, next, now)
   if (open && open !== record.play) notifyPlayStart(record.userId, open)
   record.play = open
@@ -210,24 +221,89 @@ function afterChange(record: SessionRecord): void {
   refillAutoplay(record)
 }
 
-function requestUpcoming(record: SessionRecord): void {
-  const { current, queue, autoplay, autoplayQueue } = record.session
+type Wanted = { entry: QueueEntry; origin: 'play' | 'prefetch' }
+
+/**
+ * The entries to have fetched: the current one as `play` and the next `PREPARE_AHEAD` as
+ * `prefetch`. None while the session is stopped on an entry that failed (after a run of
+ * failures, or at the end of the queue): more fetches then would most likely fail too.
+ */
+function toPrepare(session: Session): Wanted[] {
+  const { current, queue, autoplay, autoplayQueue, playing } = session
+  if (current?.state === 'failed' && !playing) return []
   const upcoming = [...queue, ...(autoplay ? autoplayQueue : [])].slice(0, PREPARE_AHEAD)
-  for (const entry of current ? [current, ...upcoming] : upcoming) {
-    if (entry.state !== 'preparing' || record.requested.has(entry.trackId)) continue
-    const { userId } = record
+  return [
+    ...(current ? [{ entry: current, origin: 'play' as const }] : []),
+    ...upcoming.map(entry => ({ entry, origin: 'prefetch' as const })),
+  ].filter(({ entry }) => entry.state === 'preparing')
+}
+
+/**
+ * Asks acquisition for the entries `toPrepare` names, current first, so a provider with
+ * few slots starts what the user is waiting for before what comes later. The requests go
+ * out one after another, so jobs are created in queue order, and one the session no
+ * longer wants by its turn (skipped past, or the session stopped) is not sent. An entry
+ * asked for as a prefetch is asked for again as `play` once it is current; the second
+ * request joins the job already in flight.
+ */
+function requestUpcoming(record: SessionRecord): void {
+  const { userId } = record
+  const asks: (() => Promise<void>)[] = []
+  for (const { entry, origin } of toPrepare(record.session)) {
+    const asked = record.requested.get(entry.trackId)
+    if (asked === 'play' || asked === origin) continue
     const recordingId = entry.trackId
-    record.requested.add(recordingId)
-    requestRecording({ userId, recordingId, albumId: entry.albumId }).catch((error: unknown) => {
-      report(error)
-      // A request that threw was never made, so no outcome will come: fail the entries
-      // rather than leave them preparing. A job that did start still marks them ready.
-      return serial(userId, () => {
-        const latest = recordOf(record.key)
-        if (latest?.requested.delete(recordingId)) applyServer(latest, { type: 'setEntryState', trackId: recordingId, state: 'failed' })
-      })
-    }).catch(report)
+    record.requested.set(recordingId, origin)
+    const request = { userId, recordingId, albumId: entry.albumId, origin }
+    asks.push(async () => {
+      const wanted = recordOf(record.key) === record && toPrepare(record.session).some(({ entry }) => entry.trackId === recordingId)
+      if (!wanted) {
+        if (record.requested.get(recordingId) === origin) record.requested.delete(recordingId)
+        return
+      }
+      await requestRecording(request).catch((error: unknown) => {
+        report(error)
+        // A request that threw was never made, so no outcome will come: fail the entries
+        // rather than leave them preparing. A job that did start still marks them ready.
+        return serial(userId, () => {
+          const latest = recordOf(record.key)
+          if (latest?.requested.delete(recordingId)) applyFailure(latest, recordingId)
+        })
+      }).catch(report)
+    })
   }
+  if (asks.length) void asks.reduce((chain, ask) => chain.then(ask), Promise.resolve())
+}
+
+/**
+ * Applies a failed fetch of `trackId`. Entries further down are only marked failed, with
+ * nothing said: the session skips them quietly when it reaches them. A preparing current
+ * entry is skipped, unless it is the `FAILURES_BEFORE_PAUSE`th in a row: then the session
+ * pauses on it with the rest of the queue kept, and the user gets one
+ * `playback.unavailable` (in that session only) rather than a notice per track. Nothing more is fetched until
+ * the user plays again (see `toPrepare`), and `play` moves on from the failed entry.
+ */
+function applyFailure(record: SessionRecord, trackId: string): void {
+  const { current } = record.session
+  const skipsCurrent = current?.trackId === trackId && current.state === 'preparing'
+  if (skipsCurrent) record.failedInARow += 1
+  if (!current || !skipsCurrent || record.failedInARow < FAILURES_BEFORE_PAUSE) {
+    applyServer(record, { type: 'setEntryState', trackId, state: 'failed' })
+    return
+  }
+  record.failedInARow = 0
+  const now = settings.now()
+  const paused = reduceSession(record.session, { command: { type: 'pause' }, now, commandId: newId() })
+  // The reducer moves past a current entry that fails. Marked here first, the entry stays
+  // current, and `setEntryState` only marks its other entries.
+  const held: Session = { ...paused, current: { ...current, state: 'failed' }, positionMs: 0, anchorAt: now, stalled: false }
+  const change = commit(record, reduceSession(held, { command: { type: 'setEntryState', trackId, state: 'failed' }, now, commandId: newId() }), now)
+  if (change) {
+    broadcast(record, change)
+    afterChange(record)
+  }
+  // To the session's own sockets: a detached device's outage is not news to the others.
+  io?.to(sessionRoom(record)).emit('event', { type: 'playback.unavailable', trackId })
 }
 
 /**
@@ -407,7 +483,8 @@ export function detach(userId: string, deviceId: string | null, socketId: string
       queueVersion: shared.queueVersion,
       // A command applied before the copy is in it; one re-sent after must not apply twice.
       commandIds: new Set(shared.commandIds),
-      requested: new Set(shared.requested),
+      requested: new Map(shared.requested),
+      failedInARow: shared.failedInARow,
       autoplayAskedFor: shared.autoplayAskedFor,
       lastSeenAt: now,
     })
@@ -490,7 +567,10 @@ export function attach(userId: string, deviceId: string | null, socketId: string
       shared.play = own.play
       own.play = null
       for (const commandId of own.commandIds) rememberCommand(shared, commandId)
-      for (const trackId of own.requested) shared.requested.add(trackId)
+      for (const [trackId, origin] of own.requested) {
+        if (shared.requested.get(trackId) !== 'play') shared.requested.set(trackId, origin)
+      }
+      shared.failedInARow = own.failedInARow
       shared.autoplayAskedFor = own.autoplayAskedFor
       change = commit(shared, bringSession(shared.session, own.session, { now, commandId: newId(), deviceId: device.canPlay ? device.id : undefined }))
       if (change) void persist(shared).catch(report)
@@ -538,6 +618,8 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
     if (typeof command === 'string') return ack({ ok: false, error: command })
     const next = reduceSession(record.session, { command, now: settings.now(), commandId, deviceId: device.canPlay ? device.id : undefined })
     rememberCommand(record, commandId)
+    // Something new to play starts a new count of failures.
+    if (command.type === 'playTracks') record.failedInARow = 0
     const change = commit(record, next)
     ack({ ok: true, version: record.version })
     if (!change) return
@@ -563,7 +645,7 @@ async function checkCommand(record: SessionRecord, deviceId: string, command: Se
     case 'setVolume':
       return await isKnownDevice(userId, command.deviceId) ? command : 'unknown_device'
     case 'playTracks': {
-      const { seeds, indexes } = await trustSeeds(command.tracks)
+      const { seeds, indexes } = await trustSeeds(userId, command.tracks)
       if (!seeds.length) return 'nothing_playable'
       if (command.startIndex === undefined) return { ...command, tracks: seeds }
       // A start track that was dropped gives way to the next playable one, else the first.
@@ -571,7 +653,7 @@ async function checkCommand(record: SessionRecord, deviceId: string, command: Se
       return { ...command, tracks: seeds, startIndex }
     }
     case 'enqueue': {
-      const { seeds } = await trustSeeds(command.tracks)
+      const { seeds } = await trustSeeds(userId, command.tracks)
       return seeds.length ? { ...command, tracks: seeds } : 'nothing_playable'
     }
     default:
@@ -633,7 +715,7 @@ export function replaceQueue(userId: string, request: { trackIds: readonly strin
   return serial(userId, async () => {
     const record = await load(userId)
     const requested = request.trackIds.map(trackId => ({ trackId, durationMs: 0 }))
-    const { seeds, indexes } = requested.length ? await trustSeeds(requested) : { seeds: [], indexes: [] }
+    const { seeds, indexes } = requested.length ? await trustSeeds(userId, requested) : { seeds: [], indexes: [] }
     const start = Math.max(0, indexes.findIndex(index => request.trackIds[index] === request.currentId))
     const commands: AnySessionCommand[] = seeds.length
       ? [
@@ -645,6 +727,7 @@ export function replaceQueue(userId: string, request: { trackIds: readonly strin
     const now = settings.now()
     const commandId = newId()
     const next = commands.reduce((session, command) => reduceSession(session, { command, now, commandId }), record.session)
+    record.failedInARow = 0
     const change = commit(record, next)
     if (change) {
       broadcast(record, change)
@@ -691,7 +774,8 @@ export function markRecordingReady(recordingId: string): Promise<void> {
 
 /**
  * Marks every entry of the recording failed in the loaded sessions. A preparing current
- * entry is skipped; a ready one keeps playing, and only its later plays fail.
+ * entry is skipped (or, after several in a row, the session pauses on it); a ready one
+ * keeps playing, and only its later plays fail. Entries further down are marked quietly.
  */
 export function markRecordingFailed(recordingId: string): Promise<void> {
   return setRecordingState(recordingId, 'failed')
@@ -705,7 +789,9 @@ async function setRecordingState(recordingId: string, state: 'ready' | 'failed')
       const record = recordOf(key)
       if (!record) return
       record.requested.delete(recordingId)
-      if (holds(record, recordingId)) applyServer(record, { type: 'setEntryState', trackId: recordingId, state })
+      if (!holds(record, recordingId)) return
+      if (state === 'failed') applyFailure(record, recordingId)
+      else applyServer(record, { type: 'setEntryState', trackId: recordingId, state })
     })))
 }
 

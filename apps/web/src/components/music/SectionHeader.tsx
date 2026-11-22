@@ -3,23 +3,32 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cn } from '@/lib/utils'
 
-export function SectionHeader({ title, href, action, className, id }: { title: string; href?: string; action?: ReactNode; className?: string; id?: string }) {
-  return (
-    <div className={cn('mb-3.5 flex min-h-9 items-center justify-between gap-3', className)}>
-      <h2 id={id} className="text-[22px] font-bold tracking-[-0.03em]">{title}</h2>
-      <div className="flex items-center gap-1">
-        {action}
-        {href && (
-          <Link to={href} className="group inline-flex h-8 items-center gap-0.5 rounded-full px-3 text-[13px] font-semibold text-muted transition hover:bg-overlay hover:text-foreground">
-            See all<ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        )}
-      </div>
-    </div>
-  )
+type SectionHeaderProps = {
+  title: string
+  /** Where "See all" leads. */
+  href?: string
+  action?: ReactNode
+  /** A heading inside a titled group, such as "Albums" under "In your library". */
+  quiet?: boolean
+  className?: string
+  id?: string
 }
 
-/** The large, heavy title at the top of a page, as in the iOS app. */
-export function PageTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return <h1 className={cn('text-[34px] font-extrabold leading-tight tracking-[-0.045em] md:text-[40px]', className)}>{children}</h1>
+/** The heading of a section of a page, with room for its controls on the right. */
+export function SectionHeader({ title, href, action, quiet, className, id }: SectionHeaderProps) {
+  return (
+    <div className={cn('mb-3 flex min-h-8 items-center justify-between gap-3', className)}>
+      <h2 id={id} className={cn('min-w-0 truncate', quiet ? 'text-sm font-medium text-muted-foreground' : 'text-base font-semibold')}>{title}</h2>
+      {(action || href) && (
+        <div className="flex shrink-0 items-center gap-1">
+          {action}
+          {href && (
+            <Link to={href} className="inline-flex h-8 items-center gap-0.5 rounded-md pl-2.5 pr-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+              See all<ChevronRight aria-hidden className="size-3.5" />
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }

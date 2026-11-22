@@ -8,6 +8,8 @@ export type WantTarget = { type: 'album'; album: AlbumSummary } | { type: 'track
  * update every cached answer at once, so views read `liked` and `wanted` from their data.
  */
 export type LibraryActions = {
+  /** The server has the wantlist on; off, nothing offers to want music. */
+  wantlistEnabled: boolean
   /** Tracks carry no `wanted` flag, so their state comes from the user's wantlist. */
   isWanted: (id: string, fromServer?: boolean) => boolean
   setLiked: (type: LikeEntityType, id: string, liked: boolean) => void

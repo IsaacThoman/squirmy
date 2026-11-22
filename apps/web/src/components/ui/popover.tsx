@@ -10,9 +10,9 @@ export function PopoverContent({ className, ...props }: ComponentProps<typeof Po
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
-        sideOffset={10}
+        sideOffset={8}
         collisionPadding={12}
-        className={cn('z-50 w-80 origin-(--radix-popper-transform-origin) animate-enter rounded-3xl bg-sheet p-2 text-foreground shadow-float focus:outline-none data-[state=closed]:animate-exit', className)}
+        className={cn('z-50 w-80 max-w-[calc(100vw-1rem)] origin-(--radix-popper-transform-origin) animate-enter rounded-lg border bg-popover p-2 text-popover-foreground shadow-md outline-none data-[state=closed]:animate-exit', className)}
         {...props}
       />
     </PopoverPrimitive.Portal>

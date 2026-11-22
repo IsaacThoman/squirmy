@@ -55,7 +55,7 @@ To change servers or sign out, open the account sheet and choose **Switch server
 
 ## Using it
 
-The app has Home, Library (playlists, albums, artists and songs), and Search, with album, artist and playlist pages, and Now Playing with lyrics and the queue. The library is cached on the phone, so it opens at once and stays browsable while offline. Without a connection, downloaded music plays, and so does what the streaming cache holds.
+The app has Home, Library (playlists, albums, artists and songs: the music on your server plus what you added, not songs fetched only because you played them), and Search, with album, artist and playlist pages, and Now Playing with lyrics and the queue. The library is cached on the phone, so it opens at once and stays browsable while offline. Without a connection, downloaded music plays, and so does what the streaming cache holds.
 
 - **Playback is your shared session.** Whatever plays in the web app or on another device shows here too, and the phone becomes a remote without sound of its own. The playback device button, in the mini-player or Now Playing, opens **Playback device**: move playback to another device, and set the playing device's volume. Pressing play when nothing is playing makes this phone the player. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
 - **Background audio** keeps playing with the app closed, with lock screen and Control Center controls.

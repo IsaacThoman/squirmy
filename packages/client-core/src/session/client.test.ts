@@ -11,12 +11,14 @@ import type {
   QueueSeed,
   ServerToClientEvents,
   SessionAttach,
+  SessionCommand,
   SessionHello,
   SessionHelloAck,
 } from '@squirmy/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeEngine } from '../engine.js'
-import { type SavedSession, SessionClient } from './client.js'
+import { ApiError } from '../api/client.js'
+import { type SavedSession, SessionClient, type SessionPlayer } from './client.js'
 import { createInitialSession, positionAt, queueChanged, reduceSession, splitSession } from './reducer.js'
 import { bringSession, forkSession } from './scope.js'
 import type { AckCallback, AckEvent, AckPayload, AckReply, SessionTransport } from './transport.js'
@@ -276,8 +278,9 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE }: {
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError }: {
   canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer; id?: string
+  onLoadError?: SessionPlayer['onLoadError']
 } = {}) {
   const transport = new FakeTransport(server)
   const engine = new FakeEngine()
@@ -287,7 +290,7 @@ function setup({ canPlay = true, connect = true, restore, server = new FakeServe
   const client = new SessionClient({
     transport,
     device: { id, name: 'Phone', kind: 'ios' },
-    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off' } : undefined,
+    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError } : undefined,
     restore,
     onDetachedEnded: ended,
   })
@@ -575,6 +578,66 @@ describe('SessionClient engine', () => {
     expect(calls('load').at(-1)).toMatchObject(['load', { startMs: 30_000, autoplay: true }])
   })
 
+  it('gives up on an entry the server refuses: reports it, stops the audio and tells the caller', async () => {
+    const onLoadError = vi.fn()
+    const context = setup({ onLoadError })
+    const { client, engine, resolvePlayback, server, settle } = context
+    const refused = new ApiError(404, 'not_available', 'Not available')
+    resolvePlayback.mockImplementation(async entry => {
+      if (entry.trackId === track(2)) throw refused
+      return descriptor(entry)
+    })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await settle()
+    client.dispatch({ type: 'next' })
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(trackOf(current)).toBe(2)
+    expect(onLoadError).toHaveBeenCalledTimes(1)
+    expect(onLoadError).toHaveBeenCalledWith(current, refused, false)
+    // The first track must not go on playing under the second one's title.
+    expect(engine.getStatus().state).toBe('idle')
+    expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'error' })
+    const asked = resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2)).length
+    await vi.advanceTimersByTimeAsync(30_000)
+    await settle()
+    expect(resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2))).toHaveLength(asked)
+    expect(onLoadError).toHaveBeenCalledTimes(1)
+    // Play asks again.
+    client.dispatch({ type: 'pause' })
+    client.dispatch({ type: 'play' })
+    await settle()
+    expect(resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2))).toHaveLength(asked + 1)
+  })
+
+  it('retries an entry it cannot reach, reporting a stall meanwhile', async () => {
+    const onLoadError = vi.fn()
+    const context = setup({ onLoadError })
+    const { client, engine, resolvePlayback, server, settle } = context
+    let failures = 2
+    resolvePlayback.mockImplementation(async entry => {
+      if (entry.trackId === track(2) && failures > 0) {
+        failures -= 1
+        throw new ApiError(0, 'network_error', 'Network request failed')
+      }
+      return descriptor(entry)
+    })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await settle()
+    // The preload took the first failure; the load takes the second.
+    client.dispatch({ type: 'next' })
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(onLoadError).toHaveBeenCalledWith(current, expect.any(ApiError), true)
+    expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'buffering' })
+    await vi.advanceTimersByTimeAsync(3000)
+    await settle()
+    expect(engine.getStatus()).toMatchObject({ entryId: current.id, state: 'playing' })
+    expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'playing' })
+  })
+
   it('stops the engine when another device takes over', async () => {
     const { server, transport, client, engine } = await playingHere()
     server.apply({ type: 'transfer', deviceId: WEB }, WEB)
@@ -681,6 +744,20 @@ describe('SessionClient engine', () => {
     await settle()
     expect(trackOf(server.session.current)).toBe(2)
     expect(server.session).toMatchObject({ playing: false, positionMs: 20_000 })
+  })
+
+  it('drops a saved command that is no longer valid, keeping the rest', async () => {
+    const { client } = setup({ connect: false })
+    client.dispatch({ type: 'enqueue', tracks: seeds(1), placement: 'last' })
+    const saved = client.save()
+    const broken = { ...saved.pending[0]!, commandId: 'broken', command: { type: 'enqueue', tracks: 'nope' } as unknown as SessionCommand }
+    const restored = new SessionClient({
+      transport: new FakeTransport(new FakeServer()),
+      device: { id: PHONE, name: 'Phone', kind: 'ios' },
+      restore: { ...saved, pending: [broken, ...saved.pending] },
+    })
+    expect(restored.save().pending.map(pending => pending.commandId)).toEqual([saved.pending[0]!.commandId])
+    expect(trackOf(restored.getSnapshot().queue.queue[0])).toBe(1)
   })
 
   it('restores a session another device plays as it was', async () => {

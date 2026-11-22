@@ -1,9 +1,10 @@
 import { ShieldOff } from 'lucide-react'
 import { Suspense } from 'react'
-import { Navigate, Outlet, useLocation, useSearchParams } from 'react-router'
+import { Link, Navigate, Outlet, useLocation, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { SplashView, UnreachableView } from '@/components/auth/AuthViews'
 import { Page } from '@/components/layout/Page'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { LibraryProvider } from '@/player/LibraryProvider'
 import { OnDemandProvider } from '@/player/OnDemandProvider'
@@ -64,7 +65,12 @@ export function AdminOnly() {
   if (user.role === 'admin') return <Outlet />
   return (
     <Page>
-      <EmptyState icon={<ShieldOff />} title="Admins only" description="Ask an admin of this server if you need something changed." className="pt-24" />
+      <EmptyState
+        icon={<ShieldOff />}
+        title="Admins only"
+        description="Ask an admin of this server if you need something changed."
+        action={<Button asChild variant="primary"><Link to="/">Go home</Link></Button>}
+      />
     </Page>
   )
 }
