@@ -1,6 +1,7 @@
 import type { ServerModule } from '../types.js'
 import { radioRoutes } from './routes.js'
 
+export { canStartArtistRadio } from './radio.js'
 export { similarArtists, type SimilarArtist } from './similar.js'
 
 /**

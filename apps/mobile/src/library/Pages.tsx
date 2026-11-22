@@ -500,8 +500,9 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
     nav={[
       { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.name}` : `Like ${data.name}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked); } },
-      // A radio draws on fetched music too for someone who may fetch it; for others, on the library.
-      (data.inLibrary || canFetch(viewer)) && !offline && { icon: 'dot.radiowaves.left.and.right', busy: startingRadio, onPress: radio,
+      // Only when the server says a radio starts for this user (for a requester, from what it
+      // can fetch too); an older server does not say, and then the library decides.
+      (data.radio ?? (data.inLibrary || canFetch(viewer))) && !offline && { icon: 'dot.radiowaves.left.and.right', busy: startingRadio, onPress: radio,
         label: startingRadio ? `Starting a radio for ${data.name}` : `Start a radio for ${data.name}` },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}

@@ -5,7 +5,7 @@ import { db } from '../../database/client.js'
 import { notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
-import { similarArtists } from '../radio/index.js'
+import { canStartArtistRadio, similarArtists } from '../radio/index.js'
 import { canonicalRelease, collectionFile } from './availability.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
@@ -101,12 +101,13 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
 /**
  * The artist page: profile, every album the artist is credited on or leads (newest first), and
  * top tracks ranked by completed plays on this server, then popularity, and similar
- * artists from the radio module. Fetches missing detail first.
+ * artists from the radio module, which also says whether an artist radio would start.
+ * Fetches missing detail first.
  */
 export async function artistDetail(userId: string, id: string): Promise<ArtistDetail> {
   const settled = await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
   const artistId = await resolveOrThrow('artists', id, 'artist')
-  const [[summary], [profile], albums, top, similar] = await Promise.all([
+  const [[summary], [profile], albums, top, similar, radio] = await Promise.all([
     artistSummaries([artistId], userId),
     db.execute<{ sortName: string | null; disambiguation: string | null; bio: string | null; bioUrl: string | null; genres: string[]; liked: boolean }>(sql`
       select a.sort_name as "sortName", a.disambiguation, a.bio, a.bio_url as "bioUrl", a.genres,
@@ -134,13 +135,14 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
         r.popularity desc nulls last, r.title_key, r.id
       limit ${TOP_TRACKS}`),
     similarArtists(artistId, { limit: SIMILAR }).then((rows) => artistSummaries(rows.map((row) => row.artistId), userId)),
+    canStartArtistRadio(userId, artistId),
   ])
   if (!summary || !profile) throw notFound('No such artist', 'artist_not_found')
   const [albumList, topTracks] = await Promise.all([
     albumSummaries(albums.map((row) => row.id)),
     trackSummaries(userId, top.map((row) => ({ id: row.id }))),
   ])
-  return { ...summary, ...profile, topTracks, albums: albumList, similar, ...(settled ? {} : { detailPending: true as const }) }
+  return { ...summary, ...profile, topTracks, albums: albumList, similar, radio, ...(settled ? {} : { detailPending: true as const }) }
 }
 
 /** One track, in the given album's context when there is one. */

@@ -5,7 +5,7 @@ import { useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
 import { closeSheet } from '../closeSheet';
 import { useLibraryActions, useLiked, usePlaylistActions, useSaved } from '../data/library';
 import { useRealtime } from '../data/realtime';
-import { useCanPlay, useDownloadManager, useTrackDownload } from '../downloads/DownloadsProvider';
+import { useCanPlay, useDownloadManager, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { songsId, type TrackDownload } from '../downloads/model';
 import { useNotice } from '../Notice';
 import { useCurrentTrackState, usePlaybackActions } from '../playback';
@@ -107,6 +107,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
   const liked = useLiked('track', track?.id, track?.liked);
   const { offline } = useRealtime();
   const playable = useCanPlay(track);
+  const viewer = useViewer();
   const download = useTrackDownload(track?.id);
   const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
   const current = useCurrentTrackState(track?.id);
@@ -119,7 +120,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
     ...options.playlist,
     onRemove: options.playlist.onRemove ?? ((itemId: string) => playlists.removeItem(options.playlist!.id, itemId)),
   };
-  return trackActions(track, { liked, playable, offline, current, download, onItsOwn, wantlist, saved }, { playlist })
+  return trackActions(track, { liked, playable, offline, current, download, onItsOwn, wantlist, saved, viewer }, { playlist })
     .map(action => ({ ...action, run: () => perform(track, action, { playlist }) }));
 }
 

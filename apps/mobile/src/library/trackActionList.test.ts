@@ -45,6 +45,15 @@ describe('trackActions', () => {
     expect(ids(track(), state({ saved: undefined }))).not.toContain('save');
   });
 
+  it('starts a radio only from a song the server plays for this user', () => {
+    const requester = { role: 'member', canAcquire: true } as const;
+    const member = { role: 'member', canAcquire: false } as const;
+    expect(ids(track({ availability: 'on_demand' }), state({ viewer: requester }))).toContain('radio');
+    // Downloaded before the server let the file go: it plays here, but the server has no radio from it.
+    expect(ids(track({ availability: 'on_demand' }), state({ viewer: member }))).not.toContain('radio');
+    expect(ids(track({ availability: 'none' }), state({ viewer: requester }))).not.toContain('radio');
+  });
+
   it('offers no wantlist when the server has it off', () => {
     expect(ids(track({ availability: 'none' }), state({ playable: false, wantlist: false }))).toEqual(['like', 'album', 'artist']);
   });
