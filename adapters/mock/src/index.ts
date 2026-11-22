@@ -28,6 +28,16 @@ export type MockSettings = {
   wrongFile: boolean
   /** Put a price on every offer. */
   priced: boolean
+  /**
+   * Changes what a delivered file says about itself, to stand in for a provider that tags
+   * from its own catalog instead of from the request: another album title or year, no
+   * identifiers, its own file names.
+   */
+  retag?: (track: MockTrack) => MockTrack
+  /** Declines this many of the next new jobs as busy. */
+  busyTimes: number
+  /** The `maxConcurrent` it advertises. */
+  maxConcurrent: number
   /** Which items it has; everything by default. */
   has: (item: ProviderResolveItem) => boolean
   /** Tones longer than this many seconds are cut short. */
@@ -45,6 +55,8 @@ export const defaultSettings: MockSettings = {
   fail: false,
   wrongFile: false,
   priced: false,
+  busyTimes: 0,
+  maxConcurrent: 4,
   has: () => true,
   maxSeconds: 1200,
   ffmpegPath: process.env.FFMPEG_PATH ?? 'ffmpeg',
@@ -57,13 +69,18 @@ export type MockProvider = ProviderServer & {
   resolved: ProviderResolveItem[]
 }
 
-type Track = { title: string; artist: string; album: string | null; durationMs: number | null; disc: number; position: number; total: number; mbid: string | null; isrcs: string[]; year: number | null }
+/** What one delivered file's tags say. `path` is its place inside the delivery when the provider names files itself. */
+export type MockTrack = {
+  title: string; artist: string; albumArtist?: string; album: string | null; durationMs: number | null; disc: number; position: number; total: number
+  mbid: string | null; isrcs: string[]; year: number | null; path?: string
+}
+type Track = MockTrack
 
 /** Writes one tagged tone, the way the server's test fixtures do: -50 dB, below the loudness gate. */
 async function writeTone(settings: MockSettings, file: string, track: Track) {
   const seconds = Math.min(settings.maxSeconds, Math.max(1, Math.round((track.durationMs ?? 30_000) / 1000)))
   const tags: Record<string, string | number> = {
-    title: track.title, artist: track.artist, album_artist: track.artist, track: `${track.position}/${track.total}`, disc: track.disc,
+    title: track.title, artist: track.artist, album_artist: track.albumArtist ?? track.artist, track: `${track.position}/${track.total}`, disc: track.disc,
     ...(track.album ? { album: track.album } : {}),
     ...(track.year ? { date: track.year } : {}),
     ...(track.mbid ? { MUSICBRAINZ_TRACKID: track.mbid } : {}),
@@ -98,8 +115,13 @@ export function createMockProvider(overrides: Partial<MockSettings> = {}): MockP
   const server = createProviderServer({
     secret: settings.secret,
     onError: (error) => (settings.onError ?? ((reason: unknown) => console.error('[mock provider]', reason)))(error),
+    busy() {
+      if (settings.busyTimes <= 0) return false
+      settings.busyTimes -= 1
+      return true
+    },
     get capabilities() {
-      return { name: 'Mock tones', coverage: settings.coverage, kinds: settings.kinds, formats: ['flac'], maxConcurrent: 4 }
+      return { name: 'Mock tones', coverage: settings.coverage, kinds: settings.kinds, formats: ['flac'], maxConcurrent: settings.maxConcurrent }
     },
     resolve(item) {
       resolved.push(item)
@@ -120,7 +142,7 @@ export function createMockProvider(overrides: Partial<MockSettings> = {}): MockP
       if (settings.fail) throw new Error('The mock provider was told to fail')
       const tracks: Track[] = item.kind === 'recording'
         ? [recordingTrack(item.recording)]
-        : item.album.tracks.map((track) => ({
+        : item.album.tracks.filter((track) => track.wanted !== false).map((track) => ({
           title: track.title, artist: item.album.artist, album: item.album.title, durationMs: track.durationMs, disc: track.disc,
           position: track.position, total: item.album.tracks.filter((other) => other.disc === track.disc).length,
           mbid: track.recordingMbid, isrcs: track.isrcs, year: item.album.year,
@@ -129,14 +151,15 @@ export function createMockProvider(overrides: Partial<MockSettings> = {}): MockP
       const files: DeliveryFile[] = []
       const albumFolder = safeName(`${tracks[0]?.artist ?? 'Unknown'} - ${tracks[0]?.album ?? 'Singles'}`)
       for (const original of tracks) {
-        const track = settings.wrongFile
+        const wanted = settings.wrongFile
           ? { ...original, title: `${original.title} (Something Else)`, durationMs: (original.durationMs ?? 30_000) + 60_000, mbid: null, isrcs: [] }
           : original
+        const track = settings.retag ? settings.retag(wanted) : wanted
         const name = `${String(track.position).padStart(2, '0')} ${safeName(track.title)}.flac`
         const file = path.join(folder, name)
         await mkdir(folder, { recursive: true })
         await writeTone(settings, file, track)
-        files.push({ path: file, name: `${albumFolder}/${name}` })
+        files.push({ path: file, name: track.path ?? `${albumFolder}/${name}` })
       }
       return { files, cleanup: () => rm(folder, { recursive: true, force: true }) }
     },

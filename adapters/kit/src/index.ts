@@ -36,6 +36,11 @@ export type ProviderOptions = {
   fetch: (offerId: string, job: { jobId: string; signal: AbortSignal }) => Promise<{ files: DeliveryFile[]; cleanup?: () => Promise<void> }>
   /** Called with errors from background deliveries. Defaults to `console.error`. */
   onError?: (error: unknown) => void
+  /**
+   * Asked before a new job is taken. True declines it as `busy`, which the server retries
+   * later without counting it as a miss. Defaults to never busy.
+   */
+  busy?: () => boolean
 }
 
 export type ProviderJob = {
@@ -168,6 +173,7 @@ export function createProviderServer(options: ProviderOptions): ProviderServer {
         known.delivery = delivery
         return send(response, 200, { accepted: true, providerJobId: jobId } satisfies ProviderAcquireResponse)
       }
+      if (options.busy?.()) return send(response, 200, { accepted: false, error: 'Provider is busy', reason: 'busy' } satisfies ProviderAcquireResponse)
       const job: ProviderJob = { jobId, offerId, status: 'queued', error: null, delivery, done: Promise.resolve() }
       jobs.set(jobId, job)
       job.done = run(job)

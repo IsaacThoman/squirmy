@@ -84,9 +84,11 @@ export async function createAlbum(input: AlbumFactoryInput = {}) {
     detailLevel: 2,
   })
   await db.insert(albumArtists).values({ albumId, position: 0, artistId: artist.id, creditedName: artist.name })
-  await db.insert(releases).values({ id: releaseId, albumId, title, releaseDate: String(input.year ?? 2024), trackCount: tracks.length, detailLevel: 2 })
-
   const ownedIndexes = input.owned === true ? tracks.map((_, index) => index) : Array.isArray(input.owned) ? input.owned : []
+  // A track list with tracks nobody has a file for came from a source, and the library keeps
+  // it as it is; one built from files only lists tracks that have one.
+  const fetchedAt = ownedIndexes.length < tracks.length ? new Date() : null
+  await db.insert(releases).values({ id: releaseId, albumId, title, releaseDate: String(input.year ?? 2024), trackCount: tracks.length, detailLevel: 2, fetchedAt })
   const rootId = ownedIndexes.length > 0 ? input.rootId ?? (await createLibraryRoot()).id : undefined
   const positions = new Map<number, number>()
   const created: { recordingId: string; releaseTrackId: string; fileId: string | null; title: string; durationMs: number }[] = []

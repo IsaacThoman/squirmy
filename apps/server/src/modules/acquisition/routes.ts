@@ -15,7 +15,7 @@ import { AppError, badRequest, conflict, unauthorized } from '../../lib/errors.j
 import { getServerSettings } from '../../lib/settings.js'
 import { addImportFile } from '../imports/index.js'
 import {
-  completeDelivery, DELIVERING, ensureImport, finishJob, loadJob, markDownloading, requestAlbum, requestTrack, touchJob, type JobRow,
+  completeDelivery, DELIVERING, ensureImport, finishJob, loadJob, providerFailed, markDownloading, requestAlbum, requestTrack, touchJob, type JobRow,
 } from './jobs.js'
 import { getAcquisitionPolicy, updateAcquisitionPolicy } from './policy.js'
 import { createProvider, deleteProvider, listProviders, testProvider, updateProvider } from './providers.js'
@@ -189,7 +189,7 @@ export async function acquisitionRoutes(app: FastifyInstance) {
     const job = await deliveringJob(request, JobParams.parse(request.params).jobId)
     const body = ProviderDeliveryComplete.parse(request.body)
     if (body.status === 'failed') {
-      await finishJob(job.id, { status: 'failed', error: `The provider failed: ${body.error ?? 'no reason given'}`, missed: job.recordingIds })
+      await providerFailed(job, `The provider failed: ${body.error ?? 'no reason given'}`)
     } else {
       await completeDelivery(job.id)
     }
