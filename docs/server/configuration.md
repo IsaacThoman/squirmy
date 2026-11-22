@@ -173,6 +173,7 @@ These run on their own; nothing needs configuring. Times are UTC.
 |---|---|
 | Full scan of every enabled folder | daily at 04:00 |
 | Check for lost artwork files and rebuild them | daily at 04:40 |
+| Merge an artist's duplicate album rows (one release listed twice), and give popular songs without one their album and cover | daily at 04:50, and when the server starts |
 | Remove files missing longer than the grace period | daily at 05:30 |
 | Remove search results nobody kept (catalog stubs older than 30 days) | daily at 05:45 |
 | New releases from artists in your library | Mondays at 06:00 |
