@@ -6,6 +6,7 @@ import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
+import { releaseKey } from '../search/keys.js'
 import { artistDetail } from '../catalog/pages.js'
 import { hydrateArtist } from './artist.js'
 import { ensureArtistDetail } from './detail.js'
@@ -80,7 +81,12 @@ describe('artist detail', () => {
     expect(page).toMatchObject({ id: existing, name: 'Radiohead' })
     // Similar artists come from the radio module, limited to artists in the catalog.
     expect(page.similar.map((artist) => artist.id)).toContain(blur)
-    expect(page.albums.length).toBe(discography.length)
+    // Each release once: a row that shares its release and type with another is not listed.
+    const shown = [...page.albums, ...page.appearsOn ?? []]
+    const release = (album: { title: string; type: string }) => `${releaseKey(album.title)}|${album.type}`
+    expect(new Set(page.albums.map(release)).size).toBe(page.albums.length)
+    expect(shown.length).toBeLessThanOrEqual(discography.length)
+    expect(shown.length).toBeGreaterThan(discography.length - 5)
     expect(page.topTracks[0]!.title).toBe(popular[0]!.title)
     expect(page.image).not.toBeNull()
   })

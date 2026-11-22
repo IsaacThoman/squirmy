@@ -3,6 +3,8 @@ import type { ServerModule } from '../types.js'
 import { fallbackCover } from './covers.js'
 import { artistDetailRun, lyricsRun } from './detail.js'
 import { enrichAlbum } from './owned.js'
+import { repairReleases } from './repair.js'
+import { reconcileArtistAlbums } from './reconcile.js'
 import { refreshNewReleases } from './releases.js'
 import { sweep } from './sweep.js'
 
@@ -12,6 +14,8 @@ export type EnrichArtistJob = { artistId: string }
 export type EnrichLyricsJob = { recordingId: string }
 /** Queued by the artwork module when it unassigns a cover its source does not have. */
 export type EnrichCoverJob = { albumId: string }
+/** Queued by search when it writes album stubs for an artist (reconcile.ts). Without an artist: the whole repair. */
+export type ReconcileJob = { artistId?: string }
 
 /**
  * Completes catalog rows on demand (the `detail.ts` seam) and decorates owned music in
@@ -22,6 +26,8 @@ export type EnrichCoverJob = { albumId: string }
  *   enrichment.cover         { albumId }      another cover when its source has none (covers.ts)
  *   enrichment.sweep         queues owned music that was never enriched, every 30 minutes
  *   enrichment.new-releases  refreshes library artists' discographies, weekly
+ *   enrichment.reconcile     { artistId? }    merges an artist's duplicate album rows; without an
+ *                                             artist, the release repair (repair.ts): daily and at worker start
  */
 export const enrichmentModule: ServerModule = {
   name: 'enrichment',
@@ -46,10 +52,18 @@ export const enrichmentModule: ServerModule = {
     registry.define('enrichment.new-releases', { retryLimit: 1, timeoutSeconds: 6 * 60 * 60 }, async () => {
       await refreshNewReleases()
     })
+    registry.define<ReconcileJob>('enrichment.reconcile', { retryLimit: 1, timeoutSeconds: 60 * 60 }, async ({ artistId }) => {
+      if (artistId) await reconcileArtistAlbums(artistId)
+      else await repairReleases()
+    })
     await schedule('enrichment.sweep', '*/30 * * * *')
+    await schedule('enrichment.reconcile', '50 4 * * *')
     await schedule('enrichment.new-releases', '0 6 * * 1')
   },
   async start({ role }) {
-    if (role !== 'api') await enqueue('enrichment.sweep', {}, { singletonKey: 'sweep' })
+    if (role !== 'api') {
+      await enqueue('enrichment.sweep', {}, { singletonKey: 'sweep' })
+      await enqueue('enrichment.reconcile', {}, { singletonKey: 'repair' })
+    }
   },
 }
