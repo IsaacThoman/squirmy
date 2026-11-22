@@ -1,8 +1,10 @@
 import { SearchQuery, type SearchResults } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { requireUser } from '../../lib/auth.js'
+import { dropCachedReads } from '../../lib/read-cache.js'
 import { matchKey } from '../../lib/text.js'
 import { albumSummaries, artistSummaries, trackSummaries } from '../catalog/summaries.js'
+import { warmDetail } from '../enrichment/detail.js'
 import { searchLibrary } from './library.js'
 import { materialize, type StubIds } from './materialize.js'
 import { searchCatalog } from './providers.js'
@@ -34,9 +36,29 @@ export async function searchRoutes(app: FastifyInstance) {
   app.get('/search/catalog', async (request): Promise<SearchResults> => {
     const user = requireUser(request)
     const { q, limit } = SearchQuery.parse(request.query)
-    if ([...matchKey(q)].length < minQueryLength) return empty
-    const { provider, results } = await searchCatalog(q, limit)
+    const key = matchKey(q)
+    if ([...key].length < minQueryLength) return empty
+    // The library answer for the same query runs alongside the provider call, so the
+    // catalog answer can leave out what the library answer already shows. Results are
+    // matched to owned rows on purpose (materialize.ts), so without this the user's own
+    // albums would come back a second time as "not in your library".
+    const [{ provider, results }, library] = await Promise.all([searchCatalog(q, limit), searchLibrary(user.id, key, limit)])
     if (!provider) return empty
-    return respond(user.id, q, await materialize(provider.idSource, results), provider.name)
+    const ids = await materialize(provider.idSource, results)
+    // Stubs credit artists and fill in missing covers, which artist pages, album pages and
+    // lists show, and nothing announces them, so cached reads go (lib/read-cache.ts).
+    dropCachedReads('all', [['catalog-stubs']])
+    const without = (found: string[], shown: string[]) => found.filter((id) => !shown.includes(id))
+    const answer = await respond(user.id, q, {
+      artists: without(ids.artists, library.artists),
+      albums: without(ids.albums, library.albums),
+      tracks: without(ids.tracks, library.tracks),
+    }, provider.name)
+    // A catalog result's page fetches its detail when opened, which can take seconds; start
+    // on the one the user is most likely to open (the top result, else the first album).
+    const top = answer.top?.type === 'track' ? null : answer.top
+    if (top) warmDetail(top.type as 'album' | 'artist', top.id)
+    else if (answer.albums[0]) warmDetail('album', answer.albums[0].id)
+    return answer
   })
 }

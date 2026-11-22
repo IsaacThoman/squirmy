@@ -248,6 +248,16 @@ describe('sessions', () => {
     expect((await getSnapshot(user.id)).state.current?.id).toBe('once.0')
   })
 
+  it('still knows the command ids of a stored session after a restart', async () => {
+    const a = await device('device-a-0022')
+    await a.send(playAlbum(), 'first')
+    expect(await a.send({ type: 'enqueue', tracks: seeds().slice(0, 1), placement: 'last' }, 'added')).toEqual({ ok: true, version: 2 })
+    await sessionsModule.stop!()
+    // A client re-sends what it has no confirmed state for after reconnecting.
+    expect(await a.send({ type: 'enqueue', tracks: seeds().slice(0, 1), placement: 'last' }, 'added')).toEqual({ ok: true, version: 2 })
+    expect((await getSnapshot(user.id)).queue.queue.map((entry) => entry.id)).toEqual(['first.1', 'first.2', 'added.0'])
+  })
+
   it('enforces who may send which command', async () => {
     const stranger = await open('device-x-0004')
     expect(await stranger.send({ type: 'play' })).toEqual({ ok: false, error: 'hello_required' })
@@ -299,6 +309,24 @@ describe('sessions', () => {
     a.socket.disconnect()
     await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0006']))
     expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
+  })
+
+  it('pauses a lost device where it was when it went away, and counts no play time after', async () => {
+    const clock = stoppedClock()
+    const timers = manualTimers()
+    const a = await device('device-a-0023')
+    const b = await device('device-b-0023')
+    await a.send(playAlbum())
+    await b.state(1)
+    clock.advance(10_000)
+    a.socket.disconnect()
+    await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0023']))
+    clock.advance(20_000)
+    timers.fireAll()
+    expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
+    // The paused play is still open; shutdown writes it as counted so far.
+    await sessionsModule.stop!()
+    expect(await db.select({ msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id))).toEqual([{ msPlayed: 10_000 }])
   })
 
   it('keeps the active device when it reconnects within the grace period', async () => {
@@ -539,6 +567,35 @@ describe('sessions', () => {
     })
   })
 
+  it('fails an on-demand entry whose request could not be made, rather than leave it preparing', async () => {
+    const remote = await createAlbum({ tracks: [{ title: 'Unreachable' }] })
+    const far = remote.tracks[0]!.recordingId
+    onDemand.add(far)
+    vi.mocked(requestRecording).mockRejectedValueOnce(new Error('connection terminated'))
+    const a = await device('device-a-0020')
+    const tracks = [far, album.tracks[0]!.recordingId].map((trackId) => ({ trackId, albumId: remote.albumId, durationMs: 1 }))
+    await a.send({ type: 'playTracks', tracks, seed: 1 })
+    expect((await a.state(1)).current).toMatchObject({ trackId: far, state: 'preparing' })
+    expect((await a.state(2)).current).toMatchObject({ trackId: album.tracks[0]!.recordingId, state: 'ready' })
+  })
+
+  it('asks again for an on-demand track that left the queue before its answer came', async () => {
+    const remote = await createAlbum({ tracks: [{ title: 'Again' }] })
+    const far = remote.tracks[0]!.recordingId
+    onDemand.add(far)
+    const a = await device('device-a-0021')
+    const play = (...trackIds: string[]) => a.send({ type: 'playTracks', tracks: trackIds.map((trackId) => ({ trackId, albumId: remote.albumId, durationMs: 1 })), seed: 1 })
+    // Requested while up next, then gone with the queue it was in.
+    await play(album.tracks[0]!.recordingId, far)
+    await play(album.tracks[1]!.recordingId)
+    await a.state(2)
+    // The fetch failed while the session no longer held the track; it is still on demand.
+    await markRecordingFailed(far)
+    await play(far)
+    expect((await a.state(3)).current).toMatchObject({ trackId: far, state: 'preparing' })
+    expect(vi.mocked(requestRecording).mock.calls.map(([request]) => request.recordingId)).toEqual([far, far])
+  })
+
   it('refills autoplay from the radio module once per entry, and never loops on an empty answer', async () => {
     const extra = await createAlbum({ owned: true, tracks: [{ title: 'Suggested' }] })
     const suggestion: QueueSeed = { trackId: extra.tracks[0]!.recordingId, albumId: extra.albumId, durationMs: extra.tracks[0]!.durationMs, state: 'ready' }
@@ -614,6 +671,24 @@ describe('sessions', () => {
       { recordingId: first.recordingId, albumId: fetched.albumId },
       { recordingId: winner, albumId: fetched.albumId },
     ]))
+  })
+
+  it('keeps one play row for a listen that spans a restart', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0019')
+    await a.send(playAlbum(), 'span')
+    await a.state(1)
+    clock.advance(60_000)
+    await sessionsModule.stop!()
+    clock.advance(30_000)
+    // The device kept playing; its next report re-anchors the reloaded session.
+    expect(await a.send({ type: 'seek', positionMs: 90_000 })).toEqual({ ok: true, version: 2 })
+    clock.advance(30_000)
+    await a.send({ type: 'next' })
+    await a.state(3)
+    await sessionsModule.stop!()
+    expect(await db.select({ recordingId: plays.recordingId, msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id)))
+      .toEqual([{ recordingId: album.tracks[0]!.recordingId, msPlayed: 120_000 }])
   })
 
   it('waits for the write of a play that closed just before shutdown', async () => {

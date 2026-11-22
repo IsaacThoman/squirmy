@@ -1,13 +1,14 @@
 import { API_PREFIX, type PlaybackDescriptor, type PlaybackQuery, type StreamProfile } from '@squirmy/contracts'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { transcodes, users } from '../../database/schema.js'
+import { users } from '../../database/schema.js'
 import { sign, verify } from '../../lib/crypto.js'
 import { notFound } from '../../lib/errors.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { normalizationFor } from '../loudness/normalization.js'
 import { codecFamily, mimeFor, outputSampleRate, profiles } from './profiles.js'
 import { selectFile } from './select.js'
+import { readyTranscode } from './transcode.js'
 
 /** How long a signed stream URL stays valid. */
 export const STREAM_URL_TTL_MS = 12 * 60 * 60_000
@@ -44,13 +45,16 @@ export async function verifyStreamSignature(fileId: string, profile: StreamProfi
 
 /**
  * `GET /tracks/:id/playback`: picks the file and profile for the recording (after following
- * merges), signs a URL for `userId`, and describes what that URL will deliver. Throws 404
+ * merges of the recording and of `albumId`), signs a URL for `userId`, and describes what that URL will deliver. Throws 404
  * `not_available` when the recording has no present file.
  */
 export async function buildPlaybackDescriptor(userId: string, recordingId: string, query: PlaybackQuery): Promise<PlaybackDescriptor> {
-  // Queue entries and playlists keep ids that later lost a merge.
-  const target = await resolveOne('recordings', recordingId) ?? recordingId
-  const selection = await selectFile(target, { albumId: query.albumId, codecs: query.codecs, quality: query.quality })
+  // Queue entries and playlists keep ids that later lost a merge, for the album as well.
+  const [target, albumId] = await Promise.all([
+    resolveOne('recordings', recordingId).then((id) => id ?? recordingId),
+    query.albumId ? resolveOne('albums', query.albumId).then((id) => id ?? query.albumId) : undefined,
+  ])
+  const selection = await selectFile(target, { albumId, codecs: query.codecs, quality: query.quality })
   if (!selection) throw notFound('No file of this track is available', 'not_available')
   const { file, profile } = selection
   const { url, expiresAt } = signStreamUrl(file.id, profile, userId, { download: query.download })
@@ -78,8 +82,7 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     }
   }
   const spec = profiles[profile]
-  const [cached] = await db.select({ bytes: transcodes.bytes }).from(transcodes)
-    .where(and(eq(transcodes.fileId, file.id), eq(transcodes.profile, profile), eq(transcodes.status, 'ready')))
+  const cached = await readyTranscode(file, profile)
   return {
     ...base,
     transcoded: true,

@@ -100,8 +100,11 @@ function entriesOf(session: Session): QueueEntry[] {
 
 type Change = { queue: boolean; devices: boolean }
 
-/** Makes `next` the session: bumps versions, follows the open play and schedules a write. Null when nothing changed. */
-function commit(record: SessionRecord, next: Session): Change | null {
+/**
+ * Makes `next` the session: bumps versions, follows the open play up to `now` (when the
+ * change took effect) and schedules a write. Null when nothing changed.
+ */
+function commit(record: SessionRecord, next: Session, now = settings.now()): Change | null {
   const previous = record.session
   if (next === previous) return null
   const queue = queueChanged(previous, next)
@@ -109,7 +112,7 @@ function commit(record: SessionRecord, next: Session): Change | null {
   if (queue) record.queueVersion += 1
   record.session = next
   if (next.current?.state === 'ready') record.failedInARow = 0
-  const { open, closed } = followPlay(record.play, previous, next, settings.now())
+  const { open, closed } = followPlay(record.play, previous, next, now)
   if (open && open !== record.play) notifyPlayStart(record.userId, open)
   record.play = open
   if (closed) {
@@ -132,7 +135,7 @@ function broadcast(record: SessionRecord, change: Change): void {
 
 /** Applies a server-issued command under a fresh command id and broadcasts the result. */
 function applyServer(record: SessionRecord, command: AnySessionCommand, now = settings.now()): void {
-  const change = commit(record, reduceSession(record.session, { command, now, commandId: newId() }))
+  const change = commit(record, reduceSession(record.session, { command, now, commandId: newId() }), now)
   if (!change) return
   broadcast(record, change)
   afterChange(record)
@@ -170,16 +173,29 @@ function toPrepare(session: Session): Wanted[] {
  * request joins the job already in flight.
  */
 function requestUpcoming(record: SessionRecord): void {
+  const { userId } = record
   const asks: (() => Promise<void>)[] = []
   for (const { entry, origin } of toPrepare(record.session)) {
     const asked = record.requested.get(entry.trackId)
     if (asked === 'play' || asked === origin) continue
-    record.requested.set(entry.trackId, origin)
-    const request = { userId: record.userId, recordingId: entry.trackId, albumId: entry.albumId, origin }
+    const recordingId = entry.trackId
+    record.requested.set(recordingId, origin)
+    const request = { userId, recordingId, albumId: entry.albumId, origin }
     asks.push(async () => {
-      const wanted = loadedRecord(record.userId) === record && toPrepare(record.session).some(({ entry }) => entry.trackId === request.recordingId)
-      if (wanted) return requestRecording(request).catch(report)
-      if (record.requested.get(request.recordingId) === origin) record.requested.delete(request.recordingId)
+      const wanted = loadedRecord(userId) === record && toPrepare(record.session).some(({ entry }) => entry.trackId === recordingId)
+      if (!wanted) {
+        if (record.requested.get(recordingId) === origin) record.requested.delete(recordingId)
+        return
+      }
+      await requestRecording(request).catch((error: unknown) => {
+        report(error)
+        // A request that threw was never made, so no outcome will come: fail the entries
+        // rather than leave them preparing. A job that did start still marks them ready.
+        return serial(userId, () => {
+          const latest = loadedRecord(userId)
+          if (latest?.requested.delete(recordingId)) applyFailure(latest, recordingId)
+        })
+      }).catch(report)
     })
   }
   if (asks.length) void asks.reduce((chain, ask) => chain.then(ask), Promise.resolve())
@@ -207,7 +223,7 @@ function applyFailure(record: SessionRecord, trackId: string): void {
   // The reducer moves past a current entry that fails. Marked here first, the entry stays
   // current, and `setEntryState` only marks its other entries.
   const held: Session = { ...paused, current: { ...current, state: 'failed' }, positionMs: 0, anchorAt: now, stalled: false }
-  const change = commit(record, reduceSession(held, { command: { type: 'setEntryState', trackId, state: 'failed' }, now, commandId: newId() }))
+  const change = commit(record, reduceSession(held, { command: { type: 'setEntryState', trackId, state: 'failed' }, now, commandId: newId() }), now)
   if (change) {
     broadcast(record, change)
     afterChange(record)
@@ -238,14 +254,21 @@ function refillAutoplay(record: SessionRecord): void {
     .catch(report)
 }
 
-function startGrace(userId: string, deviceId: string): void {
+/**
+ * Gives an active device that went away at `lostAt` the grace period to come back. When it
+ * does not, the session pauses where it was then (or at the last change since): its audio
+ * most likely stopped with it, and a device that played on offline reclaims the session
+ * with its own position when it returns.
+ */
+function startGrace(userId: string, deviceId: string, lostAt = settings.now()): void {
   const key = `${userId}:${deviceId}`
   if (graceTimers.has(key)) return
   graceTimers.set(key, settings.timers.set(() => {
     graceTimers.delete(key)
     serial(userId, () => {
       const record = loadedRecord(userId)
-      if (record && !connectedDevice(userId, deviceId)) applyServer(record, { type: 'deviceLost', deviceId })
+      if (!record || connectedDevice(userId, deviceId)) return
+      applyServer(record, { type: 'deviceLost', deviceId }, Math.min(settings.now(), Math.max(lostAt, record.session.anchorAt)))
     }).catch(report)
   }, settings.deviceGraceMs))
 }
@@ -467,24 +490,34 @@ export function markRecordingFailed(recordingId: string): Promise<void> {
 }
 
 async function setRecordingState(recordingId: string, state: 'ready' | 'failed'): Promise<void> {
-  const holders = [...loadedRecords()].filter(record => entriesOf(record.session).some(entry => entry.trackId === recordingId))
-  await Promise.all(holders.map(({ userId }) => serial(userId, () => {
-    const record = loadedRecord(userId)
-    if (!record) return
-    record.requested.delete(recordingId)
-    if (state === 'failed') applyFailure(record, recordingId)
-    else applyServer(record, { type: 'setEntryState', trackId: recordingId, state })
-  })))
+  // The request is answered for sessions that no longer hold the recording too, so one
+  // that queues it again asks again instead of waiting on an answer that already came.
+  await Promise.all([...loadedRecords()].filter(record => record.requested.has(recordingId) || holds(record, recordingId))
+    .map(({ userId }) => serial(userId, () => {
+      const record = loadedRecord(userId)
+      if (!record) return
+      record.requested.delete(recordingId)
+      if (!holds(record, recordingId)) return
+      if (state === 'failed') applyFailure(record, recordingId)
+      else applyServer(record, { type: 'setEntryState', trackId: recordingId, state })
+    })))
 }
 
-/** Closes open plays, writes every session and play and forgets them, and cancels device timers. */
+function holds(record: SessionRecord, recordingId: string): boolean {
+  return entriesOf(record.session).some(entry => entry.trackId === recordingId)
+}
+
+/**
+ * Writes every session and the plays still open, forgets them, and cancels device timers.
+ * An open play stays open in the stored session: after a restart it goes on as the same
+ * row, so a listen across the restart is one play.
+ */
 export async function stopSessions(): Promise<void> {
   for (const timer of graceTimers.values()) settings.timers.clear(timer)
   graceTimers.clear()
   await unloadAll(async record => {
     const { play } = record
     if (!play) return
-    record.play = null
     countUntil(play, record.session, settings.now())
     await savePlay(record.userId, play).catch(report)
   })

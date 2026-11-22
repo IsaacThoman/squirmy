@@ -4,14 +4,14 @@
  * An album is in the library when a present file is linked to it; a track when a present
  * file links to its recording; an artist when it is credited on a library album. Genres
  * match case-insensitively; a track has the genres of its files' albums. Each
- * ordering below is backed by an index in schema.ts, so a page reads about `limit` rows
+ * ordering below except tracks by year (which sorts the library's files) is backed by an
+ * index in schema.ts, so a page reads about `limit` rows
  * whatever the library size. Each query returns ids and cursor keys; the summary
  * builders hydrate them.
  */
 import type { AlbumPage, ArtistPage, GenrePage, GenreSummary, LibraryQuery, LibrarySort, PageQuery, TrackPage } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { badRequest } from '../../lib/errors.js'
 import { after, cursorKeys, orderBy, toPage, type Ordering } from './pagination.js'
 import { sortKeys } from './sql.js'
 import { albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
@@ -90,8 +90,19 @@ export async function listLibraryAlbums(query: LibraryQuery): Promise<AlbumPage>
   return toPage(albumOrderings[query.sort], rows, query.limit, await albumSummaries(ids))
 }
 
-const trackOrderings: Record<Exclude<LibrarySort, 'year'>, Ordering> = {
+const trackOrderings: Record<LibrarySort, Ordering> = {
   recent: { name: 'tracks:recent', keys: byNewestFile },
+  // Recordings carry no year: tracks follow their album in the album list's year order,
+  // and its files in path order (the track order of every naming template).
+  year: {
+    name: 'tracks:year',
+    keys: [
+      ...albumOrderings.year.keys.slice(0, 2),
+      { expression: sql.raw('a.id'), type: 'uuid' },
+      { expression: sql.raw('f.rel_path'), type: 'text' },
+      { expression: sql.raw('f.id'), type: 'uuid' },
+    ],
+  },
   title: {
     name: 'tracks:title',
     keys: [
@@ -110,15 +121,22 @@ const trackOrderings: Record<Exclude<LibrarySort, 'year'>, Ordering> = {
   },
 }
 
-/** Recordings carry no year, so tracks reject that order with `unsupported_sort`. */
-function trackOrdering(sort: LibrarySort): Ordering {
-  if (sort === 'year') throw badRequest('Tracks cannot be sorted by year', 'unsupported_sort')
-  return trackOrderings[sort]
-}
-
 /** The query behind `GET /library/tracks`, returning `limit + 1` rows. Exported for EXPLAIN in tests. */
 export function libraryTracksQuery(query: LibraryQuery): SQL {
-  const ordering = trackOrdering(query.sort)
+  const ordering = trackOrderings[query.sort]
+  if (query.sort === 'year') {
+    // One file per recording, its newest, as `recent` shows it.
+    return sql`
+      select f.recording_id as id, f.album_id as "albumId", ${cursorKeys(ordering)}
+      from media_files f join albums a on a.id = f.album_id
+      where f.missing_since is null and f.recording_id is not null and ${hasGenre('a', query.genre)}
+        and not exists (
+          select 1 from media_files newer
+          where newer.recording_id = f.recording_id and newer.missing_since is null and (newer.added_at, newer.id) > (f.added_at, f.id)
+        )
+        and ${after(ordering, query.cursor)}
+      order by ${orderBy(ordering)} limit ${query.limit + 1}`
+  }
   if (query.sort === 'recent') {
     return sql`
       select f.recording_id as id, f.album_id as "albumId", ${cursorKeys(ordering)}
@@ -146,13 +164,13 @@ export function libraryTracksQuery(query: LibraryQuery): SQL {
 }
 
 /**
- * One page of library tracks. Sorted by `recent`, each track is shown in the album of
- * its newest file; otherwise the summary builder picks the album.
+ * One page of library tracks. Sorted by `recent` or `year`, each track is shown in the
+ * album of its newest file; otherwise the summary builder picks the album.
  */
 export async function listLibraryTracks(userId: string, query: LibraryQuery): Promise<TrackPage> {
   const rows = await db.execute<IdRow & { albumId: string | null }>(libraryTracksQuery(query))
   const refs = rows.slice(0, query.limit).map((row) => ({ id: row.id, albumId: row.albumId }))
-  return toPage(trackOrdering(query.sort), rows, query.limit, await trackSummaries(userId, refs))
+  return toPage(trackOrderings[query.sort], rows, query.limit, await trackSummaries(userId, refs))
 }
 
 const artistOrdering: Ordering = {

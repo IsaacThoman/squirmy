@@ -11,17 +11,46 @@ import { editionFreeKey } from './keys.js'
 
 type Found = Pick<SearchResults, 'artists' | 'albums' | 'tracks'>
 
+/** The key without a leading article, so "money store" is "The Money Store". */
+const withoutArticle = (key: string) => key.replace(/^(the|a|an) (?=.)/, '')
+
+/** Whether `a` becomes `b` with at most one inserted, deleted or replaced character. */
+function oneEditApart(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) return false
+  let i = 0
+  while (i < a.length && i < b.length && a[i] === b[i]) i++
+  return a.slice(i + 1) === b.slice(i + 1) || a.slice(i) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i)
+}
+
+/** Queries shorter than this never match by a typo: too many names are one edit away. */
+const minTypoLength = 5
+
+type Match = {
+  /** 3 for the whole name, also once edition suffixes are dropped; 1 when it starts with the query; 0.5 for one typo; 0 otherwise. */
+  tier: number
+  /** Matched with its article as typed ("the money store" is not literally "Money Store"). */
+  literal: boolean
+}
+
 /**
- * How exactly any of `names` matches the query key: 3 for the whole name, 2 once edition
- * suffixes are dropped, 1 when it starts with the query, 0 otherwise.
+ * How exactly any of `names` matches the query key. A leading article is ignored on both
+ * sides, and an edition suffix ("(Remastered 2009)") on the name: Deezer names most
+ * classic albums that way, and the plain title from someone else must not beat them.
  */
-function exactness(query: string, names: string[]): number {
-  let best = 0
+function exactness(query: string, names: string[]): Match {
+  const bare = withoutArticle(query)
+  let best: Match = { tier: 0, literal: false }
+  const consider = (tier: number, literal: boolean) => {
+    if (tier > best.tier || (tier === best.tier && literal && !best.literal)) best = { tier, literal }
+  }
   for (const name of names) {
     const key = matchKey(name)
-    if (key === query) return 3
-    if (editionFreeKey(name) === query) best = Math.max(best, 2)
-    else if (key.startsWith(query)) best = Math.max(best, 1)
+    const forms = [key, editionFreeKey(name)]
+    if (forms.includes(query)) consider(3, true)
+    else if (forms.some((form) => withoutArticle(form) === bare)) consider(3, false)
+    else if (forms.some((form) => form.startsWith(query))) consider(1, true)
+    else if (forms.some((form) => withoutArticle(form).startsWith(bare))) consider(1, false)
+    else if ([...query].length >= minTypoLength && forms.some((form) => oneEditApart(form, query) || oneEditApart(withoutArticle(form), bare))) consider(0.5, false)
   }
   return best
 }
@@ -29,11 +58,36 @@ function exactness(query: string, names: string[]): number {
 /** The title alone, and with its artist on either side ("radiohead ok computer"). */
 const withArtist = (title: string, artist: string) => [title, `${artist} ${title}`, `${title} ${artist}`]
 
+const kindOrder = { artist: 0, album: 1, track: 2 } as const
+
+type Candidate = Match & {
+  type: 'artist' | 'album' | 'track'
+  id: string
+  /** 0..1, or null when nothing returned says how popular it is. */
+  popularity: number | null
+  /** Its place in its own list: the provider's (or the library's) ranking. */
+  position: number
+}
+
 /**
- * Picks the result that matches the query best: by `exactness`, then by popularity (a
- * track's own, 0..1; an album's or artist's is the best of the returned tracks on it or
- * by them), then artist before album before track, then list order. Null when nothing
- * matches at least as a prefix.
+ * Whether `a` should lead rather than `b`: the better match; then the one matching the
+ * article as typed; then, when both popularities are known, the more popular; then the one
+ * its list ranks higher (the provider already ranks by popularity, and an album's
+ * popularity is unknown when none of its tracks came back); then artist before album
+ * before track.
+ */
+function better(a: Candidate, b: Candidate): boolean {
+  if (a.tier !== b.tier) return a.tier > b.tier
+  if (a.literal !== b.literal) return a.literal
+  if (a.popularity !== null && b.popularity !== null && a.popularity !== b.popularity) return a.popularity > b.popularity
+  if (a.position !== b.position) return a.position < b.position
+  return kindOrder[a.type] < kindOrder[b.type]
+}
+
+/**
+ * Picks the result that matches the query best (see `better`). A track's popularity is
+ * its own; an album's or artist's is the best of the returned tracks on it or by them.
+ * Null when nothing matches at least as a prefix or one typo away.
  */
 export async function topResult(query: string, found: Found): Promise<SearchTopResult | null> {
   const key = matchKey(query)
@@ -41,34 +95,39 @@ export async function topResult(query: string, found: Found): Promise<SearchTopR
   const rows = trackIds.length > 0
     ? await db.select({ id: recordings.id, popularity: recordings.popularity }).from(recordings).where(inArray(recordings.id, trackIds))
     : []
-  const trackPopularity = new Map(rows.map((row) => [row.id, row.popularity ?? 0]))
-  const best = (tracks: Found['tracks']) => Math.max(0, ...tracks.map((track) => trackPopularity.get(track.id) ?? 0))
+  const trackPopularity = new Map(rows.flatMap((row) => (row.popularity === null ? [] : [[row.id, row.popularity] as const])))
+  const best = (tracks: Found['tracks']) => {
+    const known = tracks.flatMap((track) => (trackPopularity.has(track.id) ? [trackPopularity.get(track.id)!] : []))
+    return known.length > 0 ? Math.max(...known) : null
+  }
 
-  const candidates = [
-    ...found.artists.map((artist) => ({
+  const candidates: Candidate[] = [
+    ...found.artists.map((artist, position) => ({
       type: 'artist' as const,
       id: artist.id,
-      exactness: exactness(key, [artist.name]),
+      position,
+      ...exactness(key, [artist.name]),
       popularity: best(found.tracks.filter((track) => track.artists.some((credit) => credit.id === artist.id))),
     })),
-    ...found.albums.map((album) => ({
+    ...found.albums.map((album, position) => ({
       type: 'album' as const,
       id: album.id,
-      exactness: exactness(key, withArtist(album.title, album.artistCredit)),
+      position,
+      ...exactness(key, withArtist(album.title, album.artistCredit)),
       popularity: best(found.tracks.filter((track) => track.album?.id === album.id)),
     })),
-    ...found.tracks.map((track) => ({
+    ...found.tracks.map((track, position) => ({
       type: 'track' as const,
       id: track.id,
-      exactness: exactness(key, withArtist(track.title, track.artistCredit)),
-      popularity: trackPopularity.get(track.id) ?? 0,
+      position,
+      ...exactness(key, withArtist(track.title, track.artistCredit)),
+      popularity: trackPopularity.get(track.id) ?? null,
     })),
   ]
-  let top: (typeof candidates)[number] | undefined
-  // Candidates are in kind order, then list order, so a strict comparison keeps the earlier one on ties.
+  let top: Candidate | undefined
   for (const candidate of candidates) {
-    if (candidate.exactness === 0) continue
-    if (!top || candidate.exactness > top.exactness || (candidate.exactness === top.exactness && candidate.popularity > top.popularity)) top = candidate
+    if (candidate.tier === 0) continue
+    if (!top || better(candidate, top)) top = candidate
   }
   return top ? { type: top.type, id: top.id } : null
 }

@@ -47,6 +47,8 @@ describe('lost artwork', () => {
   const row = async (id: string) => (await db.select().from(assets).where(eq(assets.id, id)))[0]!
   /** Deletes an asset's original and its renditions, as losing the data folder would. */
   const lose = async (asset: Asset) => {
+    // Let the pre-render a new asset queues finish first, or it could write renditions afterwards.
+    await drainJobs()
     await rm(dataPath((await row(asset.id)).storagePath!), { force: true })
     await rm(dataPath('art', asset.id), { recursive: true, force: true })
   }
