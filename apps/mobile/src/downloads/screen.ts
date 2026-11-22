@@ -1,4 +1,5 @@
 import type { StreamQuality } from '@squirmy/contracts';
+import type { Href } from 'expo-router';
 import { Alert, Platform } from 'react-native';
 import { useUpdateSettings, useUserSettings } from '../data/queries';
 import { albumCollection, likedCollection, playlistCollection, type Collection } from '../library/shared';
@@ -7,7 +8,7 @@ import { tapFeedback } from '../library/shared';
 import { downloadStatus } from '../library/DownloadControl';
 import { useDownloadActions, useDownloadManager, useDownloadsSummary } from './DownloadsProvider';
 import { freeSpace } from './files';
-import { formatBytes, songsId, type CollectionRow } from './model';
+import { formatBytes, songPage, songsId, type CollectionRow } from './model';
 
 export const downloadQualityOptions: readonly { value: StreamQuality; label: string }[] = [
   { value: 'original', label: 'Original' },
@@ -30,6 +31,8 @@ const device = Platform.OS === 'ios' ? 'iPhone' : 'phone';
 /** One downloaded collection or song as the Downloads screen lists it. `remove` asks first; a swipe uses `removeNow`. */
 export type DownloadItem = {
   id: string; collection: Collection; title: string; subtitle: string; failed: boolean; remove: () => void; removeNow: () => void;
+  /** Where tapping the row goes; `null` when there is no page to open. */
+  href: Href | null;
 };
 
 function count(total: number) {
@@ -62,6 +65,7 @@ export function useDownloadsScreen() {
       remove: () => confirm(`Remove “${row.title}”?`, `Its songs will no longer play on this ${device} without a connection.`, 'Remove Download',
         () => actions.removeCollection(row.id)),
       removeNow: () => actions.removeCollection(row.id),
+      href: collection.href,
     };
   };
 
@@ -74,10 +78,13 @@ export function useDownloadsScreen() {
     if (!download || !track) return [];
     const detail = download.state === 'done' ? formatBytes(download.bytes) : download.state === 'failed' ? 'Couldn’t be downloaded'
       : download.state === 'downloading' ? `Downloading ${Math.round(download.progress * 100)}%` : 'Waiting to download';
+    const page = songPage(track);
+    const href = page && link(page.page, page.id);
     return [{
-      id: trackId, title: track.title, subtitle: `${track.artistCredit} · ${detail}`, failed: download.state === 'failed',
+      id: trackId, title: track.title, subtitle: `${track.artistCredit} · ${detail}`, failed: download.state === 'failed', href,
       collection: { key: trackId, kind: 'album', title: track.title, subtitle: track.artistCredit, artwork: track.album?.artwork,
-        href: link('album', track.album?.id ?? '') },
+        // The row opens `href`; the collection only draws the cover.
+        href: href ?? link('artist', '') },
       remove: () => confirm(`Remove “${track.title}”?`, `It will no longer play on this ${device} without a connection.`, 'Remove Download',
         () => actions.removeTrack(trackId)),
       removeNow: () => actions.removeTrack(trackId),

@@ -23,8 +23,9 @@ export function DownloadsScreen() {
   const screen = useDownloadsScreen();
   const { settings, summary } = screen;
   const open = (item: DownloadItem) => {
+    if (!item.href) return;
     closeSheet(router);
-    router.navigate(item.collection.href);
+    router.navigate(item.href);
   };
   const empty = summary && !summary.collections.length;
 

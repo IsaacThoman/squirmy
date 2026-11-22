@@ -16,10 +16,10 @@ export function DownloadsScreen() {
   const { settings, summary } = screen;
   const empty = summary && !summary.collections.length;
   const choose = (item: DownloadItem) => Alert.alert(item.title, item.subtitle, [
-    { text: 'Open', onPress: () => {
+    ...item.href ? [{ text: 'Open', onPress: () => {
       closeSheet(router);
-      router.navigate(item.collection.href);
-    } },
+      router.navigate(item.href!);
+    } }] : [],
     { text: 'Remove Download', style: 'destructive', onPress: item.remove },
     { text: 'Cancel', style: 'cancel' },
   ]);
