@@ -1,15 +1,9 @@
-import { ARTIST_SECTION_KEYS, type AlbumDetail, type AlbumSummary, type ArtistSectionKey, type User } from '@squirmy/contracts'
+import { ARTIST_SECTION_KEYS, type AlbumDetail, type ArtistSectionKey, type User } from '@squirmy/contracts'
 
 // What plays and how it looks is one rule shared with the iOS app, so the two cannot drift.
-export { albumNote, albumPresentation, canFetch, isPlayable, librarySave, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core'
-
-const albumTypes: Record<AlbumSummary['type'], string> = {
-  album: 'Album', ep: 'EP', single: 'Single', compilation: 'Compilation', live: 'Live', soundtrack: 'Soundtrack', other: 'Release',
-}
-
-export function albumTypeLabel(type: AlbumSummary['type']) {
-  return albumTypes[type]
-}
+export {
+  albumNote, albumPresentation, albumTypeLabel, canFetch, isPlayable, librarySave, releaseSubtitle, UNAVAILABLE_LABEL, type Viewer,
+} from '@squirmy/client-core'
 
 /** The headings of an artist page's sections. */
 const sectionTitles: Record<ArtistSectionKey, string> = {

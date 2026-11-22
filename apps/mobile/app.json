@@ -13,7 +13,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#ffffff",
-          "dark": { "backgroundColor": "#111014" }
+          "dark": { "backgroundColor": "#111014" },
+          "ios": { "dark": { "backgroundColor": "#000000" } }
         }
       ],
       "expo-sqlite",

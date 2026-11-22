@@ -12,6 +12,10 @@ export type SongRowItem = {
   number?: number;
   /** The playlist the row is an item of, when it can be edited. */
   playlist?: { id: string; itemId: string };
+  /** Whether the row names the song's artist: not on an album page, where it is the album's artist. */
+  showArtist: boolean;
+  /** The album whose page the row is on. */
+  album?: string;
 };
 
 /** What a row does when pressed. One object per list, which never changes, so no row redraws for it. */
@@ -29,7 +33,7 @@ export type SongListItems = {
   rowHeight: number;
 };
 
-export function songRows({ tracks, numbered, playlist }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist'>): SongRowItem[] {
+export function songRows({ tracks, numbered, playlist, album }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album'>): SongRowItem[] {
   return tracks.map((track, index) => {
     const itemId = playlist?.itemIds[index];
     return {
@@ -38,6 +42,9 @@ export function songRows({ tracks, numbered, playlist }: Pick<SongListProps, 'tr
       index,
       number: numbered ? track.position ?? index + 1 : undefined,
       playlist: playlist && itemId ? { id: playlist.id, itemId } : undefined,
+      // On an album page only a song by someone else (a feature, a various-artists album) says who.
+      showArtist: !album || track.artistCredit !== album.artistCredit,
+      album: album?.id,
     };
   });
 }
@@ -65,5 +72,5 @@ export function chunk<T>(items: readonly T[], size: number): T[][] {
 /** Whether two rows show the same thing. */
 export function sameRow(a: SongRowItem, b: SongRowItem) {
   return a === b || (a.key === b.key && a.track === b.track && a.index === b.index && a.number === b.number
-    && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id);
+    && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id && a.showArtist === b.showArtist && a.album === b.album);
 }

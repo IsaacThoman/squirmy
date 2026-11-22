@@ -7,6 +7,8 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, 
 import { useEffect, useState } from 'react';
 import { useSignedInApi, type Api } from '../account/AccountProvider';
 import { albumExpanding, albumPlaceholder, findAlbumSummary } from './albums';
+import { artistPending, artistPlaceholder, findArtistSummary, pendingArtistPollMs } from './artists';
+import { inLibraryOnly } from '../library/librarySearch';
 import { useTrackStore } from './library';
 
 const pageSize = 60;
@@ -100,7 +102,22 @@ export function useAlbum(id: string) {
 
 export function useArtist(id: string) {
   const prime = usePrime();
-  return useApiQuery(queryKeys.artist(id), async api => prime(await api.catalog.artist(id), artist => artist.topTracks));
+  const api = useSignedInApi();
+  const queryClient = useQueryClient();
+  // As for albums: the header draws at once from the tile or row that opened the page.
+  const [placeholder] = useState(() => {
+    const summary = findArtistSummary(queryClient.getQueryCache().getAll().map(query => query.state.data), id);
+    return summary && artistPlaceholder(summary);
+  });
+  return useQuery({
+    queryKey: queryKeys.artist(id),
+    queryFn: async () => prime(await api!.catalog.artist(id), artist => artist.topTracks),
+    enabled: Boolean(api),
+    placeholderData: placeholder,
+    // A page answered while the server still fetches the profile and discography is not
+    // final; the realtime invalidation that follows can be missed, so it is asked for again.
+    refetchInterval: query => artistPending(query.state.data, query.state.dataUpdateCount) ? pendingArtistPollMs : false,
+  });
 }
 
 export function usePlaylist(id: string) {
@@ -198,7 +215,7 @@ export function useLibraryMatches(text: string) {
   const prime = usePrime();
   const query = useQuery({
     queryKey: [...queryKeys.search(), 'library', q, libraryMatchLimit],
-    queryFn: async () => prime(await api!.search.library({ q, limit: libraryMatchLimit }), results => results.tracks),
+    queryFn: async () => inLibraryOnly(prime(await api!.search.library({ q, limit: libraryMatchLimit }), results => results.tracks)),
     enabled: Boolean(api) && [...q].length >= libraryMatchMinLength,
     placeholderData: keepPreviousData,
     staleTime: 60_000,

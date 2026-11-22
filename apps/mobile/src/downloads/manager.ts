@@ -1,11 +1,12 @@
 import { ApiError } from '@squirmy/client-core';
 import type {
-  AlbumDetail, Artwork, PlaybackDescriptor, PlaylistDetail, StreamQuality, TrackSummary,
+  AcquireQuery, AcquireResponse, AlbumDetail, Artwork, PlaybackDescriptor, PlaylistDetail, StreamQuality, TrackSummary,
 } from '@squirmy/contracts';
 import {
-  afterFailure, checkIntervalMs, collectionDownload, concurrency, extensionFor, nextToStart, reconcile, sizeMatches,
-  songsId, trackDownload, unreferenced, waitReason, type CollectionDownload, type CollectionKind, type CollectionRow,
-  type DownloadRow, type NetworkKind, type TrackDownload, type WaitReason,
+  acquireOutcome, afterAcquire, afterFailure, albumCollectionId, checkIntervalMs, collectionDownload, concurrency, dueFetches,
+  extensionFor, fetchGapMs, fetchPauseMs, nextToStart, reconcile, sizeMatches, songsId, trackDownload, unreferenced, waitReason,
+  withTrack, type AcquireOutcome, type CollectionDownload, type CollectionKind, type CollectionRow, type DownloadRow,
+  type NetworkKind, type TrackDownload, type WaitReason,
 } from './model';
 
 /** The index of downloads, for one account. Writes are synchronous so a row and its file change together. */
@@ -56,9 +57,14 @@ export type DownloadSource = {
   /** A collection's current tracks. Throws a 404 `ApiError` when the server no longer has it. */
   collection(kind: Exclude<CollectionKind, 'songs'>, id: string): Promise<CollectionContent>;
   summaries(tracks: readonly { id: string; albumId: string | null }[]): Promise<TrackSummary[]>;
+  /** `POST /tracks/:id/acquire`: asks the server to get a song it does not have. */
+  acquireTrack(trackId: string, query: AcquireQuery): Promise<AcquireResponse>;
+  /** `POST /albums/:id/acquire`: the same for an album's missing songs. */
+  acquireAlbum(albumId: string, query: Omit<AcquireQuery, 'albumId'>): Promise<AcquireResponse>;
 };
 
-export type DownloadOptions = { quality: StreamQuality; wifiOnly: boolean; capBytes: number | null };
+/** `canFetch`: the user may have the server get songs it does not have (client-core's `canFetch`). */
+export type DownloadOptions = { quality: StreamQuality; wifiOnly: boolean; capBytes: number | null; canFetch: boolean };
 
 /** What `addCollection` needs to know about the album, playlist or Liked Songs. */
 export type CollectionMeta = Pick<CollectionRow, 'id' | 'kind' | 'title' | 'subtitle' | 'artworks'> & Partial<Pick<CollectionRow, 'album' | 'playlist'>>;
@@ -76,9 +82,11 @@ export type DownloadsSummary = {
   usedBytes: number;
   /** Downloaded tracks. */
   count: number;
-  /** Tracks waiting or downloading. */
+  /** Tracks waiting or downloading, including those the server is still getting. */
   pending: number;
   failed: number;
+  /** Tracks the server could not get. */
+  unavailable: number;
   wait: WaitReason | null;
   collections: readonly CollectionRow[];
 };
@@ -95,7 +103,8 @@ const artSuffix = '.webp';
  * few run at a time; a failed one is retried with backoff, and pauses (keeping what it
  * has) on cellular when only Wi-Fi is allowed. Downloaded collections follow the server
  * on `sync`: new tracks are added, removed ones dropped, and files the server replaced
- * or lost are refreshed or flagged.
+ * or lost are refreshed or flagged. Songs the server does not have yet are asked for, for
+ * a user who may have them fetched, and downloaded once the server says it has them.
  */
 export class DownloadManager {
   private rows = new Map<string, DownloadRow>();
@@ -116,6 +125,9 @@ export class DownloadManager {
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private progressTimer: ReturnType<typeof setTimeout> | undefined;
   private syncing: Promise<void> | null = null;
+  /** Acquire requests go one at a time, paced, so a long playlist stays under the server's rate limit. */
+  private fetching: Promise<void> | null = null;
+  private fetchPausedUntil = 0;
   private stopNetwork: (() => void) | undefined;
 
   constructor(private readonly ports: {
@@ -236,14 +248,18 @@ export class DownloadManager {
     let count = 0;
     let pending = 0;
     let failed = 0;
+    let unavailable = 0;
     for (const row of this.rows.values()) {
       if (row.file) {
         usedBytes += row.bytes ?? 0;
         count += 1;
       } else if (row.state === 'failed') failed += 1;
+      else if (row.state === 'unavailable') unavailable += 1;
       else pending += 1;
     }
-    const value = { usedBytes, count, pending, failed, wait: pending ? this.wait() : null, collections: [...this.collections.values()] };
+    const value = {
+      usedBytes, count, pending, failed, unavailable, wait: pending ? this.wait() : null, collections: [...this.collections.values()],
+    };
     this.summaryCache = { version: this.version, value };
     return value;
   }
@@ -263,12 +279,18 @@ export class DownloadManager {
 
   // Changing
 
-  /** Downloads the tracks of an album, playlist or Liked Songs, and keeps them in step with it. */
+  /**
+   * Downloads the tracks of an album, playlist or Liked Songs, and keeps them in step with
+   * it: what the server has, and for a user who may have songs fetched, what it can get.
+   * Every track is listed, so the rest count as not available rather than vanish.
+   */
   addCollection(meta: CollectionMeta, tracks: readonly TrackSummary[]): void {
-    const wanted = tracks.filter(track => track.availability === 'server' || this.isDownloaded(track.id));
+    const { canFetch } = this.ports.options;
+    const wanted = tracks.filter(track => track.availability === 'server' || this.isDownloaded(track.id)
+      || (canFetch && track.availability === 'on_demand'));
     const previous = this.collections.get(meta.id);
     const row: CollectionRow = {
-      album: null, playlist: null, ...previous, ...meta, trackIds: unique(wanted.map(track => track.id)),
+      album: null, playlist: null, ...previous, ...meta, trackIds: unique(tracks.map(track => track.id)),
       art: previous?.art ?? [], gone: false, addedAt: previous?.addedAt ?? this.now, syncedAt: this.now,
     };
     this.ensureRows(wanted);
@@ -319,10 +341,39 @@ export class DownloadManager {
     this.changed();
   }
 
-  /** Queues failed downloads again. */
+  /** Queues failed downloads again, and asks the server again for the songs it could not get. */
   retry(): void {
-    this.put([...this.rows.values()].filter(row => row.state === 'failed')
-      .map(row => ({ ...row, state: 'queued', attempts: 0, retryAt: null, error: null })));
+    const { canFetch } = this.ports.options;
+    this.put([...this.rows.values()].flatMap((row): DownloadRow[] => {
+      if (row.state === 'failed') return [{ ...row, state: 'queued', attempts: 0, retryAt: null, error: null }];
+      if (row.state !== 'unavailable') return [];
+      // Someone who may not ask has only what the server has; the next sync queues it once it does.
+      if (!canFetch && row.track.availability !== 'server') return [];
+      return [{ ...row, state: canFetch ? 'fetching' : 'queued', attempts: 0, retryAt: null, error: null }];
+    }));
+    this.pump();
+  }
+
+  /** The server is getting the track for this device: an `invalidate` of it may mean it has it now. */
+  awaits = (trackId: string): boolean => this.rows.get(trackId)?.state === 'fetching';
+
+  /** Asks the server about tracks it was getting, e.g. after an `invalidate` named them; the ones it has start downloading. */
+  async refreshTracks(trackIds: readonly string[]): Promise<void> {
+    if (!this.online || this.disposed) return;
+    const waiting = trackIds.flatMap(id => {
+      const row = this.rows.get(id);
+      return row?.state === 'fetching' ? [{ id, albumId: row.albumId }] : [];
+    });
+    for (let start = 0; start < waiting.length; start += summaryBatch) {
+      let found: TrackSummary[];
+      try {
+        found = await this.ports.source.summaries(waiting.slice(start, start + summaryBatch));
+      } catch {
+        return;
+      }
+      if (this.disposed) return;
+      this.ensureRows(found.filter(track => this.rows.has(track.id)));
+    }
     this.pump();
   }
 
@@ -363,20 +414,30 @@ export class DownloadManager {
     return waitReason({ online: this.online, network: this.ports.network.kind(), wifiOnly, usedBytes, capBytes });
   }
 
+  /** Adds rows for new tracks, and moves existing ones on by what the server now says of them (`withTrack`). */
   private ensureRows(tracks: readonly TrackSummary[]): void {
+    const { canFetch, quality } = this.ports.options;
     const changed: DownloadRow[] = [];
     for (const track of tracks) {
       const row = this.rows.get(track.id);
       if (row) {
-        const gone = track.availability === 'none';
-        if (gone !== row.gone || JSON.stringify(row.track) !== JSON.stringify(track)) changed.push({ ...row, track, gone });
+        const next = withTrack(row, track, canFetch);
+        if (next !== row) changed.push(next);
         continue;
       }
       changed.push({
-        trackId: track.id, albumId: track.album?.id ?? null, state: 'queued', quality: this.ports.options.quality,
+        trackId: track.id, albumId: track.album?.id ?? null, state: track.availability === 'on_demand' ? 'fetching' : 'queued', quality,
         file: null, art: null, bytes: null, descriptor: null, track, attempts: 0, retryAt: null, error: null, gone: false,
         addedAt: this.now, doneAt: null, checkedAt: null,
       });
+    }
+    // A transfer paused for Wi-Fi has nothing to resume once the server let the file go.
+    for (const row of changed) {
+      const job = row.state === 'fetching' ? this.jobs.get(row.trackId) : undefined;
+      if (!job) continue;
+      this.cancelJob(job);
+      this.jobs.delete(row.trackId);
+      this.progress.delete(row.trackId);
     }
     if (changed.length) this.put(changed);
   }
@@ -434,20 +495,90 @@ export class DownloadManager {
 
   private pump(): void {
     if (this.disposed) return;
-    clearTimeout(this.retryTimer);
     const wait = this.wait();
+    // Asking the server to get a song is a small request: only a connection is needed.
+    if (wait !== 'offline') void this.runFetches();
     if (wait === 'wifi') {
       for (const job of this.jobs.values()) if (!job.paused && job.transfer) void job.transfer.pause().catch(() => undefined);
     }
-    if (wait) return;
-    const running = new Set([...this.jobs].filter(([, job]) => !job.paused).map(([id]) => id));
-    for (const row of nextToStart(this.rows.values(), running, this.now, concurrency)) {
-      const job = this.jobs.get(row.trackId);
-      if (job?.paused && job.transfer) void this.resume(row.trackId, job);
-      else void this.download(row);
+    if (!wait) {
+      const running = new Set([...this.jobs].filter(([, job]) => !job.paused).map(([id]) => id));
+      for (const row of nextToStart(this.rows.values(), running, this.now, concurrency)) {
+        const job = this.jobs.get(row.trackId);
+        if (job?.paused && job.transfer) void this.resume(row.trackId, job);
+        else void this.download(row);
+      }
     }
-    const next = Math.min(...[...this.rows.values()].filter(row => row.state === 'queued' && row.retryAt !== null).map(row => row.retryAt!));
+    this.schedule(wait);
+  }
+
+  /** Wakes `pump` for the next retry, or the next time to ask the server about a song it is getting. */
+  private schedule(wait = this.wait()): void {
+    clearTimeout(this.retryTimer);
+    if (this.disposed) return;
+    // While requests run, the loop itself goes on to the next due song, and schedules when it stops.
+    const fetches = wait !== 'offline' && !this.fetching;
+    let next = Infinity;
+    for (const row of this.rows.values()) {
+      if (row.state === 'queued' && row.retryAt !== null && !wait) next = Math.min(next, row.retryAt);
+      if (row.state === 'fetching' && fetches) next = Math.min(next, Math.max(row.retryAt ?? this.now, this.fetchPausedUntil));
+    }
     if (Number.isFinite(next)) this.retryTimer = setTimeout(() => this.pump(), Math.max(0, next - this.now));
+  }
+
+  /**
+   * Asks the server, one request at a time, to get the songs waiting for it: an album's at
+   * once when the album is downloaded, else each on its own. Stops while the server says
+   * it is busy, and when nothing is due.
+   */
+  private runFetches(): Promise<void> {
+    this.fetching ??= (async () => {
+      while (!this.disposed && this.wait() !== 'offline' && this.now >= this.fetchPausedUntil) {
+        const due = dueFetches(this.rows.values(), this.now);
+        if (!due.length) break;
+        await this.requestFetch(due);
+        this.pump();
+        await new Promise(resolve => setTimeout(resolve, fetchGapMs));
+      }
+    })().finally(() => {
+      this.fetching = null;
+      this.schedule();
+    });
+    return this.fetching;
+  }
+
+  private async requestFetch(due: readonly DownloadRow[]): Promise<void> {
+    const first = due[0]!;
+    // An album downloaded as a whole is asked for in one request, which a provider may take
+    // whole; asking again (or after that request failed) goes song by song.
+    const together = first.albumId && first.attempts === 0 && this.collections.has(albumCollectionId(first.albumId))
+      ? due.filter(row => row.albumId === first.albumId && row.attempts === 0) : [];
+    const album = together.length > 1 ? first.albumId! : null;
+    const rows = album ? together : [first];
+    const { source } = this.ports;
+    let outcome: AcquireOutcome;
+    try {
+      // `download` fetches without adding to the library, and waits behind what is being played.
+      const answer = album ? await source.acquireAlbum(album, { origin: 'download' })
+        : await source.acquireTrack(first.trackId, { albumId: first.albumId ?? undefined, origin: 'download' });
+      outcome = acquireOutcome({ jobs: answer.items });
+    } catch (error) {
+      outcome = acquireOutcome({ error });
+    }
+    if (this.disposed) return;
+    if (outcome === 'busy') {
+      this.fetchPausedUntil = this.now + fetchPauseMs;
+      return;
+    }
+    const answer = outcome;
+    this.put(rows.flatMap(row => {
+      const current = this.rows.get(row.trackId);
+      // Removed meanwhile, or the server announced it first.
+      if (current?.state !== 'fetching') return [];
+      // Each song is then asked for on its own, which answers for that song.
+      if (album && answer !== 'ready' && answer !== 'requested') return [{ ...current, attempts: current.attempts + 1 }];
+      return [afterAcquire(current, answer, this.now)];
+    }));
   }
 
   private setState(trackId: string, state: DownloadRow['state']): void {
@@ -611,8 +742,12 @@ export class DownloadManager {
       this.put(batch.flatMap(({ id }) => {
         const row = this.rows.get(id);
         const track = byId.get(id);
-        const gone = !track || track.availability === 'none';
-        return row && (gone !== row.gone || (track && track !== row.track)) ? [{ ...row, gone, track: track ?? row.track }] : [];
+        if (!row) return [];
+        if (track) {
+          const next = withTrack(row, track, this.ports.options.canFetch);
+          return next === row ? [] : [next];
+        }
+        return row.gone ? [] : [{ ...row, gone: true }];
       }));
     }
   }

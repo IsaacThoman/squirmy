@@ -1,7 +1,87 @@
+import { ApiError } from '@squirmy/client-core';
+import type { TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  canPlay, downloadSymbol, extensionFor, formatBytes, retryDelay, sizeMatches, songPage, unavailableReason, waitReason,
+  acquireOutcome, afterAcquire, canPlay, collectionDownload, downloadStatus, downloadSymbol, extensionFor, fetchRecheckDelay, formatBytes,
+  maxFetchAsks, retryDelay, sizeMatches, songPage, unavailableReason, waitReason, withTrack, type CollectionRow, type DownloadRow,
+  type DownloadState,
 } from './model';
+
+function track(id: string, availability: TrackSummary['availability'] = 'server'): TrackSummary {
+  return {
+    id, mbid: null, title: id, artistCredit: 'Artist', artists: [], durationMs: 1000, album: null, disc: 1, position: 1, availability,
+    liked: false, explicit: null, hasLyrics: false,
+  };
+}
+
+function row(id: string, state: DownloadState, availability: TrackSummary['availability'] = 'server', file: string | null = null): DownloadRow {
+  return {
+    trackId: id, albumId: null, state, quality: 'original', file, art: null, bytes: file ? 1000 : null, descriptor: null, track: track(id, availability),
+    attempts: 0, retryAt: null, error: null, gone: false, addedAt: 0, doneAt: null, checkedAt: null,
+  };
+}
+
+describe('songs the server does not have yet', () => {
+  const collection = (trackIds: string[]): CollectionRow => ({
+    id: 'playlist:p', kind: 'playlist', title: 'Mix', subtitle: '', artworks: [], album: null, playlist: null, trackIds, art: [], gone: false,
+    addedAt: 0, syncedAt: 0,
+  });
+  const summed = (rows: DownloadRow[], trackIds = rows.map(item => item.trackId), wait: Parameters<typeof collectionDownload>[3] = null) =>
+    collectionDownload(collection(trackIds), new Map(rows.map(item => [item.trackId, item])), new Map(), wait);
+
+  it('reads the server’s answer to an acquire request', () => {
+    expect(acquireOutcome({ jobs: [{ status: 'queued' }] })).toBe('requested');
+    expect(acquireOutcome({ jobs: [{ status: 'failed' }, { status: 'downloading' }] })).toBe('requested');
+    expect(acquireOutcome({ jobs: [{ status: 'completed' }] })).toBe('ready');
+    expect(acquireOutcome({ jobs: [{ status: 'failed' }, { status: 'rejected' }] })).toBe('unavailable');
+    expect(acquireOutcome({ error: new ApiError(409, 'already_available', '') })).toBe('ready');
+    expect(acquireOutcome({ error: new ApiError(404, 'not_available', '') })).toBe('unavailable');
+    expect(acquireOutcome({ error: new ApiError(403, 'acquire_not_allowed', '') })).toBe('unavailable');
+    expect(acquireOutcome({ error: new ApiError(429, 'acquire_limit_reached', '') })).toBe('busy');
+    expect(acquireOutcome({ error: new ApiError(500, 'internal', '') })).toBe('error');
+    expect(acquireOutcome({ error: new Error('offline') })).toBe('error');
+  });
+
+  it('asks again later, and gives up after a while', () => {
+    expect([1, 2, 3, 4, 5, 8].map(fetchRecheckDelay)).toEqual([60_000, 120_000, 240_000, 480_000, 900_000, 900_000]);
+    const fetching = row('a', 'fetching', 'on_demand');
+    expect(afterAcquire(fetching, 'requested', 10)).toMatchObject({ state: 'fetching', attempts: 1, retryAt: 60_010 });
+    expect(afterAcquire(fetching, 'error', 10)).toMatchObject({ state: 'fetching', attempts: 1, retryAt: 15_010 });
+    expect(afterAcquire(fetching, 'ready', 10)).toMatchObject({ state: 'queued', attempts: 0, retryAt: null });
+    expect(afterAcquire(fetching, 'unavailable', 10)).toMatchObject({ state: 'unavailable', error: 'Not available' });
+    expect(afterAcquire({ ...fetching, attempts: maxFetchAsks - 1 }, 'requested', 10)).toMatchObject({ state: 'unavailable' });
+  });
+
+  it('moves a row on by what the server now says of its song', () => {
+    expect(withTrack(row('a', 'fetching', 'on_demand'), track('a', 'server'), true).state).toBe('queued');
+    expect(withTrack(row('a', 'fetching', 'on_demand'), track('a', 'none'), true).state).toBe('unavailable');
+    expect(withTrack(row('a', 'fetching', 'on_demand'), track('a', 'on_demand'), false).state).toBe('unavailable');
+    expect(withTrack(row('a', 'unavailable', 'on_demand'), track('a', 'server'), true).state).toBe('queued');
+    // Given up on, it stays so until a retry: the server may still be failing to get it.
+    expect(withTrack(row('a', 'unavailable', 'on_demand'), track('a', 'on_demand'), true).state).toBe('unavailable');
+    expect(withTrack(row('a', 'queued'), track('a', 'on_demand'), true).state).toBe('fetching');
+    expect(withTrack(row('a', 'queued'), track('a', 'on_demand'), false).state).toBe('queued');
+    expect(withTrack(row('a', 'done', 'server', 'a.flac'), track('a', 'on_demand'), true).state).toBe('done');
+    const same = row('a', 'fetching', 'on_demand');
+    expect(withTrack(same, track('a', 'on_demand'), true)).toBe(same);
+  });
+
+  it('says "Downloaded" only when every song of the collection is on the device', () => {
+    const done = (id: string) => row(id, 'done', 'server', `${id}.flac`);
+    expect(downloadStatus(summed([done('a'), row('b', 'downloading'), row('c', 'fetching', 'on_demand')])).text).toBe('Downloading 2 of 3');
+    expect(downloadStatus(summed([done('a'), done('b'), row('c', 'fetching', 'on_demand')])).text).toBe('Downloading 3 of 3');
+    expect(downloadStatus(summed([done('a'), done('b'), row('c', 'fetching', 'on_demand')], undefined, 'offline')).text)
+      .toBe('Waiting for the server');
+    expect(downloadStatus(summed([done('a'), done('b'), row('c', 'unavailable', 'on_demand')]))).toEqual({
+      icon: 'exclamationmark.circle', text: '2 of 3 downloaded · 1 not available', retry: true,
+    });
+    // A song with no row is one the server has no file of and would not get for this user.
+    expect(downloadStatus(summed([done('a'), done('b')], ['a', 'b', 'c'])).text).toBe('2 of 3 downloaded · 1 not available');
+    expect(downloadStatus(summed([done('a'), row('b', 'failed')], ['a', 'b', 'c'])))
+      .toMatchObject({ text: '1 song couldn’t be downloaded · 1 not available', retry: true });
+    expect(downloadStatus(summed([done('a'), done('b')])).text).toBe('Downloaded · 2 KB');
+  });
+});
 
 describe('download rules', () => {
   it('waits longer after each failure, up to 15 minutes', () => {

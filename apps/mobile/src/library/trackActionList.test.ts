@@ -17,6 +17,11 @@ describe('trackActions', () => {
     expect(ids(track(), state())).toEqual(['play', 'next', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
   });
 
+  it('leaves out Go to album on that album\'s own page', () => {
+    expect(ids(track(), state(), { album: 'al' })).not.toContain('album');
+    expect(ids(track(), state(), { album: 'other' })).toContain('album');
+  });
+
   it('offers the current track only Play while paused, and never Play next', () => {
     expect(ids(track(), state({ current: 'paused' }))).toEqual(['resume', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
     expect(trackActions(track(), state({ current: 'paused' }))[0]?.title).toBe('Play');
@@ -41,6 +46,14 @@ describe('trackActions', () => {
     // Downloaded before the server let the file go: it plays here, but the server has no radio from it.
     expect(ids(track({ availability: 'on_demand' }), state({ viewer: member }))).not.toContain('radio');
     expect(ids(track({ availability: 'none' }), state({ viewer: requester }))).not.toContain('radio');
+  });
+
+  it('downloads a song the server does not have yet only for someone who may have it fetched', () => {
+    const requester = { role: 'member', canAcquire: true } as const;
+    const member = { role: 'member', canAcquire: false } as const;
+    expect(ids(track({ availability: 'on_demand' }), state({ viewer: requester }))).toContain('download');
+    expect(ids(track({ availability: 'on_demand' }), state({ viewer: member }))).not.toContain('download');
+    expect(ids(track({ availability: 'none' }), state({ viewer: requester }))).not.toContain('download');
   });
 
   it('offers no wantlist when the server has it off', () => {

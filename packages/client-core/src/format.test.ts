@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDuration, formatRemaining, formatTotalDuration } from './format.js'
+import { albumTypeLabel, formatDuration, formatReleaseDate, formatRemaining, formatTotalDuration, releaseSubtitle } from './format.js'
 
 describe('formatDuration', () => {
   it('formats m:ss and drops partial seconds', () => {
@@ -35,5 +35,27 @@ describe('formatTotalDuration', () => {
     expect(formatTotalDuration(42 * 60_000 + 20_000)).toBe('42 min')
     expect(formatTotalDuration(65 * 60_000)).toBe('1 hr 5 min')
     expect(formatTotalDuration(120 * 60_000)).toBe('2 hr')
+  })
+})
+
+describe('release presentation', () => {
+  it('names release types', () => {
+    expect(albumTypeLabel('ep')).toBe('EP')
+    expect(albumTypeLabel('other')).toBe('Release')
+  })
+
+  it('gives a release tile its year and type, or the type alone', () => {
+    expect(releaseSubtitle({ year: 2021, type: 'album' })).toBe('2021 · Album')
+    expect(releaseSubtitle({ year: null, type: 'soundtrack' })).toBe('Soundtrack')
+  })
+
+  it('formats release dates as written, without inventing a day or shifting it', () => {
+    expect(formatReleaseDate('2021-11-22')).toBe('Nov 22, 2021')
+    expect(formatReleaseDate('2021-01-01')).toBe('Jan 1, 2021')
+    expect(formatReleaseDate('2021-11')).toBe('Nov 2021')
+    expect(formatReleaseDate('2021')).toBe('2021')
+    expect(formatReleaseDate('2021-11-22T00:00:00Z')).toBe('Nov 22, 2021')
+    expect(formatReleaseDate('2021-13')).toBe('2021')
+    expect(formatReleaseDate('soon')).toBeNull()
   })
 })

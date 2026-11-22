@@ -6,7 +6,8 @@ import {
 } from 'react';
 import { AppState, Platform } from 'react-native';
 import { removeAccountItems } from '../data/accountStorage';
-import { cacheBuster, cacheMaxAgeMs, detailMaxAgeMs, removeCache, restoreCache, saveCache } from '../data/cache';
+import { cacheBuster, cacheMaxAgeMs, detailMaxAgeMs, removeCache, restoreCache, restorePages, saveCache } from '../data/cache';
+import { HttpReach } from '../data/reachability';
 import { useNotice } from '../Notice';
 import { removeStreamingCache } from '../streamingCache/database';
 import { reduceAuth, type AuthEvent, type AuthState } from './auth';
@@ -36,18 +37,19 @@ export function createQueryClient() {
   return queryClient;
 }
 
-function apiFor(serverUrl: string, token: string | null, timeoutMs: number, onUnauthorized?: () => void): Api {
+function apiFor(serverUrl: string, token: string | null, timeoutMs: number, onUnauthorized?: () => void, reach?: HttpReach): Api {
+  const fetch = fetchWithTimeout(timeoutMs);
   return createApiClient({
     baseUrl: serverUrl,
     getToken: () => token,
     client: clientName,
-    fetch: fetchWithTimeout(timeoutMs),
+    fetch: reach ? reach.watch(fetch) : fetch,
     onUnauthorized,
   });
 }
 
 /**
- * Reads the stored session and the saved library, so the first screen shows them at once.
+ * Reads the stored session and the saved lists, so the first screen shows them at once.
  * The server is not asked here: the `me` query confirms the session in the background, and
  * a 401 from it sends the app to sign-in. An unreachable server leaves the app open
  * offline instead of holding the splash screen until a request times out.
@@ -71,6 +73,8 @@ type AccountContextValue = {
   state: AuthState;
   /** Talks to the chosen server, with the session's token once signed in. */
   api: Api | null;
+  /** What came of the requests `api` sent, so an answered request counts as the server being there. */
+  reach: HttpReach;
   connect: (server: Server) => void;
   signIn: (username: string, password: string) => Promise<void>;
   register: (inviteCode: string, username: string, password: string) => Promise<void>;
@@ -83,6 +87,7 @@ const AccountContext = createContext<AccountContextValue | null>(null);
 export function AccountProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const [state, dispatch] = useReducer(reduceAuth, { status: 'restoring' });
+  const [reach] = useState(() => new HttpReach());
   const server = state.status === 'signIn' || state.status === 'signedIn' ? state.server : null;
   const token = state.status === 'signedIn' ? state.token : null;
 
@@ -103,6 +108,14 @@ export function AccountProvider({ children }: PropsWithChildren) {
 
   const buster = state.status === 'signedIn' ? cacheBuster(state.server.url, state.user.id) : null;
   useEffect(() => buster ? saveCache(queryClient, buster) : undefined, [buster, queryClient]);
+  // The saved album, artist, playlist and track pages are read once the first screen is up,
+  // so they never hold the splash screen. Once per launch: a later sign-in starts afresh.
+  const pagesRead = useRef(false);
+  useEffect(() => {
+    if (!buster || pagesRead.current) return;
+    pagesRead.current = true;
+    void restorePages(queryClient, buster);
+  }, [buster, queryClient]);
 
   useEffect(() => {
     if (state.status === 'restoring') return;
@@ -113,7 +126,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
   // since playback and downloads are built on it.
   const serverUrl = server?.url ?? null;
   const api = useMemo(() => serverUrl === null ? null : apiFor(serverUrl, token, requestTimeoutMs,
-    token ? () => dispatch({ type: 'unauthorized', token }) : undefined), [serverUrl, token]);
+    token ? () => dispatch({ type: 'unauthorized', token }) : undefined, reach), [reach, serverUrl, token]);
 
   // Keeps the user fresh and notices a revoked session (a 401 signs out through `onUnauthorized`).
   const me = useQuery({
@@ -152,6 +165,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
     return {
       state,
       api,
+      reach,
       connect: next => dispatch({ type: 'connected', server: next }),
       signIn: async (username, password) => {
         const response = await api!.auth.login({ username: username.trim(), password, device: await clientDevice() });
@@ -169,7 +183,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
       signOut: () => leave({ type: 'signedOut' }),
       switchServer: () => leave({ type: 'switchServer' }),
     };
-  }, [api, buster, queryClient, state, token]);
+  }, [api, buster, queryClient, reach, state, token]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

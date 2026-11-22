@@ -92,10 +92,14 @@ function sectionSize(section: HomeSection) {
   }
 }
 
+const homeSongLimit = 5;
+
 function HomeRail({ section, link, onOpen, onTrackMenu }: { section: HomeSection } & Pick<BrowseProps, 'link' | 'onOpen' | 'onTrackMenu'>) {
   const styles = useStyles();
   const actions = usePlaybackActions();
-  const seeAll = section.id === 'recently-played' ? () => onOpen(link('playlist', 'recent')) : undefined;
+  // A song row shows its first five; the rest are a page away, since Play plays them all.
+  const seeAll = section.id === 'recently-played' ? () => onOpen(link('playlist', 'recent'))
+    : section.kind === 'tracks' && section.tracks.length > homeSongLimit ? () => onOpen(link('songs', `home~${section.id}`)) : undefined;
   return <View style={styles.homeSection}>
     <SectionTitle title={section.title} onPress={seeAll} />
     {section.kind === 'albums' && <CollectionRail items={section.albums.map(album => albumCollection(album, link))}
@@ -103,10 +107,24 @@ function HomeRail({ section, link, onOpen, onTrackMenu }: { section: HomeSection
     {section.kind === 'artists' && <CollectionRail items={section.artists.map(artist => artistCollection(artist, link))} size={110} />}
     {section.kind === 'playlists' && <CollectionRail items={section.playlists.map(playlist => playlistCollection(playlist, link))} />}
     {section.kind === 'tracks' && <View style={styles.trackList}>
-      <SongList tracks={section.tracks.slice(0, 5)} onTrackMenu={track => onTrackMenu(track)}
+      <SongList tracks={section.tracks.slice(0, homeSongLimit)} onTrackMenu={track => onTrackMenu(track)}
         onPlay={start => actions.playTracks(section.tracks, { start, context: { type: 'other', id: section.id, title: section.title } })} />
     </View>}
   </View>;
+}
+
+/**
+ * Runs `onRetap` when this page's own tab is tapped while the page is on screen. A tap that
+ * changes tabs, or that pops a page pushed over this one, does nothing here.
+ */
+function useTabRetap(onRetap: () => void) {
+  const navigation = useNavigation();
+  const tabs = useNavigation<{ addListener: (event: 'tabPress', listener: () => void) => () => void }>('/(tabs)');
+  const latest = useRef(onRetap);
+  latest.current = onRetap;
+  useEffect(() => tabs.addListener('tabPress', () => {
+    if (navigation.isFocused()) latest.current();
+  }), [navigation, tabs]);
 }
 
 export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAccount, bottomInset = 155 }: BrowseProps) {
@@ -129,11 +147,12 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
   const refreshControl = useRefreshControl(home.refetch, top);
   const statusBar = underStatusBar(top);
+  const list = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  // Re-tapping Home goes back to its top, as the system's tabs do.
+  useTabRetap(() => list.current?.scrollTo({ y: -statusBar.inset, animated: true }));
 
   return <View style={styles.page}>
-    <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
-      locations={[0, top / (top + 14), 1]} style={[styles.statusFade, { height: top + 14 }]} />
-    <ScrollView contentInsetAdjustmentBehavior="never" refreshControl={refreshControl} {...statusBar.props}
+    <ScrollView ref={list} contentInsetAdjustmentBehavior="never" refreshControl={refreshControl} {...statusBar.props}
       contentContainerStyle={{ paddingTop: statusBar.contentTop + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       <View style={[styles.pageHeader, styles.homeHeader]}>
         <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Listen now</Text>
@@ -149,6 +168,8 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
       </View>}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </ScrollView>
+    <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
+      locations={[0, top / (top + 14), 1]} style={[styles.statusFade, { height: top + 14 }]} />
   </View>;
 }
 
@@ -188,6 +209,8 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const actions = usePlaybackActions();
   const router = useRouter();
   const [filter, setFilter] = useState<LibraryFilter>('All');
+  const list = useRef<FlatList<LibraryRow>>(null);
+  useTabRetap(() => list.current?.scrollToOffset({ offset: 0, animated: true }));
   const [sortName, setSortName] = useState<SortName>('Recently added');
   const [grid, setGrid] = useState(true);
   const [showFilter, setShowFilter] = useState(false);
@@ -250,7 +273,10 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
     },
   });
   const empty = filter === 'Songs' ? !tracks.length : !items.length;
-  const libraryEmpty = albums.data && !albums.items.length && !query;
+  // The invitation is for a library with nothing in it, on the views that list albums: under
+  // Songs or Artists, saved songs or artists can be there without a single album.
+  const libraryEmpty = (filter === 'Albums' || (filter === 'All' && playlists.data && !playlists.items.length))
+    && albums.data && !albums.items.length && !query;
   const capped = searching && matched && (filter === 'Songs' ? matched.tracks : filter === 'Artists' ? matched.artists : matched.albums).length >= libraryMatchLimit;
 
   const mode = filter === 'Songs' ? 'songs' : grid ? 'grid' : 'list';
@@ -297,7 +323,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
     <View style={styles.filters}>
       <LibraryFilters options={filters} value={filter} onChange={value => { tapFeedback(); setFilter(value); }} />
     </View>
-    <FlatList key={mode} data={rows} renderItem={renderRow} keyExtractor={libraryRowKey}
+    <FlatList ref={list} key={mode} data={rows} renderItem={renderRow} keyExtractor={libraryRowKey}
       refreshControl={refreshControl}
       initialNumToRender={libraryBatch} maxToRenderPerBatch={libraryBatch} windowSize={libraryWindow}
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
@@ -314,7 +340,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
           {filter === 'Songs' && playSongs.busy && <ActivityIndicator accessibilityLabel="Loading songs" />}
         </View>
         {!active.data && <QueryState query={active} what="your library" />}
-        {libraryEmpty && filter !== 'Playlists' ? <EmptyState {...emptyLibrary.Albums} action={findMusic} />
+        {libraryEmpty ? <EmptyState {...emptyLibrary.Albums} action={findMusic} />
           : active.data && empty && !(searching && found.pending) && (query || filter === 'Playlists'
             ? <EmptyState icon="magnifyingglass" title={query ? 'Nothing found' : 'Nothing here yet'}
               description={query ? 'Try another search or filter.' : 'Try another filter.'} />
@@ -399,17 +425,13 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const { width } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const searchInput = useRef<SearchHandle>(null);
-  const navigation = useNavigation();
-  const tabs = useNavigation<{ addListener: (event: 'tabPress', listener: () => void) => () => void }>('/(tabs)');
   const search = useSearch(query);
   const viewer = useViewer();
   const genres = useGenres();
   const genreWidth = Math.floor((width - gutter * 2 - 12) / 2);
   const { offline } = useRealtime();
 
-  useEffect(() => tabs.addListener('tabPress', () => {
-    if (navigation.isFocused()) searchInput.current?.focus();
-  }), [navigation, tabs]);
+  useTabRetap(() => searchInput.current?.focus());
 
   // The server answers nothing under two characters; keep the genres until a search can find something.
   const active = query.trim().length >= 2;
