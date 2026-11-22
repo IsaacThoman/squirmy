@@ -54,9 +54,10 @@ export const ArtistSummary = z.object({
   name: z.string(),
   image: Artwork.nullable(),
   /**
-   * True when the artist is credited on an album in the viewer's library (the server's
-   * collection plus what the viewer added), not merely on any file the server holds:
-   * fetched-for-play files must not make an artist part of the library.
+   * True when the artist is in the viewer's library: the viewer saved (hearted) the artist,
+   * or it is credited on an album in the viewer's library (the server's collection plus what
+   * the viewer saved). Not merely on any file the server holds: fetched-for-play files must
+   * not make an artist part of the library.
    */
   inLibrary: z.boolean(),
 })
@@ -83,8 +84,8 @@ export type AlbumSummary = z.infer<typeof AlbumSummary>
 
 /**
  * Why a track is in a user's library, the first that holds. `collection`: a file the server's
- * owner brought links it, shared by every user and not removable by them. `album`: it is on an
- * album the user added, and leaves with that album. `saved`: the user added the track itself.
+ * owner brought links it, shared by every user. `album`: it is on an album the user saved, and
+ * leaves with that album. `saved`: the user saved (hearted) the track itself, the same as `liked`.
  */
 export const TrackLibrary = z.enum(['collection', 'album', 'saved'])
 export type TrackLibrary = z.infer<typeof TrackLibrary>
@@ -105,18 +106,23 @@ export const TrackSummary = z.object({
   disc: z.number().int().nullable(),
   position: z.number().int().nullable(),
   availability: TrackAvailability,
+  /**
+   * The heart: the viewer saved this track to their library (`PUT /me/likes/track/:id`). It
+   * is the only library control; Liked Songs lists these tracks.
+   */
   liked: z.boolean(),
   explicit: z.boolean().nullable(),
   hasLyrics: z.boolean(),
   /**
    * True when the track is in the viewer's library: a collection file links it, the viewer
-   * saved it, or the viewer saved the album a present file of it belongs to. Optional so
-   * older servers, which do not send it, still parse.
+   * saved (hearted) it, or the viewer saved the album a present file of it belongs to.
+   * Shows membership only; the heart is `liked`. Optional so older servers still parse.
    */
   inLibrary: z.boolean().optional(),
   /**
    * Why the track is in the viewer's library, or null when it is not (see `TrackLibrary`).
-   * Only a `saved` track is one the viewer can remove. Optional for older servers.
+   * Deprecated: kept for app builds that predate the single heart, which show an Add/Remove
+   * entry from it; current clients read `liked` and `inLibrary`. Optional for older servers.
    */
   library: TrackLibrary.nullable().optional(),
 })
@@ -136,6 +142,10 @@ export const AlbumDetail = AlbumSummary.extend({
   label: z.string().nullable(),
   durationMs: z.number().int().nonnegative(),
   discs: z.array(AlbumDisc),
+  /**
+   * The heart: the viewer saved this album to their library (`PUT /me/likes/album/:id`),
+   * which also asks the server to fetch what is missing when the viewer may fetch music.
+   */
   liked: z.boolean(),
   wanted: z.boolean(),
   /**
@@ -146,8 +156,9 @@ export const AlbumDetail = AlbumSummary.extend({
   detailPending: z.literal(true).optional(),
   /**
    * Why the album is in the viewer's library, or null when it is not. `collection`: a file
-   * the server's owner brought (scan, upload, inbox) belongs to it, shared by every user and
-   * not removable by them. `saved`: the viewer added it. Optional for older servers.
+   * the server's owner brought (scan, upload, inbox) belongs to it, shared by every user.
+   * `saved`: the viewer saved (hearted) it, the same as `liked`; a collection album the viewer
+   * also hearted reads `collection`. Optional for older servers.
    */
   library: z.enum(['collection', 'saved']).nullable().optional(),
 })
@@ -159,6 +170,7 @@ export const ArtistDetail = ArtistSummary.extend({
   bio: z.string().nullable(),
   bioUrl: z.string().nullable(),
   genres: z.array(z.string()),
+  /** The heart: the viewer saved (follows) this artist, which puts it in their library. */
   liked: z.boolean(),
   topTracks: z.array(TrackSummary),
   /** Whole discography, newest first. Clients group by `type`. */

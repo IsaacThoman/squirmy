@@ -35,8 +35,6 @@ export const apiRoutes = {
   'library.deleteRoot': 'DELETE /admin/library/roots/:id',
   'library.scanRoot': 'POST /admin/library/roots/:id/scan',
   'library.stats': 'GET /admin/library/stats',
-  'library.save': 'PUT /me/library/:type/:id',
-  'library.remove': 'DELETE /me/library/:type/:id',
 
   'matching.reviews': 'GET /admin/reviews',
   'matching.review': 'GET /admin/reviews/:id',
