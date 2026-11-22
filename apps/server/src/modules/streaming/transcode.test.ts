@@ -245,9 +245,9 @@ describe('transcodes', () => {
       }
       await db.insert(transcodes).values({ id: newId(), fileId: file.id, profile, storagePath, bytes, status: 'ready', lastUsedAt: new Date(Date.now() - minutesAgo * 60_000) })
     }
-    await put('oldest', 1000, 30)
-    await put('middle', 1000, 20)
-    await put('newest', 1000, 10)
+    await put('oldest', 1000, 180)
+    await put('middle', 1000, 150)
+    await put('newest', 1000, 120)
     await put('vanished', 1000, 5, false)
     const orphan = path.join(cacheRoot(), file.id, 'orphan.aac')
     const fresh = path.join(cacheRoot(), file.id, '.aac_256.abc.part')
@@ -263,8 +263,15 @@ describe('transcodes', () => {
     expect(left.map((entry) => entry.profile).sort()).toEqual(['middle', 'newest'])
     expect((await readdir(path.join(cacheRoot(), file.id))).sort()).toEqual(['.aac_256.abc.part', 'middle.bin', 'newest.bin'])
 
+    // Someone is listening to this one: a seek or the next Range request must still find it.
+    await put('playing', 1000, 2)
     await updateServerSettings({ transcodeCacheMaxBytes: 0 })
     await rm(fresh)
+    await evictTranscodes()
+    expect((await db.select({ profile: transcodes.profile }).from(transcodes)).map((entry) => entry.profile)).toEqual(['playing'])
+    expect(await readdir(path.join(cacheRoot(), file.id))).toEqual(['playing.bin'])
+
+    await db.update(transcodes).set({ lastUsedAt: hourAgo })
     await evictTranscodes()
     expect(await db.select().from(transcodes)).toEqual([])
     expect(await readdir(cacheRoot())).toEqual([])
