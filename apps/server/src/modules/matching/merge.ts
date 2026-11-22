@@ -112,7 +112,7 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
 
 /**
  * Merges album `fromId` into `intoId`: files, editions (releases), external ids, likes,
- * ratings, wants, library saves, playlist items and plays. The winner keeps its own credits, and takes
+ * ratings, wants, library saves, playlist items, plays and album hints. The winner keeps its own credits, and takes
  * the loser's artwork and canonical release only when it has none.
  */
 export async function mergeAlbum(fromId: string, intoId: string, executor: Executor = db): Promise<void> {
@@ -123,6 +123,9 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
     await tx.update(releases).set({ albumId: into, updatedAt: new Date() }).where(eq(releases.albumId, fromId))
     await tx.update(playlistItems).set({ albumId: into }).where(eq(playlistItems.albumId, fromId))
     await tx.update(plays).set({ albumId: into }).where(eq(plays.albumId, fromId))
+    // Search cleanup keeps an album that a recording hints at, so a hint left on the loser
+    // would keep the redirect row alive for nothing.
+    await tx.update(recordings).set({ albumHintId: into }).where(eq(recordings.albumHintId, fromId))
     await tx.execute(sql`
       update ${albumArtists} set album_id = ${into} where album_id = ${fromId}
         and not exists (select 1 from ${albumArtists} a where a.album_id = ${into})`)
