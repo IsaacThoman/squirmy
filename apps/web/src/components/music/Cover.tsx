@@ -1,7 +1,7 @@
 import type { ArtSize, Artwork } from '@squirmy/contracts'
 import { Music2 } from 'lucide-react'
 import { useState } from 'react'
-import { doubleSize, thumbhashUrl, useArtUrl, type ArtUrlBuilder } from '@/lib/artwork'
+import { doubleSize, loadedArtUrl, rememberLoadedArt, thumbhashUrl, useArtUrl, type ArtUrlBuilder } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
 
 type CoverProps = {
@@ -18,13 +18,14 @@ type CoverProps = {
 }
 
 /**
- * Square artwork. Paints the dominant color and ThumbHash at once, fades the image in over them,
- * and falls back to a note on the theme's surface when there is no art or it fails to load.
+ * Square artwork. Paints the dominant color and ThumbHash at once (or a size of the same art
+ * shown before, such as a card's cover on the album page), fades the image in over them, and
+ * falls back to a note on the theme's surface when there is no art or it fails to load.
  */
 export function Cover({ artwork, size = 300, alt = '', round, artUrl, className, dimmed }: CoverProps) {
   const defaultUrl = useArtUrl()
   const url = artUrl ?? defaultUrl
-  const placeholder = artwork?.thumbhash ? thumbhashUrl(artwork.thumbhash) : undefined
+  const placeholder = artwork ? loadedArtUrl(artwork.id) ?? (artwork.thumbhash ? thumbhashUrl(artwork.thumbhash) : undefined) : undefined
   return (
     <div
       className={cn(
@@ -40,26 +41,30 @@ export function Cover({ artwork, size = 300, alt = '', round, artUrl, className,
       }}
     >
       {artwork
-        ? <CoverImage key={artwork.id} src={url(artwork, size)} srcSet={`${url(artwork, size)} 1x, ${url(artwork, doubleSize(size))} 2x`} alt={alt} />
+        ? <CoverImage key={artwork.id} artworkId={artwork.id} src={url(artwork, size)} srcSet={`${url(artwork, size)} 1x, ${url(artwork, doubleSize(size))} 2x`} alt={alt} />
         : <Fallback />}
       <div aria-hidden className={cn('pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_var(--stroke)]', round ? 'rounded-full' : 'rounded-cover')} />
     </div>
   )
 }
 
-function CoverImage({ src, srcSet, alt }: { src: string; srcSet: string; alt: string }) {
+function CoverImage({ artworkId, src, srcSet, alt }: { artworkId: string; src: string; srcSet: string; alt: string }) {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'failed'>('loading')
   if (status === 'failed') return <Fallback />
+  const shown = (image: HTMLImageElement) => {
+    rememberLoadedArt(artworkId, image.currentSrc)
+    setStatus('loaded')
+  }
   return (
     <img
-      ref={image => { if (image?.complete && image.naturalWidth) setStatus('loaded') }}
+      ref={image => { if (image?.complete && image.naturalWidth) shown(image) }}
       src={src}
       srcSet={srcSet}
       alt={alt}
       loading="lazy"
       decoding="async"
       draggable={false}
-      onLoad={() => setStatus('loaded')}
+      onLoad={event => shown(event.currentTarget)}
       onError={() => setStatus('failed')}
       className={cn('absolute inset-0 size-full object-cover transition-opacity duration-200', status === 'loaded' ? 'opacity-100' : 'opacity-0')}
     />
