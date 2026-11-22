@@ -88,6 +88,7 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 | | Inbox folder | `inboxPath` | not set | The [inbox](./adding-music.md#the-inbox-folder). Empty falls back to `SQUIRMY_INBOX_PATH`. It may not be inside a library folder or the data folder; the screen says why a folder is refused. |
 | | Largest file | `importMaxFileBytes` | 4 GB | Largest single file an import accepts, zip archives included. |
 | | Largest import | `importMaxBytes` | 64 GB | Largest import, counting what its archives extract to. |
+| | Uploads at once | `importMaxActivePerUser` | 3 | Uploads one member may have receiving or processing at once. Admins are not limited. API only for now. |
 | Transcoding | Transcode cache | `transcodeCacheMaxBytes` | 10 GB | Converted streams kept on disk; the least recently used go first. |
 
 Turning a metadata source off stops new requests to it; what it already provided stays. API keys are stored encrypted and are never shown again: the screen says **Set** or **Not set**, with **Change** or **Add key**, and **Remove key** in the dialog.

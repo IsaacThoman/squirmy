@@ -19,7 +19,7 @@ receiving → extracting → moving → identifying → filing → completed
 ```
 
 1. **Receiving.** Files arrive in the data folder's `staging/` area. Accepted are audio files, `cover.*` and `folder.*` images, `.lrc`, `.cue` and `.log` files, and `.zip` archives. Paths are checked: nothing absolute, no `..`, at most 8 folders deep.
-2. **Extracting.** Zip archives are unpacked. An archive with an unsafe path, a symbolic link, encryption, more than 10,000 entries, or more data than the import may hold is refused whole. Zips inside zips are skipped.
+2. **Extracting.** Zip archives are unpacked. An archive with an unsafe path, a symbolic link, encryption, more than 10,000 entries, more data than the import may hold, or contents more than 20 times its own size is refused whole. Zips inside zips are skipped.
 3. **Moving.** The files move into `<managed folder>/_Incoming/<import id>/`.
 4. **Identifying.** That folder is scanned. Once every file's audio has been hashed, duplicates are deleted and counted under `duplicatesSkipped`: a file is a **duplicate** when the library already has its audio, when an earlier import that is still processing has it, or when another file in the same import does. Retagged copies count as duplicates too, because the comparison is on the audio, not the tags. The rest is then identified like any other music. This step waits until every file is identified, or for an hour at most.
 5. **Filing.** Albums identified with confidence are moved to their place under the [naming template](./organizing.md#the-naming-template). The `_Incoming/<import id>/` folder is removed once no audio is left in it.
@@ -34,8 +34,14 @@ Albums that were not identified confidently stay in `<managed folder>/_Incoming/
 |---|---|---|
 | `importMaxFileBytes` | 4 GiB | Largest single file, zip archives included. A larger file is refused with 413. |
 | `importMaxBytes` | 64 GiB | Largest import, counting what its archives extract to. |
+| `importMaxActivePerUser` | 3 | Uploads one member may have receiving or processing at once; one more is refused with 429 `too_many_imports`. Admins, the inbox and acquisition are not counted. |
 
-Change them in **Admin → Server settings → Imports**. A reverse proxy in front needs a matching body size limit; see [Reverse proxies](./reverse-proxy.md).
+Change the sizes in **Admin → Server settings → Imports**; `importMaxActivePerUser` is set through the API ([Configuration](./configuration.md#through-the-api)). `importMaxFileBytes` may be raised up to 16 GiB, the most one file can be. A reverse proxy in front needs a matching body size limit; see [Reverse proxies](./reverse-proxy.md).
+
+Two limits are fixed:
+
+- **Free disk space.** An upload, or the extraction of a zip, that would leave less than 1 GiB free on the staging disk is refused with 507 `insufficient_storage`. The length of the request counts, and a file is checked again as it arrives. An import whose zip has no room fails with a message saying so; upload it again once there is space.
+- **Zip expansion.** A zip whose contents would be more than 20 times its own size (beyond the first 64 MiB) is refused as unsafe. Zipped music is about its own size; that ratio is a zip bomb.
 
 An import that receives no files for a day is failed and cleaned up.
 

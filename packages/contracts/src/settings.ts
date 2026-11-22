@@ -59,6 +59,11 @@ export const ServerSettings = z.object({
   /** Largest import, counting what its archives extract to. */
   importMaxBytes: z.number().int().min(1).default(64 * 1024 ** 3),
   /**
+   * Uploads one member may have receiving or processing at once; more are refused with
+   * 429 `too_many_imports`. Admins are not limited.
+   */
+  importMaxActivePerUser: z.number().int().min(1).default(3),
+  /**
    * Whether people can keep a wantlist of music the server does not have. Off by default:
    * with a provider that can fetch anything it is noise. Turning it off keeps the stored
    * wants, so turning it back on restores them.
@@ -87,6 +92,7 @@ export const UpdateServerSettings = z.object({
   inboxPath: z.string().nullable(),
   importMaxFileBytes: z.number().int().min(1),
   importMaxBytes: z.number().int().min(1),
+  importMaxActivePerUser: z.number().int().min(1),
   wantlistEnabled: z.boolean(),
   listenBrainzToken: z.string().nullable(),
   acoustIdKey: z.string().nullable(),

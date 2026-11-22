@@ -7,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { INCOMING_FOLDER } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import sharp from 'sharp'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albums, imports, mediaFiles, organizeBatches, recordings, wants } from '../../database/schema.js'
@@ -26,8 +26,9 @@ import { matchingModule } from '../matching/index.js'
 import { realFileOps, type FileOps } from '../organize/files.js'
 import { planOrganize } from '../organize/plan.js'
 import { wantEntity } from '../userdata/wants.js'
-import { processImport, runStep, type ProcessOptions } from './process.js'
+import { ImportFailure, processImport, runStep, type ProcessOptions } from './process.js'
 import { addImportFile, commitImport, createImport, getImport, importAlbums, type ImportWork } from './service.js'
+import { disk, MIN_FREE_BYTES } from './space.js'
 import { stagingDir, stagingRoot } from './staging.js'
 import { writeZip } from './test-zip.js'
 
@@ -214,6 +215,22 @@ describe('import processing', () => {
     expect(want!.fulfilledAt).not.toBeNull()
     expect(await importAlbums(id)).toMatchObject([{ album: { id: album!.id, title: 'OK Computer', availability: 'full' }, files: 12, filed: true }])
   }, 120_000)
+
+  it('does not extract an archive the disk has no room for', async () => {
+    await managedRoot()
+    const archive = await writeZip(path.join(fixtures, 'Roomy.zip'), okFlac.slice(0, 2).map((file) => ({ name: `Roomy/${path.basename(file)}`, data: file })))
+    const id = await receive([{ from: archive, to: 'Roomy.zip' }])
+    await commitImport(id)
+    const free = vi.spyOn(disk, 'freeBytes').mockResolvedValue(MIN_FREE_BYTES + 1024)
+    try {
+      await expect(runStep(id, fast)).rejects.toThrow(ImportFailure)
+      await expect(runStep(id, fast)).rejects.toThrow(/disk space/)
+      expect(await tree(stagingDir(id))).toEqual(['Roomy.zip'])
+    } finally {
+      free.mockRestore()
+    }
+    expect(await runStep(id, fast)).toMatchObject({ step: 'moving', stats: { filesExtracted: 2 } })
+  })
 
   it('removes audio the library already has, and repeats within one import', async () => {
     const root = await managedRoot()

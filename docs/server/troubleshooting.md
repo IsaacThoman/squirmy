@@ -99,6 +99,8 @@ Test the stream path from outside with `curl -I https://music.example.com/health
 
 - **413 from the proxy** (an HTML error page, often nginx's): the proxy's body size limit. Set `client_max_body_size 0;` in nginx, or the equivalent; see [Reverse proxies](./reverse-proxy.md).
 - **413 from Squirmy** (JSON with `file_too_large` or `import_too_large`): the file or the whole import is over `importMaxFileBytes` (4 GiB) or `importMaxBytes` (64 GiB). Raise them in **Admin → Server settings → Imports** ([Configuration](./configuration.md#server-settings)).
+- **507 `insufficient_storage`**: the upload (or a zip in it) would leave the server's staging disk with less than 1 GiB free. Free some space, or move `SQUIRMY_DATA_DIR` to a bigger disk.
+- **429 `too_many_imports`**: a member already has `importMaxActivePerUser` (3) uploads receiving or processing. Let one finish, or cancel an unfinished one under **Add music**.
 - **Large uploads cut off after a minute behind Traefik**: Traefik v3's 60 second read timeout. Set `respondingTimeouts.readTimeout=0` on the entry point.
 - **`no_managed_root` or `import_root_not_set`**: imports need a managed folder to file into. See [Adding music](./adding-music.md#before-you-start-a-managed-folder-to-file-into).
 

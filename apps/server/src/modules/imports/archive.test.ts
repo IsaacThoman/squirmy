@@ -91,6 +91,16 @@ describe('zip archives', () => {
     expect(await extractArchive(liar, plan as Extract<typeof plan, { ok: true }>, path.join(dir, 'out-liar'))).toEqual({ ok: false, reason: 'unsafe_archive' })
   })
 
+  it('refuses an archive that inflates far beyond its own size', async () => {
+    const wide = { maxEntries: 100, maxEntryBytes: 1024 ** 3, maxTotalBytes: 1024 ** 3 }
+    // 80 MiB of silence deflates to well under a megabyte.
+    const bomb = await zip('silence.zip', [{ name: 'Album/01 Silence.wav', data: Buffer.alloc(80 * 1024 * 1024) }])
+    expect(await inspectArchive(bomb, wide)).toEqual({ ok: false, reason: 'unsafe_archive' })
+    // Small archives may compress well: text sidecars and short silent tracks.
+    const small = await zip('sidecars.zip', [{ name: 'Album/01.flac', data: Buffer.alloc(4 * 1024 * 1024) }, { name: 'Album/album.cue', data: Buffer.alloc(64 * 1024, 'a') }])
+    expect(await inspectArchive(small, wide)).toMatchObject({ ok: true })
+  })
+
   it('reports damaged archives', async () => {
     const damaged = path.join(dir, 'damaged.zip')
     await writeFile(damaged, 'PK not really a zip')

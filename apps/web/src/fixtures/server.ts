@@ -62,6 +62,7 @@ export const serverSettings: ServerSettings = {
   inboxPath: null,
   importMaxFileBytes: 4 * 1024 ** 3,
   importMaxBytes: 64 * 1024 ** 3,
+  importMaxActivePerUser: 3,
   wantlistEnabled: false,
 }
 
