@@ -43,6 +43,12 @@ export const QueueEntry = z.object({
   albumId: Id.nullable(),
   durationMs: z.number().int().nonnegative(),
   state: QueueEntryState,
+  /**
+   * Added with `enqueue` (Play next, Add to queue) rather than from what `playTracks`
+   * started. Such an entry keeps its place when the queue is shuffled or jumped past, and
+   * a repeat-all cycle leaves it out. Absent on every other entry, and from older servers.
+   */
+  queued: z.boolean().optional(),
 })
 export type QueueEntry = z.infer<typeof QueueEntry>
 
@@ -93,9 +99,18 @@ export const SessionQueue = z.object({
   history: z.array(QueueEntry),
   /** Server-suggested tracks played after the queue runs out when `autoplay` is on. */
   autoplayQueue: z.array(QueueEntry),
-  /** Entry ids in their original collection order, kept so shuffle can be undone. */
+  /**
+   * While shuffled, entry ids in their original collection order, kept so shuffle can be
+   * undone: every entry of the queue, and the current entry and those behind it when they
+   * came from the same collection. Ids of entries no longer in the session may linger.
+   * Empty while not shuffled.
+   */
   playOrder: z.array(z.string()),
-  /** Entries played in the current repeat-all cycle, oldest first. Bounded. */
+  /**
+   * What lies behind the current entry in the current repeat-all cycle, oldest first:
+   * entries played, and those of the collection the session started after or skipped
+   * past. `previous` steps back through it, and repeat all plays it again. Bounded.
+   */
   playedInCycle: z.array(QueueEntry),
 })
 export type SessionQueue = z.infer<typeof SessionQueue>
@@ -142,21 +157,30 @@ const seeds = z.array(QueueSeed).min(1).max(COMMAND_TRACK_LIMIT)
  *
  * - `play`: resume; from 0 when paused at the end. With no current entry, starts the
  *   queue (or the autoplay queue).
- * - `next`: start the next playable entry: the queue, then a new repeat-all cycle, then
- *   the autoplay queue (when `autoplay`). With none, pause at the end of the current one.
- * - `previous`: restart the current entry when 3 s or more in (or with no history);
- *   otherwise step back through history, putting the current entry back at the front of
- *   the queue.
- * - `setShuffle`: on shuffles the queue with `seed` and remembers the collection order in
- *   `playOrder`; off restores that order.
+ * - `next`: start the next playable entry: the queue, then a new repeat-all cycle (of
+ *   `playedInCycle` and the current entry, without `queued` ones), then the autoplay queue
+ *   (when `autoplay`). With none, pause at the end of the current one.
+ * - `previous`: restart the current entry when 3 s or more in (or with nothing behind it
+ *   in `playedInCycle`); otherwise step back to the last playable entry there, putting the
+ *   current entry back at the front of the queue. It never goes back past the `playTracks`
+ *   that started the cycle, into what played before.
+ * - `setShuffle`: on shuffles the collection's entries still to come with `seed`: those
+ *   of the queue, and those behind the current one that were skipped rather than played
+ *   (not in `history`). `queued` entries keep their places. The collection order is kept
+ *   in `playOrder`. Off restores that order around the current entry: entries that come
+ *   before it go behind it, unplayed, and the rest stay queued.
  * - `playTracks`: replace the queue with `tracks` and start playing. `startIndex` indexes
  *   `tracks`; when omitted, the first track, or with shuffle the first of the shuffled
- *   order. Without shuffle the tracks before the start are not queued. The autoplay
- *   queue is emptied, so the server suggests tracks for the new ones.
- * - `enqueue`: `next` inserts before the queue, `last` appends. Changes nothing when the
- *   queue would grow past `QUEUE_LIMIT`.
- * - `playQueueEntry`: play an entry of the queue or the autoplay queue now; the entries
- *   before it stay queued.
+ *   order. Without shuffle the tracks before the start go behind it in `playedInCycle`,
+ *   so `previous` and repeat all reach them; with shuffle every other track is queued.
+ *   The autoplay queue is emptied, so the server suggests tracks for the new ones.
+ * - `enqueue`: `next` inserts before the queue, `last` appends. The entries are `queued`.
+ *   Changes nothing when the queue would grow past `QUEUE_LIMIT`.
+ * - `playQueueEntry`: play an entry of the queue or the autoplay queue now, as streaming
+ *   apps do: what lies between the current entry and it is skipped. Skipped entries of the
+ *   queue go behind the current one in `playedInCycle`, unplayed, except `queued` ones,
+ *   which stay at the front of the queue; skipped suggestions of the autoplay queue are
+ *   dropped.
  * - `moveInQueue`: move an entry within its list (queue or autoplay queue). With shuffle
  *   on, the queue's new order becomes the order shuffle-off restores.
  */
@@ -208,6 +232,17 @@ export const ServerSessionCommand = z.discriminatedUnion('type', [
    * ready current entry as it is.
    */
   z.object({ type: z.literal('setEntryState'), trackId: Id, state: QueueEntryState }),
+  /**
+   * The catalog rows of tracks changed: every entry holding `trackId` takes the track id
+   * `id` (where the row was merged into another; the same id otherwise) and `durationMs`.
+   * `albums` does the same for entries' album ids. Entry ids and states stay, so a device
+   * playing the current entry goes on as it is.
+   */
+  z.object({
+    type: z.literal('updateTracks'),
+    tracks: z.array(z.object({ trackId: Id, id: Id, durationMs: z.number().int().nonnegative() })),
+    albums: z.array(z.object({ albumId: Id, id: Id })).optional(),
+  }),
   z.object({ type: z.literal('setAutoplayQueue'), tracks: z.array(QueueSeed) }),
   /** The active device disconnected and did not return within the grace period. */
   z.object({ type: z.literal('deviceLost'), deviceId: z.string() }),

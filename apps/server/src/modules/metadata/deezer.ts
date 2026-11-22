@@ -17,6 +17,11 @@ export type DeezerAlbumSummary = {
   id: number
   title: string
   artist: { id: number; name: string }
+  /**
+   * The album's main artists, in Deezer's order, when Deezer lists them (`/album/{id}`
+   * does; search and artist album lists do not); else just `artist`.
+   */
+  artists: { id: number; name: string }[]
   coverUrl: string | null
   type: AlbumType
   explicit: boolean
@@ -68,7 +73,9 @@ type RawAlbum = {
   label?: string
   genres?: { data: { name: string }[] }
   artist?: RawArtist
+  contributors?: RawContributor[]
 }
+type RawContributor = RawArtist & { role?: string }
 type RawTrack = {
   id: number
   title: string
@@ -80,7 +87,7 @@ type RawTrack = {
   track_position?: number
   disk_number?: number
   artist: RawArtist
-  contributors?: RawArtist[]
+  contributors?: RawContributor[]
   album?: RawAlbum
 }
 type RawList<T> = { data: T[]; next?: string; total?: number }
@@ -154,10 +161,35 @@ function albumType(recordType: string | undefined): AlbumType {
   }
 }
 
+const entities: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' }
+
+/**
+ * Deezer's text with HTML entities decoded: some names and titles come encoded, a few
+ * twice ("Will Taylor &amp;amp; Strings Attached"), and showed literally.
+ */
+export function decodeEntities(value: string): string {
+  let current = value
+  for (let pass = 0; pass < 3 && current.includes('&'); pass++) {
+    const next = current.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, name: string) => {
+      if (name[0] === '#') {
+        const code = name[1] === 'x' || name[1] === 'X' ? Number.parseInt(name.slice(2), 16) : Number(name.slice(1))
+        return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole
+      }
+      return entities[name.toLowerCase()] ?? whole
+    })
+    if (next === current) break
+    current = next
+  }
+  return current
+}
+
+const text = (value: string) => decodeEntities(value)
+const optionalText = (value: string | undefined) => (value === undefined ? undefined : decodeEntities(value))
+
 function artist(raw: RawArtist): DeezerArtist {
   return {
     id: raw.id,
-    name: raw.name,
+    name: text(raw.name),
     imageUrl: image(raw.picture_xl),
     link: raw.link ?? `https://www.deezer.com/artist/${raw.id}`,
     fans: raw.nb_fan ?? null,
@@ -165,12 +197,26 @@ function artist(raw: RawArtist): DeezerArtist {
   }
 }
 
+/** Contributors repeat an artist once per role (Main, Featured); keep the first of each, of the wanted roles. */
+function contributors(list: readonly RawContributor[], roles?: readonly string[]): { id: number; name: string }[] {
+  const seen = new Map<number, string>()
+  for (const one of list) {
+    if (roles && !roles.includes(one.role ?? 'Main')) continue
+    if (!seen.has(one.id)) seen.set(one.id, text(one.name))
+  }
+  return [...seen].map(([id, name]) => ({ id, name }))
+}
+
 function albumSummary(raw: RawAlbum, fallbackArtist?: RawArtist): DeezerAlbumSummary {
   const owner = raw.artist ?? fallbackArtist
+  const main = { id: owner?.id ?? 0, name: text(owner?.name ?? '') }
+  // A collaboration album ("Watch the Throne") names its other main artists only here.
+  const listed = raw.contributors?.length ? contributors(raw.contributors, ['Main']) : []
   return {
     id: raw.id,
-    title: raw.title,
-    artist: { id: owner?.id ?? 0, name: owner?.name ?? '' },
+    title: text(raw.title),
+    artist: main,
+    artists: listed.some((one) => one.id === main.id) ? listed : [main, ...listed],
     coverUrl: image(raw.cover_xl),
     type: albumType(raw.record_type),
     explicit: raw.explicit_lyrics ?? false,
@@ -180,27 +226,23 @@ function albumSummary(raw: RawAlbum, fallbackArtist?: RawArtist): DeezerAlbumSum
   }
 }
 
-/** Contributors repeat an artist once per role (Main, Featured); keep the first. */
+/** Every credited artist of a track, in Deezer's order (main artists first), once each. */
 function credited(raw: RawTrack): { id: number; name: string }[] {
-  const seen = new Map<number, string>()
-  for (const one of raw.contributors?.length ? raw.contributors : [raw.artist]) {
-    if (!seen.has(one.id)) seen.set(one.id, one.name)
-  }
-  return [...seen].map(([id, name]) => ({ id, name }))
+  return contributors(raw.contributors?.length ? raw.contributors : [raw.artist])
 }
 
 function track(raw: RawTrack, album?: RawAlbum): DeezerTrack {
   const owner = raw.album ?? album
   return {
     id: raw.id,
-    title: raw.title,
+    title: text(raw.title),
     durationMs: raw.duration * 1000,
     explicit: raw.explicit_lyrics ?? false,
     rank: raw.rank ?? null,
     isrc: raw.isrc ?? null,
-    artist: { id: raw.artist.id, name: raw.artist.name },
+    artist: { id: raw.artist.id, name: text(raw.artist.name) },
     artists: credited(raw),
-    album: owner ? { id: owner.id, title: owner.title, coverUrl: image(owner.cover_xl) } : null,
+    album: owner ? { id: owner.id, title: text(owner.title), coverUrl: image(owner.cover_xl) } : null,
     discNumber: raw.disk_number ?? null,
     trackNumber: raw.track_position ?? null,
     link: raw.link ?? `https://www.deezer.com/track/${raw.id}`,
@@ -233,8 +275,8 @@ export async function getAlbum(id: number): Promise<DeezerAlbum | null> {
   return {
     ...albumSummary(raw),
     upc: raw.upc ?? null,
-    label: raw.label ?? null,
-    genres: (raw.genres?.data ?? []).map((genre) => genre.name),
+    label: optionalText(raw.label) ?? null,
+    genres: (raw.genres?.data ?? []).map((genre) => text(genre.name)),
     tracks: (tracks ?? []).map((one) => track(one, raw)),
   }
 }
@@ -243,6 +285,15 @@ export async function getAlbum(id: number): Promise<DeezerAlbum | null> {
 export async function getAlbumByUpc(upc: string): Promise<DeezerAlbum | null> {
   const raw = await get<RawAlbum>(`album/upc:${encodeURIComponent(upc.trim())}`)
   return raw ? getAlbum(raw.id) : null
+}
+
+/**
+ * One track with every contributing artist. An album's track list (`getAlbum`) names only
+ * each track's main artist, so featured artists come from here.
+ */
+export async function getTrack(id: number): Promise<DeezerTrack | null> {
+  const raw = await get<RawTrack>(`track/${id}`)
+  return raw ? track(raw) : null
 }
 
 /** The track with this ISRC, with its album and every contributing artist. */
@@ -266,6 +317,16 @@ export async function getArtistTopTracks(id: number, options: { limit?: number }
 export async function getRelatedArtists(id: number, options: { limit?: number } = {}): Promise<DeezerArtist[]> {
   const raw = await get<RawList<RawArtist>>(`artist/${id}/related`, { limit: String(options.limit ?? 20) })
   return (raw?.data ?? []).map(artist)
+}
+
+/**
+ * Deezer's radio for an artist: a few of its own tracks mixed with popular tracks of
+ * artists like it, in play order. Deezer draws a new mix per request; the cache keeps one
+ * for a day.
+ */
+export async function getArtistRadio(id: number, options: { limit?: number } = {}): Promise<DeezerTrack[]> {
+  const raw = await get<RawList<RawTrack>>(`artist/${id}/radio`, { limit: String(options.limit ?? 25) })
+  return (raw?.data ?? []).map((one) => track(one))
 }
 
 /** Every album, EP, single and compilation Deezer lists for the artist, across all pages. */

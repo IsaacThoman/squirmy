@@ -107,3 +107,33 @@ export async function trustSeeds(userId: string, seeds: readonly QueueSeed[]): P
   }
   return { seeds: trusted, indexes }
 }
+
+type HeldEntry = { trackId: string; albumId: string | null; durationMs: number }
+
+/**
+ * What the catalog says now of tracks entries were made from: the row each was merged
+ * into, if any, and its length; the same for albums. Only what differs from the entries
+ * is returned, ready for `updateTracks`. A length the catalog does not know is not taken.
+ */
+export async function entryUpdates(entries: readonly HeldEntry[]): Promise<{
+  tracks: { trackId: string; id: string; durationMs: number }[]
+  albums: { albumId: string; id: string }[]
+}> {
+  const trackIds = [...new Set(entries.map(entry => entry.trackId))]
+  const albumIds = [...new Set(entries.flatMap(entry => (entry.albumId ? [entry.albumId] : [])))]
+  const [tracks, albumMap] = await Promise.all([lookupTracks(trackIds), albumIds.length ? followMerges(albums, albumIds) : new Map<string, string>()])
+  const lengths = new Map<string, Set<number>>()
+  for (const entry of entries) lengths.set(entry.trackId, (lengths.get(entry.trackId) ?? new Set()).add(entry.durationMs))
+  const changedTracks = trackIds.flatMap(trackId => {
+    const track = tracks.get(trackId)
+    if (!track) return []
+    const durationMs = track.durationMs || [...lengths.get(trackId)!][0]!
+    const same = track.id === trackId && [...lengths.get(trackId)!].every(length => length === durationMs)
+    return same ? [] : [{ trackId, id: track.id, durationMs }]
+  })
+  const changedAlbums = albumIds.flatMap(albumId => {
+    const id = albumMap.get(albumId)
+    return id && id !== albumId ? [{ albumId, id }] : []
+  })
+  return { tracks: changedTracks, albums: changedAlbums }
+}

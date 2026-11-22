@@ -1,4 +1,4 @@
-import type { SearchTop } from '@squirmy/client-core'
+import { searchContext, type SearchTop } from '@squirmy/client-core'
 import type { AlbumSummary, TrackSummary } from '@squirmy/contracts'
 import { Pause, Play, Search } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
@@ -32,7 +32,6 @@ type SearchViewProps = {
 
 /** How many songs the page lists. */
 const SONGS = 10
-const searchContext = { type: 'search', id: null, title: 'Search' } as const
 
 /**
  * One set of results for what is typed: the top result, then artists, albums and songs. Music
@@ -42,7 +41,7 @@ const searchContext = { type: 'search', id: null, title: 'Search' } as const
 export function SearchView({ query, onQueryChange, search, genres, onBrowseGenre, onPlayAlbum }: SearchViewProps) {
   const active = query.trim().length > 0
   const { results, stale, catalogPending, unavailable } = search
-  const openTop = useOpenTop(onPlayAlbum)
+  const openTop = useOpenTop(onPlayAlbum, query, results?.tracks ?? [])
   const count = results ? results.artists.length + results.albums.length + results.tracks.length : 0
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Enter' || !results?.top || stale) return
@@ -83,7 +82,7 @@ export function SearchView({ query, onQueryChange, search, genres, onBrowseGenre
                 {results.albums.length > 0
                   ? <AlbumResults albums={results.albums} onPlayAlbum={onPlayAlbum} />
                   : catalogPending && <RailSkeleton />}
-                <SongResults tracks={results.tracks} pending={catalogPending} />
+                <SongResults tracks={results.tracks} pending={catalogPending} query={query} />
               </div>
             )
         )}
@@ -98,9 +97,9 @@ function AlbumResults({ albums, onPlayAlbum }: { albums: AlbumSummary[]; onPlayA
 }
 
 /** The songs, and while the catalog's answer is on its way, room for the songs it adds below them. */
-function SongResults({ tracks, pending }: { tracks: TrackSummary[]; pending: boolean }) {
+function SongResults({ tracks, pending, query }: { tracks: TrackSummary[]; pending: boolean; query: string }) {
   const shown = tracks.slice(0, SONGS)
-  const actions = useTrackActions(shown, searchContext)
+  const actions = useTrackActions(shown, searchContext(query))
   if (!shown.length && !pending) return null
   return (
     <section aria-labelledby="search-songs">
@@ -112,7 +111,7 @@ function SongResults({ tracks, pending }: { tracks: TrackSummary[]; pending: boo
 }
 
 /** Plays a top result that plays (a song, an album), and opens the rest: an artist, or the album of a song that does not. */
-function useOpenTop(onPlayAlbum: (album: AlbumSummary) => void) {
+function useOpenTop(onPlayAlbum: (album: AlbumSummary) => void, query: string, tracks: readonly TrackSummary[]) {
   const navigate = useNavigate()
   const controls = usePlayerControls()
   const viewer = useViewer()
@@ -123,7 +122,9 @@ function useOpenTop(onPlayAlbum: (album: AlbumSummary) => void) {
       else void navigate(`/album/${top.album.id}`)
       return
     }
-    if (isPlayable(top.track, viewer)) controls.playTracks([top.track], 0, { type: 'search', id: null, title: 'Top result' })
+    // The song plays with the other songs found after it, as one from the list does.
+    const list = tracks.some(track => track.id === top.track.id) ? [...tracks] : [top.track, ...tracks]
+    if (isPlayable(top.track, viewer)) controls.playTracks(list, list.findIndex(track => track.id === top.track.id), searchContext(query))
     else if (top.track.album) void navigate(`/album/${top.track.album.id}`)
   }
 }

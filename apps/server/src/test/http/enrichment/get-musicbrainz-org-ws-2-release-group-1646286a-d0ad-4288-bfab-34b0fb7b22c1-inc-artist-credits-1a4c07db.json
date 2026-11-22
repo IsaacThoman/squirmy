@@ -1,0 +1,295 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group/1646286a-d0ad-4288-bfab-34b0fb7b22c1?inc=artist-credits+genres+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "secondary-type-ids": [],
+      "disambiguation": "",
+      "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "relations": [
+        {
+          "url": {
+            "id": "5bd07f40-bd3d-4812-a081-9cb3170281ce",
+            "resource": "https://www.allmusic.com/album/mw0003876335"
+          },
+          "target-credit": "",
+          "type": "allmusic",
+          "target-type": "url",
+          "source-credit": "",
+          "begin": null,
+          "ended": false,
+          "attribute-values": {},
+          "type-id": "a50a1d20-2b20-4d2c-9a29-eb771dd78386",
+          "end": null,
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward"
+        },
+        {
+          "type-id": "5849de4a-78ae-4876-975d-2181107e70b7",
+          "attribute-values": {},
+          "end": null,
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "target-credit": "",
+          "url": {
+            "id": "1cfbe89d-7ee9-4649-9b46-501c1a62c66c",
+            "resource": "https://www.last.fm/music/SZA/SOS"
+          },
+          "target-type": "url",
+          "type": "discography entry",
+          "ended": false,
+          "begin": null,
+          "source-credit": ""
+        },
+        {
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.discogs.com/master/2929684",
+            "id": "735086a8-b7aa-4b65-aad2-074b8dfc1850"
+          },
+          "target-type": "url",
+          "type": "discogs",
+          "ended": false,
+          "begin": null,
+          "source-credit": "",
+          "type-id": "99e550f3-5ab4-3110-b5b9-fe01d970b126",
+          "attribute-values": {},
+          "end": null,
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {}
+        },
+        {
+          "source-credit": "",
+          "begin": null,
+          "ended": false,
+          "type": "lyrics",
+          "target-type": "url",
+          "url": {
+            "resource": "https://genius.com/albums/Sza/Sos",
+            "id": "34452a1d-3059-4bbb-b2a0-5b30422e31f1"
+          },
+          "target-credit": "",
+          "attribute-ids": {},
+          "direction": "forward",
+          "attributes": [],
+          "end": null,
+          "type-id": "156344d3-da8b-40c6-8b10-7b1c22727124",
+          "attribute-values": {}
+        },
+        {
+          "type": "official homepage",
+          "target-type": "url",
+          "source-credit": "",
+          "begin": null,
+          "ended": false,
+          "url": {
+            "resource": "https://www.szasos.com/",
+            "id": "9c2e9c63-ecfd-4c6b-8609-d0540b4c4069"
+          },
+          "target-credit": "",
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "attribute-values": {},
+          "type-id": "87d97dfc-3206-42fd-89d5-99593d5f1297",
+          "end": null
+        },
+        {
+          "url": {
+            "id": "16404f81-8b52-4a7a-80d3-8ac4715c6cb6",
+            "resource": "https://rateyourmusic.com/release/album/sza/sos/"
+          },
+          "target-credit": "",
+          "type": "other databases",
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "",
+          "ended": false,
+          "attribute-values": {},
+          "type-id": "38320e40-9f4a-3ae7-8cb2-3f3c9c5d856d",
+          "end": null,
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {}
+        },
+        {
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.offiziellecharts.de/charts/album-details-510772",
+            "id": "dbabb2c9-c34e-424a-bfc1-dded06e44507"
+          },
+          "source-credit": "",
+          "begin": null,
+          "ended": false,
+          "type": "other databases",
+          "target-type": "url",
+          "end": null,
+          "type-id": "38320e40-9f4a-3ae7-8cb2-3f3c9c5d856d",
+          "attribute-values": {},
+          "attribute-ids": {},
+          "direction": "forward",
+          "attributes": []
+        },
+        {
+          "type-id": "c3ac9c3b-f546-4d15-873f-b294d2c1b708",
+          "attribute-values": {},
+          "end": null,
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "url": {
+            "id": "17509906-3ec2-43c4-b191-3a27d9f449ea",
+            "resource": "https://pitchfork.com/reviews/albums/sza-sos/"
+          },
+          "target-credit": "",
+          "type": "review",
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "",
+          "ended": false
+        },
+        {
+          "url": {
+            "resource": "https://www.wikidata.org/wiki/Q115271946",
+            "id": "e7b191ee-88ed-4293-a65b-6be87d961a5f"
+          },
+          "target-credit": "",
+          "ended": false,
+          "source-credit": "",
+          "begin": null,
+          "target-type": "url",
+          "type": "wikidata",
+          "end": null,
+          "type-id": "b988d08c-5d86-4a57-9557-c83b399e3580",
+          "attribute-values": {},
+          "attribute-ids": {},
+          "direction": "forward",
+          "attributes": []
+        },
+        {
+          "attributes": [],
+          "attribute-ids": {},
+          "direction": "forward",
+          "type-id": "b988d08c-5d86-4a57-9557-c83b399e3580",
+          "attribute-values": {},
+          "end": null,
+          "target-type": "url",
+          "type": "wikidata",
+          "ended": false,
+          "source-credit": "",
+          "begin": null,
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.wikidata.org/wiki/Q124683981",
+            "id": "33e91bda-7431-4f3a-969b-61dc28a138af"
+          }
+        }
+      ],
+      "genres": [
+        {
+          "id": "4bb4043a-0ee5-4b84-93fa-6ba4567a6ba0",
+          "disambiguation": "",
+          "count": 4,
+          "name": "contemporary r&b"
+        },
+        {
+          "count": 1,
+          "disambiguation": "",
+          "id": "911c7bbb-172d-4df8-9478-dbff4296e791",
+          "name": "pop"
+        },
+        {
+          "count": 3,
+          "id": "31be54b2-4d0c-42df-aa44-c496c7b4c3c3",
+          "disambiguation": "",
+          "name": "r&b"
+        },
+        {
+          "count": 2,
+          "id": "1b5e7b16-336b-473e-a364-5120413a9827",
+          "disambiguation": "",
+          "name": "soul"
+        }
+      ],
+      "first-release-date": "2022-12-09",
+      "id": "1646286a-d0ad-4288-bfab-34b0fb7b22c1",
+      "primary-type": "Album",
+      "secondary-types": [],
+      "artist-credit": [
+        {
+          "name": "SZA",
+          "joinphrase": "",
+          "artist": {
+            "type": "Person",
+            "genres": [
+              {
+                "name": "alternative r&b",
+                "count": 1,
+                "id": "4e03fb35-d571-4111-824d-88c9f8a3d0c9",
+                "disambiguation": ""
+              },
+              {
+                "name": "contemporary r&b",
+                "id": "4bb4043a-0ee5-4b84-93fa-6ba4567a6ba0",
+                "disambiguation": "",
+                "count": 3
+              },
+              {
+                "name": "electronic",
+                "disambiguation": "",
+                "id": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+                "count": 2
+              },
+              {
+                "disambiguation": "",
+                "id": "e031ab53-f85c-4d6a-a932-4000666e54de",
+                "count": 1,
+                "name": "hip hop soul"
+              },
+              {
+                "count": 1,
+                "disambiguation": "",
+                "id": "286f9168-9c46-4e41-94a1-1aa4aeb93b8c",
+                "name": "neo soul"
+              },
+              {
+                "count": 1,
+                "disambiguation": "",
+                "id": "911c7bbb-172d-4df8-9478-dbff4296e791",
+                "name": "pop"
+              },
+              {
+                "name": "r&b",
+                "id": "31be54b2-4d0c-42df-aa44-c496c7b4c3c3",
+                "disambiguation": "",
+                "count": 2
+              },
+              {
+                "name": "soul",
+                "disambiguation": "",
+                "id": "1b5e7b16-336b-473e-a364-5120413a9827",
+                "count": 1
+              }
+            ],
+            "sort-name": "SZA",
+            "disambiguation": "",
+            "country": "US",
+            "id": "272989c8-5535-492d-a25c-9f58803e027f",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+            "name": "SZA"
+          }
+        }
+      ],
+      "title": "SOS"
+    }
+  }
+}

@@ -51,10 +51,13 @@ class ScanWriter {
   private added: WalkEntry[] = []
   private changed: { id: string; size: number; mtime: string }[] = []
   private returned: string[] = []
-  private missing: string[] = []
+  private missing: { id: string; relPath: string }[] = []
 
-  /** `managed`: only a managed root has a `_Fetched/` folder that Organize filed deliveries in. */
-  constructor(private readonly rootId: string, private readonly managed: boolean) {}
+  /**
+   * `rootPath`: the root's real path, where files the walk did not see are looked for again.
+   * `managed`: only a managed root has a `_Fetched/` folder that Organize filed deliveries in.
+   */
+  constructor(private readonly rootId: string, private readonly rootPath: string, private readonly managed: boolean) {}
 
   async add(entry: WalkEntry) {
     this.added.push(entry)
@@ -73,7 +76,7 @@ class ScanWriter {
 
   async unseen(row: Row) {
     if (row.missingSince) return
-    this.missing.push(row.id)
+    this.missing.push({ id: row.id, relPath: row.relPath })
     await this.maybeFlush()
   }
 
@@ -114,8 +117,19 @@ class ScanWriter {
       this.filesReturned += this.returned.length
     }
     if (this.missing.length > 0) {
-      await db.update(mediaFiles).set({ missingSince: new Date(), updatedAt: new Date() }).where(and(inArray(mediaFiles.id, this.missing), isNull(mediaFiles.missingSince)))
-      this.stats.filesMissing += this.missing.length
+      const gone = await absent(this.rootPath, this.missing)
+      // The walk and the rows are read at different moments, and files move in between:
+      // Organize files a delivery from `_Incoming/` while the watcher's scan of that folder
+      // runs. A row that has moved since it was read, or whose file is back at its path,
+      // is not missing (the scan of its new path, which the watcher queues, sees it).
+      // Marking it would make its recording unplayable for a moment, long enough for an
+      // acquisition job checking that delivery to find nothing and fail.
+      const marked = gone.length === 0 ? [] : await db.execute<{ id: string }>(sql`
+        update media_files f set missing_since = now(), updated_at = now()
+        from jsonb_to_recordset(${JSON.stringify(gone)}::jsonb) as v(id uuid, "relPath" text)
+        where f.id = v.id and f.rel_path = v."relPath" and f.missing_since is null
+        returning f.id`)
+      this.stats.filesMissing += marked.length
     }
     await enqueueMany('library.probe', probe.map((fileId) => ({ data: { fileId }, singletonKey: fileId })))
     this.added = []
@@ -123,6 +137,12 @@ class ScanWriter {
     this.returned = []
     this.missing = []
   }
+}
+
+/** Of rows the walk did not see, those with nothing at their path now. */
+async function absent<T extends { relPath: string }>(rootPath: string, rows: readonly T[]): Promise<T[]> {
+  const found = await Promise.all(rows.map((row) => stat(path.join(rootPath, row.relPath)).then(() => true, () => false)))
+  return rows.filter((_, index) => !found[index])
 }
 
 /**
@@ -176,7 +196,7 @@ export async function scanRoot({ rootId, paths }: ScanJob): Promise<ScanStats | 
   if (full) await db.update(libraryRoots).set({ lastScanStartedAt: new Date(started) }).where(eq(libraryRoots.id, rootId))
   await invalidate('admins', [queryKeys.adminRoots()])
 
-  const writer = new ScanWriter(rootId, root.mode === 'managed')
+  const writer = new ScanWriter(rootId, rootPath, root.mode === 'managed')
   const held = await heldByImports(rootId)
   let lastProgress = 0
   const onError = (relPath: string, error: unknown) => {

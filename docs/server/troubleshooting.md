@@ -118,7 +118,7 @@ Confirm on **Admin → Jobs**: `matching.match-album` has a long **Queued** list
 
 ## An artist page lists a release twice, or a song as an album
 
-The same release can reach the server from several places: search results from Deezer, the artist's discography from MusicBrainz, the album a popular song belongs to, the tags of a fetched file. The server merges such rows into one, keeping likes, plays, playlists and library saves, when the artist's page is filled in, when search finds new albums for the artist, daily at 04:50 and when the server starts. Until then the artist page already shows each release once. Two releases that only share a title stay apart: an album and its title-track single, a remix album ("Miss Anthropocene (Rave Edition)"), or a demo. Collaborations led by someone else are listed under **Appears on**.
+The same release can reach the server from several places: search results from Deezer, the artist's discography from MusicBrainz, the album a popular song belongs to, the tags of a fetched file. The server merges such rows into one, keeping likes, plays, playlists and library saves, when the artist's page is filled in, when search finds new albums for the artist, daily at 04:50 and when the server starts. Until then the artist page already shows each release once. Two releases that only share a title stay apart: an album and its title-track single, a remix album ("Miss Anthropocene (Rave Edition)"), or a demo. Editions stay apart too, so a deluxe edition you open keeps its songs ("SOS Deluxe: LANA", "Midnights (3am Edition)"); the artist page lists the release once. Collaborations led by someone else are listed under **Appears on**.
 
 ## The first open of an artist page is slow
 
