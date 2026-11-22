@@ -6,7 +6,7 @@
 // from SQUIRMY_USER and SQUIRMY_PASSWORD. It plays a few seconds of the quiet demo tones.
 // SQUIRMY_SHOTS=home,album,… captures only the shots with those names.
 // Each shot is taken in the light and the dark scheme. Shot options: `click` and `then` press
-// buttons by name, `keys` presses a shortcut and `type` types into what has focus, `drawer`
+// buttons by name (`ifThere`: only when the button exists), `keys` presses a shortcut and `type` types into what has focus, `drawer`
 // opens the phone sidebar, `folded` folds the desktop sidebar and `theme` picks a color theme
 // (both kept in this browser, as a user's choice would be).
 import { mkdir } from 'node:fs/promises'
@@ -86,7 +86,10 @@ async function shoot(page, shot, file) {
     await page.waitForTimeout(200)
     await page.keyboard.type(shot.type, { delay: 30 })
   }
-  if (shot.click) await click(shot.click)
+  if (shot.click) {
+    // Some buttons exist only on some servers: Organize's Preview needs a managed folder.
+    if (!shot.ifThere || await page.getByRole('button', { name: shot.click, exact: true }).filter({ visible: true }).count()) await click(shot.click)
+  }
   if (shot.find) {
     await page.getByRole('dialog').getByPlaceholder('Album or artist').fill(shot.find)
     await page.getByRole('list', { name: 'Albums' }).getByRole('button').first().click()
@@ -214,7 +217,7 @@ const shots = [
   { name: 'admin-add-folder', path: '/admin/library', click: 'Add folder' },
   { name: 'admin-reviews', path: '/admin/reviews', review: true, height: 1400 },
   { name: 'admin-fix-match', path: '/admin/library', click: 'Fix a match', find: 'Abbey Road', wait: 1000 },
-  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', wait: 1500, height: 1300 },
+  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', ifThere: true, wait: 1500, height: 1300 },
   { name: 'admin-search-index', path: '/admin/search-index' },
   { name: 'admin-providers', path: '/admin/providers', height: 1300 },
   { name: 'admin-users', path: '/admin/users' },
@@ -234,7 +237,7 @@ const shots = [
   { name: 'admin-settings', path: '/admin/settings', width: 1024 },
   { name: 'admin-library', path: '/admin/library', width: 1024 },
   { name: 'admin-reviews', path: '/admin/reviews', review: true, width: 1024, height: 1300 },
-  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', wait: 1500, width: 1024 },
+  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', ifThere: true, wait: 1500, width: 1024 },
   // A phone: the drawer instead of the sidebar, the small player, settings and admin full width.
   ...Object.entries(musicPages).map(([name, path]) => ({ name, path, width: 390, height: 844, wait: 1200 })),
   { name: 'drawer', path: '/', width: 390, height: 844, drawer: true },
@@ -249,7 +252,7 @@ const shots = [
   { name: 'admin-settings', path: '/admin/settings', width: 390, height: 844 },
   { name: 'admin-library', path: '/admin/library', width: 390, height: 844 },
   { name: 'admin-reviews', path: '/admin/reviews', review: true, width: 390, height: 844 },
-  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', wait: 1500, width: 390, height: 844 },
+  { name: 'admin-organize', path: '/admin/organize', click: 'Preview', ifThere: true, wait: 1500, width: 390, height: 844 },
   { name: 'admin-search-index', path: '/admin/search-index', width: 390, height: 844 },
   { name: 'admin-providers', path: '/admin/providers', width: 390, height: 844 },
 ]
@@ -265,9 +268,12 @@ const playing = await speaker.newPage()
 await playing.goto(`${base}/settings/playback`)
 await playing.getByLabel('This browser’s name').fill('Living Room')
 await playing.getByLabel('This browser’s name').press('Enter')
-await playing.keyboard.press('Escape')
-await playing.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'detached' })
-await playing.locator('main').click({ position: { x: 5, y: 5 } })
+// While the "Browser renamed" notice shows, the first Escape dismisses it rather than the dialog.
+for (let press = 0; press < 3 && await playing.getByRole('dialog', { name: 'Settings' }).count(); press += 1) {
+  await playing.keyboard.press('Escape')
+  await sleep(400)
+}
+await playing.locator('main').focus()
 for (let press = 0; press < 16; press += 1) await playing.keyboard.press('ArrowDown')
 await playing.getByRole('button', { name: 'Play', exact: true }).first().click()
 await sleep(1500)

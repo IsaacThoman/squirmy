@@ -15,7 +15,7 @@ import { ShellNotices } from './ShellNotices'
 import { Sidebar } from './Sidebar'
 import { SidebarResizeHandle } from './SidebarResizeHandle'
 import {
-  applySidebarWidth, MOBILE_QUERY, readSidebarCollapsed, readSidebarWidth, SIDEBAR_MIN_WIDTH, sidebarMaxWidth, writeSidebarCollapsed, writeSidebarWidth,
+  applySidebarWidth, clampSidebarWidth, MOBILE_QUERY, readSidebarCollapsed, readSidebarWidth, SIDEBAR_MIN_WIDTH, sidebarMaxWidth, writeSidebarCollapsed, writeSidebarWidth,
 } from './sidebar-state'
 
 export type SettingsDialogState = { open: boolean; section: SettingsSection; onOpenChange: (open: boolean) => void; onSectionChange: (section: SettingsSection) => void }
@@ -73,7 +73,13 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   // Only the room the frame leaves the sidebar matters, so resizing the window renders when that changes.
   const [maxWidth, setMaxWidth] = useState(() => sidebarMaxWidth(window.innerWidth))
   // The open sidebar's width is kept as set; what shows is clamped to the room there is now.
-  const [preferredWidth, setPreferredWidth] = useState(readSidebarWidth)
+  const [preferredWidth, setPreferredWidth] = useState(() => {
+    const width = readSidebarWidth()
+    // Before the first layout: applied in an effect, the sidebar would first be laid out at the
+    // default width and then animate to the saved one on every load.
+    applySidebarWidth(clampSidebarWidth(width, window.innerWidth))
+    return width
+  })
   const sidebarWidth = Math.round(Math.min(Math.max(preferredWidth, SIDEBAR_MIN_WIDTH), maxWidth))
   // Off for a frame when the layout switches between drawer and sidebar, and while a drag sizes it.
   const [transitions, setTransitions] = useState(true)

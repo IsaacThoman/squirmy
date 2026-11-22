@@ -1,11 +1,23 @@
 import { X } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
-import { useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from './button'
+import { holdsEscape, registerDialog } from './dialog-stack'
 import { FormError } from './input'
 
-export const Dialog = DialogPrimitive.Root
+/** Radix's dialog root, registered while open so a toast's Escape still reaches it. */
+export function Dialog({ open, onOpenChange, ...props }: ComponentProps<typeof DialogPrimitive.Root>) {
+  const latest = useRef(onOpenChange)
+  useEffect(() => { latest.current = onOpenChange })
+  useEffect(() => {
+    if (!open) return
+    // Known to the toaster, which hands this dialog the Escape a toast hears first.
+    return registerDialog(() => latest.current?.(false))
+  }, [open])
+  return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />
+}
+
 export const DialogTrigger = DialogPrimitive.Trigger
 export const DialogClose = DialogPrimitive.Close
 export const DialogTitle = DialogPrimitive.Title
@@ -22,11 +34,11 @@ export const dialogCloseClass = 'absolute right-2 top-2 flex size-8 items-center
  */
 function keepEscapeForSearch(onEscapeKeyDown?: (event: KeyboardEvent) => void) {
   return (event: KeyboardEvent) => {
-    const target = event.target
-    if (target instanceof HTMLInputElement && target.type === 'search' && target.value) event.preventDefault()
+    if (holdsEscape(event.target)) event.preventDefault()
     onEscapeKeyDown?.(event)
   }
 }
+
 
 type DialogContentProps = ComponentProps<typeof DialogPrimitive.Content> & {
   title: string

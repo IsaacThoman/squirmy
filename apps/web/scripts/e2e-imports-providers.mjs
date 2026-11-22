@@ -96,8 +96,7 @@ await context.addInitScript(instrumentAudio)
 const heading = (name, scope = page) => scope.getByRole('heading', { name, exact: true })
 const button = (name, scope = page) => scope.getByRole('button', { name, exact: true }).filter({ visible: true }).first()
 const toastText = text => page.getByText(text, { exact: true }).first()
-// The desktop player bar is the row along the bottom with the Devices button; it has no landmark of its own.
-const playerBar = (on = page) => on.locator('div.\\@container', { has: on.getByRole('button', { name: 'Devices', exact: true }) }).first()
+const playerBar = (on = page) => on.getByRole('region', { name: 'Player', exact: true })
 
 async function api(method, route, data, on = context) {
   const response = await on.request.fetch(`${base}/api/v1${route}`, { method, headers, data })

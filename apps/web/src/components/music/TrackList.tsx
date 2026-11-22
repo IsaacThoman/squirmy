@@ -180,8 +180,11 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const marker = (overArt: boolean) => (preparing
     ? <Spinner label="Preparing" className={cn('size-4', overArt ? 'text-white' : 'text-primary')} />
     : current ? <Equalizer playing={playing} className={cn(overArt && 'text-white')} /> : null)
-  /** What the play button replaces while the row is hovered or the button has focus. */
-  const resting = cn('transition-opacity', !unavailable && 'group-hover/row:opacity-0 peer-focus-visible:opacity-0')
+  /**
+   * What the play button replaces while the row is hovered or the button has focus. Faded out it
+   * still paints over the button (its opacity makes it a layer of its own), so it lets clicks through.
+   */
+  const resting = cn('pointer-events-none transition-opacity', !unavailable && 'group-hover/row:opacity-0 peer-focus-visible:opacity-0')
 
   const title = (
     <div className="flex min-w-0 items-center gap-1.5">
