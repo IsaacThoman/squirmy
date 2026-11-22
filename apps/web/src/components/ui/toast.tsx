@@ -11,19 +11,19 @@ export function Toaster() {
         <ToastPrimitive.Root
           key={item.id}
           onOpenChange={open => { if (!open) dismissToast(item.id) }}
-          className="flex w-full items-center gap-3 rounded-2xl bg-foreground py-3 pl-4 pr-2 text-background shadow-float animate-slide-in data-[state=closed]:animate-exit data-[swipe=move]:translate-y-(--radix-toast-swipe-move-y) data-[swipe=end]:animate-exit"
+          className="flex w-full items-center gap-3 rounded-lg border bg-popover py-2.5 pl-4 pr-2 text-popover-foreground shadow-lg animate-slide-in data-[state=closed]:animate-exit data-[swipe=move]:translate-y-(--radix-toast-swipe-move-y) data-[swipe=end]:animate-exit"
         >
           <div className="min-w-0 flex-1">
-            <ToastPrimitive.Title className="text-sm font-semibold">{item.title}</ToastPrimitive.Title>
-            {item.description && <ToastPrimitive.Description className="mt-0.5 text-[13px] opacity-75">{item.description}</ToastPrimitive.Description>}
+            <ToastPrimitive.Title className="text-sm font-medium">{item.title}</ToastPrimitive.Title>
+            {item.description && <ToastPrimitive.Description className="mt-0.5 truncate text-xs text-muted-foreground">{item.description}</ToastPrimitive.Description>}
           </div>
           {item.action && (
             <ToastPrimitive.Action altText={item.action.label} onClick={item.action.onClick}
-              className="h-8 rounded-full px-3 text-[13px] font-bold text-background underline-offset-2 hover:underline">
+              className="h-7 rounded-md px-2 text-xs font-medium text-primary underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
               {item.action.label}
             </ToastPrimitive.Action>
           )}
-          <ToastPrimitive.Close aria-label="Dismiss" className="flex size-8 items-center justify-center rounded-full opacity-70 transition hover:bg-background/15 hover:opacity-100">
+          <ToastPrimitive.Close aria-label="Dismiss" className="flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
             <X className="size-4" />
           </ToastPrimitive.Close>
         </ToastPrimitive.Root>

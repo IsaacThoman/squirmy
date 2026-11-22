@@ -15,7 +15,7 @@ export type SliderProps = {
   className?: string
 }
 
-/** A thin track that thickens and shows its thumb on hover or focus, like a transport bar. */
+/** A thin track that shows its thumb on hover or focus, like a transport bar. */
 export function Slider({ label, value, max, step = 1, onValueChange, onValueCommit, valueText, disabled, className }: SliderProps) {
   return (
     <SliderPrimitive.Root
@@ -25,15 +25,15 @@ export function Slider({ label, value, max, step = 1, onValueChange, onValueComm
       disabled={disabled}
       onValueChange={([next]) => onValueChange(next)}
       onValueCommit={([next]) => onValueCommit?.(next)}
-      className={cn('group relative flex h-5 w-full touch-none select-none items-center data-disabled:opacity-40', className)}
+      className={cn('group relative flex h-4 w-full touch-none select-none items-center data-disabled:opacity-40', className)}
     >
-      <SliderPrimitive.Track className="relative h-1 grow overflow-hidden rounded-full bg-stroke transition-[height] duration-150 group-hover:h-1.5 group-has-focus-visible:h-1.5">
-        <SliderPrimitive.Range className="absolute h-full rounded-full bg-foreground transition-colors duration-150 group-hover:bg-accent group-has-focus-visible:bg-accent" />
+      <SliderPrimitive.Track className="relative h-1 grow overflow-hidden rounded-full bg-foreground/15">
+        <SliderPrimitive.Range className="absolute h-full rounded-full bg-foreground/70 transition-colors duration-150 group-hover:bg-primary group-has-focus-visible:bg-primary" />
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         aria-label={label}
         aria-valuetext={valueText}
-        className="block size-3.5 scale-0 rounded-full bg-foreground shadow-md transition-transform duration-150 group-hover:scale-100 focus-visible:scale-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="block size-3 scale-0 rounded-full border border-primary bg-background shadow-sm outline-none transition-transform duration-150 group-hover:scale-100 focus-visible:scale-100 focus-visible:ring-2 focus-visible:ring-ring"
       />
     </SliderPrimitive.Root>
   )

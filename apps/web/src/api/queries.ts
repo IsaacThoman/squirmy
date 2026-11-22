@@ -1,5 +1,5 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
-import { queryKeys, type AlbumSummary, type ArtistSummary, type LibrarySort, type Page, type TrackSummary } from '@squirmy/contracts'
+import { queryKeys, type AlbumSummary, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
 import { useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
 import { useApi } from './services'
 
@@ -117,6 +117,20 @@ export async function loadItems<T>(query: PagedResult<T>, limit: number): Promis
   }
   return itemsOf(state.data).slice(0, limit)
 }
+
+/** A search route that is not there yet answers 404: no results, and a note that search is missing. */
+const orMissing = (request: Promise<SearchResults>) => request.catch((error: unknown) => {
+  if (isNotFound(error)) return null
+  throw error
+})
+
+/** One search of the library or the catalog. The search page and the search dialog share its answers. */
+export const searchQuery = (api: ApiClient, kind: 'library' | 'catalog', term: string) => ({
+  queryKey: [...queryKeys.search(), kind, term],
+  queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20 }, { signal })),
+  enabled: term.length > 0,
+  staleTime: 60_000,
+})
 
 export function useUserSettings() {
   const api = useApi()

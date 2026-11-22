@@ -4,10 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#111014" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <title>Squirmy</title>
+    <script>
+      // Applies the saved appearance before the app loads, so a reload never flashes the wrong
+      // colors. src/lib/appearance.ts writes this value and takes over once it runs.
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('squirmy.appearance') || '{}')
+          var dark = saved.mode === 'dark' || (saved.mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.classList.toggle('dark', dark)
+          if (typeof saved.css === 'string' && saved.css) {
+            var style = document.createElement('style')
+            style.id = 'squirmy-color-theme'
+            style.textContent = saved.css
+            document.head.appendChild(style)
+          }
+        } catch (error) {
+          // Without storage the app starts in the system's appearance.
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

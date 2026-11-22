@@ -16,8 +16,8 @@ export function CopyField({ value, label }: { value: string; label: string }) {
     }
   }
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-surface p-1.5 pl-4">
-      <input ref={field} readOnly aria-label={label} value={value} onFocus={event => event.target.select()} className="min-w-0 flex-1 truncate bg-transparent font-mono text-[15px] tracking-wide outline-none" />
+    <div className="flex items-center gap-2 rounded-md border border-input bg-muted/40 p-1 pl-3">
+      <input ref={field} readOnly aria-label={label} value={value} onFocus={event => event.target.select()} className="min-w-0 flex-1 truncate bg-transparent font-mono text-sm outline-none" />
       <Button size="sm" variant="primary" onClick={() => void copy()}>
         {copied ? <Check /> : <Copy />}{copied ? 'Copied' : 'Copy'}
       </Button>

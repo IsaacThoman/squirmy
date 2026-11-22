@@ -2,22 +2,20 @@
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
-import type { AlbumSummary, LibrarySort, PlaybackContext, PlaylistDetail, PlaylistSummary, SearchResults, TrackSummary } from '@squirmy/contracts'
+import type { LibrarySort, PlaylistDetail } from '@squirmy/contracts'
 import { queryKeys } from '@squirmy/contracts'
-import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryKey, type UseQueryResult } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { CloudOff, Compass } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { moveItem } from '@/lib/reorder'
 import {
-  albumQuery, isNotFound, itemsOf, loadItems, playlistQuery, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist,
-  usePlaylists, useWants, type LibraryKind,
+  isNotFound, itemsOf, loadItems, searchQuery, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist, usePlaylists, useWants,
+  type LibraryKind,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
-import { useLogout } from '@/auth/actions'
 import { useCurrentUser } from '@/auth/session'
-import { AppShell } from '@/components/layout/AppShell'
 import { Page } from '@/components/layout/Page'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
 import { CollectionSkeleton } from '@/components/music/Skeletons'
@@ -31,31 +29,13 @@ import { LibraryAlbumsView, LibraryArtistsView, LibraryPlaylistsView, LibrarySon
 import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
 import { SearchView } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
-import { plural } from '@/lib/format'
+import { useDebounced } from '@/lib/use-debounced'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
 import { usePlayer, type PlayOptions } from '@/player/player-context'
+import { usePlayCollections } from '@/player/use-play-collections'
 import { useServerEvent } from '@/realtime/realtime-context'
-
-/** Play buttons on cards: the album or playlist is fetched (or read from the cache) first. */
-function usePlayCollections() {
-  const api = useApi()
-  const queryClient = useQueryClient()
-  const { controls } = usePlayer()
-  const play = async <T,>(query: { queryKey: QueryKey; queryFn: () => Promise<T> }, tracks: (data: T) => TrackSummary[], context: (data: T) => PlaybackContext) => {
-    try {
-      const data = await queryClient.fetchQuery(query)
-      controls.playTracks(tracks(data), 0, context(data))
-    } catch (error) {
-      toast({ title: errorMessage(error) })
-    }
-  }
-  return {
-    playAlbum: (album: AlbumSummary) => play(albumQuery(api, album.id), detail => detail.discs.flatMap(disc => disc.tracks), detail => ({ type: 'album', id: detail.id, title: detail.title })),
-    playPlaylist: (playlist: PlaylistSummary) => play(playlistQuery(api, playlist.id), detail => detail.items.map(item => item.track), detail => ({ type: 'playlist', id: detail.id, title: detail.name })),
-  }
-}
 
 export function NotFoundPage() {
   return (
@@ -78,23 +58,6 @@ function Loaded<T>({ query, skeleton, children }: { query: UseQueryResult<T>; sk
   if (query.data !== undefined) return children(query.data)
   if (query.error) return isNotFound(query.error) ? <NotFoundPage /> : <ErrorPage error={query.error} onRetry={() => void query.refetch()} />
   return skeleton
-}
-
-const likedLabel = (count: number, more: boolean) => (more ? `${count.toLocaleString()}+ songs` : plural(count, 'song'))
-
-export function ShellPage() {
-  const user = useCurrentUser()
-  const logout = useLogout()
-  const playlists = usePlaylists().data?.items ?? []
-  const liked = useLikedTracks()
-  return (
-    <AppShell
-      user={user}
-      onLogout={logout}
-      playlists={playlists}
-      likedCount={liked.data ? likedLabel(itemsOf(liked.data).length, liked.hasNextPage) : 'Playlist'}
-    />
-  )
 }
 
 /** Files read so far by the scans running now, from the server's progress events. */
@@ -255,22 +218,6 @@ export function WantlistPage() {
   )
 }
 
-/** `value`, once it has stopped changing for `delayMs`; `initial` until then. */
-function useDebounced<T>(value: T, delayMs: number, initial: T): T {
-  const [settled, setSettled] = useState(initial)
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(value), delayMs)
-    return () => clearTimeout(timer)
-  }, [value, delayMs])
-  return settled
-}
-
-/** A search route that is not there yet answers 404: no results, and a note that search is missing. */
-const orMissing = (request: Promise<SearchResults>) => request.catch((error: unknown) => {
-  if (isNotFound(error)) return null
-  throw error
-})
-
 export function SearchPage() {
   const api = useApi()
   const navigate = useNavigate()
@@ -281,17 +228,11 @@ export function SearchPage() {
   const [typed, setTyped] = useUrlDraft(query)
   // Typing into the top bar opens this page with the first letter; that alone is not a search.
   const term = useDebounced(query.trim(), 250, '')
-  const search = (kind: 'library' | 'catalog') => ({
-    queryKey: [...queryKeys.search(), kind, term],
-    queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20 }, { signal })),
-    enabled: term.length > 0,
-    staleTime: 60_000,
-  })
   // The library answers fast, so its last results stay up while the next ones load;
   // the catalog is slower and its old results would be wrong for longer. A refresh of the
   // same search (a track fetched on demand changes it) keeps its results on screen.
-  const library = useQuery({ ...search('library'), placeholderData: keepPreviousData })
-  const catalog = useQuery(search('catalog'))
+  const library = useQuery({ ...searchQuery(api, 'library', term), placeholderData: keepPreviousData })
+  const catalog = useQuery(searchQuery(api, 'catalog', term))
   const active = term.length > 0
   return (
     <SearchView

@@ -11,17 +11,17 @@ export function ShellNotices() {
   const audio = useAudioUnlock()
   if (!down && !audio.blocked) return null
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--player-height)+1rem)] z-40 flex flex-col items-center gap-2 px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--player-height,0px)+1rem)] z-40 flex flex-col items-center gap-2 px-4">
       {down && (
         <Notice icon={<WifiOff />}>
           <span>Reconnecting to the server…</span>
-          <Spinner className="size-4 text-muted" label="Reconnecting" />
+          <Spinner className="size-4" label="Reconnecting" />
         </Notice>
       )}
       {audio.blocked && (
         <Notice icon={<Volume2 />}>
           <span>Your browser is holding back audio</span>
-          <Button size="sm" variant="primary" className="-my-1 -mr-2.5" onClick={audio.unlock}>Enable audio</Button>
+          <Button size="sm" variant="primary" className="-my-0.5 -mr-1.5 h-7" onClick={audio.unlock}>Enable audio</Button>
         </Notice>
       )}
     </div>
@@ -30,7 +30,7 @@ export function ShellNotices() {
 
 function Notice({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <div role="status" className="pointer-events-auto flex min-h-10 animate-enter items-center gap-2.5 rounded-full bg-floating py-1.5 pl-3.5 pr-4 text-[13px] font-semibold shadow-float backdrop-blur-xl backdrop-saturate-150 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted">
+    <div role="status" className="pointer-events-auto flex min-h-9 animate-enter items-center gap-2.5 rounded-lg border bg-popover py-1.5 pl-3 pr-3 text-sm text-popover-foreground shadow-lg [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
       {icon}{children}
     </div>
   )

@@ -3,42 +3,55 @@ import { Dialog as DialogPrimitive } from 'radix-ui'
 import { useState, type ComponentProps, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from './button'
-import { IconButton } from './icon-button'
 
 export const Dialog = DialogPrimitive.Root
 export const DialogTrigger = DialogPrimitive.Trigger
 export const DialogClose = DialogPrimitive.Close
+export const DialogTitle = DialogPrimitive.Title
+
+export const dialogOverlayClass = 'fixed inset-0 z-50 animate-fade-in bg-black/50 data-[state=closed]:animate-exit'
+export const dialogSurfaceClass = 'fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background text-foreground shadow-lg outline-none'
+export const dialogCloseClass = 'absolute right-4 top-4 rounded-xs opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [&_svg]:size-4'
 
 type DialogContentProps = ComponentProps<typeof DialogPrimitive.Content> & {
   title: string
   description?: ReactNode
 }
 
+/** A titled dialog. For a custom layout (the settings and search dialogs), use `DialogFrame`. */
 export function DialogContent({ title, description, className, children, ...props }: DialogContentProps) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 animate-fade-in bg-black/40 backdrop-blur-[2px] data-[state=closed]:animate-exit" />
-      <DialogPrimitive.Content
-        className={cn('fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-5 overflow-y-auto rounded-3xl bg-sheet p-6 shadow-float focus:outline-none', className)}
-        {...props}
-      >
-        <div className="flex items-start gap-4 animate-enter">
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <DialogPrimitive.Title className="text-xl font-bold tracking-tight">{title}</DialogPrimitive.Title>
-            {description
-              ? <DialogPrimitive.Description className="text-sm leading-relaxed text-muted">{description}</DialogPrimitive.Description>
-              : <DialogPrimitive.Description className="sr-only">{title}</DialogPrimitive.Description>}
-          </div>
-          <DialogPrimitive.Close asChild><IconButton label="Close" tooltip={false} size="sm" className="-mr-2 -mt-1"><X /></IconButton></DialogPrimitive.Close>
+      <DialogPrimitive.Overlay className={dialogOverlayClass} />
+      <DialogPrimitive.Content className={cn(dialogSurfaceClass, 'flex flex-col gap-4 overflow-y-auto p-6 sm:max-w-md', className)} {...props}>
+        <div className="flex flex-col gap-2 pr-6">
+          <DialogPrimitive.Title className="text-lg font-semibold leading-none">{title}</DialogPrimitive.Title>
+          {description
+            ? <DialogPrimitive.Description className="text-sm text-muted-foreground">{description}</DialogPrimitive.Description>
+            : <DialogPrimitive.Description className="sr-only">{title}</DialogPrimitive.Description>}
         </div>
         {children}
+        <DialogPrimitive.Close aria-label="Close" className={dialogCloseClass}><X /></DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </DialogPrimitive.Portal>
+  )
+}
+
+/** The dialog surface alone: the caller lays it out and must render a `DialogTitle`. */
+export function DialogFrame({ className, children, showClose = true, ...props }: ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean }) {
+  return (
+    <DialogPrimitive.Portal>
+      <DialogPrimitive.Overlay className={dialogOverlayClass} />
+      <DialogPrimitive.Content aria-describedby={undefined} className={cn(dialogSurfaceClass, className)} {...props}>
+        {children}
+        {showClose && <DialogPrimitive.Close aria-label="Close" className={dialogCloseClass}><X /></DialogPrimitive.Close>}
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
   )
 }
 
 export function DialogFooter({ className, ...props }: ComponentProps<'div'>) {
-  return <div className={cn('flex flex-wrap justify-end gap-2 pt-1', className)} {...props} />
+  return <div className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)} {...props} />
 }
 
 type ConfirmDialogProps = {
@@ -69,7 +82,7 @@ export function ConfirmDialog({ open, onOpenChange, title, description, confirmL
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title={title} description={description}>
         <DialogFooter>
-          <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+          <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
           <Button variant="danger" pending={pending} onClick={() => void confirm()}>{confirmLabel}</Button>
         </DialogFooter>
       </DialogContent>
