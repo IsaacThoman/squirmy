@@ -1,7 +1,8 @@
 import { eq, sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albums } from '../../database/schema.js'
+import { albums, assets } from '../../database/schema.js'
+import { newPublicId } from '../../lib/ids.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createLibraryRoot } from '../../test/factories.js'
 import { createFile } from '../../test/catalog.js'
@@ -69,5 +70,20 @@ describe('artist discography', () => {
     ])
     expect((await albumRow(stub)).mbid).toBeNull()
     expect((await albumRow(owned)).mbid).toBeNull()
+  })
+
+  it('does not hand a group back the cover the archive answered it does not have', async () => {
+    const mbid = 'c0000000-0000-4000-8000-000000000001'
+    const url = `https://coverartarchive.org/release-group/${mbid}/front-500`
+    await db.insert(assets).values({ id: newPublicId(), kind: 'cover', source: url, remoteUrl: url, status: 'failed', checkedAt: new Date() })
+    await upsertDiscography([group('Only One', mbid, 'soundtrack')])
+    const [row] = await db.select({ artworkAssetId: albums.artworkAssetId }).from(albums).where(eq(albums.mbid, mbid))
+    expect(row!.artworkAssetId).toBeNull()
+
+    // A week on, the archive may have one: it is offered again.
+    await db.update(assets).set({ checkedAt: new Date(Date.now() - 8 * 86_400_000) }).where(eq(assets.remoteUrl, url))
+    await upsertDiscography([group('Only One', mbid, 'soundtrack')])
+    const [again] = await db.select({ artworkAssetId: albums.artworkAssetId }).from(albums).where(eq(albums.mbid, mbid))
+    expect(again!.artworkAssetId).not.toBeNull()
   })
 })

@@ -4,8 +4,9 @@ import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { assets } from '../../database/schema.js'
+import { albums, artists, assets } from '../../database/schema.js'
 import { useTestDatabase } from '../../test/database.js'
+import { createAlbum, createArtist } from '../../test/factories.js'
 import { remoteImage, storeImage } from './store.js'
 
 const picture = (color: string) => sharp({ create: { width: 64, height: 64, channels: 3, background: color } }).jpeg().toBuffer()
@@ -96,6 +97,30 @@ describe('remote images', () => {
     await db.update(assets).set({ checkedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) }).where(eq(assets.id, asset.id))
     expect((await art(asset.id)).statusCode).toBe(200)
     expect(fetches).toEqual([url, url])
+  })
+
+  it('stops offering a cover the source does not have, but keeps one that failed for a while', async () => {
+    const album = await createAlbum({ title: 'Only One' })
+    const gone = await remoteImage('https://coverartarchive.org/release-group/97fd1d3f-30e3-40a1-96d8-98e002038092/front-500', { kind: 'cover' })
+    await db.update(albums).set({ artworkAssetId: gone.id }).where(eq(albums.id, album.albumId))
+    const artist = await createArtist({ name: 'Fcukers' })
+    await db.update(artists).set({ imageAssetId: gone.id }).where(eq(artists.id, artist.id))
+
+    expect((await art(gone.id)).statusCode).toBe(404)
+    // A 404 means the source has no such image: summaries stop handing the id out.
+    const [albumRow] = await db.select({ artworkAssetId: albums.artworkAssetId }).from(albums).where(eq(albums.id, album.albumId))
+    expect(albumRow!.artworkAssetId).toBeNull()
+    const [artistRow] = await db.select({ imageAssetId: artists.imageAssetId }).from(artists).where(eq(artists.id, artist.id))
+    expect(artistRow!.imageAssetId).toBeNull()
+
+    // A server error is an outage, not an answer: the cover stays and is tried again later.
+    const flaky = await remoteImage('https://images.example/flaky.jpg', { kind: 'cover' })
+    served['https://images.example/flaky.jpg'] = 502
+    const other = await createAlbum({ title: 'Flaky' })
+    await db.update(albums).set({ artworkAssetId: flaky.id }).where(eq(albums.id, other.albumId))
+    expect((await art(flaky.id)).statusCode).toBe(404)
+    const [kept] = await db.select({ artworkAssetId: albums.artworkAssetId }).from(albums).where(eq(albums.id, other.albumId))
+    expect(kept!.artworkAssetId).toBe(flaky.id)
   })
 
   it('treats something that is not an image as a failure', async () => {

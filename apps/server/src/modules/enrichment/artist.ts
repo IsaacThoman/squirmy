@@ -27,6 +27,8 @@ const refreshAfterMs = 30 * day
 /** An artist only Deezer knows tries the MusicBrainz bridge again after this long. */
 const bridgeRetryMs = day
 const topTrackCount = 25
+/** A release-group cover the archive did not have is offered again after this long. */
+const coverRetryMs = 7 * day
 
 type ArtistRow = Pick<typeof artists.$inferSelect, 'mbid' | 'detailLevel' | 'fetchedAt'>
 
@@ -111,9 +113,10 @@ export async function hydrateArtist(id: string, { force = false } = {}): Promise
 
 /**
  * Upserts an album row (`detail_level` at least 1) for each release group, adopting the
- * stubs search or Deezer made for it (`stubsByGroup`), with its credits and, while it has none, the Cover Art Archive's front cover as a lazy remote
- * image (a group without one simply 404s when shown). Rows are keyed by MBID, so running
- * it again changes nothing. Returns the ids of albums it created.
+ * stubs search or Deezer made for it (`stubsByGroup`), with its credits and, while it has
+ * none, the Cover Art Archive's front cover as a lazy remote image (a group without one
+ * 404s once and is not offered again for a week). Rows are keyed by MBID, so running it
+ * again changes nothing. Returns the ids of albums it created.
  */
 export async function upsertDiscography(groups: readonly MbReleaseGroupSummary[]): Promise<string[]> {
   if (groups.length === 0) return []
@@ -153,6 +156,9 @@ export async function upsertDiscography(groups: readonly MbReleaseGroupSummary[]
     for (const row of rows) {
       if (row.artworkAssetId) continue
       const asset = await remoteImage(`https://coverartarchive.org/release-group/${row.mbid}/front-500`, { kind: 'cover' })
+      // The archive said lately that the group has no cover (the art route then unassigns
+      // it); offering it again would only answer 404 until it is worth asking again.
+      if (asset.status === 'failed' && asset.checkedAt && Date.now() - asset.checkedAt.getTime() < coverRetryMs) continue
       await assignAlbumArtwork(row.id, asset.id, { onlyIfEmpty: true })
     }
   }

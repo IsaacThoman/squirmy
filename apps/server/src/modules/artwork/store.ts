@@ -6,10 +6,10 @@ import sharp, { type Metadata } from 'sharp'
 import { rgbaToThumbHash } from 'thumbhash'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { albums, assets } from '../../database/schema.js'
+import { albums, artists, assets } from '../../database/schema.js'
 import { AppError, notFound } from '../../lib/errors.js'
 import { newPublicId } from '../../lib/ids.js'
-import { fetchImage } from '../metadata/coverart.js'
+import { downloadImage } from '../metadata/coverart.js'
 
 export type Asset = typeof assets.$inferSelect
 
@@ -151,14 +151,20 @@ export async function ensureStored(assetId: string): Promise<StoredAsset> {
 
 async function download(assetId: string, url: string): Promise<StoredAsset> {
   let inspected: Inspected | undefined
+  let gone = false
   try {
-    const image = await fetchImage(url, { maxBytes })
-    if (image) inspected = await inspectAndWrite(image.bytes)
+    const result = await downloadImage(url, { maxBytes })
+    gone = result.gone
+    if (result.image) inspected = await inspectAndWrite(result.image.bytes)
   } catch {
     // A provider outage and an unusable image end the same way for the caller.
   }
   if (!inspected) {
     await db.update(assets).set({ status: 'failed', checkedAt: new Date() }).where(eq(assets.id, assetId))
+    // The source says there is no such image (a release group without a cover): albums
+    // and artists stop showing it, so clients stop asking for an id that cannot be
+    // served. Whatever assigned it may offer it again once the failure is old.
+    if (gone) await detach(assetId)
     throw notFound('The artwork could not be fetched')
   }
   const [updated] = await db.update(assets)
@@ -166,6 +172,12 @@ async function download(assetId: string, url: string): Promise<StoredAsset> {
     .where(eq(assets.id, assetId))
     .returning()
   return updated as StoredAsset
+}
+
+/** Unassigns an asset from every album and artist that shows it. */
+async function detach(assetId: string) {
+  await db.update(albums).set({ artworkAssetId: null, updatedAt: new Date() }).where(eq(albums.artworkAssetId, assetId))
+  await db.update(artists).set({ imageAssetId: null, updatedAt: new Date() }).where(eq(artists.imageAssetId, assetId))
 }
 
 /** Decodes a small copy once for both the placeholder and the color. */
