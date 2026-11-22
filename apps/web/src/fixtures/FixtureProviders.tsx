@@ -83,7 +83,7 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
 }
 
 /** Everyone may request; nothing is fetched apart from what the fake session prepares. */
-const onDemand: OnDemand = { canRequest: true, isPreparing: () => false, getAlbum: async () => {}, albumFetch: () => null }
+const onDemand: OnDemand = { viewer: { role: 'admin', canAcquire: true } }
 
 function useFixtureLibrary(): LibraryActions {
   const [wanted, setWanted] = useState(() => new Map<string, boolean>())
@@ -92,6 +92,7 @@ function useFixtureLibrary(): LibraryActions {
     isWanted: (id, fromServer = false) => wanted.get(id) ?? fromServer,
     setLiked: () => {},
     setWanted: (target, value) => setWanted(map => new Map(map).set(target.type === 'album' ? target.album.id : target.track.id, value)),
+    setInLibrary: (target, inLibrary) => toast({ title: inLibrary ? 'Added to your library' : 'Removed from your library', description: target.title }),
     playlists: playlistSummaries,
     addToPlaylist: playlist => toast({ title: `Added to ${playlist.name}` }),
     newPlaylist: () => toast({ title: 'New playlists need the server' }),

@@ -1,35 +1,33 @@
 import type { AlbumDetail } from '@squirmy/contracts'
-import { CloudDownload, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal, Plus, Wand2 } from 'lucide-react'
-import { Fragment, useState, type ReactNode } from 'react'
+import { BookmarkCheck, BookmarkPlus, CircleCheck, CirclePlus, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal, Plus, Wand2 } from 'lucide-react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useCurrentUser } from '@/auth/session'
 import { FixMatch } from '@/components/admin/FixMatch'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
 import { Cover } from '@/components/music/Cover'
-import { REQUEST_NOT_ALLOWED, TrackList } from '@/components/music/TrackList'
-import { Button } from '@/components/ui/button'
-import { Badge, ProgressBar } from '@/components/ui/feedback'
+import { TrackRowsSkeleton } from '@/components/music/Skeletons'
+import { TrackList } from '@/components/music/TrackList'
+import { Badge } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
-import { albumTypeLabel, isPlayable } from '@/lib/catalog'
+import { albumNote, albumPresentation, albumTypeLabel, awaitsTrackList, isPlayable } from '@/lib/catalog'
 import { formatDate, formatTotalDuration, plural } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
-import { useOnDemand } from '@/player/on-demand-context'
+import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
-const availabilityNote = {
-  full: null,
-  partial: (album: AlbumDetail) => `${album.ownedTrackCount} of ${album.trackCount} in your library`,
-  on_demand: (_album: AlbumDetail, canRequest: boolean) => (canRequest ? 'Plays on demand' : 'Not on the server'),
-  none: () => 'Not in your library',
-} as const
-
+/**
+ * One layout for every album, wherever its music is: the header, Play, Shuffle, the library and
+ * the heart, and the full track list. Nothing says what is on the server; a member who may not
+ * fetch music sees gray rows and, for a partial album, one line of how much plays.
+ */
 export function AlbumView({ album }: { album: AlbumDetail }) {
   const navigate = useNavigate()
   const library = useLibrary()
-  const onDemand = useOnDemand()
+  const viewer = useViewer()
   const user = useCurrentUser()
   const controls = usePlayerControls()
   const [fixing, setFixing] = useState(false)
@@ -37,21 +35,37 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   const context = { type: 'album' as const, id: album.id, title: album.title }
   const actions = useTrackActions(tracks, context)
   const wanted = library.isWanted(album.id, album.wanted)
-  const playable = tracks.filter(track => isPlayable(track, onDemand.canRequest))
-  const fetching = (onDemand.albumFetch(album.id)?.running ?? 0) > 0
-  // The rest of an album you have part of can be fetched too, from the menu.
-  const fetchable = onDemand.canRequest && !fetching && tracks.some(track => track.availability === 'on_demand')
-  const getAlbum = () => void onDemand.getAlbum(album).then(() => toast({ title: 'Getting this album', description: 'Songs light up as they arrive.' }), () => {})
+  const playable = tracks.filter(track => isPlayable(track, viewer))
+  const dimmed = albumPresentation(album, viewer) === 'dimmed'
+  // The songs are on their way. Play can be pressed already, for music that plays; it starts once they arrive.
+  const listing = awaitsTrackList(album)
+  const waiting = listing && !dimmed
+  const [queued, setQueued] = useState<'play' | 'shuffle' | null>(null)
   const owned = album.availability === 'full' || album.availability === 'partial'
+  const inLibrary = album.library === 'collection' || album.library === 'saved'
+
+  const play = (shuffle: boolean) => {
+    if (playable.length) controls.playTracks(tracks, 0, context, { shuffle })
+    else setQueued(shuffle ? 'shuffle' : 'play')
+  }
+  // Pressed while the songs were on their way: it plays once, when they arrive.
+  const arrived = playable.length > 0
+  const pending = queued !== null && !arrived
+  useEffect(() => {
+    if (queued && arrived) controls.playTracks(tracks, 0, context, { shuffle: queued === 'shuffle' })
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- only the arrival plays; later changes to the list do not
+  }, [queued, arrived])
 
   const want = () => {
     library.setWanted({ type: 'album', album }, !wanted)
     toast({ title: wanted ? 'Removed from Wantlist' : 'Added to Wantlist', description: album.title })
   }
+  const setInLibrary = (next: boolean) => library.setInLibrary({ type: 'album', id: album.id, title: album.title }, next)
   const enqueue = (placement: 'next' | 'last') => {
     controls.enqueue(playable, placement)
     toast({ title: placement === 'next' ? 'Playing next' : 'Added to queue', description: album.title })
   }
+  const note = albumNote(album, viewer)
 
   return (
     <div>
@@ -59,7 +73,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
         kind={albumTypeLabel(album.type)}
         title={album.title}
         tint={album.artwork?.color}
-        art={<Cover artwork={album.artwork} size={600} alt={`${album.title} cover`} dimmed={album.availability === 'none'} />}
+        art={<Cover artwork={album.artwork} size={600} alt={`${album.title} cover`} dimmed={dimmed} />}
         byline={album.artists.map((artist, index) => (
           <Fragment key={artist.id}>
             {index > 0 && ', '}
@@ -68,18 +82,21 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
         ))}
         meta={[
           album.year ? String(album.year) : null,
-          `${plural(album.trackCount, 'song')}, ${formatTotalDuration(album.durationMs)}`,
-          availabilityNote[album.availability]?.(album, onDemand.canRequest),
+          tracks.length > 0 && `${plural(album.trackCount, 'song')}, ${formatTotalDuration(album.durationMs)}`,
+          note,
         ]}
         actions={(
           <PlayActions
             title={album.title}
-            onPlay={playable.length ? () => controls.playTracks(tracks, 0, context) : undefined}
-            onShuffle={playable.length > 1 ? () => controls.playTracks(tracks, 0, context, { shuffle: true }) : undefined}
+            onPlay={playable.length || waiting ? () => play(false) : undefined}
+            onShuffle={playable.length > 1 || waiting ? () => play(true) : undefined}
+            pending={pending}
+            // Older servers do not say; then there is nothing to toggle.
+            library={album.library === undefined ? undefined : { state: album.library, onChange: setInLibrary }}
             liked={album.liked}
             onLike={() => library.setLiked('album', album.id, !album.liked)}
             wanted={wanted}
-            onWant={album.availability === 'full' || !library.wantlistEnabled ? undefined : want}
+            onWant={library.wantlistEnabled && dimmed ? want : undefined}
           >
             <DropdownMenu
               align="start"
@@ -96,7 +113,10 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
                     ...library.playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => library.addToPlaylist(playlist, tracks) })),
                   ],
                 },
-                ...(fetchable ? [{ label: 'Get this album', icon: <CloudDownload />, onSelect: getAlbum }] : []),
+                ...(album.library === null || album.library === 'saved'
+                  ? [{ label: inLibrary ? 'Remove from library' : 'Add to library', icon: inLibrary ? <CircleCheck /> : <CirclePlus />, onSelect: () => setInLibrary(!inLibrary) }]
+                  : []),
+                ...(library.wantlistEnabled && dimmed ? [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: want }] : []),
                 { kind: 'separator' },
                 ...album.artists.map(artist => ({ label: `Go to ${artist.name}`, icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
                 ...(user.role === 'admin' && owned ? [{ kind: 'separator' }, { label: 'Fix match…', icon: <Wand2 />, onSelect: () => setFixing(true) }] satisfies MenuEntry[] : []),
@@ -108,38 +128,9 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
       />
 
       <div className="px-(--gutter) pb-10">
-        {album.availability === 'none' && (
-          <Notice icon={<Disc3 />}>
-            <p className="flex-1 text-muted-foreground">
-              This album is not in your library yet.{library.wantlistEnabled && (wanted ? ' It is on your Wantlist and will fill in when a matching import arrives.' : ' Add it to your Wantlist and a matching import will complete it.')}
-            </p>
-          </Notice>
-        )}
-        {album.availability === 'on_demand' && !onDemand.canRequest && (
-          <Notice icon={<Disc3 />}>
-            <p className="flex-1 text-muted-foreground">{REQUEST_NOT_ALLOWED}{library.wantlistEnabled && (wanted ? ' It is on your Wantlist.' : ' You can add it to your Wantlist.')}</p>
-          </Notice>
-        )}
-        {(fetching || (album.availability === 'on_demand' && onDemand.canRequest)) && (
-          <Notice icon={<CloudDownload className="text-primary" />}>
-            {fetching ? (
-              <div className="flex flex-1 flex-col gap-2">
-                <p className="flex justify-between gap-3 font-medium">
-                  <span>Getting this album…</span>
-                  <span className="font-normal tabular text-muted-foreground">{album.ownedTrackCount} of {plural(album.trackCount, 'song')} here</span>
-                </p>
-                <ProgressBar value={album.trackCount ? album.ownedTrackCount / album.trackCount : null} label={`Getting ${album.title}`} />
-              </div>
-            ) : (
-              <>
-                <p className="flex-1">Not on the server yet. Press play to fetch songs as they play, or get the whole album now.</p>
-                <Button variant="primary" size="sm" onClick={getAlbum}><CloudDownload />Get this album</Button>
-              </>
-            )}
-          </Notice>
-        )}
-
-        <div className="-mx-2"><TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" {...actions} /></div>
+        {listing
+          ? <div role="status" aria-label="Loading songs" className="px-2 pt-2"><TrackRowsSkeleton rows={Math.min(Math.max(album.trackCount, 6), 14)} /></div>
+          : <div className="-mx-2"><TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" inCollection={album.library === 'collection'} {...actions} /></div>}
 
         <footer className="mt-8 flex flex-col gap-4 md:max-w-2xl">
           {album.description && <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{album.description}</p>}
@@ -161,16 +152,6 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
           onDone={result => { if (result.albumId && result.albumId !== album.id) void navigate(`/album/${result.albumId}`, { replace: true }) }}
         />
       )}
-    </div>
-  )
-}
-
-/** A note above the tracks about what the library has of this album. */
-function Notice({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <div className="mb-5 flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm sm:flex-row sm:items-center">
-      <span aria-hidden className="shrink-0 text-muted-foreground [&_svg]:size-5">{icon}</span>
-      {children}
     </div>
   )
 }

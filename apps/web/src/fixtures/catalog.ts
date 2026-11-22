@@ -272,6 +272,8 @@ export const albums: AlbumDetail[] = albumSeeds.map((seed, albumIndex) => {
       liked: Boolean(song.liked),
       explicit: song.explicit ?? false,
       hasLyrics: Boolean(song.lyrics),
+      // What is on the server here was brought by its owner: in everyone's library.
+      inLibrary: (song.availability ?? seed.availability ?? 'server') === 'server',
     }
     tracksBySlug.set(song.slug, track)
     return track
@@ -297,6 +299,7 @@ export const albums: AlbumDetail[] = albumSeeds.map((seed, albumIndex) => {
     discs: discNumbers.map(disc => ({ disc, title: seed.discTitles?.[disc] ?? null, tracks: tracks.filter(track => track.disc === disc) })),
     liked: Boolean(seed.liked),
     wanted: Boolean(seed.wanted),
+    library: owned ? 'collection' : null,
   }
 })
 

@@ -1,5 +1,5 @@
 import type { AlbumSummary, ArtistSummary, LibrarySort, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
-import { Disc3, FolderPlus, ListMusic, MicVocal, Plus, SearchX } from 'lucide-react'
+import { Disc3, FolderPlus, ListMusic, MicVocal, Plus, Search, SearchX } from 'lucide-react'
 import { useCallback, useSyncExternalStore, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { HeaderLink, Page, PageHeader } from '@/components/layout/Page'
@@ -44,8 +44,18 @@ export type LibraryListProps<T> = {
   genres?: string[]
   genre?: string
   onGenreChange?: (genre: string | undefined) => void
-  /** Admins are pointed at the library settings when it is empty. */
+  /** Admins are also pointed at the library settings when it is empty. */
   canAddMusic: boolean
+}
+
+/**
+ * The library is the server's own music (what its owner brought) and what the user added: not
+ * everything played. Empty, it says so and where music comes from.
+ */
+const emptyDescriptions = {
+  albums: 'Albums you add to your library and music on this server appear here.',
+  artists: 'The artists of albums you add to your library and of music on this server appear here.',
+  songs: 'Songs you add to your library and music on this server appear here.',
 }
 
 /**
@@ -116,8 +126,10 @@ function ListControls<T>({ sort, onSortChange, genres, genre, onGenreChange }: L
   )
 }
 
-/** Nothing to list: a filter that matched nothing, or a library with no music yet. */
-function Empty({ icon, title, genre, onGenreChange, canAddMusic }: { icon: ReactNode; title: string; genre?: string; onGenreChange?: (genre: undefined) => void; canAddMusic: boolean }) {
+type EmptyProps = { icon: ReactNode; title: string; kind: keyof typeof emptyDescriptions; genre?: string; onGenreChange?: (genre: undefined) => void; canAddMusic: boolean }
+
+/** Nothing to list: a filter that matched nothing, or a library with nothing in it yet. */
+function Empty({ icon, title, kind, genre, onGenreChange, canAddMusic }: EmptyProps) {
   if (genre) {
     return (
       <EmptyState
@@ -131,8 +143,13 @@ function Empty({ icon, title, genre, onGenreChange, canAddMusic }: { icon: React
     <EmptyState
       icon={icon}
       title={title}
-      description={canAddMusic ? 'Add a music folder and your music shows up here as it is scanned.' : 'Music shows up here once an admin of this server adds a music folder.'}
-      action={canAddMusic && <Button asChild variant="primary"><Link to="/admin/library"><FolderPlus />Add a music folder</Link></Button>}
+      description={emptyDescriptions[kind]}
+      action={(
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button asChild variant="primary"><Link to="/search"><Search />Find music</Link></Button>
+          {canAddMusic && <Button asChild variant="outline"><Link to="/admin/library"><FolderPlus />Add a music folder</Link></Button>}
+        </div>
+      )}
     />
   )
 }
@@ -144,19 +161,20 @@ export function LibraryAlbumsView({ onPlayAlbum, ...list }: LibraryListProps<Alb
         ? <GridSkeleton />
         : list.items.length
           ? <VirtualGrid label="Albums" items={list.items} getKey={album => album.id} onEndReached={list.onEndReached} renderItem={album => <AlbumCard album={album} onPlay={() => onPlayAlbum(album)} />} />
-          : <Empty icon={<Disc3 />} title="No albums yet" {...list} />}
+          : <Empty icon={<Disc3 />} title="No albums yet" kind="albums" {...list} />}
     </LibraryPage>
   )
 }
 
+/** Artists are listed by name only: the server sorts and filters them no other way, so there are no controls. */
 export function LibraryArtistsView(list: LibraryListProps<ArtistSummary>) {
   return (
-    <LibraryPage count={listCount(list, 'artist')} controls={<ListControls {...list} />}>
+    <LibraryPage count={listCount(list, 'artist')}>
       {!list.items
         ? <GridSkeleton round />
         : list.items.length
           ? <VirtualGrid label="Artists" items={list.items} getKey={artist => artist.id} onEndReached={list.onEndReached} renderItem={artist => <ArtistCard artist={artist} />} />
-          : <Empty icon={<MicVocal />} title="No artists yet" {...list} />}
+          : <Empty icon={<MicVocal />} title="No artists yet" kind="artists" canAddMusic={list.canAddMusic} />}
     </LibraryPage>
   )
 }
@@ -169,7 +187,7 @@ export function LibrarySongsView({ onPlay, ...list }: LibraryListProps<TrackSumm
         ? <TrackRowsSkeleton rows={12} art />
         : list.items.length
           ? <div className="-mx-2"><VirtualTrackList label="Songs" tracks={list.items} variant="compact" onEndReached={list.onEndReached} {...actions} /></div>
-          : <Empty icon={<ListMusic />} title="No songs yet" {...list} />}
+          : <Empty icon={<ListMusic />} title="No songs yet" kind="songs" {...list} />}
     </LibraryPage>
   )
 }

@@ -12,7 +12,7 @@ import { DropdownMenu } from '@/components/ui/menu'
 import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
-import { useOnDemand } from '@/player/on-demand-context'
+import { useViewer } from '@/player/on-demand-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 type PlaylistViewProps = {
@@ -123,8 +123,8 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
   const controls = usePlayerControls()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
   const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove })
-  const { canRequest } = useOnDemand()
-  const playable = tracks.some(track => isPlayable(track, canRequest))
+  const viewer = useViewer()
+  const playable = tracks.some(track => isPlayable(track, viewer))
   const size = tracks.length ? [count ?? plural(tracks.length, 'song'), durationMs !== null && formatTotalDuration(durationMs)].filter(Boolean).join(', ') : 'No songs yet'
   return (
     <div>

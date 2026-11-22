@@ -8,7 +8,7 @@ type SearchFieldProps = Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'si
   size?: 'md' | 'lg'
 }
 
-export function SearchField({ value, onValueChange, size = 'md', className, placeholder = 'Search', ...props }: SearchFieldProps) {
+export function SearchField({ value, onValueChange, size = 'md', className, placeholder = 'Search', onKeyDown, ...props }: SearchFieldProps) {
   const input = useRef<HTMLInputElement>(null)
   return (
     <div className={cn('group relative flex items-center', className)}>
@@ -19,7 +19,8 @@ export function SearchField({ value, onValueChange, size = 'md', className, plac
         value={value}
         onChange={event => onValueChange(event.target.value)}
         onKeyDown={event => {
-          if (event.key === 'Escape' && value) {
+          onKeyDown?.(event)
+          if (event.key === 'Escape' && value && !event.defaultPrevented) {
             event.preventDefault()
             onValueChange('')
           }

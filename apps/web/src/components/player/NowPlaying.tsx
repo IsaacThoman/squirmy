@@ -7,6 +7,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
 import { playingElsewhere, type Player } from '@/player/player-context'
+import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover, PlayingElsewhere } from './Devices'
 import { LyricsPane } from './Lyrics'
 import { QueueContent } from './Queue'
@@ -34,6 +35,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   const item = state.current
   const artwork = item?.track.album?.artwork ?? null
   const elsewhere = playingElsewhere(state)
+  const late = useStillLoading(item?.entry)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
 
   return (
@@ -98,8 +100,8 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
                 <h2 className="truncate text-2xl font-semibold tracking-tight">{item?.track.title ?? 'Nothing playing'}</h2>
                 {item && (
                   <p className="truncate text-base text-muted-foreground">
-                    {item.entry.state === 'preparing'
-                      ? <span className="text-primary">Preparing…</span>
+                    {late
+                      ? STILL_LOADING_LABEL
                       : item.track.artists[0]
                         ? <Link to={`/artist/${item.track.artists[0].id}`} onClick={() => onOpenChange(false)} className="hover:text-foreground hover:underline">{item.track.artistCredit}</Link>
                         : item.track.artistCredit}
