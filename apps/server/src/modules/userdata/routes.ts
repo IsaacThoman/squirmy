@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { requireUser } from '../../lib/auth.js'
 import { notFound } from '../../lib/errors.js'
+import { cachedRead, type CacheTag } from '../../lib/read-cache.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { listHistory } from './history.js'
 import { removeFromLibrary, saveToLibrary } from './library.js'
@@ -28,6 +29,11 @@ const ItemParams = z.object({ id: Id, itemId: Id })
 async function requireWantlist() {
   if (!(await getServerSettings()).wantlistEnabled) throw notFound('The wantlist is switched off on this server', 'wantlist_disabled')
 }
+
+// What the cached playlist reads depend on (lib/read-cache.ts). Covers and durations come
+// from the albums and recordings; items carry track summaries.
+const playlistList: CacheTag[] = ['playlists', 'album', 'track', 'library']
+const playlistPage: CacheTag[] = ['playlists', 'album', 'artist', 'track', 'library', 'search', 'likes']
 
 export async function userdataRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request) => {
@@ -58,13 +64,21 @@ export async function userdataRoutes(app: FastifyInstance) {
     return { ok: true }
   })
 
-  app.get('/playlists', async (request): Promise<PlaylistPage> => listPlaylists(requireUser(request).id, PageQuery.parse(request.query)))
+  app.get('/playlists', async (request, reply) => {
+    const userId = requireUser(request).id
+    const query = PageQuery.parse(request.query)
+    return cachedRead(request, reply, { userId, tags: playlistList }, (): Promise<PlaylistPage> => listPlaylists(userId, query))
+  })
   app.post('/playlists', async (request, reply): Promise<PlaylistSummary> => {
     const playlist = await createPlaylist(requireUser(request).id, CreatePlaylistRequest.parse(request.body))
     reply.code(201)
     return playlist
   })
-  app.get('/playlists/:id', async (request): Promise<PlaylistDetail> => getPlaylist(requireUser(request).id, IdParams.parse(request.params).id))
+  app.get('/playlists/:id', async (request, reply) => {
+    const userId = requireUser(request).id
+    const { id } = IdParams.parse(request.params)
+    return cachedRead(request, reply, { userId, tags: playlistPage }, (): Promise<PlaylistDetail> => getPlaylist(userId, id))
+  })
   app.patch('/playlists/:id', async (request): Promise<PlaylistSummary> =>
     updatePlaylist(requireUser(request).id, IdParams.parse(request.params).id, UpdatePlaylistRequest.parse(request.body)))
   app.delete('/playlists/:id', async (request): Promise<Ok> => {

@@ -22,6 +22,8 @@ const schedules = new Map<string, string>()
 const queues = new Set<string>()
 let boss: PgBoss | undefined
 let workerIds: string[] = []
+/** This process's worker ids per queue, to wake them for a deferred job. */
+const workersByQueue = new Map<string, string[]>()
 
 /** Collects job handlers. Modules receive it in their `jobs` hook, before `startJobs`. */
 export const jobs: JobRegistry = {
@@ -47,13 +49,30 @@ async function ensureQueue(name: string, options: QueueOptions = {}) {
 /** Adds a job. Returns its id, or null when a job with the same singleton key is already queued or active. */
 export async function enqueue<T extends object>(name: string, data: T, options: EnqueueOptions = {}): Promise<string | null> {
   await ensureQueue(name)
+  const instance = running()
   // pg-boss validates keys that are present, even when undefined.
-  return running().send(name, data, {
+  const id = await instance.send(name, data, {
     singletonKey: options.singletonKey ?? newId(),
     ...(options.priority !== undefined && { priority: options.priority }),
     ...(options.startAfter !== undefined && { startAfter: options.startAfter }),
     ...(options.tx && { db: fromDrizzle(options.tx, sql) }),
   })
+  if (id && options.startAfter !== undefined) wakeWhenDue(instance, name, options.startAfter)
+  return id
+}
+
+/**
+ * NOTIFY wakes workers when a job is inserted, not when a deferred one becomes due, so a
+ * job deferred by five seconds would otherwise wait for the next 30 second poll. When this
+ * process works the queue, its workers are woken just after the job's start time.
+ */
+function wakeWhenDue(instance: PgBoss, name: string, startAfter: number | Date) {
+  const ids = workersByQueue.get(name)
+  if (!ids) return
+  const delayMs = typeof startAfter === 'number' ? startAfter * 1000 : startAfter.getTime() - Date.now()
+  setTimeout(() => {
+    if (boss === instance) for (const worker of ids) instance.notifyWorker(worker)
+  }, Math.max(0, delayMs) + 100).unref()
 }
 
 /**
@@ -136,6 +155,7 @@ export async function startJobs({ work }: { work: boolean }) {
         }
       })
       workerIds.push(id)
+      workersByQueue.set(name, [...(workersByQueue.get(name) ?? []), id])
     }
   }
   for (const [name, cron] of schedules) {
@@ -152,6 +172,7 @@ export async function stopJobs() {
   const instance = boss
   boss = undefined
   workerIds = []
+  workersByQueue.clear()
   queues.clear()
   definitions.clear()
   schedules.clear()

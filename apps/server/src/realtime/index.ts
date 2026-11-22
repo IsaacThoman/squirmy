@@ -5,6 +5,7 @@ import { Server } from 'socket.io'
 import { devOrigins, getConfig } from '../config.js'
 import { getSql } from '../database/client.js'
 import { SESSION_COOKIE } from '../lib/auth.js'
+import { dropCachedReads } from '../lib/read-cache.js'
 import { authenticateToken } from '../modules/auth/service.js'
 import type { Realtime, RealtimeServer, RealtimeSocket, RealtimeTarget } from './types.js'
 
@@ -40,6 +41,9 @@ export async function publish(target: Targets, event: ServerEvent) {
 
 /** Tells the target's clients to refetch these query keys. Works from any process. */
 export async function invalidate(target: Targets, keys: readonly QueryKey[]) {
+  // At once in this process, so a client that refetches right after its own change never
+  // gets the cached answer; other processes drop theirs when the NOTIFY arrives.
+  dropCachedReads(target, keys)
   // Keys that do not fit in one notification are split across several.
   const base = Buffer.byteLength(JSON.stringify({ kind: 'invalidate', target, keys: [] }))
   let batch: QueryKey[] = []
@@ -76,6 +80,8 @@ function audience(io: RealtimeServer, target: Targets) {
 }
 
 function deliver(io: RealtimeServer, message: Message) {
+  // Before the clients hear of it, so their refetch cannot be answered from the cache.
+  if (message.kind === 'invalidate') dropCachedReads(message.target, message.keys)
   if (message.kind === 'disconnect') {
     for (const socket of io.of('/').sockets.values()) {
       const { userId, authSessionId } = socket.data
@@ -101,6 +107,9 @@ export async function startRealtime(app: FastifyInstance): Promise<Realtime> {
   const io: RealtimeServer = new Server(app.server, {
     path: '/socket.io',
     serveClient: false,
+    // `session:queue` carries the whole queue (about 150 bytes an entry) on every queue
+    // change; compressed it is a tenth of that. Small messages are not worth deflating.
+    perMessageDeflate: { threshold: 1024 },
     cors: config.NODE_ENV === 'production' ? undefined : { origin: devOrigins, credentials: true },
   })
 
