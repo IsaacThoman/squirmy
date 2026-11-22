@@ -14,13 +14,17 @@ export function Toaster() {
   return createPortal(<div aria-live="off"><Toasts /></div>, document.body)
 }
 
+const TOAST_MS = 3500
+
 function Toasts() {
   const toasts = useSyncExternalStore(toastStore.subscribe, toastStore.getSnapshot)
   return (
-    <ToastPrimitive.Provider duration={3500} swipeDirection="down">
+    <ToastPrimitive.Provider duration={TOAST_MS} swipeDirection="down">
       {toasts.map(item => (
         <ToastPrimitive.Root
           key={item.id}
+          // Radix restarts a toast's timer when its duration changes: a replaced toast gets its full time again.
+          duration={TOAST_MS + (item.revision ?? 0)}
           onOpenChange={open => { if (!open) dismissToast(item.id) }}
           // A toast is the newest layer, so it hears Escape before an open dialog would. Unless
           // focus is in the toast, Escape is the dialog's: it closes that, and the toast stays.

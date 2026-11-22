@@ -41,6 +41,13 @@ const PREPARE_AHEAD = 5
  * does not have is not counted (it is skipped), and a known outage pauses at once.
  */
 const FAILURES_BEFORE_PAUSE = 3
+/**
+ * Distinct songs skipped in a row as not available, with nothing delivered for the session
+ * in between, before it pauses instead of skipping on. A few missing songs are normal (a
+ * provider lacks some editions); a run this long more likely means a provider wrongly
+ * answering that it has nothing, and skipping on would run down the queue.
+ */
+const UNAVAILABLE_BEFORE_PAUSE = 5
 /** Own sessions a user may keep; detaching beyond this drops the one gone longest, unless all are connected. */
 const MAX_DETACHED = 8
 /** An own session is discarded once its device has not been seen for this long. */
@@ -205,7 +212,7 @@ function commit(record: SessionRecord, next: Session, now = settings.now()): Cha
   record.session = next
   if (next.current?.state === 'ready') {
     record.failedInARow = 0
-    record.skippedInARow = 0
+    record.skippedTracks.clear()
   }
   const { open, closed } = followPlay(record.play, previous, next, now)
   if (open && open !== record.play) notifyPlayStart(record.userId, open)
@@ -359,7 +366,8 @@ export type FetchFailure = { failure: EntryFailure; reason?: string }
  * - `unavailable` (the provider does not have it): skipped, and playback goes on with the
  *   next playable entry. When nothing after it is playable any more, the session stops on
  *   it, and when that ends a run of such songs it says so once (`playback.unavailable`,
- *   `exhausted`).
+ *   `exhausted`). Once `UNAVAILABLE_BEFORE_PAUSE` distinct songs have been skipped so with
+ *   nothing delivered in between, it pauses on it instead, saying so once (`unavailable`).
  * - `outage` (the provider is failing or unreachable, so the next would fail too): the
  *   session pauses on it with the rest of the queue kept, and says why once.
  * - `error` (anything else): skipped, unless it is the `FAILURES_BEFORE_PAUSE`th in a row
@@ -384,29 +392,51 @@ function applyFailure(record: SessionRecord, trackId: string, { failure, reason 
     return
   }
   if (failure === 'error') record.failedInARow += 1
-  if (failure === 'unavailable') record.skippedInARow += 1
   const pause = failure === 'outage' || (failure === 'error' && record.failedInARow >= FAILURES_BEFORE_PAUSE)
   if (!pause) {
     const next = fail(session)
-    const rest = [...session.queue, ...(session.autoplay ? session.autoplayQueue : [])]
-    // The reducer skips to the next playable entry; with none, it stops on this one. That
-    // ends a run of songs that were not to be had (those after it failed already, or were
-    // skipped one by one up to it); one song alone at the end of the queue is just skipped.
-    const run = rest.length > 0 || record.skippedInARow > 1
-    if (failure === 'unavailable' && run && next.current?.id === current.id && !next.playing) {
-      record.skippedInARow = 0
-      room?.emit('event', { type: 'playback.unavailable', trackId, kind: 'exhausted', reason: null })
+    if (failure === 'unavailable') {
+      const rest = [...session.queue, ...(session.autoplay ? session.autoplayQueue : [])]
+      // The reducer moves past this entry and the failed ones right after it in one step:
+      // each is a song skipped as not available.
+      const to = rest.findIndex(entry => entry.id === next.current?.id)
+      for (const entry of [current, ...(to < 0 ? rest : rest.slice(0, to))]) {
+        if (entry.trackId === trackId || entry.state === 'failed') record.skippedTracks.add(entry.trackId)
+      }
+      const stops = next.current?.id === current.id && !next.playing
+      // With none playable after it, the reducer stops on this one. That ends a run of
+      // songs that were not to be had (those after it failed already, or were skipped one
+      // by one up to it); one song alone at the end of the queue is just skipped.
+      if (stops && (rest.length > 0 || record.skippedTracks.size > 1)) {
+        record.skippedTracks.clear()
+        room?.emit('event', { type: 'playback.unavailable', trackId, kind: 'exhausted', reason: null })
+      } else if (!stops && record.skippedTracks.size >= UNAVAILABLE_BEFORE_PAUSE) {
+        // So many in a row with nothing delivered more likely means a provider that wrongly
+        // says it has nothing than that none of these songs exist.
+        hold(record, current, 'unavailable', null, now)
+        return
+      }
     }
     finish(record, next, now)
     return
   }
+  hold(record, current, failure === 'outage' ? 'outage' : 'failures', reason ?? null, now)
+}
+
+/**
+ * Pauses the session on its current entry, which failed, keeping the rest of the queue,
+ * and tells its sockets why (`playback.unavailable`) before the state that pauses.
+ */
+function hold(record: SessionRecord, current: QueueEntry, kind: 'outage' | 'failures' | 'unavailable', reason: string | null, now: number): void {
   record.failedInARow = 0
-  const paused = reduceSession(session, { command: { type: 'pause' }, now, commandId: newId() })
+  record.skippedTracks.clear()
+  const paused = reduceSession(record.session, { command: { type: 'pause' }, now, commandId: newId() })
   // The reducer moves past a current entry that fails. Marked here first, the entry stays
   // current, and `setEntryState` only marks its other entries.
   const held: Session = { ...paused, current: { ...current, state: 'failed' }, positionMs: 0, anchorAt: now, stalled: false }
-  room?.emit('event', { type: 'playback.unavailable', trackId, kind: failure === 'outage' ? 'outage' : 'failures', reason: reason ?? null })
-  finish(record, fail(held), now)
+  io?.to(sessionRoom(record)).emit('event', { type: 'playback.unavailable', trackId: current.trackId, kind, reason })
+  const command = { type: 'setEntryState' as const, trackId: current.trackId, state: 'failed' as const }
+  finish(record, reduceSession(held, { command, now, commandId: newId() }), now)
 }
 
 /** Commits a server-made change and broadcasts it. */
@@ -632,7 +662,7 @@ export function detach(userId: string, deviceId: string | null, socketId: string
       commandIds: new Set(shared.commandIds),
       requested: new Map(shared.requested),
       failedInARow: shared.failedInARow,
-      skippedInARow: shared.skippedInARow,
+      skippedTracks: new Set(shared.skippedTracks),
       autoplayAskedFor: shared.autoplayAskedFor,
       lastSeenAt: now,
     })
@@ -719,7 +749,7 @@ export function attach(userId: string, deviceId: string | null, socketId: string
         if (shared.requested.get(trackId) !== 'play') shared.requested.set(trackId, origin)
       }
       shared.failedInARow = own.failedInARow
-      shared.skippedInARow = own.skippedInARow
+      shared.skippedTracks = new Set(own.skippedTracks)
       shared.autoplayAskedFor = own.autoplayAskedFor
       change = commit(shared, bringSession(shared.session, own.session, { now, commandId: newId(), deviceId: device.canPlay ? device.id : undefined }))
       if (change) void persist(shared).catch(report)
@@ -770,7 +800,7 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
     // Something new to play starts a new count of failures.
     if (command.type === 'playTracks') {
       record.failedInARow = 0
-      record.skippedInARow = 0
+      record.skippedTracks.clear()
     }
     const change = commit(record, next)
     ack({ ok: true, version: record.version })
@@ -887,7 +917,7 @@ export function replaceQueue(userId: string, request: { trackIds: readonly strin
     const commandId = newId()
     const next = commands.reduce((session, command) => reduceSession(session, { command, now, commandId }), record.session)
     record.failedInARow = 0
-    record.skippedInARow = 0
+    record.skippedTracks.clear()
     const change = commit(record, next)
     if (change) {
       broadcast(record, change)
@@ -955,8 +985,10 @@ async function setRecordingState(recordingId: string, failure: FetchFailure | nu
       if (!record) return
       record.requested.delete(recordingId)
       if (!holds(record, recordingId)) return
-      if (failure) applyFailure(record, recordingId, failure)
-      else applyServer(record, { type: 'setEntryState', trackId: recordingId, state: 'ready' })
+      if (failure) return applyFailure(record, recordingId, failure)
+      // Something was delivered: a run of songs not to be had is over.
+      record.skippedTracks.clear()
+      applyServer(record, { type: 'setEntryState', trackId: recordingId, state: 'ready' })
     })))
 }
 

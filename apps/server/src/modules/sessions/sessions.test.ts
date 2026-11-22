@@ -653,7 +653,7 @@ describe('sessions', () => {
       expect(stops(a)).toEqual([])
     })
 
-    it('skips tracks the provider does not have and plays on, however many in a row', async () => {
+    it('skips tracks the provider does not have and plays on', async () => {
       const remote = await remoteAlbum(6)
       const ids = remote.ids
       const a = await device('device-a-0036')
@@ -667,6 +667,51 @@ describe('sessions', () => {
       expect(a.events('event')).toEqual(ids.slice(0, 4).map((trackId) => ({ type: 'playback.failed', trackId, failure: 'unavailable' })))
       await markRecordingReady(ids[4]!)
       expect((await a.state(6)).current).toMatchObject({ trackId: ids[4], state: 'ready' })
+      expect(stops(a)).toEqual([])
+    })
+
+    it('pauses once five different songs in a row are not available, keeping the rest of the queue', async () => {
+      const remote = await remoteAlbum(8)
+      const ids = remote.ids
+      const a = await device('device-a-0041')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      for (const [index, id] of ids.slice(0, 4).entries()) {
+        await markRecordingFailed(id, { failure: 'unavailable' })
+        expect(await a.state(2 + index)).toMatchObject({ playing: true, current: { trackId: ids[index + 1] } })
+      }
+      await markRecordingFailed(ids[4]!, { failure: 'unavailable' })
+      expect(await a.state(6)).toMatchObject({ playing: false, stalled: false, current: { trackId: ids[4], state: 'failed' } })
+      expect(queued(a).map(([id]) => id)).toEqual(ids.slice(5))
+      expect(stops(a)).toEqual([{ type: 'playback.unavailable', trackId: ids[4], kind: 'unavailable', reason: null }])
+
+      // Play moves on from it, and the count starts again.
+      await a.send({ type: 'play' })
+      expect(await a.state(7)).toMatchObject({ playing: true, current: { trackId: ids[5], state: 'preparing' } })
+      await markRecordingFailed(ids[5]!, { failure: 'unavailable' })
+      expect(await a.state(8)).toMatchObject({ playing: true, current: { trackId: ids[6] } })
+      expect(stops(a)).toHaveLength(1)
+    })
+
+    it('counts songs passed over with the one that failed, a repeated song once, and starts again after a delivery', async () => {
+      const remote = await remoteAlbum(8)
+      const ids = remote.ids
+      const [first, second] = remote.seeds as [QueueSeed, QueueSeed]
+      const a = await device('device-a-0042')
+      // The same two songs three times over, then the rest.
+      await a.send({ type: 'playTracks', tracks: [first, second, first, second, first, second, ...remote.seeds.slice(2)], seed: 1 })
+      await a.state(1)
+      await markRecordingFailed(ids[0]!, { failure: 'unavailable' })
+      await markRecordingFailed(ids[1]!, { failure: 'unavailable' })
+      // Six entries passed, but two songs.
+      expect(await a.state(3)).toMatchObject({ playing: true, current: { trackId: ids[2] } })
+      await markRecordingFailed(ids[2]!, { failure: 'unavailable' })
+      await a.state(4)
+      // A fetch further down delivers: the run is over.
+      await markRecordingReady(ids[7]!)
+      await a.state(5)
+      for (const id of ids.slice(3, 6)) await markRecordingFailed(id, { failure: 'unavailable' })
+      expect(await a.state(8)).toMatchObject({ playing: true, current: { trackId: ids[6], state: 'preparing' } })
       expect(stops(a)).toEqual([])
     })
 

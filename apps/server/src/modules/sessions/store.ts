@@ -53,11 +53,12 @@ export type SessionRecord = {
    */
   failedInARow: number
   /**
-   * Current entries skipped since one was last ready (or the user started something new)
-   * because the provider does not have them. Never pauses: it tells a run of them that ran
-   * out of queue from one song at the end of it.
+   * Distinct tracks skipped as not available since the session last had something
+   * delivered (a current entry ready, or any of its fetches done) or the user started
+   * something new. Enough of them pause the session; they also tell a run that ran out of
+   * queue from one song at its end.
    */
-  skippedInARow: number
+  skippedTracks: Set<string>
   /** The current entry autoplay suggestions were last asked for, so an empty answer is not asked again. */
   autoplayAskedFor: string | null
   persistTimer: ReturnType<typeof setTimeout> | null
@@ -131,7 +132,7 @@ function newRecord(userId: string, deviceId: string | null, fields: Pick<Session
     play: null,
     requested: new Map(),
     failedInARow: 0,
-    skippedInARow: 0,
+    skippedTracks: new Set(),
     autoplayAskedFor: null,
     persistTimer: null,
     writing: Promise.resolve(),

@@ -58,7 +58,7 @@ export type SessionClientSnapshot = {
  * What a `playback.unavailable` said: the track playback stopped on, why (`kind`, see the
  * event), and the server's sentence for it, if it has one.
  */
-export type SessionOutage = { trackId: string | null; kind: 'outage' | 'failures' | 'exhausted'; reason: string | null }
+export type SessionOutage = { trackId: string | null; kind: 'outage' | 'failures' | 'exhausted' | 'unavailable'; reason: string | null }
 
 /**
  * How `detach` and `attach` end. Errors from this client: `offline` (they need the

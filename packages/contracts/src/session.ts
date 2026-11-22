@@ -457,6 +457,8 @@ export const ServerEvent = z.discriminatedUnion('type', [
    * - `outage`: the provider is failing or unreachable; `reason` is a sentence to show.
    * - `failures`: several tracks in a row failed for no reason the server knows.
    * - `exhausted`: the track was not available and nothing after it in the queue is.
+   * - `unavailable`: several tracks in a row were not available with nothing delivered in
+   *   between, so the server stopped skipping: the provider may be wrong about them.
    */
   /**
    * Sent to the sockets in a session that holds the track, just before the state that marks
@@ -468,7 +470,7 @@ export const ServerEvent = z.discriminatedUnion('type', [
     type: z.literal('playback.unavailable'),
     trackId: Id.nullable(),
     reason: z.string().nullable().optional(),
-    kind: z.enum(['outage', 'failures', 'exhausted']).optional(),
+    kind: z.enum(['outage', 'failures', 'exhausted', 'unavailable']).optional(),
   }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>

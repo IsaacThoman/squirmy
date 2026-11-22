@@ -190,6 +190,24 @@ describe('sessions with on-demand tracks', () => {
     mock.settings.has = () => true
   }, 60_000)
 
+  it('pauses once, rather than skipping on, when song after song is not available', async () => {
+    // A provider that wrongly says it has nothing would otherwise run down the whole queue.
+    mock.settings.has = lacking
+    // Ten it lacks: the run reaches five well before the queue runs out.
+    const album = await remoteAlbum(10, () => `Missing ${newId()}`)
+    const phone = await device(await signIn({ canAcquire: true }))
+    phone.client.dispatch({ type: 'setAutoplay', value: false })
+    play(phone, album)
+    await eventually(() => expect(phone.client.getSnapshot()).toMatchObject({ session: { playing: false, current: { state: 'failed' } }, outage: { kind: 'unavailable' } }))
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const { session: { current }, queue: { queue } } = phone.client.getSnapshot()
+    expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toEqual([{ type: 'playback.unavailable', trackId: current!.trackId, kind: 'unavailable', reason: null }])
+    // It stopped short of the end: the rest of the queue is kept for when the user plays on.
+    expect(album.ids.indexOf(current!.trackId)).toBeLessThan(9)
+    expect(queue.at(-1)!.trackId).toBe(album.ids.at(-1))
+    mock.settings.has = () => true
+  }, 60_000)
+
   it('pauses on the first track when the provider cannot be asked, with the outage reason', async () => {
     // A resolve that throws answers 500: the provider is there but cannot look anything up.
     mock.settings.has = () => {

@@ -1,5 +1,5 @@
 import {
-  PlaybackNoticeWatcher, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
+  PlaybackNoticeWatcher, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
 } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import { queryKeys, type ClientDevice, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary } from '@squirmy/contracts'
@@ -249,10 +249,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   )
 }
 
+const RUN_TOAST = 'playback-unavailable'
+
 /**
  * Says when music could not be had, worded as on every client (client-core's
  * `PlaybackNoticeWatcher`): one notice per song that was playing or next and was skipped,
- * lighter for a song the provider does not have, and one notice when playback stops on a
+ * one notice that counts a run of songs the provider does not have, and one when playback stops on a
  * failure instead (an outage, failures in a row, or nothing left that is available), with
  * no more per song until playback resumes. Failures further down the queue and fetches for
  * the library are quiet: their rows simply turn gray.
@@ -260,11 +262,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 function usePlaybackNotices(client: SessionClient, store: TrackStore) {
   useEffect(() => {
     const watcher = new PlaybackNoticeWatcher(trackId => client.failureOf(trackId))
-    const tell = ({ message, detail }: PlaybackNotice) => toast({ title: message, description: detail })
+    const tell = ({ message, detail }: PlaybackNotice, key?: string) => toast({ key, title: message, description: detail })
     const look = () => {
-      const { skipped, stopped } = watcher.update(client.getSnapshot())
-      if (stopped) tell(stopped)
+      const { skipped, unavailable, stopped } = watcher.update(client.getSnapshot())
       for (const { entry, failure } of skipped) tell(skipNotice(store.get(entry.trackId, entry.albumId)?.title, failure))
+      // One notice for a run of songs not to be had, and for the stop that may end it.
+      if (unavailable) tell(unavailableNotice(unavailable, store.get(unavailable.entry.trackId, unavailable.entry.albumId)?.title), RUN_TOAST)
+      if (stopped) tell(stopped, RUN_TOAST)
     }
     look()
     return client.subscribe(look)

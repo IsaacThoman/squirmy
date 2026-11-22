@@ -70,7 +70,25 @@ describe('telling failures', () => {
     act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id, kind: 'exhausted', reason: null }))
     failTrack(socket, song.id)
     expect(await screen.findByText('None of the remaining songs are available')).toBeInTheDocument()
-    expect(titles()).toEqual([`Skipped “${edit.title}” — not available`, 'None of the remaining songs are available'])
+    // The stop takes the place of the run's notice.
+    expect(titles()).toEqual(['None of the remaining songs are available'])
+  })
+
+  it('counts a run of songs not available in one notice rather than one each', async () => {
+    const fake = fakeServices()
+    const blueHour = album('blue-hour')
+    const tracks = blueHour.discs[0].tracks
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, fake.services)
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
+    await waitFor(() => expect(fake.socket.session.current).not.toBeNull())
+    // Seeded as on demand, so each is still to be fetched.
+    act(() => fake.socket.serverSet(session => ({ ...session, current: session.current && { ...session.current, state: 'preparing' }, queue: session.queue.map(entry => ({ ...entry, state: 'preparing' as const })) })))
+    for (const track of tracks.slice(0, 3)) {
+      act(() => fake.socket.serverEmit('event', { type: 'playback.failed', trackId: track.id, failure: 'unavailable' }))
+      act(() => fake.socket.serverApply({ type: 'setEntryState', trackId: track.id, state: 'failed' }))
+    }
+    expect(await screen.findByText('Skipped 3 songs — not available')).toBeInTheDocument()
+    expect(titles()).toEqual(['Skipped 3 songs — not available'])
   })
 
   it('says nothing for a fetch that ends outside the session', async () => {

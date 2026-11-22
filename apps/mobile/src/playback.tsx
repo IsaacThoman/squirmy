@@ -1,5 +1,5 @@
 import {
-  ApiError, artworkUrl, createInitialSession, PlaybackNoticeWatcher, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, splitSession,
+  ApiError, artworkUrl, createInitialSession, PlaybackNoticeWatcher, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, splitSession, unavailableNotice,
   type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
@@ -190,15 +190,17 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
 
       // What to say when the server could not fetch songs, worded as on the web
       // (client-core's `PlaybackNoticeWatcher`): one notice per song that was playing or
-      // next, lighter for one the provider does not have, and one when playback stops on a
+      // next, one counting a run of songs the provider does not have, and one when playback stops on a
       // failure instead, with no more per song until playback resumes.
       const notices = new PlaybackNoticeWatcher(trackId => client.failureOf(trackId));
       const tell = ({ message, detail }: PlaybackNotice) => notify(message, detail ? { detail } : undefined);
       notices.update(client.getSnapshot());
       const stopWatching = client.subscribe(() => {
-        const { skipped, stopped } = notices.update(client.getSnapshot());
-        if (stopped) tell(stopped);
+        const { skipped, unavailable, stopped } = notices.update(client.getSnapshot());
         for (const { entry, failure } of skipped) tell(skipNotice(tracks.get(entry.trackId, entry.albumId)?.title, failure));
+        // The notice shows one at a time, so a run's growing count replaces the last.
+        if (unavailable) tell(unavailableNotice(unavailable, tracks.get(unavailable.entry.trackId, unavailable.entry.albumId)?.title));
+        if (stopped) tell(stopped);
       });
       const loading = watchLoading(client);
       const systemVolume = SystemVolume;
