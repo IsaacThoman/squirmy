@@ -10,17 +10,20 @@
  * album with no track for the recording gets one on its file-built release (made when the
  * album has no release at all) at the file's own track number; an album whose releases all
  * come from a source and do not list the recording keeps the file as an extra, with no
- * track. Placed files are `matched` with source `request`, so ingest only relinks their
- * group and the matcher leaves them alone.
+ * track, unless the caller says the file is of an edition none of them shows (`ownEdition`),
+ * which gets a file-built track list of its own. Placed files are `matched` with source
+ * `request`, so ingest only relinks their group and the matcher leaves them alone.
  *
  * The rows ingest built from the files' tags are then cleaned up: such an album left without
  * files is removed, or merged into the album (leaving a redirect) when user data points at
  * it or the caller asks for a redirect; its edition, tracks and the artists only it credited
  * go with it. An album that is more than its files' tags (a MusicBrainz id, an id at another
- * source, a track list from a source) is never removed or merged here. The group's review
- * is resolved once every file in the group is identified.
+ * source, a track list from a source) is never removed or merged here, except a row the
+ * caller names as another row of the same album (`sameAlbumIds`), which is merged once empty
+ * unless it has a MusicBrainz id or a track list from a source. The group's review is
+ * resolved once every file in the group is identified.
  */
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { Transaction } from '../../database/client.js'
 import { albumArtists, albums, mediaFiles, recordingArtists, recordings, releases, releaseTracks } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
@@ -30,7 +33,16 @@ import { lockUpserts } from './apply.js'
 import { closeReview } from './match.js'
 import { mergeAlbum, resolveMerged } from './merge.js'
 
-export type Placement = { fileId: string; recordingId: string }
+export type Placement = {
+  fileId: string
+  recordingId: string
+  /**
+   * The file is of an edition none of the album's track lists shows (a bonus track of a
+   * regional edition): with no track for its recording, it gets one on a track list built
+   * from files, in its own track number, instead of being an extra with no track.
+   */
+  ownEdition?: boolean
+}
 
 export type PlaceInput = {
   albumId: string
@@ -46,6 +58,13 @@ export type PlaceInput = {
    * visible for a while: ids of them may sit in clients' caches and stored queues.
    */
   redirect?: boolean
+  /**
+   * Other rows the caller knows stand for this same album (a search stub of it the files sat
+   * on before its MusicBrainz row listed them). Each is merged into the album, leaving a
+   * redirect, once no file is left on it, even with an id at another source. A row with a
+   * MusicBrainz id or a track list from a source is never merged here.
+   */
+  sameAlbumIds?: string[]
 }
 
 export type PlaceResult = {
@@ -74,7 +93,7 @@ async function standingRelease(tx: Transaction, albumId: string, canonicalReleas
 }
 
 /** Where a file for `recordingId` sits on the album, making a track on a file-built release when the album lists none. */
-async function seatFor(tx: Transaction, album: typeof albums.$inferSelect, recordingId: string, file: FileRow): Promise<Seat> {
+async function seatFor(tx: Transaction, album: typeof albums.$inferSelect, recordingId: string, file: FileRow, ownEdition: boolean): Promise<Seat> {
   const standing = await standingRelease(tx, album.id, album.canonicalReleaseId)
   const [listed] = await tx.select({ id: releaseTracks.id, releaseId: releaseTracks.releaseId }).from(releaseTracks)
     .innerJoin(releases, eq(releases.id, releaseTracks.releaseId))
@@ -89,7 +108,7 @@ async function seatFor(tx: Transaction, album: typeof albums.$inferSelect, recor
     .orderBy(sql`${releases.id} = ${standing} desc nulls last`, asc(releases.id)).limit(1)
   if (!built) {
     // Every release comes from a source and none lists the recording: an extra of the album.
-    if (standing) return { releaseId: standing, releaseTrackId: null }
+    if (standing && !ownEdition) return { releaseId: standing, releaseTrackId: null }
     ;[built] = await tx.insert(releases).values({ id: newId(), albumId: album.id, title: album.title, releaseDate: album.releaseDate, detailLevel: 1 }).returning({ id: releases.id })
     await tx.update(albums).set({ canonicalReleaseId: built!.id, updatedAt: new Date() }).where(and(eq(albums.id, album.id), isNull(albums.canonicalReleaseId)))
   }
@@ -117,15 +136,17 @@ async function seatFor(tx: Transaction, album: typeof albums.$inferSelect, recor
  * Removes or merges the local-only albums the files left, with their editions, and the
  * credits of rows that are now only redirects. Returns the ids of the albums it merged.
  */
-async function cleanUp(tx: Transaction, albumId: string, before: FileRow[], redirect: boolean): Promise<void> {
+async function cleanUp(tx: Transaction, albumId: string, before: FileRow[], placedRecordingIds: readonly string[], redirect: boolean, sameAlbumIds: readonly string[]): Promise<void> {
   const left = [...new Set(before.flatMap((file) => (file.albumId && file.albumId !== albumId ? [file.albumId] : [])))]
-  // Only rows ingest built from the files' tags are cleaned up. An album with a MusicBrainz
-  // id, an id at another source or a track list from a source is a catalog album that just
-  // lost a file, and stays as it is.
+  const same = left.filter((id) => sameAlbumIds.includes(id))
+  // Only rows ingest built from the files' tags are cleaned up, and rows the caller vouches
+  // are this album. An album with a MusicBrainz id, an id at another source or a track list
+  // from a source is a catalog album that just lost a file, and stays as it is.
   const formerAlbums = left.length === 0 ? [] : (await tx.execute<{ id: string }>(sql`
     select a.id from albums a
-    where a.id in ${left} and a.mbid is null and a.detail_level > 0
-      and not exists (select 1 from external_ids e where e.entity_type = 'album' and e.entity_id = a.id)
+    where a.id in ${left} and a.mbid is null
+      and (${same.length > 0 ? sql`a.id in ${same}` : sql`false`} or (a.detail_level > 0
+        and not exists (select 1 from external_ids e where e.entity_type = 'album' and e.entity_id = a.id)))
       and not exists (select 1 from releases r where r.album_id = a.id and (r.mbid is not null or r.fetched_at is not null))`)).map((row) => row.id)
   const formerReleases = [...new Set(before.flatMap((file) => (file.releaseId ? [file.releaseId] : [])))]
   const formerRecordings = [...new Set(before.flatMap((file) => (file.recordingId ? [file.recordingId] : [])))]
@@ -140,14 +161,15 @@ async function cleanUp(tx: Transaction, albumId: string, before: FileRow[], redi
         or exists (select 1 from playlist_items where album_id = a.id)
         or exists (select 1 from plays where album_id = a.id)) as kept
     from albums a
-    where a.id in ${formerAlbums} and a.mbid is null and a.merged_into_id is null and a.detail_level > 0
+    where a.id in ${formerAlbums} and a.mbid is null and a.merged_into_id is null
       and not exists (select 1 from media_files f where f.album_id = a.id)`)
   for (const former of local) {
     // The cover the files brought is better than none.
     await tx.execute(sql`
       update albums a set artwork_asset_id = f.artwork_asset_id, updated_at = now()
       from albums f where a.id = ${albumId} and f.id = ${former.id} and a.artwork_asset_id is null and f.artwork_asset_id is not null`)
-    if (!redirect && !former.kept) continue
+    // Another row of this album was shown as an album of its own (search, jobs): it redirects.
+    if (!redirect && !former.kept && !same.includes(former.id)) continue
     await mergeAlbum(former.id, albumId, tx)
     // A redirect needs no credits, and artists only it credited should not outlive it.
     const credited = await tx.delete(albumArtists).where(eq(albumArtists.albumId, former.id)).returning({ artistId: albumArtists.artistId })
@@ -156,9 +178,12 @@ async function cleanUp(tx: Transaction, albumId: string, before: FileRow[], redi
     freedArtists.push(...credited.map((credit) => credit.artistId), ...(row?.primaryArtistId ? [row.primaryArtistId] : []))
   }
 
-  // Recordings built from the files' tags that were merged into the catalog's are redirects too.
-  const redirected = formerRecordings.length === 0 ? [] : (await tx.select({ id: recordings.id, primaryArtistId: recordings.primaryArtistId }).from(recordings)
-    .where(and(inArray(recordings.id, formerRecordings), isNull(recordings.mbid), sql`${recordings.mergedIntoId} is not null`)))
+  // Recordings built from the files' tags that were merged into the catalog's are redirects
+  // too, and so are those merged into the files' recordings earlier (a delivery's tags-built
+  // recording merged into the requested one), whose credits name the artists its tags made.
+  const touched = [...new Set([...formerRecordings, ...placedRecordingIds])]
+  const redirected = touched.length === 0 ? [] : (await tx.select({ id: recordings.id, primaryArtistId: recordings.primaryArtistId }).from(recordings)
+    .where(and(or(inArray(recordings.id, touched), inArray(recordings.mergedIntoId, touched)), isNull(recordings.mbid), sql`${recordings.mergedIntoId} is not null`)))
   for (const row of redirected) {
     const credited = await tx.delete(recordingArtists).where(eq(recordingArtists.recordingId, row.id)).returning({ artistId: recordingArtists.artistId })
     await tx.update(recordings).set({ primaryArtistId: null }).where(eq(recordings.id, row.id))
@@ -190,21 +215,24 @@ export async function placeFiles(tx: Transaction, input: PlaceInput): Promise<Pl
   if (!album) return null
 
   const wanted = new Map(input.files.map((file) => [file.fileId, file.recordingId]))
+  const ownEditions = new Set(input.files.flatMap((file) => (file.ownEdition ? [file.fileId] : [])))
   const extras = (input.extraFileIds ?? []).filter((id) => !wanted.has(id))
   const ids = [...wanted.keys(), ...extras]
   const rows = ids.length === 0 ? [] : await tx.select().from(mediaFiles)
     .where(and(inArray(mediaFiles.id, ids), isNull(mediaFiles.missingSince), eq(mediaFiles.matchLocked, false))).orderBy(asc(mediaFiles.relPath)).for('update')
   const now = new Date()
   const changed: FileRow[] = []
+  const placedRecordings: string[] = []
   const seats: Seat[] = []
 
   for (const file of rows.filter((row) => wanted.has(row.id))) {
     const recordingId = await resolveMerged(tx, recordings, wanted.get(file.id)!)
+    placedRecordings.push(recordingId)
     const [recording] = await tx.select({ id: recordings.id }).from(recordings).where(eq(recordings.id, recordingId))
     if (!recording) continue
     // Read again each time: placing one file may give the album its first release.
     const [current] = await tx.select().from(albums).where(eq(albums.id, albumId))
-    const seat = await seatFor(tx, current!, recordingId, file)
+    const seat = await seatFor(tx, current!, recordingId, file, ownEditions.has(file.id))
     seats.push(seat)
     const same = file.albumId === albumId && file.recordingId === recordingId && file.releaseId === seat.releaseId && file.releaseTrackId === seat.releaseTrackId
       && file.matchStatus === 'matched' && file.matchSource === 'request'
@@ -230,7 +258,7 @@ export async function placeFiles(tx: Transaction, input: PlaceInput): Promise<Pl
   }
 
   if (changed.length > 0) {
-    await cleanUp(tx, albumId, changed, input.redirect ?? false)
+    await cleanUp(tx, albumId, changed, placedRecordings, input.redirect ?? false, input.sameAlbumIds ?? [])
     const groups = new Map(changed.flatMap((file) => (file.groupKey ? [[`${file.rootId}\n${file.groupKey}`, file] as const] : [])))
     // A group's review is settled once every file in it is identified; one that still holds
     // a file nobody recognized stays open for an admin to look at.

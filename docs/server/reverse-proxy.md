@@ -160,6 +160,8 @@ When `cloudflared` connects straight to Squirmy (no proxy in between), the same 
 
 Cloudflare's own `X-Forwarded-Proto` usually does not survive the proxy, which sees plain HTTP from `cloudflared`. That is why `PUBLIC_URL` matters here: an `https://` `PUBLIC_URL` marks the session cookie `Secure` for requests to that host name.
 
+**Cloudflare Web Analytics.** Squirmy sends a Content-Security-Policy that lets the web app run only scripts from the server itself (`script-src 'self'`, `connect-src 'self'`). If Web Analytics is on for the site with automatic setup, Cloudflare injects its beacon (`https://static.cloudflareinsights.com/beacon.min.js`) into every page, the browser blocks it, and the developer tools report a Content-Security-Policy violation on each load. Nothing else is affected. The policy cannot be changed from Squirmy's settings, so turn the automatic injection off: in the Cloudflare dashboard, open Web Analytics for the site and choose to disable automatic setup (or exclude the host name), or turn Web Analytics off for it.
+
 ### Checking it
 
 From another machine:
