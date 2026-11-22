@@ -34,3 +34,15 @@ export function thumbhashUrl(hash: string): string | undefined {
 export function doubleSize(size: ArtSize): ArtSize {
   return size === 96 ? 300 : size === 300 ? 600 : 1200
 }
+
+const loaded = new Map<string, string>()
+
+/** Notes a rendition the browser has shown, so a larger one can start from it. */
+export function rememberLoadedArt(artworkId: string, url: string) {
+  if (url) loaded.set(artworkId, url)
+}
+
+/** A rendition of this artwork already in the browser's cache, to show while another size loads. */
+export function loadedArtUrl(artworkId: string): string | undefined {
+  return loaded.get(artworkId)
+}

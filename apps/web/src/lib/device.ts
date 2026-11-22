@@ -90,7 +90,8 @@ function hold(locks: LockManager, name: string, waitMs: number): Promise<boolean
  * was and keeps playing.
  */
 export function claimTabDevice(): Promise<TabDevice> {
-  claim ??= (async () => {
+  if (claim) return claim
+  const claiming: Promise<TabDevice> = (async () => {
     const base = webDevice()
     const locks = typeof navigator === 'undefined' ? undefined : navigator.locks
     if (!locks) return { device: base, slot: 1 }
@@ -101,5 +102,9 @@ export function claimTabDevice(): Promise<TabDevice> {
       }
     }
   })()
+  // React's `use` reads a promise marked settled this way without suspending, so a page that
+  // claimed its device before rendering does not stop at the splash screen first.
+  void claiming.then(value => Object.assign(claiming, { status: 'fulfilled', value }), () => {})
+  claim = claiming
   return claim
 }
