@@ -1,4 +1,4 @@
-import { Button, ContextMenu, Host, HStack, Image, List, ProgressView, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, ContextMenu, Host, HStack, Image, List, ProgressView, Spacer, SwipeActions, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityHidden, accessibilityLabel, background, buttonStyle, clipShape, controlSize, dynamicTypeSize, environment, font, foregroundStyle, frame,
   labelStyle, lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, opacity, padding,
@@ -131,28 +131,29 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
             <Button onPress={playable ? () => handlers.play(item.index) : undefined}
               modifiers={[buttonStyle('plain'), accessibilityLabel(`${playable ? 'Play ' : ''}${track.title} by ${track.artistCredit}${
                 track.explicit ? ', Explicit' : ''}${playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`)]}>
-              <HStack spacing={10} modifiers={[frame({ height: rowHeight }), hitShape, ...(playable ? [] : [opacity(unavailableOpacity)])]}>
+              {/* A gray song fades its artwork, and its text takes colors that stay readable (3:1). */}
+              <HStack spacing={10} modifiers={[frame({ height: rowHeight }), hitShape]}>
                 {number !== undefined ? (
-                  <HStack modifiers={[frame({ width: 27 })]}>
+                  <HStack modifiers={[frame({ width: 27 }), ...(playable ? [] : [opacity(unavailableOpacity)])]}>
                     {current && loading !== 'none' ? <ProgressView modifiers={[controlSize('small'), tint(colors.accent)]} />
                       : current ? <Image systemName={playing === 'playing' ? 'waveform' : 'pause.fill'} color={colors.accent} size={16} /> : (
                       <Text modifiers={[foregroundStyle(colors.muted), font({ textStyle: 'footnote' })]}>{String(number)}</Text>
                     )}
                   </HStack>
                 ) : (
-                  <TrackCover track={track} />
+                  <ZStack modifiers={playable ? [] : [opacity(unavailableOpacity)]}><TrackCover track={track} /></ZStack>
                 )}
                 <VStack alignment="leading" spacing={3}>
                   <HStack spacing={5}>
-                    <Text modifiers={[foregroundStyle(current ? colors.accent : colors.text), font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
-                    {track.explicit && <Image systemName="e.square.fill" color={colors.muted} size={12} modifiers={[accessibilityHidden(true)]} />}
+                    <Text modifiers={[foregroundStyle(current ? colors.accent : playable ? colors.text : colors.fadedTitle), font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
+                    {track.explicit && <Image systemName="e.square.fill" color={playable ? colors.muted : colors.fadedCredit} size={12} modifiers={[accessibilityHidden(true)]} />}
                   </HStack>
                   {/* On an album page a row by the album's artist has no second line, unless it has something else to say. */}
                   {(showArtist || mark || loading !== 'none') && <HStack spacing={3}>
                     {/* Rows with a cover have no number to swap for the spinner, so it goes before the artist. */}
                     {number === undefined && loading !== 'none' ? <ProgressView modifiers={[controlSize('mini'), tint(colors.accent)]} />
                       : mark && <Image systemName={mark as 'arrow.down.circle.fill'} color={colors.muted} size={10} />}
-                    {(showArtist || loading === 'slow') && <Text modifiers={[foregroundStyle(colors.muted), font({ textStyle: 'caption' }), lineLimit(1)]}>
+                    {(showArtist || loading === 'slow') && <Text modifiers={[foregroundStyle(playable ? colors.muted : colors.fadedCredit), font({ textStyle: 'caption' }), lineLimit(1)]}>
                       {loading === 'slow' ? STILL_LOADING_LABEL : item.kind ? `${item.kind} · ${track.artistCredit}` : track.artistCredit}
                     </Text>}
                   </HStack>}

@@ -1,5 +1,5 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Button, Host, HStack, List, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Host, HStack, List, Spacer, SwipeActions, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, buttonStyle, dynamicTypeSize, environment, font, foregroundStyle, frame, labelStyle, lineLimit,
   listRowBackground, listRowInsets, listRowSeparatorTint, listStyle, opacity, scrollContentBackground, scrollDisabled, tint,
@@ -16,7 +16,7 @@ import { IconButton, Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton
 import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
 import { pendingQueueRow, queueRow } from './session';
-import { useColors } from '../theme';
+import { unavailableOpacity, useColors } from '../theme';
 
 /**
  * Rows have one height, which sizes the lists that hold them, so their text stops growing at
@@ -282,15 +282,17 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
   const detail = pending?.detail || row.detail;
   const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, wanted, viewer }) : [];
   const heart = heartButton(favorite, title);
-  return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
+  // A failed or gray song fades its cover, and its text takes colors that stay readable (3:1);
+  // the heart and menu keep their full color, since they still work.
+  return <HStack spacing={0} modifiers={[frame({ height: rowHeight })]}>
     <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }}
       modifiers={[plainButton, accessibilityLabel([pending?.title ?? title, detail].filter(Boolean).join(', '))]}>
       <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape]}>
-        <TrackCover track={track} size={38} />
+        <ZStack modifiers={failed ? [opacity(unavailableOpacity)] : []}><TrackCover track={track} size={38} /></ZStack>
         <VStack alignment="leading" spacing={3}>
           <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1),
-            ...(pending ? [foregroundStyle(colors.muted)] : [])]}>{pending?.title ?? title}</Text>
-          {detail ? <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), lineLimit(1)]}>{detail}</Text> : null}
+            ...(pending ? [foregroundStyle(colors.muted)] : failed ? [foregroundStyle(colors.fadedTitle)] : [])]}>{pending?.title ?? title}</Text>
+          {detail ? <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(failed ? colors.fadedCredit : colors.muted), lineLimit(1)]}>{detail}</Text> : null}
         </VStack>
         <Spacer minLength={4} />
       </HStack>
