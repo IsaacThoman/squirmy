@@ -1,4 +1,4 @@
-import { ARTIST_SECTION_KEYS, type AlbumDetail, type AlbumSummary, type ArtistSectionKey, type User } from '@squirmy/contracts'
+import { ARTIST_SECTION_KEYS, type AlbumDetail, type ArtistSectionKey, type User } from '@squirmy/contracts'
 
 // What plays and how it looks is one rule shared with the iOS app, so the two cannot drift.
 export {
