@@ -3,9 +3,12 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { useEndReached } from './use-end-reached'
 
-const gap = 20
-const rowGap = 28
-const minWidth = 168
+// The same measures as `CardGrid`: 16px between columns, 24px between rows, cards at least 160px wide.
+const gap = 16
+const rowGap = 24
+const minWidth = 160
+/** A card's two lines of text under its artwork. */
+const captionHeight = 44
 
 type VirtualGridProps<T> = {
   items: T[]
@@ -43,7 +46,7 @@ export function VirtualGrid<T>({ items, getKey, renderItem, label, onEndReached 
   const virtualizer = useVirtualizer({
     count: rows,
     getScrollElement: () => scroller,
-    estimateSize: () => cardWidth + 56 + rowGap,
+    estimateSize: () => cardWidth + captionHeight + rowGap,
     overscan: 3,
     scrollMargin: layout.margin,
     initialRect: { width: 1024, height: 900 },

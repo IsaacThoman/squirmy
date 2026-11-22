@@ -2,7 +2,7 @@ import type { QueueEntry, TrackSummary } from '@squirmy/contracts'
 import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { LibraryContext, type LibraryActions } from '@/player/library-context'
 import { OnDemandContext, type OnDemand } from '@/player/on-demand-context'
-import { PlayerContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem } from '@/player/player-context'
+import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem } from '@/player/player-context'
 import { ArtUrlContext } from '@/lib/artwork'
 import { toast } from '@/lib/toast'
 import { fixtureArtUrl, lyricsFor, playlistSummaries, track } from './catalog'
@@ -71,9 +71,11 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
     <ArtUrlContext value={fixtureArtUrl}>
       <LibraryContext value={library}>
         <OnDemandContext value={onDemand}>
-          <PlayerContext value={player}>
-            <PositionContext value={positionClock.shown}>{children}</PositionContext>
-          </PlayerContext>
+          <PlayerControlsContext value={controls}>
+            <PlayerContext value={player}>
+              <PositionContext value={positionClock.shown}>{children}</PositionContext>
+            </PlayerContext>
+          </PlayerControlsContext>
         </OnDemandContext>
       </LibraryContext>
     </ArtUrlContext>
@@ -86,6 +88,7 @@ const onDemand: OnDemand = { canRequest: true, isPreparing: () => false, getAlbu
 function useFixtureLibrary(): LibraryActions {
   const [wanted, setWanted] = useState(() => new Map<string, boolean>())
   return useMemo(() => ({
+    wantlistEnabled: true,
     isWanted: (id, fromServer = false) => wanted.get(id) ?? fromServer,
     setLiked: () => {},
     setWanted: (target, value) => setWanted(map => new Map(map).set(target.type === 'album' ? target.album.id : target.track.id, value)),
