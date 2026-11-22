@@ -435,6 +435,19 @@ describe('sessions', () => {
     expect((await getSnapshot(user.id)).queue.queue).toHaveLength(COMMAND_TRACK_LIMIT - 1)
   })
 
+  it('acks commands past the rate limit rate_limited without applying them', async () => {
+    const a = await device('device-a-0020')
+    expect(await a.send(playAlbum())).toEqual({ ok: true, version: 1 })
+    const acks = await Promise.all(Array.from({ length: 60 }, (_, index) => a.send({ type: 'seek', positionMs: (index + 1) * 1000 })))
+    // The burst left 39 tokens; one or two more may refill while the rest arrive.
+    expect(acks.slice(0, 39).every((ack) => ack.ok)).toBe(true)
+    const limited = acks.filter((ack) => !ack.ok)
+    expect(limited.length).toBeGreaterThanOrEqual(15)
+    expect(limited).toEqual(limited.map(() => ({ ok: false, error: 'rate_limited' })))
+    // Every seek that went through moved the position, and none of the others did.
+    expect((await getSnapshot(user.id)).version).toBe(1 + acks.length - limited.length)
+  })
+
   it('prepares on-demand tracks and follows them to ready or failed', async () => {
     const remote = await createAlbum({ tracks: [{ title: 'Far' }, { title: 'Farther' }, { title: 'Farthest' }] })
     const [far, farther, farthest] = remote.tracks.map((track) => track.recordingId) as [string, string, string]
