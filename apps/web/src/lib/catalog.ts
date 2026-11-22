@@ -1,7 +1,7 @@
 import type { AlbumDetail, AlbumSummary, User } from '@squirmy/contracts'
 
 // What plays and how it looks is one rule shared with the iOS app, so the two cannot drift.
-export { albumNote, albumPresentation, canFetch, isPlayable, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core'
+export { albumNote, albumPresentation, canFetch, isPlayable, trackLibraryToggle, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core'
 
 const albumTypes: Record<AlbumSummary['type'], string> = {
   album: 'Album', ep: 'EP', single: 'Single', compilation: 'Compilation', live: 'Live', soundtrack: 'Soundtrack', other: 'Release',

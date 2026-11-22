@@ -11,7 +11,7 @@ import { TrackRow, type NowPlaying } from './TrackList'
 const requester: Viewer = { role: 'member', canAcquire: true }
 const member: Viewer = { role: 'member', canAcquire: false }
 
-type RowOptions = { nowPlaying?: NowPlaying; viewer?: Viewer; wanted?: boolean; inCollection?: boolean; track?: TrackSummary }
+type RowOptions = { nowPlaying?: NowPlaying; viewer?: Viewer; wanted?: boolean; track?: TrackSummary }
 
 function renderRow(slug: string, { viewer = requester, ...props }: RowOptions = {}) {
   const onPlay = vi.fn()
@@ -109,20 +109,36 @@ describe('TrackRow', () => {
     })
 
     it('removes a song the user added', async () => {
-      const saved = { ...track('night-swimming-demo'), inLibrary: true }
+      const saved = { ...track('night-swimming-demo'), inLibrary: true, library: 'saved' as const }
       renderRow('night-swimming-demo', { track: saved })
       expect(await menuItems('Night Swimming (Demo)')).toContain('Remove from library')
     })
 
-    it('offers no library entry for a song on the server for everyone, or from a server that does not say', async () => {
-      renderRow('soft-signal', { inCollection: true })
-      expect(await menuItems('Soft Signal')).not.toContain('Remove from library')
-      await userEvent.keyboard('{Escape}')
-      screen.getByRole('listitem').remove()
-      renderRow('soft-signal', { track: { ...track('soft-signal'), inLibrary: undefined } })
+    it('offers no library entry for a song removing would not take out, or from a server that does not say', async () => {
+      // A collection song, wherever it is listed: an artist's top songs, search, a playlist.
+      for (const library of ['collection', 'album'] as const) {
+        renderRow('soft-signal', { track: { ...track('soft-signal'), inLibrary: true, library } })
+        const items = await menuItems('Soft Signal')
+        expect(items).not.toContain('Remove from library')
+        expect(items).not.toContain('Add to library')
+        await userEvent.keyboard('{Escape}')
+        screen.getByRole('listitem').remove()
+      }
+      renderRow('soft-signal', { track: { ...track('soft-signal'), inLibrary: undefined, library: undefined } })
       const items = await menuItems('Soft Signal')
       expect(items).not.toContain('Add to library')
       expect(items).not.toContain('Remove from library')
+    })
+
+    it('offers a page for each of the song\'s artists, each linking to its own', async () => {
+      const lead = track('soft-signal').artists[0]!
+      const guest = { id: '01a20236-8dd0-77ed-9c01-ab24582bf8cf', name: 'Guest Artist' }
+      renderRow('soft-signal', { track: { ...track('soft-signal'), artistCredit: `${lead.name} feat. ${guest.name}`, artists: [lead, guest] } })
+      expect(screen.getByRole('link', { name: lead.name })).toHaveAttribute('href', `/artist/${lead.id}`)
+      expect(screen.getByRole('link', { name: guest.name })).toHaveAttribute('href', `/artist/${guest.id}`)
+      const items = await menuItems('Soft Signal')
+      expect(items).toContain(`Go to ${lead.name}`)
+      expect(items).toContain(`Go to ${guest.name}`)
     })
 
     it('offers the Wantlist only for what does not play, and only with the Wantlist on', async () => {

@@ -5,7 +5,7 @@ import {
 import { View } from 'react-native';
 import type { ComponentProps } from 'react';
 import type { Artwork, TrackSummary } from '@squirmy/contracts';
-import { useRunTrackAction, useTrackActions, type TrackAction, type TrackActionOptions } from '../library/trackActions';
+import { trackActionKey, useRunTrackAction, useTrackActions, type TrackAction, type TrackActionOptions } from '../library/trackActions';
 import { Cover } from '../ui';
 import { useColors } from '../theme';
 
@@ -58,7 +58,7 @@ export function TrackCover({ track, size = 42, radius = 8 }: { track: TrackSumma
 /** Actions as menu buttons. Plain elements: nothing is computed until one is chosen. */
 export function TrackActionButtons({ actions, onRun }: { actions: readonly TrackAction[]; onRun: (action: TrackAction) => void }) {
   return <>
-    {actions.map(action => <Button key={action.id} label={action.title} systemImage={action.icon as SymbolName}
+    {actions.map(action => <Button key={trackActionKey(action)} label={action.title} systemImage={action.icon as SymbolName}
       role={action.destructive ? 'destructive' : undefined} onPress={() => onRun(action)} />)}
   </>;
 }

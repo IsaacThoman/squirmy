@@ -15,7 +15,7 @@ import { tabIn } from './tabs';
 import { createStartGuard } from './pending';
 import { trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
 
-export { trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
+export { trackActionKey, trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
 
 /** Radios started from a song's menu, which closes before the radio arrives. */
 const radioStarts = createStartGuard();
