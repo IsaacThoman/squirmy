@@ -193,7 +193,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists directories only, symlinks resolved; home directory by default |
 | `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | a folder that is already a root is 409 `duplicate_root` with `details.rootId`; `template` is checked with organize's `validateTemplate`; a bad one is `invalid_request` with an issue on `template` |
 | `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` |
-| `GET /home` | catalog | `HomeResponse`; no `wantlist` section while the wantlist is off |
+| `GET /home` | catalog | `HomeResponse`; no `wantlist` section, and no refresh of wants, while the wantlist is off |
 | `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
 | `POST /tracks/summaries` | catalog | hydrate queue entries |
 | `GET /tracks/:id/playback` | streaming | `PlaybackDescriptor` |
@@ -201,7 +201,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /art/:assetId/:size` | artwork | no auth; immutable cache headers |
 | `PUT/DELETE /me/likes/:type/:id`, `GET /me/likes/:type` | userdata | |
 | `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/:id`, `POST /playlists/:id/items`, `POST /playlists/:id/items/move`, `DELETE /playlists/:id/items/:itemId` | userdata | |
-| `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | while `wantlistEnabled` is off, `GET /me/wants` is empty and `PUT`/`DELETE` are 409 `wantlist_disabled`; stored wants are kept |
+| `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | while `wantlistEnabled` is off, `GET /me/wants` is empty, `PUT`/`DELETE` are 404 `wantlist_disabled`, album pages say `wanted: false` and imports skip refreshing wants; stored wants are kept |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
 | `GET /me/scrobbling`, `PUT/DELETE /me/scrobbling/listenbrainz`, `POST /me/scrobbling/lastfm/start`, `DELETE /me/scrobbling/lastfm` | scrobble | every mutation returns `ScrobblingStatus` |

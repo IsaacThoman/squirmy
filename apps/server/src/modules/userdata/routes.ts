@@ -7,7 +7,7 @@ import {
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { requireUser } from '../../lib/auth.js'
-import { conflict } from '../../lib/errors.js'
+import { notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { listHistory } from './history.js'
 import { likeEntity, listLikes, unlikeEntity } from './likes.js'
@@ -24,7 +24,7 @@ const WantParams = z.object({ type: WantEntityType, id: Id })
 const ItemParams = z.object({ id: Id, itemId: Id })
 
 async function requireWantlist() {
-  if (!(await getServerSettings()).wantlistEnabled) throw conflict('The wantlist is switched off on this server', 'wantlist_disabled')
+  if (!(await getServerSettings()).wantlistEnabled) throw notFound('The wantlist is switched off on this server', 'wantlist_disabled')
 }
 
 export async function userdataRoutes(app: FastifyInstance) {

@@ -3,6 +3,7 @@ import type { AlbumDetail, AlbumDisc, ArtistDetail, Lyrics, TrackSummary } from 
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { notFound } from '../../lib/errors.js'
+import { getServerSettings } from '../../lib/settings.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
 import { similarArtists } from '../radio/index.js'
 import { canonicalRelease } from './availability.js'
@@ -56,7 +57,7 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
   await ensureAlbumDetail(await resolveOrThrow('albums', id, 'album'))
   // Completing a stub may merge it into the album's existing row.
   const albumId = await resolveOrThrow('albums', id, 'album')
-  const [[summary], [extra], tracks] = await Promise.all([
+  const [[summary], [extra], tracks, { wantlistEnabled }] = await Promise.all([
     albumSummaries([albumId]),
     db.execute<{ releaseDate: string | null; genres: string[]; description: string | null; label: string | null; liked: boolean; wanted: boolean }>(sql`
       select coalesce(rl.release_date, a.release_date) as "releaseDate", a.genres, a.description, rl.label,
@@ -65,6 +66,7 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
       from albums a left join releases rl on rl.id = ${canonicalRelease('a')}
       where a.id = ${albumId}`),
     albumTrackList(albumId),
+    getServerSettings(),
   ])
   if (!summary || !extra) throw notFound('No such album', 'album_not_found')
 
@@ -83,7 +85,8 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
     disc.tracks.push({ ...summary, disc: track.disc, position: track.position })
   }
   const durationMs = discs.reduce((total, disc) => total + disc.tracks.reduce((sum, track) => sum + track.durationMs, 0), 0)
-  return { ...summary, ...extra, durationMs, discs }
+  // A switched-off wantlist keeps its rows but marks nothing as wanted.
+  return { ...summary, ...extra, wanted: wantlistEnabled && extra.wanted, durationMs, discs }
 }
 
 /**

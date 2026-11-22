@@ -274,8 +274,9 @@ describe('userdata', () => {
       await updateServerSettings({ wantlistEnabled: false })
       try {
         expect(await wantsOf(wanter)).toEqual({ items: [], nextCursor: null })
-        expect(errorCode(await call(wanter, { method: 'PUT', url: `/me/wants/album/${other.albumId}` }), 409)).toBe('wantlist_disabled')
-        expect(errorCode(await call(wanter, { method: 'DELETE', url: `/me/wants/album/${album.albumId}` }), 409)).toBe('wantlist_disabled')
+        expect(body(await call(wanter, { url: `/albums/${album.albumId}` }), AlbumDetail).wanted).toBe(false)
+        expect(errorCode(await call(wanter, { method: 'PUT', url: `/me/wants/album/${other.albumId}` }), 404)).toBe('wantlist_disabled')
+        expect(errorCode(await call(wanter, { method: 'DELETE', url: `/me/wants/album/${album.albumId}` }), 404)).toBe('wantlist_disabled')
         // The import pipeline keeps refreshing wants either way.
         await refreshWants()
         expect(await db.select({ entityId: wants.entityId }).from(wants).where(eq(wants.userId, wanter.id))).toEqual([{ entityId: album.albumId }])
@@ -283,6 +284,7 @@ describe('userdata', () => {
         await updateServerSettings({ wantlistEnabled: true })
       }
       expect((await wantsOf(wanter)).items.map(describeItem)).toEqual([['album', album.albumId, false]])
+      expect(body(await call(wanter, { url: `/albums/${album.albumId}` }), AlbumDetail).wanted).toBe(true)
     })
 
     it('lists wants newest first and marks them fulfilled once imports cover them', async () => {
