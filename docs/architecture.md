@@ -192,7 +192,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/:id`; `GET/POST /admin/invites`, `DELETE /admin/invites/:id` | admin | the last active admin cannot be demoted, disabled or deleted |
 | `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists directories only, symlinks resolved; home directory by default |
 | `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | a folder that is already a root is 409 `duplicate_root` with `details.rootId`; `template` is checked with organize's `validateTemplate`; a bad one is `invalid_request` with an issue on `template` |
-| `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` |
+| `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` (artists have one order and no genre filter); tracks by `year` follow their album's year, then path order within it |
 | `GET /home` | catalog | `HomeResponse` |
 | `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
 | `POST /tracks/summaries` | catalog | hydrate queue entries |
