@@ -324,7 +324,7 @@ describe('acquired tracks and their album', () => {
   })
 
   it('waits for a busy provider instead of graying the track out, and never sends it more jobs than it takes', async () => {
-    const album = await identified({ title: 'Busy Night', year: 2008, tracks: Array.from({ length: 4 }, (_, index) => ({ title: `Rush ${index + 1}`, durationMs: 1000 })) })
+    const album = await identified({ title: 'Busy Night', year: 2008, tracks: Array.from({ length: 3 }, (_, index) => ({ title: `Rush ${index + 1}`, durationMs: 1000 })) })
     configureAcquisition({ slotWaitSeconds: 1 })
     try {
       mock.settings.busyTimes = 2
@@ -334,10 +334,11 @@ describe('acquired tracks and their album', () => {
       expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, first))).toEqual([])
 
       // Playback asks for the current entry and the next ones at the same time, more than
-      // the provider takes at once. Three, not more: each import holds a connection of the
-      // test database's four while it runs.
+      // the provider takes at once. Two, not more: each import holds a connection of the
+      // test database's four while it runs, and a second one while it files, so three
+      // imports at once can take them all.
       mock.settings.delayMs = 400
-      mock.settings.maxConcurrent = 2
+      mock.settings.maxConcurrent = 1
       expect((await app.inject({ method: 'POST', url: `/api/v1/admin/acquisition/providers/${providerId}/test`, headers: admin.headers })).statusCode).toBe(200)
       const rest = album.tracks.slice(1).map((track) => track.recordingId)
       let peak = 0
@@ -350,9 +351,8 @@ describe('acquired tracks and their album', () => {
       for (const id of rest) await settle(id)
       clearInterval(watch)
       for (const id of rest) expect((await jobsFor(id)).at(-1)).toMatchObject({ status: 'completed', error: null })
-      expect(peak).toBeGreaterThan(0)
-      expect(peak).toBeLessThanOrEqual(2)
-      expect((await libraryAlbums(album.artist.id)).map((item) => [item.id, item.ownedTrackCount])).toEqual([[album.albumId, 4]])
+      expect(peak).toBe(1)
+      expect((await libraryAlbums(album.artist.id)).map((item) => [item.id, item.ownedTrackCount])).toEqual([[album.albumId, 3]])
     } finally {
       configureAcquisition({ slotWaitSeconds: 5 })
       mock.settings.maxConcurrent = 4
