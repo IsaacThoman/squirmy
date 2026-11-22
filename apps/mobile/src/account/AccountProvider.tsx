@@ -1,4 +1,4 @@
-import { createApiClient } from '@squirmy/client-core';
+import { ApiError, createApiClient } from '@squirmy/client-core';
 import { queryKeys } from '@squirmy/contracts';
 import { focusManager, QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -53,10 +53,17 @@ function apiFor(server: Server, token: string | null, timeoutMs: number, onUnaut
  */
 async function restore(queryClient: QueryClient): Promise<AuthEvent> {
   const stored = await loadAccount();
-  if (stored.server && stored.token && stored.user) {
+  if (!stored.server || !stored.token) return { type: 'restored', ...stored };
+  if (stored.user) {
     await restoreCache(queryClient, cacheBuster(stored.server.url, stored.user.id));
+    return { type: 'restored', ...stored };
   }
-  return { type: 'restored', ...stored };
+  // A session saved without its user (by an early version) has to ask the server once.
+  try {
+    return { type: 'restored', ...stored, user: await apiFor(stored.server, stored.token, requestTimeoutMs).auth.me() };
+  } catch (error) {
+    return { type: 'restored', server: stored.server, token: null, user: null, expired: error instanceof ApiError && error.status === 401 };
+  }
 }
 
 type AccountContextValue = {
