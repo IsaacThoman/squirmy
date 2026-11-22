@@ -1,4 +1,4 @@
-import { TrackStore } from '@squirmy/client-core';
+import { planChanges, TrackStore } from '@squirmy/client-core';
 import {
   queryKeys, type AlbumDetail, type LikeEntityType, type Page, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
   type WantEntityType,
@@ -10,8 +10,9 @@ import {
 import { useAccountKey, useSignedInApi, type Api } from '../account/AccountProvider';
 import { useNotice } from '../Notice';
 import { accountItem } from './accountStorage';
+import { applyChanges } from './changes';
 import { LikeQueue, refusedNotice, type QueuedLike } from './likeQueue';
-import { findTrack, patchEntity, remembersToDrop, withLikedTrack } from './likePatch';
+import { findTrack, remembersToDrop, withLikedTrack } from './likePatch';
 import { useRealtime } from './realtime';
 
 type LikeKey = `${LikeEntityType}:${string}`;
@@ -38,21 +39,17 @@ const retryMaxMs = 4 * 60_000;
 const likedTracksKey = [...queryKeys.likes(), 'track'];
 
 /**
- * Shows a heart everywhere at once: every cached answer that carries the item gets the new
+ * Shows a heart everywhere at once, as the same `patch` change the server then sends every
+ * device of the user (`applyChanges`): every cached answer that carries the item gets the new
  * flag, and Liked Songs gains or loses the track, so nothing has to be fetched again. A
  * hearted track is in the library; an unhearted one may still be (its album, the server's
- * collection), so `inLibrary` waits for the server then.
+ * collection), so `inLibrary` waits for the server's patch then.
  */
 function patchLike(queryClient: QueryClient, type: LikeEntityType, id: string, liked: boolean) {
-  const queries = queryClient.getQueryCache().getAll();
-  const patch = type === 'track' && liked ? { liked, inLibrary: true } : { liked };
-  for (const query of queries) {
-    const data = query.state.data;
-    const patched = patchEntity(data, id, patch);
-    // Keeps the time the data was loaded, so the patch does not make old data look fresh.
-    if (patched !== data) queryClient.setQueryData(query.queryKey, patched, { updatedAt: query.state.dataUpdatedAt });
-  }
+  const fields = type === 'track' && liked ? { liked, inLibrary: true } : { liked };
+  applyChanges(queryClient, planChanges([{ kind: 'patch', entity: type, id, fields }]), { own: true });
   if (type !== 'track') return;
+  const queries = queryClient.getQueryCache().getAll();
   const list = queryClient.getQueryState(likedTracksKey);
   if (!list?.data) return;
   let track: TrackSummary | undefined;
@@ -63,15 +60,6 @@ function patchLike(queryClient: QueryClient, type: LikeEntityType, id: string, l
   }
   queryClient.setQueryData<InfiniteData<Page<TrackSummary>>>(likedTracksKey,
     data => data && withLikedTrack(data, id, track ?? null), { updatedAt: list.dataUpdatedAt });
-}
-
-/** What a heart changes besides the item itself: the library's lists, Home and the likes lists. */
-function invalidateLibrary(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({ queryKey: queryKeys.libraryAlbums() });
-  void queryClient.invalidateQueries({ queryKey: queryKeys.libraryTracks() });
-  void queryClient.invalidateQueries({ queryKey: queryKeys.libraryArtists() });
-  void queryClient.invalidateQueries({ queryKey: queryKeys.likes() });
-  void queryClient.invalidateQueries({ queryKey: queryKeys.home() });
 }
 
 /**
@@ -93,16 +81,16 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   }, [api]);
   const tracks = useMemo(() => new TrackStore(body => apiRef.current?.catalog.trackSummaries(body) ?? noSummaries()), [account]);
   const queue = useMemo(() => api && account ? new LikeQueue(likeStorage(account), async ({ type, id, liked }, savedAt) => {
-    // The server tells this phone too; it already shows the change, so that echo is not refetched.
+    // The server patches this phone too (it already shows the change, so that echo is not
+    // refetched) and invalidates the lists that gain or lose the item: the library's, Liked
+    // Songs (in its place, for an Undo) and Home. A reconnect refreshes them if that is missed.
     expectEcho([type, id]);
     // An Undo of a removal gives the save its old time back, so it keeps its place in the lists.
     const answer = liked
       ? await api.userdata.like(type, id, savedAt ? { savedAt } : {}).then(() => undefined)
       : await api.userdata.unlike(type, id).then(removed => ({ savedAt: removed.savedAt }));
-    // The library's lists, Home and Liked Songs now hold the change.
-    invalidateLibrary(queryClient);
     return answer;
-  }) : null, [account, api, expectEcho, queryClient]);
+  }) : null, [account, api, expectEcho]);
   const [likes, setLikes] = useState<ReadonlyMap<LikeKey, boolean>>(new Map());
   useEffect(() => setLikes(new Map(queue?.pending.map(like => [`${like.type}:${like.id}`, like.liked] as const))), [queue]);
 
