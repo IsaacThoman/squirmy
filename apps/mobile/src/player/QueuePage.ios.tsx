@@ -9,7 +9,7 @@ import type { TrackSummary } from '@squirmy/contracts';
 import { useWantlistEnabled } from '../account/AccountProvider';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
-import { useLiked, useTrack, useTrackStore } from '../data/library';
+import { useLiked, useTrack, useTrackStore, useWanted } from '../data/library';
 import { heartButton } from '../library/heart';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner } from '../library/trackActions';
 import { IconButton, Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
@@ -272,6 +272,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
   const playable = useCanPlay(track);
   const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
+  const wanted = useWanted(track?.id);
   const viewer = useViewer();
   const row = queueRow(entry, track, { playable, offline, viewer });
   const failed = row.unavailable;
@@ -279,7 +280,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
   const pending = track ? null : pendingQueueRow(offline);
   const title = track?.title ?? '';
   const detail = pending?.detail || row.detail;
-  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, viewer }) : [];
+  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, wanted, viewer }) : [];
   const heart = heartButton(favorite, title);
   return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
     <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }}
