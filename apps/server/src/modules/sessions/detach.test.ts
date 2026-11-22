@@ -404,6 +404,20 @@ describe('detached sessions', () => {
     expect((await last.hello({ detached: true })).snapshot.state).toMatchObject({ playing: false, activeDeviceId: null, positionMs: 15_000 })
   })
 
+  it('acks detaches and attaches past the rate limit rate_limited without applying them', async () => {
+    const a = await device('device-a-17')
+    // Detach and attach share one budget of ten; at one every two seconds, the rest stay limited.
+    const replies = await Promise.all(Array.from({ length: 20 }, (_, index) => (index % 2 ? a.attach() : a.detach())))
+    expect(replies.slice(0, 10).every((reply) => reply.ok)).toBe(true)
+    const limited = replies.filter((reply) => !reply.ok)
+    expect(limited.length).toBeGreaterThanOrEqual(8)
+    expect(limited).toEqual(limited.map(() => ({ ok: false, error: 'rate_limited' })))
+    // The device is where the last move that went through put it.
+    const last = ok(replies.findLast((reply) => reply.ok)!)
+    expect((await a.hello({ detached: true })).snapshot.scope).toEqual(last.snapshot.scope)
+    expect(await storedRows()).toHaveLength(last.snapshot.scope?.type === 'device' ? 1 : 0)
+  })
+
   it('keeps at most eight own sessions, making room from the one gone longest', async () => {
     const watcher = await device('device-w-15', { canPlay: false })
     const gone = await device('device-gone-15')
