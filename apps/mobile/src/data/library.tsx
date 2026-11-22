@@ -288,7 +288,7 @@ export function usePlaylistActions() {
 
   return {
     create: (name: string) => create.mutateAsync(name),
-    rename: (id: string, name: string) => rename.mutate({ id, name }),
+    rename: (id: string, name: string) => rename.mutateAsync({ id, name }),
     remove: (id: string) => remove.mutate(id),
     add: (playlist: Pick<PlaylistSummary, 'id' | 'name'>, tracks: readonly TrackSummary[]) => add.mutate({ id: playlist.id, name: playlist.name, tracks }),
     move: (id: string, itemId: string, toIndex: number) => edit.mutate({ id, itemId, toIndex }),

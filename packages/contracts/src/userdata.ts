@@ -52,8 +52,11 @@ export const PLAYLIST_ITEM_LIMIT = 10_000
 /** Most playlists one user owns. Creating another fails with `too_many_playlists` (409). */
 export const PLAYLIST_LIMIT = 1000
 
+/** Longest playlist name, counted after trimming. */
+export const PLAYLIST_NAME_MAX_LENGTH = 120
+
 export const CreatePlaylistRequest = z.object({
-  name: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(1).max(PLAYLIST_NAME_MAX_LENGTH),
   description: z.string().max(2000).nullable().optional(),
   isPublic: z.boolean().optional(),
 })

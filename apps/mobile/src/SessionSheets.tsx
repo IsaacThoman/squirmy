@@ -1,8 +1,8 @@
 import type { SessionMoveResult } from '@squirmy/client-core';
-import type { DeviceInfo, PlaylistSummary } from '@squirmy/contracts';
+import { PLAYLIST_NAME_MAX_LENGTH, type DeviceInfo, type PlaylistSummary } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAccount } from './account/AccountProvider';
 import { closeSheet } from './closeSheet';
 import { usePlaylistActions, useTrack } from './data/library';
@@ -185,24 +185,47 @@ export function NamePlaylistSheet({ mode, id, name, trackId, albumId }: {
   const link = usePageLinks();
   const track = useTrack(trackId || null, albumId || null);
   const playlists = usePlaylistActions();
-  const [value, setValue] = useState(name ?? '');
-  const ready = Boolean(value.trim()) && (mode === 'create' || value.trim() !== name);
+  // A new playlist is named after the song by default, and a song's title can be longer than a name may be.
+  const [value, setValue] = useState((name ?? '').slice(0, PLAYLIST_NAME_MAX_LENGTH));
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // Closed by hand while the server was answering, the sheet must not close a second time: that would leave the page beneath.
+  const open = useRef(true);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+    };
+  }, []);
+  const ready = Boolean(value.trim()) && (mode === 'create' || value.trim() !== name) && !saving;
+  // The sheet closes once the server has the name, so a refusal leaves the text here to try again;
+  // the app's notices would be hidden under the sheet, so it says so here too.
   const save = () => {
     if (!ready) return;
     void Haptics.selectionAsync();
-    if (mode === 'rename' && id) playlists.rename(id, value.trim());
-    else {
-      void playlists.create(value.trim()).then(playlist => {
+    setSaving(true);
+    setFailed(false);
+    const done = mode === 'rename' && id
+      ? playlists.rename(id, value.trim()).then(() => {
+        if (open.current) closeSheet(router);
+      })
+      : playlists.create(value.trim()).then(playlist => {
         if (track) playlists.add(playlist, [track]);
+        if (!open.current) return;
+        closeSheet(router);
         // Made from the Library, the new playlist opens, ready for songs; made while adding a song, the person stays where they were.
-        else router.navigate(link('playlist', playlist.id));
-      }, () => undefined);
-    }
-    closeSheet(router);
+        if (!track) router.navigate(link('playlist', playlist.id));
+      });
+    done.catch(() => {
+      if (!open.current) return;
+      setSaving(false);
+      setFailed(true);
+    });
   };
   return (
     <Sheet title={mode === 'rename' ? 'Rename playlist' : 'New playlist'}>
-      <SheetField label="Playlist name" value={value} onChange={setValue} onSubmit={save} autoFocus />
+      <SheetField label="Playlist name" value={value} onChange={setValue} onSubmit={save} autoFocus maxLength={PLAYLIST_NAME_MAX_LENGTH} />
+      {failed && <SheetNote>{mode === 'rename' ? 'Couldn’t rename the playlist. Try again.' : 'Couldn’t create the playlist. Try again.'}</SheetNote>}
       <SheetAction title={mode === 'rename' ? 'Save' : track ? 'Create and add' : 'Create'} disabled={!ready} onPress={save} />
     </Sheet>
   );
