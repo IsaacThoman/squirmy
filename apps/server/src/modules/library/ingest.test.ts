@@ -4,7 +4,9 @@ import path from 'node:path'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albums, mediaFiles } from '../../database/schema.js'
+import { acquisitionJobs, acquisitionProviders, albumArtists, albums, artists, imports, mediaFiles, recordingArtists, recordings } from '../../database/schema.js'
+import { newId } from '../../lib/ids.js'
+import { createAlbum, createArtist } from '../../test/factories.js'
 import { startJobs, stopJobs } from '../../jobs/index.js'
 import { makeAlbum, makeTone } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -75,4 +77,82 @@ describe('ingesting a group that lost a file', () => {
       expect(await albumTitle(moved)).toBe('Underwater Light')
     })
   }
+})
+
+// Provider deliveries: the tags name artists the store's way; the request names the catalog's.
+describe('ingesting a provider delivery', () => {
+  useTestDatabase()
+  let library = ''
+  let rootId = ''
+
+  beforeAll(async () => {
+    library = await realpath(await mkdtemp(path.join(tmpdir(), 'squirmy-ingest-delivery-')))
+    await startJobs({ work: false })
+    rootId = (await insertRoot({ name: 'Music', path: library, mode: 'managed', watch: false })).id
+  })
+  afterAll(async () => {
+    await stopJobs()
+    await stopProgress()
+    await rm(library, { recursive: true, force: true })
+  })
+
+  /** A delivered file for an acquisition job asking for `recordingIds` (of `albumId`), ingested. */
+  async function deliver(input: { folder: string; artist: string; album: string; title: string; recordingIds: string[]; albumId: string }) {
+    const [provider] = await db.select({ id: acquisitionProviders.id }).from(acquisitionProviders).limit(1)
+    const providerId = provider?.id ?? (await db.insert(acquisitionProviders).values({ id: newId(), name: 'Mock', baseUrl: 'http://mock.invalid', secretEncrypted: 'x' }).returning())[0]!.id
+    const importId = newId()
+    await db.insert(imports).values({ id: importId, kind: 'acquisition', source: 'provider', stagingPath: library })
+    await db.insert(acquisitionJobs).values({
+      id: newId(), providerId, recordingIds: input.recordingIds, albumId: input.albumId, importId, idempotencyKey: newId(), status: 'importing',
+    })
+    await makeTone(library, { path: `${input.folder}/01 ${input.title}.flac`, durationSec: 1, tags: { title: input.title, artist: input.artist, album_artist: input.artist, album: input.album, track: 1 } })
+    await scanRoot({ rootId, paths: [input.folder] })
+    const [file] = await db.select().from(mediaFiles).where(sql`${mediaFiles.relPath} like ${`${input.folder}/%`}`)
+    await db.update(mediaFiles).set({ importId }).where(eq(mediaFiles.id, file!.id))
+    await probeFile({ fileId: file!.id })
+    const [probed] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, file!.id))
+    await ingestGroup({ rootId, groupKey: probed!.groupKey! })
+    return (await db.select().from(mediaFiles).where(eq(mediaFiles.id, file!.id)))[0]!
+  }
+
+  const creditsOf = async (recordingId: string) => (await db.select({ artistId: recordingArtists.artistId }).from(recordingArtists)
+    .where(eq(recordingArtists.recordingId, recordingId)).orderBy(recordingArtists.position)).map((row) => row.artistId)
+
+  it('credits a played track to the artists it was requested under, whatever its tags say', async () => {
+    const mira = await createArtist({ name: 'Mira Vale' })
+    const harbor = await createAlbum({ artist: mira, title: 'Glass Harbor', tracks: [{ title: 'Low Tide' }] })
+    const before = (await db.select({ id: artists.id }).from(artists)).length
+    // The store spells the artist its own way.
+    const file = await deliver({ folder: '_Incoming/one', artist: 'MIRA VALE (Official)', album: 'Glass Harbor', title: 'Low Tide', recordingIds: [harbor.tracks[0]!.recordingId], albumId: harbor.albumId })
+    expect((await db.select({ id: artists.id }).from(artists)).length).toBe(before)
+    expect(await creditsOf(file.recordingId!)).toEqual([mira.id])
+    const [built] = await db.select({ albumId: albumArtists.artistId }).from(albumArtists).where(eq(albumArtists.albumId, file.albumId!))
+    expect(built!.albumId).toBe(mira.id)
+  })
+
+  it('splits a whole store credit into the requested artists of an album delivery', async () => {
+    const grimes = await createArtist({ name: 'Grimes' })
+    const vadakin = await createArtist({ name: 'VADAKIN' })
+    const single = await createAlbum({ artist: grimes, title: 'ACCELERANDO', tracks: [{ title: 'ACCELERANDO' }, { title: 'ACCELERANDO (Extended)' }] })
+    for (const track of single.tracks) {
+      await db.insert(recordingArtists).values({ recordingId: track.recordingId, position: 1, artistId: vadakin.id, creditedName: 'VADAKIN', joinPhrase: '' })
+      await db.execute(sql`update recording_artists set join_phrase = ' & ' where recording_id = ${track.recordingId} and position = 0`)
+      await db.update(recordings).set({ artistCredit: 'Grimes & VADAKIN' }).where(eq(recordings.id, track.recordingId))
+    }
+    const before = (await db.select({ id: artists.id }).from(artists)).length
+    // Two recordings asked for, so the tags are read; Deezer joins the credit with a comma.
+    const file = await deliver({ folder: '_Incoming/two', artist: 'Grimes, VADAKIN', album: 'ACCELERANDO', title: 'ACCELERANDO', recordingIds: single.tracks.map((track) => track.recordingId), albumId: single.albumId })
+    expect((await db.select({ id: artists.id }).from(artists)).length).toBe(before)
+    expect(await creditsOf(file.recordingId!)).toEqual([grimes.id, vadakin.id])
+  })
+
+  it('still builds artists from tags for files nobody asked for', async () => {
+    await makeTone(library, { path: 'Elsewhere/01 Tune.flac', durationSec: 1, tags: { title: 'Tune', artist: 'Brand New Band', album: 'Elsewhere', track: 1 } })
+    await scanRoot({ rootId, paths: ['Elsewhere'] })
+    const [file] = await db.select().from(mediaFiles).where(sql`${mediaFiles.relPath} like 'Elsewhere/%'`)
+    await probeFile({ fileId: file!.id })
+    const [probed] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, file!.id))
+    await ingestGroup({ rootId, groupKey: probed!.groupKey! })
+    expect(await db.select({ id: artists.id }).from(artists).where(eq(artists.name, 'Brand New Band'))).toHaveLength(1)
+  })
 })
