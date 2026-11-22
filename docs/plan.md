@@ -72,7 +72,7 @@ Providers  acquisition_providers, acquisition_jobs
 | fanart.tv | Better artist images | Off; needs an operator key |
 | Local search index | Typeahead from MusicBrainz canonical dumps | Optional |
 
-Every source can be switched off in admin settings. The MusicBrainz client uses one queue at 1 request/second, an identifying User-Agent, and a response cache in Postgres. Its base URL is configurable, so an operator with their own mirror has no rate limit.
+Every source can be switched off in admin settings. The MusicBrainz client spaces requests to MusicBrainz's own servers (`musicbrainz.org` and its subdomains) 1.1 seconds apart through one queue shared by every process, sends an identifying User-Agent, and caches responses in Postgres. Its base URL is configurable (an http or https address), and any other host, such as an operator's own mirror, is not rate limited.
 
 ## Library pipeline
 

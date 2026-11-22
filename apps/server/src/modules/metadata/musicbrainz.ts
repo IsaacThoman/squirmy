@@ -196,6 +196,14 @@ const lookupTtl = 7 * 86400
 const searchTtl = 86400
 const pageSize = 100
 
+/**
+ * Whether a host is one of MusicBrainz's own servers (musicbrainz.org, beta., www.), which
+ * allow one request per second. An operator's own mirror has no limit.
+ */
+export function isRateLimitedHost(hostname: string) {
+  return hostname === 'musicbrainz.org' || hostname.endsWith('.musicbrainz.org')
+}
+
 /** Calls the web service and returns its JSON, or null when disabled or not found. */
 async function get<T>(path: string, params: Record<string, string>, ttlSeconds = lookupTtl): Promise<T | null> {
   const settings = await getServerSettings()
@@ -203,8 +211,7 @@ async function get<T>(path: string, params: Record<string, string>, ttlSeconds =
   const url = new URL(`ws/2/${path}`, settings.musicBrainzBaseUrl.replace(/\/*$/, '/'))
   for (const [name, value] of Object.entries(params)) url.searchParams.set(name, value)
   url.searchParams.set('fmt', 'json')
-  // The public server allows one request per second; an operator's own mirror has no limit.
-  const limited = url.hostname === 'musicbrainz.org'
+  const limited = isRateLimitedHost(url.hostname)
   const result = await cachedFetch(provider, url.toString(), {
     ttlSeconds,
     headers: { Accept: 'application/json' },

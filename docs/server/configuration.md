@@ -70,7 +70,7 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 | General | Server name | `serverName` | `Squirmy` | Shown on the sign-in page and to Subsonic apps. |
 | Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
 | Metadata sources | MusicBrainz | `musicBrainzEnabled` | on | Identifies albums and fills in discographies. Off means nothing new is identified. |
-| | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service. Only `musicbrainz.org` is rate limited, so a mirror lifts the limit. |
+| | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service, a full `http://` or `https://` address. Only `musicbrainz.org` and its subdomains are rate limited, so a mirror lifts the limit. |
 | | Cover Art Archive | `coverArtArchiveEnabled` | on | Album covers. |
 | | Deezer | `deezerEnabled` | on | Catalog search, artist images, top songs and cover fallback. |
 | | Wikidata and Wikipedia | `wikidataEnabled` | on | Artist images and biographies. |

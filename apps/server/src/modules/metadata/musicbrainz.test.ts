@@ -17,6 +17,11 @@ describe('musicbrainz', () => {
   useTestDatabase()
   const http = useHttpFixtures('musicbrainz')
 
+  it('rate limits every MusicBrainz-run server and no other host', () => {
+    for (const host of ['musicbrainz.org', 'beta.musicbrainz.org', 'www.musicbrainz.org']) expect(mb.isRateLimitedHost(host), host).toBe(true)
+    for (const host of ['musicbrainz-mirror', 'mb.example.com', 'notmusicbrainz.org', 'localhost']) expect(mb.isRateLimitedHost(host), host).toBe(false)
+  })
+
   it('normalizes album types and dates', () => {
     expect(mb.albumType('Album', [])).toBe('album')
     expect(mb.albumType('EP')).toBe('ep')

@@ -354,7 +354,7 @@ The reference providers live in `adapters/`. `@squirmy/provider-kit` is the prot
 All clients live in `modules/metadata/` and go through `lib/http.ts`:
 
 - `cachedFetch(provider, url, { ttlSeconds, … })` stores responses in `http_cache` and serves them until they expire. 404s are cached for at most six hours, 5xx never; 429/503 are retried honoring `Retry-After`. `cache: 'reload' | 'no-store'` bypasses the cache for one call.
-- `rateLimit(key, intervalMs)` reserves the next slot in the `rate_limits` table, so the limit holds across processes. MusicBrainz uses 1100 ms (only against musicbrainz.org; a mirror is not limited).
+- `rateLimit(key, intervalMs)` reserves the next slot in the `rate_limits` table, so the limit holds across processes. MusicBrainz uses 1100 ms (only against `musicbrainz.org` and its subdomains, such as `beta.`; a mirror is not limited).
 - User-Agent: `Squirmy/<version> ( https://github.com/IsaacThoman/squirmy )`, with the version from `lib/version.ts`: `SQUIRMY_VERSION` (release images), else `dev+<short commit>` from `SOURCE_COMMIT` (a build argument, or set at run time by Coolify) or read once at start from git, else `dev`.
 - Every provider checks its toggle or key in `ServerSettings` and returns null or an empty list rather than throwing when it is off. "Not found" is null too; a provider failure (network, timeout, 5xx, bad key) throws `ProviderError`.
 - Other modules import the clients from `modules/metadata/index.ts`, e.g. `musicbrainz.getRelease(mbid)`.
