@@ -8,6 +8,9 @@ export { connectNowPlaying, type NowPlayingItem, type RemoteControls } from './n
 /** Native playback reports position this often, in milliseconds. */
 const updateIntervalMs = 250;
 
+// Two seconds of silence, looped while the engine waits for a track the server is fetching.
+const silence = require('./silence.m4a') as number;
+
 let audioMode: Promise<void> | undefined;
 
 /**
@@ -35,6 +38,7 @@ export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInte
   ensureAudioMode();
   return new ExpoAudioEngine({
     ...options,
+    createSilence: () => createAudioPlayer(silence, { keepAudioSessionActive: true }),
     // Keeping the session active between entries lets the next one start without a gap.
     createPlayer: url => {
       ensureAudioMode();

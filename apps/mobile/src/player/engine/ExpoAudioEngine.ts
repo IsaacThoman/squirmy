@@ -23,9 +23,17 @@ export type NativePlayer = {
 
 export type NativeStatus = { didJustFinish: boolean; error?: string | null };
 
+/** A player that starts over at its end. */
+export type LoopingPlayer = Pick<NativePlayer, 'play' | 'pause' | 'remove' | 'release'> & { loop: boolean };
+
 export type ExpoAudioEngineOptions = {
   /** Creates a paused player that starts buffering `url`. */
   createPlayer: (url: string) => NativePlayer;
+  /**
+   * Creates a player for a short silent clip, looped while the engine holds the audio
+   * session (`holdAudioSession`).
+   */
+  createSilence?: () => LoopingPlayer;
   /**
    * The system paused playback (an incoming call, Siri, unplugged headphones). The engine
    * reports `paused`; the caller dispatches a session `pause`.
@@ -77,6 +85,8 @@ export class ExpoAudioEngine implements PlayerEngine {
   private poll: ReturnType<typeof setInterval> | null = null;
   /** The entry an interruption paused, to resume when it ends. */
   private interruptedEntryId: string | null = null;
+  private holding = false;
+  private silence: LoopingPlayer | null = null;
   private readonly listeners = new Set<(event: EngineEvent) => void>();
   private readonly now: () => number;
 
@@ -103,6 +113,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.seekTarget = null;
     this.seekSerial += 1;
     this.setState('loading', true);
+    this.syncSilence();
     this.update();
   }
 
@@ -176,6 +187,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.seekTarget = null;
     this.interruptedEntryId = null;
     this.setState('idle', true);
+    this.syncSilence();
   }
 
   /** iOS paused the audio for a call, Siri or another app. */
@@ -197,6 +209,16 @@ export class ExpoAudioEngine implements PlayerEngine {
   routeLost(): void {
     this.interruptedEntryId = null;
     if (this.current && this.wantsPlay) this.systemPause(this.current);
+  }
+
+  /**
+   * While `hold` and nothing is loaded, loops silence. iOS suspends a backgrounded app that
+   * plays nothing, so without it the app would be asleep by the time a track it waits for
+   * (one the server is still fetching) can play.
+   */
+  holdAudioSession(hold: boolean): void {
+    this.holding = hold;
+    this.syncSilence();
   }
 
   getStatus(): EngineStatus {
@@ -284,6 +306,20 @@ export class ExpoAudioEngine implements PlayerEngine {
     slot.player.pause();
     this.update();
     this.options.onInterrupted?.(slot.entryId);
+  }
+
+  private syncSilence(): void {
+    const wanted = this.holding && !this.current;
+    if (wanted && !this.silence && this.options.createSilence) {
+      this.silence = this.options.createSilence();
+      this.silence.loop = true;
+      this.silence.play();
+    } else if (!wanted && this.silence) {
+      this.silence.pause();
+      this.silence.remove();
+      this.silence.release();
+      this.silence = null;
+    }
   }
 
   private becomeReady(slot: Slot): void {

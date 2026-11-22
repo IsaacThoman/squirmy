@@ -151,6 +151,16 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         if (waitingForItem) nowPlaying.refresh();
       });
 
+      // While the server fetches the current song, the phone keeps its audio session (and
+      // so keeps running when locked) and the lock screen shows the song as buffering.
+      const holdWhilePreparing = () => {
+        const { session, isActiveDevice } = client.getSnapshot();
+        const preparing = isActiveDevice && session.playing && session.current?.state === 'preparing' ? session.current.id : null;
+        engine.holdAudioSession(preparing !== null);
+        nowPlaying.hold(preparing);
+      };
+      const stopHolding = client.subscribe(holdWhilePreparing);
+
       // On-demand tracks the server could not fetch are skipped by the session; say so.
       let previous = client.getSnapshot();
       const stopWatching = client.subscribe(() => {
@@ -237,6 +247,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       });
 
       client.start();
+      holdWhilePreparing();
       setRuntime({ client, device });
       teardown = () => {
         // Not saved here: this runs on sign-out too, after the account's data was removed.
@@ -244,6 +255,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         appState.remove();
         stopSaving();
         stopPreparing();
+        stopHolding();
+        engine.holdAudioSession(false);
         stopAudioSession();
         stopErrors();
         onOffline.current = null;

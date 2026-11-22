@@ -70,8 +70,18 @@ let players: FakePlayer[];
 let events: EngineEvent[];
 let interrupted: string[];
 let resumed: string[];
+let silences: FakeSilence[];
 let engine: ExpoAudioEngine;
 
+class FakeSilence {
+  loop = false;
+  playing = false;
+  released = false;
+  play() { this.playing = true; }
+  pause() { this.playing = false; }
+  remove() {}
+  release() { this.released = true; }
+}
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -79,7 +89,13 @@ beforeEach(() => {
   events = [];
   interrupted = [];
   resumed = [];
+  silences = [];
   engine = new ExpoAudioEngine({
+    createSilence: () => {
+      const silence = new FakeSilence();
+      silences.push(silence);
+      return silence;
+    },
     onResumed: entryId => resumed.push(entryId),
     createPlayer: url => {
       const player = new FakePlayer(url);
@@ -226,6 +242,22 @@ describe('ExpoAudioEngine', () => {
     vi.advanceTimersByTime(500);
     expect(engine.getStatus().state).toBe('buffering');
     expect(interrupted).toEqual([]);
+  });
+
+  it('loops silence while holding the session with nothing loaded', () => {
+    engine.holdAudioSession(true);
+    expect(silences).toHaveLength(1);
+    expect(silences[0]).toMatchObject({ loop: true, playing: true });
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    expect(silences[0].released).toBe(true);
+    // The session client stops the engine when the next entry is still being fetched.
+    engine.stop();
+    expect(silences).toHaveLength(2);
+    expect(silences[1].playing).toBe(true);
+    engine.holdAudioSession(false);
+    expect(silences[1].released).toBe(true);
+    engine.stop();
+    expect(silences).toHaveLength(2);
   });
 
   it('reports buffering while the player waits for data', () => {
