@@ -1,5 +1,5 @@
 {
-  "id": "135de931-a3a7-4ddb-b0f7-972716966612",
+  "id": "bc124546-1213-4db8-82aa-de4770d70f46",
   "prevId": "ab17c1df-71c7-4035-bfa1-2be3610c8417",
   "version": "7",
   "dialect": "postgresql",
@@ -735,6 +735,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "edition_of_id": {
+          "name": "edition_of_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "detail_level": {
           "name": "detail_level",
           "type": "smallint",
@@ -864,6 +870,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "albums_edition_of": {
+          "name": "albums_edition_of",
+          "columns": [
+            {
+              "expression": "edition_of_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"albums\".\"edition_of_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1066,101 +1088,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.artist_top_tracks": {
-      "name": "artist_top_tracks",
-      "schema": "",
-      "columns": {
-        "artist_id": {
-          "name": "artist_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "position": {
-          "name": "position",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recording_id": {
-          "name": "recording_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fetched_at": {
-          "name": "fetched_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "artist_top_tracks_recording": {
-          "name": "artist_top_tracks_recording",
-          "columns": [
-            {
-              "expression": "recording_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "artist_top_tracks_artist_id_artists_id_fk": {
-          "name": "artist_top_tracks_artist_id_artists_id_fk",
-          "tableFrom": "artist_top_tracks",
-          "tableTo": "artists",
-          "columnsFrom": [
-            "artist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "artist_top_tracks_recording_id_recordings_id_fk": {
-          "name": "artist_top_tracks_recording_id_recordings_id_fk",
-          "tableFrom": "artist_top_tracks",
-          "tableTo": "recordings",
-          "columnsFrom": [
-            "recording_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "artist_top_tracks_artist_id_position_pk": {
-          "name": "artist_top_tracks_artist_id_position_pk",
-          "columns": [
-            "artist_id",
-            "position"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.artists": {
       "name": "artists",
       "schema": "",
@@ -1223,12 +1150,6 @@
         "image_asset_id": {
           "name": "image_asset_id",
           "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "image_picked_at": {
-          "name": "image_picked_at",
-          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

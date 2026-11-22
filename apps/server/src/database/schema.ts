@@ -248,6 +248,12 @@ export const albums = pgTable('albums', {
   artworkAssetId: uuid('artwork_asset_id'),
   /** The edition whose track list the album page shows. */
   canonicalReleaseId: uuid('canonical_release_id'),
+  /**
+   * For a store album that is one edition of a release group ("SOS Deluxe: LANA"): the
+   * group's row. Such a row keeps its own MBID-less identity and track list and is never
+   * merged into the group's row (enrichment/album.ts); artist pages show the group once.
+   */
+  editionOfId: uuid('edition_of_id'),
   detailLevel: smallint('detail_level').notNull().default(0),
   fetchedAt: at('fetched_at'),
   /** When enrichment last finished the extras owned albums get: stored cover, description, external ids, lyrics. */
@@ -263,6 +269,7 @@ export const albums = pgTable('albums', {
   index('albums_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
   index('albums_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('albums_primary_artist').on(t.primaryArtistId),
+  index('albums_edition_of').on(t.editionOfId).where(sql`${t.editionOfId} is not null`),
   // Library orderings (modules/catalog/library.ts). The expressions are `sortKey` over the
   // stored match keys and must stay identical to `sortKeys` in modules/catalog/sql.ts.
   index('albums_title_sort').on(sql`regexp_replace(${t.titleKey}, '^(the|a|an) ', '')`, t.id),

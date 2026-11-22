@@ -1,0 +1,51 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/track/564213742"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 564213742,
+      "title": "Airvoxx (Original Mix)",
+      "isrc": "RUA491813176",
+      "link": "https://www.deezer.com/track/564213742",
+      "duration": 165,
+      "track_position": 5,
+      "disk_number": 1,
+      "rank": 21784,
+      "release_date": "2018-10-12",
+      "explicit_lyrics": false,
+      "contributors": [
+        {
+          "id": 2198571,
+          "name": "Data Punk",
+          "link": "https://www.deezer.com/artist/2198571",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/1000x1000-000000-80-0-0.jpg",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 2198571,
+        "name": "Data Punk",
+        "link": "https://www.deezer.com/artist/2198571",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/46e8b7327cdf24c8b6c52e2c71dc5936/1000x1000-000000-80-0-0.jpg",
+        "type": "artist"
+      },
+      "album": {
+        "id": 74901252,
+        "title": "Discovery",
+        "link": "https://www.deezer.com/album/74901252",
+        "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4ff21b23662026086ec6145e406b6b0e/1000x1000-000000-80-0-0.jpg",
+        "release_date": "2018-10-12",
+        "type": "album"
+      },
+      "type": "track"
+    }
+  }
+}

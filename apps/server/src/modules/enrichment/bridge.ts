@@ -68,28 +68,36 @@ export function confidentArtist(hits: readonly MbArtistSummary[], name: string):
   return exact.length === 1 ? exact[0]!.mbid : null
 }
 
+/** A Deezer album placed in MusicBrainz: its release group, and the release itself when that is known too. */
+export type BridgedAlbum = { group: string; release: string | null }
+
 /**
  * The MusicBrainz release group of a Deezer album: the release linked to its Deezer page,
  * else the releases carrying its UPC (when they all belong to one group), else a strict
- * title and artist search. Null when none is sure.
+ * title and artist search. The release is kept when the link or the barcode names one:
+ * a deluxe edition is a release of the standard album's group, and the page opened for it
+ * must keep showing it. Null when no group is sure.
  */
-export async function bridgeAlbum(deezerId: string, fallback: { title: string; artist: string; type?: AlbumType }): Promise<string | null> {
+export async function bridgeAlbum(deezerId: string, fallback: { title: string; artist: string; type?: AlbumType }): Promise<BridgedAlbum | null> {
   const links = await musicbrainz.lookupUrl(`https://www.deezer.com/album/${deezerId}`)
   const linkedGroups = new Set(links?.releaseGroups.map((group) => group.mbid))
+  const linkedRelease = links?.releases.length === 1 ? links.releases[0]!.mbid : null
   if (linkedGroups.size === 0 && links?.releases[0]) {
     const release = await musicbrainz.getRelease(links.releases[0].mbid)
     if (release) linkedGroups.add(release.releaseGroup.mbid)
   }
-  if (linkedGroups.size === 1) return [...linkedGroups][0]!
+  if (linkedGroups.size === 1) return { group: [...linkedGroups][0]!, release: linkedRelease }
 
   const album = await deezer.getAlbum(Number(deezerId))
   if (album?.upc) {
-    const groups = new Set((await musicbrainz.findReleasesByBarcode(album.upc)).flatMap((release) => release.releaseGroup ? [release.releaseGroup.mbid] : []))
-    if (groups.size === 1) return [...groups][0]!
+    const pressings = await musicbrainz.findReleasesByBarcode(album.upc)
+    const groups = new Set(pressings.flatMap((release) => release.releaseGroup ? [release.releaseGroup.mbid] : []))
+    if (groups.size === 1) return { group: [...groups][0]!, release: pressings.length === 1 ? pressings[0]!.mbid : null }
   }
 
   const wanted = album ? { title: album.title, artist: album.artist.name, type: album.type } : fallback
-  return confidentReleaseGroup(await musicbrainz.searchReleaseGroups(wanted, { limit: 5 }), wanted)
+  const group = confidentReleaseGroup(await musicbrainz.searchReleaseGroups(wanted, { limit: 5 }), wanted)
+  return group ? { group, release: null } : null
 }
 
 /** The MusicBrainz artist of a Deezer artist: the one linked to its Deezer page, else an unambiguous exact-name search. */

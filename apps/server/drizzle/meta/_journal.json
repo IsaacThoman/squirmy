@@ -138,8 +138,15 @@
     {
       "idx": 19,
       "version": "7",
-      "when": 1795379453268,
-      "tag": "0019_artist_read_model",
+      "when": 1795378669593,
+      "tag": "0019_catalog_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795379664044,
+      "tag": "0020_artist_read_model",
       "breakpoints": true
     }
   ]

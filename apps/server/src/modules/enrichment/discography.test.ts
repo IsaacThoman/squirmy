@@ -27,7 +27,7 @@ async function albumsNamed(title: string) {
 describe('artist discography', () => {
   useTestDatabase()
 
-  it('adopts the Deezer stubs of the same albums instead of listing them twice', async () => {
+  it('adopts the Deezer stubs of the same albums instead of listing them twice, and leaves other editions apart', async () => {
     const artistId = await artistStub({ name: deathGrips.name, mbid: deathGrips.mbid })
     const { albumId: moneyStore } = await albumStub({ title: 'The Money Store', artist: deathGrips.name, artistId, deezerId: 5101 })
     const { albumId: snitch } = await albumStub({ title: 'Year Of The Snitch (Deluxe Edition)', artist: deathGrips.name, artistId, deezerId: 5102 })
@@ -43,7 +43,10 @@ describe('artist discography', () => {
 
     expect(await albumRow(moneyStore)).toMatchObject({ mbid: 'a0000000-0000-4000-8000-000000000001', mergedIntoId: null, detailLevel: 1 })
     expect(await albumsNamed('The Money Store')).toHaveLength(1)
-    expect(await albumsNamed('Year of the Snitch')).toEqual([{ id: snitch, mbid: 'a0000000-0000-4000-8000-000000000002' }])
+    // A deluxe edition is another edition with its own songs: the group gets a row of its
+    // own, and the deluxe stub stays (the artist page lists the release once).
+    expect((await albumRow(snitch)).mbid).toBeNull()
+    expect(await albumsNamed('Year of the Snitch')).toHaveLength(2)
     expect((await albumRow(single)).mbid).toBeNull()
     expect(await albumsNamed('Bottomless Pit')).toHaveLength(2)
   })

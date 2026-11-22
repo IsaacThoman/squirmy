@@ -9,10 +9,10 @@ import { db } from './client.js'
 import { albums, artists } from './schema.js'
 
 /**
- * Migration 0019 on an install with history: the test database is already migrated, so the
+ * Migration 0020 on an install with history: the test database is already migrated, so the
  * data fixes are replayed from the migration file against rows written the old way.
  */
-describe('migration 0019_artist_read_model', () => {
+describe('migration 0020_artist_read_model', () => {
   useTestDatabase()
 
   it('files remix albums and DJ mixes as compilations and cleans the separators out of bios', async () => {
@@ -30,7 +30,7 @@ describe('migration 0019_artist_read_model', () => {
     const clean = await createArtist({ name: 'Clean' })
     await db.update(artists).set({ bioSource: 'wikipedia', bio: 'Already tidy (really); fine.' }).where(eq(artists.id, clean.id))
 
-    const file = await readFile(new URL('../../drizzle/0019_artist_read_model.sql', import.meta.url), 'utf8')
+    const file = await readFile(new URL('../../drizzle/0020_artist_read_model.sql', import.meta.url), 'utf8')
     const statements = file.split('--> statement-breakpoint')
     const data = statements.slice(-2)
     // Twice, since a migration's data fix must be idempotent.

@@ -96,12 +96,33 @@ const releaseLabels = [
   /\s*[:–—-]\s+(?:original\s+)?(?:music|songs)\s+from\s[^:–—()[\]]*$/i,
   /\s+[-–—]\s+(?:single|ep|e\.p\.)\s*$/i,
   /\s+(?:ep|e\.p\.?)\s*$/i,
+  // Guests named in the title ("New Gold (feat. Tame Impala and Bootie Brown)"): the same
+  // release, named the way Deezer names it.
+  /\s*[([]\s*(?:feat\.?|ft\.?|featuring)\s[^()[\]]*[)\]]\s*$/i,
 ]
+
+/**
+ * The title's key once store labels of the release's kind or origin are dropped, edition
+ * words kept: "Just Keep Watching (From F1® The Movie)" is "just keep watching", "Miss
+ * Anthropocene (Deluxe Edition)" stays itself. Two album rows with the same `labelFreeKey`
+ * are the same edition named two ways; with only the same `releaseKey` they may be two
+ * editions, which must stay apart.
+ */
+export function labelFreeKey(title: string): string {
+  let current = title.trim()
+  for (;;) {
+    const match = releaseLabels.map((pattern) => pattern.exec(current)).find(Boolean)
+    const stripped = match ? current.slice(0, match.index).trim() : ''
+    if (!matchKey(stripped)) return matchKey(current)
+    current = stripped
+  }
+}
 
 /**
  * The key two catalog rows of one release share: `editionFreeKey` once store labels of the
  * release's kind or origin are dropped too. For telling whether two rows of an artist are
- * the same release, not for search, where those words may be what the user typed.
+ * the same release (to list it once), not whether they are the same edition
+ * (`labelFreeKey`), and not for search, where those words may be what the user typed.
  */
 export function releaseKey(title: string): string {
   let current = editionFreeTitle(title)

@@ -1,0 +1,556 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/686640951"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 686640951,
+      "title": "SOS Deluxe: LANA",
+      "upc": "196871766890",
+      "link": "https://www.deezer.com/album/686640951",
+      "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+      "genres": {
+        "data": [
+          {
+            "id": 165,
+            "name": "R&B",
+            "type": "genre"
+          }
+        ]
+      },
+      "label": "Top Dawg Entertainment/RCA Records",
+      "nb_tracks": 38,
+      "duration": 4494,
+      "release_date": "2024-12-20",
+      "record_type": "album",
+      "explicit_lyrics": true,
+      "contributors": [
+        {
+          "id": 5531258,
+          "name": "SZA",
+          "link": "https://www.deezer.com/artist/5531258",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8ced041da2bed70d5715f0860956169b/1000x1000-000000-80-0-0.jpg",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 5531258,
+        "name": "SZA",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8ced041da2bed70d5715f0860956169b/1000x1000-000000-80-0-0.jpg",
+        "type": "artist"
+      },
+      "type": "album",
+      "tracks": {
+        "data": [
+          {
+            "id": 3152680411,
+            "title": "No More Hiding",
+            "link": "https://www.deezer.com/track/3152680411",
+            "duration": 162,
+            "rank": 345487,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680421,
+            "title": "What Do I Do",
+            "link": "https://www.deezer.com/track/3152680421",
+            "duration": 167,
+            "rank": 428600,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680431,
+            "title": "30 For 30 (with Kendrick Lamar)",
+            "link": "https://www.deezer.com/track/3152680431",
+            "duration": 278,
+            "rank": 628507,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680441,
+            "title": "Diamond Boy (DTM)",
+            "link": "https://www.deezer.com/track/3152680441",
+            "duration": 217,
+            "rank": 438102,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680451,
+            "title": "BMF",
+            "link": "https://www.deezer.com/track/3152680451",
+            "duration": 181,
+            "rank": 563151,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680461,
+            "title": "Scorsese Baby Daddy",
+            "link": "https://www.deezer.com/track/3152680461",
+            "duration": 153,
+            "rank": 422796,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680471,
+            "title": "Love Me 4 Me",
+            "link": "https://www.deezer.com/track/3152680471",
+            "duration": 181,
+            "rank": 290531,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680481,
+            "title": "Chill Baby",
+            "link": "https://www.deezer.com/track/3152680481",
+            "duration": 140,
+            "rank": 408908,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680491,
+            "title": "My Turn",
+            "link": "https://www.deezer.com/track/3152680491",
+            "duration": 181,
+            "rank": 335757,
+            "explicit_lyrics": false,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680501,
+            "title": "Crybaby",
+            "link": "https://www.deezer.com/track/3152680501",
+            "duration": 242,
+            "rank": 533936,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680511,
+            "title": "Kitchen",
+            "link": "https://www.deezer.com/track/3152680511",
+            "duration": 181,
+            "rank": 457664,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680521,
+            "title": "Get Behind Me (Interlude)",
+            "link": "https://www.deezer.com/track/3152680521",
+            "duration": 108,
+            "rank": 232174,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680531,
+            "title": "Drive",
+            "link": "https://www.deezer.com/track/3152680531",
+            "duration": 181,
+            "rank": 352124,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680541,
+            "title": "Another Life",
+            "link": "https://www.deezer.com/track/3152680541",
+            "duration": 205,
+            "rank": 533942,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680551,
+            "title": "Saturn",
+            "link": "https://www.deezer.com/track/3152680551",
+            "duration": 181,
+            "rank": 270719,
+            "explicit_lyrics": false,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680561,
+            "title": "SOS",
+            "link": "https://www.deezer.com/track/3152680561",
+            "duration": 117,
+            "rank": 231991,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680571,
+            "title": "Kill Bill",
+            "link": "https://www.deezer.com/track/3152680571",
+            "duration": 153,
+            "rank": 226243,
+            "explicit_lyrics": false,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680581,
+            "title": "Seek & Destroy",
+            "link": "https://www.deezer.com/track/3152680581",
+            "duration": 203,
+            "rank": 245996,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680591,
+            "title": "Low",
+            "link": "https://www.deezer.com/track/3152680591",
+            "duration": 181,
+            "rank": 191150,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680601,
+            "title": "Love Language",
+            "link": "https://www.deezer.com/track/3152680601",
+            "duration": 181,
+            "rank": 211576,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680611,
+            "title": "Blind",
+            "link": "https://www.deezer.com/track/3152680611",
+            "duration": 150,
+            "rank": 204862,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680621,
+            "title": "Used (feat. Don Toliver)",
+            "link": "https://www.deezer.com/track/3152680621",
+            "duration": 146,
+            "rank": 252068,
+            "explicit_lyrics": false,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680631,
+            "title": "Snooze",
+            "link": "https://www.deezer.com/track/3152680631",
+            "duration": 201,
+            "rank": 202953,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680641,
+            "title": "Notice Me",
+            "link": "https://www.deezer.com/track/3152680641",
+            "duration": 160,
+            "rank": 213451,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 3152680651,
+            "title": "Gone Girl",
+            "link": "https://www.deezer.com/track/3152680651",
+            "duration": 244,
+            "rank": 186612,
+            "explicit_lyrics": true,
+            "artist": {
+              "id": 5531258,
+              "name": "SZA",
+              "type": "artist"
+            },
+            "album": {
+              "id": 686640951,
+              "title": "SOS Deluxe: LANA",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/992cc838b5f0cf0eebbd83011a979571/1000x1000-000000-80-0-0.jpg",
+              "type": "album"
+            },
+            "type": "track"
+          }
+        ]
+      }
+    }
+  }
+}

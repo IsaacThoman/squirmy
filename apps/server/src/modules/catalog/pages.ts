@@ -31,6 +31,8 @@ type DiscographyRow = {
   hasArtwork: boolean
   owned: boolean
   led: boolean
+  /** For an edition row (`albums.edition_of_id`), its release group's title: the two are one release. */
+  releaseTitle?: string
 }
 
 /** Which of two rows of one release stands for it on the page: owned, MusicBrainz, a stated type, detail, a cover, the earlier year. */
@@ -58,7 +60,7 @@ function standsBefore(a: DiscographyRow, b: DiscographyRow): number {
 export function standingRows(rows: readonly DiscographyRow[], { fromMusicBrainz = false } = {}): DiscographyRow[] {
   const best = new Map<string, DiscographyRow>()
   const stated = new Set<string>()
-  const keyOf = (row: DiscographyRow) => `${row.led}|${releaseKey(row.title) || row.id}`
+  const keyOf = (row: DiscographyRow) => `${row.led}|${releaseKey(row.releaseTitle ?? row.title) || row.id}`
   for (const row of rows) {
     if (!row.typeGuessed) stated.add(keyOf(row))
     const key = `${keyOf(row)}|${row.typeGuessed ? '?' : row.type}`
@@ -193,7 +195,8 @@ export function sectionOf(rows: readonly DiscographyRow[]): (row: DiscographyRow
 async function discography(artistId: string): Promise<{ rows: DiscographyRow[]; section: (row: DiscographyRow) => ArtistSectionKey }> {
   const [artist] = await db.execute<{ hasMbid: boolean }>(sql`select mbid is not null as "hasMbid" from artists where id = ${artistId}`)
   const rows = await db.execute<DiscographyRow>(sql`
-    select a.id, a.title, a.type, a.type_guessed as "typeGuessed", a.secondary_types as "secondaryTypes", a.mbid is not null as "hasMbid",
+    select a.id, a.title, (select g.title from albums g where g.id = a.edition_of_id) as "releaseTitle",
+      a.type, a.type_guessed as "typeGuessed", a.secondary_types as "secondaryTypes", a.mbid is not null as "hasMbid",
       a.detail_level as "detailLevel", a.year, a.artwork_asset_id is not null as "hasArtwork",
       exists (select 1 from media_files f where f.album_id = a.id and f.missing_since is null) as owned,
       a.primary_artist_id = ${artistId} or exists (
