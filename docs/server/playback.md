@@ -43,6 +43,14 @@ Albums are mastered at very different levels. Normalization evens them out so yo
 
 **How clients apply it.** The gain is applied on the device, never baked into the stream. A gain is limited so the track's peak does not clip. The web app can raise quiet tracks as well as lower loud ones. The iOS app can only lower: a track quieter than the target plays at its own level.
 
+## The queue
+
+The queue works as in other streaming apps:
+
+- **Playing a song from a list** (an album, a playlist, an artist's top songs, search results, liked songs) plays the whole list from that song. **Previous** goes back through the songs before it, and **Repeat** comes round to the first song after the last. Previous never goes back past the start of the list into what played before it: on the first song it starts the song again.
+- **Shuffle** shuffles what is still to come of the list, including songs before the one you started from. Turning it off goes back to the list's order after the song that is playing.
+- **Clicking a song further down Up next** jumps there: the songs above it are skipped, and Previous goes back through them. Songs you added with **Play next** or **Add to queue** stay queued, keep their place when you shuffle, and are not repeated.
+
 ## Devices and transferring playback
 
 Each user has **one** playback session, held by the server: the queue, the current track and position, shuffle and repeat, and which device is playing. Every signed-in browser tab and phone is a device in that session.
@@ -51,7 +59,7 @@ Each user has **one** playback session, held by the server: the queue, the curre
 - **Pressing play when nothing is playing** makes the device you pressed it on the player.
 - **Transferring.** Open the devices list (the **Devices** button in the player bar on the web; on iOS, the playback device button in the mini-player or Now Playing, which opens the **Playback device** sheet) and pick a device. Playback continues there from the same position. Each device keeps its own volume.
 - **A browser is one device; its tabs are players of it.** Each tab of a browser can play, one at a time, so a second tab joins the session on its own, but lists show the browser once, under its name (the playing tab, else the one used last). Inside the browser, its other tabs appear as one **Another tab** row, and "Playing in another tab" says where the sound is. No list shows a tab number. Rename the browser in **Settings → Playback → This browser's name**.
-- **When the playing device disappears**, the server waits 20 seconds, then pauses the session at the last known position. Any device can resume it.
+- **When the playing device disappears**, the other devices' clocks stop where it was and show the session buffering. If it comes back within 20 seconds (a dropped connection) it carries on; otherwise the server pauses the session at that position. Any device can resume it.
 - **Playing separately.** One device can step out of the session and play its own queue while the others play something else, and rejoin later: in the web app, **Devices → Play separately on this tab** ([how it looks](../use/web.md#playing-separately-on-one-device)), and on iOS, **Playback device → Play separately on this iPhone** ([iOS](../use/ios.md#playing-separately-on-one-device)).
 - **Telling devices apart.** The device you are using is **This browser** (or **This iPhone**). Others are named after their browser and system ("Chrome on macOS", "Safari on iPad") until you rename them. Two browsers can still have the same name: a device that has not been used for five minutes or more says how long, such as "Active 3 hours ago", and when that does not tell them apart either, each shows the start of its id, such as "ID 4f2a". Renaming one is the lasting fix.
 - **A device is listed only while it is connected.** iOS suspends an app that is paused in the background, so a paused phone drops off the list until it is opened again.

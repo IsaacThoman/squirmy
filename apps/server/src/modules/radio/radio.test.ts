@@ -1,5 +1,5 @@
 import { RadioResponse, type QueueSeed } from '@squirmy/contracts'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
@@ -12,7 +12,7 @@ import { createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
-import { OWNED_FIRST, suggest, WINDOW } from './ranking.js'
+import { suggest, WINDOW } from './ranking.js'
 import { similarArtists } from './similar.js'
 import { suggestAutoplay } from './suggest.js'
 
@@ -157,6 +157,46 @@ describe('radio', () => {
     expect(others.some((other) => JSON.stringify(other) !== JSON.stringify(first))).toBe(true)
   })
 
+  it('ends a batch early rather than fill it with unrelated tracks past one window', async () => {
+    const user = await createUser()
+    const jazz = tracks.find((track) => track.genre === 'Jazz')!
+    const result = await run(user.id, { seeds: [jazz.recordingId], limit: 40 })
+    // Two dozen jazz tracks, then nothing: the rock shelves share neither genre nor era.
+    expect(result.length).toBeLessThan(40)
+    // Within the first window a rock track may stand in where the variety rules leave no
+    // jazz one (three jazz artists cannot fill ten slots alone); never after it.
+    expect(result.filter((item) => byId(item.trackId).genre !== 'Jazz').length).toBeLessThanOrEqual(1)
+    expect(result.slice(WINDOW).map((item) => byId(item.trackId).genre).every((genre) => genre === 'Jazz')).toBe(true)
+  })
+
+  it('fills a short batch up to one window with what is left', async () => {
+    const user = await createUser()
+    const rock = tracks.filter((track) => track.owned && track.genre === 'Rock' && track.recordingId !== seed.recordingId)
+    // One rock track of each of four other artists.
+    const kept = [...new Map(rock.filter((track) => track.artistId !== seed.artistId).map((track) => [track.artistId, track])).values()].slice(0, 4)
+    const result = await run(user.id, { exclude: rock.filter((track) => !kept.includes(track)).map((track) => track.recordingId) })
+    expect(result).toHaveLength(WINDOW)
+    // The related ones first, then the jazz shelves.
+    expect(result.slice(0, 4).map((item) => byId(item.trackId).genre)).toEqual(Array(4).fill('Rock'))
+    expect(result.slice(4).every((item) => byId(item.trackId).genre === 'Jazz')).toBe(true)
+  })
+
+  it('ignores a track played near the seed on one day only, and a liked track of another genre', async () => {
+    const user = await createUser()
+    const [jazz, liked] = tracks.filter((track) => track.genre === 'Jazz')
+    // One afternoon: the seed and right after it the same jazz track, again and again.
+    for (const minutes of [300, 240, 180, 120]) {
+      await createPlay({ userId: user.id, recordingId: seed.recordingId, minutesAgo: 24 * 60 + minutes })
+      await createPlay({ userId: user.id, recordingId: jazz!.recordingId, minutesAgo: 24 * 60 + minutes - 4 })
+    }
+    await db.insert(likes).values({ userId: user.id, entityType: 'recording', entityId: liked!.recordingId })
+    for (const random of [1, 2, 3]) {
+      const result = (await run(user.id, { random })).map((item) => item.trackId)
+      expect(result).not.toContain(jazz!.recordingId)
+      expect(result).not.toContain(liked!.recordingId)
+    }
+  })
+
   describe('on-demand tracks', () => {
     // A server holding three owned tracks: the seed and two others that can follow it.
     const library = () => {
@@ -168,20 +208,38 @@ describe('radio', () => {
       for (const track of tracks.filter((one) => !one.owned)) onDemand.add(track.recordingId)
     })
 
-    it('ranks them with owned tracks for a requester, the first two owned', async () => {
-      const { kept, exclude } = library()
+    it('ranks them with owned tracks for a requester; an owned track takes the first pick from a near tie', async () => {
+      const rockB = tracks.find((track) => track.owned && track.genre === 'Rock' && track.artistId !== seed.artistId)!
+      const rockC = tracks.find((track) => track.owned && track.genre === 'Rock' && ![seed.artistId, rockB.artistId].includes(track.artistId))!
+      const unowned = tracks.filter((track) => !track.owned && track.artistId === seed.artistId)
+      // Rock C's owned track and Rock A's unowned ones share the genre and year, and the user
+      // likes them all: only noise tells them apart.
+      const exclude = tracks.filter((track) => track.owned && track !== rockC).map((track) => track.recordingId)
       for (const user of [await createUser({ canAcquire: true }), await createUser({ role: 'admin' })]) {
-        for (const random of [1, 2, 3]) {
-          const result = await run(user.id, { random, exclude })
-          expect(result).toHaveLength(WINDOW)
-          expect(OWNED_FIRST).toBe(2)
-          expect(result.slice(0, 2).map((item) => item.state)).toEqual(['ready', 'ready'])
-          expect(result.slice(0, 2).map((item) => item.trackId).toSorted()).toEqual(kept.toSorted())
-          for (const item of result.slice(2)) {
-            expect(item.state).toBe('preparing')
-            expect(byId(item.trackId).owned).toBe(false)
-          }
+        await db.insert(likes).values([rockC, ...unowned].map((track) => ({ userId: user.id, entityType: 'recording' as const, entityId: track.recordingId })))
+        for (const random of [1, 2, 3, 4, 5, 6]) {
+          const result = await run(user.id, { random, seeds: [rockB.recordingId], exclude })
+          expect(result[0]).toMatchObject({ trackId: rockC.recordingId, state: 'ready' })
+          expect(result.length).toBeGreaterThan(3)
+          expect(result.slice(1).every((item) => item.state === 'preparing' && !byId(item.trackId).owned)).toBe(true)
         }
+      }
+    })
+
+    it('does not prefer an owned track that is not close to the best', async () => {
+      const user = await createUser({ canAcquire: true })
+      const rockB = tracks.find((track) => track.owned && track.genre === 'Rock' && track.artistId !== seed.artistId)!
+      const rockC = tracks.find((track) => track.owned && track.genre === 'Rock' && ![seed.artistId, rockB.artistId].includes(track.artistId))!
+      // The user likes the seed artist and one of its songs the server does not have.
+      const liked = tracks.find((track) => !track.owned && track.artistId === seed.artistId)!
+      await db.insert(likes).values([
+        { userId: user.id, entityType: 'artist', entityId: seed.artistId },
+        { userId: user.id, entityType: 'recording', entityId: liked.recordingId },
+      ])
+      const exclude = tracks.filter((track) => track.owned && ![rockB, rockC].includes(track)).map((track) => track.recordingId)
+      for (const random of [1, 2, 3]) {
+        const [first] = await run(user.id, { random, seeds: [rockB.recordingId], exclude })
+        expect(first).toMatchObject({ trackId: liked.recordingId, state: 'preparing' })
       }
     })
 
@@ -296,7 +354,9 @@ describe('radio', () => {
     })
 
     it('uses a known Deezer id, and skips a source that fails', async () => {
-      // Deezer answers 500 for this id, so only ListenBrainz is left.
+      // Deezer's radio of the artist, read by an earlier radio, linked its Deezer id by name
+      // as search does. Deezer answers 500 for this one, so only ListenBrainz is left.
+      await db.delete(externalIds).where(and(eq(externalIds.provider, 'deezer'), eq(externalIds.entityId, artist.id)))
       await db.insert(externalIds).values({ provider: 'deezer', entityType: 'artist', externalId: '400', entityId: artist.id })
       const names = (await similarArtists(artist.id)).map((one) => one.name)
       expect(http.requests).toContain('GET https://api.deezer.com/artist/400/related?limit=20')

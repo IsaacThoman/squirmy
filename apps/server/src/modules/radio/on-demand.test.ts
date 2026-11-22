@@ -21,6 +21,7 @@ vi.mock('../acquisition/coverage.js', () => ({
 }))
 // Fetching a track list writes one covered track onto the album, as a source would.
 vi.mock('../enrichment/detail.js', () => ({
+  artistRadioTracks: vi.fn(async () => []),
   ensureArtistDetail: vi.fn(async () => true),
   ensureLyrics: vi.fn(async () => {}),
   ensureAlbumDetail: vi.fn(async (albumId: string) => {

@@ -15,7 +15,7 @@ import type { RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
 import { rememberDevice } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
-import { lookupTracks, trustSeeds } from './entries.js'
+import { entryUpdates, lookupTracks, trustSeeds } from './entries.js'
 import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, type OpenPlay, savePlay } from './plays.js'
 import { connectedDevice, connectedDeviceIds, deviceSockets, joinDevice, leaveDevice, listDevices, seeDevice, socketDevices } from './presence.js'
 import {
@@ -55,6 +55,13 @@ const realTimers: SessionTimers = {
 }
 const settings: { deviceGraceMs: number; now: () => number; timers: SessionTimers } = { deviceGraceMs: 20_000, now: () => Date.now(), timers: realTimers }
 const graceTimers = new Map<string, unknown>()
+/**
+ * Active devices that went away while playing, by the grace timer's key: when, and where
+ * the music was then. The session's clock stops meanwhile (see `startGrace`).
+ */
+const awayClocks = new Map<string, { at: number; positionMs: number; entryId: string }>()
+/** The current entry whose tracks were last looked up again, by session key (see `refreshUpcoming`). */
+const refreshedFor = new Map<string, string>()
 /** Writes of closed plays still in flight, which shutdown waits for. */
 const savingPlays = new Set<Promise<void>>()
 let io: RealtimeServer | null = null
@@ -96,6 +103,7 @@ function load(userId: string): Promise<SessionRecord> {
  * be ready or unavailable by now, and its active device may not come back.
  */
 async function recheck(record: SessionRecord): Promise<void> {
+  await refreshEntries(record, entriesOf(record.session))
   const preparing = [...new Set(entriesOf(record.session).filter(entry => entry.state === 'preparing').map(entry => entry.trackId))]
   const tracks = await lookupTracks(preparing)
   for (const trackId of preparing) {
@@ -239,10 +247,45 @@ function applyServer(record: SessionRecord, command: AnySessionCommand, now = se
   afterChange(record)
 }
 
-/** Work that follows a change without holding it up: preparing on-demand entries and refilling autoplay. */
+/** Work that follows a change without holding it up: preparing on-demand entries, refilling autoplay, catching up with the catalog. */
 function afterChange(record: SessionRecord): void {
   requestUpcoming(record)
   refillAutoplay(record)
+  refreshUpcoming(record)
+}
+
+/**
+ * Brings `entries` of the session up to date with the catalog: tracks and albums merged
+ * into others since they were queued take the surviving ids, and the tracks their lengths.
+ * Requests made under a merged id carry over to the new one, since acquisition answers for
+ * the row it linked the file to. Run in the user's serial queue.
+ */
+async function refreshEntries(record: SessionRecord, entries: readonly QueueEntry[]): Promise<void> {
+  if (!entries.length) return
+  const { tracks, albums } = await entryUpdates(entries)
+  if (!tracks.length && !albums.length) return
+  for (const { trackId, id } of tracks) {
+    const origin = record.requested.get(trackId)
+    if (id === trackId || !origin) continue
+    record.requested.delete(trackId)
+    if (record.requested.get(id) !== 'play') record.requested.set(id, origin)
+  }
+  applyServer(record, { type: 'updateTracks', tracks, albums })
+}
+
+/**
+ * Looks the current entry and the next few up again each time the current entry changes,
+ * so what is playing shows the track and length the catalog has now even when its row was
+ * merged after it was queued.
+ */
+function refreshUpcoming(record: SessionRecord): void {
+  const { current, queue, autoplay, autoplayQueue } = record.session
+  if (!current || refreshedFor.get(record.key) === current.id) return
+  refreshedFor.set(record.key, current.id)
+  const entries = [current, ...[...queue, ...(autoplay ? autoplayQueue : [])].slice(0, PREPARE_AHEAD)]
+  serial(record.userId, async () => {
+    if (recordOf(record.key) === record) await refreshEntries(record, entries)
+  }).catch(report)
 }
 
 type Wanted = { entry: QueueEntry; origin: 'play' | 'prefetch' }
@@ -367,8 +410,10 @@ function startGrace(record: SessionRecord, deviceId: string, lostAt = settings.n
   const { userId } = record
   const key = `${record.key}#${deviceId}`
   if (graceTimers.has(key)) return
+  stopClock(record, key, lostAt)
   graceTimers.set(key, settings.timers.set(() => {
     graceTimers.delete(key)
+    awayClocks.delete(key)
     serial(userId, () => {
       // Looked up again: the session may have been unloaded and loaded since.
       const latest = recordOf(record.key)
@@ -376,6 +421,40 @@ function startGrace(record: SessionRecord, deviceId: string, lostAt = settings.n
       applyServer(latest, { type: 'deviceLost', deviceId }, Math.min(settings.now(), Math.max(lostAt, latest.session.anchorAt)))
     }).catch(report)
   }, settings.deviceGraceMs))
+}
+
+/**
+ * Stops the session's clock while its active device is away: nothing says the music goes on,
+ * and other devices showing it run on for the grace period and then jump back would be wrong
+ * either way. Marked stalled, as for a device that is buffering, so every client, older ones
+ * included, holds the position. `restartClock` undoes it when the device returns.
+ */
+function stopClock(record: SessionRecord, key: string, at: number): void {
+  const { session } = record
+  const { current } = session
+  if (!current || current.state !== 'ready' || !session.playing || session.stalled) return
+  const positionMs = positionAt(session, at)
+  awayClocks.set(key, { at, positionMs, entryId: current.id })
+  applyServer(record, { type: 'syncPosition', entryId: current.id, positionMs, stalled: true }, at)
+}
+
+/**
+ * The device the clock was stopped for is back within the grace period. Most likely only
+ * its connection dropped and its audio played on, so the clock is put where it would have
+ * been: the device's next report corrects it, and a device that stopped (an app relaunched)
+ * says so with its own commands. Nothing happens when the session changed meanwhile.
+ */
+function restartClock(record: SessionRecord, deviceId: string): void {
+  const key = `${record.key}#${deviceId}`
+  const away = awayClocks.get(key)
+  if (!away) return
+  awayClocks.delete(key)
+  const { session } = record
+  const unchanged = session.activeDeviceId === deviceId && session.playing && session.stalled
+    && session.current?.id === away.entryId && session.anchorAt === away.at
+  if (!unchanged) return
+  const now = settings.now()
+  applyServer(record, { type: 'syncPosition', entryId: away.entryId, positionMs: away.positionMs + Math.max(0, now - away.at), stalled: false }, now)
 }
 
 /** Cancels the grace period of a device in the shared session and in its own. */
@@ -445,6 +524,7 @@ export function greet(userId: string, socketId: string, hello: SessionHello, rep
     // The socket may have closed while this waited; then it joins nothing.
     if (!connectedDevice(userId, device.id)) return
     const { own, ended } = returning ? await placeReturning(userId, device.id, hello.detached) : { own: loadedOwn(userId, device.id) }
+    for (const held of [shared, own]) if (held) restartClock(held, device.id)
     const record = own ?? shared
     if (own) {
       own.lastSeenAt = settings.now()
@@ -819,8 +899,12 @@ export function markRecordingFailed(recordingId: string, reason?: string): Promi
 async function setRecordingState(recordingId: string, state: 'ready' | 'failed', reason?: string): Promise<void> {
   // The request is answered for sessions that no longer hold the recording too, so one
   // that queues it again asks again instead of waiting on an answer that already came.
-  await Promise.all([...loadedRecords()].filter(record => record.requested.has(recordingId) || holds(record, recordingId))
-    .map(({ userId, key }) => serial(userId, () => {
+  // A session that asked for a recording under an id merged since is answered under the
+  // surviving one: those are looked up again first.
+  await Promise.all([...loadedRecords()].filter(record => record.requested.has(recordingId) || holds(record, recordingId) || awaitsOther(record, recordingId))
+    .map(({ userId, key }) => serial(userId, async () => {
+      const asked = recordOf(key)
+      if (asked && !holds(asked, recordingId)) await refreshEntries(asked, entriesOf(asked.session).filter(entry => asked.requested.has(entry.trackId)))
       const record = recordOf(key)
       if (!record) return
       record.requested.delete(recordingId)
@@ -834,6 +918,11 @@ function holds(record: SessionRecord, recordingId: string): boolean {
   return entriesOf(record.session).some(entry => entry.trackId === recordingId)
 }
 
+/** The session waits on the answer for another recording, which may be the one answered under a merged id. */
+function awaitsOther(record: SessionRecord, recordingId: string): boolean {
+  return [...record.requested.keys()].some(id => id !== recordingId && holds(record, id))
+}
+
 /**
  * Writes every session and the plays still open, forgets them, and cancels device timers.
  * An open play stays open in the stored session: after a restart it goes on as the same
@@ -842,6 +931,8 @@ function holds(record: SessionRecord, recordingId: string): boolean {
 export async function stopSessions(): Promise<void> {
   for (const timer of graceTimers.values()) settings.timers.clear(timer)
   graceTimers.clear()
+  awayClocks.clear()
+  refreshedFor.clear()
   for (const record of loadedRecords()) {
     if (record.deviceId === null || !connectedDevice(record.userId, record.deviceId)) continue
     record.lastSeenAt = settings.now()
