@@ -16,7 +16,7 @@ import { useEngine } from './engine/engine-context'
 import { AUDIO_BLOCKED_MESSAGE } from './engine/errors'
 import type { WebPlayerEngine } from './engine/web-engine'
 import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './engine/media-session'
-import { PlayerContext, PositionClock, PositionContext, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
+import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
 import { useShortcuts } from './shortcuts'
 
 /** The most tracks one `playTracks` or `enqueue` may carry. */
@@ -222,9 +222,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <PlayerContext value={{ state, controls }}>
-      <PositionContext value={clock}>{children}</PositionContext>
-    </PlayerContext>
+    <PlayerControlsContext value={controls}>
+      <PlayerContext value={{ state, controls }}>
+        <PositionContext value={clock}>{children}</PositionContext>
+      </PlayerContext>
+    </PlayerControlsContext>
   )
 }
 
