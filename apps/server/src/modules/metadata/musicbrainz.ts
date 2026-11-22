@@ -506,8 +506,3 @@ export async function findReleasesByBarcode(barcode: string): Promise<MbReleaseS
   const data = await get<{ releases: RawRelease[] }>('release', { query: `barcode:${wanted} OR barcode:0${wanted}`, limit: '25' }, searchTtl)
   return (data?.releases ?? []).filter((release) => release.barcode?.replace(/^0+/, '') === wanted).map(releaseSummary)
 }
-
-export async function findRecordingsByIsrc(isrc: string): Promise<MbRecordingSummary[]> {
-  const data = await get<{ recordings: RawRecording[] }>(`isrc/${encodeURIComponent(isrc.toUpperCase())}`, { inc: 'artist-credits isrcs' })
-  return (data?.recordings ?? []).map(recordingSummary)
-}
