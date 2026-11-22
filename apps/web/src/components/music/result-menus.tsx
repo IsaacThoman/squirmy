@@ -1,12 +1,13 @@
 import type { SearchItem } from '@squirmy/client-core'
 import type { AlbumSummary, TrackSummary } from '@squirmy/contracts'
 import { useQueryClient } from '@tanstack/react-query'
-import { BookmarkCheck, BookmarkPlus, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus, Radio } from 'lucide-react'
+import { ListMusic, MicVocal, Play, Radio } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { albumQuery } from '@/api/queries'
 import { useApi } from '@/api/services'
 import type { MenuEntry } from '@/components/ui/menu'
+import { albumMenuEntries } from './album-menu'
 import { librarySaveEntry } from './library-save-entry'
 import { albumPresentation, isPlayable } from '@/lib/catalog'
 import { toast } from '@/lib/toast'
@@ -68,27 +69,19 @@ export function useResultMenus() {
       library.setWanted({ type: 'album', album }, !wanted)
       toast({ title: wanted ? 'Removed from Wantlist' : 'Added to Wantlist', description: album.title })
     }
-    return [
-      { label: 'Play', icon: <Play />, disabled: !plays, onSelect: () => void playAlbum(album) },
-      { label: 'Play next', icon: <ListStart />, disabled: !plays, onSelect: () => enqueue(album, 'next') },
-      { label: 'Add to queue', icon: <ListEnd />, disabled: !plays, onSelect: () => enqueue(album, 'last') },
-      {
-        kind: 'submenu',
-        label: 'Add to playlist',
-        icon: <ListPlus />,
-        items: [
-          { label: 'New playlist…', icon: <Plus />, onSelect: () => withTracks(album, tracks => library.newPlaylist(tracks)) },
-          ...(library.playlists.length ? [{ kind: 'separator' as const }] : []),
-          ...library.playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => withTracks(album, tracks => library.addToPlaylist(playlist, tracks)) })),
-        ],
-      },
-      // The heart's entry, as on the album page; an answer from an older server says nothing to show.
-      ...(album.liked === undefined ? [] : [librarySaveEntry({ liked: album.liked }, () => library.setSaved({ type: 'album', id: album.id, title: album.title }, !album.liked))]),
+    // The album's own menu, as on its page and its cards, with the saved state the search answer carries.
+    return albumMenuEntries({
+      artists: album.artists,
+      playable: plays,
+      onPlay: () => void playAlbum(album),
+      onEnqueue: placement => enqueue(album, placement),
+      playlists: library.playlists,
+      onAddToPlaylist: playlist => withTracks(album, tracks => (playlist ? library.addToPlaylist(playlist, tracks) : library.newPlaylist(tracks))),
+      liked: album.liked,
+      onToggleSaved: () => library.setSaved({ type: 'album', id: album.id, title: album.title }, !album.liked),
       // The Wantlist is for music that does not play, while the server has it on.
-      ...(library.wantlistEnabled && !plays ? [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: want }] : []),
-      { kind: 'separator' },
-      { label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(`/album/${album.id}`) },
-      ...album.artists.map(artist => ({ label: album.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
-    ]
+      want: library.wantlistEnabled && !plays ? { wanted, onToggle: want } : undefined,
+      onGoToArtist: artist => navigate(`/artist/${artist.id}`),
+    })
   }
 }
