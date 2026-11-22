@@ -1,4 +1,5 @@
 import {
+  QUEUE_LIMIT,
   type QueueEntry,
   type QueueSeed,
   ServerSessionCommand,
@@ -181,6 +182,8 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
       }
     }
     case 'enqueue': {
+      // Refused whole rather than cut short, so the client and the server agree on it.
+      if (s.queue.length + command.tracks.length > QUEUE_LIMIT) return s
       const entries = command.tracks.map(seed => toEntry(seed, context.nextId()))
       const ids = entries.map(entry => entry.id)
       const first = command.placement === 'next'
@@ -234,7 +237,7 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
       return setEntryState(s, command.trackId, command.state, context)
     case 'setAutoplayQueue': {
       if (!command.tracks.length && !s.autoplayQueue.length) return s
-      return { ...s, autoplayQueue: command.tracks.map(seed => toEntry(seed, context.nextId())) }
+      return { ...s, autoplayQueue: command.tracks.slice(0, QUEUE_LIMIT).map(seed => toEntry(seed, context.nextId())) }
     }
     case 'deviceLost':
       if (s.activeDeviceId !== command.deviceId) return s

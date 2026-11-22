@@ -145,9 +145,10 @@ describe('account', () => {
     await userEvent.click(await within(settings).findByRole('button', { name: 'Create' }))
     const creating = await screen.findByRole('dialog', { name: 'New app password' })
     await userEvent.type(within(creating).getByLabelText('Name'), 'Phone')
+    await userEvent.type(within(creating).getByLabelText('Your password'), 'correct horse')
     await userEvent.click(within(creating).getByRole('button', { name: 'Create' }))
     expect(await screen.findByLabelText('App password')).toHaveValue('sq-secret')
-    expect((api.auth.createAppPassword.mock.lastCall as unknown[] | undefined)?.[0]).toEqual({ name: 'Phone' })
+    expect((api.auth.createAppPassword.mock.lastCall as unknown[] | undefined)?.[0]).toEqual({ name: 'Phone', currentPassword: 'correct horse' })
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
 
     await userEvent.click((await within(settings).findAllByRole('button', { name: 'Revoke' }))[0])

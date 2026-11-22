@@ -12,10 +12,18 @@ import { TooLargeError, writeLimited } from './staging.js'
  * the first checks every entry without extracting anything, the second extracts.
  *
  * An archive is all or nothing. One unsafe entry (an absolute or `..` path, control
- * characters, a symbolic link, encryption) or a total past the limits rejects the whole
- * archive. Entries that are merely not music (a `.txt`, a nested `.zip`) are skipped and
+ * characters, a symbolic link, encryption), a total past the limits or one more than
+ * MAX_EXPANSION times the archive's size rejects the whole archive. Entries that are merely not music (a `.txt`, a nested `.zip`) are skipped and
  * counted, and hidden ones (`__MACOSX/`, `.DS_Store`) are skipped quietly.
  */
+
+/**
+ * How far an archive may inflate. Zipped music is about its own size (FLAC and MP3 do not
+ * compress; WAV and AIFF reach 1.5 to 3 times), so a total far past this is a zip bomb. The
+ * allowance lets small archives of text sidecars or short silent tracks through.
+ */
+export const MAX_EXPANSION = 20
+const EXPANSION_ALLOWANCE_BYTES = 64 * 1024 ** 2
 
 export type ArchiveLimits = {
   maxEntries: number
@@ -93,7 +101,9 @@ export async function inspectArchive(archive: string, limits: ArchiveLimits): Pr
         continue
       }
       bytes += entry.uncompressedSize
-      if (entry.uncompressedSize > limits.maxEntryBytes || bytes > limits.maxTotalBytes) return { ok: false, reason: 'unsafe_archive' }
+      // The total bounds every entry too, so one ratio for the whole archive is enough.
+      const maxExpanded = Math.max(MAX_EXPANSION * zip.fileSize, EXPANSION_ALLOWANCE_BYTES)
+      if (entry.uncompressedSize > limits.maxEntryBytes || bytes > limits.maxTotalBytes || bytes > maxExpanded) return { ok: false, reason: 'unsafe_archive' }
       planned.push({ entry, path: checked.path, bytes: entry.uncompressedSize })
     }
     const tops = new Set(planned.map((item) => item.path.split('/')[0]))

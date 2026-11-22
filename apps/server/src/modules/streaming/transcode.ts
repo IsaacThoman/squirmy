@@ -9,6 +9,7 @@ import { db } from '../../database/client.js'
 import { transcodes } from '../../database/schema.js'
 import { randomToken } from '../../lib/crypto.js'
 import { AppError } from '../../lib/errors.js'
+import { audioInput } from '../../lib/ffmpeg.js'
 import { newId } from '../../lib/ids.js'
 import { libraryPath, serveFile, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
 import { outputSampleRate, profiles, type MediaFile, type TranscodeProfile } from './profiles.js'
@@ -137,9 +138,19 @@ const children = new Set<ChildProcess>()
 let stopping = false
 
 // ffmpeg is CPU bound; leave room for the API and the database on small machines.
-const slotLimit = Math.max(2, Math.floor(availableParallelism() / 2))
+const defaultSlotLimit = Math.max(2, Math.floor(availableParallelism() / 2))
+let slotLimit = defaultSlotLimit
 let slotsInUse = 0
 const slotQueue: (() => void)[] = []
+
+/** Changes how many encoders may run at once; null restores the default. For tests. */
+export function setTranscodeSlotLimit(limit: number | null) {
+  slotLimit = limit ?? defaultSlotLimit
+  while (slotQueue.length > 0 && slotsInUse < slotLimit) {
+    slotsInUse++
+    slotQueue.shift()!()
+  }
+}
 
 async function acquireSlot() {
   if (slotsInUse < slotLimit) {
@@ -150,10 +161,29 @@ async function acquireSlot() {
 }
 
 function releaseSlot() {
-  const next = slotQueue.shift()
+  const next = slotsInUse <= slotLimit ? slotQueue.shift() : undefined
   if (next) next()
   else slotsInUse--
 }
+
+/**
+ * Takes an encoder slot without waiting, for encodes that answer a client now or not at
+ * all. Returns the function that gives it back (calling it again does nothing), or null
+ * when every slot is taken.
+ */
+export function tryAcquireSlot(): (() => void) | null {
+  if (slotsInUse >= slotLimit) return null
+  slotsInUse++
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    releaseSlot()
+  }
+}
+
+/** Every encoder slot is taken: 503 `transcoder_busy`. */
+export const transcoderBusy = () => new AppError(503, 'transcoder_busy', 'Too many transcodes are running; try again shortly')
 
 /**
  * The ffmpeg command for one transcode: the first audio stream only (no pictures), a
@@ -174,7 +204,7 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile): 
   ]
   const sampleRate = outputSampleRate(file, profile)
   return [
-    '-v', 'error', '-nostdin', '-i', input,
+    '-v', 'error', '-nostdin', ...audioInput(input),
     '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
     ...metadata.flatMap(([key, value]) => value === undefined || value === '' ? [] : ['-metadata', `${key}=${value}`]),
     ...(sampleRate ? ['-ar', String(sampleRate)] : []),

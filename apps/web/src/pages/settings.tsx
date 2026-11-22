@@ -101,7 +101,7 @@ export function SettingsDialogHost({ open, section, onOpenChange, onSectionChang
       onConnectLastFm={() => connections.lastFm.mutate()}
       onDisconnect={target => connections.disconnect.mutateAsync(target)}
       appPasswords={passwords.data?.items}
-      onCreateAppPassword={name => createPassword.mutateAsync({ name })}
+      onCreateAppPassword={request => createPassword.mutateAsync(request)}
       onRevokeAppPassword={id => revokePassword.mutateAsync(id)}
       onChangePassword={request => changePassword.mutateAsync(request)}
       onRename={user.role === 'admin' ? displayName => rename.mutateAsync(displayName) : undefined}

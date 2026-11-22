@@ -123,7 +123,18 @@ export const SessionSnapshot = z.object({
 })
 export type SessionSnapshot = z.infer<typeof SessionSnapshot>
 
-const seeds = z.array(QueueSeed).min(1).max(5000)
+/** Most tracks one `playTracks` or `enqueue` carries. */
+export const COMMAND_TRACK_LIMIT = 5000
+
+/**
+ * Most entries `queue` grows to. The session lives in the server's memory and is sent
+ * whole on every queue change, so it has to stay small enough to copy and send often.
+ * `enqueue` past it is refused (`queue_full`); `previous` may still put the few entries
+ * of `history` back in front of a full queue.
+ */
+export const QUEUE_LIMIT = 10_000
+
+const seeds = z.array(QueueSeed).min(1).max(COMMAND_TRACK_LIMIT)
 
 /**
  * Commands any of the user's clients may send. Semantics, as implemented by
@@ -142,7 +153,8 @@ const seeds = z.array(QueueSeed).min(1).max(5000)
  *   `tracks`; when omitted, the first track, or with shuffle the first of the shuffled
  *   order. Without shuffle the tracks before the start are not queued. The autoplay
  *   queue is emptied, so the server suggests tracks for the new ones.
- * - `enqueue`: `next` inserts before the queue, `last` appends.
+ * - `enqueue`: `next` inserts before the queue, `last` appends. Changes nothing when the
+ *   queue would grow past `QUEUE_LIMIT`.
  * - `playQueueEntry`: play an entry of the queue or the autoplay queue now; the entries
  *   before it stay queued.
  * - `moveInQueue`: move an entry within its list (queue or autoplay queue). With shuffle

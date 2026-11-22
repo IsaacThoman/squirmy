@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
 import { mediaFiles, releaseLoudness } from '../../database/schema.js'
 import { drainJobs, enqueue, jobs, startJobs, stopJobs } from '../../jobs/index.js'
-import { makeTone } from '../../test/audio.js'
+import { makeTone, writeHostileInputs } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
 import { loudnessModule } from './index.js'
@@ -79,6 +79,13 @@ describe('loudness', () => {
     }
     expect((await measureLoudness(tones.silent)).lufs).toBe(SILENT_LUFS)
     expect((await measureLoudness(tones.short)).lufs).toBe(SILENT_LUFS)
+  })
+
+  it('refuses a file whose content makes ffmpeg read another file', async () => {
+    await makeTone(root, { path: 'hostile/real.flac', durationSec: 4, frequency: 1000, volumeDb: -30 })
+    const { concat } = await writeHostileInputs(path.join(root, 'hostile'), { target: 'real.flac', url: 'http://127.0.0.1:9' })
+    await expect(measureLoudness(concat)).rejects.toThrow(/not on whitelist/)
+    await expect(measureAlbumLoudness([tones.soft, concat], false)).rejects.toThrow(/not on whitelist/)
   })
 
   it('gates an album as one programme rather than averaging tracks', async () => {

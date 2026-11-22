@@ -38,4 +38,16 @@ describe('coverart', () => {
     expect(await fetchImage('https://images.example.test/missing.png')).toBeNull()
     expect(await fetchImage('https://images.example.test/page.html')).toBeNull()
   })
+
+  it('follows redirects only to public https URLs', async () => {
+    expect((await fetchImage('https://images.example.test/redirect-moved.png'))!.contentType).toBe('image/png')
+    expect(await fetchImage('https://images.example.test/redirect-internal.png')).toBeNull()
+    expect(await fetchImage('https://images.example.test/redirect-plain.png')).toBeNull()
+    expect(await fetchImage('http://images.example.test/pixel.png')).toBeNull()
+    expect(await fetchImage('https://127.0.0.1/pixel.png')).toBeNull()
+    expect(http.requests).toEqual([
+      'GET https://images.example.test/redirect-moved.png', 'GET https://images.example.test/pixel.png',
+      'GET https://images.example.test/redirect-internal.png', 'GET https://images.example.test/redirect-plain.png',
+    ])
+  })
 })
