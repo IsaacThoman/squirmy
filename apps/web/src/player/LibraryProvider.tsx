@@ -65,11 +65,17 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   // A track carries `inLibrary`, an album page `library`; patching both fields reaches each where it shows.
   const libraryPatch = (inLibrary: boolean) => ({ inLibrary, library: inLibrary ? 'saved' : null })
   const save = useMutation({
-    mutationFn: ({ target, inLibrary }: { target: LibraryTarget; inLibrary: boolean }) =>
+    mutationFn: ({ target, inLibrary }: { target: LibraryTarget; inLibrary: boolean; undoing?: boolean }) =>
       (inLibrary ? api.library.save(target.type, target.id) : api.library.remove(target.type, target.id)),
-    onMutate: ({ target, inLibrary }) => {
+    onMutate: ({ target, inLibrary, undoing }) => {
       patchCache(queryClient, target.id, libraryPatch(inLibrary))
-      toast({ title: inLibrary ? 'Added to your library' : 'Removed from your library', description: target.title })
+      // Undo puts it back as it was, quietly: the toast that offered it already said what happened.
+      if (undoing) return
+      toast({
+        title: inLibrary ? 'Added to your library' : 'Removed from your library',
+        description: target.title,
+        action: { label: 'Undo', onClick: () => save.mutate({ target, inLibrary: !inLibrary, undoing: true }) },
+      })
     },
     onError: (_error, { target, inLibrary }) => patchCache(queryClient, target.id, libraryPatch(!inLibrary)),
     // The library's lists and Home's "Recently added" gain or lose it.

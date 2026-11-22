@@ -1,4 +1,5 @@
-import { ChevronDown, Heart, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
+import type { TrackSummary } from '@squirmy/contracts'
+import { ChevronDown, CircleCheck, CirclePlus, Heart, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { Link } from 'react-router'
 import { Cover } from '@/components/music/Cover'
@@ -6,6 +7,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
+import { useLibrary } from '@/player/library-context'
 import { playingElsewhere, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover, PlayingElsewhere } from './Devices'
@@ -108,6 +110,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
                   </p>
                 )}
               </div>
+              {item && <LibraryToggle track={item.track} />}
               {item && (
                 <IconButton label={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'} size="lg" onClick={onToggleLike} className={cn('max-md:size-11', liked && 'text-primary hover:text-primary')}>
                   <Heart fill={liked ? 'currentColor' : 'none'} />
@@ -127,5 +130,22 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </Dialog>
+  )
+}
+
+/** Add to library for the song playing, beside its heart. Servers that do not say what is in the library get none. */
+function LibraryToggle({ track }: { track: TrackSummary }) {
+  const library = useLibrary()
+  if (track.inLibrary === undefined) return null
+  const saved = track.inLibrary
+  return (
+    <IconButton
+      label={saved ? 'Remove from library' : 'Add to library'}
+      size="lg"
+      onClick={() => library.setInLibrary({ type: 'track', id: track.id, title: track.title }, !saved)}
+      className={cn('max-md:size-11', saved && 'text-primary hover:text-primary')}
+    >
+      {saved ? <CircleCheck /> : <CirclePlus />}
+    </IconButton>
   )
 }

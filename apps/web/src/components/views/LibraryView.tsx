@@ -53,9 +53,9 @@ export type LibraryListProps<T> = {
  * everything played. Empty, it says so and where music comes from.
  */
 const emptyDescriptions = {
-  albums: 'Albums you add to your library and music on this server appear here.',
+  albums: 'Albums you add to your library and music on this server appear here. Find an album you like and choose Add to library.',
   artists: 'The artists of albums you add to your library and of music on this server appear here.',
-  songs: 'Songs you add to your library and music on this server appear here.',
+  songs: 'Songs you add to your library and music on this server appear here. Add one from any song’s menu.',
 }
 
 /**

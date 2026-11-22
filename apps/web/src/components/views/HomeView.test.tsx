@@ -44,7 +44,7 @@ describe('library', () => {
     const fake = fakeServices()
     fake.api.catalog.albums.mockResolvedValue({ items: [], nextCursor: null })
     renderWithApp(<AppRoutes />, '/library/albums', fake.services)
-    expect(await screen.findByText('Albums you add to your library and music on this server appear here.')).toBeInTheDocument()
+    expect(await screen.findByText(/^Albums you add to your library and music on this server appear here\./)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Find music' })).toHaveAttribute('href', '/search')
   })
 

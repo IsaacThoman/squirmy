@@ -57,6 +57,26 @@ describe('album page', () => {
       expect(await screen.findByText('Added to your library')).toBeInTheDocument()
     })
 
+    it('undoes an add from its toast', async () => {
+      const { services, api } = fakeServices()
+      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      await userEvent.click(await screen.findByRole('button', { name: 'Add to library' }))
+      await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+      expect(api.library.remove).toHaveBeenCalledWith('album', lowTide.id)
+      expect(await screen.findByRole('button', { name: 'Add to library' })).toBeInTheDocument()
+    })
+
+    it('adds the song playing to the library from Now Playing', async () => {
+      const { services, api } = fakeServices()
+      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      await userEvent.click((await screen.findAllByRole('button', { name: 'Play Low Tide' }))[0]!)
+      await userEvent.click(await screen.findByRole('button', { name: 'Open Now Playing' }))
+      const nowPlaying = await screen.findByRole('dialog', { name: 'Now Playing' })
+      await userEvent.click(within(nowPlaying).getByRole('button', { name: 'Add to library' }))
+      expect(api.library.save).toHaveBeenCalledWith('track', lowTide.discs[0].tracks[0].id)
+      expect(within(nowPlaying).getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+    })
+
     it('shows a check without a remove on music on this server', async () => {
       renderWithApp(<AppRoutes />, `/album/${blueHour.id}`)
       expect(await screen.findByRole('img', { name: 'On this server' })).toBeInTheDocument()
