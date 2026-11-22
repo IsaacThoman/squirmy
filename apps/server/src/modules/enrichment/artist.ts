@@ -38,7 +38,7 @@ const coverRetryMs = 7 * day
  * answers within a second when it is not busy.
  */
 const profileWaitMs = 1500
-/** Albums the quick Deezer pass lists for an artist MusicBrainz knows (Deezer credits Bach with thousands). */
+/** Albums the quick Deezer pass lists, newest first (Deezer credits Bach with thousands); a page waits for them. */
 const quickDeezerAlbums = 200
 /** Albums listed for an artist only Deezer knows, which is then the whole discography. */
 const deezerOnlyAlbums = 1000
@@ -145,10 +145,9 @@ export async function hydrateArtist(id: string, { force = false, usable }: { for
     const linked = early ? deezerArtistIds(early.urls).filter((one) => rowDeezerIds.includes(one)) : []
     const deezerId = await mainDeezerArtist(linked.length > 0 ? linked : early && deezerArtistIds(early.urls).length > 0 ? deezerArtistIds(early.urls) : rowDeezerIds)
     if (deezerId) {
-      const max = artist.mbid ? quickDeezerAlbums : deezerOnlyAlbums
       let created: string[] = []
       await attempt('Deezer discography', async () => {
-        created = await deezerDiscography(artistId, deezerId, { max })
+        created = await deezerDiscography(artistId, deezerId, { max: quickDeezerAlbums })
       })
       quick = { deezerId, created }
       // An artist without an MBID is known by this page; one with an MBID waits for the
@@ -217,7 +216,8 @@ export async function hydrateArtist(id: string, { force = false, usable }: { for
     // MusicBrainz could not name the artist (or failed): Deezer is all there is.
     const deezerId = quick?.deezerId ?? await mainDeezerArtist(rowDeezerIds)
     if (deezerId) {
-      if (!quick) await attempt('Deezer discography', () => deezerDiscography(target, deezerId, { max: deezerOnlyAlbums }))
+      // The quick pass listed the newest albums; an artist only Deezer knows gets the rest too.
+      await attempt('Deezer discography', () => deezerDiscography(target, deezerId, { max: deezerOnlyAlbums }))
       await attempt('artist image', () => artistImage(target, { mbid: null, wikidataId: null, deezerId, informed: false }))
       if (artist.mbid || !quick) await attempt('top tracks', () => topTracks(target, { mbid: null, deezerId }))
     }
@@ -310,26 +310,33 @@ const compatibleTypes = (group: string, stub: string) => group === stub || group
 
 /**
  * Album rows search or Deezer created for the discography's release groups: no MBID, no
- * files, the same primary artist, the same release once edition suffixes and store labels
- * are dropped (`releaseKey`: "Inception (Music from the Motion Picture)" is "Inception")
- * and a compatible type (any, for a guessed one). A release two groups of the artist share
+ * files, led by an artist the group credits (its first credit before any other), the same
+ * release once edition suffixes and store labels are dropped (`releaseKey`: "Inception
+ * (Music from the Motion Picture)" is "Inception") and a compatible type (any, for a
+ * guessed one). A release two groups of the artist share
  * ("Weezer") names neither, so its stubs are left alone. Keyed by group MBID.
  */
 async function stubsByGroup(tx: Transaction, groups: readonly MbReleaseGroupSummary[], artistIds: Map<string, string>): Promise<Map<string, string[]>> {
-  const primaryOf = (group: MbReleaseGroupSummary) => (group.artistCredit[0] ? artistIds.get(group.artistCredit[0].mbid) ?? null : null)
-  const primaries = [...new Set(groups.flatMap((group) => primaryOf(group) ?? []))]
-  if (primaries.length === 0) return new Map()
+  const creditedOf = (group: MbReleaseGroupSummary) => group.artistCredit.flatMap((credit) => artistIds.get(credit.mbid) ?? [])
+  const credited = [...new Set(groups.flatMap(creditedOf))]
+  if (credited.length === 0) return new Map()
   const rows = await tx.execute<{ id: string; title: string; type: string; typeGuessed: boolean; artistId: string }>(sql`
     select a.id, a.title, a.type, a.type_guessed as "typeGuessed", a.primary_artist_id as "artistId" from albums a
-    where a.mbid is null and a.merged_into_id is null and a.primary_artist_id = any(${uuidArray(primaries)})
+    where a.mbid is null and a.merged_into_id is null and a.primary_artist_id = any(${uuidArray(credited)})
       and not exists (select 1 from media_files f where f.album_id = a.id)`)
   const result = new Map<string, string[]>()
-  const groupKeys = groups.map((group) => ({ group, artistId: primaryOf(group), key: releaseKey(group.title) }))
+  const groupKeys = groups.map((group) => ({ group, primary: creditedOf(group)[0] ?? null, credited: new Set(creditedOf(group)), key: releaseKey(group.title) }))
   for (const row of rows) {
     const key = releaseKey(row.title)
     if (!key) continue
     // A guessed type (a track's album reference) fits any group of the title.
-    const fits = groupKeys.filter((one) => one.artistId === row.artistId && one.key === key && (row.typeGuessed || compatibleTypes(one.group.type, row.type)))
+    const same = groupKeys.filter((one) => one.key === key && (row.typeGuessed || compatibleTypes(one.group.type, row.type)))
+    // The group the stub's artist leads; else one that credits it further on. Deezer lists an
+    // artist's features among its albums without saying whose they are, so the artist page
+    // made them its own ("Talk Ya Shit", Busta Rhymes's single), and they stayed beside the
+    // release under Appears on.
+    const led = same.filter((one) => one.primary === row.artistId)
+    const fits = led.length > 0 ? led : same.filter((one) => one.credited.has(row.artistId))
     if (fits.length !== 1) continue
     const mbid = fits[0]!.group.mbid
     result.set(mbid, [...(result.get(mbid) ?? []), row.id])
