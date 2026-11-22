@@ -72,6 +72,9 @@ def main():
     # Expo's default icon, and the Android adaptive icon foreground.
     resize(icon, 1024, MOBILE / 'icon.png')
     resize(RENDERS / 'earthworm-android-foreground.png', 1024, MOBILE / 'adaptive-icon.png')
+    # iOS splash screen and in-app logo (sign-in screens, the account sheet).
+    resize(mark, 512, MOBILE / 'splash-icon.png', optimize=True)
+    resize(mark, 256, MOBILE / 'squirmy-mark.png', optimize=True)
 
     # Web app: in-app logo and favicons.
     resize(mark, 256, WEB / 'squirmy-mark.png', optimize=True)

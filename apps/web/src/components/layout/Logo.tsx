@@ -1,19 +1,30 @@
 import { cn } from '@/lib/utils'
 
-/** The Squirmy mark in the theme's action color. */
-export function LogoMark({ className }: { className?: string }) {
+/**
+ * The earthworm mascot. It is a head on a transparent background, so it sits on every theme in
+ * light and dark alike. The 64 px file covers a 32 px mark on a 2x screen; a denser screen or a
+ * larger mark gets the 256 px one.
+ */
+export function LogoMark({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <svg aria-hidden viewBox="0 0 64 64" className={cn('size-6 shrink-0', className)}>
-      <rect width="64" height="64" rx="16" className="fill-primary" />
-      <path d="M14 38c4-10 8-10 12 0s8 10 12 0 8-10 12 0" fill="none" strokeWidth="6" strokeLinecap="round" className="stroke-primary-foreground" />
-    </svg>
+    <img
+      src="/squirmy-mark-64.png"
+      srcSet="/squirmy-mark-64.png 64w, /squirmy-mark.png 256w"
+      sizes={`${size}px`}
+      width={size}
+      height={size}
+      alt=""
+      draggable={false}
+      className={cn('shrink-0 select-none', className)}
+    />
   )
 }
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <span className={cn('flex items-center gap-2.5', className)}>
-      <LogoMark className="size-8" />
+    // The head is narrower than its square, so the gap to the name is tightened to match.
+    <span className={cn('flex items-center gap-1', className)}>
+      <LogoMark size={40} />
       <span className="text-lg font-semibold tracking-tight">Squirmy</span>
     </span>
   )

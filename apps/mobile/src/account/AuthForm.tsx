@@ -3,6 +3,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrandMark } from '../BrandMark';
 import { createThemedStyles, useColors } from '../theme';
 import { Icon } from '../ui';
 import type { Server } from './server';
@@ -12,7 +13,8 @@ export type FieldKind = 'url' | 'username' | 'password' | 'newPassword' | 'code'
 /** `clear` empties the field without rebuilding it: iOS offers to save a password whose filled field disappears. */
 export type FieldHandle = { focus: () => void; clear: () => void };
 
-export type AuthPageProps = { icon: string; title: string; message: string; children: ReactNode };
+/** Every page before the app opens under the mascot. */
+export type AuthPageProps = { title: string; message: string; children: ReactNode };
 export type AuthSectionProps = { footer?: string | null; tone?: 'error' | 'note'; children: ReactNode };
 export type AuthFieldProps = {
   kind: FieldKind;
@@ -36,15 +38,14 @@ const inputProps: Record<FieldKind, TextInputProps> = {
   code: { textContentType: 'oneTimeCode', autoComplete: 'one-time-code', returnKeyType: 'next' },
 };
 
-export function AuthPage({ icon, title, message, children }: AuthPageProps) {
-  const colors = useColors();
+export function AuthPage({ title, message, children }: AuthPageProps) {
   const styles = useStyles();
   const { top, bottom } = useSafeAreaInsets();
   return <KeyboardAvoidingView behavior="padding" style={styles.page}>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       contentContainerStyle={[styles.content, { paddingTop: top + 48, paddingBottom: bottom + 24 }]}>
       <View style={styles.header}>
-        <View style={styles.badge}><Icon name={icon} size={30} color={colors.onAccent} /></View>
+        <View style={styles.mark}><BrandMark size={84} /></View>
         <Text accessibilityRole="header" style={styles.title}>{title}</Text>
         <Text style={styles.message}>{message}</Text>
       </View>
@@ -113,7 +114,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 22, gap: 22 },
   header: { alignItems: 'center', gap: 8, marginBottom: 6 },
-  badge: { width: 64, height: 64, borderRadius: 18, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  mark: { marginBottom: 4 },
   title: { color: colors.text, fontSize: 30, fontWeight: '800', letterSpacing: -1.1, textAlign: 'center' },
   message: { color: colors.muted, fontSize: 15, lineHeight: 21, textAlign: 'center' },
   section: { gap: 7 },
