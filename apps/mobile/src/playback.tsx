@@ -18,7 +18,7 @@ import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
 import { useNotice } from './Notice';
 import { connectNowPlaying, createPlayerEngine } from './player/engine';
-import { loadSession, saveSession } from './player/savedSession';
+import { loadSession, sessionSaver } from './player/savedSession';
 import {
   codecsFor, deviceRows, findEntry, isRemote, newlyFailed, nextRepeat, outputDevice, playableSeeds, qualityFor, seedOf,
 } from './player/session';
@@ -33,7 +33,7 @@ const defaultQuality: Pick<UserSettings, 'qualityWifi' | 'qualityCellular'> = { 
 const errorSkipWindowMs = 8000;
 const lockScreenArtSize = 600;
 /** The session is saved this long after it last changed, and when the app leaves the screen. */
-const saveDelayMs = 2000;
+const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
@@ -183,9 +183,10 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       });
 
       let saveTimer: ReturnType<typeof setTimeout> | undefined;
+      const saveSession = sessionSaver(account, client, tracks);
       const save = () => {
         clearTimeout(saveTimer);
-        saveSession(account, client, tracks);
+        saveSession();
       };
       const stopSaving = client.subscribe(() => {
         clearTimeout(saveTimer);
