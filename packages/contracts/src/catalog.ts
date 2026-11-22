@@ -164,6 +164,12 @@ export const ArtistDetail = ArtistSummary.extend({
   /** Whole discography, newest first. Clients group by `type`. */
   albums: z.array(AlbumSummary),
   similar: z.array(ArtistSummary),
+  /**
+   * Whether `POST /radio/artist/:id` starts a radio for the viewer: something of the artist
+   * plays for them (for a requester, fetched on demand included). Absent from servers that
+   * predate it; clients then fall back to `inLibrary`, or offer it to requesters.
+   */
+  radio: z.boolean().optional(),
   /** As on `AlbumDetail`: the profile and discography are still being fetched. */
   detailPending: z.literal(true).optional(),
 })

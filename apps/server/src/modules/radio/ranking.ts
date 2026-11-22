@@ -133,7 +133,7 @@ function byArtist(artistIs: (column: SQL) => SQL): SQL {
 }
 
 /** Whether tracks may be fetched for the user, by the rule acquisition applies to a request. */
-async function isRequester(userId: string): Promise<boolean> {
+export async function isRequester(userId: string): Promise<boolean> {
   const [user] = await db.select({ role: users.role, canAcquire: users.canAcquire, disabledAt: users.disabledAt }).from(users).where(eq(users.id, userId))
   return Boolean(user && !user.disabledAt && canFetch(user))
 }
