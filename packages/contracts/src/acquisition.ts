@@ -279,7 +279,8 @@ export type AcquireQuery = z.infer<typeof AcquireQuery>
  * the request: an existing job when one is already in flight, one job for an album the
  * provider takes whole, or one per missing track otherwise. Error codes: `acquire_not_allowed`
  * (the user may not trigger fetches), `already_available`, `not_available` (no enabled
- * provider covers it), `storage_quota_reached`.
+ * provider covers it), `acquire_limit_reached` (429: a member has too many fetches
+ * running). The cache limit never refuses a request; it evicts instead.
  */
 export const AcquireResponse = z.object({ items: z.array(AcquisitionJob) })
 export type AcquireResponse = z.infer<typeof AcquireResponse>

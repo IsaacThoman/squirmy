@@ -110,6 +110,37 @@ describe('delivery verification', () => {
     }
   })
 
+  it("does not let a provider's tags replace the audio of a track the server already has", async () => {
+    // A stub is requested with its ISRC; the provider sends a file tagged with that ISRC and
+    // the MusicBrainz id of a popular owned track, so ingest linked it to the owned row.
+    const artist = await createArtist({ name: 'Owned Act' })
+    const stub = await requested({ artist, title: 'Requested Stub', isrcs: ['USAAA0000001'] })
+    const owned = await createAlbum({ artist, owned: true, tracks: [{ title: 'Everyone Plays This', mbid: mbid(), durationMs: 200_000 }] })
+    const target = owned.tracks[0]!
+    const importId = newId()
+    const planted = await createAlbum({ artist, owned: true, tracks: [{ title: 'Planted', durationMs: 200_000 }] })
+    await db.update(mediaFiles).set({ importId, source: 'provider:test', recordingId: target.recordingId, tags: { isrcs: ['USAAA0000001'] } })
+      .where(eq(mediaFiles.id, planted.tracks[0]!.fileId!))
+
+    expect(await verifyDelivery(job([stub.id], importId))).toEqual([])
+    expect(await mergedInto(stub.id)).toBeNull()
+    expect(await mergedInto(target.recordingId)).toBeNull()
+
+    // The same delivery is fine when the server's own catalog says the two are one recording.
+    await db.update(recordings).set({ isrcs: ['USAAA0000001'] }).where(eq(recordings.id, target.recordingId))
+    expect(await verifyDelivery(job([stub.id], importId))).toEqual([stub.id])
+    expect(await mergedInto(stub.id)).toBe(target.recordingId)
+  })
+
+  it('still takes ISRCs from the tags for a row that only this delivery built', async () => {
+    const artist = await createArtist({ name: 'New Act' })
+    const stub = await requested({ artist, title: 'Known By Code', isrcs: ['USBBB0000002'] })
+    const importId = newId()
+    const local = await delivered(importId, { artist, title: 'Something Else Entirely', durationMs: 90_000, isrcs: ['USBBB0000002'] })
+    expect(await verifyDelivery(job([stub.id], importId))).toEqual([stub.id])
+    expect(await mergedInto(local.id)).toBe(stub.id)
+  })
+
   it('checks each track of an album delivery once', async () => {
     const importId = newId()
     const artist = await createArtist({ name: 'Album Act' })

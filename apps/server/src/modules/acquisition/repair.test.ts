@@ -291,7 +291,7 @@ describe('repairing deliveries left on albums of their own', () => {
       const file = await fileRow(item.file.id)
       expect(file).toMatchObject({
         albumId: lp.albumId, releaseId: lp.releaseId, releaseTrackId: lp.tracks[position]!.releaseTrackId, matchStatus: 'matched', matchSource: 'request',
-        relPath: `${artistName}/The Coin Shop (2012)/0${position + 1} ${lp.tracks[position]!.title}.flac`,
+        relPath: `_Fetched/${artistName}/The Coin Shop (2012)/0${position + 1} ${lp.tracks[position]!.title}.flac`,
       })
       expect(await exists(file.relPath)).toBe(true)
       const [delivery] = await db.select().from(imports).where(eq(imports.id, item.importId))

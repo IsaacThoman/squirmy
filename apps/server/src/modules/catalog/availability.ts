@@ -8,7 +8,9 @@
  *   canonical release, plus owned recordings filed under the album that the release does
  *   not list. All is `full`, some is `partial`. With none owned it is `on_demand` when
  *   every track is, else `none`. An album with a present, linked file is therefore never
- *   `none`, which is what keeps a library album from showing gray.
+ *   `none`, which is what keeps a library album from showing gray. An album with no track
+ *   list yet (a search result) is `on_demand` while an `assume_available` provider is
+ *   active (`albumCoveredWithoutTracks`), else `none`.
  *
  * Library membership is separate from availability and lives here too (`inLibraryAlbum`,
  * `inLibraryRecording`): a user's library is the server's collection (present files no
@@ -18,7 +20,7 @@
 import type { AlbumAvailability, TrackAvailability } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { onDemandRecordings } from '../acquisition/coverage.js'
+import { albumCoveredWithoutTracks, onDemandRecordings } from '../acquisition/coverage.js'
 import { uuidArray } from './sql.js'
 
 /** SQL condition: a present file links to the recording id expression. */
@@ -116,11 +118,15 @@ export async function albumAvailability(albumIds: readonly string[]): Promise<Ma
 
   const candidates = rows.filter((row) => row.ownedTrackCount === 0 && row.trackCount > 0).flatMap((row) => row.unowned)
   const onDemand = candidates.length > 0 ? await onDemandRecordings([...new Set(candidates)]) : new Set<string>()
+  // An album search found has no track list until its detail is fetched; a provider that
+  // fetches anything can still play it (the acquisition seam decides).
+  const emptyCovered = rows.some((row) => row.trackCount === 0) && await albumCoveredWithoutTracks()
   return new Map(rows.map((row) => {
     let availability: AlbumAvailability
     if (row.trackCount > 0 && row.ownedTrackCount === row.trackCount) availability = 'full'
     else if (row.ownedTrackCount > 0) availability = 'partial'
     else if (row.trackCount > 0 && row.unowned.every((id) => onDemand.has(id))) availability = 'on_demand'
+    else if (row.trackCount === 0 && emptyCovered) availability = 'on_demand'
     else availability = 'none'
     return [row.id, { availability, trackCount: row.trackCount, ownedTrackCount: row.ownedTrackCount }]
   }))

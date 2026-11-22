@@ -1,8 +1,8 @@
 import { API_PREFIX, AcquisitionPolicy, type UpdateAcquisitionPolicy } from '@squirmy/contracts'
-import { and, eq, like, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { libraryRoots, mediaFiles, serverSettings } from '../../database/schema.js'
+import { libraryRoots, serverSettings } from '../../database/schema.js'
 import { badRequest } from '../../lib/errors.js'
 
 /** The policy is one row of `server_settings`, beside the operator settings. */
@@ -52,11 +52,4 @@ export async function deliveryOrigin(): Promise<string> {
 export async function deliveryUrls(jobId: string): Promise<{ uploadUrl: string; completeUrl: string }> {
   const base = `${await deliveryOrigin()}${API_PREFIX}/acquisition/deliveries/${jobId}`
   return { uploadUrl: `${base}/files`, completeUrl: `${base}/complete` }
-}
-
-/** Bytes of present files that arrived from providers, for the storage quota. */
-export async function acquiredBytes(): Promise<number> {
-  const [row] = await db.select({ bytes: sql<string>`coalesce(sum(${mediaFiles.size}), 0)` }).from(mediaFiles)
-    .where(and(like(mediaFiles.source, 'provider:%'), sql`${mediaFiles.missingSince} is null`))
-  return Number(row?.bytes ?? 0)
 }

@@ -20,6 +20,10 @@ async function getRoot(id: string): Promise<LibraryRoot> {
   return root
 }
 
+/**
+ * Counts of the collection: files someone brought. Provider deliveries are cache and are
+ * counted on the acquisition page instead (`GET /admin/acquisition/usage`).
+ */
 async function libraryStats(): Promise<LibraryStats> {
   const [files] = await db.execute<Omit<LibraryStats, 'artists'>>(sql`
     select
@@ -33,12 +37,12 @@ async function libraryStats(): Promise<LibraryStats> {
       count(*) filter (where missing_since is null and match_status = 'review')::int as "inReview",
       count(*) filter (where missing_since is null and match_status = 'pending')::int as pending,
       count(*) filter (where missing_since is not null)::int as missing
-    from media_files`)
+    from media_files where not cached`)
   const [credited] = await db.execute<{ artists: number }>(sql`
     select count(*)::int as artists from (
-      select aa.artist_id from album_artists aa where aa.album_id in (select album_id from media_files where missing_since is null)
+      select aa.artist_id from album_artists aa where aa.album_id in (select album_id from media_files where missing_since is null and not cached)
       union
-      select ra.artist_id from recording_artists ra where ra.recording_id in (select recording_id from media_files where missing_since is null)
+      select ra.artist_id from recording_artists ra where ra.recording_id in (select recording_id from media_files where missing_since is null and not cached)
     ) owned`)
   return { artists: credited?.artists ?? 0, ...files! }
 }

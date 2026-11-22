@@ -1,5 +1,6 @@
 import { access } from 'node:fs/promises'
 import path from 'node:path'
+import { INCOMING_FOLDER } from '@squirmy/contracts'
 import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { libraryRoots, mediaFiles } from '../../database/schema.js'
@@ -78,6 +79,11 @@ export async function analyzeFile({ fileId }: AnalyzeJob) {
       tagAlbumGainDb: current.tagAlbumGainDb,
       tagAlbumPeak: current.tagAlbumPeak,
       groupKey: current.groupKey,
+      // A provider delivery someone moved out of `_Fetched/` (or into another root) was
+      // moved to be kept: from now on it is theirs, not cache that eviction may delete. The
+      // scanner's own row says which: under a managed root's `_Fetched/` it is cache too.
+      // `_Incoming/` is left to the import that owns the folder.
+      ...(original.cached && !current.cached && !current.relPath.startsWith(`${INCOMING_FOLDER}/`) ? { source: current.source } : {}),
       audioHash: hash,
       probeStage: 2,
       probeError: null,

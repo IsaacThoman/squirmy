@@ -10,6 +10,13 @@
  *    {@link DURATION_TOLERANCE_MS}; with an AcoustID key set and a
  *    requested MusicBrainz id, AcoustID must not name other recordings for the file. Two
  *    rows with different MusicBrainz ids are never the same.
+ * 3. When the file is linked to a recording the server already has other files for (the
+ *    provider tagged it as a track the library owns), what the provider claims is not
+ *    enough: ISRCs in the file's tags and matching titles do not count. The requested row
+ *    must share an ISRC with that recording's own row, from the server's catalog, or
+ *    AcoustID must name that recording (or the requested one) for the file. Otherwise a
+ *    provider could swap the audio of a track everyone plays by tagging a file with the
+ *    requested ISRC and the owned track's MusicBrainz id.
  *
  * A delivery whose audio the library already has counts through that library file: the
  * import deletes the delivered copy as a duplicate, and the file it kept (`copies`) is
@@ -35,7 +42,7 @@
  * the linking itself, are in place.ts.
  */
 import path from 'node:path'
-import { and, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { db } from '../../database/client.js'
@@ -63,21 +70,33 @@ function report(error: unknown) {
   if (getConfig().LOG_LEVEL !== 'silent') console.error('[acquisition]', error)
 }
 
-/** True when AcoustID knows the file and names recordings other than `mbid` only. */
-async function acoustIdDisagrees(file: DeliveredFile, mbid: string): Promise<boolean> {
-  if (!(await getServerSettings()).acoustIdKeySet) return false
+/** The MusicBrainz recordings AcoustID names for the file; null without a key or an answer. */
+async function acoustIdNames(file: DeliveredFile): Promise<string[] | null> {
+  if (!(await getServerSettings()).acoustIdKeySet) return null
   try {
     const print = file.fingerprint
       ? { fingerprint: file.fingerprint, durationSec: Math.round(file.durationMs / 1000) }
       : await acoustid.fingerprint(file.absolutePath)
-    if (!print) return false
-    const matches = await acoustid.lookup(print.fingerprint, print.durationSec)
-    return matches.length > 0 && !matches.some((match) => match.recordingMbid === mbid)
+    if (!print) return null
+    return (await acoustid.lookup(print.fingerprint, print.durationSec)).map((match) => match.recordingMbid)
   } catch (error) {
-    // No verdict from AcoustID leaves the decision to the tags.
     report(error)
-    return false
+    return null
   }
+}
+
+/** True when AcoustID knows the file and names recordings other than `mbid` only. No verdict leaves the decision to the tags. */
+async function acoustIdDisagrees(file: DeliveredFile, mbid: string): Promise<boolean> {
+  const names = await acoustIdNames(file)
+  return names !== null && names.length > 0 && !names.includes(mbid)
+}
+
+/** True only when AcoustID names one of `mbids` for the file. */
+async function acoustIdAgrees(file: DeliveredFile, mbids: readonly (string | null)[]): Promise<boolean> {
+  const wanted = mbids.filter((mbid): mbid is string => Boolean(mbid))
+  if (wanted.length === 0) return false
+  const names = await acoustIdNames(file)
+  return names !== null && names.some((name) => wanted.includes(name))
 }
 
 /**
@@ -85,10 +104,16 @@ async function acoustIdDisagrees(file: DeliveredFile, mbid: string): Promise<boo
  * `catalog` is for two rows the catalog already had (a search stub and an album's own
  * recording), not a row built from the file's tags: two such rows that both carry ISRCs and
  * share none are different recordings (a live take, a re-recording) however alike their
- * titles and lengths.
+ * titles and lengths. `owned`: the server has other files for `delivered`, so only the
+ * server's own identifiers or AcoustID count (rule 3 in the module comment).
  */
-export async function sameRecording(requested: Recording, delivered: Recording, file: DeliveredFile, { catalog = false } = {}): Promise<boolean> {
+export async function sameRecording(requested: Recording, delivered: Recording, file: DeliveredFile, { catalog = false, owned = false } = {}): Promise<boolean> {
   if (requested.mbid && delivered.mbid && requested.mbid !== delivered.mbid) return false
+  if (owned) {
+    const known = new Set(delivered.isrcs.map((isrc) => isrc.toUpperCase()))
+    if (requested.isrcs.some((isrc) => known.has(isrc.toUpperCase()))) return true
+    return acoustIdAgrees(file, [delivered.mbid, requested.mbid])
+  }
   const isrcs = new Set([...delivered.isrcs, ...file.isrcs].map((isrc) => isrc.toUpperCase()))
   if (requested.isrcs.some((isrc) => isrcs.has(isrc.toUpperCase()))) return true
   if (catalog && requested.isrcs.length > 0 && isrcs.size > 0) return false
@@ -170,6 +195,19 @@ export async function verifyDelivery(job: Pick<JobRow, 'recordingIds' | 'importI
     return rows.get(id)
   }
 
+  const considered = files.map((file) => file.id)
+  const ownedElsewhere = new Map<string, boolean>()
+  /** Whether the server has files for the recording besides the ones this check looks at. */
+  const hasOtherFiles = async (recordingId: string) => {
+    if (!ownedElsewhere.has(recordingId)) {
+      const [other] = await db.select({ id: mediaFiles.id }).from(mediaFiles).where(and(
+        eq(mediaFiles.recordingId, recordingId), isNull(mediaFiles.missingSince), notInArray(mediaFiles.id, considered),
+      )).limit(1)
+      ownedElsewhere.set(recordingId, Boolean(other))
+    }
+    return ownedElsewhere.get(recordingId)!
+  }
+
   const used = new Set<string>()
   for (const requestedId of open) {
     const requested = await load(target(requestedId))
@@ -182,7 +220,8 @@ export async function verifyDelivery(job: Pick<JobRow, 'recordingIds' | 'importI
         id: file.id, recordingId: delivered.id, durationMs: file.durationMs, isrcs: file.tags.isrcs ?? [],
         fingerprint: file.fingerprint, absolutePath: path.join(file.rootPath, file.relPath),
       }
-      if (!await sameRecording(requested, delivered, candidate, { catalog: keptIds.has(file.id) }) || !await mergeDelivered(requested, delivered, file.id)) continue
+      const owned = await hasOtherFiles(delivered.id)
+      if (!await sameRecording(requested, delivered, candidate, { catalog: keptIds.has(file.id), owned }) || !await mergeDelivered(requested, delivered, file.id)) continue
       used.add(file.id)
       satisfied.add(requestedId)
       break

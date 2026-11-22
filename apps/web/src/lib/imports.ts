@@ -41,6 +41,7 @@ export const rejectionLabels: Record<UploadRejection, string> = {
   nested_archive: 'Zip inside a zip',
   unsafe_archive: 'Zip refused',
   unreadable_archive: 'Damaged zip',
+  empty_file: 'Empty file',
   file_too_large: 'Too large',
   import_too_large: 'Over the upload limit',
 }

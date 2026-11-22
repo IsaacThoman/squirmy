@@ -22,6 +22,12 @@ import { Id, IsoDateTime, PageQuery, page } from './common.js'
 
 /** Folder at the top of a managed root that holds imports until they are filed. */
 export const INCOMING_FOLDER = '_Incoming'
+/**
+ * Folder of a managed root that Organize files provider deliveries under, with the root's
+ * template inside it, so the root's own folders hold only music someone brought. The
+ * scanner treats files found there as provider deliveries (cache).
+ */
+export const FETCHED_FOLDER = '_Fetched'
 
 export const ImportKind = z.enum(['upload', 'inbox', 'acquisition'])
 export type ImportKind = z.infer<typeof ImportKind>
@@ -41,9 +47,10 @@ export type ImportStep = z.infer<typeof ImportStep>
  * `nested_archive`: a zip inside a zip, which is not extracted. `unsafe_archive`: a zip
  * with an unsafe path, a symbolic link, encryption, or more entries or bytes than the
  * limits allow; nothing in it is extracted. `unreadable_archive`: a damaged zip.
+ * `empty_file`: an audio file of zero bytes from a provider. Optional for older clients.
  */
 export const ImportFileRejection = z.enum([
-  'unsupported_type', 'unsafe_path', 'hidden', 'duplicate_name', 'nested_archive', 'unsafe_archive', 'unreadable_archive',
+  'unsupported_type', 'unsafe_path', 'hidden', 'duplicate_name', 'nested_archive', 'unsafe_archive', 'unreadable_archive', 'empty_file',
 ])
 export type ImportFileRejection = z.infer<typeof ImportFileRejection>
 

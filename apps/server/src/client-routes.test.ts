@@ -38,9 +38,7 @@ const notForClients = new Set([
  * build against them. Each entry fails the test once the server registers it: whoever adds
  * the route deletes its line.
  */
-const awaitingServer = new Set([
-  'GET /admin/acquisition/usage',
-])
+const awaitingServer = new Set<string>([])
 
 /** `METHOD /path` with every parameter written as `:`, so names do not have to agree. */
 const normalize = (route: string) => route.replace(/:\w+/g, ':')

@@ -32,6 +32,17 @@ const groupAlbum = sql<string | null>`(
   where f.root_id = match_reviews.root_id and f.group_key = match_reviews.group_key and f.missing_since is null and f.album_id is not null
   group by f.album_id order by count(*) desc limit 1)`
 
+/**
+ * The group still has a file someone brought, or no present file at all. Reviews of groups
+ * holding only provider deliveries (cache) are left out: those never need an admin, and
+ * reviews opened before deliveries stopped opening them are not shown again.
+ */
+const notCacheOnly = sql`(not exists (
+  select 1 from media_files f where f.root_id = match_reviews.root_id and f.group_key = match_reviews.group_key and f.missing_since is null and f.cached
+) or exists (
+  select 1 from media_files f where f.root_id = match_reviews.root_id and f.group_key = match_reviews.group_key and f.missing_since is null and not f.cached
+))`
+
 function toReview(row: ReviewRow): MatchReview {
   const candidates = row.candidates as MatchCandidate[]
   return {
@@ -123,7 +134,7 @@ export async function matchingRoutes(app: FastifyInstance) {
     const query = MatchReviewQuery.parse(request.query)
     const offset = query.cursor ? Number.parseInt(query.cursor, 10) || 0 : 0
     const rows = await db.select({ review: matchReviews, albumId: groupAlbum }).from(matchReviews)
-      .where(query.status ? eq(matchReviews.status, query.status) : undefined)
+      .where(and(query.status ? eq(matchReviews.status, query.status) : undefined, notCacheOnly))
       .orderBy(sql`${matchReviews.status} = 'open' desc`, desc(matchReviews.createdAt), desc(matchReviews.id))
       .limit(query.limit + 1)
       .offset(offset)

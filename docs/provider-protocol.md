@@ -121,11 +121,13 @@ Starts fetching one offer.
 
 Respond quickly with `{ "accepted": true, "providerJobId": "…" }` and do the work in the background, or `{ "accepted": false, "error": "…" }` (the job then ends as `rejected`, and the tracks count as ones this provider cannot supply for a day). A provider that cannot take another job right now answers `{ "accepted": false, "reason": "busy", "error": "…" }`: the server asks again later (after 5 seconds, doubling up to a minute) and does not count it against the tracks. For providers older than the field, an `error` starting with "Provider is busy" is read the same way. The server may send the same `jobId` twice, after a restart; treat it as an idempotency key and do not fetch twice, but use the `delivery` from the latest request: it carries a new token, and the old one no longer works.
 
-The server sends at most `maxConcurrent` jobs to a provider at once, counting jobs it has handed over and not yet seen delivered; others wait their turn.
+The server sends at most `maxConcurrent` jobs to a provider at once, counting jobs it has handed over and not yet seen delivered; others wait their turn, the track being played first, then tracks coming up in a queue, downloads, and library saves.
+
+The operator can set a provider's coverage on the server; that choice wins over the `coverage` in later `capabilities` answers.
 
 ## Delivering files
 
-1. `POST delivery.uploadUrl` as `multipart/form-data` with one or more `file` parts. Keep the original filename and extension. A text field `relativePath` sent just before a file part names its path inside the delivery (`Album/01 Song.flac`), which keeps an album's files together. An album may be sent in one request or several. The answer is `ProviderUploadResponse`: each file `accepted`, or `rejected` with a reason (not audio, an unsafe name). A file larger than the operator's per-file limit (`maxFileBytes`) ends the request with 413 and fails the job.
+1. `POST delivery.uploadUrl` as `multipart/form-data` with one or more `file` parts. Keep the original filename and extension. A text field `relativePath` sent just before a file part names its path inside the delivery (`Album/01 Song.flac`), which keeps an album's files together. An album may be sent in one request or several. The answer is `ProviderUploadResponse`: each file `accepted`, or `rejected` with a reason (not audio, an unsafe name, `empty_file` for audio of zero bytes). A file larger than the operator's per-file limit (`maxFileBytes`) ends the request with 413 and fails the job, and so does going past what the job may receive in all: 1.25 × `maxFileBytes` per requested track, and four files per requested track plus two (`import_too_large`, `import_too_many_files`).
 2. `POST delivery.completeUrl` with `{ "status": "completed" }`, or `{ "status": "failed", "error": "…" }`.
 
 Both URLs answer 401 `invalid_delivery_token` for a missing or wrong token (including another job's), 409 `job_not_active` once the job has ended, and 429 past 120 requests a minute per job and address.
@@ -134,8 +136,9 @@ The server then runs its normal import: read tags, identify, file into the libra
 
 - the pipeline linked a delivered file to it (for example by the MusicBrainz id in its tags); or
 - a delivered file is plainly the same recording: it shares an ISRC with it, or has the same title and artist ("Artist feat. Other" counts as "Artist") with a length within 5 seconds. With an AcoustID key configured and a MusicBrainz id requested, AcoustID must not name only other recordings for the file. Two different MusicBrainz ids are never the same recording.
+- When the pipeline linked the file to a recording the server already has other files for, ISRCs in the file's tags and matching titles do not count: the requested recording must share an ISRC with that recording in the server's catalog, or AcoustID must name it for the file.
 
-In the second case the two catalog rows are merged, so the id that queues and playlists hold plays: a row with a MusicBrainz id wins over one without, otherwise the requested row wins. A file that does not match stays where the import left it, marked as coming from the provider (`media_files.source = provider:<id>`), is never linked to the requested track, and the job fails.
+In the second case the two catalog rows are merged, so the id that queues and playlists hold plays: a row with a MusicBrainz id wins over one without, otherwise the requested row wins. A file that does not match is deleted and the job fails; so are delivered files the request did not ask for, unless one is already the only copy of a track in use. Delivered files are a cache on the server: they are filed apart from the operator's own music and may be deleted later to keep under the operator's limit, then fetched again when played.
 
 ## `GET /jobs/{providerJobId}`
 
@@ -149,13 +152,14 @@ Polled only when a job has had no upload or completion for a while.
 
 ## On the server
 
-A job goes `resolving → queued → downloading → importing → completed`, or ends `failed` or `rejected`. Each change is published to the requesting user as `acquisition.updated`. A playback session waiting on the track (`preparing`) becomes `ready` as soon as a delivered file has been read, linked and checked against the request, while identification and filing carry on, and `failed` (and is skipped) when the job fails. If identification later finds the file is a different recording, the job fails then: the track is not cut off if it is already playing, but later plays of it fail. A failed job records a miss, so the track is gray for a day. `GET /api/v1/admin/acquisition/jobs` lists every job with who asked, the provider, the status and the error.
+A job goes `resolving → queued → downloading → importing → completed`, or ends `failed` or `rejected`. Each change is published to the requesting user as `acquisition.updated`. A playback session waiting on the track (`preparing`) becomes `ready` as soon as a delivered file has been read, linked and checked against the request, while identification and filing carry on, and `failed` (and is skipped) when the job fails. If identification later finds the file is a different recording, the job fails then and the file is deleted, so a device playing it stops at its next read and later plays of it fail. A failed job records a miss, so the track is gray for a day. `GET /api/v1/admin/acquisition/jobs` lists every job with who asked, the provider, the status and the error.
 
 ## What the server enforces
 
 - Only users the operator has allowed may trigger a fetch (admins, and members with "can acquire").
 - One job in flight per track or album: requests from several devices or users join it.
-- Per-file size limit, optional total storage quota (requests are refused once acquired files fill it), concurrency per provider.
+- Per-file size limit, a byte and file budget per job, concurrency per provider, and a limit on how many jobs a member may have running.
+- An optional cache limit: past it, the least recently played delivered files nobody holds on to are deleted. Requests are never refused because of it.
 - Every job is recorded with who asked, what for, which provider, and the outcome.
 - Files that arrive this way are marked with their source, so they can be listed and removed.
 - Every call to a provider has a timeout, sends the shared secret, follows redirects only within the provider's own address, reads at most 4 MiB, and is validated against the schemas. A provider that misbehaves fails its own jobs and nothing else.

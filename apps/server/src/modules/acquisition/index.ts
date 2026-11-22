@@ -1,5 +1,6 @@
 import { enqueue, schedule } from '../../jobs/index.js'
 import type { ServerModule } from '../types.js'
+import { evictCache } from './evict.js'
 import { finishDelivery, startJob, sweepJobs, type StartJob } from './jobs.js'
 import { startOutcomes, stopOutcomes } from './outcomes.js'
 import { repairDeliveries } from './repair.js'
@@ -15,6 +16,7 @@ import { acquisitionRoutes } from './routes.js'
  *   acquisition.finish   { jobId }                     waits for the delivery's import and checks it
  *   acquisition.sweep    {}                            timeouts, quiet providers, restart recovery
  *   acquisition.repair   {}                            deliveries that are not on the album they were requested from
+ *   acquisition.evict    {}                            deletes least recently played unpinned cached files over the cache limit
  */
 export const acquisitionModule: ServerModule = {
   name: 'acquisition',
@@ -28,7 +30,11 @@ export const acquisitionModule: ServerModule = {
     jobs.define('acquisition.repair', { retryLimit: 1, timeoutSeconds: 30 * 60 }, async () => {
       await repairDeliveries()
     })
+    jobs.define('acquisition.evict', { retryLimit: 1, timeoutSeconds: 30 * 60 }, async () => {
+      await evictCache()
+    })
     await schedule('acquisition.sweep', '* * * * *')
+    await schedule('acquisition.evict', '17 * * * *')
     await schedule('acquisition.repair', '25 4 * * *')
   },
   async start({ role }) {
