@@ -12,9 +12,10 @@ import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
 import { PassThrough, Readable, Transform } from 'node:stream'
 import { getConfig } from '../../config.js'
-import { notFound } from '../../lib/errors.js'
+import { AppError, notFound } from '../../lib/errors.js'
 import { audioInput } from '../../lib/ffmpeg.js'
 import { libraryPath } from '../streaming/files.js'
+import { transcoderBusy, tryAcquireSlot } from '../streaming/transcode.js'
 import { codecFamily, outputSampleRate, profiles, type MediaFile, type TranscodeProfile } from '../streaming/profiles.js'
 
 export type Codec = 'mp3' | 'opus' | 'aac'
@@ -58,36 +59,71 @@ export function planStream(
 /** The MIME type a live encode is sent with. */
 export const liveMime = (codec: Codec) => profiles[codecProfiles[codec][0]!].mime
 
+/** Live encodes one user may run at once: a player and a prefetch, with room for a seek. */
+export const LIVE_ENCODES_PER_USER = 3
+
+const liveByUser = new Map<string, number>()
+
 /**
  * Encodes `file` from `offsetSeconds` at `bitrate` and streams it as it is produced.
  * The encoder is the streaming profile's, with its bitrate replaced; it is killed when
- * the client goes away.
+ * the client goes away. It runs in one of the streaming module's encoder slots, taken
+ * without waiting: a client asking for a live encode is waiting for its first bytes.
+ * Throws 503 `transcoder_busy` when no slot is free and 429 `too_many_live_encodes` when
+ * the user already runs LIVE_ENCODES_PER_USER.
  */
-export async function liveEncode(file: MediaFile, plan: Extract<StreamPlan, { kind: 'live' }>): Promise<Readable> {
-  const input = await libraryPath(file)
-  await stat(input).catch(() => {
-    throw notFound('The file is missing from disk', 'file_missing')
-  })
-  const base = codecProfiles[plan.codec][0]!
-  const args = [...profiles[base].args]
-  args[args.indexOf('-b:a') + 1] = `${Math.round(plan.bitrate / 1000)}k`
-  const sampleRate = outputSampleRate(file, base)
-  const child = spawn(getConfig().FFMPEG_PATH, [
-    '-v', 'error', '-nostdin',
-    ...(plan.offsetSeconds > 0 ? ['-ss', String(plan.offsetSeconds)] : []),
-    ...audioInput(input),
-    '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
-    ...(sampleRate ? ['-ar', String(sampleRate)] : []),
-    ...args,
-    'pipe:1',
-  ], { stdio: ['ignore', 'pipe', 'ignore'] })
-  const output = new PassThrough()
-  child.stdout.pipe(output)
-  child.once('error', (error) => output.destroy(error))
-  output.once('close', () => {
-    if (child.exitCode === null) child.kill('SIGKILL')
-  })
-  return output
+export async function liveEncode(file: MediaFile, plan: Extract<StreamPlan, { kind: 'live' }>, userId: string): Promise<Readable> {
+  if ((liveByUser.get(userId) ?? 0) >= LIVE_ENCODES_PER_USER) {
+    throw new AppError(429, 'too_many_live_encodes', 'Too many streams are being converted for this user; try again shortly')
+  }
+  const releaseSlot = tryAcquireSlot()
+  if (!releaseSlot) throw transcoderBusy()
+  liveByUser.set(userId, (liveByUser.get(userId) ?? 0) + 1)
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    releaseSlot()
+    const count = (liveByUser.get(userId) ?? 1) - 1
+    if (count > 0) liveByUser.set(userId, count)
+    else liveByUser.delete(userId)
+  }
+  try {
+    const input = await libraryPath(file)
+    await stat(input).catch(() => {
+      throw notFound('The file is missing from disk', 'file_missing')
+    })
+    const base = codecProfiles[plan.codec][0]!
+    const args = [...profiles[base].args]
+    args[args.indexOf('-b:a') + 1] = `${Math.round(plan.bitrate / 1000)}k`
+    const sampleRate = outputSampleRate(file, base)
+    const child = spawn(getConfig().FFMPEG_PATH, [
+      '-v', 'error', '-nostdin',
+      ...(plan.offsetSeconds > 0 ? ['-ss', String(plan.offsetSeconds)] : []),
+      ...audioInput(input),
+      '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
+      ...(sampleRate ? ['-ar', String(sampleRate)] : []),
+      ...args,
+      'pipe:1',
+    ], { stdio: ['ignore', 'pipe', 'ignore'] })
+    // The slot is held while ffmpeg runs, and given back when it exits or the client leaves
+    // (which kills it).
+    child.once('close', release)
+    const output = new PassThrough()
+    child.stdout.pipe(output)
+    child.once('error', (error) => {
+      release()
+      output.destroy(error)
+    })
+    output.once('close', () => {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+      release()
+    })
+    return output
+  } catch (error) {
+    release()
+    throw error
+  }
 }
 
 /**

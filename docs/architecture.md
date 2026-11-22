@@ -301,7 +301,7 @@ The server holds one session per user in memory, loaded on first use and persist
 - Ids carry their kind (`ar-`, `al-`, `tr-`, `pl-`, `ca-` for an artwork asset) and are checked on the way in. Music folders are library roots, numbered by a hash of the root id.
 - Only owned music appears. `songs.ts`, `albums.ts` and `artists.ts` build response objects in batches with a fixed number of queries; a song is shown through the present file `selectFile` would stream.
 - `search3` and `search2` rank a query with the search module's library search (`searchLibrary`), so typos are tolerated as in the apps. Sync clients page through everything with an empty `search3`. The page that starts where the user's previous one ended continues from its last key, so deep pages cost what the first does.
-- `stream` serves originals and the streaming profiles through `openStream`; a bitrate below every profile, or a `timeOffset`, is a live ffmpeg encode that is not cached.
+- `stream` serves originals and the streaming profiles through `openStream`; a bitrate below every profile, or a `timeOffset`, is a live ffmpeg encode that is not cached. A live encode takes a streaming encoder slot without waiting (`tryAcquireSlot`) and at most `LIVE_ENCODES_PER_USER` (3) run per user; a refusal is `transcoder_busy` (503) or `too_many_live_encodes` (429), sent as a Subsonic error before any header.
 - The play queue is the session queue (`getSnapshot`, `replaceQueue`). The songs a client saved before its current one are remembered in memory while the session's current entry and queue are unchanged.
 
 ### Library pipeline
