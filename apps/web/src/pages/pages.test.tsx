@@ -87,7 +87,8 @@ describe('pages', () => {
 })
 
 function Where() {
-  return <output data-testid="where">{useLocation().pathname}</output>
+  const location = useLocation()
+  return <output data-testid="where">{location.pathname + location.search}</output>
 }
 
 describe('deleting a playlist', () => {
@@ -111,7 +112,7 @@ describe('deleting a playlist', () => {
     // The server tells every client the playlists changed before its answer arrives.
     act(() => socket.serverEmit('invalidate', { keys: [queryKeys.playlists()] }))
     await act(async () => finish())
-    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/library/playlists'))
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/library?filter=playlists'))
     act(() => socket.serverEmit('invalidate', { keys: [queryKeys.playlists()] }))
     await screen.findByText('Playlist deleted')
     expect(api.userdata.playlist).toHaveBeenCalledTimes(asked)

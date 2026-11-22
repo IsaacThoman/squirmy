@@ -656,7 +656,7 @@ describe('AppShell', () => {
       const navigate = useNavigate()
       return (
         <>
-          <button type="button" onClick={() => void navigate('/library/albums')}>to library</button>
+          <button type="button" onClick={() => void navigate('/library?filter=albums')}>to library</button>
           <button type="button" onClick={() => void navigate('/search')}>to search</button>
           <button type="button" onClick={() => void navigate('/search?q=soft', { replace: true })}>type a search</button>
           <button type="button" onClick={() => void navigate(-1)}>back</button>
@@ -670,14 +670,14 @@ describe('AppShell', () => {
       const scroll = stubScroll(await screen.findByRole('main', { hidden: true }))
       scroll.scrollTo(1368)
       go('to library')
-      await waitFor(() => expect(where()).toBe('/library/albums'))
+      await waitFor(() => expect(where()).toBe('/library?filter=albums'))
       expect(scroll.top).toBe(0)
       scroll.scrollTo(400)
       go('to search')
       await waitFor(() => expect(where()).toBe('/search'))
       expect(scroll.top).toBe(0)
       go('back')
-      await waitFor(() => expect(where()).toBe('/library/albums'))
+      await waitFor(() => expect(where()).toBe('/library?filter=albums'))
       await waitFor(() => expect(scroll.top).toBe(400))
       go('back')
       await waitFor(() => expect(where()).toBe('/'))
@@ -692,7 +692,7 @@ describe('AppShell', () => {
       await waitFor(() => expect(where()).toBe('/search?q=soft'))
       expect(scroll.top).toBe(550)
       go('to library')
-      await waitFor(() => expect(where()).toBe('/library/albums'))
+      await waitFor(() => expect(where()).toBe('/library?filter=albums'))
       go('back')
       await waitFor(() => expect(where()).toBe('/search?q=soft'))
       await waitFor(() => expect(scroll.top).toBe(550))
@@ -703,7 +703,7 @@ describe('AppShell', () => {
       const scroll = stubScroll(await screen.findByRole('main', { hidden: true }))
       scroll.scrollTo(1800)
       go('to library')
-      await waitFor(() => expect(where()).toBe('/library/albums'))
+      await waitFor(() => expect(where()).toBe('/library?filter=albums'))
       // The page comes back short (a list still loading), and grows a moment later.
       scroll.height.value = 300
       go('back')
