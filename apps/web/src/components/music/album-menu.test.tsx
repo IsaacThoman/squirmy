@@ -43,10 +43,12 @@ describe('album menu', () => {
     await waitFor(() => expect(api.userdata.like).toHaveBeenCalledWith('album', album('endless-room').id))
   })
 
-  it('is on search’s album results', async () => {
+  // Search lists albums as rows of one ranked list, with the row menus of `result-menus.tsx`
+  // (#117), which add Go to album; this only checks one is there for an album result.
+  it('leaves search’s album rows a menu of their own', async () => {
     renderWithApp(<AppRoutes />, '/search?q=blue')
-    const rail = await screen.findByRole('region', { name: 'Albums' })
-    await userEvent.click(within(rail).getByRole('button', { name: 'More options for Blue Hour' }))
-    expect(await screen.findByRole('menuitem', { name: 'Go to Mira Vale' })).toBeInTheDocument()
+    const results = await screen.findByRole('listbox', { name: /^Results for/ })
+    await userEvent.click(await within(results).findByRole('button', { name: 'More options for Blue Hour' }))
+    expect(await screen.findByRole('menuitem', { name: 'Add to playlist' })).toBeInTheDocument()
   })
 })

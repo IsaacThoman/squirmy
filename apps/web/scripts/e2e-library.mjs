@@ -197,7 +197,8 @@ await step('heart an album from search', async () => {
   picked = results.albums.find(album => album.availability === 'none' || album.availability === 'on_demand')
   if (!picked) throw new Error('no album the library lacks')
   await page.goto(`${base}/search?q=${encodeURIComponent(query)}`)
-  await main().getByRole('link', { name: picked.title, exact: true }).first().click({ timeout: 30_000 })
+  // Search is one ranked list (#117): an album's row links as "Title, Album · Artist".
+  await main().getByRole('link', { name: new RegExp(`^${loosely(picked.title).source.slice(1, -1)}, `, 'i') }).first().click({ timeout: 30_000 })
   await heading(picked.title).waitFor()
   await button('Save to library').click()
   await toastText('Saved to your library').waitFor()
@@ -226,7 +227,8 @@ await step('heart a song', async () => {
   if (!song) throw new Error('no song the library lacks')
   await page.goto(`${base}/search?q=${encodeURIComponent(query)}`)
   const name = new RegExp(`^Save ${loosely(song.title).source.slice(1, -1)} to library$`, 'i')
-  const row = main().getByRole('listitem').filter({ has: page.getByRole('button', { name }) }).first()
+  // The ranked list's rows are listbox options.
+  const row = main().getByRole('option').filter({ has: page.getByRole('button', { name }) }).first()
   await row.waitFor({ timeout: 30_000 })
   await row.hover()
   await row.getByRole('button', { name }).click()
