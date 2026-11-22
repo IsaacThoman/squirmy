@@ -2,7 +2,7 @@ import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchRanked, Search
 import { describe, expect, it } from 'vitest'
 import type { Viewer } from './availability.js'
 import { addRecentSearch, parseRecentSearches, RECENT_SEARCH_LIMIT, recentSearchKey, removeRecentSearch } from './recent-searches.js'
-import { mergeSearch, playlistScore, searchItemKey, searchQueue, type SearchItem } from './search.js'
+import { continuesQuery, keepOrder, mergeSearch, playlistScore, searchItemKey, searchQueue, tooShortToSearch, type SearchItem } from './search.js'
 
 const fetcher: Viewer = { role: 'member', canAcquire: true }
 const member: Viewer = { role: 'member', canAcquire: false }
@@ -196,3 +196,33 @@ describe('recent searches', () => {
     expect(parseRecentSearches(null)).toEqual([])
   })
 })
+
+describe('keepOrder', () => {
+  const items = (...ns: number[]): SearchItem[] => ns.map(n => ({ type: 'track', track: track(n) }))
+  const keys = (list: readonly SearchItem[]) => list.map(item => Number(searchItemKey(item).slice(-12)))
+
+  it('keeps rows already shown where they were and adds new ones after them', () => {
+    const first = keepOrder(items(1, 2, 3), null)
+    expect(keys(first.items)).toEqual([1, 2, 3])
+    const again = keepOrder(items(3, 4, 1, 2), first.order)
+    expect(keys(again.items)).toEqual([1, 2, 3, 4])
+    expect(again.order).toEqual(again.items.map(searchItemKey))
+  })
+})
+
+describe('query helpers', () => {
+  it('lets results stand in only for the same search typed on or deleted back', () => {
+    expect(continuesQuery('tame impala', 'tame')).toBe(true)
+    expect(continuesQuery('Tam', 'tame impala')).toBe(true)
+    expect(continuesQuery('mi', 'tame impala')).toBe(false)
+    expect(continuesQuery('', 'tame')).toBe(false)
+  })
+
+  it('says a single letter is too short, but not a symbol-only name', () => {
+    expect(tooShortToSearch('a')).toBe(true)
+    expect(tooShortToSearch(' é ')).toBe(true)
+    expect(tooShortToSearch('ab')).toBe(false)
+    expect(tooShortToSearch('!!!')).toBe(false)
+  })
+})
+

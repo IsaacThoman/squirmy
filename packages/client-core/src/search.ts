@@ -234,3 +234,34 @@ export function searchQueue(items: readonly SearchItem[], chosen: TrackSummary, 
   const start = tracks.findIndex(track => track.id === chosen.id)
   return start < 0 ? { tracks: [chosen], start: 0 } : { tracks, start }
 }
+
+/**
+ * Keeps rows already on screen for a query where they were. A later answer for the same
+ * query (a refresh after a play, or after music becomes playable) may rank them differently;
+ * rows moving under the pointer or finger read as a glitch. Rows the earlier answer did not
+ * have go after them, in their new order. Returns the items and the order to pass next time.
+ */
+export function keepOrder(items: readonly SearchItem[], previous: readonly string[] | null): { items: SearchItem[]; order: string[] } {
+  if (!previous?.length) return { items: [...items], order: items.map(searchItemKey) }
+  const place = new Map(previous.map((key, index) => [key, index]))
+  const known = items.filter(item => place.has(searchItemKey(item))).sort((a, b) => place.get(searchItemKey(a))! - place.get(searchItemKey(b))!)
+  const kept = [...known, ...items.filter(item => !place.has(searchItemKey(item)))]
+  return { items: kept, order: kept.map(searchItemKey) }
+}
+
+/**
+ * Whether results for `previous` may stand in, faded, while those for `next` load: one is
+ * the other typed on or deleted back ("tame" and "tame impala"), never an unrelated search.
+ */
+export function continuesQuery(next: string, previous: string): boolean {
+  const a = searchKey(next)
+  const b = searchKey(previous)
+  return a.length > 0 && b.length > 0 && (a.startsWith(b) || b.startsWith(a))
+}
+
+/** The server answers nothing for a query of one letter or digit; a symbol-only one ("!!!") is still asked. */
+export function tooShortToSearch(query: string): boolean {
+  const key = searchKey(query)
+  return key.length > 0 && [...key].length < 2
+}
+
