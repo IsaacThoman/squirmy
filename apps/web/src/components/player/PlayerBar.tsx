@@ -60,7 +60,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                 <p className="truncate text-xs text-muted-foreground">
                   {late
                     ? STILL_LOADING_LABEL
-                    : <ArtistLinks track={item.track} />}
+                    : <ArtistLinks credit={item.track} />}
                 </p>
               </div>
               <SaveHeart liked={liked} onToggle={onToggleLike} size="sm" className="ml-1 hidden @[44rem]:inline-flex" />

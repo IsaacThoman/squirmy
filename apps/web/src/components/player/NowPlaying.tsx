@@ -107,7 +107,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
                   <p className="truncate text-base text-muted-foreground">
                     {late
                       ? STILL_LOADING_LABEL
-                      : <ArtistLinks track={item.track} onNavigate={() => onOpenChange(false)} />}
+                      : <ArtistLinks credit={item.track} onNavigate={() => onOpenChange(false)} />}
                   </p>
                 )}
               </div>

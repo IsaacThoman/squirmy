@@ -14,13 +14,15 @@ export type TrackMenuOptions = {
   extraMenu?: MenuEntry[]
   /** The row's place in a list the user may reorder. */
   reorder?: { index: number; count: number }
+  /** The song is listed on its own album's page, so "Go to album" would lead where it already is. */
+  onAlbumPage?: boolean
 }
 
 /**
  * A song's menu, the same wherever a song is listed (track lists, search results): play
  * next, queue, playlists, radio, saving it (the heart), the Wantlist, its album and artists.
  */
-export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder }: TrackMenuOptions): MenuEntry[] {
+export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder, onAlbumPage = false }: TrackMenuOptions): MenuEntry[] {
   return [
     { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), disabled: unavailable },
     { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), disabled: unavailable },
@@ -40,7 +42,7 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
     // Undefined `wanted` means the server has the wantlist off. It is for music that does not play.
     ...(!unavailable || wanted === undefined ? [] : [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: () => act('want') }]),
     { kind: 'separator' },
-    ...(track.album ? [{ label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(`/album/${track.album!.id}`) }] : []),
+    ...(track.album && !onAlbumPage ? [{ label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(`/album/${track.album!.id}`) }] : []),
     ...track.artists.map(artist => ({ label: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
     ...(extraMenu ?? []),
     ...(reorder ? [

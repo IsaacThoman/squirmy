@@ -38,6 +38,15 @@ describe('TrackRow', () => {
     expect(row).not.toHaveAttribute('aria-disabled')
   })
 
+  it('shows the credit as it reads, each artist in it a link', () => {
+    const base = track('soft-signal')
+    const guest = { id: '00000000-0000-4000-8100-0000000000aa', name: 'Lune Park' }
+    const { row } = renderRow('soft-signal', { track: { ...base, artistCredit: `${base.artistCredit} feat. ${guest.name}`, artists: [...base.artists, guest] } })
+    expect(row.textContent).toContain(`${base.artistCredit} feat. ${guest.name}`)
+    expect(within(row).getByRole('link', { name: guest.name })).toHaveAttribute('href', `/artist/${guest.id}`)
+    expect(within(row).getByRole('link', { name: base.artistCredit })).toBeInTheDocument()
+  })
+
   it('lets a pointer reach the play button through the number it covers', () => {
     const { row } = renderRow('soft-signal')
     // jsdom does no hit testing: the faded number is a layer above the button, so it must let clicks through.
