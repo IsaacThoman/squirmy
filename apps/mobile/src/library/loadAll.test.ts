@@ -1,5 +1,6 @@
+import type { TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it, vi } from 'vitest';
-import { loadRest } from './loadAll';
+import { loadRest, uniqueTracks } from './loadAll';
 
 describe('loadRest', () => {
   it('fetches the pages after the loaded ones until the list ends', async () => {
@@ -20,5 +21,13 @@ describe('loadRest', () => {
     const fetchPage = vi.fn();
     expect(await loadRest([1], null, fetchPage)).toEqual([1]);
     expect(fetchPage).not.toHaveBeenCalled();
+  });
+});
+
+describe('uniqueTracks', () => {
+  it('keeps the first appearance of each track, in order', () => {
+    const tracks = ['a', 'b', 'a', 'c', 'b'].map(id => ({ id }) as TrackSummary);
+    expect(uniqueTracks(tracks).map(track => track.id)).toEqual(['a', 'b', 'c']);
+    expect(uniqueTracks(tracks)[0]).toBe(tracks[0]);
   });
 });

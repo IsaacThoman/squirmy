@@ -31,6 +31,7 @@ import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useOfflineDim, type Collection,
 } from './shared';
+import { uniqueTracks } from './loadAll';
 import { SongList } from './SongList';
 import { usePlayAll } from './usePlayAll';
 import { ZoomTarget } from './ZoomLink';
@@ -230,7 +231,8 @@ export function PlaylistScreen(props: PageProps) {
 type PlayAll = ReturnType<typeof usePlayAll<unknown>>;
 const likedPage = (api: Api, cursor: string, limit: number) => api.userdata.likes('track', { cursor, limit });
 const historyPage = (api: Api, cursor: string, limit: number) => api.userdata.history({ cursor, limit });
-const historyTracks = (items: readonly HistoryItem[]) => items.map(item => item.track);
+/** Each song once, at its latest play: the page lists songs, not every play of them. */
+const historyTracks = (items: readonly HistoryItem[]) => uniqueTracks(items.map(item => item.track));
 
 function TrackListPage({ item, title, info, tracks, playAll, context, empty, loadMore, loadingMore, download, props }: {
   item: Collection;

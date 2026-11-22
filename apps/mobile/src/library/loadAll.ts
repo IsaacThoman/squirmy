@@ -1,4 +1,4 @@
-import type { Page } from '@squirmy/contracts';
+import type { Page, TrackSummary } from '@squirmy/contracts';
 
 /** The most tracks one play command takes (the session's seed limit). */
 export const maxPlayed = 5000;
@@ -23,3 +23,8 @@ export async function loadRest<T>(loaded: readonly T[], cursor: string | null | 
   return items.slice(0, limit);
 }
 
+/** Each track once, where it first appears: the latest play, in a history that is newest first. */
+export function uniqueTracks(tracks: readonly TrackSummary[]): TrackSummary[] {
+  const seen = new Set<string>();
+  return tracks.filter(track => !seen.has(track.id) && Boolean(seen.add(track.id)));
+}
