@@ -1,9 +1,10 @@
 import { Button, Divider, Host, HStack, Menu, RNHostView, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
+import { useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { SystemVolumeSlider } from '../modules/now-playing';
 import {
   accessibilityAddTraits, accessibilityLabel, background, clipShape, disabled as disabledModifier, font, foregroundStyle,
-  frame, lineLimit, menuIndicator, multilineTextAlignment, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
+  frame, lineLimit, menuIndicator, multilineTextAlignment, onGeometryChange, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconButton, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
@@ -13,17 +14,37 @@ import type {
 } from './SheetUI';
 import { useColors } from './theme';
 
+const sheetTop = 22;
+const sheetSpacing = 14;
+/** Room the system keeps between the tallest sheet and the status bar. */
+const sheetTopGap = 10;
+
+/**
+ * A sheet sized to its content. Content taller than the screen, as at the largest text sizes,
+ * scrolls under the title: a sheet that fits its content stops growing at the top of the
+ * screen and would otherwise cut off its last rows, such as Sign out.
+ */
 export function SheetFrame({ title, onClose, children }: SheetFrameProps) {
   const colors = useColors();
-  const { bottom } = useSafeAreaInsets();
+  const { top, bottom } = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const [header, setHeader] = useState(0);
+  const [content, setContent] = useState(0);
+  const bottomPadding = Math.max(23, bottom + 8);
+  const room = height - top - sheetTopGap - sheetTop - header - sheetSpacing - bottomPadding;
+  const scrolls = header > 0 && content > room;
+  // Measured in both layouts, so the sheet stops scrolling again when its content shrinks.
+  const body = <VStack alignment="leading" spacing={sheetSpacing} modifiers={[onGeometryChange(frame => setContent(frame.height))]}>
+    {children}
+  </VStack>;
   return <Host matchContents={{ vertical: true }}>
-    <VStack alignment="leading" spacing={14} modifiers={[padding({ top: 22, horizontal: 22, bottom: Math.max(23, bottom + 8) })]}>
-      <HStack spacing={8}>
+    <VStack alignment="leading" spacing={sheetSpacing} modifiers={[padding({ top: sheetTop, horizontal: 22, bottom: bottomPadding })]}>
+      <HStack spacing={8} modifiers={[onGeometryChange(frame => setHeader(frame.height))]}>
         <Text modifiers={[font({ textStyle: 'title2', weight: 'bold' }), accessibilityAddTraits(['isHeader'])]}>{title}</Text>
         <Spacer minLength={0} />
         <IconButton symbol="xmark.circle.fill" label="Close" size={26} color={colors.muted} onPress={onClose} />
       </HStack>
-      {children}
+      {scrolls ? <ScrollView modifiers={[frame({ height: room })]}>{body}</ScrollView> : body}
     </VStack>
   </Host>;
 }
