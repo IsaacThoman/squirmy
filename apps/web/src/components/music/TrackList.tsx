@@ -1,7 +1,7 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Clock3, Disc3, MoreHorizontal, Pause, Play } from 'lucide-react'
-import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
+import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
@@ -73,13 +73,16 @@ const albumColumn = { album: undefined, playlist: 'hidden @2xl:block', compact: 
  * The last column: like, duration, menu. The header's has the same width, so the columns between
  * line up with the rows'.
  */
-const actionsColumn = 'flex items-center justify-end gap-1 @md:w-28'
+const actionsColumn = 'flex items-center justify-end gap-1 @md:w-28 pointer-coarse:gap-0 pointer-coarse:@md:w-32'
 
 /**
  * Controls that appear when their row is hovered, has the keyboard's focus anywhere in it or has
  * its menu open. Phones and touch screens, which cannot hover, always show them.
  */
 const revealed = 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opacity-100 md:pointer-fine:group-has-[:focus-visible]/row:opacity-100 md:pointer-fine:group-has-[[data-state=open]]/row:opacity-100'
+
+/** The heart and the menu button: a finger's 44 px on touch screens, with no gap between them. */
+const rowAction = 'pointer-coarse:size-11'
 
 /** Where a row dragged within its list would land: before or after the row under the pointer. */
 type DropTarget = { index: number; side: 'before' | 'after' }
@@ -113,6 +116,17 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const loading = current && nowPlaying.loading
   const play = current ? nowPlaying.onTogglePlay : onPlay
   const act = (action: TrackAction) => onAction?.(action, track, index)
+  /**
+   * A finger cannot hover to find the play button over the number or the artwork, so on a touch
+   * screen a tap anywhere on the row plays it, as music apps do; the links and buttons in the
+   * row keep their own taps. A mouse keeps the double-click, so a click can select text or a row.
+   */
+  const pointer = useRef<string | null>(null)
+  const onRowClick = (event: MouseEvent) => {
+    if (unavailable || pointer.current !== 'touch') return
+    if ((event.target as Element).closest('a, button, [role=menuitem]')) return
+    play()
+  }
 
   // Album rows are on that album's page already.
   const menu = trackMenuEntries(track, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' })
@@ -161,15 +175,17 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
 
   const title = (
     <div className="flex min-w-0 items-center gap-1.5">
-      <span title={track.title} className={cn('truncate text-sm font-medium', current && 'text-primary', unavailable && 'text-muted-foreground')}>{track.title}</span>
+      <span title={track.title} className={cn('truncate text-sm font-medium', current && 'text-primary', unavailable && 'text-faded-foreground')}>{track.title}</span>
       {track.explicit && <ExplicitBadge />}
       {unavailable && <span className="sr-only">({UNAVAILABLE_LABEL})</span>}
     </div>
   )
   // Under the title, except on album pages, where a wide row gives the artists a column of their own.
+  // The links leave the Tab order: cut short, they would be stops with nothing to see. The row's
+  // menu goes to each artist and the album, and the tooltip has the whole credit.
   const artists = (
-    <div className={cn('min-w-0 truncate text-xs text-muted-foreground', album && '@max-xl:col-start-2 @xl:text-sm')}>
-      <ArtistLinks credit={track} plain={unavailable} />
+    <div title={track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', album && '@max-xl:col-start-2 @xl:text-sm')}>
+      <ArtistLinks credit={track} plain={unavailable} focusable={false} />
     </div>
   )
 
@@ -177,10 +193,12 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
     <ContextMenu entries={menu}>
       <li
         aria-current={current ? 'true' : undefined}
-        // Playing is what is unavailable: the heart and the menu still work.
-        aria-disabled={unavailable || undefined}
+        // Only playing is unavailable, and the title says so to screen readers; the heart and the
+        // menu still work, so the row is not marked disabled (that would disable them too).
         title={unavailable ? UNAVAILABLE_LABEL : undefined}
         onDoubleClick={unavailable ? undefined : play}
+        onPointerDown={event => { pointer.current = event.pointerType }}
+        onClick={onRowClick}
         draggable
         onDragStart={event => startTrackDrag(event, { tracks: [track], list: reorder?.list ?? null, index })}
         onDragEnd={() => {
@@ -194,12 +212,13 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
         className={cn(
           'group/row @container select-none rounded-md px-2 transition-colors',
           'data-[drop=after]:shadow-[inset_0_-2px_0_var(--primary)] data-[drop=before]:shadow-[inset_0_2px_0_var(--primary)]',
-          unavailable ? 'text-muted-foreground' : 'hover:bg-accent/60 has-[:focus-visible]:bg-accent/60 has-[[data-state=open]]:bg-accent/60',
+          // Gray, but at 3:1 or more in every theme (`color-themes.test.ts`), so the song can still be read.
+          unavailable ? 'text-faded-foreground' : 'hover:bg-accent/60 has-[:focus-visible]:bg-accent/60 has-[[data-state=open]]:bg-accent/60 pointer-coarse:active:bg-accent/60',
         )}
       >
-        <div className={cn('grid h-11 content-center items-center gap-x-3', album && '@xl:h-10', columnsOf(variant, addedAt !== undefined), unavailable && '[&>*:not(:last-child)]:opacity-60')}>
+        <div className={cn('grid h-11 content-center items-center gap-x-3', album && '@xl:h-10 pointer-coarse:@xl:h-11', columnsOf(variant, addedAt !== undefined))}>
           {variant === 'compact' ? null : (
-            <div className={cn('relative flex h-8 items-center justify-center text-sm tabular text-muted-foreground', album && '@max-xl:row-span-2')}>
+            <div className={cn('relative flex h-8 items-center justify-center text-sm tabular', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', album && '@max-xl:row-span-2')}>
               {playButton(false)}
               <span className={resting}>{marker(false) ?? number ?? index + 1}</span>
             </div>
@@ -225,19 +244,19 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           {album && artists}
 
           {albumColumn[variant] && (
-            <div className={cn('min-w-0 truncate text-sm text-muted-foreground', albumColumn[variant])}>
-              {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
+            <div className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumn[variant])}>
+              {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} title={track.album.title} tabIndex={-1} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
             </div>
           )}
           {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @4xl:block">{formatRelative(addedAt)}</div>}
 
           <div className={cn(actionsColumn, album && '@max-xl:col-start-3 @max-xl:row-span-2 @max-xl:row-start-1')}>
-            {onAction && <SaveHeart liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(!liked && revealed)} />}
-            <span className={cn('hidden w-10 text-right text-xs tabular text-muted-foreground @md:block', unavailable && 'opacity-60')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
+            {onAction && <SaveHeart liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(rowAction, !liked && revealed)} />}
+            <span className={cn('hidden w-10 text-right text-xs tabular @md:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
             <DropdownMenu
               entries={menu}
               trigger={(
-                <IconButton label={`More options for ${track.title}`} tooltip={false} size="sm" className={revealed}>
+                <IconButton label={`More options for ${track.title}`} tooltip={false} size="sm" className={cn(rowAction, revealed)}>
                   <MoreHorizontal />
                 </IconButton>
               )}
@@ -260,7 +279,7 @@ function ListHeader({ variant, dated }: { variant: TrackListVariant; dated: bool
         {albumColumn[variant] && <span className={albumColumn[variant]}>Album</span>}
         {variant === 'playlist' && dated && <span className="hidden @4xl:block">Added</span>}
         {/* The clock sits over the durations, which end where the menu button starts. */}
-        <span className={cn(actionsColumn, 'pr-9')}><Clock3 className="hidden size-3.5 @md:block" /></span>
+        <span className={cn(actionsColumn, 'pr-9 pointer-coarse:pr-11')}><Clock3 className="hidden size-3.5 @md:block" /></span>
       </div>
     </div>
   )
