@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@squirmy/adapter-mock": "0.0.0",
+    "@squirmy/provider-kit": "0.0.0",
     "@types/node": "^24.13.2",
     "@types/yauzl": "^3.4.0",
     "drizzle-kit": "^0.31.4",
