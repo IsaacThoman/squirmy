@@ -30,7 +30,7 @@ Request lines show the URL with the values of credential parameters replaced by 
 | `artwork.recover` | Rebuilding lost image files |
 | `catalog-index.import` | Building the local search index |
 | `library.scan-after` | A full scan waiting for a scan of a few folders to finish |
-| `*.sweep`, `library.scan-all`, `library.purge-missing`, `search.cleanup`, `enrichment.new-releases`, `matching.retry-fingerprints` | Scheduled and follow-up work; see [Scheduled work](./configuration.md#scheduled-work) |
+| `*.sweep`, `library.scan-all`, `library.purge-missing`, `search.cleanup`, `enrichment.new-releases`, `enrichment.reconcile`, `matching.retry-fingerprints` | Scheduled and follow-up work; see [Scheduled work](./configuration.md#scheduled-work) |
 
 A large **Queued** count on `matching.match-album` right after a first scan is normal: see [identification is slow](#identification-is-slow). A growing **Failed** count is not; the log has the error.
 
@@ -115,6 +115,10 @@ Test the stream path from outside with `curl -I https://music.example.com/health
 This is expected. The public MusicBrainz server allows one request per second, and an album needs several. A library of 1,000 albums takes a few hours; 10,000 takes more than a day. Music stays playable from its tags meanwhile, and the work resumes after restarts.
 
 Confirm on **Admin → Jobs**: `matching.match-album` has a long **Queued** list and one or two **Active**, and the **Identified** percentage in **Admin → Library** keeps rising. The only way to make it fast is your own MusicBrainz mirror ([details](./metadata-and-privacy.md#the-musicbrainz-rate-limit)).
+
+## An artist page lists a release twice, or a song as an album
+
+The same release can reach the server from several places: search results from Deezer, the artist's discography from MusicBrainz, the album a popular song belongs to, the tags of a fetched file. The server merges such rows into one, keeping likes, plays, playlists and library saves, when the artist's page is filled in, when search finds new albums for the artist, daily at 04:50 and when the server starts. Until then the artist page already shows each release once. Two releases that only share a title stay apart: an album and its title-track single, a remix album ("Miss Anthropocene (Rave Edition)"), or a demo. Collaborations led by someone else are listed under **Appears on**.
 
 ## The first open of an artist page is slow
 

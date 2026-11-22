@@ -12,6 +12,7 @@ import { createAsset, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
 import { ensureAlbumDetail, ensureArtistDetail } from '../enrichment/detail.js'
+import { standingRows } from './pages.js'
 
 vi.mock('../enrichment/detail.js', () => ({
   ensureAlbumDetail: vi.fn(async () => {}),
@@ -126,8 +127,10 @@ describe('catalog pages', () => {
     expect(ensureArtistDetail).toHaveBeenCalledWith(artist.id)
     expect(detail).toMatchObject({ name: 'Orla', inLibrary: true, bio: 'Sings.', genres: ['Folk'], liked: false, similar: [] })
     expect(detail.image?.color).toBe('#abcdef')
-    expect(detail.albums.map((album) => album.title)).toEqual(['Newer', 'Split', 'Older'])
-    expect(detail.albums.map((album) => album.availability)).toEqual(['none', 'none', 'full'])
+    expect(detail.albums.map((album) => album.title)).toEqual(['Newer', 'Older'])
+    expect(detail.albums.map((album) => album.availability)).toEqual(['none', 'full'])
+    // Led by another artist: "Appears on".
+    expect(detail.appearsOn?.map((album) => album.title)).toEqual(['Split'])
     expect(detail.topTracks.slice(0, 4).map((track) => track.id)).toEqual([
       second!.recordingId, first!.recordingId, third!.recordingId, newer.tracks[0]!.recordingId,
     ])
@@ -238,5 +241,38 @@ describe('catalog pages', () => {
     expect(byId.playlists).toMatchObject({ kind: 'playlists', title: 'Your playlists', playlists: [{ name: 'Mine', trackCount: 1 }] })
     expect(byId.wantlist).toMatchObject({ kind: 'albums', albums: [{ id: wanted.albumId }] })
     expect(await ownedWant()).not.toBeNull()
+  })
+})
+
+describe('standingRows', () => {
+  const row = (id: string, title: string, type: string, extra: Partial<Parameters<typeof standingRows>[0][number]> = {}) => ({
+    id, title, type, typeGuessed: false, hasMbid: true, detailLevel: 1, year: 2025, hasArtwork: true, owned: false, led: true, ...extra,
+  })
+
+  it('lists each release once, in the given order', () => {
+    const rows = [
+      row('a', 'Sports car', 'single'),
+      // A stub made from the song's album reference, not merged yet.
+      row('b', 'Sports car', 'album', { typeGuessed: true, hasMbid: false, year: null }),
+      row('c', 'Sports car (remixes)', 'ep'),
+      // MusicBrainz has two "Violence" singles; the owned one stands for both.
+      row('d', 'Violence', 'single', { year: 2019 }),
+      row('e', 'Violence', 'single', { year: 2019, owned: true }),
+      // An album and its title-track single are two releases.
+      row('f', 'Miss Anthropocene', 'album', { year: 2020 }),
+      row('g', 'Miss Anthropocene (Deluxe Edition)', 'album', { hasMbid: false, year: null }),
+      row('h', 'Miss Anthropocene', 'single', { year: 2019 }),
+      // Someone else's release credits the artist: listed apart, so it stays.
+      row('i', 'Sports car', 'single', { led: false }),
+    ]
+    expect(standingRows(rows).map((one) => one.id)).toEqual(['a', 'c', 'e', 'f', 'h', 'i'])
+  })
+
+  it('leaves out a popular song’s album MusicBrainz does not list for an artist it knows', () => {
+    const cyberpunk = row('a', 'Cyberpunk 2077: Radio, Vol. 2 (Original Soundtrack)', 'album', { typeGuessed: true, hasMbid: false, year: null })
+    const visions = row('b', 'Visions', 'album', { year: 2012 })
+    expect(standingRows([cyberpunk, visions], { fromMusicBrainz: true }).map((one) => one.id)).toEqual(['b'])
+    // An artist only Deezer knows has no other discography.
+    expect(standingRows([cyberpunk, visions]).map((one) => one.id)).toEqual(['a', 'b'])
   })
 })

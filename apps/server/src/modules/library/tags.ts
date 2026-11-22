@@ -241,6 +241,7 @@ export function normalizeTags(common: Partial<ICommonTagsResult>, raw: RawTags):
     discTotal: discOf ?? numberPair(first('totaldiscs', 'disctotal'))[0],
     genres: splitGenres(common.genre ?? raw.get('genre')),
     compilation: common.compilation ?? truthy(first('compilation', 'tcmp', 'cpil', 'itunescompilation')),
+    releaseType: releaseTypeOf(common.releasetype ?? raw.get('releasetype') ?? raw.get('musicbrainzalbumtype')),
     isrcs: isrcList(common.isrc ?? raw.get('isrc') ?? raw.get('tsrc')),
     barcode: clean(common.barcode) ?? first('barcode', 'upc', 'ean'),
     label: clean(common.label?.[0]) ?? first('label', 'organization', 'publisher'),
@@ -255,6 +256,23 @@ export function normalizeTags(common: Partial<ICommonTagsResult>, raw: RawTags):
   }
   // Keep the stored JSON small: drop empty values.
   return Object.fromEntries(Object.entries(tags).filter(([, value]) => value !== undefined && !(Array.isArray(value) && value.length === 0))) as FileTags
+}
+
+/**
+ * The album type a release-type tag states ("album", "single", "album; live",
+ * "Album/Soundtrack"), mapped as MusicBrainz group types are: soundtrack, live and
+ * compilation win over the primary type. Undefined when there is no such tag.
+ */
+export function releaseTypeOf(values: readonly string[] | undefined): FileTags['releaseType'] {
+  const types = new Set((values ?? []).flatMap((value) => value.toLowerCase().split(/[;,/\0]+/)).map((type) => type.trim()).filter(Boolean))
+  if (types.size === 0) return undefined
+  if (types.has('soundtrack')) return 'soundtrack'
+  if (types.has('live')) return 'live'
+  if (types.has('compilation')) return 'compilation'
+  if (types.has('album')) return 'album'
+  if (types.has('ep')) return 'ep'
+  if (types.has('single')) return 'single'
+  return 'other'
 }
 
 export type Gains = { trackGainDb: number | null; trackPeak: number | null; albumGainDb: number | null; albumPeak: number | null }

@@ -428,13 +428,17 @@ function LyricsPage({ visible }: { visible: boolean }) {
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const lineCenters = useRef<number[]>([]);
   const [viewport, setViewport] = useState(0);
+  // Whether the active line has been laid out. Lines lay out after the page appears, and while
+  // paused the active line never changes, so without this the page would open on the first
+  // lines with the current one somewhere below.
+  const [placed, setPlaced] = useState(false);
 
   useEffect(() => {
     const center = lineCenters.current[active];
     if (visible && viewport && center !== undefined) {
       scroll.current?.scrollTo({ y: Math.max(0, center - viewport * 0.33), animated: active > 0 });
     }
-  }, [active, visible, viewport]);
+  }, [active, visible, viewport, placed]);
 
   const empty = lyrics.data?.instrumental
     ? { icon: 'music.note', title: 'Instrumental' }
@@ -454,6 +458,7 @@ function LyricsPage({ visible }: { visible: boolean }) {
             <View key={index} onLayout={(event) => {
               const { y, height } = event.nativeEvent.layout;
               lineCenters.current[index] = y + height / 2;
+              if (index === active) setPlaced(true);
             }}>
               <LyricButton line={line.text} active={!synced || index === active}
                 onPress={line.startMs === null ? undefined : () => { selectionFeedback(); actions.seek(line.startMs!); }} />
@@ -603,7 +608,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   volumeSlider: { flex: 1 },
   systemVolume: { height: 34 },
-  routePicker: { width: 36, height: 36, marginLeft: 2 },
+  // 44pt to touch; the negative margins keep the row as it was laid out for the 36pt glyph.
+  routePicker: { width: 44, height: 44, marginLeft: -2, marginVertical: -4 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
   footerSide: { flex: 1, alignItems: 'center' },
   output: { flex: 1.3, minWidth: 0 },

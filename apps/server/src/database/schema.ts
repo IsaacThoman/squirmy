@@ -61,6 +61,8 @@ export type FileTags = {
   discTotal?: number
   genres?: string[]
   compilation?: boolean
+  /** From a release-type tag (`RELEASETYPE`, "MusicBrainz Album Type"), as Squirmy's album type. */
+  releaseType?: 'album' | 'ep' | 'single' | 'compilation' | 'live' | 'soundtrack' | 'other'
   isrcs?: string[]
   barcode?: string
   label?: string
@@ -202,6 +204,13 @@ export const albums = pgTable('albums', {
   primaryArtistId: uuid('primary_artist_id').references(() => artists.id, { onDelete: 'set null' }),
   /** album | ep | single | compilation | live | soundtrack | other */
   type: text('type').notNull().default('album'),
+  /**
+   * The type is a guess, not a source's statement: the album is known only from a track's
+   * album reference (Deezer and the local index name no type there) or from tags without one.
+   * Matching treats a guessed type as compatible with any type, and the next source that
+   * states the type replaces it.
+   */
+  typeGuessed: boolean('type_guessed').notNull().default(false),
   secondaryTypes: textArray('secondary_types'),
   /** YYYY, YYYY-MM or YYYY-MM-DD, as precise as known. */
   releaseDate: text('release_date'),
@@ -663,7 +672,7 @@ export const detachedSessions = pgTable('detached_sessions', {
  * is the server's collection (files no provider delivered), which every user has, plus these
  * saves; Liked Songs lists the saved recordings. A save needs no file: the album shows in the
  * library at once and its files arrive later. Not deleted with the files. (Saves used to be a
- * second table, `library_items`, beside likes; migration 0017 folded it in.)
+ * second table, `library_items`, beside likes; migration 0018 folded it in.)
  */
 export const likes = pgTable('likes', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

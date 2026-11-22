@@ -50,14 +50,20 @@ export function SearchField({ value, onChange, placeholder, autoFocus, inputRef 
   </Host>;
 }
 
+/** A chevron that leads somewhere ("See all ›") follows its title, as the system's disclosure does. */
+function trailingIcon(icon: string, title: string | undefined) {
+  return Boolean(title) && icon === 'chevron.right';
+}
+
 export function BrowseButton({ label, icon, title, glass, onPress }: BrowseButtonProps) {
   const colors = useColors();
   const useGlass = glass && isLiquidGlassAvailable();
   return <Host matchContents>
     <Button modifiers={[...(useGlass ? iconGlass : [plainButton]), accessibilityLabel(label)]} onPress={onPress}>
       <HStack spacing={6} modifiers={[frame({ minWidth: useGlass ? 30 : 44, minHeight: useGlass ? 30 : 44 }), hitShape]}>
-        {icon && <Symbol name={icon} size={title ? 14 : 19} color={title ? colors.accent : colors.text} />}
+        {icon && !trailingIcon(icon, title) && <Symbol name={icon} size={title ? 14 : 19} color={title ? colors.accent : colors.text} />}
         {title && <Text modifiers={[labelFont, foregroundStyle(colors.accent)]}>{title}</Text>}
+        {icon && trailingIcon(icon, title) && <Symbol name={icon} size={14} color={colors.accent} />}
       </HStack>
     </Button>
   </Host>;

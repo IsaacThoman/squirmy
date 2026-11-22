@@ -19,7 +19,7 @@ describe('migration 0014_cover_repairs', () => {
     const file = await readFile(new URL('../../drizzle/0014_cover_repairs.sql', import.meta.url), 'utf8')
     const statements = file.split('--> statement-breakpoint')
     expect(statements).toHaveLength(4)
-    // 0014 checks saves in library_items, which 0017 folded into likes and dropped.
+    // 0014 checks saves in library_items, which 0018 folded into likes and dropped.
     await db.execute(sql`create table if not exists library_items (user_id uuid, entity_type text, entity_id uuid)`)
     for (const statement of statements) await db.execute(sql.raw(statement))
   }

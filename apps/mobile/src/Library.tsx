@@ -445,6 +445,10 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     <View style={styles.searchHeader}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists" /></View>
     <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" refreshControl={refreshControl}
       contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
+      {/* Without genres to browse, the page still says what it is for rather than stand empty. */}
+      {!active && !genreNames.length && (genres.data
+        ? <EmptyState icon="magnifyingglass" title="Search your music" description="Find songs, albums and artists by name." />
+        : <QueryState query={genres} what="genres" />)}
       {!active ? genreNames.length > 0 && <>
         <SectionTitle title="Browse by genre" />
         <View style={styles.genres}>

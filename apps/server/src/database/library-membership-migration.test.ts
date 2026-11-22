@@ -14,7 +14,7 @@ async function statements(name: string): Promise<string[]> {
   return file.split('--> statement-breakpoint')
 }
 
-/** `library_items` as migration 0011 created it; 0017 folded it into `likes` and dropped it. */
+/** `library_items` as migration 0011 created it; 0018 folded it into `likes` and dropped it. */
 async function createOldSaves() {
   await db.execute(sql`create table if not exists library_items (
     user_id uuid not null references users(id) on delete cascade, entity_type text not null, entity_id uuid not null,
@@ -96,10 +96,10 @@ describe('migration 0011_library_membership', () => {
 })
 
 /**
- * Migration 0017 on an install with both stores: the old table is put back with rows written
+ * Migration 0018 on an install with both stores: the old table is put back with rows written
  * the old way, and the whole migration is replayed, twice, as a rerun would.
  */
-describe('migration 0017_single_heart', () => {
+describe('migration 0018_single_heart', () => {
   useTestDatabase()
 
   it('unions saves into likes, keeping the earlier time, and can run again', async () => {
@@ -123,7 +123,7 @@ describe('migration 0017_single_heart', () => {
     ])
 
     for (let run = 0; run < 2; run++) {
-      for (const statement of await statements('0017_single_heart')) await db.execute(sql.raw(statement))
+      for (const statement of await statements('0018_single_heart')) await db.execute(sql.raw(statement))
     }
 
     const rows = await db.select().from(likes)

@@ -32,9 +32,11 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
   // A requester plays everything here, so only someone who may not fetch music is told how much plays.
   const playing = artist.albums.filter(album => albumPresentation(album, viewer) === 'normal').length
   const playable = artist.topTracks.some(track => isPlayable(track, viewer))
-  const groups = typeOrder
-    .map(type => ({ type, albums: artist.albums.filter(album => album.type === type) }))
-    .filter(group => group.albums.length)
+  // Releases of other artists that credit this one come last, under their own heading.
+  const groups = [
+    ...typeOrder.map(type => ({ key: type, title: groupTitles[type], albums: artist.albums.filter(album => album.type === type) })),
+    { key: 'appears-on', title: 'Appears on', albums: artist.appearsOn ?? [] },
+  ].filter(group => group.albums.length)
   const hasTop = artist.topTracks.length > 0
   const hasAbout = Boolean(artist.bio) || artist.genres.length > 0
 
@@ -87,8 +89,8 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
         )}
 
         {groups.map(group => (
-          <section key={group.type}>
-            <SectionHeader title={groupTitles[group.type]} />
+          <section key={group.key}>
+            <SectionHeader title={group.title} />
             <CardGrid>
               {group.albums.map(album => (
                 <AlbumCard

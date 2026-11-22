@@ -144,7 +144,8 @@ function DetailPage({
     <Animated.View pointerEvents="none" style={[styles.status, { height: top }, blurStyle]}>
       <AlbumStatusBlur />
     </Animated.View>
-    <Animated.View pointerEvents="none" style={[styles.status, styles.bar, { height: top + albumNavSize + 12 }, barStyle]}>
+    {/* Its softened bottom edge falls below the buttons, so rows scrolling up are hidden before they reach them. */}
+    <Animated.View pointerEvents="none" style={[styles.status, styles.bar, { height: top + albumNavSize + 22 }, barStyle]}>
       <AlbumStatusBlur solid />
     </Animated.View>
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
@@ -178,7 +179,8 @@ function ExpandableText({ text, lines }: { text: string; lines: number }) {
   const styles = useStyles();
   const [expanded, setExpanded] = useState(false);
   const [cut, setCut] = useState(false);
-  return <Pressable disabled={!cut} onPress={() => { tapFeedback(); setExpanded(!expanded); }} style={styles.descriptionBlock}
+  // No `disabled` for an uncut text: VoiceOver would read it as dimmed.
+  return <Pressable onPress={cut ? () => { tapFeedback(); setExpanded(!expanded); } : undefined} style={styles.descriptionBlock}
     accessibilityRole={cut ? 'button' : 'text'} accessibilityHint={cut ? (expanded ? 'Shows less' : 'Shows the whole text') : undefined}>
     <Text style={styles.description} numberOfLines={expanded ? undefined : lines}>{text}</Text>
     {cut && <Text style={styles.moreLabel}>{expanded ? 'Less' : 'More'}</Text>}
@@ -481,9 +483,11 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
     starts.run('radio', () => api.radio.artist(data.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${data.name}.`)));
   };
   const startingRadio = starts.pending('radio');
-  const groups = discography
-    .map(group => ({ title: group.title, albums: data.albums.filter(album => group.types.includes(album.type)) }))
-    .filter(group => group.albums.length);
+  // Releases of other artists that credit this one come last, under their own heading.
+  const groups = [
+    ...discography.map(group => ({ title: group.title, albums: data.albums.filter(album => group.types.includes(album.type)) })),
+    { title: 'Appears on', albums: data.appearsOn ?? [] },
+  ].filter(group => group.albums.length);
 
   return <DetailPage item={artistCollection(data, link)} tint={data.image?.color ?? null} title={data.name}
     info={['Artist', ...data.genres.slice(0, 2)].join('  ·  ')}
@@ -536,6 +540,8 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
       ListHeaderComponent={<>
         <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.genreTitle}>{id}</Text>
         {!albums.data && <QueryState query={albums} what={id} />}
+        {albums.data && !albums.items.length && <EmptyState icon="square.stack" title="No albums yet"
+          description={`Albums tagged ${id} show up here.`} />}
       </>}
       ListFooterComponent={albums.isFetchingNextPage ? <ActivityIndicator style={styles.more} /> : undefined} />
   </View>;

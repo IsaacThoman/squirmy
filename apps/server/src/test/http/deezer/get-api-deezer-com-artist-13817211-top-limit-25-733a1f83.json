@@ -1,0 +1,765 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/13817211/top?limit=25"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 4350411742,
+          "title": "Housewife",
+          "link": "https://www.deezer.com/track/4350411742",
+          "duration": 208,
+          "rank": 998094,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 1122461572,
+            "title": "Housewife",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/0717657c0f9540946fb9813d3383a500/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3366676861,
+          "title": "What I Want",
+          "link": "https://www.deezer.com/track/3366676861",
+          "duration": 184,
+          "rank": 717437,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 7188840,
+              "name": "Morgan Wallen",
+              "link": "https://www.deezer.com/artist/7188840",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/99726f6c15793e8d34ec6e93597049c8/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 7188840,
+            "name": "Morgan Wallen",
+            "type": "artist"
+          },
+          "album": {
+            "id": 756669041,
+            "title": "I’m The Problem",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c0a95c46e56018109a6786f9e795acb6/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3196460531,
+          "title": "Sports car",
+          "link": "https://www.deezer.com/track/3196460531",
+          "duration": 165,
+          "rank": 899983,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 701157501,
+            "title": "Sports car",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/74a47f9832735b37a41d8fd49cd23354/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2444176345,
+          "title": "greedy",
+          "link": "https://www.deezer.com/track/2444176345",
+          "duration": 131,
+          "rank": 930668,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 485235215,
+            "title": "greedy",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ef25b6bec265332a059879f45d33cd7e/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3240044361,
+          "title": "Revolving door",
+          "link": "https://www.deezer.com/track/3240044361",
+          "duration": 180,
+          "rank": 939823,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 715137871,
+            "title": "So Close To What",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/74a47f9832735b37a41d8fd49cd23354/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3387508461,
+          "title": "Just Keep Watching (From F1® The Movie)",
+          "link": "https://www.deezer.com/track/3387508461",
+          "duration": 142,
+          "rank": 939504,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 763541131,
+            "title": "Just Keep Watching (From F1® The Movie)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/9ec8e7f65efba5ceb314b0dd85805852/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 929158322,
+          "title": "you broke me first",
+          "link": "https://www.deezer.com/track/929158322",
+          "duration": 169,
+          "rank": 862130,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 141630082,
+            "title": "you broke me first",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/e98a0f036dce1ff55a2b1bcb9bff3dc3/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3569857331,
+          "title": "TIT FOR TAT",
+          "link": "https://www.deezer.com/track/3569857331",
+          "duration": 177,
+          "rank": 847450,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 826380741,
+            "title": "TIT FOR TAT",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/82cca97c900dadda4ce5876dce81c731/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2570727022,
+          "title": "run for the hills",
+          "link": "https://www.deezer.com/track/2570727022",
+          "duration": 143,
+          "rank": 775866,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 519889932,
+            "title": "THINK LATER",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/724b6a0ca0018522c8a956d4e840a0b0/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3240044381,
+          "title": "Dear god",
+          "link": "https://www.deezer.com/track/3240044381",
+          "duration": 173,
+          "rank": 763060,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 715137871,
+            "title": "So Close To What",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/74a47f9832735b37a41d8fd49cd23354/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1638308902,
+          "title": "she's all i wanna be",
+          "link": "https://www.deezer.com/track/1638308902",
+          "duration": 206,
+          "rank": 729729,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 291411672,
+            "title": "she's all i wanna be",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/29aa66d8e1cc88de572f17ecc83fefa4/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2537957421,
+          "title": "exes",
+          "link": "https://www.deezer.com/track/2537957421",
+          "duration": 159,
+          "rank": 820970,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 511309591,
+            "title": "exes",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6f05ad1f5ec636827d9db5683188d980/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2981302361,
+          "title": "It's ok I'm ok",
+          "link": "https://www.deezer.com/track/2981302361",
+          "duration": 157,
+          "rank": 853396,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 639142561,
+            "title": "It's ok I'm ok",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/91b44697254bf886c28058249ca0df31/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3665648962,
+          "title": "NOBODY'S GIRL",
+          "link": "https://www.deezer.com/track/3665648962",
+          "duration": 168,
+          "rank": 805820,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 859781272,
+            "title": "SO CLOSE TO WHAT??? (deluxe)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d32bcb4cc0bc1171b873b50d3f52f47a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3243190801,
+          "title": "Siren sounds (bonus)",
+          "link": "https://www.deezer.com/track/3243190801",
+          "duration": 181,
+          "rank": 842719,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 716196811,
+            "title": "So Close To What",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/74a47f9832735b37a41d8fd49cd23354/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1209912272,
+          "title": "rubberband",
+          "link": "https://www.deezer.com/track/1209912272",
+          "duration": 147,
+          "rank": 508694,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 200334232,
+            "title": "rubberband",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/60afddf87d70c7e2e19f6518297c3c34/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1544297362,
+          "title": "feel like shit",
+          "link": "https://www.deezer.com/track/1544297362",
+          "duration": 204,
+          "rank": 658934,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 270768832,
+            "title": "feel like shit",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/cdf2f8bc76e2b317e23c785576f76e4f/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1928131257,
+          "title": "uh oh",
+          "link": "https://www.deezer.com/track/1928131257",
+          "duration": 169,
+          "rank": 711802,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 359804697,
+            "title": "uh oh",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/de79af46e22eb5072bb339734071a813/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1331014352,
+          "title": "You",
+          "link": "https://www.deezer.com/track/1331014352",
+          "duration": 233,
+          "rank": 661725,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 8185084,
+              "name": "Regard",
+              "link": "https://www.deezer.com/artist/8185084",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/094819cde9839e3be197a7e896e58f81/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 4746199,
+              "name": "Troye Sivan",
+              "link": "https://www.deezer.com/artist/4746199",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/968460c08486bc17aafc1d4398ed609c/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 8185084,
+            "name": "Regard",
+            "type": "artist"
+          },
+          "album": {
+            "id": 221367572,
+            "title": "You",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/f8f20ae31e8857844824acd88b3862c8/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3665648952,
+          "title": "ANYTHING BUT LOVE",
+          "link": "https://www.deezer.com/track/3665648952",
+          "duration": 147,
+          "rank": 739085,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 859781272,
+            "title": "SO CLOSE TO WHAT??? (deluxe)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d32bcb4cc0bc1171b873b50d3f52f47a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3240044391,
+          "title": "Purple lace bra",
+          "link": "https://www.deezer.com/track/3240044391",
+          "duration": 191,
+          "rank": 668099,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 715137871,
+            "title": "So Close To What",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/74a47f9832735b37a41d8fd49cd23354/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3665648942,
+          "title": "TRYING ON SHOES",
+          "link": "https://www.deezer.com/track/3665648942",
+          "duration": 182,
+          "rank": 693941,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 859781272,
+            "title": "SO CLOSE TO WHAT??? (deluxe)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d32bcb4cc0bc1171b873b50d3f52f47a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2570727112,
+          "title": "guilty conscience",
+          "link": "https://www.deezer.com/track/2570727112",
+          "duration": 152,
+          "rank": 595641,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 519889932,
+            "title": "THINK LATER",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/724b6a0ca0018522c8a956d4e840a0b0/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2570727002,
+          "title": "cut my hair",
+          "link": "https://www.deezer.com/track/2570727002",
+          "duration": 175,
+          "rank": 662873,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 519889932,
+            "title": "THINK LATER",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/724b6a0ca0018522c8a956d4e840a0b0/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 2570727032,
+          "title": "hurt my feelings",
+          "link": "https://www.deezer.com/track/2570727032",
+          "duration": 122,
+          "rank": 617946,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13817211,
+              "name": "Tate McRae",
+              "link": "https://www.deezer.com/artist/13817211",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13817211,
+            "name": "Tate McRae",
+            "type": "artist"
+          },
+          "album": {
+            "id": 519889932,
+            "title": "THINK LATER",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/724b6a0ca0018522c8a956d4e840a0b0/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        }
+      ],
+      "total": 100,
+      "next": "https://api.deezer.com/artist/13817211/top?limit=25&index=25"
+    }
+  }
+}

@@ -117,6 +117,18 @@ describe('planGroup', () => {
     expect(planGroup([file('X/01.flac', { album: 'X', albumArtist: 'various artists' })]).album.credits[0]!.mbid).toBe(VARIOUS_ARTISTS_MBID)
   })
 
+  it('takes the type a release-type tag states, and marks the default as a guess', () => {
+    // A provider delivery: the single "you broke me first", tagged with its album name.
+    const single = planGroup([file('Tate McRae - you broke me first/1-01 you broke me first.m4a', {
+      title: 'you broke me first', artist: 'Tate McRae', album: 'you broke me first', releaseType: 'single',
+    })])
+    expect(single.album).toMatchObject({ type: 'single', typeGuessed: false })
+    const untyped = planGroup([file('Tate McRae - you broke me first/1-01 you broke me first.m4a', { title: 'you broke me first', artist: 'Tate McRae', album: 'you broke me first' })])
+    expect(untyped.album).toMatchObject({ type: 'album', typeGuessed: true })
+    const compilation = planGroup([file('Hits/01.flac', { title: 'A', artist: 'X', album: 'Hits', compilation: true })])
+    expect(compilation.album).toMatchObject({ type: 'compilation', typeGuessed: false })
+  })
+
   it('names synthetic albums after the folder and singles after the track', () => {
     const loose = planGroup([file('Demos/a.ogg', { title: 'A', artist: 'Lune' }), file('Demos/b.ogg', { title: 'B', artist: 'Lune' })])
     expect(loose.album).toMatchObject({ title: 'Demos', type: 'album' })

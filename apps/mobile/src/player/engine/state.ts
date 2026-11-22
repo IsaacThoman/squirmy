@@ -2,6 +2,13 @@ import type { EngineState } from '@squirmy/client-core';
 
 /** How long after `play()` a player that has not started yet still counts as starting. */
 export const startGraceMs = 1500;
+/**
+ * How long a player may say it is playing while its position stands still before that
+ * counts as waiting for data. AVPlayer reports `playing` for a stream that has only begun to
+ * arrive (a song the server has just fetched, or is still encoding), and its clock moves
+ * only once sound comes out.
+ */
+export const stillClockMs = 1500;
 
 /** What the engine knows about the loaded entry, and what its player reports now. */
 export type SlotReading = {

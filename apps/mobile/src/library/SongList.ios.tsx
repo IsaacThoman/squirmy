@@ -1,9 +1,10 @@
 import { Button, ContextMenu, Host, HStack, Image, List, ProgressView, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityLabel, background, buttonStyle, clipShape, controlSize, environment, font, foregroundStyle, frame,
+  accessibilityLabel, background, buttonStyle, clipShape, controlSize, dynamicTypeSize, environment, font, foregroundStyle, frame,
   labelStyle, lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, opacity, padding,
   scrollContentBackground, scrollDisabled, tint,
 } from '@expo/ui/swift-ui/modifiers';
+import { librarySave } from '@squirmy/client-core';
 import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { useWantlistEnabled } from '../account/AccountProvider';
@@ -24,14 +25,22 @@ import { unavailableOpacity, useColors } from '../theme';
 
 export type { SongListProps } from './SongList';
 
+/**
+ * Rows have one height, which sizes the list that holds them, so their text follows the
+ * reader's size only up to `rowTextLimit`, where it still fits.
+ */
 const rowHeight = 58;
+const rowTextLimit = dynamicTypeSize({ max: 'xxLarge' });
+// The list takes the limit too: its minimum row height grows with the text size, and past it rows would
+// outgrow `rowHeight` and the last one would be cut off.
+const listModifiers = [listStyle('plain'), scrollContentBackground('hidden'), scrollDisabled(), rowTextLimit];
 const swipeLabelStyle = labelStyle('iconOnly');
-const listModifiers = [listStyle('plain'), scrollContentBackground('hidden'), scrollDisabled()];
+
 const quick = {
   next: { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward' },
-  last: { id: 'last', title: 'Play last', icon: 'text.badge.plus' },
-  like: { id: 'like', title: 'Save to library', icon: 'heart' },
-  unlike: { id: 'unlike', title: 'Remove from library', icon: 'heart.slash' },
+  last: { id: 'last', title: 'Play last', icon: 'text.line.last.and.arrowtriangle.forward' },
+  like: { id: 'like', title: librarySave({ liked: false }).label, icon: 'heart' },
+  unlike: { id: 'unlike', title: librarySave({ liked: true }).label, icon: 'heart.slash' },
 } satisfies Record<string, TrackAction>;
 
 type Run = ReturnType<typeof useTrackActionRunner>['run'];
@@ -127,19 +136,19 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
                   <HStack modifiers={[frame({ width: 27 })]}>
                     {current && loading !== 'none' ? <ProgressView modifiers={[controlSize('small'), tint(colors.accent)]} />
                       : current ? <Image systemName={playing === 'playing' ? 'waveform' : 'pause.fill'} color={colors.accent} size={16} /> : (
-                      <Text modifiers={[foregroundStyle(colors.muted), font({ size: 13 })]}>{String(number)}</Text>
+                      <Text modifiers={[foregroundStyle(colors.muted), font({ textStyle: 'footnote' })]}>{String(number)}</Text>
                     )}
                   </HStack>
                 ) : (
                   <TrackCover track={track} />
                 )}
                 <VStack alignment="leading" spacing={3}>
-                  <Text modifiers={[foregroundStyle(current ? colors.accent : colors.text), font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
+                  <Text modifiers={[foregroundStyle(current ? colors.accent : colors.text), font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1)]}>{track.title}</Text>
                   <HStack spacing={3}>
                     {/* Rows with a cover have no number to swap for the spinner, so it goes before the artist. */}
                     {number === undefined && loading !== 'none' ? <ProgressView modifiers={[controlSize('mini'), tint(colors.accent)]} />
                       : mark && <Image systemName={mark as 'arrow.down.circle.fill'} color={colors.muted} size={10} />}
-                    <Text modifiers={[foregroundStyle(colors.muted), font({ size: 12 }), lineLimit(1)]}>
+                    <Text modifiers={[foregroundStyle(colors.muted), font({ textStyle: 'caption' }), lineLimit(1)]}>
                       {loading === 'slow' ? STILL_LOADING_LABEL : track.artistCredit}
                     </Text>
                   </HStack>
@@ -163,7 +172,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
           onPress={() => handlers.remove(playlist.itemId)} />}
         {playable && !current && <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward" modifiers={[swipeLabelStyle, tint('#8071D4')]}
           onPress={() => perform(quick.next)} />}
-        {playable && <Button label="Play last" systemImage="text.badge.plus" modifiers={[swipeLabelStyle, tint('#3D826D')]}
+        {playable && <Button label="Play last" systemImage="text.line.last.and.arrowtriangle.forward" modifiers={[swipeLabelStyle, tint('#3D826D')]}
           onPress={() => perform(quick.last)} />}
       </SwipeActions.Actions>
     </SwipeActions>

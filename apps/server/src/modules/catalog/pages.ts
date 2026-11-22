@@ -6,12 +6,64 @@ import { notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
+import { releaseKey } from '../search/keys.js'
 import { canonicalRelease, collectionFile } from './availability.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
 
 const TOP_TRACKS = 10
 const SIMILAR = 10
+
+type DiscographyRow = {
+  id: string
+  title: string
+  type: string
+  typeGuessed: boolean
+  hasMbid: boolean
+  detailLevel: number
+  year: number | null
+  hasArtwork: boolean
+  owned: boolean
+  led: boolean
+}
+
+/** Which of two rows of one release stands for it on the page: owned, MusicBrainz, a stated type, detail, a cover, the earlier year. */
+function standsBefore(a: DiscographyRow, b: DiscographyRow): number {
+  const score = (row: DiscographyRow) => [row.owned ? 0 : 1, row.hasMbid ? 0 : 1, row.typeGuessed ? 1 : 0, -row.detailLevel, row.hasArtwork ? 0 : 1, row.year ?? 9999]
+  const left = score(a)
+  const right = score(b)
+  for (let index = 0; index < left.length; index++) if (left[index] !== right[index]) return left[index]! - right[index]!
+  return a.id < b.id ? -1 : 1
+}
+
+/**
+ * An artist's discography with each release once, in the given order. Rows of one release
+ * (the same `releaseKey` and type: two MusicBrainz groups of one title, a deluxe group
+ * beside the standard one) show as the row that stands for it; a row whose type is only a
+ * guess gives way to any row of its title. The enrichment module merges such rows where it
+ * can (`enrichment/reconcile.ts`); this keeps the page right meanwhile, and where two
+ * MusicBrainz groups stay two rows.
+ *
+ * With `fromMusicBrainz` (the artist has an MBID, so its discography is MusicBrainz's
+ * official one) a row known only as a popular song's album, with a guessed type and no
+ * files, is left out altogether: it is a release MusicBrainz does not list for the artist,
+ * mostly another artist's compilation or soundtrack. Its songs still show it.
+ */
+export function standingRows(rows: readonly DiscographyRow[], { fromMusicBrainz = false } = {}): DiscographyRow[] {
+  const best = new Map<string, DiscographyRow>()
+  const stated = new Set<string>()
+  const keyOf = (row: DiscographyRow) => `${row.led}|${releaseKey(row.title) || row.id}`
+  for (const row of rows) {
+    if (!row.typeGuessed) stated.add(keyOf(row))
+    const key = `${keyOf(row)}|${row.typeGuessed ? '?' : row.type}`
+    const current = best.get(key)
+    if (!current || standsBefore(row, current) < 0) best.set(key, row)
+  }
+  const shown = new Set([...best.values()]
+    .filter((row) => !row.typeGuessed || (!stated.has(keyOf(row)) && !(fromMusicBrainz && !row.hasMbid && !row.owned)))
+    .map((row) => row.id))
+  return rows.filter((row) => shown.has(row.id))
+}
 
 async function resolveOrThrow(table: 'artists' | 'albums' | 'recordings', id: string, what: 'artist' | 'album' | 'track') {
   const resolved = await resolveOne(table, id)
@@ -99,7 +151,8 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
 }
 
 /**
- * The artist page: profile, every album the artist is credited on or leads (newest first), and
+ * The artist page: profile, the albums the artist leads and those of others that credit it
+ * (newest first, each release once, `standingRows`), and
  * top tracks ranked by completed plays on this server, then popularity, and similar
  * artists from the radio module, which also says whether an artist radio would start.
  * Fetches missing detail first.
@@ -107,14 +160,21 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
 export async function artistDetail(userId: string, id: string): Promise<ArtistDetail> {
   const settled = await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
   const artistId = await resolveOrThrow('artists', id, 'artist')
+  const [artist] = await db.execute<{ hasMbid: boolean }>(sql`select mbid is not null as "hasMbid" from artists where id = ${artistId}`)
+  const hasMbid = artist?.hasMbid ?? false
   const [[summary], [profile], albums, top, similar, radio] = await Promise.all([
     artistSummaries([artistId], userId),
     db.execute<{ sortName: string | null; disambiguation: string | null; bio: string | null; bioUrl: string | null; genres: string[]; liked: boolean }>(sql`
       select a.sort_name as "sortName", a.disambiguation, a.bio, a.bio_url as "bioUrl", a.genres,
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'artist' and l.entity_id = a.id) as liked
       from artists a where a.id = ${artistId}`),
-    db.execute<{ id: string }>(sql`
-      select a.id from albums a
+    db.execute<DiscographyRow>(sql`
+      select a.id, a.title, a.type, a.type_guessed as "typeGuessed", a.mbid is not null as "hasMbid", a.detail_level as "detailLevel",
+        a.year, a.artwork_asset_id is not null as "hasArtwork",
+        exists (select 1 from media_files f where f.album_id = a.id and f.missing_since is null) as owned,
+        a.primary_artist_id = ${artistId} or exists (
+          select 1 from album_artists lead where lead.album_id = a.id and lead.position = 0 and lead.artist_id = ${artistId}) as led
+      from albums a
       where a.merged_into_id is null
         -- Credited, or led without credit rows (the summary then credits the primary artist).
         and a.id in (
@@ -123,7 +183,8 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
         )
       -- Many rows know only a year (catalog stubs, tags with a year). A full date and a
       -- bare year compare as text, so '2020' still sorts above '2001-05-01'.
-      order by coalesce(a.release_date, a.year::text) desc nulls last, a.year desc nulls last, a.title_key, a.id`),
+      order by coalesce(a.release_date, a.year::text) desc nulls last, a.year desc nulls last, a.title_key, a.id`)
+      .then((rows) => standingRows(rows, { fromMusicBrainz: hasMbid })),
     db.execute<{ id: string }>(sql`
       select r.id from recordings r
       where r.merged_into_id is null
@@ -138,11 +199,12 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
     canStartArtistRadio(userId, artistId),
   ])
   if (!summary || !profile) throw notFound('No such artist', 'artist_not_found')
-  const [albumList, topTracks] = await Promise.all([
-    albumSummaries(albums.map((row) => row.id)),
+  const [albumList, appearsOn, topTracks] = await Promise.all([
+    albumSummaries(albums.filter((row) => row.led).map((row) => row.id)),
+    albumSummaries(albums.filter((row) => !row.led).map((row) => row.id)),
     trackSummaries(userId, top.map((row) => ({ id: row.id }))),
   ])
-  return { ...summary, ...profile, topTracks, albums: albumList, similar, radio, ...(settled ? {} : { detailPending: true as const }) }
+  return { ...summary, ...profile, topTracks, albums: albumList, appearsOn, similar, radio, ...(settled ? {} : { detailPending: true as const }) }
 }
 
 /** One track, in the given album's context when there is one. */

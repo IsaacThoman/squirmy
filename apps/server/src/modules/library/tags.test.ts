@@ -37,6 +37,14 @@ describe('tag normalization', () => {
     expect(normalizeTags({}, raw({ MUSICBRAINZ_ALBUMID: 'not an id' })).mbReleaseId).toBeUndefined()
   })
 
+  it('reads a release-type tag as an album type', () => {
+    expect(normalizeTags({}, raw({ RELEASETYPE: 'single' })).releaseType).toBe('single')
+    expect(normalizeTags({}, raw({ 'TXXX:MusicBrainz Album Type': 'album; live' })).releaseType).toBe('live')
+    expect(normalizeTags({}, raw({ '----:com.apple.iTunes:MusicBrainz Album Type': 'EP' })).releaseType).toBe('ep')
+    expect(normalizeTags({}, raw({ RELEASETYPE: 'broadcast' })).releaseType).toBe('other')
+    expect(normalizeTags({}, raw({})).releaseType).toBeUndefined()
+  })
+
   it('reads numbers, dates, flags and codes in their many spellings', () => {
     const tags = normalizeTags({}, raw({
       TRACKNUMBER: '05/13', DISCNUMBER: '2', DISCTOTAL: '3', DATE: '17.05.2013', COMPILATION: '1', ISRC: 'us-qx9-13-00108; GBAYE0601498', LABEL: 'Columbia', CATALOGNUMBER: '88883716862', UPC: '886443927087',

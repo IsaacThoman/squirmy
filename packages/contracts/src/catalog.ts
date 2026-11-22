@@ -173,8 +173,17 @@ export const ArtistDetail = ArtistSummary.extend({
   /** The heart: the viewer saved (follows) this artist, which puts it in their library. */
   liked: z.boolean(),
   topTracks: z.array(TrackSummary),
-  /** Whole discography, newest first. Clients group by `type`. */
+  /**
+   * The artist's own releases (led by the artist), newest first, each release once: rows
+   * of one release (editions, store copies) show as the one that stands for it. Clients
+   * group by `type`.
+   */
   albums: z.array(AlbumSummary),
+  /**
+   * Releases led by other artists that credit this one, newest first ("Appears on").
+   * Absent from servers that predate it, which listed them in `albums`.
+   */
+  appearsOn: z.array(AlbumSummary).optional(),
   similar: z.array(ArtistSummary),
   /**
    * Whether `POST /radio/artist/:id` starts a radio for the viewer: something of the artist
