@@ -164,7 +164,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
       const send = () => saved ? api.library.save(type, id) : api.library.remove(type, id);
       // A quick confirmation that can be taken back, as streaming apps do; the button itself changes too.
       notify(saved ? `Added “${title}” to your library.` : `Removed “${title}” from your library.`,
-        { label: 'Undo', run: () => value.setSaved(type, id, !saved, title) });
+        { action: { label: 'Undo', run: () => value.setSaved(type, id, !saved, title) } });
       const run = (saving.current.get(key) ?? Promise.resolve()).then(send, send).then(() => {
         // Library lists and Home's "Recently added" change; the item's own pages now carry the new state.
         void queryClient.invalidateQueries({ queryKey: queryKeys.libraryAlbums() });
