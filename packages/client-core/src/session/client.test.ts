@@ -208,9 +208,9 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), onLoadError }: {
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), onLoadError, systemVolume }: {
   canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer
-  onLoadError?: SessionPlayer['onLoadError']
+  onLoadError?: SessionPlayer['onLoadError']; systemVolume?: boolean
 } = {}) {
   const transport = new FakeTransport(server)
   const engine = new FakeEngine()
@@ -219,7 +219,7 @@ function setup({ canPlay = true, connect = true, restore, server = new FakeServe
   const client = new SessionClient({
     transport,
     device: { id: PHONE, name: 'Phone', kind: 'ios' },
-    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError } : undefined,
+    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError, systemVolume } : undefined,
     restore,
   })
   client.start()
@@ -849,6 +849,19 @@ describe('SessionClient engine', () => {
     expect(calls('setGain').at(-1)).toEqual(['setGain', 0.5])
     client.setNormalization('track')
     expect(engine.loaded!.gain).toBeCloseTo(0.5 * 10 ** (-6 / 20))
+    await settle()
+  })
+
+  it('leaves the volume out of the gain when the system applies it', async () => {
+    const { client, engine, calls, settle } = setup({ systemVolume: true })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await settle()
+    client.dispatch({ type: 'setVolume', deviceId: PHONE, value: 0.5 })
+    expect(client.getSnapshot().session.volumes[PHONE]).toBe(0.5)
+    expect(calls('setGain')).toEqual([])
+    client.setNormalization('track')
+    expect(engine.loaded!.gain).toBeCloseTo(10 ** (-6 / 20))
     await settle()
   })
 

@@ -48,6 +48,12 @@ export type SessionPlayer = {
   /** The engine can amplify above unity. Defaults to false. */
   canBoost?: boolean
   /**
+   * This device's entry in the session's `volumes` is the system's output volume, which the
+   * platform applies and keeps in step itself (iOS): the engine's gain leaves it out and
+   * plays at full volume, with only normalization applied. Defaults to false.
+   */
+  systemVolume?: boolean
+  /**
    * `resolvePlayback` failed for the current entry. `willRetry` is true for a failure that
    * may pass (no connection, a server error), which is retried every few seconds while the
    * session reports a stall; false when the server refused the track (a 4xx), which the
@@ -719,7 +725,7 @@ export class SessionClient {
   }
 
   private gainOf(entry: QueueEntry, descriptor: PlaybackDescriptor | undefined, session: Session): number {
-    const volume = session.volumes[this.device.id] ?? 1
+    const volume = this.player?.systemVolume ? 1 : session.volumes[this.device.id] ?? 1
     const albumContext = !session.shuffle && session.context?.type === 'album' && session.context.id === entry.albumId
     return volume * gainFor(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false })
   }
