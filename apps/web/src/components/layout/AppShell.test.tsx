@@ -492,6 +492,22 @@ describe('AppShell', () => {
     })
   })
 
+  describe('Now Playing', () => {
+    it('gives focus back to what opened it when it closes', async () => {
+      await renderShell()
+      await press('k')
+      await userEvent.type(await searchField(), 'amber')
+      await userEvent.click(await screen.findByRole('option', { name: 'Amber Song · Lune Park' }))
+      const opener = await screen.findByRole('button', { name: 'Now Playing' })
+      opener.focus()
+      await userEvent.keyboard('{Enter}')
+      expect(await screen.findByRole('dialog', { name: 'Now Playing' })).toBeInTheDocument()
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Now Playing' })).not.toBeInTheDocument())
+      expect(document.activeElement).toBe(opener)
+    }, 15_000)
+  })
+
   describe('on a phone', () => {
     const opener = () => screen.getByRole('button', { name: 'Open sidebar' })
     const drawerOpen = () => !sidebar().hasAttribute('inert')

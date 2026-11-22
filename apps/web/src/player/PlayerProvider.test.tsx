@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, allTracks } from '@/fixtures/catalog'
 import { fakeServices } from '@/test/fake-services'
@@ -52,5 +52,30 @@ describe('PlayerProvider', () => {
     expect(await screen.findByText('Removed from your library')).toBeInTheDocument()
     // The album page shows the same track, from its own cached answer.
     expect(screen.getByRole('button', { name: `Save ${first.title} to library` })).toBeInTheDocument()
+  })
+
+  it('clears the history with a moment to undo it', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Next' })[0]!)
+    await waitFor(() => expect(socket.session.history).toHaveLength(1))
+    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+    const panel = await screen.findByRole('complementary', { name: 'Queue' })
+
+    await userEvent.click(within(panel).getByRole('button', { name: 'Clear history' }))
+    expect(within(panel).queryByRole('heading', { name: 'History' })).toBeNull()
+    expect(socket.session.history).toHaveLength(1)
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+    expect(await within(panel).findByRole('heading', { name: 'History' })).toBeInTheDocument()
+
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await userEvent.click(within(panel).getByRole('button', { name: 'Clear history' }))
+      await vi.advanceTimersByTimeAsync(5000)
+      await waitFor(() => expect(socket.session.history).toEqual([]))
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

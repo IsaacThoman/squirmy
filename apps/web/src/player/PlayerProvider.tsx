@@ -24,6 +24,8 @@ import { useShortcuts } from './shortcuts'
 
 /** The most tracks one `playTracks` or `enqueue` may carry. */
 const MAX_SEEDS = 5000
+/** How long Clear history can be undone before the session forgets the history. */
+const HISTORY_UNDO_MS = 5000
 
 
 /**
@@ -100,6 +102,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [client, engine])
   const audible = useSyncExternalStore(subscribeAudible, () => listening.audible())
   const [, summariesArrived] = useReducer((count: number) => count + 1, 0)
+  // History cleared but still undoable: hidden here, and only forgotten once the time is up.
+  const [clearedHistory, setClearedHistory] = useState<ReadonlySet<string> | null>(null)
+  const historyClear = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(historyClear.current), [])
 
   useEffect(() => {
     client.start()
@@ -214,7 +220,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (target) dispatch({ type: 'moveInQueue', entryId, toIndex: list.indexOf(target) })
       },
       clearQueue: () => dispatch({ type: 'clearQueue' }),
-      clearHistory: () => dispatch({ type: 'clearHistory' }),
+      clearHistory: () => {
+        const { history } = latest().queue
+        if (!history.length) return
+        clearTimeout(historyClear.current)
+        setClearedHistory(new Set(history.map(entry => entry.id)))
+        historyClear.current = setTimeout(() => {
+          dispatch({ type: 'clearHistory' })
+          setClearedHistory(null)
+        }, HISTORY_UNDO_MS)
+        toast({
+          title: 'History cleared',
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              clearTimeout(historyClear.current)
+              setClearedHistory(null)
+            },
+          },
+        })
+      },
       transfer: deviceId => dispatch({ type: 'transfer', deviceId }),
       prepareHere: () => client.prepareTakeover(),
       detach: () => client.detach(),
@@ -250,7 +275,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     autoplay: session.autoplay,
     context: session.context,
     queue: hydrate(store, queue.queue),
-    history: hydrate(store, queue.history),
+    history: hydrate(store, clearedHistory ? queue.history.filter(entry => !clearedHistory.has(entry.id)) : queue.history),
     autoplayQueue: hydrate(store, queue.autoplayQueue),
     devices: [...snapshot.devices],
     thisDeviceId,

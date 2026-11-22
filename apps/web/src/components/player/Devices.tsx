@@ -26,7 +26,8 @@ export function DevicesPopover({ player, trigger, side = 'top' }: { player: Play
         side={side}
         align="end"
         aria-label="Playback devices"
-        className="w-72 p-1"
+        // On a short screen (a phone on its side) the list scrolls inside the room there is, so its last action stays reachable.
+        className="max-h-(--radix-popover-content-available-height) w-72 overflow-y-auto overscroll-contain p-1"
         // Focus goes to the popover, not to its first button: that would raise the mute button's tooltip over the list.
         onOpenAutoFocus={event => {
           event.preventDefault()
@@ -75,6 +76,7 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
           <VolumeControl
             label={`${name(active)} volume`}
             volume={volumes[active.id] ?? 1}
+            deviceId={active.id}
             onChange={volume => player.controls.setVolume(volume, active.id)}
             fill
             className="-ml-1.5 mt-1.5 gap-2.5 pr-1"
@@ -153,6 +155,7 @@ function DetachedList({ player, separate, onDone }: { player: Player; separate: 
         <VolumeControl
           label="This browser volume"
           volume={volumes[thisDeviceId] ?? 1}
+          deviceId={thisDeviceId}
           onChange={volume => player.controls.setVolume(volume, thisDeviceId)}
           fill
           className="-ml-1.5 mt-1.5 gap-2.5 pr-1"
@@ -253,9 +256,10 @@ export function PlayingElsewhere({ player, device, onPlayHere, onPrepare, classN
   return (
     <div className={cn('flex h-8 items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-primary', className)}>
       <DeviceIcon kind={device.kind} className="size-3.5 shrink-0" />
-      <span className="truncate">{playingOnText(labelDevice(player.state, device))}</span>
-      {/* Pointing at it is reason enough to get the music ready: it is usually pressed next. */}
-      <button type="button" onClick={onPlayHere} onPointerEnter={onPrepare} onPointerDown={onPrepare} onFocus={onPrepare} className="ml-1.5 h-6 shrink-0 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
+      <span className="truncate">{playingOnText(labelDevice(player.state, device), player.state.playing)}</span>
+      {/* Pointing at it is reason enough to get the music ready: it is usually pressed next. Its
+          hit area reaches past the 32px strip to a 44px target for a finger. */}
+      <button type="button" onClick={onPlayHere} onPointerEnter={onPrepare} onPointerDown={onPrepare} onFocus={onPrepare} className="relative ml-1.5 h-6 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-2.5 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
         Play here
       </button>
     </div>

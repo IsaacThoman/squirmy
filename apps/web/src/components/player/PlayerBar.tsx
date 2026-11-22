@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { labelDevice, playingElsewhere, usePosition, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
-import { PlayPauseButton, SeekBar, TransportButtons, VolumeControl } from './Transport'
+import { PlayPauseButton, SeekBar, touchTarget, TransportButtons, VolumeControl } from './Transport'
 
 /** The bar is the sidebar's color, so what is hovered in it takes the sidebar's hover color. */
 const barClass = '@container bg-sidebar text-sidebar-foreground [--accent:var(--sidebar-accent)]'
@@ -63,7 +63,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                     : <ArtistLinks track={item.track} />}
                 </p>
               </div>
-              <SaveHeart liked={liked} onToggle={onToggleLike} size="sm" className="ml-1 hidden @[44rem]:inline-flex" />
+              <SaveHeart liked={liked} onToggle={onToggleLike} size="sm" className={cn('ml-1 hidden @[44rem]:inline-flex', touchTarget)} />
             </>
           ) : (
             <>
@@ -81,14 +81,14 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
         </div>
 
         <div className="flex min-w-0 items-center justify-end gap-1">
-          <IconButton label={lyricsOpen ? 'Hide lyrics' : 'Lyrics'} size="sm" pressed={lyricsOpen} disabled={!item} onClick={onToggleLyrics} className="hidden @[36rem]:inline-flex"><MessageSquareQuote /></IconButton>
-          <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue}><ListMusic /></IconButton>
+          <IconButton label={lyricsOpen ? 'Hide lyrics' : 'Lyrics'} size="sm" pressed={lyricsOpen} disabled={!item} onClick={onToggleLyrics} className={cn('hidden @[36rem]:inline-flex', touchTarget)}><MessageSquareQuote /></IconButton>
+          <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue} className={touchTarget}><ListMusic /></IconButton>
           <DevicesPopover
             player={player}
-            trigger={<IconButton label="Devices" size="sm" className={cn((elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
+            trigger={<IconButton label="Devices" size="sm" className={cn(touchTarget, (elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
           />
-          <VolumeControl volume={state.volume} onChange={controls.setVolume} className="hidden @[62rem]:flex" />
-          <IconButton label="Now Playing" size="sm" disabled={!item} onClick={onOpenNowPlaying} className="hidden @[44rem]:inline-flex"><Maximize2 /></IconButton>
+          <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} className="hidden @[62rem]:flex" />
+          <IconButton label="Now Playing" size="sm" disabled={!item} onClick={onOpenNowPlaying} className={cn('hidden @[44rem]:inline-flex', touchTarget)}><Maximize2 /></IconButton>
         </div>
       </div>
       {/* One strip at a time: a detached tab is never controlling another device. */}

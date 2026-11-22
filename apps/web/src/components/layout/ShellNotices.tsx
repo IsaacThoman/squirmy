@@ -1,5 +1,5 @@
 import { Volume2, WifiOff } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/feedback'
 import { useAudioUnlock } from '@/player/engine/engine-context'
@@ -14,8 +14,24 @@ import { useRealtime } from '@/realtime/realtime-context'
 export function ShellNotices() {
   const { down } = useRealtime()
   const audio = useAudioUnlock()
+  const stack = useRef<HTMLDivElement>(null)
+  // Toasts stack above the notices (`--notices-height`), so neither covers the other.
+  useEffect(() => {
+    const element = stack.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const root = document.documentElement
+    // With a notice showing, the toasts keep the same 0.5rem gap from it as the notices keep from each other.
+    const measure = () => root.style.setProperty('--notices-height', element.offsetHeight ? `calc(${element.offsetHeight}px + 0.5rem)` : '0px')
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    measure()
+    return () => {
+      observer.disconnect()
+      root.style.removeProperty('--notices-height')
+    }
+  }, [])
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--player-height,0px)+1rem)] z-[60] flex flex-col items-center gap-2 px-4">
+    <div ref={stack} className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--player-height,0px)+1rem)] z-[60] flex flex-col items-center gap-2 px-4">
       <div role="status" className="contents">
         {down && (
           <Notice icon={<WifiOff />}>

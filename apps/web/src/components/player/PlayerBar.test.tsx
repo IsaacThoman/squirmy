@@ -7,6 +7,7 @@ import type { Player, PlayerControls, PlayerState } from '@/player/player-contex
 import { STILL_LOADING_MS } from '@/player/use-still-loading'
 import { renderWithApp } from '@/test/render'
 import { MiniPlayer, PlayerBar } from './PlayerBar'
+import { VolumeControl } from './Transport'
 
 const song = track('night-swimming-demo')
 
@@ -100,5 +101,29 @@ describe('PlayerBar while the browser holds the audio back', () => {
     act(() => within(region).getByRole('button', { name: 'Play' }).click())
     expect(value.controls.togglePlay).toHaveBeenCalled()
     expect(within(region).queryByRole('button', { name: 'Pause' })).toBeNull()
+  })
+})
+
+describe('VolumeControl', () => {
+  it('unmutes to the volume muted elsewhere, for the same device', () => {
+    const changed = vi.fn()
+    const { unmount } = renderWithApp(<VolumeControl volume={0.6} deviceId="speaker" onChange={changed} />)
+    act(() => screen.getByRole('button', { name: 'Mute' }).click())
+    expect(changed).toHaveBeenLastCalledWith(0)
+    unmount()
+    // Another view of the same device, opened while muted.
+    renderWithApp(<VolumeControl volume={0} deviceId="speaker" onChange={changed} />)
+    act(() => screen.getByRole('button', { name: 'Unmute' }).click())
+    expect(changed).toHaveBeenLastCalledWith(0.6)
+  })
+})
+
+describe('PlayerBar while another device holds the session', () => {
+  it('says it is paused there when it is', () => {
+    const other = devices.find(device => device.id !== thisDeviceId && device.canPlay)!
+    renderWithApp(bar(player('ready', 'entry-elsewhere', song, { playing: false, activeDeviceId: other.id })))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(within(region).getByText(/^Paused (on|in) /)).toBeInTheDocument()
+    expect(within(region).queryByText(/^Playing (on|in) /)).toBeNull()
   })
 })
