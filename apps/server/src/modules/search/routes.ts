@@ -13,8 +13,12 @@ import { topOf, type Ranked } from './rank.js'
 import { rankFound, type Found } from './top.js'
 import { warmAlbums } from './warm.js'
 
-/** Queries whose `matchKey` is shorter than this many characters answer nothing. */
+/**
+ * Queries whose `matchKey` is shorter than this many characters answer nothing. A query of
+ * symbols alone (the band "!!!"), whose `matchKey` is empty, still goes to the provider.
+ */
 const minQueryLength = 2
+const tooShort = (q: string, key: string) => (key === '' ? q.trim() === '' : [...key].length < minQueryLength)
 
 async function summaries(userId: string, ids: StubIds): Promise<Found> {
   const [artists, albums, tracks] = await Promise.all([
@@ -42,7 +46,8 @@ export async function searchRoutes(app: FastifyInstance) {
     const user = requireUser(request)
     const { q, limit, type, offset } = SearchQuery.parse(request.query)
     const key = matchKey(q)
-    if ([...key].length < minQueryLength) return empty
+    // Library keys are `matchKey`s too, so a query of symbols alone can find nothing there.
+    if (tooShort(q, key) || key === '') return empty
     const ids = await searchLibrary(user.id, key, limit, { offset, types: type && [type] })
     const found = distinct(await summaries(user.id, ids))
     // Every result of the library search is the viewer's own.
@@ -54,7 +59,7 @@ export async function searchRoutes(app: FastifyInstance) {
     const user = requireUser(request)
     const { q, limit, type, offset } = SearchQuery.parse(request.query)
     const key = matchKey(q)
-    if ([...key].length < minQueryLength) return empty
+    if (tooShort(q, key)) return empty
     const types: readonly SearchKind[] = type ? [type] : allKinds
     // The library answer for the same query runs alongside the provider call, so the
     // catalog answer can leave out what the library answer already shows: on this page or
@@ -62,7 +67,7 @@ export async function searchRoutes(app: FastifyInstance) {
     // without this the user's own albums would come back a second time as "not in your library".
     const [{ provider, results }, library] = await Promise.all([
       searchCatalog(q, limit, undefined, { offset, types }),
-      searchLibrary(user.id, key, limit + offset, { types }),
+      key ? searchLibrary(user.id, key, limit + offset, { types }) : { artists: [], albums: [], tracks: [] },
     ])
     if (!provider) return empty
     const stored = await materialize(provider.idSource, results)

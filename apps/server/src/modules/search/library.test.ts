@@ -104,7 +104,9 @@ describe('GET /search/library', () => {
     expect(await top('para')).toEqual(['track', 'Paranoid Android'])
     // A typo one character away still leads with the artist, as streaming apps do.
     expect(await top('radiohed')).toEqual(['artist', 'Radiohead'])
-    expect(await top('paranoid andriod')).toBeNull()
+    // Two letters swapped count as one typo; two typos are too far.
+    expect(await top('paranoid andriod')).toEqual(['track', 'Paranoid Android'])
+    expect(await top('paranoid andrxyd')).toBeNull()
     // Scored on the same scale as the catalog's top result, so a client can pick between them.
     expect(await scored('radiohead')).toBe(3)
     expect(await scored('radiohead ok computer')).toBe(3)

@@ -353,6 +353,14 @@ describe('GET /search/catalog', () => {
     expect(http.requests).toContain('GET https://api.deezer.com/search/album?q=radiohead&limit=3&index=3')
   })
 
+  it('searches a name of symbols alone with the provider, though the library cannot', async () => {
+    const results = await search('!!!', 3)
+    expect(results.artists[0]?.name).toBe('!!!')
+    expect(results.top).toEqual({ type: 'artist', id: results.artists[0]!.id, score: 3 })
+    const library = body(await app.inject({ url: '/api/v1/search/library?q=!!!', headers: user.headers }), SearchResults)
+    expect(library.artists).toEqual([])
+  })
+
   it('needs a session', async () => {
     expect(errorCode(await app.inject({ url: '/api/v1/search/catalog?q=radiohead' }), 401)).toBe('unauthorized')
   })

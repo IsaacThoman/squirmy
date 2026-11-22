@@ -1,0 +1,105 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/search/album?q=%21%21%21&limit=3"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 6514100,
+          "title": "Thr!!!er",
+          "link": "https://www.deezer.com/album/6514100",
+          "cover": "https://api.deezer.com/album/6514100/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "ca11b8182c2221e10262ad31d6b3ae90",
+          "genre_id": 106,
+          "nb_tracks": 9,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/6514100/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 2824,
+            "name": "!!!",
+            "link": "https://www.deezer.com/artist/2824",
+            "picture": "https://api.deezer.com/artist/2824/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/2824/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 41640811,
+          "title": "Shake The Shudder",
+          "link": "https://www.deezer.com/album/41640811",
+          "cover": "https://api.deezer.com/album/41640811/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/fc7a89db4bd63d327c852583448a3f1f/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/fc7a89db4bd63d327c852583448a3f1f/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/fc7a89db4bd63d327c852583448a3f1f/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/fc7a89db4bd63d327c852583448a3f1f/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "fc7a89db4bd63d327c852583448a3f1f",
+          "genre_id": 85,
+          "nb_tracks": 12,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/41640811/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 2824,
+            "name": "!!!",
+            "link": "https://www.deezer.com/artist/2824",
+            "picture": "https://api.deezer.com/artist/2824/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/2824/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 527784,
+          "title": "Myth Takes",
+          "link": "https://www.deezer.com/album/527784",
+          "cover": "https://api.deezer.com/album/527784/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/5174e0eb49d9e2b8f5204b7c7c94dd48/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/5174e0eb49d9e2b8f5204b7c7c94dd48/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/5174e0eb49d9e2b8f5204b7c7c94dd48/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5174e0eb49d9e2b8f5204b7c7c94dd48/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "5174e0eb49d9e2b8f5204b7c7c94dd48",
+          "genre_id": 85,
+          "nb_tracks": 10,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/527784/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 2824,
+            "name": "!!!",
+            "link": "https://www.deezer.com/artist/2824",
+            "picture": "https://api.deezer.com/artist/2824/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/2824/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        }
+      ],
+      "total": 62,
+      "next": "https://api.deezer.com/search/album?q=%21%21%21&limit=3&index=3"
+    }
+  }
+}

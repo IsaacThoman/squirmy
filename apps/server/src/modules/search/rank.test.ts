@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fansPopularity } from './providers.js'
+import { fansPopularity, isCreditLine } from './providers.js'
 import { rank, topOf, type RankInput, type RankSignals } from './rank.js'
 
 /**
@@ -21,8 +21,8 @@ function fixture() {
       add({ type: 'artist', id, name, artistCredit: null, artistNames: [], artistIds: [], albumId: null }, fansPopularity(fans))
       return build
     },
-    album(id: string, title: string, by: [id: string, name: string]) {
-      add({ type: 'album', id, name: title, artistCredit: by[1], artistNames: [by[1]], artistIds: [by[0]], albumId: null }, null)
+    album(id: string, title: string, by: [id: string, name: string], albumType: RankInput['albumType'] = 'album') {
+      add({ type: 'album', id, name: title, artistCredit: by[1], artistNames: [by[1]], artistIds: [by[0]], albumId: null, albumType }, null)
       return build
     },
     /** `rank` is Deezer's, which reaches about a million for the most played songs. */
@@ -166,8 +166,8 @@ describe('rank', () => {
   })
 
   it('falls back to each list order when nothing measures prominence', () => {
-    const answer = fixture().album('b', 'Blue', ['x', 'X']).album('a', 'Blue', ['y', 'Y']).track('c', 'Blue', ['z', 'Z'], 0).done()
-    answer.signals.popularity.delete('c')
+    const built = fixture().album('b', 'Blue', ['x', 'X']).album('a', 'Blue', ['y', 'Y']).track('c', 'Blue', ['z', 'Z'], 0).done()
+    const answer = { ...built, signals: { ...built.signals, popularity: new Map() } }
     // Each list keeps its order; the same place in two lists goes to the album.
     expect(order('blue', answer)).toEqual(['b', 'c', 'a'])
   })
@@ -177,4 +177,42 @@ describe('rank', () => {
     expect(rank('band', answer.inputs, answer.signals)[0]!.id).toBe('album')
     expect(top('band', answer)).toBeNull()
   })
+
+  it('leads a song named with its artist with the song, not its single (creep radiohead)', () => {
+    const radiohead = ['radiohead', 'Radiohead'] as [string, string]
+    const build = fixture().artist('radiohead', 'Radiohead', 4_000_000)
+      .album('creep-single', 'Creep', radiohead, 'single').album('pablo-honey', 'Pablo Honey', radiohead)
+      .track('creep', 'Creep', radiohead, 900_000, 'creep-single')
+    // The library's own Radiohead songs, found because the query names the band.
+    for (const title of ['Airbag', 'Lucky', 'Karma Police', 'Kid A']) build.track(`owned-${title}`, title, radiohead, 0)
+    const answer = build.done()
+    const owned = { ...answer, signals: { ...answer.signals, owned: new Set(answer.inputs.filter((input) => input.id.startsWith('owned-')).map((input) => input.id)) } }
+    const list = order('creep radiohead', owned)
+    expect(list.slice(0, 2)).toEqual(['creep', 'creep-single'])
+    expect(list.indexOf('owned-Airbag')).toBeGreaterThan(list.indexOf('radiohead'))
+  })
+
+  it('takes a typo or two swapped letters for the well known name over a song titled with the typo', () => {
+    for (const [query, name, fans] of [['kendrik lamar', 'Kendrick Lamar', 9_000_000], ['radiohed', 'Radiohead', 4_000_000], ['taylor swfit', 'Taylor Swift', 20_000_000]] as const) {
+      const answer = fixture().artist('real', name, fans).track('literal', query, ['nobody', 'Nobody'], 40_000).done()
+      expect(order(query, answer)[0]).toBe('real')
+      expect(top(query, answer)).toMatchObject({ type: 'artist', id: 'real' })
+    }
+  })
+
+  it('reads letters spelled with symbols, and searches a name of symbols alone (P!nk, !!!)', () => {
+    const pink = fixture().artist('pink-floyd', 'Pink Floyd', 6_000_000).artist('pink', 'P!nk', 8_000_000).artist('other', 'Pink', 3_000).done()
+    expect(order('pink', pink)[0]).toBe('pink')
+    const bang = fixture().artist('bang', '!!!', 200_000).artist('ex', 'Exclaim', 50_000).done()
+    expect(order('!!!', bang)[0]).toBe('bang')
+    expect(top('!!!', bang)).toEqual({ type: 'artist', id: 'bang', score: 3 })
+  })
 })
+
+describe('isCreditLine', () => {
+  it('tells credit lines Deezer lists as artists from artists', () => {
+    for (const name of ['Performed by Beyoncé Knowles,', 'Tech N9ne feat. Kendrick Lamar, Kendall Morgan', 'A ft. B', 'Somebody featuring Somebody Else']) expect(isCreditLine(name)).toBe(true)
+    for (const name of ['Beyoncé', 'Not Tyler, The Creator', 'Earth, Wind & Fire', 'Featurette']) expect(isCreditLine(name)).toBe(false)
+  })
+})
+

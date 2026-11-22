@@ -154,6 +154,15 @@ function deezerTrack(track: DeezerTrack): ProviderTrack {
   }
 }
 
+/**
+ * Deezer lists some credit lines as artists of their own ("Performed by Beyoncé Knowles,",
+ * "Tech N9ne feat. Kendrick Lamar"): no page of music behind them, and named after a real
+ * artist, so they crowd the real one out of an artist search.
+ */
+export function isCreditLine(name: string): boolean {
+  return /\s(feat\.|ft\.|featuring)\s/i.test(` ${name} `) || /^performed by\s/i.test(name.trim()) || /,\s*$/.test(name)
+}
+
 export const deezerProvider: SearchProvider = {
   name: 'deezer',
   idSource: 'deezer',
@@ -161,7 +170,7 @@ export const deezerProvider: SearchProvider = {
   async search(query, { limit, offset, types }) {
     const results = await deezer.search(query, { limit, offset, types: [...types] })
     return {
-      artists: results.artists.map((artist) => ({
+      artists: results.artists.filter((artist) => !isCreditLine(artist.name)).map((artist) => ({
         id: String(artist.id), mbid: null, name: artist.name, imageUrl: artist.imageUrl, popularity: fansPopularity(artist.fans),
       })),
       albums: results.albums.map(deezerAlbum),

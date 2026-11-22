@@ -7,8 +7,9 @@
  *   score = relevance × (0.5 + 0.5 × prominence)
  *
  * Relevance runs from 1 (the whole name) down through a leading-word prefix (0.8), any
- * prefix (0.7), a later word (0.6), the artist of an album or song (0.62 to 0.45) and one
- * typo (0.5), to 0.3 for what the search found for reasons of its own (a provider's fuzzy
+ * prefix (0.7), one typo (0.65: the provider's own first answer to "radiohed" is the band, not
+ * a song called that), a later word (0.6) and the artist of an album or song (0.62 to 0.45),
+ * to 0.3 for what the search found for reasons of its own (a provider's fuzzy
  * match). Prominence is 0..1: the provider's measure (Deezer fans on a log scale, a song's
  * rank, the local index's popularity), passed from songs to their album and from artists
  * to their albums and songs, raised for what is in the viewer's library and what they
@@ -23,7 +24,7 @@
  * start of the artist's name alone (relevance 0.5), score at most 0.5, so they never bury
  * another artist named exactly as typed.
  */
-import type { SearchKind, SearchRanked, SearchTopResult } from '@squirmy/contracts'
+import type { AlbumType, SearchKind, SearchRanked, SearchTopResult } from '@squirmy/contracts'
 import { matchKey } from '../../lib/text.js'
 import { editionFreeKey } from './keys.js'
 
@@ -38,6 +39,8 @@ export type RankInput = {
   /** For prominence passed along: the credited artists, a song's album. */
   artistIds: string[]
   albumId: string | null
+  /** An album's type: a single gives way to the song of the same name. */
+  albumType?: AlbumType | null
   /** The result's place in the list it came from. */
   position: number
 }
@@ -72,7 +75,8 @@ export const relevance = {
   word: 0.6,
   artistExact: 0.62,
   artistPrefix: 0.5,
-  typo: 0.5,
+  /** One letter wrong, missing, extra, or two swapped, from five characters. */
+  typo: 0.65,
   artistPartial: 0.45,
   /** Found by the search for reasons of its own, such as a provider's fuzzy match. */
   found: 0.3,
@@ -86,24 +90,37 @@ const kindOrder = { artist: 0, album: 1, track: 2 } as const
 const withoutArticle = (key: string) => key.replace(/^(the|a|an) (?=.)/, '')
 const compact = (key: string) => key.replaceAll(' ', '')
 
-/** Whether `a` becomes `b` with at most one inserted, deleted or replaced character. */
+/**
+ * Whether `a` becomes `b` with at most one inserted, deleted or replaced character, or two
+ * neighbours swapped ("swfit" for "swift").
+ */
 export function oneEditApart(a: string, b: string): boolean {
   if (Math.abs(a.length - b.length) > 1) return false
   let i = 0
   while (i < a.length && i < b.length && a[i] === b[i]) i++
+  if (a.length === b.length && a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2)) return true
   return a.slice(i + 1) === b.slice(i + 1) || a.slice(i) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i)
 }
 
 /**
  * The keys a name is matched by: as written, without an edition suffix ("(Remastered
- * 2009)"), and with dollar signs read as the s they stand for ("$uicideboy$").
+ * 2009)"), with letters some names spell with symbols read as those letters ("$uicideboy$",
+ * "P!nk"), and for a name of symbols alone ("!!!") the symbols themselves.
  */
 function forms(name: string): string[] {
   const keys = new Set([matchKey(name), editionFreeKey(name)])
-  if (name.includes('$')) keys.add(matchKey(name.replaceAll('$', 's')))
+  if (/[$!]/.test(name)) keys.add(matchKey(name.replaceAll('$', 's').replace(/(?<=\p{L})!(?=\p{L})/gu, 'i')))
+  keys.delete('')
+  if (keys.size === 0) keys.add(symbolKey(name))
   keys.delete('')
   return [...keys]
 }
+
+/** A query or name with no letters or digits, as typed: what `matchKey` would empty. */
+const symbolKey = (text: string) => text.trim().toLowerCase().replace(/\s+/g, ' ')
+
+/** The key a query is compared by. */
+export const queryKey = (query: string) => matchKey(query) || symbolKey(query)
 
 /** How well one name matches the query key. */
 function nameRelevance(query: string, form: string): number {
@@ -141,7 +158,7 @@ function pairRelevance(query: string, title: string, artist: string): number {
 }
 
 export function matchOf(query: string, item: Pick<RankInput, 'type' | 'name' | 'artistCredit' | 'artistNames'>): { name: number; total: number } {
-  const key = matchKey(query)
+  const key = queryKey(query)
   const titles = forms(item.name)
   let name = 0
   for (const form of titles) name = Math.max(name, nameRelevance(key, form))
@@ -201,7 +218,9 @@ export function rank(query: string, items: readonly RankInput[], signals: RankSi
   const scored = new Map<string, Ranked & { position: number }>()
   for (const item of items) {
     const match = matchOf(query, item)
-    const score = Math.min(1, match.total * (0.5 + 0.5 * prominent.get(item.id)!))
+    // A single shares its name and its listeners with its song, which is what is asked for.
+    const single = item.type === 'album' && item.albumType === 'single' ? 0.98 : 1
+    const score = Math.min(1, match.total * (0.5 + 0.5 * prominent.get(item.id)!) * single)
     const key = `${item.type}:${item.id}`
     const before = scored.get(key)
     if (!before || score > before.score) {
@@ -214,13 +233,13 @@ export function rank(query: string, items: readonly RankInput[], signals: RankSi
 }
 
 /**
- * The top result: the best ranked whose own name matches at least by a typo, so a result
+ * The top result: the best ranked whose own name matches at least by a later word or a typo, so a result
  * found only through its artist or a provider's fuzzy match never leads. Its `score` is the
  * contract's 1..3 for older clients: 3 the whole name as typed, 2 the whole name once an
  * article or spacing is ignored, 1 anything less.
  */
 export function topOf(ranked: readonly Ranked[]): SearchTopResult | null {
-  const top = ranked.find((item) => item.nameMatch >= relevance.typo)
+  const top = ranked.find((item) => item.nameMatch >= Math.min(relevance.typo, relevance.word))
   if (!top) return null
   const score = top.nameMatch >= relevance.exact ? 3 : top.nameMatch >= relevance.compact ? 2 : 1
   return { type: top.type, id: top.id, score }

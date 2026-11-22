@@ -1,0 +1,141 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/search/track?q=%21%21%21&limit=3"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 742211382,
+          "readable": true,
+          "title": "Off The Grid",
+          "title_short": "Off The Grid",
+          "title_version": "",
+          "isrc": "GBBPW1900082",
+          "link": "https://www.deezer.com/track/742211382",
+          "duration": 228,
+          "rank": 474293,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 0,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/4/f/a/0/4faaffe46e5844c7cd4a1654a3ed380d.mp3?hdnea=exp=1795378026~acl=/api/1/1/4/f/a/0/4faaffe46e5844c7cd4a1654a3ed380d.mp3*~data=user_id=0,application_id=42~hmac=f38e157ed7743ed8a8512e6f7668852cad580f6c0034da42e29e0dceb8dd8127",
+          "md5_image": "ea3d5e8fe58533e9e1134a2e31d59811",
+          "artist": {
+            "id": 2824,
+            "name": "!!!",
+            "link": "https://www.deezer.com/artist/2824",
+            "picture": "https://api.deezer.com/artist/2824/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/2824/top?limit=50",
+            "type": "artist"
+          },
+          "album": {
+            "id": 109228062,
+            "title": "Wallop",
+            "cover": "https://api.deezer.com/album/109228062/image",
+            "cover_small": "https://cdn-images.dzcdn.net/images/cover/ea3d5e8fe58533e9e1134a2e31d59811/56x56-000000-80-0-0.jpg",
+            "cover_medium": "https://cdn-images.dzcdn.net/images/cover/ea3d5e8fe58533e9e1134a2e31d59811/250x250-000000-80-0-0.jpg",
+            "cover_big": "https://cdn-images.dzcdn.net/images/cover/ea3d5e8fe58533e9e1134a2e31d59811/500x500-000000-80-0-0.jpg",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ea3d5e8fe58533e9e1134a2e31d59811/1000x1000-000000-80-0-0.jpg",
+            "md5_image": "ea3d5e8fe58533e9e1134a2e31d59811",
+            "tracklist": "https://api.deezer.com/album/109228062/tracks",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 66588235,
+          "readable": true,
+          "title": "Even When The Water's Cold",
+          "title_short": "Even When The Water's Cold",
+          "title_version": "",
+          "isrc": "GBBPW1200312",
+          "link": "https://www.deezer.com/track/66588235",
+          "duration": 227,
+          "rank": 384745,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 2,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/a/2/e/0/a2e627375eec306af76a7cfe7fd58b42.mp3?hdnea=exp=1795378026~acl=/api/1/1/a/2/e/0/a2e627375eec306af76a7cfe7fd58b42.mp3*~data=user_id=0,application_id=42~hmac=4712d35c7decc6a49a59f20534c410dc1d8bdbd6f6dc9726855ff8bc12152be4",
+          "md5_image": "ca11b8182c2221e10262ad31d6b3ae90",
+          "artist": {
+            "id": 2824,
+            "name": "!!!",
+            "link": "https://www.deezer.com/artist/2824",
+            "picture": "https://api.deezer.com/artist/2824/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/2824/top?limit=50",
+            "type": "artist"
+          },
+          "album": {
+            "id": 6514100,
+            "title": "Thr!!!er",
+            "cover": "https://api.deezer.com/album/6514100/image",
+            "cover_small": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/56x56-000000-80-0-0.jpg",
+            "cover_medium": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/250x250-000000-80-0-0.jpg",
+            "cover_big": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/500x500-000000-80-0-0.jpg",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/1000x1000-000000-80-0-0.jpg",
+            "md5_image": "ca11b8182c2221e10262ad31d6b3ae90",
+            "tracklist": "https://api.deezer.com/album/6514100/tracks",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 66588239,
+          "readable": true,
+          "title": "Slyd",
+          "title_short": "Slyd",
+          "title_version": "",
+          "isrc": "GBBPW1200316",
+          "link": "https://www.deezer.com/track/66588239",
+          "duration": 254,
+          "rank": 296021,
+          "explicit_lyrics": false,
+          "explicit_content_lyrics": 2,
+          "explicit_content_cover": 2,
+          "preview": "https://cdnt-preview.dzcdn.net/api/1/1/3/6/4/0/364259d5fef67e605efe95a6bc0d20a4.mp3?hdnea=exp=1795378026~acl=/api/1/1/3/6/4/0/364259d5fef67e605efe95a6bc0d20a4.mp3*~data=user_id=0,application_id=42~hmac=cc671c132e0c36d994ba5a17c0e1377b9736ee9bd600479ea0cb3f998883c7aa",
+          "md5_image": "ca11b8182c2221e10262ad31d6b3ae90",
+          "artist": {
+            "id": 2824,
+            "name": "!!!",
+            "link": "https://www.deezer.com/artist/2824",
+            "picture": "https://api.deezer.com/artist/2824/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/2824/top?limit=50",
+            "type": "artist"
+          },
+          "album": {
+            "id": 6514100,
+            "title": "Thr!!!er",
+            "cover": "https://api.deezer.com/album/6514100/image",
+            "cover_small": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/56x56-000000-80-0-0.jpg",
+            "cover_medium": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/250x250-000000-80-0-0.jpg",
+            "cover_big": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/500x500-000000-80-0-0.jpg",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ca11b8182c2221e10262ad31d6b3ae90/1000x1000-000000-80-0-0.jpg",
+            "md5_image": "ca11b8182c2221e10262ad31d6b3ae90",
+            "tracklist": "https://api.deezer.com/album/6514100/tracks",
+            "type": "album"
+          },
+          "type": "track"
+        }
+      ],
+      "total": 165,
+      "next": "https://api.deezer.com/search/track?q=%21%21%21&limit=3&index=3"
+    }
+  }
+}

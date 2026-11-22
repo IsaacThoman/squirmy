@@ -1,0 +1,47 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/search/artist?q=%21%21%21&limit=3"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 2824,
+          "name": "!!!",
+          "link": "https://www.deezer.com/artist/2824",
+          "picture": "https://api.deezer.com/artist/2824/image",
+          "picture_small": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/56x56-000000-80-0-0.jpg",
+          "picture_medium": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/250x250-000000-80-0-0.jpg",
+          "picture_big": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/500x500-000000-80-0-0.jpg",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/31be77febb318a1e0930673a466af0eb/1000x1000-000000-80-0-0.jpg",
+          "nb_album": 45,
+          "nb_fan": 24368,
+          "radio": true,
+          "tracklist": "https://api.deezer.com/artist/2824/top?limit=50",
+          "type": "artist"
+        },
+        {
+          "id": 339511851,
+          "name": "!!!!<3prodbyqd",
+          "link": "https://www.deezer.com/artist/339511851",
+          "picture": "https://api.deezer.com/artist/339511851/image",
+          "picture_small": "https://cdn-images.dzcdn.net/images/artist/e54578c13593e86672df38c7f2bb57a5/56x56-000000-80-0-0.jpg",
+          "picture_medium": "https://cdn-images.dzcdn.net/images/artist/e54578c13593e86672df38c7f2bb57a5/250x250-000000-80-0-0.jpg",
+          "picture_big": "https://cdn-images.dzcdn.net/images/artist/e54578c13593e86672df38c7f2bb57a5/500x500-000000-80-0-0.jpg",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e54578c13593e86672df38c7f2bb57a5/1000x1000-000000-80-0-0.jpg",
+          "nb_album": 47,
+          "nb_fan": 5,
+          "radio": true,
+          "tracklist": "https://api.deezer.com/artist/339511851/top?limit=50",
+          "type": "artist"
+        }
+      ],
+      "total": 2
+    }
+  }
+}
