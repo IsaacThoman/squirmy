@@ -24,6 +24,7 @@ import { usePlaybackState, usePosition } from './playback';
 import { activeLine, lyricLines } from './player/lyrics';
 import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
+import { RoutePicker } from '../modules/now-playing';
 import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
@@ -500,7 +501,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
 }) {
   const colors = useColors();
   const styles = useStyles();
-  const { session, output, volume, actions } = usePlaybackState();
+  const { session, output, volume, actions, remote } = usePlaybackState();
   const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
 
   return (
@@ -524,6 +525,9 @@ function Transport({ compact, page, onToggle, onDevices }: {
           <TransportSlider label={`Squirmy volume, ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />
         </View>
         <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
+        {/* Where this phone's own sound goes: AirPlay, Bluetooth or the speaker. */}
+        {!remote && RoutePicker && <RoutePicker tint={colors.muted} activeTint={colors.accent} style={styles.routePicker}
+          accessibilityLabel="AirPlay and Bluetooth" />}
       </View>
       <View style={styles.footer}>
         <View style={styles.footerSide}>
@@ -586,6 +590,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   primaryButtonCompact: { width: 56, height: 56 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   volumeSlider: { flex: 1 },
+  routePicker: { width: 36, height: 36, marginLeft: 2 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
   footerSide: { flex: 1, alignItems: 'center' },
   output: { flex: 1.3, minWidth: 0 },

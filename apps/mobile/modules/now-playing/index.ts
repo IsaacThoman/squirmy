@@ -1,4 +1,6 @@
-import { requireOptionalNativeModule, type EventSubscription } from 'expo';
+import { requireNativeView, requireOptionalNativeModule, type EventSubscription } from 'expo';
+import type { ComponentType } from 'react';
+import type { ViewProps } from 'react-native';
 
 export type RemoteCommand =
   | { command: 'play' | 'pause' | 'togglePlayPause' | 'next' | 'previous' }
@@ -22,3 +24,19 @@ type NowPlayingModule = {
 
 /** iOS only; `null` where there is no lock screen integration. */
 export default requireOptionalNativeModule<NowPlayingModule>('SquirmyNowPlaying');
+
+export type RoutePickerProps = ViewProps & {
+  /** The AirPlay symbol's colour, and its colour while sound goes to another output. */
+  tint?: string;
+  activeTint?: string;
+};
+
+declare const globalThis: { expo?: { getViewConfig?: (moduleName: string, viewName?: string) => unknown } };
+
+/**
+ * The system AirPlay and Bluetooth picker, iOS only. `null` where the native view is missing,
+ * such as Android or an app built before it was added.
+ */
+export const RoutePicker: ComponentType<RoutePickerProps> | null = globalThis.expo?.getViewConfig?.('SquirmyNowPlaying')
+  ? requireNativeView<RoutePickerProps>('SquirmyNowPlaying')
+  : null;
