@@ -17,7 +17,7 @@ import {
 import { coverArtId, expectId, playlistId } from '../ids.js'
 import { invalidParameter, missingParameter, notAuthorized, notFound, type Context, type Handler, type Payload } from '../protocol.js'
 import { songs } from '../songs.js'
-import { seconds } from '../sql.js'
+import { seconds, servableArt } from '../sql.js'
 
 type PlaylistRow = {
   id: string
@@ -48,8 +48,8 @@ async function playlistRows(userId: string, filter: { ids?: string[]; ownerId?: 
         and exists (select 1 from media_files f where f.recording_id = i.recording_id and f.missing_since is null)
     ) stats
     left join lateral (
-      select a.artwork_asset_id as id from playlist_items i join albums a on a.id = i.album_id
-      where i.playlist_id = p.id and a.artwork_asset_id is not null order by i.position limit 1
+      select ${servableArt('a.artwork_asset_id')} as id from playlist_items i join albums a on a.id = i.album_id
+      where i.playlist_id = p.id and ${servableArt('a.artwork_asset_id')} is not null order by i.position limit 1
     ) cover on true
     where ${filter.ownerId ? sql`p.owner_id = ${filter.ownerId}` : sql`(p.owner_id = ${userId} or p.is_public)`}
       ${filter.ids ? sql`and p.id = any(${uuidArray(filter.ids)})` : sql``}

@@ -191,22 +191,49 @@ describe('sessions', () => {
     const reply = await a.hello()
     expect(reply.serverTime).toBeGreaterThanOrEqual(before)
     expect(reply.snapshot).toMatchObject({ version: 0, queueVersion: 0, state: { current: null, playing: false, activeDeviceId: null }, queue: { queue: [] } })
-    expect(reply.devices).toEqual([{ id: 'device-a-0001', name: 'Device device-a-0001', kind: 'web', canPlay: true, isActive: false }])
+    expect(reply.devices).toEqual([{ id: 'device-a-0001', name: 'Device device-a-0001', kind: 'web', canPlay: true, isActive: false, isCurrent: true, lastSeenAt: expect.any(Number) }])
+    expect(reply.devices[0]!.lastSeenAt).toBeGreaterThanOrEqual(before)
 
     const b = await open('device-b-0001')
     const second = await b.hello(false)
-    expect(second.devices.map((item) => item.id)).toEqual(['device-a-0001', 'device-b-0001'])
+    expect(second.devices.map((item) => [item.id, item.isCurrent])).toEqual([['device-a-0001', false], ['device-b-0001', true]])
+    // Each socket gets the list as its own device sees it.
     await eventually(() => a.lastDevices()?.map((item) => item.id), (value) => expect(value).toEqual(['device-a-0001', 'device-b-0001']))
+    expect(a.events('devices').at(-1)).toEqual(second.devices.map((item) => ({ ...item, isCurrent: item.id === 'device-a-0001' })))
     expect(b.events('devices')).toEqual([])
     expect(await db.select({ id: devices.id }).from(devices).where(eq(devices.userId, user.id))).toHaveLength(2)
 
-    expect((await get('/me/devices')).json()).toEqual({ items: second.devices, nextCursor: null })
+    // Over HTTP, the current device is the one the sign-in was made from; this one named none.
+    const unnamed = second.devices.map((item) => ({ ...item, isCurrent: false }))
+    expect((await get('/me/devices')).json()).toEqual({ items: unnamed, nextCursor: null })
+    const { token } = await createSession(db, { userId: user.id, clientKind: 'test', device: { id: 'device-b-0001', name: 'Device device-b-0001', kind: 'web' } })
+    expect((await get('/me/devices', token)).json()).toEqual({ items: second.devices, nextCursor: null })
     expect((await get('/me/session')).json()).toEqual(second.snapshot)
     expect((await app.inject({ method: 'GET', url: '/api/v1/me/session' })).statusCode).toBe(401)
     expect((await app.inject({ method: 'GET', url: '/api/v1/me/devices' })).statusCode).toBe(401)
 
     b.socket.disconnect()
     await eventually(() => a.lastDevices()?.map((item) => item.id), (value) => expect(value).toEqual(['device-a-0001']))
+  })
+
+  it('says when each device was last seen, sending the list again once a minute has passed', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0003')
+    const b = await device('device-b-0003', { canPlay: false })
+    const seen = (peer: Peer) => Object.fromEntries((peer.events('devices').at(-1) as { id: string; lastSeenAt: number }[]).map((item) => [item.id, item.lastSeenAt]))
+    await eventually(() => a.events('devices').length, (count) => expect(count).toBe(1))
+    const start = clock.now()
+    expect(seen(a)).toEqual({ 'device-a-0003': start, 'device-b-0003': start })
+
+    // Within the minute, a command moves the time on without sending the list.
+    clock.advance(30_000)
+    expect(await b.send({ type: 'setShuffle', value: true, seed: 1 })).toMatchObject({ ok: true })
+    expect(b.events('devices')).toEqual([])
+    clock.advance(30_000)
+    expect(await b.send({ type: 'setShuffle', value: false, seed: 1 })).toMatchObject({ ok: true })
+    await eventually(() => seen(a)['device-b-0003'], (value) => expect(value).toBe(start + 60_000))
+    expect(seen(a)['device-a-0003']).toBe(start)
+    expect((await get('/me/devices')).json().items.map((item: { lastSeenAt: number }) => item.lastSeenAt)).toEqual([start, start + 60_000])
   })
 
   it('acks before it broadcasts, sends the queue just before the state of the same version, and versions both halves', async () => {

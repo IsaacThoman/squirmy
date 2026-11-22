@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
 import { devices, thisDeviceId } from '@/fixtures/server'
+import { formatIdle } from '@/lib/format'
 import { dismissToast, toastStore } from '@/lib/toast'
 import type { Player, PlayerControls, PlayerState } from '@/player/player-context'
 import { renderWithApp } from '@/test/render'
@@ -47,6 +48,18 @@ describe('devices picker', () => {
     await userEvent.click(screen.getByRole('button', { name: /Play separately on this tab/ }))
     expect(controls.detach).toHaveBeenCalled()
     expect(toasts()).toEqual(['Playing only on this device / Your other devices are paused where they were.'])
+  })
+
+  it('says how long a quiet device has been idle, so two of the same name can be told apart', () => {
+    const now = Date.UTC(2026, 10, 22, 12)
+    const desk = { id: 'desk', name: 'Chrome on macOS', kind: 'web' as const, canPlay: true, isActive: false }
+    expect(formatIdle(now - 3 * 3_600_000, now)).toBe(' · Active 3 hours ago')
+    expect(formatIdle(now - 60_000, now)).toBe('')
+    expect(formatIdle(undefined, now)).toBe('')
+    const old = { ...desk, id: 'old', lastSeenAt: Date.now() - 2 * 86_400_000 }
+    renderWithApp(<DeviceList player={player({ devices: [...devices, { ...desk, lastSeenAt: Date.now() }, old] }).player} />)
+    const rows = screen.getAllByRole('button', { name: /Chrome on macOS/ }).map(row => row.textContent)
+    expect(rows).toEqual(['Chrome on macOSWeb browser', 'Chrome on macOSWeb browser · Active 2 days ago'])
   })
 
   it('hides detaching where it cannot work', () => {

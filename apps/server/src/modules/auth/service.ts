@@ -105,7 +105,12 @@ export async function createSession(executor: Executor, input: {
   return { token, sessionId }
 }
 
-/** Records a device as seen, keeping at most `deviceLimit` per user. */
+/**
+ * Records a device as seen. A new device also prunes the user's list: devices not seen
+ * for as long as a session lasts (none of their sign-ins can still be valid, so they only
+ * come back by signing in again, which records them anew), then all but the `deviceLimit`
+ * most recently seen.
+ */
 export async function rememberDevice(executor: Executor, userId: string, device: ClientDevice) {
   const { id, name, kind } = device
   const [row] = await executor.insert(devices).values({ userId, id, name, kind })
@@ -113,9 +118,15 @@ export async function rememberDevice(executor: Executor, userId: string, device:
     .returning({ inserted: sql<boolean>`xmax = 0` })
   if (!row?.inserted) return
   await executor.execute(sql`
-    delete from ${devices} where ${devices.userId} = ${userId} and ${devices.id} not in (
+    delete from ${devices} where ${devices.userId} = ${userId} and (${devices.lastSeenAt} < now() - ${`${sessionLifetimeMs} milliseconds`}::interval or ${devices.id} not in (
       select ${devices.id} from ${devices} where ${devices.userId} = ${userId}
-      order by ${devices.lastSeenAt} desc limit ${deviceLimit})`)
+      order by ${devices.lastSeenAt} desc limit ${deviceLimit}))`)
+}
+
+/** The device a sign-in was made from, when it named one. */
+export async function sessionDevice(sessionId: string): Promise<string | null> {
+  const [row] = await db.select({ deviceId: authSessions.deviceId }).from(authSessions).where(eq(authSessions.id, sessionId))
+  return row?.deviceId ?? null
 }
 
 /**

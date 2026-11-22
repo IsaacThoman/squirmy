@@ -53,13 +53,35 @@ export function inLibraryAlbum(album: string, userId: string | null): SQL {
  * Without a user, collection only.
  */
 export function inLibraryRecording(recording: string, userId: string | null): SQL {
-  const owned = sql`exists (select 1 from media_files collected where collected.recording_id = ${sql.raw(recording)} and ${collectionFile('collected')})`
+  const owned = collectedRecording(recording)
   if (!userId) return owned
-  const viaAlbum = sql`exists (
+  return sql`(${owned} or ${saved('recording', recording, userId)} or ${savedAlbumHolds(recording, userId)})`
+}
+
+/**
+ * SQL expression: why the recording id expression is in the user's library, the first of
+ * `collection` (a collection file links it), `album` (a present file of it is on an album the
+ * user saved) and `saved` (the user saved the recording), or null when it is not. Only `saved`
+ * is something removing the track takes away: in the other two it stays.
+ */
+export function recordingLibrary(recording: string, userId: string | null): SQL {
+  if (!userId) return sql`case when ${collectedRecording(recording)} then 'collection' end`
+  return sql`case
+    when ${collectedRecording(recording)} then 'collection'
+    when ${savedAlbumHolds(recording, userId)} then 'album'
+    when ${saved('recording', recording, userId)} then 'saved'
+  end`
+}
+
+function collectedRecording(recording: string): SQL {
+  return sql`exists (select 1 from media_files collected where collected.recording_id = ${sql.raw(recording)} and ${collectionFile('collected')})`
+}
+
+function savedAlbumHolds(recording: string, userId: string): SQL {
+  return sql`exists (
     select 1 from media_files present join library_items album_saved
       on album_saved.user_id = ${userId} and album_saved.entity_type = 'album' and album_saved.entity_id = present.album_id
     where present.recording_id = ${sql.raw(recording)} and present.missing_since is null)`
-  return sql`(${owned} or ${saved('recording', recording, userId)} or ${viaAlbum})`
 }
 
 /**

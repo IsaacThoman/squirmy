@@ -55,3 +55,15 @@ export function albumNote(
   if (album.availability !== 'partial' || canFetch(viewer)) return null
   return `${album.ownedTrackCount} of ${album.trackCount} songs available`
 }
+
+/**
+ * What a track's Add/Remove from library entry offers: false to add it, true to remove it,
+ * null for no entry. A track the collection holds, or one on an album the user added, stays
+ * in the library whatever its own save says, so Remove would do nothing there and Add is moot.
+ * Older servers send neither field; then there is nothing to toggle. `saved` is what the
+ * user just did, ahead of the server's answer.
+ */
+export function trackLibraryToggle(track: Pick<TrackSummary, 'inLibrary' | 'library'>, saved?: boolean): boolean | null {
+  if (track.library === 'collection' || track.library === 'album') return null
+  return saved ?? track.inLibrary ?? null
+}

@@ -80,6 +80,8 @@ By default an app gets the original file, with byte ranges, so seeking works.
 
 Cover art is served at the original size, or with `size` as a square WebP at the nearest of 96, 300, 600 and 1200 pixels at or above the request.
 
+A cover that cannot be served right now (its download failed within the last hour, or its file is gone and cannot be rebuilt) is left out of `coverArt` and the image URLs rather than handed out to fail. A song then shows its file's embedded picture if it has one.
+
 ## What does not
 
 - **Podcasts, internet radio, bookmarks, shares, jukebox, chat and video.** Squirmy has none of these. `getPodcasts`, `getNewestPodcasts`, `getInternetRadioStations`, `getBookmarks` and `getShares` answer with empty lists so apps that ask at startup are content; the rest answer with an error.

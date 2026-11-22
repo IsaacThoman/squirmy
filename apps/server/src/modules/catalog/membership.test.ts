@@ -174,8 +174,29 @@ describe('library membership', () => {
       method: 'POST', url: '/api/v1/tracks/summaries', headers: owner.headers, payload: { tracks: album.tracks.map((one) => ({ id: one.recordingId })) },
     }), TrackSummariesResponse)
     expect(summaries.tracks.map((one) => one.inLibrary)).toEqual([true, false, false])
+    expect(summaries.tracks.map((one) => one.library)).toEqual(['saved', null, null])
     await remove(owner, 'track', track!.recordingId)
     expect(await trackIds(owner)).toEqual([])
+  })
+
+  it('says why a track is in the library, so clients offer Remove only for the user\'s own save', async () => {
+    const scanned = await createAlbum({ title: 'On disk', owned: true })
+    const kept = await createAlbum({ title: 'Kept for later', owned: true, source: fetched })
+    const loose = await createAlbum({ title: 'Loose', owned: true, source: fetched })
+    // Saving a collection track, or a track of a saved album, does not make it removable: it stays either way.
+    await save(owner, 'track', scanned.tracks[0]!.recordingId)
+    await save(owner, 'album', kept.albumId)
+    await save(owner, 'track', kept.tracks[0]!.recordingId)
+    await save(owner, 'track', loose.tracks[0]!.recordingId)
+    const library = async (user: User, tracks: { recordingId: string }[]) => body(await app.inject({
+      method: 'POST', url: '/api/v1/tracks/summaries', headers: user.headers, payload: { tracks: tracks.map((one) => ({ id: one.recordingId })) },
+    }), TrackSummariesResponse).tracks.map((one) => one.library)
+
+    expect(await library(owner, scanned.tracks)).toEqual(['collection', 'collection', 'collection'])
+    expect(await library(owner, kept.tracks)).toEqual(['album', 'album', 'album'])
+    expect(await library(owner, loose.tracks)).toEqual(['saved', null, null])
+    expect(await library(other, [...scanned.tracks, ...kept.tracks, ...loose.tracks]))
+      .toEqual(['collection', 'collection', 'collection', null, null, null, null, null, null])
   })
 
   it('pages through recent albums mixing the collection and saves, each once and in order', async () => {

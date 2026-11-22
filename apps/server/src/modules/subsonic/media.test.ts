@@ -13,14 +13,16 @@ import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, artists, lyrics, mediaFiles, transcodes } from '../../database/schema.js'
+import { albums, artists, assets, lyrics, mediaFiles, transcodes } from '../../database/schema.js'
 import { startJobs } from '../../jobs/index.js'
 import { runFfprobe } from '../../lib/ffmpeg.js'
+import { newPublicId } from '../../lib/ids.js'
 import { makeTone, writeHostileInputs } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
-import { storeImage } from '../artwork/store.js'
+import { retryFailedAfterMs, storeImage } from '../artwork/store.js'
 import { createAppPassword } from '../auth/service.js'
+import { addPlaylistItems, createPlaylist } from '../userdata/playlists.js'
 import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.js'
 import { setTranscodeSlotLimit } from '../streaming/transcode.js'
 import { LIVE_ENCODES_PER_USER, liveEncode, planStream } from './transcode.js'
@@ -257,6 +259,53 @@ describe('subsonic media', () => {
     expect((await get('getCoverArt', { id: `ar-${artistId}`, size: 96 })).headers['content-type']).toBe('image/webp')
     expect((await client.json('getCoverArt', { id: `ca-${flac.albumId}` })).error.code).toBe(70)
     expect((await client.json('getCoverArt', { id: 'nonsense' })).error.code).toBe(70)
+  })
+
+  it('never hands out a cover id the art route answers 404 for, and falls back to a song\'s own picture', async () => {
+    const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: '#775533' } }).png().toBuffer()
+    const embedded = (await storeImage(png, { kind: 'embedded', source: 'test' })).id
+    const album = await createAlbum({ title: 'Grey Hour', owned: true, rootId: (await createLibraryRoot({ path: scratch })).id, tracks: [{ title: 'Dusk' }] })
+    const song = `tr-${album.tracks[0]!.recordingId}`
+    await db.update(mediaFiles).set({ embeddedArtAssetId: embedded }).where(eq(mediaFiles.id, album.tracks[0]!.fileId!))
+    // A lazy remote cover whose download just failed, and an artist image whose file is gone.
+    const [failed] = await db.insert(assets).values({ id: newPublicId(), kind: 'cover', source: 'https://example.test/c.jpg', remoteUrl: 'https://example.test/c.jpg', status: 'failed', checkedAt: new Date() }).returning()
+    const [missing] = await db.insert(assets).values({ id: newPublicId(), kind: 'artist', source: 'https://example.test/a.jpg', status: 'missing' }).returning()
+    await db.update(albums).set({ artworkAssetId: failed!.id }).where(eq(albums.id, album.albumId))
+    await db.update(artists).set({ imageAssetId: missing!.id }).where(eq(artists.id, album.artist.id))
+    const playlist = await createPlaylist(userId, { name: 'Greys' })
+    await addPlaylistItems(userId, playlist.id, [{ trackId: album.tracks[0]!.recordingId, albumId: album.albumId }])
+
+    const covers = async () => {
+      const [albumById, songById, artistById, artistList, albumInfo, artistInfo, playlists] = await Promise.all([
+        client.json('getAlbum', { id: `al-${album.albumId}` }),
+        client.json('getSong', { id: song }),
+        client.json('getArtist', { id: `ar-${album.artist.id}` }),
+        client.json('getArtists'),
+        client.json('getAlbumInfo2', { id: `al-${album.albumId}` }),
+        client.json('getArtistInfo2', { id: `ar-${album.artist.id}`, count: 0 }),
+        client.json('getPlaylists'),
+      ])
+      const listed = artistList.artists.index.flatMap((index: { artist: { id: string }[] }) => index.artist).find((one: { id: string }) => one.id === `ar-${album.artist.id}`)
+      return {
+        album: albumById.album.coverArt, albumSong: albumById.album.song[0].coverArt, song: songById.song.coverArt,
+        artist: [artistById.artist.coverArt, artistById.artist.artistImageUrl, listed.coverArt],
+        albumInfo: albumInfo.albumInfo.smallImageUrl, artistInfo: artistInfo.artistInfo2.smallImageUrl,
+        playlist: playlists.playlists.playlist.find((one: { id: string }) => one.id === `pl-${playlist.id}`).coverArt,
+      }
+    }
+    expect(await covers()).toEqual({
+      album: undefined, albumSong: `ca-${embedded}`, song: `ca-${embedded}`, artist: [undefined, undefined, undefined],
+      albumInfo: undefined, artistInfo: undefined, playlist: undefined,
+    })
+    expect((await client.json('getCoverArt', { id: `al-${album.albumId}` })).error.code).toBe(70)
+    expect((await client.json('getCoverArt', { id: `ar-${album.artist.id}` })).error.code).toBe(70)
+    expect((await client.json('getCoverArt', { id: `pl-${playlist.id}` })).error.code).toBe(70)
+    expect((await get('getCoverArt', { id: song, size: 96 })).headers['content-type']).toBe('image/webp')
+
+    // Once the retry window has passed, the art route tries the download again: hand it out.
+    await db.update(assets).set({ checkedAt: new Date(Date.now() - retryFailedAfterMs - 60_000) }).where(eq(assets.id, failed!.id))
+    expect(await covers()).toMatchObject({ album: `ca-${failed!.id}`, albumSong: `ca-${failed!.id}`, song: `ca-${failed!.id}`, playlist: `ca-${failed!.id}` })
+    expect((await covers()).albumInfo).toContain(`/api/v1/art/${failed!.id}/300`)
   })
 
   it('returns synced lyrics by song id, and plain lyrics by artist and title', async () => {

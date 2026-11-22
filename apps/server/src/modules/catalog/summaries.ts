@@ -6,11 +6,11 @@
  * `merged_into_id` redirects (so ids stored by clients keep working), silently drops ids
  * that do not exist, and returns summaries in the order of its input.
  */
-import type { AlbumSummary, ArtistRef, ArtistSummary, Artwork, TrackSummary } from '@squirmy/contracts'
+import type { AlbumSummary, ArtistRef, ArtistSummary, Artwork, TrackLibrary, TrackSummary } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { retryFailedAfterMs } from '../artwork/index.js'
-import { albumAvailability, inLibraryAlbum, inLibraryRecording, trackAvailability } from './availability.js'
+import { albumAvailability, inLibraryAlbum, recordingLibrary, trackAvailability } from './availability.js'
 import { resolveMerged } from './redirects.js'
 import { uuidArray } from './sql.js'
 
@@ -136,12 +136,14 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
       select entity_id as id from likes
       where user_id = ${userId} and entity_type = 'recording' and entity_id = any(${uuidArray(ids)})`),
     trackAvailability(ids),
-    db.execute<{ id: string }>(sql`
-      select candidate.id from unnest(${uuidArray(ids)}) as candidate(id) where ${inLibraryRecording('candidate.id', userId)}`),
+    db.execute<{ id: string; library: TrackLibrary }>(sql`
+      select member.id, member.library from (
+        select candidate.id, ${recordingLibrary('candidate.id', userId)} as library from unnest(${uuidArray(ids)}) as candidate(id)
+      ) member where member.library is not null`),
   ])
 
   const likedIds = new Set(liked.map((row) => row.id))
-  const libraryIds = new Set(inLibrary.map((row) => row.id))
+  const libraryOf = new Map(inLibrary.map((row) => [row.id, row.library]))
   const byPair = new Map(rows.map((row) => [`${row.id}|${row.albumContext ?? ''}`, row]))
   return resolved.map((ref): TrackSummary | null => {
     const row = ref && byPair.get(`${ref.id}|${ref.albumId ?? ''}`)
@@ -158,7 +160,8 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
       position: row.position,
       availability: availability.get(row.id) ?? 'none',
       liked: likedIds.has(row.id),
-      inLibrary: libraryIds.has(row.id),
+      inLibrary: libraryOf.has(row.id),
+      library: libraryOf.get(row.id) ?? null,
       explicit: row.explicit,
       hasLyrics: row.hasLyrics,
     }

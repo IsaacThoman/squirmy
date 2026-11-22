@@ -1,11 +1,12 @@
 import type { TrackSummary } from '@squirmy/contracts'
 import { ChevronDown, CircleCheck, CirclePlus, Heart, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
-import { Link } from 'react-router'
+import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { Cover } from '@/components/music/Cover'
 import { Dialog } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
+import { trackLibraryToggle } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import { playingElsewhere, type Player } from '@/player/player-context'
@@ -106,9 +107,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
                   <p className="truncate text-base text-muted-foreground">
                     {late
                       ? STILL_LOADING_LABEL
-                      : item.track.artists[0]
-                        ? <Link to={`/artist/${item.track.artists[0].id}`} onClick={() => onOpenChange(false)} className="hover:text-foreground hover:underline">{item.track.artistCredit}</Link>
-                        : item.track.artistCredit}
+                      : <ArtistLinks track={item.track} onNavigate={() => onOpenChange(false)} />}
                   </p>
                 )}
               </div>
@@ -135,11 +134,14 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   )
 }
 
-/** Add to library for the song playing, beside its heart. Servers that do not say what is in the library get none. */
+/**
+ * Add to library for the song playing, beside its heart. None for a song removing would not take
+ * out (a collection song, one of an added album), or when the server does not say.
+ */
 function LibraryToggle({ track }: { track: TrackSummary }) {
   const library = useLibrary()
-  if (track.inLibrary === undefined) return null
-  const saved = track.inLibrary
+  const saved = trackLibraryToggle(track)
+  if (saved === null) return null
   return (
     <IconButton
       label={saved ? 'Remove from library' : 'Add to library'}

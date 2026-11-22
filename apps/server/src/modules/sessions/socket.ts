@@ -1,7 +1,7 @@
 import { SessionHello } from '@squirmy/contracts'
 import { tokenBucket } from '../../lib/token-bucket.js'
 import type { Realtime } from '../../realtime/index.js'
-import { applyReport, attach, detach, greet, leave, runCommand, setRealtimeServer } from './service.js'
+import { applyReport, attach, detach, emitDevices, greet, leave, noteSeen, runCommand, setRealtimeServer } from './service.js'
 
 /**
  * Per-socket budgets. A user's events run one at a time, so one socket flooding them
@@ -36,25 +36,32 @@ export function registerSessionSockets(realtime: Realtime): void {
       deviceId = hello.data.device.id
       void greet(userId, socket.id, hello.data, (reply) => {
         ack(reply)
-        socket.to(`user:${userId}`).emit('devices', reply.devices)
+        emitDevices(userId, socket.id)
       })
     })
     socket.on('session:command', (raw, ack) => {
       if (typeof ack !== 'function') return
       if (!commands.take()) return ack({ ok: false, error: 'rate_limited' })
+      noteSeen(userId, deviceId)
       void runCommand(userId, deviceId, raw, ack)
     })
     // A dropped report costs nothing: the next one carries the same information.
-    socket.on('session:report', (raw) => void (reports.take() && applyReport(userId, deviceId, raw)))
+    socket.on('session:report', (raw) => {
+      if (!reports.take()) return
+      noteSeen(userId, deviceId)
+      void applyReport(userId, deviceId, raw)
+    })
     // Answered rather than dropped, unlike a hello: the client would otherwise wait out its timeout.
     socket.on('session:detach', (raw, ack) => {
       if (typeof ack !== 'function') return
       if (!moves.take()) return ack({ ok: false, error: 'rate_limited' })
+      noteSeen(userId, deviceId)
       void detach(userId, deviceId, socket.id, raw, ack)
     })
     socket.on('session:attach', (raw, ack) => {
       if (typeof ack !== 'function') return
       if (!moves.take()) return ack({ ok: false, error: 'rate_limited' })
+      noteSeen(userId, deviceId)
       void attach(userId, deviceId, socket.id, raw, ack)
     })
     socket.on('disconnect', () => {

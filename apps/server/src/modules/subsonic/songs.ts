@@ -15,7 +15,7 @@ import { normalizationValues } from '../loudness/normalization.js'
 import { mimeFor } from '../streaming/index.js'
 import { albumId, artistId, coverArtId, trackId } from './ids.js'
 import type { Payload } from './protocol.js'
-import { seconds } from './sql.js'
+import { seconds, servableArt } from './sql.js'
 
 export type SongRef = { id: string; albumId?: string | null }
 export type ArtistCredit = { id: string; name: string }
@@ -125,7 +125,7 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
       f.tag_album_gain_db as "tagAlbumGainDb", f.tag_album_peak as "tagAlbumPeak",
       rl.loudness_lufs as "albumLufs", rl.true_peak_db as "albumPeakDb",
       al.id as "albumId", al.title as "albumTitle", al.artist_credit as "albumCredit", al.primary_artist_id as "albumArtistId",
-      al.year, al.genres, coalesce(al.artwork_asset_id, f.embedded_art_asset_id) as "artworkId",
+      al.year, al.genres, coalesce(${servableArt('al.artwork_asset_id')}, ${servableArt('f.embedded_art_asset_id')}) as "artworkId",
       rt.disc, rt.position,
       ${isoTime('lk.created_at')} as starred, rating.rating,
       coalesce(stats.count, 0)::int as "playCount", ${isoTime('stats.last')} as played

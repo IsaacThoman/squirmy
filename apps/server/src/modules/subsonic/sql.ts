@@ -8,6 +8,7 @@
  */
 import { sql, type SQL } from 'drizzle-orm'
 import { collectionFile, inLibraryAlbum } from '../catalog/availability.js'
+import { servable } from '../catalog/summaries.js'
 
 /** Condition on `media_files` alias: present, and in `rootId` when given. */
 export function presentFiles(alias: string, rootId?: string | null): SQL {
@@ -75,3 +76,13 @@ export function albumHasGenre(album: string, genre: string): SQL {
 
 /** Seconds, as Subsonic counts durations. */
 export const seconds = (ms: number | null | undefined) => Math.round((ms ?? 0) / 1000)
+
+/**
+ * The asset id in the expression `column` when the art route can serve it, else null: the
+ * native summaries' rule (`servable`). A missing asset or a failed download inside its
+ * retry window answers 404, and a client given its id asks again on every render. A
+ * scalar subquery on the primary key, so it costs one index probe per row.
+ */
+export function servableArt(column: string): SQL {
+  return sql`(select shown.id from assets shown where shown.id = ${sql.raw(column)} and ${servable('shown')})`
+}

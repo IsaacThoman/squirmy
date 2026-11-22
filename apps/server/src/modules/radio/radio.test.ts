@@ -42,7 +42,12 @@ describe('radio', () => {
   useTestDatabase()
   const http = useHttpFixtures('deezer', 'listenbrainz')
   const tracks: Track[] = []
-  const byId = (id: string) => tracks.find((track) => track.recordingId === id)!
+  const byId = (id: string) => {
+    const track = tracks.find((one) => one.recordingId === id)
+    // Every owned track a test creates must be listed, or a suggestion of it fails here.
+    if (!track) throw new Error(`Suggested ${id}, which no test listed in tracks`)
+    return track
+  }
   let seed: Track
   let app: FastifyInstance
 
@@ -234,6 +239,9 @@ describe('radio', () => {
     const user = await signIn()
     const artist = await createArtist({ name: 'Uncredited' })
     const album = await createAlbum({ artist, owned: true, tracks: [{ title: 'Only' }] })
+    // Later radios can suggest this owned track (rarely: it shares no genre or era), and
+    // they look every suggestion up in `tracks`.
+    tracks.push({ recordingId: album.tracks[0]!.recordingId, albumId: album.albumId, artistId: artist.id, genre: 'None', owned: true })
     // Rows from older imports and catalog stubs can carry only the primary artist.
     await db.delete(recordingArtists).where(eq(recordingArtists.recordingId, album.tracks[0]!.recordingId))
     const response = await app.inject({ method: 'POST', url: `/api/v1/radio/artist/${artist.id}`, headers: user.headers })
