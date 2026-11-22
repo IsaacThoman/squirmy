@@ -1,6 +1,6 @@
 import {
-  ApiError, artworkUrl, createInitialSession, randomSeed, SessionClient, splitSession, type SessionClientSnapshot,
-  type SessionMoveResult, type SessionPlayer,
+  ApiError, artworkUrl, createInitialSession, PlaybackNoticeWatcher, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, splitSession,
+  type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
@@ -21,7 +21,7 @@ import { useNotice } from './Notice';
 import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
-  codecsFor, deviceRows, failureNotices, findEntry, isRemote, newlyReady, nextDownloaded, nextRepeat, outputDevice, playableSeeds,
+  codecsFor, deviceRows, findEntry, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds,
   qualityFor, seedOf,
 } from './player/session';
 import { watchLoading, type LoadingPhase, type LoadingWatch } from './player/loading';
@@ -186,36 +186,19 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
 
       // A song the server just fetched has its album and cover now; the summary shown since
       // it was queued has neither, so the player and the lock screen would keep a blank cover.
-      let lastEntries = client.getSnapshot();
-      const stopRefreshing = client.subscribe(() => {
-        const next = client.getSnapshot();
-        const ready = newlyReady({ ...lastEntries.session, ...lastEntries.queue }, { ...next.session, ...next.queue });
-        lastEntries = next;
-        for (const entry of ready) tracks.refresh(entry.trackId, entry.albumId);
-      });
+      const stopRefreshing = refreshFetchedTracks(client, tracks);
 
-      // Tracks the server could not fetch are skipped by the session: one notice for each
-      // that was playing or next. When several fail in a row, or its provider is failing,
-      // the server pauses instead and says why (the snapshot's `outage`, which comes with the
-      // pause); that gets one notice, and no more per track until the user plays again.
-      let outage = false;
-      let previous = client.getSnapshot();
+      // What to say when the server could not fetch songs, worded as on the web
+      // (client-core's `PlaybackNoticeWatcher`): one notice per song that was playing or
+      // next, lighter for one the provider does not have, and one when playback stops on a
+      // failure instead, with no more per song until playback resumes.
+      const notices = new PlaybackNoticeWatcher(trackId => client.failureOf(trackId));
+      const tell = ({ message, detail }: PlaybackNotice) => notify(message, detail ? { detail } : undefined);
+      notices.update(client.getSnapshot());
       const stopWatching = client.subscribe(() => {
-        const next = client.getSnapshot();
-        if (next.session.playing && !previous.session.playing) outage = false;
-        const notices = failureNotices(
-          { ...previous.session, ...previous.queue, outage: previous.outage },
-          { ...next.session, ...next.queue, outage: next.outage },
-        );
-        previous = next;
-        if (notices.outage && !outage) notify(notices.outage.message, { detail: notices.outage.detail });
-        if (notices.outage) outage = true;
-        if (outage) return;
-        const { skipped } = notices;
-        for (const entry of skipped) {
-          const title = tracks.get(entry.trackId, entry.albumId)?.title;
-          notify(title ? `Couldn’t play “${title}”. Skipped.` : 'Couldn’t play a song. Skipped.');
-        }
+        const { skipped, stopped } = notices.update(client.getSnapshot());
+        if (stopped) tell(stopped);
+        for (const { entry, failure } of skipped) tell(skipNotice(tracks.get(entry.trackId, entry.albumId)?.title, failure));
       });
       const loading = watchLoading(client);
       const systemVolume = SystemVolume;
