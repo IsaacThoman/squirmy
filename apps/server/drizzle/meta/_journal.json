@@ -131,8 +131,15 @@
     {
       "idx": 18,
       "version": "7",
-      "when": 1795376589462,
-      "tag": "0018_artist_read_model",
+      "when": 1795375916963,
+      "tag": "0018_single_heart",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795379453268,
+      "tag": "0019_artist_read_model",
       "breakpoints": true
     }
   ]

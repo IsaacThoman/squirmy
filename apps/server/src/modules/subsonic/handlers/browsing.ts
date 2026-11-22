@@ -110,7 +110,7 @@ async function getIndexes({ user, params, baseUrl }: Context): Promise<Payload> 
   const [changed] = await db.execute<{ at: string | null }>(sql`
     select (extract(epoch from greatest(
       (select max(f.updated_at) from media_files f where ${libraryFile('f', user.id, rootId)}),
-      (select max(kept.created_at) from library_items kept where kept.user_id = ${user.id})
+      (select max(kept.created_at) from likes kept where kept.user_id = ${user.id})
     )) * 1000)::int8::text as at`)
   const lastModified = Number(changed?.at ?? 0)
   const since = params.int('ifModifiedSince')

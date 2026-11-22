@@ -116,7 +116,7 @@ function ImportSettings({ settings, managedRoots, onSave }: { settings: ServerSe
     ...(chosen && managedRoots && !roots.some(root => root.id === chosen) ? [{ value: chosen, label: 'A folder that is no longer managed' }] : []),
   ]
   return (
-    <Section title="Imports" description="Uploads, the inbox and music fetched on demand are filed into a managed music folder once they are identified.">
+    <Section title="Imports" description={<>Uploads and the inbox are filed into a managed music folder once they are identified. Fetched music is kept apart as a cache; see <Link to="/admin/providers" className="text-primary underline-offset-4 hover:underline">Providers</Link>.</>}>
       <Row
         label="Import into"
         description={managedRoots && roots.length === 0

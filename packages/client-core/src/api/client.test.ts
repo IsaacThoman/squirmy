@@ -96,17 +96,17 @@ describe('createApiClient', () => {
     expect(fetch.mock.calls[1]![0]).toBe('/api/v1/me/likes/album/a%2Fb')
   })
 
-  it('saves to the library and names why music is fetched', async () => {
+  it('saves to the library with the heart and names why music is fetched', async () => {
     const fetch = respond(200, { ok: true })
     const api = createApiClient({ baseUrl: '', fetch, validate: false })
-    await api.library.save('album', id)
-    await api.library.remove('track', id)
+    await api.userdata.like('album', id)
+    await api.userdata.unlike('track', id)
     await api.acquisition.acquireAlbum(id, { origin: 'download' })
     await api.acquisition.acquireTrack(id, { albumId: id, origin: 'library' })
     await api.imports.list({ kind: 'acquisition' })
     expect(fetch.mock.calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
-      `PUT /api/v1/me/library/album/${id}`,
-      `DELETE /api/v1/me/library/track/${id}`,
+      `PUT /api/v1/me/likes/album/${id}`,
+      `DELETE /api/v1/me/likes/track/${id}`,
       `POST /api/v1/albums/${id}/acquire?origin=download`,
       `POST /api/v1/tracks/${id}/acquire?albumId=${id}&origin=library`,
       'GET /api/v1/imports?kind=acquisition',

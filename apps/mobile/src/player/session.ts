@@ -1,4 +1,4 @@
-import { type SessionOutage, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
+import { deviceLabel, idleHint, listedDevices, type SessionOutage, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
 import type {
   DeviceInfo, QueueEntry, QueueSeed, RepeatMode, SessionQueue, SessionState, StreamQuality, TrackSummary,
   UserSettings,
@@ -29,43 +29,33 @@ export type DeviceRow = {
 
 /**
  * The devices sheet: this device first, then the user's other connected devices that
- * can play. The server lists a device only while it is connected, so this one is added
- * when the list has not caught up with it yet (or the app is offline).
+ * can play, one row per browser rather than per tab (client-core `listedDevices`). The
+ * server lists a device only while it is connected, so this one is added when the list has
+ * not caught up with it yet (or the app is offline).
  */
 export function deviceRows(devices: readonly DeviceInfo[], thisDevice: DeviceInfo, activeDeviceId: string | null, now = Date.now()): DeviceRow[] {
-  const others = devices.filter(device => device.id !== thisDevice.id && device.canPlay);
+  const listed = listedDevices(devices, thisDevice.id);
+  const others = listed.filter(device => device.id !== thisDevice.id && device.canPlay);
   // The session can name a player before the device list has caught up with it (it just
   // connected). Without a row of its own the output would fall back to this phone, and the
   // sheet would say "Playing on This iPhone" while the phone is silent.
   const known = activeDeviceId === null || activeDeviceId === thisDevice.id || others.some(device => device.id === activeDeviceId);
   if (!known) others.push({ id: activeDeviceId, name: 'Another device', kind: 'other', canPlay: true, isActive: true });
+  const thisName = `This ${thisDevice.kind === 'ios' ? 'iPhone' : 'phone'}`;
   return [thisDevice, ...others].map(device => {
     const active = device.id === activeDeviceId;
     const isThisDevice = device.id === thisDevice.id;
+    const label = deviceLabel(device, listed, thisDevice.id, thisName, now);
     return {
       id: device.id,
-      name: isThisDevice ? `This ${thisDevice.kind === 'ios' ? 'iPhone' : 'phone'}` : device.name,
-      subtitle: active ? 'Playing' : isThisDevice ? 'This device' : `${kindName(device.kind)}${idleFor(device, now)}`,
+      name: label.name,
+      subtitle: active ? 'Playing' : isThisDevice ? 'This device' : [kindName(device.kind), idleHint(device.lastSeenAt, now), label.hint].filter(Boolean).join(' · '),
       icon: deviceIcon(device.kind),
       active,
       canPlay: device.canPlay,
       isThisDevice,
     };
   });
-}
-
-/**
- * " · Active 3 h ago" for a device that has been quiet a while: what tells apart two
- * devices of the same name, such as a browser tab left open on another computer. Nothing
- * for one in use now, or from a server that does not say.
- */
-function idleFor(device: DeviceInfo, now: number): string {
-  if (device.lastSeenAt === undefined) return '';
-  const minutes = Math.floor((now - device.lastSeenAt) / 60_000);
-  if (minutes < 5) return '';
-  if (minutes < 60) return ` · Active ${minutes} min ago`;
-  if (minutes < 48 * 60) return ` · Active ${Math.floor(minutes / 60)} h ago`;
-  return ` · Active ${Math.floor(minutes / (24 * 60))} days ago`;
 }
 
 function kindName(kind: DeviceInfo['kind']): string {

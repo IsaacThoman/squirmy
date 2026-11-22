@@ -4,7 +4,7 @@
  */
 import type { PlaylistSummary } from '@squirmy/contracts'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bookmark, Disc3, Heart, House, ListMusic, MicVocal, Music2, Search, ShieldCheck, Upload } from 'lucide-react'
+import { Bookmark, Disc3, Heart, House, Library, ListMusic, MicVocal, Music2, Search, ShieldCheck, Upload } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { HOVER_DELAY_MS, prefetchPage, usePrefetchStartPages, type PrefetchTarget } from '@/api/prefetch'
@@ -111,10 +111,11 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
   const destinations = useMemo<SearchDestination[]>(() => [
     { label: 'Home', to: '/', icon: House },
     { label: 'Search and browse genres', to: '/search', icon: Search },
-    { label: 'Albums', to: '/library/albums', icon: Disc3 },
-    { label: 'Artists', to: '/library/artists', icon: MicVocal },
-    { label: 'Songs', to: '/library/songs', icon: Music2 },
-    { label: 'Playlists', to: '/library/playlists', icon: ListMusic },
+    { label: 'Library', to: '/library', icon: Library },
+    { label: 'Albums', to: '/library?filter=albums', icon: Disc3 },
+    { label: 'Artists', to: '/library?filter=artists', icon: MicVocal },
+    { label: 'Songs', to: '/library?filter=songs', icon: Music2 },
+    { label: 'Playlists', to: '/library?filter=playlists', icon: ListMusic },
     { label: 'Liked Songs', to: '/liked', icon: Heart },
     ...(wantlistEnabled ? [{ label: 'Wantlist', to: '/wantlist', icon: Bookmark }] : []),
     ...(canUploadMusic(user) ? [{ label: 'Add music', to: '/imports', icon: Upload }] : []),

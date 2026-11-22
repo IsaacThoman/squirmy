@@ -1,4 +1,4 @@
-import type { SessionMoveResult } from '@squirmy/client-core'
+import { deviceLabel, listedDevices, type DeviceLabel, type SessionMoveResult } from '@squirmy/client-core'
 import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useSyncExternalStore } from 'react'
 
@@ -77,6 +77,14 @@ export const PlayerControlsContext = createContext<PlayerControls | null>(null)
  */
 export function isLoading(state: Pick<PlayerState, 'current' | 'playing'>): boolean {
   return state.playing && state.current?.entry.state === 'preparing'
+}
+
+/**
+ * How `device` is named here: "This browser", "Another tab" for this browser's other tabs,
+ * else its own name, with a hint when two listed devices share it.
+ */
+export function labelDevice(state: Pick<PlayerState, 'thisDeviceId' | 'devices'>, device: DeviceInfo): DeviceLabel {
+  return deviceLabel(device, listedDevices(state.devices, state.thisDeviceId), state.thisDeviceId, 'This browser')
 }
 
 /** The device that plays when it is not this one. One that dropped off the list during its grace period is still "another device". */

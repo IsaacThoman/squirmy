@@ -101,9 +101,8 @@ function useFixtureLibrary(): LibraryActions {
   return useMemo(() => ({
     wantlistEnabled: true,
     isWanted: (id, fromServer = false) => wanted.get(id) ?? fromServer,
-    setLiked: () => {},
+    setSaved: (target, saved, options) => { if (!options?.quiet) toast({ title: saved ? 'Saved to your library' : 'Removed from your library', description: target.title }) },
     setWanted: (target, value) => setWanted(map => new Map(map).set(target.type === 'album' ? target.album.id : target.track.id, value)),
-    setInLibrary: (target, inLibrary) => toast({ title: inLibrary ? 'Added to your library' : 'Removed from your library', description: target.title }),
     playlists: playlistSummaries,
     addToPlaylist: playlist => toast({ title: `Added to ${playlist.name}` }),
     newPlaylist: () => toast({ title: 'New playlists need the server' }),

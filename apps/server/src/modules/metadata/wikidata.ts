@@ -57,7 +57,7 @@ export async function getImage(qid: string, options: { width?: number } = {}): P
 /** The English Wikipedia summary for the entity, or null without an article (or for a disambiguation page). */
 /**
  * Wikipedia's summary drops parentheticals (pronunciations, roles) but leaves their
- * separators: "Thom Yorke ; brothers …", "( ; )". Migration 0018_artist_read_model applies
+ * separators: "Thom Yorke ; brothers …", "( ; )". Migration 0019_artist_read_model applies
  * the same cleanup to stored bios.
  */
 export function cleanExtract(text: string): string {

@@ -23,26 +23,15 @@ describe('trackActions', () => {
     expect(ids(track(), state({ current: 'playing' }))).toEqual(['last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
   });
 
-  it('unlikes a liked track', () => {
-    const like = trackActions(track(), state({ liked: true })).find(action => action.id === 'unlike');
-    expect(like?.title).toBe('Unlike');
+  it('has one library entry that flips the heart', () => {
+    const library = (liked: boolean) => trackActions(track(), state({ liked }))
+      .filter(action => action.id === 'like' || action.id === 'unlike');
+    expect(library(false)).toEqual([{ id: 'like', title: 'Save to library', icon: 'heart' }]);
+    expect(library(true)).toEqual([{ id: 'unlike', title: 'Remove from library', icon: 'heart.slash' }]);
   });
 
-  it('lets a gray track only be liked, wanted and opened', () => {
+  it('lets a gray track only be saved, wanted and opened', () => {
     expect(ids(track({ availability: 'none' }), state({ playable: false }))).toEqual(['like', 'want', 'album', 'artist']);
-  });
-
-  it('adds to or removes from the library when the server says which it is', () => {
-    expect(ids(track(), state({ saved: false }))).toEqual(['play', 'next', 'last', 'like', 'save', 'download', 'playlist', 'radio', 'album', 'artist']);
-    expect(trackActions(track(), state({ saved: false })).find(action => action.id === 'save')?.title).toBe('Add to library');
-    expect(ids(track(), state({ saved: true }))).toContain('unsave');
-    expect(trackActions(track(), state({ saved: true })).find(action => action.id === 'unsave')?.title).toBe('Remove from library');
-    // A gray track is not offered for adding, but one already added can still be removed.
-    expect(ids(track({ availability: 'none' }), state({ playable: false, saved: false }))).not.toContain('save');
-    expect(ids(track({ availability: 'none' }), state({ playable: false, saved: true }))).toContain('unsave');
-    // Offline neither, and nothing for an older server that does not say.
-    expect(ids(track(), state({ offline: true, saved: true }))).not.toContain('unsave');
-    expect(ids(track(), state({ saved: undefined }))).not.toContain('save');
   });
 
   it('starts a radio only from a song the server plays for this user', () => {
@@ -80,14 +69,15 @@ describe('trackActions', () => {
     expect(trackActions(track(), state()).find(action => action.id === 'artist')?.title).toBe('Go to artist');
   });
 
-  it('offers no library entry for a collection song or one of an album the user added', () => {
-    for (const library of ['collection', 'album'] as const) {
-      const actions = ids(track({ inLibrary: true, library }), state({ saved: true }));
-      expect(actions).not.toContain('unsave');
-      expect(actions).not.toContain('save');
+  it('offers the library entry for a collection song or one of a saved album too', () => {
+    for (const library of ['collection', 'album', 'saved', null] as const) {
+      expect(ids(track({ inLibrary: library !== null, library }), state())).toContain('like');
+      expect(ids(track({ inLibrary: true, library }), state({ liked: true }))).toContain('unlike');
     }
-    expect(ids(track({ inLibrary: true, library: 'saved' }), state({ saved: true }))).toContain('unsave');
-    expect(ids(track({ inLibrary: false, library: null }), state({ saved: false }))).toContain('save');
+  });
+
+  it('keeps the library entry offline, where the heart waits for the server', () => {
+    expect(ids(track(), state({ offline: true, liked: true }))).toContain('unlike');
   });
 
   it('links to the album and artist pages without fixing the tab', () => {

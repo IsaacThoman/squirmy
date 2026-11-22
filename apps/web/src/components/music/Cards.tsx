@@ -6,7 +6,7 @@ import { usePrefetch, type PrefetchHandlers } from '@/api/prefetch'
 import { albumPresentation, albumTypeLabel, canFetch } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
-import { PlaylistCover } from './CollectionArt'
+import { LikedCover, PlaylistCover } from './CollectionArt'
 import { Cover } from './Cover'
 
 type CardProps = {
@@ -141,6 +141,39 @@ export function PlaylistCard({ playlist, onPlay }: { playlist: PlaylistSummary; 
       art={<PlaylistCover artworks={playlist.artworks} />}
       onPlay={playlist.trackCount ? onPlay : undefined}
     />
+  )
+}
+
+/** Liked Songs as a card, beside the playlists. `count` is "24 songs". */
+export function LikedCard({ count, onPlay }: { count?: string; onPlay?: () => void }) {
+  return <Card to="/liked" title="Liked Songs" subtitle={count ? `Playlist · ${count}` : 'Playlist'} art={<LikedCover />} onPlay={onPlay} />
+}
+
+type CollectionRowProps = {
+  to: string
+  title: string
+  subtitle: ReactNode
+  /** Square artwork, round for artists; the row sizes it. */
+  art: ReactNode
+  dimmed?: boolean
+  prefetch?: PrefetchHandlers
+}
+
+/** A card laid out as a row: small artwork, the title and a subtitle. The Library's list view. */
+export function CollectionRow({ to, title, subtitle, art, dimmed, prefetch }: CollectionRowProps) {
+  return (
+    <Link
+      to={to}
+      title={title}
+      {...prefetch}
+      className="flex h-14 items-center gap-3 rounded-md px-2 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="size-11 shrink-0">{art}</div>
+      <div className="min-w-0 flex-1">
+        <div dir="auto" className={cn('truncate text-sm font-medium', dimmed && 'text-muted-foreground')}>{title}</div>
+        <div className={cn('truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{subtitle}</div>
+      </div>
+    </Link>
   )
 }
 

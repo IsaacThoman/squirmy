@@ -11,7 +11,6 @@ import { notFound } from '../../lib/errors.js'
 import { cachedRead, type CacheTag } from '../../lib/read-cache.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { listHistory } from './history.js'
-import { removeFromLibrary, saveToLibrary } from './library.js'
 import { likeEntity, listLikes, unlikeEntity } from './likes.js'
 import {
   addPlaylistItems, createPlaylist, deletePlaylist, getPlaylist, listPlaylists, movePlaylistItem, removePlaylistItem, updatePlaylist,
@@ -53,14 +52,16 @@ export async function userdataRoutes(app: FastifyInstance) {
   app.get('/me/likes/:type', async (request): Promise<Page<TrackSummary | AlbumSummary | ArtistSummary>> =>
     listLikes(requireUser(request).id, LikeTypeParams.parse(request.params).type, PageQuery.parse(request.query)))
 
+  // Deprecated aliases of the heart, for app builds from before it was the one library
+  // control: "Add to library" there now writes the same save. Remove after a release.
   app.put('/me/library/:type/:id', async (request): Promise<Ok> => {
     const { type, id } = LibraryParams.parse(request.params)
-    await saveToLibrary(requireUser(request).id, type, id)
+    await likeEntity(requireUser(request).id, type, id)
     return { ok: true }
   })
   app.delete('/me/library/:type/:id', async (request): Promise<Ok> => {
     const { type, id } = LibraryParams.parse(request.params)
-    await removeFromLibrary(requireUser(request).id, type, id)
+    await unlikeEntity(requireUser(request).id, type, id)
     return { ok: true }
   })
 

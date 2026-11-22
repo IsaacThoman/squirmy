@@ -39,17 +39,18 @@ describe('PlayerProvider', () => {
     expect(within(panel).queryByRole('button', { name: /Reorder Soft Signal/ })).toBeNull()
   })
 
-  it('changes the playing track’s like at once and tells the server', async () => {
+  it('changes the playing track’s heart at once and tells the server', async () => {
     const { services, api } = fakeServices()
     const first = blueHour.discs[0].tracks[0]
     expect(first.liked).toBe(true)
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
-    const [heart] = await screen.findAllByRole('button', { name: 'Remove from Liked Songs' })
-    await userEvent.click(heart)
+    const player = await screen.findByRole('region', { name: 'Player' })
+    await userEvent.click(await within(player).findByRole('button', { name: 'Remove from library' }))
     expect(api.userdata.unlike).toHaveBeenCalledWith('track', first.id)
-    expect((await screen.findAllByRole('button', { name: 'Save to Liked Songs' })).length).toBeGreaterThan(0)
+    expect(await within(player).findByRole('button', { name: 'Save to library' })).toBeInTheDocument()
+    expect(await screen.findByText('Removed from your library')).toBeInTheDocument()
     // The album page shows the same track, from its own cached answer.
-    expect(screen.getByRole('button', { name: `Save ${first.title} to Liked Songs` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `Save ${first.title} to library` })).toBeInTheDocument()
   })
 })

@@ -2,6 +2,7 @@ import { ApiError, type ApiClient } from '@squirmy/client-core'
 import { queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
 import { awaitsTrackList } from '@/lib/catalog'
+import { useDebounced } from '@/lib/use-debounced'
 import { useApi } from './services'
 
 /**
@@ -128,9 +129,40 @@ export const libraryListQuery = <K extends LibraryKind>(api: ApiClient, kind: K,
   })
 }
 
-/** A new sort or genre keeps the current list on screen until its own first page arrives. */
-export function useLibraryList<K extends LibraryKind>(kind: K, filter: LibraryFilter) {
-  return useInfiniteQuery({ ...libraryListQuery(useApi(), kind, filter), placeholderData: keepPreviousData })
+/**
+ * A new sort or genre keeps the current list on screen until its own first page arrives. The
+ * combined Library loads only the lists its filter shows (`enabled`).
+ */
+export function useLibraryList<K extends LibraryKind>(kind: K, filter: LibraryFilter, enabled = true) {
+  return useInfiniteQuery({ ...libraryListQuery(useApi(), kind, filter), placeholderData: keepPreviousData, enabled })
+}
+
+/** The most matches the Library's own search lists; past it, the page asks for more letters. */
+export const LIBRARY_MATCH_LIMIT = 50
+/** The server's library search ignores shorter queries, so the Library filters what it has instead. */
+export const LIBRARY_MATCH_MIN_LENGTH = 2
+
+/** Whether `text` is long enough for the Library to search the whole library on the server. */
+export const searchesServer = (text: string) => [...text.trim()].length >= LIBRARY_MATCH_MIN_LENGTH
+
+/**
+ * Albums, artists and songs in the library matching `text`, asked of the server once typing
+ * pauses, best first. Under `LIBRARY_MATCH_MIN_LENGTH` characters it asks nothing. `pending`:
+ * the answer for what is typed is still on its way.
+ */
+export function useLibraryMatches(text: string) {
+  const api = useApi()
+  const typed = text.trim()
+  const q = useDebounced(typed, 150, '')
+  const query = useQuery({
+    queryKey: [...queryKeys.search(), 'library', q, LIBRARY_MATCH_LIMIT],
+    queryFn: ({ signal }) => api.search.library({ q, limit: LIBRARY_MATCH_LIMIT }, { signal }),
+    enabled: searchesServer(q),
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+    meta: silent,
+  })
+  return { ...query, pending: typed !== q || query.isFetching }
 }
 
 export function useLikedTracks() {

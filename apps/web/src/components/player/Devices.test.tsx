@@ -62,6 +62,25 @@ describe('devices picker', () => {
     expect(rows).toEqual(['Chrome on macOSWeb browser', 'Chrome on macOSWeb browser · Active 2 days ago'])
   })
 
+  it('lists the other tabs of this browser once, as "Another tab", and never shows a tab number', () => {
+    const browser = '0b6f3c1e-8f2a-4c1d-9e7b-2a5d6c7e8f90'
+    const tab = (slot: number, extra = {}) => ({ id: slot === 1 ? browser : `${browser}-${slot}`, name: 'Chrome on macOS', kind: 'web' as const, canPlay: true, isActive: false, ...extra })
+    const tabs = [tab(1, { isActive: true }), tab(2), tab(3, { name: 'Chrome on macOS (3)' })]
+    renderWithApp(<DeviceList player={player({ devices: [...tabs, devices[1]!], thisDeviceId: `${browser}-2`, activeDeviceId: browser }).player} />)
+    expect(screen.getByText('Listening on').nextSibling).toHaveTextContent('Another tab')
+    expect(screen.getByRole('button', { name: /This browser/ })).toHaveTextContent('Play in this tab')
+    expect(screen.queryByText(/\(3\)/)).toBeNull()
+    expect(screen.queryByText('Chrome on macOS')).toBeNull()
+  })
+
+  it('says "Playing in another tab" in the player bar', () => {
+    const browser = '0b6f3c1e-8f2a-4c1d-9e7b-2a5d6c7e8f90'
+    const tabs = [{ id: browser, name: 'Chrome on macOS', kind: 'web' as const, canPlay: true, isActive: true }, { id: `${browser}-2`, name: 'Chrome on macOS', kind: 'web' as const, canPlay: true, isActive: false }]
+    const value = player({ devices: tabs, thisDeviceId: `${browser}-2`, activeDeviceId: browser }).player
+    renderWithApp(<PlayerBar player={value} liked={false} onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} />)
+    expect(screen.getAllByText('Playing in another tab').length).toBeGreaterThan(0)
+  })
+
   it('hides detaching where it cannot work', () => {
     renderWithApp(<DeviceList player={player({ canDetach: false }).player} />)
     expect(screen.queryByRole('button', { name: /Play separately/ })).toBeNull()
