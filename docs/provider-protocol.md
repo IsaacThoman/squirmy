@@ -12,7 +12,7 @@ The schemas for every message are in `packages/contracts/src/acquisition.ts` (na
 
 An admin adds a provider with its base URL and shared secret in **Admin → Providers** (`POST /api/v1/admin/acquisition/providers`); the server calls `GET /capabilities` right away and again whenever the provider is tested (`POST /api/v1/admin/acquisition/providers/:id/test`). The [operator guide](./server/acquisition.md) walks through the screen. A provider counts only while it is enabled and has answered `capabilities` once. With several, they are tried in descending priority.
 
-The server tells a provider where to deliver with absolute URLs. Their origin is, in order: the policy's `deliveryBaseUrl` (`PATCH /api/v1/admin/acquisition/policy`), `PUBLIC_URL`, or `http://localhost:<PORT>`. A provider in another container needs one of the first two, for example `deliveryBaseUrl: "http://squirmy:4747"` on a shared Docker network.
+The server tells a provider where to deliver with absolute URLs. Their origin is, in order: the policy's `deliveryBaseUrl` (`PATCH /api/v1/admin/acquisition/policy`), `PUBLIC_URL`, or `http://localhost:<PORT>`. A provider in another container needs one of the first two, for example `deliveryBaseUrl: "http://app:4747"` on a shared Docker network (`app` is the service name of Squirmy's container in the shipped `compose.yaml`).
 
 ## Overview
 

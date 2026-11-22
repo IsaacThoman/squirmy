@@ -114,7 +114,7 @@ The bench points at port 4800 on the machine running Metro. It loads, pauses, se
 
 ```sh
 npm run docs:dev       # live preview
-npm run docs:build     # what CI runs; dead links fail it
+npm run docs:build     # dead links fail it; CI also runs npm run docs:check for #anchors
 npm run docs:preview   # serve the built site
 ```
 
@@ -122,7 +122,7 @@ npm run docs:preview   # serve the built site
 
 ```sh
 npm run build:packages && npm run typecheck && npm run lint && npm test
-npm run docs:build
+npm run docs:build && npm run docs:check
 (cd apps/mobile && npx expo export --platform ios)
 ```
 

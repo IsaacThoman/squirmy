@@ -290,7 +290,7 @@ export const AcquisitionPolicy = z.object({
   /** Managed library root that receives the files. Null means the root imports go to (`importRootId`). */
   targetRootId: Id.nullable().default(null),
   /**
-   * Origin the delivery URLs handed to providers start with, e.g. `http://squirmy:4747` for
+   * Origin the delivery URLs handed to providers start with, e.g. `http://app:4747` for
    * a provider in another container. Null means `PUBLIC_URL`, else `http://localhost:<PORT>`.
    */
   deliveryBaseUrl: z.string().url().nullable().default(null),

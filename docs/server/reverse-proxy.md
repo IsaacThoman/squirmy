@@ -9,7 +9,7 @@ Squirmy serves everything from one port (4747): the web app, the API under `/api
 | Traffic | What it needs from the proxy |
 |---|---|
 | `/socket.io` | **WebSocket upgrades.** Playback state, device lists and live updates use one long-lived socket per open app. Without upgrades the web app shows "Reconnecting to the server…" and playback control between devices stops working. |
-| `/api/v1/imports/…/files`, `/api/v1/acquisition/deliveries/…` | **Large request bodies.** Uploads are streamed, up to 4 GiB per file by default (`importMaxFileBytes`) and at most 16 GiB. The proxy must not cap or buffer them. |
+| `/api/v1/imports/…/files`, `/api/v1/acquisition/deliveries/…` | **Large request bodies.** Uploads are streamed, up to 4 GiB per file by default (`importMaxFileBytes`, which an admin can raise). The proxy must not cap or buffer them. |
 | `/api/v1/stream/…`, `/rest/stream` | **Range requests** for seeking, passed through untouched, and **unbuffered responses**: a transcode is sent while ffmpeg encodes it, so buffering delays the start of playback. |
 | Everything | `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`, so the server knows the client and that the request was HTTPS. |
 

@@ -67,7 +67,7 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 
 | Section | Setting (as on screen) | Key | Default | What it does |
 |---|---|---|---|---|
-| General | Server name | `serverName` | `Squirmy` | Shown on the sign-in page and to Subsonic apps. |
+| General | Server name | `serverName` | `Squirmy` | Shown on the web app's sign-in page and in the iOS app's connect and sign-in screens. |
 | Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
 | Metadata sources | MusicBrainz | `musicBrainzEnabled` | on | Identifies albums and fills in discographies. Off means nothing new is identified. |
 | | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service, a full `http://` or `https://` address. Only `musicbrainz.org` and its subdomains are rate limited, so a mirror lifts the limit. |
@@ -113,7 +113,7 @@ Settings with no screen yet:
 
 | Key | Default | What it does |
 |---|---|---|
-| `wantlistEnabled` | `false` | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
+| `wantlistEnabled` | `false` | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the iOS app shows no trace of it (the web app does not check it yet: it still shows the wantlist, but adding to it fails), and wants stay stored, so turning it back on brings them back. |
 
 `GET /api/v1/admin/settings` returns every setting; secrets come back only as `listenBrainzTokenSet`, `acoustIdKeySet`, `fanartKeySet` and `lastFmKeySet`. A secret set to `null` or `""` is removed.
 
@@ -121,7 +121,7 @@ Acquisition has its own policy settings; see [Acquisition providers](./acquisiti
 
 ### Per-user settings
 
-Each user has their own, in **Settings** in the web app and in the iOS app's account sheet: volume normalization (default Automatic), streaming quality on Wi-Fi (default Original) and on cellular (default High), and scrobbling switches. See [Playback](./playback.md).
+Each user has their own, in **Settings** in the web app and in the iOS app's account sheet: volume normalization (default Automatic), streaming quality on Wi-Fi (default Original) and on cellular (default High), scrobbling switches, and for the iOS app's downloads, the download quality (default Original) and Wi-Fi only (default on). The iOS storage limit for downloads is kept on the phone, not on the server. See [Playback](./playback.md).
 
 ## Splitting the API and the worker
 

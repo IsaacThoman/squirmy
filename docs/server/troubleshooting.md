@@ -24,6 +24,11 @@ HTTP requests and errors are JSON lines; the library, watchers and imports add p
 | `imports.process` | Uploads and the inbox |
 | `acquisition.*` | Fetching through providers |
 | `scrobble.deliver` | Sending plays |
+| `organize.apply`, `organize.revert` | Moving and retagging files into a managed folder, and undoing it |
+| `artwork.recover` | Rebuilding lost image files |
+| `catalog-index.import` | Building the local search index |
+| `library.scan-after` | A full scan waiting for a scan of a few folders to finish |
+| `*.sweep`, `library.scan-all`, `library.purge-missing`, `search.cleanup`, `enrichment.new-releases`, `matching.retry-fingerprints` | Scheduled and follow-up work; see [Scheduled work](./configuration.md#scheduled-work) |
 
 A large **Queued** count on `matching.match-album` right after a first scan is normal: see [identification is slow](#identification-is-slow). A growing **Failed** count is not; the log has the error.
 
