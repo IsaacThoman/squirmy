@@ -1,14 +1,14 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../../database/client.js'
-import { externalIds, httpCache, recordings, releases, releaseTracks } from '../../database/schema.js'
+import { albums, externalIds, httpCache, recordings, releases, releaseTracks } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { startJobs, stopJobs } from '../../jobs/index.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createFile } from '../../test/catalog.js'
-import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
+import { createAlbum, createArtist, createLibraryRoot, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
 import { albumDetail } from '../catalog/pages.js'
 import { hydrateAlbum } from './album.js'
@@ -150,8 +150,10 @@ describe('album detail from each source', () => {
 describe('album detail with owned music and merges', () => {
   const { http } = useAlbumTests()
 
-  it('never replaces the canonical release of an album with files', async () => {
+  it('never replaces the MusicBrainz edition the files of an album are on', async () => {
     const owned = await createAlbum({ title: 'OK Computer', mbid: okComputer, owned: true, tracks: [{ title: 'Airbag' }] })
+    // The edition matching chose, which need not be the one chooseCanonicalRelease picks.
+    await db.update(releases).set({ mbid: '0a1b2c3d-0000-4000-8000-000000000001' }).where(eq(releases.id, owned.releaseId))
     await hydrateAlbum(owned.albumId)
     const album = await albumRow(owned.albumId)
     expect(album).toMatchObject({ canonicalReleaseId: owned.releaseId, detailLevel: 2 })
@@ -270,5 +272,24 @@ describe('album detail folds stand-in recordings into the release', () => {
     expect(await merged(stub)).not.toBeNull()
     expect(await merged(live)).toBeNull()
     expect(await merged(longer)).toBeNull()
+  })
+})
+
+describe('album detail for an owned album without a MusicBrainz edition', () => {
+  const context = useAlbumTests()
+
+  it('takes the canonical release from MusicBrainz and fits the files to its tracks', async () => {
+    const artist = await createArtist({ name: 'Radiohead', mbid: radiohead })
+    // A one-track local album that was merged into the release group's row later.
+    const owned = await createAlbum({ title: 'OK Computer', artist, mbid: okComputer, owned: true, tracks: [{ title: 'Airbag', durationMs: 284_000 }] })
+    await db.update(albums).set({ detailLevel: 1 }).where(eq(albums.id, owned.albumId))
+    await ensureAlbumDetail(owned.albumId)
+
+    const { release, tracks } = await canonical(owned.albumId)
+    expect(release.mbid).toBe(okComputerCanonical)
+    expect(tracks).toHaveLength(12)
+    const page = await albumDetail(context.userId, owned.albumId)
+    expect(page).toMatchObject({ trackCount: 12, ownedTrackCount: 1, availability: 'partial' })
+    expect(page.discs[0]!.tracks[0]).toMatchObject({ title: 'Airbag', availability: 'server', position: 1 })
   })
 })

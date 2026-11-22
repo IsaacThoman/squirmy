@@ -4,8 +4,8 @@
  * no MusicBrainz match.
  */
 import { queryKeys, type AlbumType } from '@squirmy/contracts'
-import { and, eq, isNull } from 'drizzle-orm'
-import { db } from '../../database/client.js'
+import { and, eq, isNull, sql } from 'drizzle-orm'
+import { db, type Executor } from '../../database/client.js'
 import { albums, releases } from '../../database/schema.js'
 import { lockUpserts, upsertRelease } from '../matching/apply.js'
 import { mergeAlbum } from '../matching/merge.js'
@@ -24,10 +24,14 @@ const bridgeRetryMs = day
 const maxGenres = 5
 
 type AlbumRow = Pick<typeof albums.$inferSelect, 'id' | 'mbid' | 'title' | 'artistCredit' | 'type' | 'detailLevel' | 'fetchedAt' | 'canonicalReleaseId'>
+  & { canonicalMbid: string | null }
 
 /** Whether the album is as complete as a recent run could make it. */
 function fresh(album: AlbumRow, now: number): boolean {
   const age = album.fetchedAt ? now - album.fetchedAt.getTime() : Infinity
+  // A release group whose row shows a local or Deezer edition (a local album merged into
+  // it, say) still needs a MusicBrainz track list.
+  if (album.mbid && !album.canonicalMbid) return false
   if (album.detailLevel >= 2) return age < refreshAfterMs
   // Built from Deezer: the bridge found nothing a moment ago.
   return !album.mbid && album.canonicalReleaseId !== null && age < bridgeRetryMs
@@ -46,8 +50,8 @@ export async function hydrateAlbum(id: string, { force = false } = {}): Promise<
   if (!albumId) return null
   const [album] = await db.select({
     id: albums.id, mbid: albums.mbid, title: albums.title, artistCredit: albums.artistCredit, type: albums.type,
-    detailLevel: albums.detailLevel, fetchedAt: albums.fetchedAt, canonicalReleaseId: albums.canonicalReleaseId,
-  }).from(albums).where(eq(albums.id, albumId))
+    detailLevel: albums.detailLevel, fetchedAt: albums.fetchedAt, canonicalReleaseId: albums.canonicalReleaseId, canonicalMbid: releases.mbid,
+  }).from(albums).leftJoin(releases, eq(releases.id, albums.canonicalReleaseId)).where(eq(albums.id, albumId))
   if (!album || (!force && fresh(album, Date.now()))) return albumId
 
   const deezerId = await externalIdOf('deezer', 'album', albumId)
@@ -67,22 +71,36 @@ export async function hydrateAlbum(id: string, { force = false } = {}): Promise<
 }
 
 /**
+ * Whether an album keeps the canonical release it has: one from MusicBrainz that its
+ * files are on. An album whose files sit on a local edition (a local album merged into
+ * the group's row) takes the group's canonical release, and its files' recordings are
+ * fitted to its tracks.
+ */
+async function keepsCanonical(albumId: string, executor: Executor = db): Promise<boolean> {
+  const [row] = await executor.execute<{ keeps: boolean }>(sql`
+    select exists (select 1 from albums a join releases rl on rl.id = a.canonical_release_id
+      where a.id = ${albumId} and rl.mbid is not null) as keeps`)
+  return Boolean(row?.keeps) && await albumOwned(albumId, executor)
+}
+
+/**
  * Writes the group's canonical release under the album row, merging the row into the
  * group's own row when one exists (a bridged stub) or MusicBrainz answered with another
  * id (a merge on their side), then folds recordings that stood in for its tracks into
- * them (`fit.ts`). An album with files keeps its releases as they are.
+ * them (`fit.ts`). An album with files on a MusicBrainz edition keeps it.
  */
 async function fromMusicBrainz(albumId: string, group: MbReleaseGroup): Promise<string> {
-  const chosen = (await albumOwned(albumId)) ? null : chooseCanonicalRelease(group.releases)
+  const chosen = (await keepsCanonical(albumId)) ? null : chooseCanonicalRelease(group.releases)
   const release = chosen ? await musicbrainz.getRelease(chosen.mbid) : null
   return db.transaction(async (tx) => {
     await lockUpserts(tx)
     let target = await adoptMbid(tx, 'album', albumId, group.mbid)
-    if (release && !(await albumOwned(target, tx))) {
-      // A track list built from Deezer becomes this release.
+    if (release && !(await keepsCanonical(target, tx))) {
+      // A track list built from Deezer becomes this release; an edition files are on stays.
       const providerReleases = (await tx.select({ id: releases.id }).from(releases)
-        .where(and(eq(releases.albumId, target), isNull(releases.mbid)))).map((row) => row.id)
-      const upserted = await upsertRelease(tx, release, { releaseIds: providerReleases }, { canonical: 'unless-owned' })
+        .where(and(eq(releases.albumId, target), isNull(releases.mbid),
+          sql`not exists (select 1 from media_files f where f.release_id = ${releases.id})`))).map((row) => row.id)
+      const upserted = await upsertRelease(tx, release, { releaseIds: providerReleases }, { canonical: 'always' })
       if (upserted.albumId !== target) {
         await mergeAlbum(target, upserted.albumId, tx)
         target = upserted.albumId
