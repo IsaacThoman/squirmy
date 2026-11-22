@@ -1,5 +1,5 @@
 import type { AlbumDetail, AlbumSummary, ArtistDetail } from '@squirmy/contracts'
-import { BookmarkCheck, BookmarkPlus, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, MoreHorizontal, Music, Plus, Wand2 } from 'lucide-react'
+import { MoreHorizontal, Music, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useCurrentUser } from '@/auth/session'
@@ -8,7 +8,7 @@ import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { AlbumCard } from '@/components/music/Cards'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
 import { Cover } from '@/components/music/Cover'
-import { librarySaveEntry } from '@/components/music/library-save-entry'
+import { albumMenuEntries } from '@/components/music/album-menu'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { TrackRowsSkeleton } from '@/components/music/Skeletons'
 import { TrackList } from '@/components/music/TrackList'
@@ -118,22 +118,17 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
             <DropdownMenu
               align="start"
               entries={[
-                { label: 'Play next', icon: <ListStart />, disabled: !playable.length, onSelect: () => enqueue('next') },
-                { label: 'Add to queue', icon: <ListEnd />, disabled: !playable.length, onSelect: () => enqueue('last') },
-                {
-                  kind: 'submenu',
-                  label: 'Add to playlist',
-                  icon: <ListPlus />,
-                  items: [
-                    { label: 'New playlist…', icon: <Plus />, onSelect: () => library.newPlaylist(tracks) },
-                    ...(library.playlists.length ? [{ kind: 'separator' as const }] : []),
-                    ...library.playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => library.addToPlaylist(playlist, tracks) })),
-                  ],
-                },
-                librarySaveEntry(album, toggleSaved),
-                ...(library.wantlistEnabled && dimmed ? [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: want }] : []),
-                { kind: 'separator' },
-                ...album.artists.map(artist => ({ label: `Go to ${artist.name}`, icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
+                ...albumMenuEntries({
+                  artists: album.artists,
+                  playable: playable.length > 0,
+                  onEnqueue: enqueue,
+                  playlists: library.playlists,
+                  onAddToPlaylist: playlist => (playlist ? library.addToPlaylist(playlist, tracks) : library.newPlaylist(tracks)),
+                  liked: album.liked,
+                  onToggleSaved: toggleSaved,
+                  want: library.wantlistEnabled && dimmed ? { wanted, onToggle: want } : undefined,
+                  onGoToArtist: artist => void navigate(`/artist/${artist.id}`),
+                }),
                 ...(user.role === 'admin' && owned ? [{ kind: 'separator' }, { label: 'Fix match…', icon: <Wand2 />, onSelect: () => setFixing(true) }] satisfies MenuEntry[] : []),
               ]}
               trigger={<IconButton label="More options" size="lg"><MoreHorizontal /></IconButton>}

@@ -70,5 +70,7 @@ describe('idleHint and playingOnText', () => {
   it('says where it plays', () => {
     expect(playingOnText({ name: 'Kitchen', relation: 'other' })).toBe('Playing on Kitchen')
     expect(playingOnText({ name: 'Another tab', relation: 'tab' })).toBe('Playing in another tab')
+    expect(playingOnText({ name: 'Kitchen', relation: 'other' }, false)).toBe('Paused on Kitchen')
+    expect(playingOnText({ name: 'Another tab', relation: 'tab' }, false)).toBe('Paused in another tab')
   })
 })

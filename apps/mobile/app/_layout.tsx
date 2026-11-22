@@ -32,24 +32,25 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <ThemeProvider value={theme}>
         <QueryClientProvider client={queryClient}>
-          <NoticeProvider>
-            <AccountProvider>
-              <RealtimeProvider>
-                <LibraryProvider>
-                  <DownloadsProvider>
-                    <StreamingCacheProvider>
-                      <PlaybackProvider>
-                        <PlayerTransitionProvider>
+          {/* Above the notices, which move out of Now Playing's way while it is open. */}
+          <PlayerTransitionProvider>
+            <NoticeProvider>
+              <AccountProvider>
+                <RealtimeProvider>
+                  <LibraryProvider>
+                    <DownloadsProvider>
+                      <StreamingCacheProvider>
+                        <PlaybackProvider>
                           <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
                           <Routes />
-                        </PlayerTransitionProvider>
-                      </PlaybackProvider>
-                    </StreamingCacheProvider>
-                  </DownloadsProvider>
-                </LibraryProvider>
-              </RealtimeProvider>
-            </AccountProvider>
-          </NoticeProvider>
+                        </PlaybackProvider>
+                      </StreamingCacheProvider>
+                    </DownloadsProvider>
+                  </LibraryProvider>
+                </RealtimeProvider>
+              </AccountProvider>
+            </NoticeProvider>
+          </PlayerTransitionProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

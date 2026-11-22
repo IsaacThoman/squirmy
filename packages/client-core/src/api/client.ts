@@ -54,6 +54,7 @@ import {
   LibraryRootList,
   LibraryStats,
   type LikeEntityType,
+  type LikeQuery,
   type LoginRequest,
   Lyrics,
   MatchActionResult,
@@ -105,6 +106,7 @@ import {
   type UpdateUserSettings,
   User,
   UserList,
+  UnlikeResponse,
   UserSettings,
   type WantEntityType,
   WantPage,
@@ -404,9 +406,13 @@ export function createApiClient(options: ApiClientOptions) {
        * The heart: saves to your library (the only way in). For a requester the server also
        * fetches what an album or track is missing.
        */
-      like: (type: LikeEntityType, entityId: string) => send('PUT', `/me/likes/${type}/${id(entityId)}`, Ok),
-      /** Removes the save only: files and playlists stay. */
-      unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, Ok),
+      like: (type: LikeEntityType, entityId: string, query: LikeQuery = {}) =>
+        request('PUT', `/me/likes/${type}/${id(entityId)}`, { schema: Ok, query }),
+      /**
+       * Removes the save only: files and playlists stay. Answers when the save was made; Undo
+       * passes it back to `like` so the item returns to its place.
+       */
+      unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, UnlikeResponse),
       likes: <T extends LikeEntityType>(type: T, query: Partial<PageQuery> = {}) =>
         get(`/me/likes/${type}`, likedPages[type] as unknown as z.ZodType<Page<LikedItems[T]>>, query),
       playlists: (query: Partial<PageQuery> = {}) => get('/playlists', PlaylistPage, query),
@@ -430,7 +436,7 @@ export function createApiClient(options: ApiClientOptions) {
       devices: () => get('/me/devices', DeviceList),
     },
     search: {
-      library: (query: SearchParams, options?: CallOptions) => get('/search/library', SearchResults, query, options),
+      library: (query: SearchParams & { genre?: string }, options?: CallOptions) => get('/search/library', SearchResults, query, options),
       catalog: (query: SearchParams, options?: CallOptions) => get('/search/catalog', SearchResults, query, options),
     },
     scrobble: {

@@ -8,12 +8,17 @@ const VOLUME_STEP = 0.05
 /** Elements that use these keys themselves: typing, sliders, menus, lists, and buttons for Space. */
 const ownsArrows = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="slider"], [role="menu"], [role="menuitem"], [role="listbox"], [role="option"], [role="tablist"], [role="tab"], [role="radiogroup"]'
 const ownsSpace = `${ownsArrows}, button, a[href], summary, [role="button"], [role="switch"], [role="checkbox"]`
+/**
+ * A dialog owns the keys pressed in it: arrows that read or move through Settings must not
+ * turn the music down behind it. Now Playing is the player itself, so it says it hands them on.
+ */
+const ownsAllKeys = '[role="dialog"]:not([data-player-keys]), [role="alertdialog"]'
 
 /** Whether a key press belongs to the focused element rather than the player. */
 export function keyIsTaken(event: Pick<KeyboardEvent, 'key' | 'target' | 'altKey' | 'ctrlKey' | 'metaKey' | 'defaultPrevented'>): boolean {
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return true
   const target = event.target instanceof Element ? event.target : null
-  return Boolean(target?.closest(event.key === ' ' ? ownsSpace : ownsArrows))
+  return Boolean(target?.closest(event.key === ' ' ? ownsSpace : ownsArrows) || target?.closest(ownsAllKeys))
 }
 
 /**

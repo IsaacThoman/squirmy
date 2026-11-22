@@ -18,6 +18,15 @@ export function moveFailure(move: 'detach' | 'attach', error: string): string {
   }
 }
 
+/**
+ * The device sheet's header while detached. It names no state in its title, which says the
+ * same as the mini-player's marker, so it is right whether the phone is playing or paused.
+ */
+export function detachedHeader(track: { title: string; artistCredit: string } | undefined, playing: boolean): { title: string; subtitle: string } {
+  if (!track) return { title: DETACHED_LABEL, subtitle: 'Nothing playing' };
+  return { title: DETACHED_LABEL, subtitle: `${playing ? '' : 'Paused · '}${track.title} · ${track.artistCredit}` };
+}
+
 /** The notice after detaching: other devices pause only when this phone was the one playing. */
 export function detachedNotice(wasPlayingHere: boolean): string {
   return wasPlayingHere ? 'Playing only on this device. Your other devices are paused where they were.' : 'Playing only on this device.';

@@ -106,6 +106,14 @@ describe('keyboard shortcuts', () => {
     expect(press('ArrowRight', element('slider'))).toBe(true)
     expect(press(' ', element('plain'), { metaKey: true })).toBe(true)
   })
+
+  it('leave every key to a dialog, but not to Now Playing', () => {
+    document.body.innerHTML = '<div role="dialog"><button id="section">Playback</button></div><div role="dialog" data-player-keys><span id="art">Art</span></div>'
+    const element = (id: string) => document.getElementById(id)!
+    expect(press('ArrowDown', element('section'))).toBe(true)
+    expect(press('ArrowDown', element('art'))).toBe(false)
+    expect(press(' ', element('art'))).toBe(false)
+  })
 })
 
 describe('sign-in redirects', () => {

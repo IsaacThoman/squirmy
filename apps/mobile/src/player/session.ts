@@ -151,6 +151,14 @@ export function queueRow(entry: Pick<QueueEntry, 'state'>, track: Pick<TrackSumm
   return { detail: track?.artistCredit ?? '', unavailable: false };
 }
 
+/**
+ * What a queue row says while its song's summary is missing. Online it is on its way;
+ * offline it may not come until the connection does, so the row says why it is empty.
+ */
+export function pendingQueueRow(offline: boolean): { title: string; detail: string } {
+  return offline ? { title: 'Song not loaded', detail: 'Needs a connection' } : { title: 'Loading…', detail: '' };
+}
+
 /** Finds an entry anywhere in the session by id. */
 export function findEntry(session: Entries, entryId: string): QueueEntry | undefined {
   return allEntries(session).find(entry => entry.id === entryId);

@@ -47,12 +47,12 @@ Ctrl+K (⌘K on a Mac) opens a search box over whatever page you are on. It sear
 
 ## Playing music
 
-Click a song, or the play button on an album or playlist. The player bar along the bottom has the transport, the seek bar, volume, the heart (**Save to library**), **Lyrics**, **Queue** and **Devices**. **Queue** opens the queue in a panel beside the page; in a narrower window the panel floats over the page's right side. Click the artwork in the bar, or **Now Playing** at its right end, to open **Now Playing**, full screen, with lyrics (synced lyrics follow the song, and clicking a line jumps to it) or the queue beside the artwork.
+Click a song, or the play button on an album or playlist. The player bar along the bottom has the transport, the seek bar, volume, the heart (**Save to library**), **Lyrics**, **Queue** and **Devices**. **Queue** opens the queue in a panel beside the page; in a narrower window the panel floats over the page's right side and dims the page; click the page or press Escape to close it. Click the artwork in the bar, or **Now Playing** at its right end, to open **Now Playing**, full screen, with lyrics (synced lyrics follow the song, and clicking a line jumps to it) or the queue beside the artwork.
 
 On a phone the player is a small bar at the bottom with the song, **Devices** and play or pause. Tap it for **Now Playing**, which is where the queue and the lyrics are.
 
 - **Song menus** (right-click or the **⋯** button): **Play next**, **Add to queue**, **Add to playlist** (or **New playlist…**), **Start radio**, **Save to library** or **Remove from library** (the same as the song's heart), **Go to album** (not on the album's own page), **Go to** each of its artists, and **Add to Wantlist** for music that is not available (when the Wantlist is turned on). You can also drag songs onto a playlist, or onto Liked Songs (which saves them), in the sidebar.
-- **Queue**: click a song in **Up next** to jump to it (the songs above it are skipped, except those you added yourself); reorder by dragging, or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history. How Previous, Shuffle and Repeat treat the list a song was played from is in [The queue](../server/playback.md#the-queue). The queue holds up to 10,000 songs; adding more than fit does nothing. **Autoplay** keeps music going with similar songs when the queue runs out: the same artist, artists like it, and the same genre and era, favoring what you like. If you may fetch music, that includes songs the server doesn't have yet.
+- **Queue**: click a song in **Up next** to jump to it (the songs above it are skipped, except those you added yourself); reorder by dragging (hold a song near the top or bottom of the list to scroll it), or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history (a notice offers **Undo** for a few seconds). How Previous, Shuffle and Repeat treat the list a song was played from is in [The queue](../server/playback.md#the-queue). The queue holds up to 10,000 songs; adding more than fit does nothing. **Autoplay** keeps music going with similar songs when the queue runs out: the same artist, artists like it, and the same genre and era, favoring what you like. If you may fetch music, that includes songs the server doesn't have yet.
 - **Your settings** in **Settings → Playback**: **Volume normalization**, **Streaming quality**, **Cellular quality** (for the iOS app), and **This browser's name**. See [Playback](../server/playback.md).
 
 ## Your library
@@ -69,10 +69,10 @@ An empty library says what it holds and how to add to it, with **Find music**.
 
 With an [acquisition provider](../server/acquisition.md) connected, the server fetches music when someone who may fetch plays it: admins, and members an admin allowed to. For them it works like any streaming app, and nothing in the app says where a song's file is:
 
-- Play anything. While the song is on its way, the play button and its row show the spinner the player uses for buffering, and the artist stays under the title. If it takes longer than eight seconds, the player says **Still loading…** instead.
+- Play anything. Until you hear it, the play button and its row show the spinner the player uses for buffering, and the artist stays under the title; the same goes for a song that is slow to stream or that can't load while you are offline, and its time stays at the start instead of running. If it takes longer than eight seconds, the player says **Still loading…** instead. A seek made meanwhile is kept: the song starts there.
 - The server fetches the playing song and the next five ahead of time. Songs waiting in the queue look like any other.
 - A song the source doesn't have is told when it was playing or next (**Skipped “…” — not available**; several in a row share one notice that counts them, **Skipped 3 songs — not available**), turns gray with **Not available**, and playback moves on to the next song it can play. Failures further down the queue are quiet. When none of the songs left in the queue are available, playback stops with one notice, **None of the remaining songs are available**. If five songs in a row aren't available, playback pauses with **Several songs in a row aren't available**; press play to carry on.
-- When the server can't fetch music at all right now (its source is down), playback pauses at the first song with one notice, **Can't load music right now**, and why; press play to try again. A song that fails for another reason says **Couldn't play "…"**, **Skipped.**, and if three of those come in a row playback pauses the same way.
+- When the server can't fetch music at all right now (its source is down), playback pauses at the first song with one notice, **Can't load music right now**, and why, and the songs that failed with it are not told on their own; press play to try again. A song that fails for another reason says **Couldn't play "…"**, **Skipped.**, and if three of those come in a row playback pauses the same way.
 
 For members who may not fetch, and on servers without a provider, music that is not on the server is gray and says **Not available**; an album that is partly there says how many of its songs are available.
 
@@ -82,7 +82,7 @@ For members who may not fetch, and on servers without a provider, music that is 
 
 ## Devices
 
-Every open tab can play in your one playback session, one at a time. When music plays somewhere else, the player bar says "Playing on …" (or "Playing in another tab") with **Play here**; the controls drive that device and this tab plays nothing. **Devices** lists where you can play: **This browser** with **Play in this tab**, one **Another tab** row for the browser's other open tabs, and each of your other devices once. Two devices of the same name are told apart by when they were last used, or a short id; renaming one in **Settings → Playback → This browser's name** is clearer. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
+Every open tab can play in your one playback session, one at a time. When music plays somewhere else, the player bar says "Playing on …" (or "Playing in another tab", and "Paused on …" once it is paused there) with **Play here**; the controls drive that device and this tab plays nothing. **Devices** lists where you can play: **This browser** with **Play in this tab**, one **Another tab** row for the browser's other open tabs, and each of your other devices once. Two devices of the same name are told apart by when they were last used, or a short id; renaming one in **Settings → Playback → This browser's name** is clearer. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
 
 ### Playing separately on one device
 
@@ -93,7 +93,7 @@ To have one tab play its own music while your other devices play something else 
 
 Other devices list a tab like this under **Playing separately**, with the song it plays, and playback can't be moved to it. Playing separately survives a reload; after a week away it plays with your other devices again. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
 
-If the browser refuses to start audio on its own (after a transfer or a reload), a notice says "Your browser is holding back audio"; choose **Enable audio**. "Reconnecting to the server…" means the live connection dropped; it comes back by itself, and behind a proxy it usually means WebSockets are not passed through.
+If the browser refuses to start audio on its own (after a transfer or a reload), the player shows **Play** and a notice says "Your browser is holding back audio"; press play, or **Enable audio** in the notice. "Reconnecting to the server…" means the live connection dropped; it comes back by itself, and behind a proxy it usually means WebSockets are not passed through.
 
 ## Settings
 
