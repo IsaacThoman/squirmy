@@ -790,7 +790,7 @@ export const acquisitionMisses = pgTable('acquisition_misses', {
 
 /** Responses from external metadata services. */
 export const httpCache = pgTable('http_cache', {
-  /** SHA-256 of provider + method + URL. */
+  /** SHA-256 of provider, method, URL and body. */
   key: text('key').primaryKey(),
   provider: text('provider').notNull(),
   url: text('url').notNull(),

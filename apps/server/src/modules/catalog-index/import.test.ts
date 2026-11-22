@@ -12,7 +12,7 @@ import { db, getSql } from '../../database/client.js'
 import { catalogIndexImports } from '../../database/schema.js'
 import { useTestDatabase } from '../../test/database.js'
 import { findLatestDump, spawnZstd } from './dump.js'
-import { buildDump, tarEnd, tarFile, testCatalog } from './fixtures.js'
+import { buildDump, tarEnd, tarFile, testCatalog } from '../../test/catalog-index-dump.js'
 import { cancelImport, ImportCancelledError, importCanonicalDump } from './import.js'
 import { readTar } from './tar.js'
 

@@ -363,8 +363,6 @@ export function playlistDetail(id: string) {
   return playlists.find(item => item.id === id) ?? null
 }
 
-export const featuredAlbum = summary(album('blue-hour'))
-
 export const home: HomeResponse = {
   sections: [
     { kind: 'albums', id: 'recently-played', title: 'Recently played',
@@ -431,9 +429,4 @@ export function lyricsFor(trackId: string): Lyrics | null {
     return `[${String(Math.floor(at / 60)).padStart(2, '0')}:${(at % 60).toFixed(2).padStart(5, '0')}] ${line}`
   }).join('\n')
   return { trackId, synced, plain: nightSwimming.join('\n'), instrumental: false, source: 'embedded' }
-}
-
-/** Every track on an album, in order; what playing it from a card queues. */
-export function albumTracks(id: string) {
-  return albumDetail(id)?.discs.flatMap(disc => disc.tracks) ?? []
 }

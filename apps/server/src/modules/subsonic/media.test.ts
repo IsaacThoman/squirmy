@@ -19,7 +19,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { storeImage } from '../artwork/store.js'
 import { createAppPassword } from '../auth/service.js'
-import { subsonicClient, type SubsonicClient } from './test-client.js'
+import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.js'
 
 type Probe = { streams: { codec_name: string; sample_rate?: string }[]; format: { duration: string; bit_rate?: string } }
 

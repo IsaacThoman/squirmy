@@ -1,8 +1,7 @@
 name: Deploy documentation to GitHub Pages
 
-# Manual only for now. GitHub Pages is not enabled for this repository yet: enable it
-# (Settings → Pages → Source: GitHub Actions; a private repository needs a plan that
-# includes Pages) before running this. Once it deploys, add
+# Manual only until GitHub Pages is enabled for this repository (Settings → Pages →
+# Source: GitHub Actions). Once it deploys, add
 #   push:
 #     branches: [main]
 # so every release publishes the documentation.
@@ -22,7 +21,8 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      pages: write
+      # configure-pages reads the site's base path; only deploy writes.
+      pages: read
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

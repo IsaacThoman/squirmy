@@ -65,7 +65,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     origin: config.NODE_ENV === 'production' ? false : devOrigins,
     credentials: true,
   })
-  // Opt-in per route (login, setup, register). Counters are per process.
+  // Opt-in per route: login, setup, register, password changes and provider deliveries. Counters are per process.
   await app.register(rateLimit, { global: false })
   await app.register(multipart, { limits: { fileSize: 16 * 1024 ** 3 } })
 

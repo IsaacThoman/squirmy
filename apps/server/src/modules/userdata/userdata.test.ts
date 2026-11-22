@@ -1,12 +1,12 @@
 import {
   AlbumDetail, AlbumPage, ArtistPage, HistoryPage, Ok, PlaylistDetail, PlaylistPage, PlaylistSummary, queryKeys, TrackPage, TrackSummary, UserSettings, WantPage,
 } from '@squirmy/contracts'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, assets, playlistItems, recordings, users, wants } from '../../database/schema.js'
+import { albums, assets, playlistItems, ratings, recordings, users, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { invalidate } from '../../realtime/index.js'
@@ -14,7 +14,7 @@ import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createFile, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
-import { getRatings, setRating } from './likes.js'
+import { setRating } from './likes.js'
 import { refreshWants } from './wants.js'
 
 vi.mock('../../realtime/index.js', async (importOriginal) => ({
@@ -128,16 +128,20 @@ describe('userdata', () => {
       expect(errorCode(await app.inject({ url: '/api/v1/me/likes/track' }), 401)).toBe('unauthorized')
     })
 
+    // The app reads ratings in Subsonic's queries only; this reads what setRating stored.
+    const trackRatings = async (userId: string, ids: string[]) => new Map((await db.select({ id: ratings.entityId, rating: ratings.rating }).from(ratings)
+      .where(and(eq(ratings.userId, userId), eq(ratings.entityType, 'recording'), inArray(ratings.entityId, ids)))).map((row) => [row.id, row.rating]))
+
     it('sets and reads ratings', async () => {
       const album = await createAlbum()
       const track = album.tracks[0]!.recordingId
       await setRating(mira.id, 'track', track, 4)
       await setRating(mira.id, 'track', track, 5)
       await setRating(mira.id, 'album', album.albumId, 2)
-      expect(await getRatings(mira.id, 'track', [track, album.tracks[1]!.recordingId])).toEqual(new Map([[track, 5]]))
-      expect(await getRatings(lune.id, 'track', [track])).toEqual(new Map())
+      expect(await trackRatings(mira.id, [track, album.tracks[1]!.recordingId])).toEqual(new Map([[track, 5]]))
+      expect(await trackRatings(lune.id, [track])).toEqual(new Map())
       await setRating(mira.id, 'track', track, 0)
-      expect(await getRatings(mira.id, 'track', [track])).toEqual(new Map())
+      expect(await trackRatings(mira.id, [track])).toEqual(new Map())
       await expect(setRating(mira.id, 'track', track, 6)).rejects.toMatchObject({ code: 'invalid_rating' })
       await expect(setRating(mira.id, 'artist', newId(), 3)).rejects.toMatchObject({ code: 'artist_not_found' })
     })
