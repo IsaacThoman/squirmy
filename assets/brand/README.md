@@ -8,6 +8,7 @@ Squirmy's mascot is an earthworm, modelled and rendered in Blender by
 | `apps/mobile/assets/Squirmy.icon` | iOS icon (Icon Composer): `earthworm-body.png` with `earthworm-face.png` on top as a glass layer. Fill is `#f4f0fc` in light mode, `#1d1929` in dark. |
 | `apps/mobile/assets/icon.png` | Flattened headshot on `#1d1929`. Expo's default icon. |
 | `apps/mobile/assets/adaptive-icon.png` | Android adaptive icon foreground, on `#f4f0fc`. |
+| `apps/mobile/assets/splash-icon.png`, `squirmy-mark.png` | iOS splash screen and in-app logo: the simplified head on a transparent background. |
 | `apps/web/public/squirmy-mark.png`, `squirmy-mark-64.png` | In-app logo: the simplified head on a transparent background. |
 | `apps/web/public/favicon.ico` | 16, 32 and 48 px, from the simplified head on `#1d1929`. |
 | `apps/web/public/icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | The headshot on `#1d1929`. |
