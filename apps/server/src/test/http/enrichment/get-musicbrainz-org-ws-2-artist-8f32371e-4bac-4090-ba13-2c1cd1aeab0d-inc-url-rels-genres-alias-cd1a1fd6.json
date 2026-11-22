@@ -1,0 +1,147 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/artist/8f32371e-4bac-4090-ba13-2c1cd1aeab0d?inc=url-rels+genres+aliases&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "gender-id": null,
+      "type": "Group",
+      "relations": [
+        {
+          "begin": null,
+          "source-credit": "",
+          "ended": false,
+          "type": "official homepage",
+          "target-type": "url",
+          "url": {
+            "resource": "https://nirvana-uk.com/",
+            "id": "a2b67ccf-9583-4f9d-8ce4-5ca2a7905716"
+          },
+          "target-credit": "",
+          "direction": "forward",
+          "attribute-ids": {},
+          "attributes": [],
+          "end": null,
+          "attribute-values": {},
+          "type-id": "fe33d22f-c3b0-4d68-bd53-a856badf2b15"
+        },
+        {
+          "target-credit": "",
+          "url": {
+            "id": "8606bbe8-a4d0-498b-a50a-507f99207e53",
+            "resource": "https://www.nirvanauk.com/"
+          },
+          "ended": true,
+          "source-credit": "",
+          "begin": null,
+          "target-type": "url",
+          "type": "official homepage",
+          "end": null,
+          "attribute-values": {},
+          "type-id": "fe33d22f-c3b0-4d68-bd53-a856badf2b15",
+          "attribute-ids": {},
+          "direction": "forward",
+          "attributes": []
+        },
+        {
+          "type": "social network",
+          "target-type": "url",
+          "begin": null,
+          "source-credit": "",
+          "ended": false,
+          "url": {
+            "id": "3712d17e-36c2-4e44-aa87-f54a44a623f2",
+            "resource": "https://www.facebook.com/NirvanaUKtributeband"
+          },
+          "target-credit": "",
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+          "attribute-values": {},
+          "end": null
+        },
+        {
+          "type-id": "99429741-f3f6-484b-84f8-23af51991770",
+          "attribute-values": {},
+          "end": null,
+          "attributes": [],
+          "direction": "forward",
+          "attribute-ids": {},
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.instagram.com/nirvana_uk/",
+            "id": "ee981252-969d-4ab2-a76f-79bb8d7dc7ae"
+          },
+          "target-type": "url",
+          "type": "social network",
+          "ended": false,
+          "begin": null,
+          "source-credit": ""
+        },
+        {
+          "end": null,
+          "attribute-values": {},
+          "type-id": "6a540e5b-58c6-4192-b6ba-dbc71ec8fcf0",
+          "attribute-ids": {},
+          "direction": "forward",
+          "attributes": [],
+          "target-credit": "",
+          "url": {
+            "id": "8cb6c1a1-7ee8-4e76-a507-6d5a3526dcaf",
+            "resource": "https://www.youtube.com/@nirvanauk"
+          },
+          "ended": false,
+          "source-credit": "",
+          "begin": null,
+          "target-type": "url",
+          "type": "youtube"
+        }
+      ],
+      "begin-area": null,
+      "genres": [
+        {
+          "disambiguation": "",
+          "id": "ceeaa283-5d7b-4202-8d1d-e25d116b2a18",
+          "count": 1,
+          "name": "alternative rock"
+        },
+        {
+          "count": 1,
+          "disambiguation": "",
+          "id": "3f08faa9-6c3e-4b6d-b4b8-08eea45954e2",
+          "name": "grunge"
+        }
+      ],
+      "life-span": {
+        "begin": null,
+        "end": null,
+        "ended": false
+      },
+      "end-area": null,
+      "country": "GB",
+      "disambiguation": "tribute band",
+      "ipis": [],
+      "name": "Nirvana UK",
+      "area": {
+        "name": "West Midlands",
+        "type-id": null,
+        "type": null,
+        "sort-name": "West Midlands",
+        "id": "07607044-8140-47ba-bb24-7129babe586b",
+        "disambiguation": ""
+      },
+      "gender": null,
+      "aliases": [],
+      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+      "id": "8f32371e-4bac-4090-ba13-2c1cd1aeab0d",
+      "sort-name": "Nirvana UK",
+      "isnis": []
+    }
+  }
+}

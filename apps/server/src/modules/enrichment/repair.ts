@@ -3,7 +3,11 @@
  * now. Idempotent, so it runs at worker start and daily.
  *
  * 1. Store editions merged into their release group's row are split off again (`editions.ts`).
- * 2. Deezer-only artist rows that are a second Deezer page of another row of their name are
+ *    Edition rows of one group that are one edition (the same name, track count and ISRCs)
+ *    are merged (`mergeDuplicateEditions`).
+ * 2. Artists bridged by name to the wrong MusicBrainz artist (a Deezer namesake hint it
+ *    does not fit, a tribute act) are unlinked to be bridged again (`unlinkContradictedBridges`).
+ *    Deezer-only artist rows that are a second Deezer page of another row of their name are
  *    merged into it (`foldArtistCopies`); namesakes stay apart.
  * 3. Every artist's duplicate album rows are merged (`reconcileAllArtists`), and artist rows
  *    built from a delivery's tags that only merged rows still credit are folded into the
@@ -29,7 +33,8 @@ import { decodeEntities } from '../metadata/deezer.js'
 import { refreshTopTracks, repickArtistImage } from './artist.js'
 import { foldArtistCopies } from './artist-copies.js'
 import { linkDeezerAlbum } from './deezer-rows.js'
-import { splitMergedEditions } from './editions.js'
+import { mergeDuplicateEditions, splitMergedEditions } from './editions.js'
+import { unlinkContradictedBridges } from './namesakes.js'
 import { foldTagBuiltArtists, reconcileAllArtists, reconcileArtistAlbums } from './reconcile.js'
 import { attempt } from './rows.js'
 
@@ -42,7 +47,7 @@ const explicitBatch = 200
 const imageBatch = 100
 
 export type RepairReport = {
-  editions: number; artistCopies: number; merged: number; tagArtists: number; decoded: number; years: number; explicitAlbums: number
+  editions: number; duplicateEditions: number; unlinked: number; artistCopies: number; merged: number; tagArtists: number; decoded: number; years: number; explicitAlbums: number
   topTrackArtists: number; rankedArtists: number; imageArtists: number
 }
 
@@ -50,6 +55,9 @@ export async function repairReleases(): Promise<RepairReport> {
   const settings = await getServerSettings()
   const deezerEnabled = settings.deezerEnabled
   const editions = deezerEnabled ? await splitMergedEditions() : 0
+  const duplicateEditions = await mergeDuplicateEditions()
+  // Wrong bridges first, so the second-page merges below do not build on them.
+  const unlinked = settings.musicBrainzEnabled && deezerEnabled ? await unlinkContradictedBridges() : 0
   // Second Deezer pages first: the albums they bring then fold into the artist's below.
   const artistCopies = await foldArtistCopies()
   const merged = await reconcileAllArtists()
@@ -57,7 +65,7 @@ export async function repairReleases(): Promise<RepairReport> {
   const decoded = await decodeStoredEntities()
   const years = await backfillYears()
   const imageArtists = settings.musicBrainzEnabled ? await repairImages() : 0
-  if (!deezerEnabled) return { editions, artistCopies, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0, rankedArtists: 0, imageArtists }
+  if (!deezerEnabled) return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0, rankedArtists: 0, imageArtists }
   const explicitAlbums = await backfillExplicit()
   // Popular Deezer tracks on no release and without an album: the artist page showed them with no artwork.
   const artists = await db.execute<{ id: string }>(sql`
@@ -80,7 +88,7 @@ export async function repairReleases(): Promise<RepairReport> {
       and exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'artist' and e.entity_id = a.id)
     order by md5(a.id::text || current_date::text) limit ${topTrackBatch}`)
   for (const artist of unranked) await refreshTopTracks(artist.id)
-  return { editions, artistCopies, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length, rankedArtists: unranked.length, imageArtists }
+  return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length, rankedArtists: unranked.length, imageArtists }
 }
 
 const encoded = `'&(#x?[0-9a-f]+|amp|quot|lt|gt|apos|nbsp);'`
