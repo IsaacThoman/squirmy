@@ -1,6 +1,7 @@
 import { SearchQuery, type SearchResults } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { requireUser } from '../../lib/auth.js'
+import { dropCachedReads } from '../../lib/read-cache.js'
 import { matchKey } from '../../lib/text.js'
 import { albumSummaries, artistSummaries, trackSummaries } from '../catalog/summaries.js'
 import { searchLibrary } from './library.js'
@@ -37,6 +38,10 @@ export async function searchRoutes(app: FastifyInstance) {
     if ([...matchKey(q)].length < minQueryLength) return empty
     const { provider, results } = await searchCatalog(q, limit)
     if (!provider) return empty
-    return respond(user.id, q, await materialize(provider.idSource, results), provider.name)
+    const ids = await materialize(provider.idSource, results)
+    // Stubs credit artists and fill in missing covers, which artist pages, album pages and
+    // lists show, and nothing announces them, so cached reads go (lib/read-cache.ts).
+    dropCachedReads('all', [['catalog-stubs']])
+    return respond(user.id, q, ids, provider.name)
   })
 }
