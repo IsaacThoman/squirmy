@@ -237,13 +237,20 @@ function TopResultButton({ title, subtitle, cover, size, dim, zoom, playable, on
   </Button>;
 }
 
-export function AlbumMetadata({ title, info, artist }: AlbumMetadataProps) {
+export function AlbumMetadata({ title, info, artist, artistLinks = [] }: AlbumMetadataProps) {
   const colors = useColors();
+  const artistFont = font({ textStyle: 'title3', weight: artistLinks.length ? 'semibold' : 'medium' });
+  const artistLine = artist ? <Text modifiers={[artistFont, multilineTextAlignment('center'),
+    ...(artistLinks.length ? [foregroundStyle(colors.accent)] : [])]}>{artist}</Text> : undefined;
   return <Host alignment="top" matchContents={{ vertical: true }} style={styles.metadata}>
     <VStack spacing={4}>
       <Text modifiers={[font({ textStyle: 'largeTitle', weight: 'bold' }), multilineTextAlignment('center'),
         accessibilityAddTraits(['isHeader'])]}>{title}</Text>
-      {artist && <Text modifiers={[font({ textStyle: 'title3', weight: 'medium' }), multilineTextAlignment('center')]}>{artist}</Text>}
+      {artistLinks.length === 1 ? <Button modifiers={[plainButton, hitShape]} onPress={artistLinks[0].open}>{artistLine}</Button>
+        : artistLinks.length > 1 ? <Menu modifiers={[plainButton, menuIndicator('hidden')]} label={artistLine}>
+          {artistLinks.map(link => <Button key={link.name} label={link.name} systemImage="music.mic" onPress={link.open} />)}
+        </Menu>
+        : artistLine}
       <Text modifiers={[footnote, foregroundStyle(colors.muted), multilineTextAlignment('center')]}>{info}</Text>
     </VStack>
   </Host>;

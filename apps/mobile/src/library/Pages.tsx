@@ -23,7 +23,7 @@ import { usePlaybackState } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
 import { AlbumStatusBlur } from './AlbumStatusBlur';
-import { AlbumMetadata, CollectionGrid } from './BrowseControls';
+import { AlbumMetadata, CollectionGrid, type AlbumMetadataProps } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
@@ -54,6 +54,7 @@ type DetailProps = {
   tint: string | null;
   title: string;
   artist?: string;
+  artistLinks?: AlbumMetadataProps['artistLinks'];
   info: string;
   buttons?: AlbumPlaybackProps['actions'];
   nav: readonly (AlbumNavProps | false)[];
@@ -73,7 +74,7 @@ type DetailProps = {
  * the play buttons, and the content below. Scrolling past the cover blurs the status bar.
  */
 function DetailPage({
-  item, tint, title, artist, info, buttons, nav, status, description, onBack, onEndReached, onRefresh, bottomInset, children,
+  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, onRefresh, bottomInset, children,
 }: DetailProps) {
   const colors = useColors();
   const styles = useStyles();
@@ -120,7 +121,7 @@ function DetailPage({
           locations={[0, 1]} style={StyleSheet.absoluteFill} />}
         {/* The shadow needs the cover's shape and an opaque fill to be drawn efficiently. */}
         <ZoomTarget style={StyleSheet.flatten([styles.art, { borderRadius: artRadius }])}><CollectionCover item={item} size={artSize} radius={artRadius} /></ZoomTarget>
-        <AlbumMetadata title={title} artist={artist} info={info} />
+        <AlbumMetadata title={title} artist={artist} artistLinks={artistLinks} info={info} />
         {buttons && buttons.length > 0 && <AlbumPlaybackButtons title={title} actions={buttons} />}
         {status}
       </View>
@@ -171,7 +172,7 @@ function playButtons(tracks: readonly TrackSummary[], canPlay: (track: TrackSumm
   ];
 }
 
-export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }: PageProps) {
+export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const album = useAlbum(id);
   const kept = useDownloadedAlbum(id);
   const data = album.data ?? kept;
@@ -201,7 +202,10 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
       want('album', data.id, data.title);
     } }];
 
-  return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title} artist={data.artistCredit}
+  const artistLinks = data.artists.map(artist => ({ name: artist.name, open: () => { tapFeedback(); onOpen(link('artist', artist.id)); } }));
+
+  return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
+    artist={data.artistCredit} artistLinks={artistLinks}
     info={[typeNames[data.type], data.genres[0], data.year, owned].filter(Boolean).join('  ·  ')}
     buttons={buttons.length ? buttons : wantButton} status={control.status}
     nav={[

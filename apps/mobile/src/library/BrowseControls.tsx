@@ -25,7 +25,8 @@ export type GenreCardProps = { title: string; color: string; width: number; cove
 export type HeroActionsProps = { title: string; artist: string; onOpen: () => void; onPlay: () => void };
 export type CollectionGridProps = { items: readonly (CollectionButtonProps & { id: string })[]; columns: number };
 export type GenreGridProps = { items: readonly (GenreCardProps & { id: string })[] };
-export type AlbumMetadataProps = { title: string; info: string; artist?: string };
+/** `artistLinks` makes the artist line open those artists' pages: one directly, several from a choice. */
+export type AlbumMetadataProps = { title: string; info: string; artist?: string; artistLinks?: readonly { name: string; open: () => void }[] };
 /**
  * The search result to lead with. With `href` it opens that page, which zooms out of its
  * cover; without, pressing it runs `onPress`. `onPlay` adds a play button.
@@ -168,11 +169,22 @@ function TopResultButton({ title, subtitle, cover, dim, playable, onPress }: Omi
   </Pressable>;
 }
 
-export function AlbumMetadata({ title, info, artist }: AlbumMetadataProps) {
+export function AlbumMetadata({ title, info, artist, artistLinks = [] }: AlbumMetadataProps) {
   const styles = useStyles();
+  const openArtist = () => {
+    if (artistLinks.length === 1) artistLinks[0].open();
+    else Alert.alert(artist ?? '', undefined, [
+      ...artistLinks.map(link => ({ text: link.name, onPress: link.open })),
+      { text: 'Cancel', style: 'cancel' as const },
+    ]);
+  };
   return <View style={styles.metadata}>
     <Text accessibilityRole="header" style={styles.albumTitle}>{title}</Text>
-    {artist && <Text style={styles.artist}>{artist}</Text>}
+    {artist && (artistLinks.length
+      ? <Pressable accessibilityRole="link" onPress={openArtist} hitSlop={8} style={({ pressed }) => pressed && styles.pressed}>
+        <Text style={[styles.artist, styles.artistLink]}>{artist}</Text>
+      </Pressable>
+      : <Text style={styles.artist}>{artist}</Text>)}
     <Text style={styles.subtitle}>{info}</Text>
   </View>;
 }
@@ -210,4 +222,5 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   metadata: { alignItems: 'center', gap: 3 },
   albumTitle: { color: colors.text, fontWeight: '800', fontSize: 31, textAlign: 'center' },
   artist: { color: colors.text, fontSize: 17, textAlign: 'center' },
+  artistLink: { color: colors.accent, fontWeight: '600' },
 }));
