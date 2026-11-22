@@ -18,6 +18,7 @@ import {
 } from './library/BrowseControls';
 import { isEmptyGroup, searchSections, type SearchGroup, type SearchSections } from './library/search';
 import type { Page } from './library/links';
+import { underStatusBar, useRefreshControl } from './library/refresh';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
   onScrollNearEnd, playlistCollection, QueryState, SectionTitle, tapFeedback, useOfflineDim, type Collection,
@@ -112,12 +113,14 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const hero = albums('recently-played')?.[0] ?? albums('recently-added')?.[0];
   const heroSize = width - gutter * 2;
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
+  const refreshControl = useRefreshControl(home.refetch, top);
+  const statusBar = underStatusBar(top);
 
   return <View style={styles.page}>
     <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
       locations={[0, top / (top + 14), 1]} style={[styles.statusFade, { height: top + 14 }]} />
-    <ScrollView contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={{ paddingTop: top + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
+    <ScrollView contentInsetAdjustmentBehavior="never" refreshControl={refreshControl} {...statusBar.props}
+      contentContainerStyle={{ paddingTop: statusBar.contentTop + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       <View style={[styles.pageHeader, styles.homeHeader]}>
         <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Listen now</Text>
         {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
@@ -178,6 +181,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
     [query, songs.items]);
   const empty = filter === 'Songs' ? !tracks.length : !items.length;
   const libraryEmpty = albums.data && !albums.items.length && !query;
+  const refreshControl = useRefreshControl(() => Promise.all([active.refetch(), showsPlaylists && active !== playlists && playlists.refetch()]));
 
   const newPlaylist = () => {
     tapFeedback();
@@ -200,7 +204,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       <LibraryFilters options={filters} value={filter} onChange={value => { tapFeedback(); setFilter(value); }} />
     </View>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" scrollEventThrottle={100}
-      onScroll={onScrollNearEnd(active.loadMore)}
+      onScroll={onScrollNearEnd(active.loadMore)} refreshControl={refreshControl}
       contentContainerStyle={[styles.libraryBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}>
       <View style={styles.sortRow}>
         {filter === 'Playlists'
@@ -330,6 +334,10 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const answered = search.library.data !== undefined || search.catalog.data !== undefined;
   const genreNames = (genres.data ?? []).slice(0, 6).map(genre => genre.name);
   const genreCovers = useGenreCovers(genreNames);
+  const queryClient = useQueryClient();
+  const refreshControl = useRefreshControl(() => active
+    ? Promise.all([search.library.refetch(), search.catalog.refetch()])
+    : Promise.all([genres.refetch(), queryClient.refetchQueries({ queryKey: [...queryKeys.libraryAlbums(), 'genre'], type: 'active' })]));
 
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
@@ -338,7 +346,8 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
       <OfflineBadge />
     </View>
     <View style={styles.searchHeader}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists" /></View>
-    <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
+    <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" refreshControl={refreshControl}
+      contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       {!active ? genreNames.length > 0 && <>
         <SectionTitle title="Browse by genre" />
         <View style={styles.genres}>

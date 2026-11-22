@@ -29,6 +29,7 @@ import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useOfflineDim, type Collection,
 } from './shared';
+import { underStatusBar, useRefreshControl } from './refresh';
 import { SongList } from './SongList';
 import { ZoomTarget } from './ZoomLink';
 
@@ -61,6 +62,8 @@ type DetailProps = {
   description?: string | null;
   onBack: () => void;
   onEndReached?: () => void;
+  /** Reloads what the page shows, for pull to refresh. */
+  onRefresh: () => Promise<unknown>;
   bottomInset: number;
   children: ReactNode;
 };
@@ -69,23 +72,31 @@ type DetailProps = {
  * The page a collection zooms open into: its cover over the collection's tint, the title,
  * the play buttons, and the content below. Scrolling past the cover blurs the status bar.
  */
-function DetailPage({ item, tint, title, artist, info, buttons, nav, status, description, onBack, onEndReached, bottomInset, children }: DetailProps) {
+function DetailPage({
+  item, tint, title, artist, info, buttons, nav, status, description, onBack, onEndReached, onRefresh, bottomInset, children,
+}: DetailProps) {
   const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const scrollOffset = useSharedValue(0);
+  const refreshControl = useRefreshControl(onRefresh, top);
+  const statusBar = underStatusBar(top);
+  const inset = statusBar.inset;
   const onScroll = useAnimatedScrollHandler(event => {
-    scrollOffset.value = event.contentOffset.y;
+    // Measured from the page's top edge, so it reads the same with or without a content inset.
+    scrollOffset.value = event.contentOffset.y + inset;
     if (onEndReached && nearEnd(event)) scheduleOnRN(onEndReached);
   });
   // Leave the gradient uninterrupted until the artwork approaches the status bar.
   const blurStyle = useAnimatedStyle(() => ({
     opacity: interpolate(scrollOffset.value, [albumNavSize, albumNavSize + 20], [0, 1], Extrapolation.CLAMP),
   }));
-  const overscrollStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: scrollOffset.value < 0 ? 1 - scrollOffset.value : 0 }],
-  }));
+  // Fill whatever shows above the header (the status bar inset, an overscroll) with its tint.
+  const overscrollStyle = useAnimatedStyle(() => {
+    const visible = inset - scrollOffset.value;
+    return { transform: [{ translateY: visible > 0 ? visible + 1 : 0 }] };
+  });
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const artRadius = item.round ? artSize / 2 : 17;
   const headerColor = tint ? interpolateColor(colors.albumTint, [0, 1], [colors.background, tint], 'RGB', { gamma: 1 }) : colors.background;
@@ -102,9 +113,9 @@ function DetailPage({ item, tint, title, artist, info, buttons, nav, status, des
       </View>
     </View>
     <Animated.ScrollView contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
-      contentContainerStyle={{ paddingBottom: bottomInset }}
+      refreshControl={refreshControl} {...statusBar.props} contentContainerStyle={{ paddingBottom: bottomInset }}
       showsVerticalScrollIndicator={false}>
-      <View style={[styles.header, { paddingTop: top + albumNavSize + 12 }]}>
+      <View style={[styles.header, { paddingTop: statusBar.contentTop + albumNavSize + 12 }]}>
         {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
           locations={[0, 1]} style={StyleSheet.absoluteFill} />}
         {/* The shadow needs the cover's shape and an opaque fill to be drawn efficiently. */}
@@ -201,7 +212,7 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
         onPress: () => { tapFeedback(); want('album', data.id, data.title); } },
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
-    description={data.description} onBack={onBack} bottomInset={bottomInset}>
+    description={data.description} onBack={onBack} onRefresh={album.refetch} bottomInset={bottomInset}>
     <TrackSection title="Tracklist" detail={songCount(tracks, data.durationMs)}>
       <SongList tracks={tracks} numbered onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
     </TrackSection>
@@ -215,7 +226,7 @@ export function PlaylistScreen(props: PageProps) {
   return <UserPlaylistScreen {...props} />;
 }
 
-function TrackListPage({ item, title, info, tracks, context, empty, loadMore, loadingMore, download, props }: {
+function TrackListPage({ item, title, info, tracks, context, empty, loadMore, loadingMore, refresh, download, props }: {
   item: Collection;
   title: string;
   info: string;
@@ -224,6 +235,7 @@ function TrackListPage({ item, title, info, tracks, context, empty, loadMore, lo
   empty: { title: string; description: string };
   loadMore: () => void;
   loadingMore: boolean;
+  refresh: () => Promise<unknown>;
   download?: ReturnType<typeof useDownloadControl>;
   props: PageProps;
 }) {
@@ -235,7 +247,7 @@ function TrackListPage({ item, title, info, tracks, context, empty, loadMore, lo
   };
   return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play)}
     nav={download ? [download.nav] : []} status={download?.status}
-    onBack={props.onBack} onEndReached={loadMore} bottomInset={props.bottomInset ?? 155}>
+    onBack={props.onBack} onEndReached={loadMore} onRefresh={refresh} bottomInset={props.bottomInset ?? 155}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)}>
       <SongList tracks={tracks} onPlay={start => play(undefined, start)} onTrackMenu={track => props.onTrackMenu(track)} />
       {loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} />}
@@ -253,7 +265,7 @@ function LikedScreen(props: PageProps) {
   useBackSwipeOnly();
   if (!tracks) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
   return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={tracks} download={control}
-    context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage}
+    context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage} refresh={liked.refetch}
     empty={{ title: 'No liked songs yet', description: 'Tap the heart on any song to add it to Liked Songs.' }} props={props} />;
 }
 
@@ -263,7 +275,7 @@ function HistoryScreen(props: PageProps) {
   if (!history.data) return <PageFallback query={history} what="your history" onBack={props.onBack} />;
   return <TrackListPage item={recentCollection(props.link)} title="Recently Played" info="Listening history"
     tracks={history.items.map(item => item.track)} context={{ type: 'history', id: null, title: 'Recently Played' }}
-    loadMore={history.loadMore} loadingMore={history.isFetchingNextPage}
+    loadMore={history.loadMore} loadingMore={history.isFetchingNextPage} refresh={history.refetch}
     empty={{ title: 'Nothing played yet', description: 'Play a song and it will appear in your history.' }} props={props} />;
 }
 
@@ -325,7 +337,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       mine && { icon: 'ellipsis', label: `Manage ${data.name}`, onPress: manage },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
-    onBack={onBack} bottomInset={bottomInset}>
+    onBack={onBack} onRefresh={playlist.refetch} bottomInset={bottomInset}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)}>
       <SongList tracks={tracks} onPlay={start => play(undefined, start)}
         onTrackMenu={(track, index) => onTrackMenu(track, mine ? { id: data.id, itemId: data.items[index]!.itemId } : undefined)}
@@ -375,7 +387,7 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
       data.inLibrary && !offline && { icon: 'dot.radiowaves.left.and.right', label: `Start a radio for ${data.name}`, onPress: radio },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
-    onBack={onBack} bottomInset={bottomInset}>
+    onBack={onBack} onRefresh={artist.refetch} bottomInset={bottomInset}>
     {top.length > 0 && <TrackSection title="Top songs">
       <SongList tracks={top.slice(0, 5)} onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
     </TrackSection>}
@@ -403,12 +415,13 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
   const onScroll = useAnimatedScrollHandler(event => {
     if (nearEnd(event)) scheduleOnRN(albums.loadMore);
   });
+  const refreshControl = useRefreshControl(albums.refetch);
   const columns = width >= 650 ? 4 : 3;
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
     <View style={styles.fallbackNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
     <Animated.ScrollView contentContainerStyle={[styles.genreBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
-      onScroll={onScroll} scrollEventThrottle={100}>
+      onScroll={onScroll} scrollEventThrottle={100} refreshControl={refreshControl}>
       <Text accessibilityRole="header" style={styles.genreTitle}>{id}</Text>
       {!albums.data && <QueryState query={albums} what={id} />}
       <CollectionGrid columns={columns} items={albums.items.map(album => {
