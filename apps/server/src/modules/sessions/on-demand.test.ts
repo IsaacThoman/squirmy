@@ -162,4 +162,28 @@ describe('sessions with on-demand tracks', () => {
     expect((await jobsFor(album.ids)).map((job) => job.recordingId)).toEqual(album.ids.slice(0, 6))
     expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: album.ids[0], state: 'preparing' })
   }, 30_000)
+
+  it('fetches ahead and pauses on an outage in a detached device\'s own session, telling that device alone', async () => {
+    const user = await signIn({ canAcquire: true })
+    const laptop = await device(user)
+    const phone = await device(user)
+    expect(await phone.client.detach()).toEqual({ ok: true })
+
+    // Five ahead, as in the shared session.
+    mock.settings.delayMs = 20_000
+    const ahead = await remoteAlbum(13)
+    play(phone, ahead)
+    await eventually(async () => expect((await jobsFor(ahead.ids)).map((job) => job.recordingId)).toEqual(ahead.ids.slice(0, 6)), 10_000)
+    mock.settings.delayMs = 0
+
+    mock.settings.fail = true
+    const album = await remoteAlbum(20)
+    play(phone, album)
+    await eventually(() => expect(phone.client.getSnapshot().session).toMatchObject({ playing: false, current: { state: 'failed' } }))
+    const current = phone.client.getSnapshot().session.current!
+    await eventually(() => expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toEqual([{ type: 'playback.unavailable', trackId: current.trackId }]))
+    expect(laptop.events.filter((event) => event.type === 'playback.unavailable')).toEqual([])
+    expect(laptop.client.getSnapshot().session.current).toBeNull()
+    mock.settings.fail = false
+  }, 90_000)
 })
