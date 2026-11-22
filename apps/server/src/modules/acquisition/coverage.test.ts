@@ -14,7 +14,7 @@ import { albumAvailability, trackAvailability } from '../catalog/availability.js
 import { acquisitionModule } from './index.js'
 import { onDemandRecordings } from './coverage.js'
 import { createProvider, invalidateProviders, testProvider, updateProvider } from './providers.js'
-import { configureResolve, flushResolves, MISS_TTL_MS, resetResolveQueue } from './resolve.js'
+import { configureResolve, flushResolves, MISS_TTL_MS, recordMisses, resetResolveQueue } from './resolve.js'
 
 /** Collects `invalidate` keys published on the realtime channel. */
 async function invalidations() {
@@ -93,7 +93,7 @@ describe('on-demand coverage', () => {
     const album = await createAlbum({ tracks: [{ title: 'One' }, { title: 'Two' }, { title: 'Three' }] })
     const [one, two, three] = album.tracks.map((track) => track.recordingId) as [string, string, string]
     await createFile({ rootId: root.id, recordingId: three })
-    await db.insert(acquisitionMisses).values({ providerId: created.id, entityType: 'recording', entityId: two, reason: 'test' })
+    await recordMisses(db, created.id, 'recording', [two], 'test')
 
     expect(await onDemandRecordings([one, two])).toEqual(new Set([one]))
     expect(await trackAvailability([one, two, three])).toEqual(new Map([[one, 'on_demand'], [two, 'none'], [three, 'server']]))

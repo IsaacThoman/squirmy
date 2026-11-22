@@ -784,6 +784,17 @@ export const acquisitionProviders = pgTable('acquisition_providers', {
   failingSince: at('failing_since'),
   /** Recordings that failed since `failingSince` (a few at most): enough of them is an outage. */
   failingRecordings: uuid('failing_recordings').array().notNull().default(sql`'{}'::uuid[]`),
+  /**
+   * Which build of the provider answered `capabilities` last: its declared version and a
+   * hash of the whole answer (`providerIdentity`). Null until the first answer.
+   */
+  identity: text('identity'),
+  /**
+   * Bumped whenever the provider changes (another identity, re-enabled, a new address or
+   * secret) or an admin retries its unavailable tracks. Only misses recorded at the current
+   * epoch count, so a fixed provider is asked again for what an older one could not supply.
+   */
+  missEpoch: integer('miss_epoch').notNull().default(0),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })
@@ -844,6 +855,10 @@ export const acquisitionMisses = pgTable('acquisition_misses', {
   entityType: text('entity_type').$type<'album' | 'recording'>().notNull(),
   entityId: uuid('entity_id').notNull(),
   reason: text('reason'),
+  /** The provider's `miss_epoch` when this was recorded; it counts only while that is current. */
+  providerEpoch: integer('provider_epoch').notNull().default(0),
+  /** The provider's `identity` when this was recorded, for the history. */
+  providerIdentity: text('provider_identity'),
   createdAt: createdAt(),
 }, (t) => [
   primaryKey({ columns: [t.providerId, t.entityType, t.entityId] }),

@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import {
   AcquireQuery, AcquisitionJobListQuery, CreateAcquisitionProviderRequest, Id, ProviderDeliveryComplete, UpdateAcquisitionPolicy, UpdateAcquisitionProviderRequest,
   type AcquireResponse, type AcquisitionJob, type AcquisitionJobList, type AcquisitionJobStatus, type AcquisitionPolicy, type AcquisitionProvider, type AcquisitionUsage,
-  type AcquisitionProviderList, type ImportFileResult, type Ok, type ProviderUploadResponse,
+  type AcquisitionProviderList, type ClearProviderMissesResponse, type ImportFileResult, type Ok, type ProviderUploadResponse,
 } from '@squirmy/contracts'
 import { and, desc, eq, inArray, lt, sql, type SQL } from 'drizzle-orm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
@@ -20,7 +20,7 @@ import {
 } from './jobs.js'
 import { cacheUsage, evictWhenOver } from './evict.js'
 import { getAcquisitionPolicy, updateAcquisitionPolicy } from './policy.js'
-import { createProvider, deleteProvider, listProviders, testProvider, updateProvider } from './providers.js'
+import { clearProviderMisses, createProvider, deleteProvider, listProviders, testProvider, updateProvider } from './providers.js'
 
 const IdParams = z.object({ id: Id })
 const JobParams = z.object({ jobId: Id })
@@ -157,6 +157,11 @@ export async function acquisitionRoutes(app: FastifyInstance) {
     return testProvider(IdParams.parse(request.params).id)
   })
 
+  app.post('/admin/acquisition/providers/:id/clear-misses', async (request): Promise<ClearProviderMissesResponse> => {
+    requireAdmin(request)
+    return clearProviderMisses(IdParams.parse(request.params).id)
+  })
+
   app.get('/admin/acquisition/policy', async (request): Promise<AcquisitionPolicy> => {
     requireAdmin(request)
     return getAcquisitionPolicy()
@@ -245,7 +250,7 @@ export async function acquisitionRoutes(app: FastifyInstance) {
     const job = await deliveringJob(request, JobParams.parse(request.params).jobId)
     const body = ProviderDeliveryComplete.parse(request.body)
     if (body.status === 'failed') {
-      await providerFailed(job, `The provider failed: ${body.error ?? 'no reason given'}`)
+      await providerFailed(job, `The provider failed: ${body.error ?? 'no reason given'}`, body)
     } else {
       await completeDelivery(job.id)
     }
