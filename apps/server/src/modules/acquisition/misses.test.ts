@@ -197,7 +197,7 @@ describe('provider misses', () => {
       const providerId = await rateLimited('assume_available')
       const user = await createUser({ canAcquire: true })
       const [one, two] = await tracks(2) as [string, string]
-      const job = async (recordingId: string, offer: unknown) => {
+      const job = async (recordingId: string, offer: Record<string, unknown> | null) => {
         const id = newId()
         await db.insert(acquisitionJobs).values({ id, providerId, requestedBy: user.id, recordingId, recordingIds: [recordingId], idempotencyKey: `recording:${recordingId}`, offer })
         return id
