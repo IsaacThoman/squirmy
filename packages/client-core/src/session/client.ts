@@ -262,6 +262,8 @@ export class SessionClient {
   /** The entry whose descriptor the server refused; not loaded again until play or a seek. */
   private refusedEntryId: string | null = null
   private preloadTarget: string | null = null
+  /** The entry `prepareTakeover` buffered while another device played. */
+  private takeover: string | null = null
   private preloadTrackId: string | null = null
   /** Bumped each time the preload is aimed; a resolve begun for an earlier aim is dropped. */
   private preloadToken = 0
@@ -469,6 +471,30 @@ export class SessionClient {
     if (name === this.device.name) return
     this.device = { ...this.device, name }
     if (this.transport.isConnected()) this.connect()
+  }
+
+  /**
+   * Gets this device ready to take playback over: resolves the current entry and has the
+   * engine buffer it, so a `transfer` here starts without waiting for either. For a pointer
+   * on "Play here", which is most often pressed next. Does nothing while this device plays,
+   * or when it has nothing to play.
+   */
+  prepareTakeover(): void {
+    const player = this.player
+    const current = this.local.current
+    if (!player || this.isActive() || !current || current.state !== 'ready' || this.takeover === current.id) return
+    this.takeover = current.id
+    this.describe(current).then(
+      descriptor => {
+        // The engine keeps what it buffers as the preload, which `load` reuses when the entry is the same.
+        if (this.isActive() || this.local.current?.id !== current.id || this.takeover !== current.id) return
+        player.engine.preload({ entryId: current.id, url: streamUrl(player.baseUrl, descriptor), gain: this.gainOf(current, descriptor, this.local) })
+      },
+      () => {
+        // The load after a transfer asks again and reports what fails.
+        if (this.takeover === current.id) this.takeover = null
+      },
+    )
   }
 
   /** Changes the normalization mode (the user's setting) and applies it at once. */
@@ -825,6 +851,7 @@ export class SessionClient {
     const session = this.local
     const current = session.current
     if (!this.isActive() || !current || current.state !== 'ready') return this.stopEngine()
+    this.takeover = null
 
     const status = engine.getStatus()
     if (status.entryId !== current.id) {
@@ -854,6 +881,11 @@ export class SessionClient {
 
   private stopEngine(): void {
     if (!this.player) return
+    // What was buffered for a takeover is dropped once another entry plays elsewhere.
+    if (this.takeover !== null && this.takeover !== this.local.current?.id) {
+      this.takeover = null
+      this.player.engine.preload(null)
+    }
     this.loadToken += 1
     this.loadingEntryId = null
     this.preloadTarget = null

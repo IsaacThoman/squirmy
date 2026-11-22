@@ -1036,6 +1036,50 @@ describe('SessionClient engine', () => {
     expect(calls('load')[0]![1]).toMatchObject({ startMs: 12_000, autoplay: true })
   })
 
+  it('buffers the current entry ahead of a takeover, and reuses it when the session comes here', async () => {
+    const { server, transport, client, engine, calls, settle, resolvePlayback } = setup()
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 }, WEB)
+    await settle()
+    client.prepareTakeover()
+    client.prepareTakeover()
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(engine.preloaded).toMatchObject({ entryId: current.id, url: `https://music.test/api/v1/stream/${track(1)}` })
+    expect(calls('load')).toEqual([])
+    expect(resolvePlayback).toHaveBeenCalledTimes(1)
+    client.dispatch({ type: 'transfer', deviceId: PHONE })
+    await settle()
+    transport.flush()
+    expect(calls('load')[0]![1]).toMatchObject({ entryId: current.id, autoplay: true })
+    // Resolved once for the takeover; the load took the same answer.
+    expect(resolvePlayback.mock.calls.filter(([entry]) => entry.id === current.id)).toHaveLength(1)
+  })
+
+  it('drops what it buffered for a takeover once another song plays elsewhere', async () => {
+    const { server, transport, client, engine, settle } = setup()
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 }, WEB)
+    await settle()
+    client.prepareTakeover()
+    await settle()
+    expect(engine.preloaded).not.toBeNull()
+    server.apply({ type: 'next' }, WEB)
+    transport.flush()
+    await settle()
+    expect(engine.preloaded).toBeNull()
+    expect(client.getSnapshot().isActiveDevice).toBe(false)
+  })
+
+  it('prepares no takeover on the device that plays', async () => {
+    const { client, engine, settle } = setup()
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await settle()
+    const preloaded = engine.preloaded
+    client.prepareTakeover()
+    await settle()
+    expect(engine.preloaded).toBe(preloaded)
+  })
+
   it('waits for a preparing entry, then loads it', async () => {
     const { server, transport, client, calls, settle } = setup()
     await settle()
