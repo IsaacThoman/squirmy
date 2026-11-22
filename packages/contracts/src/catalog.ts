@@ -155,7 +155,15 @@ export const TrackSummariesRequest = z.object({
   tracks: z.array(z.object({ id: Id, albumId: Id.nullable().optional() })).max(500),
 })
 export type TrackSummariesRequest = z.infer<typeof TrackSummariesRequest>
-export const TrackSummariesResponse = z.object({ tracks: z.array(TrackSummary) })
+export const TrackSummariesResponse = z.object({
+  tracks: z.array(TrackSummary),
+  /**
+   * For each item of `tracks`, the id the request named. It differs from the item's `id`
+   * when that track was merged into another, so a client can file the answer under the id
+   * it holds (a queue entry, a playlist item). Optional: older servers do not send it.
+   */
+  requestedIds: z.array(Id).optional(),
+})
 export type TrackSummariesResponse = z.infer<typeof TrackSummariesResponse>
 
 /** Responses of the library lists and of `GET /me/likes/:type`. */

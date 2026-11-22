@@ -9,7 +9,7 @@ import { requireUser } from '../../lib/auth.js'
 import { home } from './home.js'
 import { listLibraryAlbums, listLibraryArtists, listLibraryGenres, listLibraryTracks } from './library.js'
 import { albumDetail, artistDetail, trackDetail, trackLyrics } from './pages.js'
-import { trackSummaries } from './summaries.js'
+import { alignedTrackSummaries } from './summaries.js'
 
 const IdParams = z.object({ id: Id })
 
@@ -36,6 +36,8 @@ export async function catalogRoutes(app: FastifyInstance) {
 
   app.post('/tracks/summaries', async (request): Promise<TrackSummariesResponse> => {
     const body = TrackSummariesRequest.parse(request.body)
-    return { tracks: await trackSummaries(requireUser(request).id, body.tracks) }
+    const summaries = await alignedTrackSummaries(requireUser(request).id, body.tracks)
+    const found = summaries.flatMap((summary, index) => (summary ? [{ summary, requestedId: body.tracks[index]!.id }] : []))
+    return { tracks: found.map((one) => one.summary), requestedIds: found.map((one) => one.requestedId) }
   })
 }

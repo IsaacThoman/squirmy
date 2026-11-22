@@ -153,6 +153,17 @@ describe('catalog pages', () => {
     })
     const result = body(response, TrackSummariesResponse)
     expect(result.tracks.map((track) => track.id)).toEqual([b!.recordingId, a!.recordingId, b!.recordingId])
+    expect(result.requestedIds).toEqual([b!.recordingId, a!.recordingId, b!.recordingId])
+
+    // A merged id is answered with the row it was merged into, and says which id it stands for.
+    const loser = await createAlbum({ tracks: [{ title: 'Merged Away' }] })
+    const merged = loser.tracks[0]!.recordingId
+    await db.update(recordings).set({ mergedIntoId: a!.recordingId }).where(eq(recordings.id, merged))
+    const redirected = body(await app.inject({
+      method: 'POST', url: '/api/v1/tracks/summaries', headers: user.headers, payload: { tracks: [{ id: newId() }, { id: merged }] },
+    }), TrackSummariesResponse)
+    expect(redirected.tracks.map((track) => track.id)).toEqual([a!.recordingId])
+    expect(redirected.requestedIds).toEqual([merged])
 
     const tooMany = Array.from({ length: 501 }, () => ({ id: a!.recordingId }))
     const rejected = await app.inject({ method: 'POST', url: '/api/v1/tracks/summaries', headers: user.headers, payload: { tracks: tooMany } })
