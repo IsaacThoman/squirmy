@@ -55,7 +55,7 @@ Errors, shown as a toast and leaving everything as it was:
 
 While detached, the devices picker replaces the device list with what matters now:
 
-- A header: **Playing only on this device**, with the current track's title, if any.
+- A header: **Playing only on this device**, with the current track's title, if any. On iOS it reads **Only on this device**, the marker's words, with "Paused ·" before the title while paused, so it is right whether the phone plays or not.
 - **Rejoin your other devices**: attach as a remote. This device's own queue is discarded and its audio stops; it then shows whatever the shared session is doing (possibly "Playing on Living room").
 - **Bring this queue with me**, subtitle *Your other devices switch to what's playing here*: `attach({ bringQueue: true })`. This device stays the one playing, with no gap, and the shared session takes on its queue, history and settings. Whatever another device was playing stops. Hide this option when the own session has nothing in it (no current track and an empty queue); the server would refuse it with `nothing_to_bring`.
 

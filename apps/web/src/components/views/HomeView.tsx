@@ -16,8 +16,11 @@ import { useTrackActions } from '@/player/use-track-actions'
 
 export type ScanProgress = { processed: number; total: number }
 
+/** The album Home leads with, and what it is: the one last played, or the one last added. */
+export type Featured = { album: AlbumSummary; label: 'Jump back in' | 'Recently added' }
+
 type HomeViewProps = {
-  featured: AlbumSummary | null
+  featured: Featured | null
   /** Undefined while loading. */
   sections: HomeSection[] | undefined
   /** Nothing played, added or liked yet: no section has anything in it. */
@@ -46,10 +49,12 @@ export function HomeView({ featured, sections, empty, canAddMusic, canFindMusic 
           </div>
         )}
         {sections && empty && <EmptyLibrary canAddMusic={canAddMusic} canFindMusic={canFindMusic} scan={scan} />}
-        {featured && <Hero album={featured} label={featuredLabel(sections, featured)} onPlay={() => onPlayAlbum(featured)} />}
+        {featured && <Hero album={featured.album} label={featured.label} onPlay={() => onPlayAlbum(featured.album)} />}
         {sections?.map(section => {
           switch (section.kind) {
             case 'albums':
+              // The featured album was its rail's only one.
+              if (!section.albums.length) return null
               return (
                 // Only what was added is in the library; played albums have no page of their own.
                 <Rail key={section.id} title={section.title} href={section.id === 'recently-added' ? '/library?filter=albums' : undefined}>
@@ -75,12 +80,6 @@ export function HomeView({ featured, sections, empty, canAddMusic, canFindMusic 
       </Page>
     </>
   )
-}
-
-/** What the featured album is: the one last played, or the one last added. */
-function featuredLabel(sections: HomeSection[] | undefined, album: AlbumSummary) {
-  const played = sections?.find(section => section.id === 'recently-played')
-  return played?.kind === 'albums' && played.albums[0]?.id === album.id ? 'Jump back in' : 'Recently added'
 }
 
 function TrackSection({ title, tracks }: Pick<Extract<HomeSection, { kind: 'tracks' }>, 'title' | 'tracks'>) {

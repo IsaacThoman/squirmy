@@ -85,8 +85,11 @@ describe('availability', () => {
     expect(result.get(owned.albumId)?.availability).toBe('partial')
     expect(result.get(unowned.albumId)?.availability).toBe('on_demand')
 
-    // An album is on demand only when every one of its tracks is.
+    // One track a provider cannot supply leaves the rest playable: the album stays on demand
+    // (it used to turn the whole EP gray). Only when none can be had is it unavailable.
     covered.delete(unowned.tracks[1]!.recordingId)
+    expect((await albumAvailability([unowned.albumId])).get(unowned.albumId)?.availability).toBe('on_demand')
+    for (const track of unowned.tracks) covered.delete(track.recordingId)
     expect((await albumAvailability([unowned.albumId])).get(unowned.albumId)?.availability).toBe('none')
   })
 

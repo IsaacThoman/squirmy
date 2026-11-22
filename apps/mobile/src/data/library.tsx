@@ -3,14 +3,14 @@ import {
   queryKeys, type AlbumDetail, type LikeEntityType, type Page, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
   type WantEntityType,
 } from '@squirmy/contracts';
-import { useMutation, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
-import { useAccountKey, useSignedInApi, type Api } from '../account/AccountProvider';
+import { useAccountKey, useSignedInApi, useWantlistEnabled, type Api } from '../account/AccountProvider';
 import { useNotice } from '../Notice';
 import { accountItem } from './accountStorage';
-import { LikeQueue, type QueuedLike } from './likeQueue';
+import { LikeQueue, refusedNotice, type QueuedLike } from './likeQueue';
 import { findTrack, patchEntity, withLikedTrack } from './likePatch';
 import { useRealtime } from './realtime';
 
@@ -22,10 +22,17 @@ type LibraryValue = {
   likes: ReadonlyMap<LikeKey, boolean>;
   /**
    * The heart, the one way to save to or remove from the library. It shows at once with a
-   * notice that can undo it; a refusal sets it back with a notice. `title` names the item there.
+   * notice that can undo it; a refusal sets it back, and its notice, which replaces that one,
+   * can try again. `title` names the item there.
    */
   setLiked: (type: LikeEntityType, id: string, liked: boolean, title?: string) => void;
-  want: (type: WantEntityType, id: string, title: string) => void;
+  /** Whether the item is on the wantlist: as changed here, else as the server lists it (or says so itself, `fromServer`). */
+  isWanted: (id: string, fromServer?: boolean) => boolean;
+  /**
+   * Adds the item to the wantlist or takes it off, the same both ways as on web. It shows at
+   * once with a notice that can undo it; a refusal sets it back with a notice.
+   */
+  setWanted: (type: WantEntityType, id: string, wanted: boolean, title: string) => void;
 };
 
 const LibraryContext = createContext<LibraryValue | null>(null);
@@ -91,12 +98,16 @@ export function LibraryProvider({ children }: PropsWithChildren) {
     apiRef.current = api;
   }, [api]);
   const tracks = useMemo(() => new TrackStore(body => apiRef.current?.catalog.trackSummaries(body) ?? noSummaries()), [account]);
-  const queue = useMemo(() => api && account ? new LikeQueue(likeStorage(account), async ({ type, id, liked }) => {
+  const queue = useMemo(() => api && account ? new LikeQueue(likeStorage(account), async ({ type, id, liked }, savedAt) => {
     // The server tells this phone too; it already shows the change, so that echo is not refetched.
     expectEcho([type, id]);
-    await (liked ? api.userdata.like(type, id) : api.userdata.unlike(type, id));
+    // An Undo of a removal gives the save its old time back, so it keeps its place in the lists.
+    const answer = liked
+      ? await api.userdata.like(type, id, savedAt ? { savedAt } : {}).then(() => undefined)
+      : await api.userdata.unlike(type, id).then(removed => ({ savedAt: removed.savedAt }));
     // The library's lists, Home and Liked Songs now hold the change.
     invalidateLibrary(queryClient);
+    return answer;
   }) : null, [account, api, expectEcho, queryClient]);
   const [likes, setLikes] = useState<ReadonlyMap<LikeKey, boolean>>(new Map());
   useEffect(() => setLikes(new Map(queue?.pending.map(like => [`${like.type}:${like.id}`, like.liked] as const))), [queue]);
@@ -129,6 +140,8 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   const isOffline = useRef(offline);
   isOffline.current = offline;
   const retry = useRef<{ timer?: ReturnType<typeof setTimeout>; delayMs: number }>({ delayMs: retryFirstMs });
+  // `change`, for a refusal's Try again; it is made below, from `flush`.
+  const changeRef = useRef<(like: QueuedLike) => void>(() => undefined);
   const flush = useCallback(() => {
     if (!queue) return;
     clearTimeout(retry.current.timer);
@@ -136,7 +149,8 @@ export function LibraryProvider({ children }: PropsWithChildren) {
       for (const like of refused) {
         remember(`${like.type}:${like.id}`, undefined);
         patchLike(queryClient, like.type, like.id, !like.liked);
-        notify(like.liked ? 'Couldn’t save that to your library.' : 'Couldn’t remove that from your library.');
+        // Takes the place of the "Saved" notice the heart showed, which would otherwise still be up.
+        notify(refusedNotice(like.liked), { action: { label: 'Try again', run: () => changeRef.current(like) } });
       }
       // Offline, the reconnect sends what is left; online, the server failed, so try again later.
       if (queue.pending.length && !isOffline.current) {
@@ -153,32 +167,70 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   }, [flush, offline]);
   useEffect(() => () => clearTimeout(retry.current.timer), [queue]);
 
-  const setLiked = useCallback(function setLiked(type: LikeEntityType, id: string, liked: boolean, title?: string) {
+  /** Applies a heart at once and queues it. Offline it waits in the queue: that is not a failure, so the notice stands. */
+  const change = useCallback(function change(like: QueuedLike) {
     if (!queue) return;
+    const { type, id, liked, title } = like;
     remember(`${type}:${id}`, liked);
     patchLike(queryClient, type, id, liked);
-    queue.add({ type, id, liked });
+    queue.add(like);
     flush();
     // A quick confirmation that can be taken back, as streaming apps do; the heart itself changes too.
+    // Undoing a removal restores the save with its old time.
     const name = title ? `“${title}” ` : '';
     notify(liked ? `Saved ${name}to your library.` : `Removed ${name}from your library.`,
-      { action: { label: 'Undo', run: () => setLiked(type, id, !liked, title) } });
+      { action: { label: 'Undo', run: () => change({ type, id, liked: !liked, title, ...!liked && { restore: true } }) } });
   }, [flush, notify, queryClient, queue, remember]);
+  useEffect(() => {
+    changeRef.current = change;
+  }, [change]);
+  const setLiked = useCallback((type: LikeEntityType, id: string, liked: boolean, title?: string) =>
+    change({ type, id, liked, ...title !== undefined && { title } }), [change]);
+
+  // What is on the wantlist, for menus and album pages to offer adding or removing. Only
+  // asked for while the server has the wantlist on; the first page holds what anyone keeps.
+  const wantlistOn = useWantlistEnabled();
+  const wants = useQuery({
+    queryKey: queryKeys.wants(),
+    queryFn: () => api!.userdata.wants({ limit: 200 }),
+    enabled: Boolean(api) && wantlistOn,
+  });
+  const wantedIds = useMemo(() => new Set(wants.data?.items.map(item => item.type === 'album' ? item.album.id : item.track.id)), [wants.data]);
+  // Changes made here, shown until the server's list has them.
+  const [wantChanges, setWantChanges] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const changeWant = useCallback((id: string, wanted: boolean | undefined) => setWantChanges(current => {
+    const next = new Map(current);
+    if (wanted === undefined) next.delete(id);
+    else next.set(id, wanted);
+    return next;
+  }), []);
+
+  const setWanted = useCallback((type: WantEntityType, id: string, wanted: boolean, title: string) => {
+    if (!api) return;
+    changeWant(id, wanted);
+    const patchAlbum = (value: boolean) => {
+      if (type === 'album') queryClient.setQueryData<AlbumDetail>(queryKeys.album(id), album => album && { ...album, wanted: value });
+    };
+    patchAlbum(wanted);
+    notify(wanted ? `Added “${title}” to your wantlist.` : `Removed “${title}” from your wantlist.`,
+      { action: { label: 'Undo', run: () => setWanted(type, id, !wanted, title) } });
+    (wanted ? api.userdata.want(type, id) : api.userdata.unwant(type, id)).then(
+      () => queryClient.invalidateQueries({ queryKey: queryKeys.wants() }).then(() => changeWant(id, undefined)),
+      () => {
+        changeWant(id, undefined);
+        patchAlbum(!wanted);
+        notify(wanted ? 'Couldn’t add that to your wantlist.' : 'Couldn’t take that off your wantlist.');
+      },
+    );
+  }, [api, changeWant, notify, queryClient]);
 
   const value: LibraryValue = useMemo<LibraryValue>(() => ({
     tracks,
     likes,
     setLiked,
-    want: (type, id, title) => {
-      if (!api) return;
-      api.userdata.want(type, id).then(() => {
-        notify(`Added “${title}” to your wantlist.`);
-        if (type === 'album') {
-          queryClient.setQueryData<AlbumDetail>(queryKeys.album(id), album => album && { ...album, wanted: true });
-        }
-      }, () => notify('Couldn’t add that to your wantlist.'));
-    },
-  }), [api, likes, notify, queryClient, setLiked, tracks]);
+    isWanted: (id, fromServer = false) => wantChanges.get(id) ?? (fromServer || wantedIds.has(id)),
+    setWanted,
+  }), [likes, setLiked, setWanted, tracks, wantChanges, wantedIds]);
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
 }
@@ -214,8 +266,14 @@ export function useLiked(type: LikeEntityType, id: string | undefined, liked: bo
 }
 
 export function useLibraryActions() {
-  const { setLiked, want } = useLibrary();
-  return { setLiked, want };
+  const { setLiked, setWanted } = useLibrary();
+  return { setLiked, setWanted };
+}
+
+/** Whether the item is on the wantlist; `fromServer` is what its own page says, if anything. */
+export function useWanted(id: string | undefined, fromServer?: boolean): boolean {
+  const { isWanted } = useLibrary();
+  return id ? isWanted(id, fromServer) : false;
 }
 
 type AddChange = { id: string; name: string; tracks: readonly TrackSummary[]; anyway?: boolean; before?: number };

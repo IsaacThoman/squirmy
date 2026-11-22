@@ -48,7 +48,7 @@ export function DeviceButton({ icon, name, onPress }: DeviceButtonProps) {
   return <Pressable accessibilityRole="button" accessibilityLabel={`Playback device: ${name}`}
     style={({ pressed }) => [styles.device, pressed && styles.pressed]} onPress={onPress}>
     <View style={styles.deviceIcon}><Icon name={icon} size={21} color={colors.accent} /></View>
-    <Text numberOfLines={1} style={styles.deviceName}>{name}</Text>
+    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.deviceName}>{name}</Text>
   </Pressable>;
 }
 
@@ -64,7 +64,8 @@ export function LyricButton({ line, active, onPress }: LyricButtonProps) {
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   icon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.65 },
-  grabberPress: { width: 105, height: 32, alignItems: 'center', justifyContent: 'center' },
+  // 44 pt to touch, with the grabber where it sits in Now Playing's 32 pt row.
+  grabberPress: { width: 105, height: 44, alignItems: 'center', paddingTop: 14 },
   grabber: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.grabber },
   device: { height: 56, alignItems: 'center' },
   deviceIcon: { height: 38, justifyContent: 'center' },

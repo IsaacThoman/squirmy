@@ -432,9 +432,38 @@ export async function deezerRadioTrackRow(track: DeezerTrack): Promise<string> {
   return deezerTopTrackRow(artistId, String(track.artist.id), track)
 }
 
+/**
+ * Puts right the credits of a recording made from a Deezer track (no MBID) where a credit
+ * names one artist and points at another: rows written before featured-on top tracks were
+ * credited to their own main artist kept the page artist on every credit (live: "Yeat" on
+ * Face The Flamë linked to Grimes's page). A credit whose artist's name matches stays.
+ */
+async function repairDeezerCredits(tx: Transaction, recordingId: string, track: DeezerTrack, artistRow: (artist: DeezerArtistRef) => Promise<string>) {
+  const [recording] = await tx.select({ mbid: recordings.mbid, primaryArtistId: recordings.primaryArtistId }).from(recordings).where(eq(recordings.id, recordingId))
+  if (!recording || recording.mbid) return
+  const credited = track.artists.length > 0 ? track.artists : [track.artist]
+  const rows = await tx.execute<{ position: number; artistId: string; nameKey: string }>(sql`
+    select ra.position, ra.artist_id as "artistId", a.name_key as "nameKey"
+    from recording_artists ra join artists a on a.id = ra.artist_id where ra.recording_id = ${recordingId}`)
+  for (const row of rows) {
+    const artist = credited[row.position]
+    if (!artist || row.nameKey === matchKey(artist.name)) continue
+    const right = await artistRow(artist)
+    if (right === row.artistId) continue
+    await tx.update(recordingArtists).set({ artistId: right })
+      .where(and(eq(recordingArtists.recordingId, recordingId), eq(recordingArtists.position, row.position)))
+    if (row.position === 0 && recording.primaryArtistId === row.artistId) {
+      await tx.update(recordings).set({ primaryArtistId: right }).where(eq(recordings.id, recordingId))
+    }
+  }
+}
+
 async function topTrackRecording(tx: Transaction, artistId: string, track: DeezerTrack, artistRow: (artist: DeezerArtistRef) => Promise<string>): Promise<string> {
   const existing = await linked(tx, 'recording', track.id)
-  if (existing) return existing
+  if (existing) {
+    await repairDeezerCredits(tx, existing, track, artistRow)
+    return existing
+  }
   const isrc = track.isrc?.toUpperCase()
   // A catalog recording with the ISRC, else one of the artist's with the same credit and
   // title: owned first, then MusicBrainz-backed, so the copy the page shows gets ranked.

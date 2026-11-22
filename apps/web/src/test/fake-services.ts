@@ -255,7 +255,7 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       updateSettings: vi.fn(async (patch: object) => ({ ...userSettings, ...patch })),
       likes: vi.fn(async () => list(likedTracks)),
       like: vi.fn(async () => ok),
-      unlike: vi.fn(async () => ok),
+      unlike: vi.fn(async (): Promise<{ ok: true; savedAt: string | null }> => ({ ok: true, savedAt: null })),
       playlists: vi.fn(async () => list(playlistSummaries.map(playlist => ({ ...playlist, ownerId: currentUser.id })))),
       playlist: vi.fn(async (id: string) => ({ ...found(playlistDetail(id)), ownerId: currentUser.id })),
       createPlaylist: vi.fn(async ({ name }: { name: string }): Promise<PlaylistSummary> => ({ ...playlistSummaries[0], id: '00000000-0000-4000-8400-0000000000ff', name, trackCount: 0 })),
@@ -264,7 +264,7 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       unwant: vi.fn(async () => ok),
     },
     search: {
-      library: vi.fn(async (params: SearchParams) => searchPage(searchFixtures(params.q).library, params)),
+      library: vi.fn(async (params: SearchParams & { genre?: string }) => searchPage(searchFixtures(params.q).library, params)),
       catalog: vi.fn(async (params: SearchParams) => searchPage(searchFixtures(params.q).catalog, params)),
     },
     scrobble: {

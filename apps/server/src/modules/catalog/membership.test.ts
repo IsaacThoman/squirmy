@@ -1,4 +1,4 @@
-import { AlbumDetail, AlbumPage, ArtistDetail, ArtistPage, GenrePage, HomeResponse, TrackPage, TrackSummariesResponse } from '@squirmy/contracts'
+import { AlbumDetail, AlbumPage, ArtistDetail, ArtistPage, GenrePage, HomeResponse, TrackPage, TrackSummariesResponse, UnlikeResponse } from '@squirmy/contracts'
 import { eq, inArray, sql } from 'drizzle-orm'
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -226,6 +226,35 @@ describe('library membership', () => {
     }
     // Without the saves only the collection's times count.
     expect(ids(await walk(other, '/library/albums?sort=recent', AlbumPage, 2))).toEqual(order({ c1: 1, c3: 3, both5: 5, both6: 1, tie7: 7, c7: 7 }))
+  })
+
+  it('puts a removed save back in its place on Undo, with the time the removal answered', async () => {
+    const [older, newer] = [await createAlbum({ title: 'Older' }), await createAlbum({ title: 'Newer' })]
+    await db.insert(likes).values([
+      { userId: owner.id, entityType: 'album', entityId: older.albumId, createdAt: new Date('2026-01-01T00:00:00Z') },
+      { userId: owner.id, entityType: 'album', entityId: newer.albumId, createdAt: new Date('2026-02-01T00:00:00Z') },
+    ])
+    const removed = await app.inject({ method: 'DELETE', url: `/api/v1/me/likes/album/${older.albumId}`, headers: owner.headers })
+    const { savedAt } = body(removed, UnlikeResponse)
+    expect(savedAt).toBe('2026-01-01T00:00:00.000Z')
+    expect(body(await app.inject({ method: 'DELETE', url: `/api/v1/me/likes/album/${older.albumId}`, headers: owner.headers }), UnlikeResponse).savedAt).toBeNull()
+    await app.inject({ method: 'PUT', url: `/api/v1/me/likes/album/${older.albumId}?savedAt=${encodeURIComponent(savedAt!)}`, headers: owner.headers })
+    expect(await albumIds(owner)).toEqual([newer.albumId, older.albumId])
+    // A time from the future is taken as now: it cannot pin an item to the top.
+    await remove(owner, 'album', older.albumId)
+    await app.inject({ method: 'PUT', url: `/api/v1/me/likes/album/${older.albumId}?savedAt=2099-01-01T00:00:00Z`, headers: owner.headers })
+    const [row] = await db.select().from(likes).where(eq(likes.entityId, older.albumId))
+    expect(row!.createdAt.getTime()).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('lists a saved album\'s songs in track order in recent tracks, page after page', async () => {
+    const album = await createAlbum({ title: 'In Order', owned: true, source: fetched,
+      tracks: [{ title: 'First' }, { title: 'Second' }, { title: 'Third' }, { title: 'Fourth' }] })
+    await save(owner, 'album', album.albumId)
+    for (const limit of [1, 3, 10]) {
+      expect(ids(await walk(owner, '/library/tracks?sort=recent', TrackPage, limit)), `by ${limit}`)
+        .toEqual(album.tracks.map((track) => track.recordingId))
+    }
   })
 
   it('places each track once in recent tracks by the latest way it entered the library', async () => {

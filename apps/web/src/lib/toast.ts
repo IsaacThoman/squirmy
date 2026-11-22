@@ -12,17 +12,24 @@ function emit() {
   for (const listener of listeners) listener()
 }
 
-/** Shows a short confirmation at the bottom of the screen. A message already showing is not repeated. */
-export function toast(message: Omit<ToastMessage, 'id' | 'revision'>) {
+/**
+ * Shows a short confirmation at the bottom of the screen and answers its id, for `dismissToast`.
+ * A message with the `key` of one showing replaces it; a message already showing is not
+ * repeated, and its id is answered instead.
+ */
+export function toast(message: Omit<ToastMessage, 'id' | 'revision'>): number {
   const keyed = message.key === undefined ? undefined : toasts.find(item => item.key === message.key)
   if (keyed) {
     toasts = toasts.map(item => (item === keyed ? { ...message, id: item.id, revision: (item.revision ?? 0) + 1 } : item))
     emit()
-    return
+    return keyed.id
   }
-  if (toasts.some(item => item.title === message.title && item.description === message.description)) return
-  toasts = [...toasts, { ...message, id: nextId++ }]
+  const showing = toasts.find(item => item.title === message.title && item.description === message.description)
+  if (showing) return showing.id
+  const id = nextId++
+  toasts = [...toasts, { ...message, id }]
   emit()
+  return id
 }
 
 export function dismissToast(id: number) {

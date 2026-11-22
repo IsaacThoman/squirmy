@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { BackHandler, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, Extrapolation, interpolate, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay,
@@ -16,6 +16,7 @@ import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
 import { useLibraryActions, useLiked } from './data/library';
 import { heartButton } from './library/heart';
+import { loadFailure } from './data/errors';
 import { useLyrics } from './data/queries';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
@@ -33,20 +34,13 @@ import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
-import { metadataHeight as metadataHeightFor } from './player/layout';
+import { contextHeight as contextHeightFor, metadataHeight as metadataHeightFor } from './player/layout';
 import { displayFontScale, secondaryFontScale } from './fontScale';
 import { createThemedStyles, useColors } from './theme';
 
 const artworkRadius = 21;
 const artworkGap = 14;
 const grabberHeight = 32;
-/**
- * The line under the grabber that says what is playing from ("Playing from album · Dummy"),
- * as on web. Its room is kept when there is nothing to say, so the artwork does not move
- * from one song to the next.
- */
-const contextHeight = 34;
-const headerHeight = grabberHeight + contextHeight;
 const compactArtworkSize = 54;
 const compactArtworkRadius = 11;
 const artworkInset = 24;
@@ -95,6 +89,8 @@ export default function Player() {
   const [availableHeight, setAvailableHeight] = useState(0);
   const { width, height, fontScale } = useWindowDimensions();
   const metadataHeight = metadataHeightFor(fontScale);
+  const contextHeight = contextHeightFor(fontScale);
+  const headerHeight = grabberHeight + contextHeight;
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
@@ -279,7 +275,8 @@ export default function Player() {
   const trackDetails = (compact: boolean) => (
     <>
       <View style={styles.trackCopy}>
-        <Text numberOfLines={1} maxFontSizeMultiplier={displayFontScale}
+        {/* Two lines, as Apple Music gives a long title; `metadataHeight` keeps room for both. */}
+        <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={displayFontScale}
           style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{title}</Text>
         <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>
       </View>
@@ -310,9 +307,10 @@ export default function Player() {
           </Animated.View>
           <Animated.View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }, contentStyle]}>
             <GestureDetector gesture={grabberDismiss}>
-              <Animated.View style={[styles.grabberTouch, grabberStyle]}>
-                <CollapseButton onPress={close} />
-                <View style={styles.context} accessible={Boolean(context)}
+              <Animated.View style={[styles.grabberTouch, { height: headerHeight }, grabberStyle]}>
+                {/* 44 pt tall, it reaches over the top of the context line, which lets touches through to it. */}
+                <View style={styles.collapse} pointerEvents="box-none"><CollapseButton onPress={close} /></View>
+                <View style={[styles.context, { height: contextHeight }]} pointerEvents="none" accessible={Boolean(context)}
                   accessibilityLabel={context ? `${context.heading}, ${context.title}` : undefined}>
                   {context && <>
                     <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={styles.contextHeading}>{context.heading}</Text>
@@ -327,7 +325,10 @@ export default function Player() {
                   pointerEvents={artworkPage ? 'auto' : 'none'} accessibilityElementsHidden={!artworkPage}
                   importantForAccessibility={artworkPage ? 'auto' : 'no-hide-descendants'}>
                   <View style={{ height: artSize }} />
-                  <Animated.View style={[styles.metadata, { minHeight: metadataHeight }, artworkDetailsStyle]}>{trackDetails(false)}</Animated.View>
+                  {/* A fixed height, with the lines at its top: a one-line title leaves the second line's room below. */}
+                  <Animated.View style={[styles.metadataSlot, { height: metadataHeight }, artworkDetailsStyle]}>
+                    <View style={styles.metadata}>{trackDetails(false)}</View>
+                  </Animated.View>
                 </View>
               </GestureDetector>
               {(seenLyrics || seenQueue) && <Animated.View style={[styles.details, compactDetailsStyle]} pointerEvents={artworkPage ? 'none' : 'auto'}
@@ -455,9 +456,14 @@ function LyricsPage({ visible }: { visible: boolean }) {
     }
   }, [active, visible, viewport, placed]);
 
-  const empty = lyrics.data?.instrumental
+  // Loading, none and failed look different: a failed request is not a song without lyrics.
+  // A request waiting for the connection (paused) has failed for now, too.
+  const failure = lyrics.isError || (lyrics.isPending && lyrics.fetchStatus === 'paused') ? loadFailure(lyrics.error) : null;
+  const empty: { icon: string; title: string; detail?: string; retry?: boolean } | null = lyrics.data?.instrumental
     ? { icon: 'music.note', title: 'Instrumental' }
-    : lyrics.isLoading ? null : { icon: 'quote.bubble', title: 'No lyrics available' };
+    : failure ? { icon: failure.connection ? 'wifi.exclamationmark' : 'exclamationmark.circle', title: 'Couldn’t load lyrics',
+      detail: failure.description, retry: failure.retry }
+      : lyrics.isLoading ? null : { icon: 'quote.bubble', title: 'No lyrics available' };
 
   return (
     <View style={styles.lyricPage}>
@@ -480,10 +486,19 @@ function LyricsPage({ visible }: { visible: boolean }) {
             </View>
           ))}
         </ScrollView>
-      ) : empty && (
+      ) : empty ? (
         <View style={styles.noLyrics}>
           <Icon name={empty.icon} size={29} color={colors.quiet} />
           <Text style={styles.noLyricsTitle}>{empty.title}</Text>
+          {empty.detail && <Text style={styles.noLyricsDetail}>{empty.detail}</Text>}
+          {empty.retry && <Pressable accessibilityRole="button" hitSlop={10} onPress={() => { selectionFeedback(); void lyrics.refetch(); }}
+            style={({ pressed }) => [styles.retry, pressed && styles.pressed]}>
+            <Text style={styles.retryText}>Try again</Text>
+          </Pressable>}
+        </View>
+      ) : (
+        <View style={styles.noLyrics} accessible accessibilityLabel="Loading lyrics">
+          <ActivityIndicator color={colors.muted} />
         </View>
       )}
     </View>
@@ -593,8 +608,9 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
-  grabberTouch: { height: headerHeight, alignItems: 'center' },
-  context: { height: contextHeight, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: artworkInset },
+  grabberTouch: { alignItems: 'center', paddingTop: grabberHeight },
+  collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
+  context: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: artworkInset },
   contextHeading: { color: colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
   contextTitle: { color: colors.text, fontSize: 13, fontWeight: '600', marginTop: 1 },
   deckFrame: { flex: 1 },
@@ -607,6 +623,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     marginLeft: artworkInset + compactArtworkSize + 12, marginRight: artworkInset, marginBottom: 9 },
   compactTrackTitle: { color: colors.text, fontWeight: '700', fontSize: 18 },
   compactTrackArtist: { color: colors.muted, marginTop: 2, fontSize: 14 },
+  metadataSlot: { width: '100%', maxWidth: 440 },
   metadata: { width: '100%', maxWidth: 440, flexDirection: 'row', alignItems: 'center', gap: 5 },
   trackCopy: { minWidth: 0, flex: 1 },
   trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: colors.text },
@@ -614,7 +631,11 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
   lyricPage: { flex: 1, paddingHorizontal: 25 },
   noLyrics: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  noLyricsTitle: { color: colors.muted, fontSize: 16, fontWeight: '600' },
+  noLyricsTitle: { color: colors.muted, fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  noLyricsDetail: { color: colors.quiet, fontSize: 14, textAlign: 'center', marginTop: -6 },
+  retry: { minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
+  retryText: { color: colors.accent, fontSize: 16, fontWeight: '700' },
+  pressed: { opacity: 0.65 },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: 25, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -1, paddingHorizontal: 1 },
@@ -630,5 +651,6 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   routePicker: { width: 44, height: 44, marginLeft: -2, marginVertical: -4 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
   footerSide: { flex: 1, alignItems: 'center' },
-  output: { flex: 1.3, minWidth: 0 },
+  // The sides hold one 44 pt button each; the device's name, such as "Only on this device", gets the rest.
+  output: { flex: 2, minWidth: 0 },
 }));

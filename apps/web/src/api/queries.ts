@@ -158,16 +158,16 @@ export const searchesServer = (text: string) => [...text.trim()].length >= LIBRA
 
 /**
  * Albums, artists and songs in the library matching `text`, asked of the server once typing
- * pauses, best first. Under `LIBRARY_MATCH_MIN_LENGTH` characters it asks nothing. `pending`:
- * the answer for what is typed is still on its way.
+ * pauses, best first, within `genre` when one is given. Under `LIBRARY_MATCH_MIN_LENGTH`
+ * characters it asks nothing. `pending`: the answer for what is typed is still on its way.
  */
-export function useLibraryMatches(text: string) {
+export function useLibraryMatches(text: string, genre?: string) {
   const api = useApi()
   const typed = text.trim()
   const q = useDebounced(typed, 150, '')
   const query = useQuery({
-    queryKey: [...queryKeys.search(), 'library', q, LIBRARY_MATCH_LIMIT],
-    queryFn: ({ signal }) => api.search.library({ q, limit: LIBRARY_MATCH_LIMIT }, { signal }),
+    queryKey: [...queryKeys.search(), 'library', q, LIBRARY_MATCH_LIMIT, genre ?? null],
+    queryFn: ({ signal }) => api.search.library({ q, limit: LIBRARY_MATCH_LIMIT, ...(genre && { genre }) }, { signal }),
     enabled: searchesServer(q),
     placeholderData: keepPreviousData,
     staleTime: 60_000,
