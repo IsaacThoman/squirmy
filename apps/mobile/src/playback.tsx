@@ -22,6 +22,9 @@ import { loadSession, saveSession } from './player/savedSession';
 import {
   codecsFor, deviceRows, findEntry, isRemote, newlyFailed, nextRepeat, outputDevice, playableSeeds, qualityFor, seedOf,
 } from './player/session';
+import { useStreamingCache } from './streamingCache/context';
+import { resolvePlayback } from './streamingCache/resolve';
+import { followSession } from './streamingCache/session';
 
 export type { QueueEntry };
 
@@ -51,9 +54,10 @@ const RuntimeContext = createContext<Runtime | null>(null);
  * remote and stays silent. Lock screen and Control Center buttons become session
  * commands too.
  *
- * Downloaded tracks play from their files. The session is saved as it changes, so a
+ * Downloaded tracks play from their files, and so do tracks in the streaming cache, which
+ * follows the session to fetch what plays next. The session is saved as it changes, so a
  * relaunch with no connection shows it (and the commands made offline still reach the
- * server). Offline, an entry that is not downloaded is skipped.
+ * server). Offline, an entry that is neither downloaded nor cached is skipped.
  */
 export function PlaybackProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
@@ -62,6 +66,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   const { socket, offline } = useRealtime();
   const tracks = useTrackStore();
   const downloads = useDownloadManager();
+  const cache = useStreamingCache();
   const notify = useNotice();
   const settings = useUserSettings().data;
   const network = Network.useNetworkState();
@@ -69,8 +74,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   // Read when a track is resolved, so a change applies from the next track on.
   const stream = useRef({ settings, network: network.type });
   stream.current = { settings, network: network.type };
-  const live = useRef({ downloads, offline });
-  live.current = { downloads, offline };
+  const live = useRef({ downloads, cache, offline });
+  live.current = { downloads, cache, offline };
 
   useEffect(() => {
     if (!socket || !api || !account) return;
@@ -91,16 +96,16 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           baseUrl: serverUrl,
           canBoost: false,
           normalization: stream.current.settings?.normalization,
-          resolvePlayback: async entry => {
-            const local = live.current.downloads?.playback(entry.trackId);
-            if (local) return local;
+          resolvePlayback: entry => {
             const { settings: current, network: type } = stream.current;
             const kind = type === Network.NetworkStateType.CELLULAR ? 'cellular' : type === Network.NetworkStateType.WIFI ? 'wifi' : 'other';
-            return api.streaming.playback(entry.trackId, {
-              albumId: entry.albumId ?? undefined,
-              quality: qualityFor(current ?? defaultQuality, kind),
-              codecs: codecsFor(Platform.OS),
-            });
+            return resolvePlayback(entry, qualityFor(current ?? defaultQuality, kind), {
+              downloaded: trackId => live.current.downloads?.playback(trackId) ?? null,
+              cached: (trackId, quality, any) => live.current.cache?.playback(trackId, quality, any) ?? null,
+              server: (item, quality) => api.streaming.playback(item.trackId, {
+                albumId: item.albumId ?? undefined, quality, codecs: codecsFor(Platform.OS),
+              }),
+            }, live.current.offline);
           },
         },
       });
@@ -117,7 +122,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           title: track.title,
           artist: track.artistCredit,
           album: track.album?.title,
-          artworkUrl: (track.album?.artwork && live.current.downloads?.artworkUri(track.album.artwork.id))
+          artworkUrl: (track.album?.artwork
+            && (live.current.downloads?.artworkUri(track.album.artwork.id) ?? live.current.cache?.artworkUri(track.album.artwork.id)))
             || (artworkUrl(serverUrl, track.album?.artwork, lockScreenArtSize) ?? undefined),
           durationMs: entry.durationMs || track.durationMs,
         };
@@ -146,15 +152,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       // A file that will not play is skipped. When the next one fails as well, the
       // connection is the likelier cause, so playback pauses instead.
       let lastSkip = -Infinity;
-      // Offline, only downloads can play: an entry that is not one is passed over, with one notice per spell offline.
+      // Offline, only downloads and cached tracks can play: any other entry is passed over, with one notice per spell offline.
       let skipped: string | null = null;
       const skipUndownloaded = () => {
         const { session, isActiveDevice } = client.getSnapshot();
         const current = session.current;
         if (!live.current.offline) skipped = null;
         if (!live.current.offline || !isActiveDevice || !current || current.state !== 'ready') return false;
-        if (live.current.downloads?.isDownloaded(current.trackId) || skipped === current.id) return false;
-        if (skipped === null) notify('Skipped songs that aren’t downloaded.');
+        if (live.current.downloads?.isDownloaded(current.trackId) || live.current.cache?.has(current.trackId) || skipped === current.id) return false;
+        if (skipped === null) notify('Skipped songs that aren’t downloaded or cached.');
         skipped = current.id;
         send({ type: 'next' });
         return true;
@@ -221,6 +227,11 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (runtime && downloads) return downloads.onFilesChanged(() => runtime.client.forgetPlayback());
   }, [downloads, runtime]);
+
+  // The streaming cache fetches what the session plays next, and has the client forget a track whose file came or went.
+  useEffect(() => {
+    if (runtime && cache) return followSession(cache, runtime.client);
+  }, [cache, runtime]);
 
   const normalization = settings?.normalization;
   useEffect(() => {

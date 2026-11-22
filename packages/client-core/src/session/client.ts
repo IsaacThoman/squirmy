@@ -91,6 +91,8 @@ const RETRY_MS = 3000
 /** Signed URLs are refreshed this long before they expire. */
 const DESCRIPTOR_MARGIN_MS = 5 * 60_000
 const DESCRIPTOR_CACHE_SIZE = 50
+/** Tracks `forgetPlayback` remembers forgetting, for resolves still in flight. */
+const FORGOTTEN_TRACKS_SIZE = 64
 const REPORTED: Partial<Record<EngineState, EngineReport['status']>> = {
   playing: 'playing',
   paused: 'paused',
@@ -167,12 +169,26 @@ export class SessionClient {
   private loadToken = 0
   private loadingEntryId: string | null = null
   private preloadTarget: string | null = null
+  private preloadTrackId: string | null = null
+  /** Bumped each time the preload is aimed; a resolve begun for an earlier aim is dropped. */
+  private preloadToken = 0
+  /** Bumped by `forgetPlayback`; a resolve begun before a forget of its track serves its load but is not kept. */
+  private forgotten = 0
+  /** The value of `forgotten` when everything was last forgotten. */
+  private allForgottenAt = 0
+  /** The value of `forgotten` when each track was last forgotten, the most recent last. */
+  private readonly forgottenAt = new Map<string, number>()
   private engineState: EngineState = 'idle'
   private gain: number | null = null
   private lastReport: string | null = null
   /** Command id the next `trackEnded` of this entry will use, fixed in advance so the preload predicts its entry ids. */
   private endCommand: { entryId: string; commandId: string } | null = null
   private readonly descriptors = new Map<string, PlaybackDescriptor>()
+  /**
+   * What the engine's loaded and preloaded entries were resolved to, by entry id. Their gain
+   * comes from here, so it holds while they play, whatever is forgotten meanwhile.
+   */
+  private readonly inEngine = new Map<string, PlaybackDescriptor>()
 
   constructor(options: SessionClientOptions) {
     this.transport = options.transport
@@ -268,10 +284,29 @@ export class SessionClient {
 
   /**
    * Forgets resolved playback descriptors, so each entry is resolved again when it next
-   * loads. For when the place an entry plays from has changed: a download finished or was removed.
+   * loads. For when the place an entry plays from has changed: a download finished or was
+   * removed. With `trackId` only that track's are forgotten, and the preload is aimed again
+   * only when it is that track, so a cache that fills as the queue plays never restarts the
+   * preload of another entry. What the engine already holds keeps playing, with its gain.
    */
-  forgetPlayback(): void {
-    this.descriptors.clear()
+  forgetPlayback(trackId?: string): void {
+    this.forgotten += 1
+    if (trackId === undefined) {
+      this.allForgottenAt = this.forgotten
+      this.forgottenAt.clear()
+      this.descriptors.clear()
+    } else {
+      this.forgottenAt.delete(trackId)
+      this.forgottenAt.set(trackId, this.forgotten)
+      if (this.forgottenAt.size > FORGOTTEN_TRACKS_SIZE) {
+        // The oldest is let go as if everything had been forgotten then, which only ever keeps less.
+        const [oldest, at] = this.forgottenAt.entries().next().value!
+        this.forgottenAt.delete(oldest)
+        this.allForgottenAt = Math.max(this.allForgottenAt, at)
+      }
+      for (const key of [...this.descriptors.keys()]) if (key.startsWith(`${trackId}:`)) this.descriptors.delete(key)
+      if (this.preloadTrackId !== trackId) return
+    }
     this.preloadTarget = null
     if (this.isActive()) this.preloadNext()
   }
@@ -545,7 +580,9 @@ export class SessionClient {
     this.loadToken += 1
     this.loadingEntryId = null
     this.preloadTarget = null
+    this.preloadTrackId = null
     this.gain = null
+    this.inEngine.clear()
     if (this.player.engine.getStatus().state !== 'idle') this.player.engine.stop()
   }
 
@@ -568,6 +605,7 @@ export class SessionClient {
     this.loadingEntryId = null
     const session = this.local
     if (session.current?.id !== entry.id) return
+    this.hold(entry.id, descriptor)
     this.gain = this.gainOf(entry, descriptor, session)
     engine.load({
       entryId: entry.id,
@@ -596,16 +634,27 @@ export class SessionClient {
       : null
     if ((next?.id ?? null) === this.preloadTarget) return
     this.preloadTarget = next?.id ?? null
+    this.preloadTrackId = next?.trackId ?? null
+    const token = ++this.preloadToken
     if (!next) return engine.preload(null)
     this.describe(next).then(
       descriptor => {
-        if (this.preloadTarget !== next.id || !this.isActive()) return
+        if (token !== this.preloadToken || this.preloadTarget !== next.id || !this.isActive()) return
+        this.hold(next.id, descriptor)
         engine.preload({ entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted) })
       },
       () => {
-        if (this.preloadTarget === next.id) this.preloadTarget = null
+        if (token === this.preloadToken && this.preloadTarget === next.id) this.preloadTarget = null
       },
     )
+  }
+
+  /** Remembers what an entry handed to the engine was resolved to, and drops the entries the engine no longer has. */
+  private hold(entryId: string, descriptor: PlaybackDescriptor): void {
+    this.inEngine.set(entryId, descriptor)
+    for (const id of [...this.inEngine.keys()]) {
+      if (id !== entryId && id !== this.local.current?.id && id !== this.preloadTarget) this.inEngine.delete(id)
+    }
   }
 
   private endCommandId(entryId: string): string {
@@ -617,7 +666,10 @@ export class SessionClient {
     const key = descriptorKey(entry)
     const cached = this.descriptors.get(key)
     if (cached && Date.parse(cached.expiresAt) - DESCRIPTOR_MARGIN_MS > this.serverNow()) return cached
+    const begun = this.forgotten
     const descriptor = await this.player!.resolvePlayback(entry)
+    // Where it plays from may have changed while it was asked: good for this load, not for the next.
+    if (this.allForgottenAt > begun || (this.forgottenAt.get(entry.trackId) ?? 0) > begun) return descriptor
     this.descriptors.delete(key)
     this.descriptors.set(key, descriptor)
     if (this.descriptors.size > DESCRIPTOR_CACHE_SIZE) this.descriptors.delete(this.descriptors.keys().next().value!)
@@ -631,7 +683,7 @@ export class SessionClient {
   }
 
   private applyGain(entry: QueueEntry): void {
-    const gain = this.gainOf(entry, this.descriptors.get(descriptorKey(entry)), this.local)
+    const gain = this.gainOf(entry, this.inEngine.get(entry.id) ?? this.descriptors.get(descriptorKey(entry)), this.local)
     if (gain === this.gain) return
     this.gain = gain
     this.player!.engine.setGain(gain)

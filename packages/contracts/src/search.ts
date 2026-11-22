@@ -20,9 +20,11 @@ export const SearchTopResult = z.object({
   type: z.enum(['artist', 'album', 'track']),
   id: Id,
   /**
-   * How exactly it matched: 3 the whole name, 2 the name without edition suffixes, 1 a
-   * prefix. Lets a client pick between the library's and the catalog's top results, which
-   * are ranked separately. Optional for older servers.
+   * How exactly it matched: 3 the whole name as typed (edition suffixes ignored), 2 the
+   * whole name only once a leading article is ignored, 1 a prefix or one typo. A higher
+   * score is a match the ranking above puts first. Lets a client pick between the
+   * library's and the catalog's top results, which are ranked separately. Optional for
+   * older servers.
    */
   score: z.number().int().min(1).max(3).optional(),
 })

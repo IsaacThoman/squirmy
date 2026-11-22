@@ -85,6 +85,19 @@ function better(a: Candidate, b: Candidate): boolean {
 }
 
 /**
+ * `SearchTopResult.score`: the match as the 1..3 a client compares across the library's and
+ * the catalog's top results, which are picked separately. It follows `better`'s first two
+ * keys, so a higher score always means a hint this ranking would have put first: 3 the
+ * whole name as typed (edition suffixes ignored, so the remaster and the plain title tie
+ * as they do here), 2 the whole name only once a leading article is ignored, 1 a prefix or
+ * one typo. Prefix and typo share 1 because the contract has no lower step.
+ */
+function score(match: Match): 1 | 2 | 3 {
+  if (match.tier === 3) return match.literal ? 3 : 2
+  return 1
+}
+
+/**
  * Picks the result that matches the query best (see `better`). A track's popularity is
  * its own; an album's or artist's is the best of the returned tracks on it or by them.
  * Null when nothing matches at least as a prefix or one typo away.
@@ -129,5 +142,5 @@ export async function topResult(query: string, found: Found): Promise<SearchTopR
     if (candidate.tier === 0) continue
     if (!top || better(candidate, top)) top = candidate
   }
-  return top ? { type: top.type, id: top.id } : null
+  return top ? { type: top.type, id: top.id, score: score(top) } : null
 }
