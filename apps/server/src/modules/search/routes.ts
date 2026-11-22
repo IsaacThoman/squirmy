@@ -34,9 +34,20 @@ export async function searchRoutes(app: FastifyInstance) {
   app.get('/search/catalog', async (request): Promise<SearchResults> => {
     const user = requireUser(request)
     const { q, limit } = SearchQuery.parse(request.query)
-    if ([...matchKey(q)].length < minQueryLength) return empty
-    const { provider, results } = await searchCatalog(q, limit)
+    const key = matchKey(q)
+    if ([...key].length < minQueryLength) return empty
+    // The library answer for the same query runs alongside the provider call, so the
+    // catalog answer can leave out what the library answer already shows. Results are
+    // matched to owned rows on purpose (materialize.ts), so without this the user's own
+    // albums would come back a second time as "not in your library".
+    const [{ provider, results }, library] = await Promise.all([searchCatalog(q, limit), searchLibrary(user.id, key, limit)])
     if (!provider) return empty
-    return respond(user.id, q, await materialize(provider.idSource, results), provider.name)
+    const ids = await materialize(provider.idSource, results)
+    const without = (found: string[], shown: string[]) => found.filter((id) => !shown.includes(id))
+    return respond(user.id, q, {
+      artists: without(ids.artists, library.artists),
+      albums: without(ids.albums, library.albums),
+      tracks: without(ids.tracks, library.tracks),
+    }, provider.name)
   })
 }
