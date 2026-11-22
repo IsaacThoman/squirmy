@@ -15,9 +15,11 @@ CREATE INDEX "media_files_collection_album" ON "media_files" USING btree ("album
 CREATE INDEX "media_files_collection_recording" ON "media_files" USING btree ("recording_id","added_at","id") WHERE "media_files"."missing_since" is null and not "media_files"."cached";--> statement-breakpoint
 -- "Get this album" was an explicit add: completed album fetches become saves of the user
 -- who asked, at the album that finally holds the data after merges. With a provider that
--- only takes single tracks it made one job per missing track at once; playing makes at
--- most three at a time (the current track and two ahead), so four or more track jobs of
--- one requester for one album within five seconds count as an album request. Other
+-- only takes single tracks it made one job per missing track in one quick loop; playing
+-- prepares at most six at a time (the current track and five ahead), so seven or more
+-- track jobs of one requester for one album within a second count as an album request.
+-- An album fetched that way with fewer missing tracks cannot be told from playing it and
+-- is not carried over: a played album turning into a save is the worse mistake. Other
 -- single-track fetches came from pressing play and stay out of the library.
 WITH RECURSIVE "saved" AS (
 	SELECT "requested_by" AS "user_id", "album_id", "completed_at"
@@ -30,8 +32,8 @@ WITH RECURSIVE "saved" AS (
 		AND (
 			SELECT count(*) FROM "acquisition_jobs" "burst"
 			WHERE "burst"."requested_by" = "job"."requested_by" AND "burst"."album_id" = "job"."album_id" AND "burst"."recording_id" IS NOT NULL
-				AND "burst"."created_at" BETWEEN "job"."created_at" - interval '5 seconds' AND "job"."created_at" + interval '5 seconds'
-		) >= 4
+				AND "burst"."created_at" BETWEEN "job"."created_at" - interval '1 second' AND "job"."created_at" + interval '1 second'
+		) >= 7
 ), "resolved" AS (
 	SELECT "saved"."user_id", "albums"."id", "albums"."merged_into_id", "saved"."completed_at", 0 AS "depth"
 	FROM "saved" JOIN "albums" ON "albums"."id" = "saved"."album_id"

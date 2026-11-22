@@ -25,12 +25,12 @@ describe('migration 0011_library_membership', () => {
   it('turns completed album fetches into saves of their requester, and nothing else', async () => {
     const [fan, member] = [await createUser(), await createUser()]
     const [provider] = await db.insert(acquisitionProviders).values({ id: newId(), name: 'Old', baseUrl: 'http://provider.invalid', secretEncrypted: 'x' }).returning()
-    const fiveTracks = Array.from({ length: 5 }, (_, index) => ({ title: `Track ${index + 1}` }))
+    const tracks = (count: number) => Array.from({ length: count }, (_, index) => ({ title: `Track ${index + 1}` }))
     const [fetchedAlbum, playedAlbum, failedAlbum, orphanAlbum, mergedAlbum, survivor, byTrack, playedAhead] = [
       await createAlbum({ owned: true, source: `provider:${provider!.id}` }),
       await createAlbum({ owned: [0], source: `provider:${provider!.id}` }),
       await createAlbum(), await createAlbum(), await createAlbum(), await createAlbum(),
-      await createAlbum({ tracks: fiveTracks }), await createAlbum({ tracks: fiveTracks }),
+      await createAlbum({ tracks: tracks(8) }), await createAlbum({ tracks: tracks(9) }),
     ]
     const burst = new Date('2026-03-01T11:00:00Z')
     const seconds = (from: Date, n: number) => new Date(from.getTime() + n * 1000)
@@ -50,12 +50,12 @@ describe('migration 0011_library_membership', () => {
       job({ requestedBy: member.id, albumId: mergedAlbum.albumId }),
       // "Get this album" with a track-only provider: every missing track at once.
       ...byTrack.tracks.map((track, index) => job({
-        requestedBy: member.id, albumId: byTrack.albumId, recordingId: track.recordingId, createdAt: seconds(burst, index % 2),
-        completedAt: seconds(burst, 30 + index), status: index === 4 ? 'failed' : 'completed',
+        requestedBy: member.id, albumId: byTrack.albumId, recordingId: track.recordingId, createdAt: new Date(burst.getTime() + index * 90),
+        completedAt: seconds(burst, 30 + index), status: index === 7 ? 'failed' : 'completed',
       })),
-      // Playing through an album: three at a time, never four within seconds.
+      // Playing through an album: six at once (the current track and five ahead), then one per track.
       ...playedAhead.tracks.map((track, index) => job({
-        requestedBy: member.id, albumId: playedAhead.albumId, recordingId: track.recordingId, createdAt: seconds(burst, index < 3 ? 0 : 180 * index),
+        requestedBy: member.id, albumId: playedAhead.albumId, recordingId: track.recordingId, createdAt: seconds(burst, index < 6 ? 0 : 180 * index),
       })),
     ])
     // A save that already exists is left as it is.
