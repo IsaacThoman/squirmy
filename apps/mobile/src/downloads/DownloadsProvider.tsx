@@ -115,11 +115,13 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
     if (!manager) return;
     const kinds = new Set<CollectionKind>();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const stop = onInvalidate(keys => {
-      for (const [root] of keys) {
+    const stop = onInvalidate((keys, { own }) => {
+      for (const [root, id] of keys) {
+        // A like made here changes which songs are liked, not what a playlist or album holds.
+        if (root === 'likes' && manager.collectionRow(likedId)) kinds.add('liked');
+        if (own) continue;
         if (root === 'playlists') kinds.add('playlist');
-        if (root === 'likes') kinds.add('liked');
-        if (root === 'album' || root === 'library') kinds.add('album');
+        if (root === 'library' || (root === 'album' && typeof id === 'string' && manager.collectionRow(albumCollectionId(id)))) kinds.add('album');
       }
       if (!kinds.size) return;
       clearTimeout(timer);

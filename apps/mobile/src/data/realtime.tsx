@@ -7,8 +7,11 @@ import { AppState } from 'react-native';
 import { io } from 'socket.io-client';
 import { useAccount } from '../account/AccountProvider';
 import { socketAddress } from '../account/address';
+import { Echoes } from './echoes';
 
 type Keys = readonly (readonly unknown[])[];
+/** `own`: the echo of a change this device made, whose result it already shows. */
+type InvalidateListener = (keys: Keys, info: { own: boolean }) => void;
 
 type Realtime = {
   /** The signed-in user's socket, shared with the session client. Null while signed out. */
@@ -16,7 +19,12 @@ type Realtime = {
   /** The server has not been reachable for a few seconds; only downloads play. False while signed out. */
   offline: boolean;
   /** Calls `listener` with the keys of every `invalidate` the server sends. */
-  onInvalidate: (listener: (keys: Keys) => void) => () => void;
+  onInvalidate: (listener: InvalidateListener) => () => void;
+  /**
+   * A request this device sends will make the server invalidate `key`. Its echo only marks
+   * the cached data stale: the caller has already updated it.
+   */
+  expectEcho: (key: readonly unknown[]) => void;
 };
 
 /** Retry delay after the server refused the handshake, which socket.io does not retry itself. */
@@ -26,7 +34,9 @@ const staleAfterMs = 30_000;
 /** A socket that has been down this long counts as offline; shorter drops are reconnects. */
 const offlineAfterMs = 2500;
 
-const RealtimeContext = createContext<Realtime>({ socket: null, offline: false, onInvalidate: () => () => undefined });
+const RealtimeContext = createContext<Realtime>({
+  socket: null, offline: false, onInvalidate: () => () => undefined, expectEcho: () => undefined,
+});
 
 /**
  * One socket.io connection while signed in, authenticated with the session token.
@@ -42,7 +52,8 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   const token = state.status === 'signedIn' ? state.token : null;
   const [socket, setSocket] = useState<SquirmySocket | null>(null);
   const [offline, setOffline] = useState(false);
-  const [listeners] = useState(() => new Set<(keys: Keys) => void>());
+  const [listeners] = useState(() => new Set<InvalidateListener>());
+  const [echoes] = useState(() => new Echoes());
 
   useEffect(() => {
     if (!serverUrl || !token) return;
@@ -85,8 +96,11 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       retry = setTimeout(() => next.connect(), refusedRetryMs);
     });
     next.on('invalidate', ({ keys }) => {
-      for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
-      for (const listener of [...listeners]) listener(keys);
+      const own = echoes.isOwn(keys);
+      // Stale either way, so the next screen to show the data refetches it; only another
+      // device's change is refetched at once.
+      for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey, refetchType: own ? 'none' : 'active' });
+      for (const listener of [...listeners]) listener(keys, { own });
     });
     next.io.on('ping', heard);
 
@@ -118,7 +132,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       next.disconnect();
       setSocket(null);
     };
-  }, [listeners, queryClient, serverUrl, token]);
+  }, [echoes, listeners, queryClient, serverUrl, token]);
 
   const value = useMemo<Realtime>(() => ({
     socket,
@@ -127,7 +141,8 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-  }), [listeners, offline, socket]);
+    expectEcho: echoes.expect,
+  }), [echoes, listeners, offline, socket]);
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
 }
