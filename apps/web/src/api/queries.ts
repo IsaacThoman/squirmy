@@ -1,5 +1,5 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
-import { queryKeys, type AlbumSummary, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
+import { queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
 import { awaitsTrackList } from '@/lib/catalog'
 import { useApi } from './services'
@@ -53,8 +53,32 @@ export function useAlbum(id: string) {
   })
 }
 
+/**
+ * How often an artist whose discography is still coming in asks again, and for how many
+ * answers. A large one takes minutes, so it keeps asking for ten; the server's invalidations
+ * usually come sooner.
+ */
+const DISCOGRAPHY_POLL_MS = 5000
+const DISCOGRAPHY_POLLS = 120
+
 export function useArtist(id: string) {
-  return useQuery(artistQuery(useApi(), id))
+  return useQuery({
+    ...artistQuery(useApi(), id),
+    refetchInterval: query => (query.state.data?.detailPending && query.state.dataUpdateCount < DISCOGRAPHY_POLLS ? DISCOGRAPHY_POLL_MS : false),
+  })
+}
+
+/** One section of an artist page, a page at a time as it scrolls ("See all"). */
+export function useArtistReleases(id: string, section: ArtistSectionKey, enabled = true) {
+  const api = useApi()
+  return useInfiniteQuery({
+    queryKey: queryKeys.artistReleases(id, section),
+    queryFn: ({ pageParam }) => api.catalog.artistReleases(id, { section, cursor: pageParam, limit: 60 }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.nextCursor ?? undefined,
+    enabled,
+    meta: silent,
+  })
 }
 
 export function usePlaylist(id: string) {

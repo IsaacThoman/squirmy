@@ -2,10 +2,12 @@
  * A fictional catalog, ported from the iOS prototype, shaped like the API's responses.
  * Pages read from here until they are wired to the server.
  */
+import { ARTIST_SECTION_KEYS } from '@squirmy/contracts'
 import type {
-  AlbumDetail, AlbumSummary, AlbumType, ArtistDetail, ArtistSummary, Artwork, ArtSize, HomeResponse, Lyrics,
+  AlbumDetail, AlbumSummary, AlbumType, ArtistDetail, ArtistSection, ArtistSummary, Artwork, ArtSize, HomeResponse, Lyrics,
   PlaylistDetail, PlaylistSummary, TrackAvailability, TrackSummary,
 } from '@squirmy/contracts'
+import { artistSectionTitle } from '@/lib/catalog'
 
 /** Stable UUIDs, so fixture links survive reloads. `kind` keeps the id spaces apart. */
 function uuid(kind: number, n: number) {
@@ -321,6 +323,12 @@ export function artistDetail(id: string): ArtistDetail | null {
   if (index < 0) return null
   const seed = artistSeeds[index]
   const own = albums.filter(item => item.artists.some(credit => credit.id === id))
+  const releases = own.map(summary).sort((a, b) => (b.year ?? 0) - (a.year ?? 0))
+  // Shaped like the server's: one section per type, in its order, the empty ones left out. No fixture album credits a second artist.
+  const sections: ArtistSection[] = ARTIST_SECTION_KEYS
+    .map(key => ({ key, title: artistSectionTitle(key), items: releases.filter(item => item.type === key) }))
+    .filter(section => section.items.length)
+    .map(section => ({ ...section, total: section.items.length }))
   return {
     ...artists[index],
     sortName: null,
@@ -330,7 +338,11 @@ export function artistDetail(id: string): ArtistDetail | null {
     genres: seed.genres,
     liked: index === 0,
     topTracks: own.flatMap(item => item.discs.flatMap(disc => disc.tracks)).slice(0, 5),
-    albums: own.map(summary).sort((a, b) => (b.year ?? 0) - (a.year ?? 0)),
+    albums: releases,
+    appearsOn: [],
+    sections,
+    releaseCount: releases.length,
+    ownedReleaseCount: releases.filter(item => item.availability === 'full' || item.availability === 'partial').length,
     similar: artists.filter(artist => artist.id !== id && artist.inLibrary).slice(index % 4, (index % 4) + 6),
   }
 }

@@ -12,7 +12,7 @@ import { errorMessage } from '@/api/errors'
 import { moveItem } from '@/lib/reorder'
 import { useCachedSummary } from '@/api/prefetch'
 import {
-  isNotFound, itemsOf, loadItems, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist, usePlaylists, useWants,
+  isNotFound, itemsOf, loadItems, useAlbum, useArtist, useArtistReleases, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist, usePlaylists, useWants,
   type LibraryKind,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
@@ -25,14 +25,14 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/feedback'
 import { AlbumView } from '@/components/views/AlbumView'
-import { ArtistView } from '@/components/views/ArtistView'
+import { ArtistReleasesView, ArtistView } from '@/components/views/ArtistView'
 import { HomeView, type ScanProgress } from '@/components/views/HomeView'
 import { LibraryAlbumsView, LibraryArtistsView, LibraryPlaylistsView, LibrarySongsView, type LibraryListProps } from '@/components/views/LibraryView'
 import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
 import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
 import { SearchView } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
-import { canFetch } from '@/lib/catalog'
+import { canFetch, isArtistSectionKey } from '@/lib/catalog'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
@@ -124,6 +124,31 @@ export function ArtistPage() {
     <Loaded query={query} skeleton={summary ? <ArtistPreview artist={summary} /> : <CollectionSkeleton round />}>
       {artist => <ArtistView key={artist.id} artist={artist} onPlayAlbum={album => void playAlbum(album)} />}
     </Loaded>
+  )
+}
+
+/** "See all" of one section of an artist page: `/artist/:id/releases/:section`. */
+export function ArtistReleasesPage() {
+  const { playAlbum } = usePlayCollections()
+  const { id = '', section = '' } = useParams()
+  const known = isArtistSectionKey(section)
+  const artist = useArtist(id)
+  const summary = useCachedSummary('artist', id, artist.data === undefined)
+  const releases = useArtistReleases(id, known ? section : 'album', known)
+  if (!known || isNotFound(artist.error) || isNotFound(releases.error)) return <NotFoundPage />
+  if (releases.error) return <ErrorPage error={releases.error} onRetry={() => void releases.refetch()} />
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = releases
+  return (
+    <ArtistReleasesView
+      key={`${id}/${section}`}
+      artist={artist.data ?? summary}
+      artistId={id}
+      section={section}
+      total={artist.data?.sections?.find(candidate => candidate.key === section)?.total}
+      albums={releases.data && itemsOf(releases.data)}
+      onEndReached={() => { if (hasNextPage && !isFetchingNextPage) void fetchNextPage() }}
+      onPlayAlbum={album => void playAlbum(album)}
+    />
   )
 }
 

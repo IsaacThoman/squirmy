@@ -74,8 +74,11 @@ type AlbumCardProps = {
   /** Offered on albums that do not play, while the server has the Wantlist on. */
   wanted?: boolean
   onWant?: (wanted: boolean) => void
-  /** What the line under the title says. Artist pages show the year instead of the artist. */
-  subtitle?: 'artist' | 'year'
+  /**
+   * What the line under the title says. Artist pages show the year instead of the artist, and
+   * the artist with the year on a record of someone else's that credits them.
+   */
+  subtitle?: 'artist' | 'year' | 'artist-year'
 }
 
 /**
@@ -91,7 +94,9 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
       to={`/album/${album.id}`}
       prefetch={prefetch}
       title={album.title}
-      subtitle={subtitle === 'year' ? [album.year, albumTypeLabel(album.type)].filter(Boolean).join(' · ') : album.artistCredit}
+      subtitle={subtitle === 'year'
+        ? [album.year, albumTypeLabel(album.type)].filter(Boolean).join(' · ')
+        : subtitle === 'artist-year' ? [album.artistCredit, album.year].filter(Boolean).join(' · ') : album.artistCredit}
       art={<Cover artwork={album.artwork} dimmed={dimmed} />}
       onPlay={dimmed ? undefined : onPlay}
       want={dimmed && onWant ? { wanted, onChange: onWant } : undefined}
