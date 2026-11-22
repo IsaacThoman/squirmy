@@ -19,8 +19,9 @@ export type MiniPlayerContentProps = Appearance & {
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
   const colors = useColors();
   const styles = useStyles();
-  const { track, output, session, actions, preparing, remote } = usePlaybackState();
-  const title = track?.title ?? 'Not Playing';
+  const { current, track, output, session, actions, preparing, remote } = usePlaybackState();
+  // Until the current song's details load, say nothing rather than claim nothing is playing.
+  const title = track?.title ?? (current ? '' : 'Not Playing');
   const subtitle = preparing ? 'Preparing…' : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
