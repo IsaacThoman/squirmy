@@ -35,6 +35,8 @@ export type SongListProps = {
     onMove: (itemId: string, toIndex: number) => void;
     onRemove: (itemId: string) => void;
   };
+  /** The album whose page the list is: rows name only artists other than the album's, and its menu has no "Go to album". */
+  album?: { id: string; artistCredit: string };
 };
 
 const rowHeight = 58;
@@ -47,10 +49,10 @@ export function SongList(props: SongListProps) {
 
 /** The rows of a long list, for a virtualized list to render. */
 export function useSongListItems(props: SongListProps): SongListItems {
-  const { tracks, numbered, playlist } = props;
+  const { tracks, numbered, playlist, album } = props;
   const handlers = useSongRowHandlers(props);
   const { run } = useTrackActionRunner();
-  const data = useMemo(() => songRows({ tracks, numbered, playlist }), [numbered, playlist, tracks]);
+  const data = useMemo(() => songRows({ tracks, numbered, playlist, album }), [album, numbered, playlist, tracks]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongRow item={item} handlers={handlers} run={run} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }
@@ -113,7 +115,8 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
   >
     <View style={[styles.songRow, current && styles.songCurrent]}>
       <Pressable accessibilityRole="button"
-        accessibilityLabel={playable ? `Play ${track.title} by ${track.artistCredit}` : `${track.title} by ${track.artistCredit}, ${unavailableReason(track, offline, viewer)}`}
+        accessibilityLabel={`${playable ? 'Play ' : ''}${track.title} by ${track.artistCredit}${track.explicit ? ', Explicit' : ''}${
+          playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`}
         style={({ pressed }) => [styles.songInfo, !playable && styles.unavailable, pressed && styles.pressed]}
         onPress={playable ? onPlay : onMenu} onLongPress={onMenu}
         accessibilityActions={playable ? [{ name: 'playNext', label: 'Play next' }] : undefined}
@@ -123,12 +126,18 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
             : current ? <Icon name={playing === 'playing' ? 'waveform' : 'pause.fill'} size={17} color={colors.accent} /> : <Text style={styles.songNumber}>{number}</Text>}
         </View> : <Cover artwork={track.album?.artwork} size={42} radius={8} />}
         <View style={styles.flex}>
-          <Text numberOfLines={1} style={[styles.rowTitle, current && styles.currentTitle]}>{track.title}</Text>
-          <View style={styles.subtitle}>
+          <View style={styles.titleRow}>
+            <Text numberOfLines={1} style={[styles.rowTitle, styles.titleText, current && styles.currentTitle]}>{track.title}</Text>
+            {track.explicit && <Icon name="e.square.fill" size={12} color={colors.muted} />}
+          </View>
+          {/* On an album page a row by the album's artist has no second line, unless it has something else to say. */}
+          {(item.showArtist || mark || loading !== 'none') && <View style={styles.subtitle}>
             {typeof number !== 'number' && loading !== 'none' ? <ActivityIndicator size="small" color={colors.accent} style={styles.rowSpinner} />
               : mark && <Icon name={mark} size={11} color={colors.muted} />}
-            <Text numberOfLines={1} style={[styles.rowSub, styles.flex]}>{loading === 'slow' ? STILL_LOADING_LABEL : track.artistCredit}</Text>
-          </View>
+            {(item.showArtist || loading === 'slow') && <Text numberOfLines={1} style={[styles.rowSub, styles.flex]}>
+              {loading === 'slow' ? STILL_LOADING_LABEL : track.artistCredit}
+            </Text>}
+          </View>}
         </View>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={heartButton(liked, track.title).label} accessibilityState={{ selected: liked }}
@@ -147,6 +156,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   pressed: { opacity: 0.72 },
   unavailable: { opacity: unavailableOpacity },
   rowTitle: { color: colors.text, fontWeight: '600', fontSize: 15, letterSpacing: -0.2 },
+  titleText: { flexShrink: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   rowSub: { color: colors.muted, fontSize: 12 },
   subtitle: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 3 },
   songRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke, paddingLeft: 5, paddingRight: 2, minHeight: 58 },

@@ -24,6 +24,8 @@ export type TrackActionId =
 export type TrackActionOptions = {
   /** The playlist the track is shown in, for "Remove from playlist". */
   playlist?: { id: string; itemId: string; onRemove?: (itemId: string) => void };
+  /** The album whose page the track is shown on, which "Go to album" would only reopen. */
+  album?: string;
 };
 
 /** What a track's menu depends on, read by the row that shows it. */
@@ -55,7 +57,7 @@ export function trackActionKey(action: Pick<TrackAction, 'id' | 'page'>): string
  * needs the server is left out, and hearts wait for it. The result only describes the
  * actions; `useTrackActionRunner` carries one out when it is chosen.
  */
-export function trackActions(track: TrackSummary, state: TrackActionState, { playlist }: TrackActionOptions = {}): TrackAction[] {
+export function trackActions(track: TrackSummary, state: TrackActionState, { playlist, album }: TrackActionOptions = {}): TrackAction[] {
   const { liked, playable, offline, current, download, onItsOwn, wantlist, viewer } = state;
   const online = !offline;
   const library = librarySave({ liked });
@@ -82,7 +84,7 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     online && isPlayable(track, viewer) && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right' },
     // Only what does not play for this user: for someone who may fetch music nothing is wanted.
     wantlist && !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star' },
-    Boolean(track.album) && { id: 'album', title: 'Go to album', icon: 'square.stack', page: { page: 'album', id: track.album!.id } },
+    Boolean(track.album) && track.album!.id !== album && { id: 'album', title: 'Go to album', icon: 'square.stack', page: { page: 'album', id: track.album!.id } },
     // Each credited artist leads to its own page: on an artist's page a featured artist is often not the first.
     ...track.artists.map((artist): TrackAction => ({
       id: 'artist', title: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: 'music.mic', page: { page: 'artist', id: artist.id },

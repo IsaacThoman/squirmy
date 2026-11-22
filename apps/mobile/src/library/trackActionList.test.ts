@@ -17,6 +17,11 @@ describe('trackActions', () => {
     expect(ids(track(), state())).toEqual(['play', 'next', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
   });
 
+  it('leaves out Go to album on that album\'s own page', () => {
+    expect(ids(track(), state(), { album: 'al' })).not.toContain('album');
+    expect(ids(track(), state(), { album: 'other' })).toContain('album');
+  });
+
   it('offers the current track only Play while paused, and never Play next', () => {
     expect(ids(track(), state({ current: 'paused' }))).toEqual(['resume', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
     expect(trackActions(track(), state({ current: 'paused' }))[0]?.title).toBe('Play');

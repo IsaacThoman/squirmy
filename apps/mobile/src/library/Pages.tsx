@@ -1,7 +1,7 @@
 import {
-  queryKeys, type AlbumSummary, type AlbumType, type ArtistDetail, type HistoryItem, type HomeSection, type PlaybackContext, type TrackSummary,
+  queryKeys, type AlbumDetail, type AlbumSummary, type AlbumType, type ArtistDetail, type HistoryItem, type HomeSection, type PlaybackContext, type TrackSummary,
 } from '@squirmy/contracts';
-import { albumNote, albumPresentation, canFetch, formatTotalDuration, releaseSubtitle } from '@squirmy/client-core';
+import { albumNote, albumPresentation, canFetch, formatReleaseDate, formatTotalDuration, releaseSubtitle } from '@squirmy/client-core';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
@@ -298,11 +298,55 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     ]}
     description={data.description} onBack={onBack} onRefresh={album.refetch} bottomInset={bottomInset}>
     <TrackSection title="Tracklist" detail={tracks.length ? songCount(tracks, data.durationMs) : undefined}>
-      {tracks.length ? <SongList tracks={tracks} numbered onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
+      {tracks.length ? <AlbumDiscs discs={data.discs} album={data} onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
         : expanding ? <ActivityIndicator style={{ marginVertical: 28 }} accessibilityLabel="Loading songs" />
           : <EmptyState icon="music.note" title="No songs listed" description="The server doesn’t know this album’s songs yet." />}
     </TrackSection>
+    {tracks.length > 0 && <AlbumFooter album={data} />}
   </DetailPage>;
+}
+
+/**
+ * An album's songs, under a heading per disc when there is more than one, as each disc's
+ * numbering starts again at 1. `onPlay` takes the index in the whole album.
+ */
+function AlbumDiscs({ discs, album, onPlay, onTrackMenu }: {
+  discs: readonly AlbumDetail['discs'][number][]; album: Pick<AlbumDetail, 'id' | 'artistCredit'>;
+  onPlay: (start: number) => void; onTrackMenu: (track: TrackSummary) => void;
+}) {
+  const styles = useStyles();
+  const filled = discs.filter(disc => disc.tracks.length);
+  const page = useMemo(() => ({ id: album.id, artistCredit: album.artistCredit }), [album.id, album.artistCredit]);
+  if (filled.length <= 1) {
+    const tracks = filled[0]?.tracks ?? [];
+    return <SongList tracks={tracks} numbered album={page} onPlay={onPlay} onTrackMenu={onTrackMenu} />;
+  }
+  let offset = 0;
+  return <>
+    {filled.map(disc => {
+      const start = offset;
+      offset += disc.tracks.length;
+      return <View key={disc.disc}>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.discHeader}>
+          {disc.title ? `Disc ${disc.disc} · ${disc.title}` : `Disc ${disc.disc}`}
+        </Text>
+        <SongList tracks={disc.tracks} numbered album={page} onPlay={index => onPlay(start + index)} onTrackMenu={onTrackMenu} />
+      </View>;
+    })}
+  </>;
+}
+
+/** Under the tracklist, as on a record's back: when it came out, and who put it out. */
+function AlbumFooter({ album }: { album: Pick<AlbumDetail, 'releaseDate' | 'year' | 'label'> }) {
+  const styles = useStyles();
+  const date = album.releaseDate ? formatReleaseDate(album.releaseDate) : null;
+  const year = album.year ?? (album.releaseDate ? Number(album.releaseDate.slice(0, 4)) || null : null);
+  const label = album.label ? ['℗', year, album.label].filter(Boolean).join(' ') : null;
+  if (!date && !label) return null;
+  return <View style={styles.albumFooter}>
+    {date && <Text style={styles.albumFooterText}>{date}</Text>}
+    {label && <Text style={styles.albumFooterText}>{label}</Text>}
+  </View>;
 }
 
 /** Liked Songs, listening history, or one of the user's playlists. */
@@ -657,6 +701,9 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   trackListTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   trackCount: { color: colors.quiet, fontSize: 12, fontWeight: '600' },
   trackList: { marginHorizontal: gutter - 4 },
+  discHeader: { color: colors.muted, fontSize: 13, fontWeight: '600', marginTop: 14, marginBottom: 4, marginHorizontal: 9 },
+  albumFooter: { marginHorizontal: gutter, marginTop: 18, gap: 3 },
+  albumFooterText: { color: colors.quiet, fontSize: 13 },
   section: { marginTop: 28 },
   genreBody: { paddingHorizontal: gutter },
   genreTitle: { color: colors.text, fontSize: 34, letterSpacing: -1.4, fontWeight: '800', marginTop: 10, marginBottom: 18 },
