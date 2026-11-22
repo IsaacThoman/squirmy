@@ -19,18 +19,29 @@ type ImportsListProps = {
 
 /** Recent imports, newest first, each opening its detail. */
 export function ImportsList({ imports, ownerOf, onCancel }: ImportsListProps) {
-  if (!imports) return <div className="flex flex-col gap-2">{[0, 1, 2].map(index => <Skeleton key={index} className="h-[72px] rounded-2xl" />)}</div>
-  if (!imports.length) return <EmptyState icon={<Inbox />} title="Nothing imported yet" description="Uploads, the inbox folder and music fetched on demand all show up here." className="py-10" />
+  if (!imports) {
+    return (
+      <div className="divide-y rounded-xl border bg-card">
+        {[0, 1, 2].map(index => (
+          <div key={index} className="flex items-center gap-3 px-4 py-2.5">
+            <Skeleton className="size-9 rounded-lg" />
+            <div className="flex flex-1 flex-col gap-1.5 py-0.5"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-64 max-w-full" /></div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (!imports.length) return <EmptyState icon={<Inbox />} title="Nothing imported yet" description="Uploads, the inbox folder and music fetched on demand all show up here." className="rounded-xl border py-10" />
   return (
-    <ul aria-label="Recent imports" className="divide-y divide-stroke overflow-hidden rounded-2xl bg-sheet ring-1 ring-stroke">
+    <ul aria-label="Recent imports" className="divide-y overflow-hidden rounded-xl border bg-card">
       {imports.map(item => {
         const failed = item.status === 'failed' && !isCancelled(item)
         return (
-          <li key={item.id} className="group relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-overlay">
-            <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl', failed ? 'bg-danger/12 text-danger' : 'bg-surface text-muted')}><ImportKindIcon kind={item.kind} className="size-[18px]" /></div>
+          <li key={item.id} className="group relative flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent/60 has-[a:focus-visible]:bg-accent/60">
+            <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg border', failed ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'bg-muted/50 text-muted-foreground')}><ImportKindIcon kind={item.kind} className="size-4" /></div>
             <div className="min-w-0 flex-1">
-              <Link to={`/imports/${item.id}`} className="block truncate text-[15px] font-semibold after:absolute after:inset-0">{item.label ?? `${kindLabels[item.kind]} import`}</Link>
-              <p className="truncate text-[13px] text-muted">
+              <Link to={`/imports/${item.id}`} className="block truncate text-sm font-medium outline-none after:absolute after:inset-0">{item.label ?? `${kindLabels[item.kind]} import`}</Link>
+              <p className="truncate text-xs text-muted-foreground">
                 {[kindLabels[item.kind], ownerOf(item), formatRelative(item.createdAt), failed ? item.error : importSummary(item)].filter(Boolean).join(' · ')}
               </p>
             </div>

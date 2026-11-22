@@ -36,6 +36,14 @@ describe('search page', () => {
     expect(within(top).getByRole('button', { name: 'Play Amber' })).toBeInTheDocument()
   })
 
+  it('pauses and resumes its song once it is the current track', async () => {
+    renderWithApp(<AppRoutes />, '/search?q=amber')
+    const top = await screen.findByRole('region', { name: 'Top result' })
+    await userEvent.click(within(top).getByRole('button', { name: 'Play Amber' }))
+    await userEvent.click(await within(top).findByRole('button', { name: 'Pause Amber' }))
+    expect(await within(top).findByRole('button', { name: 'Play Amber' })).toBeInTheDocument()
+  })
+
   it('shows no top result when nothing is named as asked', async () => {
     renderWithApp(<AppRoutes />, '/search?q=soft')
     await screen.findByRole('region', { name: 'In your library' })

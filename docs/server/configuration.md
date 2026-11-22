@@ -3,7 +3,7 @@
 Squirmy has two kinds of settings:
 
 - **Environment variables**, read once when the process starts. They say where things are: the database, the data folder, the address the server is reached at. Change them in `compose.yaml` or `.env` and restart.
-- **Server settings**, stored in the database and changed while the server runs, in **Admin → Server settings**. They control metadata sources, API keys, matching and limits. A few have no screen yet and are changed through the API.
+- **Server settings**, stored in the database and changed while the server runs, in **Admin → Server settings**. They control metadata sources, API keys, matching and limits. Every setting can also be changed through the API.
 
 ## The ones that matter
 
@@ -69,6 +69,7 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 | Section | Setting (as on screen) | Key | Default | What it does |
 |---|---|---|---|---|
 | General | Server name | `serverName` | `Squirmy` | Shown on the web app's sign-in page and in the iOS app's connect and sign-in screens. |
+| | Wantlist | `wantlistEnabled` | off | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
 | Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
 | Metadata sources | MusicBrainz | `musicBrainzEnabled` | on | Identifies albums and fills in discographies. Off means nothing new is identified. |
 | | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service, a full `http://` or `https://` address. Only `musicbrainz.org` and its subdomains are rate limited, so a mirror lifts the limit. |
@@ -109,12 +110,6 @@ curl -X PATCH https://music.example.com/api/v1/admin/settings \
 ```
 
 Sizes are in bytes, and `importRootId` takes a folder id from `GET /api/v1/admin/library/roots`.
-
-Settings with no screen yet:
-
-| Key | Default | What it does |
-|---|---|---|
-| `wantlistEnabled` | `false` | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the iOS app shows no trace of it (the web app does not check it yet: it still shows the wantlist, but adding to it fails), and wants stay stored, so turning it back on brings them back. |
 
 `GET /api/v1/admin/settings` returns every setting; secrets come back only as `listenBrainzTokenSet`, `acoustIdKeySet`, `fanartKeySet` and `lastFmKeySet`. A secret set to `null` or `""` is removed.
 

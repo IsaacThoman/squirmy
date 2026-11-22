@@ -96,6 +96,8 @@ await context.addInitScript(instrumentAudio)
 const heading = (name, scope = page) => scope.getByRole('heading', { name, exact: true })
 const button = (name, scope = page) => scope.getByRole('button', { name, exact: true }).filter({ visible: true }).first()
 const toastText = text => page.getByText(text, { exact: true }).first()
+// The desktop player bar is the row along the bottom with the Devices button; it has no landmark of its own.
+const playerBar = (on = page) => on.locator('div.\\@container', { has: on.getByRole('button', { name: 'Devices', exact: true }) }).first()
 
 async function api(method, route, data, on = context) {
   const response = await on.request.fetch(`${base}/api/v1${route}`, { method, headers, data })
@@ -245,7 +247,8 @@ await step('upload a zip by dropping it', async () => {
     dropped.items.add(new File([binary], 'Abbey Road.zip', { type: 'application/zip' }))
     return dropped
   }, bytes)
-  await page.locator('div.border-dashed').dispatchEvent('drop', { dataTransfer: transfer })
+  // The drop zone is the dashed box around "Drop music here"; the empty imports list is dashed too.
+  await page.locator('div.border-dashed').filter({ has: heading('Drop music here') }).dispatchEvent('drop', { dataTransfer: transfer })
   await heading('Ready to upload').waitFor()
   await button('Upload').click()
   await uploadSection().waitFor({ timeout: minutes(2) })
@@ -409,7 +412,7 @@ await step('play missing music on demand', async () => {
   const row = await playFromSearch(query, track)
   await row.getByText('Preparing…').waitFor({ timeout: 10_000 })
   check('the track shows as preparing in the list', true)
-  check('and in the player bar', await page.locator('div.fixed.bottom-0').getByText('Preparing…').first().isVisible())
+  check('and in the player bar', await playerBar().getByText('Preparing…').first().isVisible())
   for (let press = 0; press < 3; press++) await page.locator('body').press('ArrowDown')
   await shoot('on-demand-preparing')
   await button('Queue').click()

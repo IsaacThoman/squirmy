@@ -23,6 +23,14 @@ describe('album page', () => {
     expect(screen.getByRole('button', { name: 'Play Low Tide' })).toBeDisabled()
   })
 
+  it('says nothing of the Wantlist while the server has it off', async () => {
+    const robin = users[2]!
+    renderWithApp(<AppRoutes />, `/album/${album('low-tide').id}`, fakeServices({ user: robin, status: { wantlistEnabled: false } }).services)
+    expect(await screen.findByText(/fetch missing music\.$/)).toBeInTheDocument()
+    expect(screen.queryByText(/Wantlist/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /Wantlist/ })).toBeNull()
+  })
+
   it('opens Fix match from the menu for admins', async () => {
     renderWithApp(<AppRoutes />, `/album/${album('blue-hour').id}`)
     await userEvent.click(await screen.findByRole('button', { name: 'More options' }))

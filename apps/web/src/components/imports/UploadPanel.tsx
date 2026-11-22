@@ -10,17 +10,19 @@ import { rejectionLabels } from '@/lib/imports'
 import type { UploadFileState, UploadSnapshot } from '@/lib/upload'
 import { cn } from '@/lib/utils'
 
+const linkClass = 'rounded-sm font-medium text-foreground underline underline-offset-4 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring'
+
 const unavailableText: Record<ImportUnavailable, { admin: ReactNode; member: string }> = {
   no_managed_root: {
-    admin: <>Uploads are filed into a managed music folder, and this server has none yet. Add one, or let Squirmy manage an existing folder, in <Link to="/admin/library" className="font-semibold text-accent hover:underline">Library settings</Link>.</>,
+    admin: <>Uploads are filed into a managed music folder, and this server has none yet. Add one, or let Squirmy manage an existing folder, in <Link to="/admin/library" className={linkClass}>Library settings</Link>.</>,
     member: 'Uploads are filed into a managed music folder, and this server has none yet. Ask an admin to add one.',
   },
   import_root_not_set: {
-    admin: <>This server has several managed folders. Choose the one uploads go to in <Link to="/admin/settings" className="font-semibold text-accent hover:underline">Server settings</Link>.</>,
+    admin: <>This server has several managed folders. Choose the one uploads go to in <Link to="/admin/settings" className={linkClass}>Server settings</Link>.</>,
     member: 'An admin needs to choose which music folder uploads go to.',
   },
   import_root_unavailable: {
-    admin: <>The folder chosen for uploads is disabled, gone, or no longer managed. Choose another in <Link to="/admin/settings" className="font-semibold text-accent hover:underline">Server settings</Link>.</>,
+    admin: <>The folder chosen for uploads is disabled, gone, or no longer managed. Choose another in <Link to="/admin/settings" className={linkClass}>Server settings</Link>.</>,
     member: 'The folder uploads go to is not available. Ask an admin to choose another.',
   },
 }
@@ -44,12 +46,12 @@ type UploadPanelProps = {
 
 /** Choosing music to upload and sending it, with progress for each file and for all of them. */
 export function UploadPanel({ options, isAdmin, upload, reading, onDrop, onPick, onStart, onPause, onCancel, onClear }: UploadPanelProps) {
-  if (!options) return <Skeleton className="h-72 rounded-3xl" />
+  if (!options) return <Skeleton className="h-64 rounded-xl" />
   if (options.unavailable) {
     const text = unavailableText[options.unavailable]
     return (
-      <div className="rounded-3xl bg-sheet ring-1 ring-stroke">
-        <EmptyState icon={<FolderUp />} title="Uploads have nowhere to go yet" description={isAdmin ? undefined : text.member} action={isAdmin ? <p className="max-w-md text-sm leading-relaxed text-muted">{text.admin}</p> : undefined} />
+      <div className="rounded-xl border bg-card">
+        <EmptyState icon={<FolderUp />} title="Uploads have nowhere to go yet" description={isAdmin ? undefined : text.member} action={isAdmin ? <p className="-mt-4 max-w-md text-sm text-muted-foreground">{text.admin}</p> : undefined} />
       </div>
     )
   }
@@ -78,24 +80,28 @@ function DropZone({ options, reading, onDrop, onPick }: { options: ImportOptions
         setOver(false)
         onDrop(event.dataTransfer)
       }}
-      className={cn('flex flex-col items-center rounded-3xl border-2 border-dashed px-6 py-14 text-center transition-colors duration-150', over ? 'border-accent bg-selection' : 'border-stroke bg-sheet')}
+      className={cn('flex flex-col items-center rounded-xl border border-dashed px-6 py-12 text-center transition-colors', over ? 'border-primary bg-primary/10' : 'border-input bg-card')}
     >
-      <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-selection text-accent [&_svg]:size-6">
-        {reading ? <Spinner label="Reading the folder" className="size-6" /> : <Upload />}
+      <div className={cn('mb-4 flex size-11 items-center justify-center rounded-xl border bg-background shadow-xs transition-colors [&_svg]:size-5', over ? 'border-primary/40 text-primary' : 'text-muted-foreground')}>
+        {reading ? <Spinner label="Reading the folder" /> : <Upload />}
       </div>
-      <h2 className="text-[19px] font-bold tracking-tight">{reading ? 'Reading the folder…' : 'Drop music here'}</h2>
-      <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">
+      <h2 className="text-base font-semibold">{reading ? 'Reading the folder…' : 'Drop music here'}</h2>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
         Album folders, single files or zip archives. Folders keep their structure, and the server identifies and files the albums.
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         <Button variant="primary" onClick={() => folder.current?.click()} disabled={reading}><FolderUp />Choose a folder</Button>
-        <Button onClick={() => files.current?.click()} disabled={reading}><FileAudio />Choose files</Button>
+        <Button variant="outline" onClick={() => files.current?.click()} disabled={reading}><FileAudio />Choose files</Button>
       </div>
-      <p className="mt-4 text-xs text-quiet">Up to {formatBytes(options.maxFileBytes)} per file and {formatBytes(options.maxBytes)} per upload.</p>
+      <p className="mt-4 text-xs text-muted-foreground">Up to {formatBytes(options.maxFileBytes)} per file and {formatBytes(options.maxBytes)} per upload.</p>
       <input ref={files} type="file" multiple hidden aria-label="Music files" onChange={event => pick(event.currentTarget)} />
       <input ref={folder} type="file" hidden aria-label="Music folder" {...{ webkitdirectory: '' }} onChange={event => pick(event.currentTarget)} />
     </div>
   )
+}
+
+function Problem({ children }: { children: ReactNode }) {
+  return <p role="alert" className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{children}</p>
 }
 
 type UploadQueueProps = Omit<UploadPanelProps, 'options' | 'upload' | 'reading' | 'onPick' | 'isAdmin'> & { options: ImportOptions; upload: UploadSnapshot }
@@ -109,7 +115,7 @@ function UploadQueue({ options, upload, onStart, onPause, onCancel, onClear, onD
   const sending = phase === 'sending' || phase === 'paused' || (phase === 'failed' && sentBytes > 0)
   return (
     <div
-      className="rounded-3xl bg-sheet p-5 ring-1 ring-stroke"
+      className="overflow-hidden rounded-xl border bg-card"
       onDragOver={event => { if (phase === 'ready' && event.dataTransfer.types.includes('Files')) event.preventDefault() }}
       onDrop={event => {
         if (phase !== 'ready') return
@@ -117,55 +123,53 @@ function UploadQueue({ options, upload, onStart, onPause, onCancel, onClear, onD
         onDrop(event.dataTransfer)
       }}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-[17px] font-bold">{phase === 'ready' ? 'Ready to upload' : phase === 'paused' ? 'Paused' : phase === 'failed' ? 'Upload stopped' : 'Uploading…'}</h2>
-          <p className="mt-0.5 text-[13px] text-muted">
-            {[folders > 0 && plural(folders, 'folder'), plural(files.length, 'file'), formatBytes(totalBytes), rejected > 0 && `${rejected.toLocaleString()} not taken`].filter(Boolean).join(' · ')}
-          </p>
+      <div className="p-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold">{phase === 'ready' ? 'Ready to upload' : phase === 'paused' ? 'Paused' : phase === 'failed' ? 'Upload stopped' : 'Uploading…'}</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {[folders > 0 && plural(folders, 'folder'), plural(files.length, 'file'), formatBytes(totalBytes), rejected > 0 && `${rejected.toLocaleString()} not taken`].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {phase !== 'ready' && !(phase === 'failed' && left === 0) && <Button size="sm" variant="ghost" onClick={onCancel}><X />Cancel</Button>}
+            {phase === 'ready' && <Button size="sm" variant="ghost" onClick={onClear}>Clear</Button>}
+            {phase === 'ready' && <Button size="sm" variant="primary" onClick={onStart} disabled={tooBig || left === 0}><Upload />Upload</Button>}
+            {phase === 'sending' && <Button size="sm" variant="outline" onClick={onPause}><Pause />Pause</Button>}
+            {(phase === 'paused' || (phase === 'failed' && left > 0)) && <Button size="sm" variant="primary" onClick={onStart}><Play />{phase === 'paused' ? 'Resume' : 'Try again'}</Button>}
+            {phase === 'failed' && left === 0 && <Button size="sm" variant="primary" onClick={onClear}>Choose other files</Button>}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {phase === 'ready' && <Button variant="ghost" onClick={onClear}>Clear</Button>}
-          {phase === 'ready' && <Button variant="primary" onClick={onStart} disabled={tooBig || left === 0}><Upload />Upload</Button>}
-          {phase === 'sending' && <Button onClick={onPause}><Pause />Pause</Button>}
-          {(phase === 'paused' || (phase === 'failed' && left > 0)) && <Button variant="primary" onClick={onStart}><Play />{phase === 'paused' ? 'Resume' : 'Try again'}</Button>}
-          {phase === 'failed' && left === 0 && <Button variant="primary" onClick={onClear}>Choose other files</Button>}
-          {phase !== 'ready' && !(phase === 'failed' && left === 0) && <Button variant="ghost" onClick={onCancel}><X />Cancel</Button>}
-        </div>
+
+        {tooBig && phase === 'ready' && <Problem>That is more than one upload may hold ({formatBytes(options.maxBytes)}). Upload fewer albums at a time.</Problem>}
+        {upload.error && <Problem>{upload.error}</Problem>}
+
+        {sending && (
+          <div className="mt-4 flex flex-col gap-2">
+            <ProgressBar value={totalBytes ? sentBytes / totalBytes : null} label="Upload progress" />
+            <p className="flex justify-between gap-3 text-xs text-muted-foreground">
+              <span className="tabular">{formatBytes(sentBytes)} of {formatBytes(totalBytes)}</span>
+              <span className="tabular">{left ? `${plural(left, 'file')} to go` : 'Finishing'}</span>
+            </p>
+          </div>
+        )}
       </div>
 
-      {tooBig && phase === 'ready' && (
-        <p role="alert" className="mt-4 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm font-medium text-danger">
-          That is more than one upload may hold ({formatBytes(options.maxBytes)}). Upload fewer albums at a time.
-        </p>
-      )}
-      {upload.error && <p role="alert" className="mt-4 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm font-medium text-danger">{upload.error}</p>}
-
-      {sending && (
-        <div className="mt-4 flex flex-col gap-1.5">
-          <ProgressBar value={totalBytes ? sentBytes / totalBytes : null} label="Upload progress" />
-          <p className="flex justify-between gap-3 text-xs font-medium text-muted">
-            <span className="tabular">{formatBytes(sentBytes)} of {formatBytes(totalBytes)}</span>
-            <span className="tabular">{left ? `${plural(left, 'file')} to go` : 'Finishing'}</span>
-          </p>
-        </div>
-      )}
-
-      <FileList files={files} />
-      {phase === 'ready' && <p className="mt-3 text-xs text-quiet">Drop more files here to add them.</p>}
+      <FileList files={files} className="border-t" />
+      {phase === 'ready' && <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">Drop more files here to add them.</p>}
     </div>
   )
 }
 
-const rowHeight = 44
+const rowHeight = 36
 
 /** Every chosen file, rendered only near the visible part of its box so thousands stay quick. */
-function FileList({ files, className = 'mt-4' }: { files: readonly UploadFileState[]; className?: string }) {
+function FileList({ files, className }: { files: readonly UploadFileState[]; className?: string }) {
   const box = useRef<HTMLDivElement>(null)
   // oxlint-disable-next-line react/incompatible-library -- the virtualizer re-renders on scroll by design
   const virtualizer = useVirtualizer({ count: files.length, getScrollElement: () => box.current, estimateSize: () => rowHeight, overscan: 10, initialRect: { width: 800, height: 400 } })
   return (
-    <div ref={box} className={cn('-mx-2 max-h-[26rem] overflow-y-auto [scrollbar-width:thin]', className)}>
+    <div ref={box} className={cn('max-h-96 overflow-y-auto px-2 py-1 [scrollbar-width:thin]', className)}>
       <ul aria-label="Files to upload" className="relative" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map(item => {
           const file = files[item.index]
@@ -179,24 +183,25 @@ function FileList({ files, className = 'mt-4' }: { files: readonly UploadFileSta
 function FileRow({ file, style }: { file: UploadFileState; style: CSSProperties }) {
   const Icon = file.path.toLowerCase().endsWith('.zip') ? FileArchive : FileAudio
   const slash = file.path.lastIndexOf('/')
+  const progress = file.size ? file.sent / file.size : 1
   return (
-    <li style={style} className="absolute inset-x-0 top-0 flex h-11 items-center gap-3 rounded-lg px-2 text-sm">
-      <Icon aria-hidden className={cn('size-4 shrink-0', file.status === 'rejected' ? 'text-danger' : 'text-quiet')} />
+    <li style={style} className="absolute inset-x-0 top-0 flex h-9 items-center gap-2.5 px-2 text-sm">
+      <Icon aria-hidden className={cn('size-4 shrink-0', file.status === 'rejected' ? 'text-destructive' : 'text-muted-foreground')} />
       <span className="min-w-0 flex-1 truncate" title={file.path}>
-        {slash > 0 && <span className="text-muted max-sm:hidden">{file.path.slice(0, slash + 1)}</span>}
-        <span className={cn('font-medium', file.status === 'rejected' && 'text-muted line-through decoration-quiet')}>{file.path.slice(slash + 1)}</span>
+        {slash > 0 && <span className="text-muted-foreground max-sm:hidden">{file.path.slice(0, slash + 1)}</span>}
+        <span className={cn(file.status === 'rejected' && 'text-muted-foreground line-through decoration-muted-foreground/60')}>{file.path.slice(slash + 1)}</span>
       </span>
-      <span className="hidden w-16 shrink-0 text-right text-xs tabular text-quiet sm:block">{formatBytes(file.size)}</span>
-      <span className="flex w-24 shrink-0 items-center justify-end gap-2 text-xs font-semibold sm:w-36">
-        {file.status === 'accepted' && <span className="flex items-center gap-1 text-accent"><Check className="size-3.5" strokeWidth={3} />Sent</span>}
-        {file.status === 'rejected' && file.reason && <span className="truncate text-danger">{rejectionLabels[file.reason]}</span>}
+      <span className="hidden w-16 shrink-0 text-right text-xs tabular text-muted-foreground sm:block">{formatBytes(file.size)}</span>
+      <span className="flex w-24 shrink-0 items-center justify-end gap-2 text-xs sm:w-36">
+        {file.status === 'accepted' && <span className="flex items-center gap-1 text-muted-foreground"><Check className="size-3.5 text-primary" strokeWidth={2.5} />Sent</span>}
+        {file.status === 'rejected' && file.reason && <span className="truncate text-destructive">{rejectionLabels[file.reason]}</span>}
         {file.status === 'sending' && (
           <>
-            <span className="h-1 w-16 overflow-hidden rounded-full bg-stroke max-sm:hidden"><span className="block h-full rounded-full bg-accent" style={{ width: `${(file.size ? file.sent / file.size : 1) * 100}%` }} /></span>
-            <span className="w-9 text-right tabular text-muted">{Math.round((file.size ? file.sent / file.size : 1) * 100)}%</span>
+            <span className="h-1 w-16 overflow-hidden rounded-full bg-muted max-sm:hidden"><span className="block h-full rounded-full bg-primary" style={{ width: `${progress * 100}%` }} /></span>
+            <span className="w-9 text-right tabular text-foreground">{Math.round(progress * 100)}%</span>
           </>
         )}
-        {file.status === 'waiting' && <span className="text-quiet">Waiting</span>}
+        {file.status === 'waiting' && <span className="text-muted-foreground">Waiting</span>}
       </span>
     </li>
   )
@@ -207,9 +212,9 @@ export function NotTaken({ files }: { files: readonly UploadFileState[] }) {
   const rejected = files.filter(file => file.status === 'rejected')
   if (!rejected.length) return null
   return (
-    <section aria-labelledby="not-taken" className="flex flex-col gap-3">
-      <h3 id="not-taken" className="px-1 text-lg font-bold tracking-tight">Not uploaded</h3>
-      <div className="rounded-2xl bg-sheet px-4 py-1 ring-1 ring-stroke"><FileList files={rejected} className="my-0" /></div>
+    <section aria-labelledby="not-taken">
+      <h3 id="not-taken" className="text-sm font-semibold">Not uploaded</h3>
+      <div className="mt-3 overflow-hidden rounded-xl border bg-card"><FileList files={rejected} /></div>
     </section>
   )
 }
