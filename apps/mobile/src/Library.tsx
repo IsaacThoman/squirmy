@@ -135,8 +135,6 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const statusBar = underStatusBar(top);
 
   return <View style={styles.page}>
-    <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
-      locations={[0, top / (top + 14), 1]} style={[styles.statusFade, { height: top + 14 }]} />
     <ScrollView contentInsetAdjustmentBehavior="never" refreshControl={refreshControl} {...statusBar.props}
       contentContainerStyle={{ paddingTop: statusBar.contentTop + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       <View style={[styles.pageHeader, styles.homeHeader]}>
@@ -153,6 +151,9 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
       </View>}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </ScrollView>
+    {/* After the list, so the list is the page's first view: re-tapping the tab scrolls the first scroll view it finds to the top. */}
+    <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
+      locations={[0, top / (top + 14), 1]} style={[styles.statusFade, { height: top + 14 }]} />
   </View>;
 }
 
@@ -254,7 +255,10 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
     },
   });
   const empty = filter === 'Songs' ? !tracks.length : !items.length;
-  const libraryEmpty = albums.data && !albums.items.length && !query;
+  // The invitation is for a library with nothing in it, on the views that list albums: under
+  // Songs or Artists, saved songs or artists can be there without a single album.
+  const libraryEmpty = (filter === 'Albums' || (filter === 'All' && playlists.data && !playlists.items.length))
+    && albums.data && !albums.items.length && !query;
   const capped = searching && matched && (filter === 'Songs' ? matched.tracks : filter === 'Artists' ? matched.artists : matched.albums).length >= libraryMatchLimit;
 
   const mode = filter === 'Songs' ? 'songs' : grid ? 'grid' : 'list';
@@ -318,7 +322,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
           {filter === 'Songs' && playSongs.busy && <ActivityIndicator accessibilityLabel="Loading songs" />}
         </View>
         {!active.data && <QueryState query={active} what="your library" />}
-        {libraryEmpty && filter !== 'Playlists' ? <EmptyState {...emptyLibrary.Albums} action={findMusic} />
+        {libraryEmpty ? <EmptyState {...emptyLibrary.Albums} action={findMusic} />
           : active.data && empty && !(searching && found.pending) && (query || filter === 'Playlists'
             ? <EmptyState icon="magnifyingglass" title={query ? 'Nothing found' : 'Nothing here yet'}
               description={query ? 'Try another search or filter.' : 'Try another filter.'} />

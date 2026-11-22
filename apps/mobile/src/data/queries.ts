@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useSignedInApi, type Api } from '../account/AccountProvider';
 import { albumExpanding, albumPlaceholder, findAlbumSummary } from './albums';
 import { artistPending, artistPlaceholder, findArtistSummary, pendingArtistPollMs } from './artists';
+import { inLibraryOnly } from '../library/librarySearch';
 import { useTrackStore } from './library';
 
 const pageSize = 60;
@@ -214,7 +215,7 @@ export function useLibraryMatches(text: string) {
   const prime = usePrime();
   const query = useQuery({
     queryKey: [...queryKeys.search(), 'library', q, libraryMatchLimit],
-    queryFn: async () => prime(await api!.search.library({ q, limit: libraryMatchLimit }), results => results.tracks),
+    queryFn: async () => inLibraryOnly(prime(await api!.search.library({ q, limit: libraryMatchLimit }), results => results.tracks)),
     enabled: Boolean(api) && [...q].length >= libraryMatchMinLength,
     placeholderData: keepPreviousData,
     staleTime: 60_000,
