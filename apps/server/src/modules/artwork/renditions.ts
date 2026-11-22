@@ -3,6 +3,9 @@ import { ART_SIZES, type ArtSize } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import sharp from 'sharp'
 import { z } from 'zod'
+import { eq } from 'drizzle-orm'
+import { db } from '../../database/client.js'
+import { assets } from '../../database/schema.js'
 import { etagMatches } from '../../lib/conditional.js'
 import { notFound } from '../../lib/errors.js'
 import { readOriginal } from './recover.js'
@@ -48,11 +51,16 @@ export type RenderJob = { assetId: string }
  * read once for all sizes; sizes already on disk are skipped.
  */
 export async function prerender({ assetId }: RenderJob) {
+  const [asset] = await db.select({ status: assets.status, storagePath: assets.storagePath }).from(assets).where(eq(assets.id, assetId))
+  if (asset?.status !== 'ready' || !asset.storagePath) return
   let original: Buffer | undefined
   for (const size of PRERENDERED_SIZES) {
     const file = dataPath('art', assetId, `${size}.webp`)
     if (await access(file).then(() => true, () => false)) continue
-    original ??= (await readOriginal(assetId)).bytes
+    // Only what is on disk: rebuilding a lost original (and marking it missing when that
+    // fails) is for a request to decide, not a head start.
+    original ??= await readFile(dataPath(asset.storagePath)).catch(() => undefined)
+    if (!original) return
     await render(assetId, size, file, original)
   }
 }
