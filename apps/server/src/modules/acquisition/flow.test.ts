@@ -9,7 +9,7 @@ import {
   AcquireResponse, AcquisitionUsage, ImportList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent,
 } from '@squirmy/contracts'
 import { deliver } from '@squirmy/provider-kit'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -573,12 +573,14 @@ describe('acquisition end to end', () => {
     configureAcquisition({ slotWaitSeconds: 1 })
     mock.settings.maxConcurrent = 1
     await refresh()
+    // The one slot must be free: earlier tests' jobs may still be finishing.
+    await eventually(async () => expect(await db.select({ id: acquisitionJobs.id }).from(acquisitionJobs).where(isNull(acquisitionJobs.completedAt))).toEqual([]), 20_000)
     try {
       const album = await createAlbum({ title: 'One At A Time', tracks: ['Holder', 'Saved', 'Ahead', 'Playing'].map((title) => ({ title, durationMs: 2000 })) })
       const [holder, saved, ahead, playing] = album.tracks.map((track) => track.recordingId) as [string, string, string, string]
       mock.settings.delayMs = 1500
       body(await app.inject({ method: 'POST', url: `/api/v1/tracks/${holder}/acquire`, headers: fan.headers }), AcquireResponse, 202)
-      await eventually(async () => expect((await jobsFor(holder))[0]).toMatchObject({ status: 'queued' }), 5000)
+      await eventually(async () => expect((await jobsFor(holder))[0]).toMatchObject({ status: 'queued' }), 10_000)
 
       body(await app.inject({ method: 'POST', url: `/api/v1/tracks/${saved}/acquire?origin=library`, headers: fan.headers }), AcquireResponse, 202)
       await requestRecording({ userId: fan.id, recordingId: ahead, albumId: album.albumId, origin: 'prefetch' })
@@ -598,7 +600,7 @@ describe('acquisition end to end', () => {
       mock.settings.maxConcurrent = 4
       await refresh()
     }
-  })
+  }, 60_000)
 
   it('moves a job up when the track it fetches is played', async () => {
     const album = await createAlbum({ title: 'Promoted', tracks: [{ title: 'Saved First', durationMs: 2000 }] })
