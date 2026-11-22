@@ -34,7 +34,7 @@ import { sessionsModule } from '../sessions/index.js'
 import { requestRecording } from './coverage.js'
 import { acquisitionModule } from './index.js'
 import { configureAcquisition, finishJob, sweepJobs } from './jobs.js'
-import { applyOutcome, recentOutcome } from './outcomes.js'
+import { applyOutcome, recentOutcomes } from './outcomes.js'
 import { updateAcquisitionPolicy } from './policy.js'
 import { createProvider, updateProvider } from './providers.js'
 
@@ -487,10 +487,11 @@ describe('acquisition end to end', () => {
     await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: interrupted, state: 'ready' }), 10_000)
 
     // Lost notifications are made up for by the reconciliation in the API process.
-    const outcome = await recentOutcome()
-    expect(outcome.ready).toEqual(expect.arrayContaining([interrupted, stuck]))
-    expect(outcome.failed).toContain(quiet)
-    await applyOutcome(outcome)
+    const outcomes = await recentOutcomes()
+    expect(outcomes.flatMap((outcome) => outcome.ready)).toEqual(expect.arrayContaining([interrupted, stuck]))
+    // The provider failed it, which recorded a miss: the track is not to be had, as the job said.
+    expect(outcomes.find((outcome) => outcome.cause === 'unavailable')?.failed).toContain(quiet)
+    for (const outcome of outcomes) await applyOutcome(outcome)
   })
 
   it('fetches a whole album in one job', async () => {
