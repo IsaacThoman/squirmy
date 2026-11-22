@@ -1,3 +1,4 @@
+import { ApiError } from '@squirmy/client-core'
 import type { QueueEntry } from '@squirmy/contracts'
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -88,5 +89,20 @@ describe('telling failures', () => {
     act(() => socket.serverEmit('event', { type: 'acquisition.updated', jobId: '00000000-0000-4000-8b00-000000000001', trackId: album('afterimage').discs[0].tracks[0].id, status: 'failed' }))
     await act(() => new Promise(resolve => setTimeout(resolve, 50)))
     expect(titles().filter(title => /Couldn’t/.test(title))).toEqual([])
+  })
+})
+
+describe('a track the server refuses to stream', () => {
+  afterEach(() => act(() => { for (const item of toastStore.getSnapshot()) dismissToast(item.id) }))
+
+  it('is told once and skipped', async () => {
+    const { services, socket, api } = fakeServices()
+    const blueHour = album('blue-hour')
+    const [first, second] = blueHour.discs[0].tracks
+    api.streaming.playback.mockRejectedValueOnce(new ApiError(404, 'not_found', 'Not found'))
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
+    expect(await screen.findByText(`Couldn’t play “${first.title}”`)).toBeInTheDocument()
+    await waitFor(() => expect(socket.session.current?.trackId).toBe(second.id))
   })
 })

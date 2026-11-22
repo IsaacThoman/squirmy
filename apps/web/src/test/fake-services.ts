@@ -222,8 +222,10 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       trackSummaries: vi.fn(async ({ tracks }: TrackSummariesRequest) => ({ tracks: tracks.flatMap(({ id }) => allTracks.filter(track => track.id === id).slice(0, 1)) })),
     },
     streaming: {
-      playback: vi.fn(async () => {
-        throw notFound()
+      // No audio in tests: a failure that may pass, which the session client retries. A test of a
+      // refused track makes it a 404.
+      playback: vi.fn(async (): Promise<never> => {
+        throw new Error('No audio in tests')
       }),
     },
     userdata: {

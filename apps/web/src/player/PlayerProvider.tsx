@@ -28,7 +28,7 @@ const MAX_SEEDS = 5000
  * The session client of this tab. Playback is resolved with the user's streaming quality,
  * which `setQuality` keeps current, and the codecs this browser plays.
  */
-function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine) {
+function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine, store: TrackStore) {
   let quality: StreamQuality = 'original'
   const client = new SessionClient({
     transport: createSocketTransport(socket),
@@ -42,6 +42,14 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
       baseUrl: '',
       canBoost: engine.canBoost,
       resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, codecs: playableCodecs().join(',') }),
+      // A failure that may pass is retried by the client. A track the server refused to stream
+      // (gone, or not allowed) is told once and skipped, as one the browser cannot play.
+      onLoadError: (entry, _error, willRetry) => {
+        if (willRetry || client.getSnapshot().session.current?.id !== entry.id) return
+        const title = store.get(entry.trackId, entry.albumId)?.title
+        toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', description: 'Skipped.' })
+        client.dispatch({ type: 'next' })
+      },
     },
   })
   return { client, setQuality: (next: StreamQuality) => { quality = next } }
@@ -78,8 +86,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!pageEngine || !socket) throw new Error('PlayerProvider needs an engine and the realtime socket')
     return pageEngine
   })
-  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine))
   const [store] = useState(() => new TrackStore(request => api.catalog.trackSummaries(request)))
+  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine, store))
   const [clock] = useState(() => new PositionClock(() => client.getPositionMs()))
   const snapshot = useSyncExternalStore(client.subscribe, client.getSnapshot)
   const [, summariesArrived] = useReducer((count: number) => count + 1, 0)
