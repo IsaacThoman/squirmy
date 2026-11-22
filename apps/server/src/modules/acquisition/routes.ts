@@ -153,18 +153,21 @@ export async function acquisitionRoutes(app: FastifyInstance) {
   app.post('/albums/:id/acquire', async (request, reply): Promise<AcquireResponse> => {
     const user = requireUser(request)
     const albumId = IdParams.parse(request.params).id
+    // Only the library action adds to a library (the default origin, which "Get this album"
+    // sends). A device downloading an album, and playback (which asks through the sessions
+    // module, never here), only fetch: the files are cache.
+    const { origin = 'library' } = AcquireQuery.parse(request.query)
+    const save = () => (origin === 'library' ? recordSave(user.id, 'album', albumId) : Promise.resolve(albumId))
     let jobs
     try {
       jobs = await requestAlbum(user.id, albumId)
     } catch (error) {
-      // Asking for an album the server already has (as cache) still means keeping it.
-      if (error instanceof AppError && error.code === 'already_available') await recordSave(user.id, 'album', albumId)
+      // Adding an album the server already has (as cache) to the library still adds it.
+      if (error instanceof AppError && error.code === 'already_available') await save()
       throw error
     }
-    // Owned by the userdata module: asking for a whole album saves it to the user's library,
-    // as completed album jobs were converted when library saves arrived. A track fetched by
-    // pressing play is cache and is not saved.
-    await recordSave(user.id, 'album', albumId)
+    // Owned by the userdata module, as completed album jobs were converted when library saves arrived.
+    await save()
     reply.code(202)
     return { items: await jobsById(jobs.map((job) => job.id)) }
   })

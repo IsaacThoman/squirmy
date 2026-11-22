@@ -314,6 +314,40 @@ describe('acquired tracks and their album', () => {
     expect(await savedAlbums()).toContain(album.albumId)
   })
 
+  it('adds an album to the library only when it is asked for from the library', async () => {
+    const acquireAlbum = (albumId: string, origin?: 'library' | 'download') =>
+      app.inject({ method: 'POST', url: `/api/v1/albums/${albumId}/acquire${origin ? `?origin=${origin}` : ''}`, headers: fan.headers })
+    const saved = async (albumId: string) => (await db.select().from(libraryItems)
+      .where(and(eq(libraryItems.userId, fan.id), eq(libraryItems.entityType, 'album'), eq(libraryItems.entityId, albumId)))).length > 0
+
+    // A device downloading the album only fetches it.
+    const downloaded = await identified({ title: 'For The Road', year: 2014, tracks: [{ title: 'Mile One', durationMs: 2000 }, { title: 'Mile Two', durationMs: 2000 }] })
+    body(await acquireAlbum(downloaded.albumId, 'download'), AcquireResponse, 202)
+    await settle(downloaded.tracks[0]!.recordingId)
+    expect((await albumPage(downloaded.albumId)).ownedTrackCount).toBe(2)
+    expect(await saved(downloaded.albumId)).toBe(false)
+    expect(await savedAlbums()).not.toContain(downloaded.albumId)
+    // Asking again, now that the server has it all, still adds nothing.
+    expect(errorCode(await acquireAlbum(downloaded.albumId, 'download'), 409)).toBe('already_available')
+    expect(await saved(downloaded.albumId)).toBe(false)
+
+    // The library action adds it, even when there is nothing left to fetch.
+    expect(errorCode(await acquireAlbum(downloaded.albumId, 'library'), 409)).toBe('already_available')
+    expect(await saved(downloaded.albumId)).toBe(true)
+    expect(await savedAlbums()).toContain(downloaded.albumId)
+
+    const added = await identified({ title: 'Kept Close', year: 2015, tracks: [{ title: 'Held', durationMs: 2000 }] })
+    body(await acquireAlbum(added.albumId, 'library'), AcquireResponse, 202)
+    expect(await saved(added.albumId)).toBe(true)
+    await settle(added.tracks[0]!.recordingId)
+
+    // Tracks fetched to play them (or ahead of playing them) are never saved, nor is their album.
+    const played = await identified({ title: 'Only Played', year: 2016, tracks: [{ title: 'Heard Once', durationMs: 2000 }, { title: 'Not Yet', durationMs: 2000 }] })
+    expect(await fetchTrack(played.tracks[0]!.recordingId, played.albumId)).toMatchObject({ status: 'completed' })
+    expect(await saved(played.albumId)).toBe(false)
+    expect(await db.select().from(libraryItems).where(and(eq(libraryItems.userId, fan.id), eq(libraryItems.entityId, played.tracks[0]!.recordingId)))).toEqual([])
+  })
+
   it('fetches an album track by track when no provider will fetch it whole', async () => {
     const album = await identified({ title: 'Not Whole', year: 2003, tracks: [{ title: 'Piece One', durationMs: 2000 }, { title: 'Piece Two', durationMs: 2000 }] })
     mock.settings.has = (item) => item.kind !== 'album'
