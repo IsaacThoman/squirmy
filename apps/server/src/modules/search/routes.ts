@@ -10,7 +10,7 @@ import { materialize, type StubIds } from './materialize.js'
 import { withoutNamesakes } from './namesakes.js'
 import { allKinds, searchCatalog } from './providers.js'
 import { topOf, type Ranked } from './rank.js'
-import { rankFound, type Found } from './top.js'
+import { rankFound, withLiked, type Found } from './top.js'
 import { warmAlbums } from './warm.js'
 
 /**
@@ -26,7 +26,7 @@ async function summaries(userId: string, ids: StubIds): Promise<Found> {
     albumSummaries(ids.albums),
     trackSummaries(userId, ids.tracks.map((id) => ({ id }))),
   ])
-  return { artists, albums, tracks }
+  return withLiked(userId, { artists, albums, tracks })
 }
 
 /**
