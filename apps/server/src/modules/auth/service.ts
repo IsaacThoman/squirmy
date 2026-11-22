@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import type { AppPassword, ClientDevice, User } from '@squirmy/contracts'
+import { APP_PASSWORD_LIMIT, type AppPassword, type ClientDevice, type User } from '@squirmy/contracts'
 import argon2 from 'argon2'
-import { and, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, type Executor } from '../../database/client.js'
 import { appPasswords, authSessions, devices, users } from '../../database/schema.js'
 import type { AuthUser } from '../../lib/auth.js'
@@ -10,6 +10,8 @@ import { decrypt, encrypt, hashToken, randomToken } from '../../lib/crypto.js'
 import { newId } from '../../lib/ids.js'
 
 const sessionLifetimeMs = 180 * 24 * 60 * 60 * 1000
+/** Devices kept per user; clients choose their ids, so the least recently seen go first. */
+const deviceLimit = 100
 const lastSeenIntervalMs = 60 * 1000
 
 const { passwordHash: _passwordHash, ...userColumns } = getTableColumns(users)
@@ -68,12 +70,21 @@ export async function createSession(executor: Executor, input: {
     userAgent: input.userAgent?.slice(0, 500),
     expiresAt: new Date(Date.now() + sessionLifetimeMs),
   })
-  if (input.device) {
-    const { id, name, kind } = input.device
-    await executor.insert(devices).values({ userId: input.userId, id, name, kind })
-      .onConflictDoUpdate({ target: [devices.userId, devices.id], set: { name, kind, lastSeenAt: new Date() } })
-  }
+  if (input.device) await rememberDevice(executor, input.userId, input.device)
   return { token, sessionId }
+}
+
+/** Records a device as seen, keeping at most `deviceLimit` per user. */
+export async function rememberDevice(executor: Executor, userId: string, device: ClientDevice) {
+  const { id, name, kind } = device
+  const [row] = await executor.insert(devices).values({ userId, id, name, kind })
+    .onConflictDoUpdate({ target: [devices.userId, devices.id], set: { name, kind, lastSeenAt: new Date() } })
+    .returning({ inserted: sql<boolean>`xmax = 0` })
+  if (!row?.inserted) return
+  await executor.execute(sql`
+    delete from ${devices} where ${devices.userId} = ${userId} and ${devices.id} not in (
+      select ${devices.id} from ${devices} where ${devices.userId} = ${userId}
+      order by ${devices.lastSeenAt} desc limit ${deviceLimit})`)
 }
 
 /**
@@ -130,14 +141,27 @@ export async function listAppPasswords(userId: string): Promise<AppPassword[]> {
 /** Creates an app password. The response is the only time the secret is shown. */
 export async function createAppPassword(userId: string, name: string): Promise<AppPassword> {
   const secret = randomToken(18)
-  const [row] = await db.insert(appPasswords).values({
-    id: newId(),
-    userId,
-    name,
-    secretEncrypted: encrypt(appPasswordPurpose, secret),
-    keyHash: hashToken(secret),
-  }).returning()
-  return toAppPassword(row!, secret)
+  return db.transaction(async (tx) => {
+    // Subsonic auth decrypts every app password of the user on each request; bound them.
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update')
+    const [held] = await tx.select({ count: count() }).from(appPasswords).where(eq(appPasswords.userId, userId))
+    if ((held?.count ?? 0) >= APP_PASSWORD_LIMIT) {
+      throw conflict(`An account can have at most ${APP_PASSWORD_LIMIT} app passwords. Delete one you no longer use.`, 'too_many_app_passwords')
+    }
+    const [row] = await tx.insert(appPasswords).values({
+      id: newId(),
+      userId,
+      name,
+      secretEncrypted: encrypt(appPasswordPurpose, secret),
+      keyHash: hashToken(secret),
+    }).returning()
+    return toAppPassword(row!, secret)
+  })
+}
+
+/** Deletes every app password of a user, for password resets and lost devices. */
+export async function revokeAppPasswords(executor: Executor, userId: string) {
+  await executor.delete(appPasswords).where(eq(appPasswords.userId, userId))
 }
 
 export async function deleteAppPassword(userId: string, id: string): Promise<boolean> {

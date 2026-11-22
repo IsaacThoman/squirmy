@@ -63,7 +63,16 @@ export type RegisterRequest = z.infer<typeof RegisterRequest>
 export const AuthResponse = z.object({ user: User, token: z.string() })
 export type AuthResponse = z.infer<typeof AuthResponse>
 
-export const ChangePasswordRequest = z.object({ currentPassword: z.string().min(1), newPassword: Password })
+/**
+ * Changing the password also deletes the account's app passwords, since one minted by
+ * whoever had the old password would otherwise outlive it. `keepAppPasswords` opts out,
+ * for someone who only wants a new password and trusts every app password they made.
+ */
+export const ChangePasswordRequest = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: Password,
+  keepAppPasswords: z.boolean().default(false),
+})
 export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequest>
 
 export const Invite = z.object({
@@ -123,5 +132,13 @@ export type AppPassword = z.infer<typeof AppPassword>
 export const AppPasswordList = page(AppPassword)
 export type AppPasswordList = z.infer<typeof AppPasswordList>
 
-export const CreateAppPasswordRequest = z.object({ name: z.string().trim().min(1).max(60) })
+/** Most app passwords one account may hold. */
+export const APP_PASSWORD_LIMIT = 50
+
+/**
+ * `currentPassword` is the account password: a borrowed session alone must not be able to
+ * mint a credential that outlives it. Servers answer `current_password_required` to
+ * clients that do not send it yet.
+ */
+export const CreateAppPasswordRequest = z.object({ name: z.string().trim().min(1).max(60), currentPassword: z.string().min(1).max(200) })
 export type CreateAppPasswordRequest = z.infer<typeof CreateAppPasswordRequest>

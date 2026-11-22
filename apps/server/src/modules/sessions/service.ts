@@ -10,6 +10,7 @@ import { devices } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import type { RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
+import { rememberDevice } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { lookupTracks, trustSeeds } from './entries.js'
 import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, savePlay } from './plays.js'
@@ -215,8 +216,7 @@ export function greet(userId: string, socketId: string, hello: SessionHello, rep
   joinDevice(userId, socketId, device, canPlay)
   cancelGrace(userId, device.id)
   return serial(userId, async () => {
-    await db.insert(devices).values({ userId, id: device.id, name: device.name, kind: device.kind })
-      .onConflictDoUpdate({ target: [devices.userId, devices.id], set: { name: device.name, kind: device.kind, lastSeenAt: new Date() } })
+    await rememberDevice(db, userId, device)
     const record = await load(userId)
     reply({ serverTime: settings.now(), snapshot: snapshotOf(record), devices: listDevices(userId, record.session.activeDeviceId) })
   }).catch(report)

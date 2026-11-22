@@ -48,7 +48,7 @@ type SettingsViewProps = {
   /** Undefined while loading. */
   appPasswords: AppPassword[] | undefined
   /** Resolves with the new password, whose `secret` is shown once. */
-  onCreateAppPassword: (name: string) => Promise<AppPassword>
+  onCreateAppPassword: (request: CreateAppPasswordRequest) => Promise<AppPassword>
   onRevokeAppPassword: (id: string) => Promise<unknown>
   onChangePassword: (request: ChangePasswordRequest) => Promise<unknown>
   /** Only where the server lets this user rename themselves. */
@@ -156,19 +156,21 @@ export function SettingsView({
   )
 }
 
-function CreateAppPasswordDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (name: string) => Promise<AppPassword> }) {
+function CreateAppPasswordDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (request: CreateAppPasswordRequest) => Promise<AppPassword> }) {
   const [name, setName] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [created, setCreated] = useState<AppPassword | null>(null)
-  const form = useFormSubmit(CreateAppPasswordRequest, async ({ name }) => setCreated(await onCreate(name)))
+  const form = useFormSubmit(CreateAppPasswordRequest, async (request) => setCreated(await onCreate(request)), { invalid_credentials: 'currentPassword' })
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    void form.submit({ name })
+    void form.submit({ name, currentPassword })
   }
   const close = (next: boolean) => {
     onOpenChange(next)
     if (!next) {
       setName('')
+      setCurrentPassword('')
       setCreated(null)
       form.reset()
     }
@@ -187,10 +189,13 @@ function CreateAppPasswordDialog({ open, onOpenChange, onCreate }: { open: boole
             <Field label="Name" htmlFor="app-password-name" error={form.errors.name}>
               <Input id="app-password-name" value={name} onChange={event => setName(event.target.value)} placeholder="Car stereo" aria-invalid={!!form.errors.name} autoFocus />
             </Field>
+            <Field label="Your password" htmlFor="app-password-current" error={form.errors.currentPassword}>
+              <Input id="app-password-current" type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" aria-invalid={!!form.errors.currentPassword} />
+            </Field>
             <FormError message={form.errors.form} />
             <DialogFooter>
               <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-              <Button type="submit" variant="primary" pending={form.pending} disabled={!name.trim()}>Create</Button>
+              <Button type="submit" variant="primary" pending={form.pending} disabled={!name.trim() || !currentPassword}>Create</Button>
             </DialogFooter>
           </form>
         )}
@@ -227,7 +232,7 @@ function ChangePasswordDialog({ open, onOpenChange, onChange }: { open: boolean;
   })
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent title="Change password" description="Other browsers and apps signed in with your password are signed out. App passwords keep working.">
+      <DialogContent title="Change password" description="Other browsers and apps signed in with your password are signed out, and your app passwords are deleted: make new ones for your Subsonic apps.">
         <form onSubmit={event => void submit(event)} className="flex flex-col gap-4" noValidate>
           <Field label="Current password" htmlFor="password-currentPassword" error={form.errors.currentPassword}>
             <Input {...field('currentPassword')} autoComplete="current-password" aria-invalid={!!form.errors.currentPassword} autoFocus />

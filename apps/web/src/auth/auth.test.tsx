@@ -137,8 +137,10 @@ describe('account', () => {
     renderWithApp(app, '/settings', services)
     await userEvent.click(await screen.findByRole('button', { name: 'Create' }))
     await userEvent.type(screen.getByLabelText('Name'), 'Phone')
+    await userEvent.type(screen.getByLabelText('Your password'), 'correct horse')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(await screen.findByLabelText('App password')).toHaveValue('sq-secret')
+    expect(api.auth.createAppPassword.mock.calls[0]?.[0]).toEqual({ name: 'Phone', currentPassword: 'correct horse' })
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
 
     await userEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[0])

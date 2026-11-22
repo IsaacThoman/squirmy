@@ -143,7 +143,7 @@ Lost originals rebuild themselves (`artwork/recover.ts`). When a file under `ass
 - **CSRF.** A cookie-authenticated request that is not GET/HEAD/OPTIONS must carry the header `X-Squirmy-Request: 1`. Bearer requests are exempt.
 - Passwords are argon2id. Login is rate limited per address; failed logins are counted per username and address and, more loosely, per username (`lib/failures.ts`), so a correct login never uses a budget and one client cannot lock an account out for everyone. Setup and register are limited per address, password changes per user, and Subsonic failures per address. Addresses are keyed by `lib/proxy.ts` `addressKey` (IPv6 per /64). Counters live in the API process's memory.
 - Logging out, changing a password (other sessions), and an admin disabling a user or resetting their password end the affected sessions and close their sockets.
-- App passwords for Subsonic clients are random secrets stored AES-GCM encrypted (Subsonic token auth needs the clear text) plus a SHA-256 `key_hash` for `apiKey` lookups. `modules/auth/service.ts` exports `verifyAppPassword` and `findAppPasswordByKey`.
+- App passwords for Subsonic clients are random secrets stored AES-GCM encrypted (Subsonic token auth needs the clear text) plus a SHA-256 `key_hash` for `apiKey` lookups. `modules/auth/service.ts` exports `verifyAppPassword` and `findAppPasswordByKey`. Creating one needs the account password, at most `APP_PASSWORD_LIMIT` (50) per user; a password change, an admin reset and disabling the account delete them (`revokeAppPasswords`). Devices are recorded through `rememberDevice`, which keeps the 100 most recently seen per user.
 - `lib/crypto.ts` derives purpose-specific keys from the root secret with HKDF and exposes `hashToken`, `sign`/`verify` (HMAC-SHA256) and `encrypt`/`decrypt` (AES-256-GCM, base64url output).
 
 ### Jobs
@@ -189,7 +189,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 |---|---|---|
 | `GET /setup/status`, `POST /setup` | auth | create the first admin; the status carries `wantlistEnabled` |
 | `POST /auth/login`, `/auth/logout`, `/auth/register`, `/auth/password`; `GET /auth/me` | auth | |
-| `GET/POST /auth/app-passwords`, `DELETE /auth/app-passwords/:id` | auth | the secret is returned once, on create |
+| `GET/POST /auth/app-passwords`, `DELETE /auth/app-passwords/:id` | auth | the secret is returned once, on create; create needs `currentPassword` |
 | `GET/PATCH /me/settings` | userdata | `UserSettings` |
 | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/:id`; `GET/POST /admin/invites`, `DELETE /admin/invites/:id` | admin | the last active admin cannot be demoted, disabled or deleted |
 | `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists directories only, symlinks resolved; home directory by default |
@@ -297,7 +297,7 @@ The server holds one session per user in memory, loaded on first use and persist
 `modules/subsonic` serves OpenSubsonic under `/rest` over the same services; [subsonic.md](./server/subsonic.md) lists what it supports.
 
 - `router.ts` answers every method on GET and form POST, with or without `.view`. Handlers return plain objects that `serialize.ts` writes as XML or JSON(P). Failures are Subsonic error codes in a 200; service `AppError`s map to the closest code (404 is 70, 403 is 50).
-- Every request authenticates with an app password (token, password or `apiKey`); failures are limited per IP in the API process.
+- Every request authenticates with an app password (token, password or `apiKey`); valid credentials are always accepted, and an address with 100 failures a minute is refused unchecked (API process memory).
 - Ids carry their kind (`ar-`, `al-`, `tr-`, `pl-`, `ca-` for an artwork asset) and are checked on the way in. Music folders are library roots, numbered by a hash of the root id.
 - Only owned music appears. `songs.ts`, `albums.ts` and `artists.ts` build response objects in batches with a fixed number of queries; a song is shown through the present file `selectFile` would stream.
 - `search3` and `search2` rank a query with the search module's library search (`searchLibrary`), so typos are tolerated as in the apps. Sync clients page through everything with an empty `search3`. The page that starts where the user's previous one ended continues from its last key, so deep pages cost what the first does.

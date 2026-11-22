@@ -49,6 +49,7 @@ async function capture(target, shot, scheme, storageState) {
     await page.getByRole('button', { name: /^(Connect|Disconnect)$/ }).first().waitFor()
     await page.getByRole('button', { name: 'Create', exact: true }).click()
     await page.getByLabel('Name', { exact: true }).fill(shot.create)
+    await page.getByLabel('Your password', { exact: true }).fill(credentials.password)
     await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
   }
   await page.mouse.move(0, 0)

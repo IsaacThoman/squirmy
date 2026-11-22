@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
+import { APP_PASSWORD_LIMIT } from '@squirmy/contracts'
 import type { FastifyInstance, InjectOptions } from 'fastify'
-import { eq } from 'drizzle-orm'
+import { eq, like } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { resetConfig } from '../../config.js'
@@ -9,7 +10,7 @@ import { appPasswords, authSessions, devices, invites, users } from '../../datab
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
-import { findAppPasswordByKey, verifyAppPassword } from './service.js'
+import { findAppPasswordByKey, rememberDevice, verifyAppPassword } from './service.js'
 
 const device = { id: 'device-0001', name: 'Test phone', kind: 'ios' as const }
 
@@ -82,13 +83,13 @@ describe('auth', () => {
     expect(me.statusCode).toBe(200)
     expect(me.cookies.find((entry) => entry.name === 'squirmy_session')?.maxAge).toBeGreaterThan(0)
 
-    const forged = await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers, payload: { name: 'x' } })
+    const forged = await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers, payload: { name: 'x', currentPassword: 'correct horse' } })
     expect(forged.statusCode).toBe(403)
     expect(forged.json().error.code).toBe('csrf')
-    const allowed = await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: { ...headers, 'x-squirmy-request': '1' }, payload: { name: 'x' } })
+    const allowed = await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: { ...headers, 'x-squirmy-request': '1' }, payload: { name: 'x', currentPassword: 'correct horse' } })
     expect(allowed.statusCode).toBe(201)
     // Bearer requests are exempt.
-    expect((await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: bearer(adminToken), payload: { name: 'y' } })).statusCode).toBe(201)
+    expect((await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: bearer(adminToken), payload: { name: 'y', currentPassword: 'correct horse' } })).statusCode).toBe(201)
 
     const logout = await call({ method: 'POST', url: '/api/v1/auth/logout', headers: { ...headers, 'x-squirmy-request': '1' } })
     expect(logout.cookies.find((entry) => entry.name === 'squirmy_session')?.value).toBe('')
@@ -191,8 +192,41 @@ describe('auth', () => {
     expect((await login('new password')).statusCode).toBe(200)
   })
 
+  it('deletes app passwords on a password change unless asked to keep them', async () => {
+    const token = (await call({ method: 'POST', url: '/api/v1/auth/login', payload: { username: 'mira', password: 'new password' } })).json().token
+    const create = async () => (await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: bearer(token), payload: { name: 'App', currentPassword: 'new password' } })).json().secret as string
+    const change = (payload: object) => call({ method: 'POST', url: '/api/v1/auth/password', headers: bearer(token), payload })
+
+    const kept = await create()
+    expect((await change({ currentPassword: 'new password', newPassword: 'newer password', keepAppPasswords: true })).statusCode).toBe(200)
+    expect(await findAppPasswordByKey(kept)).not.toBeNull()
+    expect((await change({ currentPassword: 'newer password', newPassword: 'new password' })).statusCode).toBe(200)
+    expect(await findAppPasswordByKey(kept)).toBeNull()
+  })
+
+  it('needs the current password to create an app password, and caps how many', async () => {
+    const create = (payload: object) => call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: bearer(adminToken), payload })
+    // Clients from before the change get a code they can show.
+    const old = await create({ name: 'Old app' })
+    expect(old.statusCode).toBe(400)
+    expect(old.json().error.code).toBe('current_password_required')
+    const wrong = await create({ name: 'Phone', currentPassword: 'wrong' })
+    expect(wrong.statusCode).toBe(403)
+    expect(wrong.json().error.code).toBe('invalid_credentials')
+
+    const [admin] = await db.select().from(users).where(eq(users.usernameKey, 'admin'))
+    const held = (await db.select().from(appPasswords).where(eq(appPasswords.userId, admin!.id))).length
+    await db.insert(appPasswords).values(Array.from({ length: APP_PASSWORD_LIMIT - held }, (_, index) => ({
+      id: newId(), userId: admin!.id, name: `filler ${index}`, secretEncrypted: 'x', keyHash: `filler-${index}`,
+    })))
+    const full = await create({ name: 'One more', currentPassword: 'correct horse' })
+    expect(full.statusCode).toBe(409)
+    expect(full.json().error.code).toBe('too_many_app_passwords')
+    await db.delete(appPasswords).where(like(appPasswords.name, 'filler %'))
+  })
+
   it('creates app passwords that work for Subsonic auth', async () => {
-    const created = await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: bearer(adminToken), payload: { name: 'Phone' } })
+    const created = await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: bearer(adminToken), payload: { name: 'Phone', currentPassword: 'correct horse' } })
     const { id, secret } = created.json()
     expect(secret).toEqual(expect.any(String))
 
@@ -216,6 +250,18 @@ describe('auth', () => {
     expect((await call({ method: 'DELETE', url: `/api/v1/auth/app-passwords/${id}`, headers: bearer(adminToken) })).statusCode).toBe(200)
     expect(await findAppPasswordByKey(secret)).toBeNull()
     expect((await call({ method: 'DELETE', url: `/api/v1/auth/app-passwords/${id}`, headers: bearer(adminToken) })).statusCode).toBe(404)
+  })
+
+  it('keeps the most recently seen 100 devices per user', async () => {
+    const [mira] = await db.select().from(users).where(eq(users.usernameKey, 'mira'))
+    await db.insert(devices).values(Array.from({ length: 100 }, (_, index) => ({
+      userId: mira!.id, id: `old-device-${String(index).padStart(3, '0')}`, name: 'Old', kind: 'other', lastSeenAt: new Date(Date.UTC(2020, 0, 1, 0, index)),
+    })))
+    await rememberDevice(db, mira!.id, { id: 'new-device-1', name: 'New', kind: 'ios' })
+    const kept = await db.select().from(devices).where(eq(devices.userId, mira!.id))
+    expect(kept).toHaveLength(100)
+    expect(kept.map((row) => row.id)).toContain('new-device-1')
+    expect(kept.map((row) => row.id)).not.toContain('old-device-000')
   })
 
   it('rejects disabled accounts', async () => {

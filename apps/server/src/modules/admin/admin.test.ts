@@ -59,9 +59,12 @@ describe('admin', () => {
     expect(updated.json()).toMatchObject({ displayName: 'Mira V', canUpload: true })
     expect((await call({ url: '/api/v1/auth/me', headers: member })).statusCode).toBe(200)
 
-    // A password reset signs the user out everywhere.
+    // A password reset signs the user out everywhere, Subsonic apps included.
+    const appPassword = await call({ method: 'POST', url: '/api/v1/auth/app-passwords', headers: member, payload: { name: 'Planted', currentPassword: 'mira password' } })
+    expect(appPassword.statusCode).toBe(201)
     await call({ method: 'PATCH', url: `/api/v1/admin/users/${id}`, headers: admin, payload: { password: 'reset password' } })
     expect((await call({ url: '/api/v1/auth/me', headers: member })).statusCode).toBe(401)
+    expect((await call({ url: `/rest/ping?f=json&apiKey=${appPassword.json().secret}` })).json()['subsonic-response'].status).toBe('failed')
     member = await login('mira', 'reset password')
 
     const disabled = await call({ method: 'PATCH', url: `/api/v1/admin/users/${id}`, headers: admin, payload: { disabled: true } })

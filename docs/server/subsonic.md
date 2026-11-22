@@ -8,7 +8,7 @@ Subsonic apps see **your library only**: albums with at least one file on the se
 
 ## Connect an app
 
-1. In Squirmy, open **Settings → App passwords** and choose **Create**. Name it after the app ("Symfonium on my phone") and choose **Create**.
+1. In Squirmy, open **Settings → App passwords** and choose **Create**. Name it after the app ("Symfonium on my phone"), enter your account password, and choose **Create**.
 2. Copy the password. It is shown once.
 3. In the app, add a Subsonic (or OpenSubsonic, or Navidrome) server:
    - **Server address**: the address you open Squirmy at, such as `https://music.example.com`. Do not add `/rest`.
@@ -16,7 +16,7 @@ Subsonic apps see **your library only**: albums with at least one file on the se
    - **Password**: the app password. Your account password does not work here, on purpose.
 4. Apps that support **API keys** can use the app password as the key, with no username.
 
-Give each app its own app password. Settings shows when each was last used; revoke one to sign that app out without touching the others or your account. An admin resetting your account password leaves app passwords working.
+Give each app its own app password. Settings shows when each was last used; revoke one to sign that app out without touching the others or your account. Changing your account password, or an admin resetting or disabling it, deletes your app passwords: create new ones for your apps afterwards.
 
 Use HTTPS when the server is reachable from the internet. Older Subsonic apps send the password, or a hash of it, in the URL of every request.
 

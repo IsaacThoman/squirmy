@@ -16,8 +16,8 @@ import { getServerSettings } from '../../lib/settings.js'
 import { getVersion } from '../../lib/version.js'
 import { disconnectSockets } from '../../realtime/index.js'
 import {
-  countUsers, createAppPassword, createSession, deleteAppPassword, hashPassword, insertUser, listAppPasswords, revokeSession,
-  revokeUserSessions, toUser, usernameKey, verifyCredentials,
+  countUsers, createAppPassword, createSession, deleteAppPassword, hashPassword, insertUser, listAppPasswords, revokeAppPasswords,
+  revokeSession, revokeUserSessions, toUser, usernameKey, verifyCredentials,
 } from './service.js'
 
 const cookieMaxAgeSeconds = 180 * 24 * 60 * 60
@@ -186,6 +186,7 @@ export async function authRoutes(app: FastifyInstance) {
     await db.transaction(async (tx) => {
       await tx.update(users).set({ passwordHash: await hashPassword(body.newPassword), updatedAt: new Date() }).where(eq(users.id, current.id))
       await revokeUserSessions(tx, current.id, request.authSessionId ?? undefined)
+      if (!body.keepAppPasswords) await revokeAppPasswords(tx, current.id)
     })
     await disconnectSockets(current.id, { except: request.authSessionId ?? undefined })
     return { ok: true }
@@ -196,9 +197,15 @@ export async function authRoutes(app: FastifyInstance) {
     return { items: await listAppPasswords(user.id), nextCursor: null }
   })
 
-  app.post('/auth/app-passwords', async (request, reply): Promise<AppPassword> => {
+  app.post('/auth/app-passwords', { preHandler: passwordPerUser }, async (request, reply): Promise<AppPassword> => {
     const user = requireUser(request)
+    const sent = request.body as { currentPassword?: unknown } | undefined
+    if (typeof sent?.currentPassword !== 'string' || !sent.currentPassword) {
+      throw badRequest('Enter your current password to create an app password', 'current_password_required')
+    }
     const body = CreateAppPasswordRequest.parse(request.body)
+    const verified = await verifyCredentials(user.username, body.currentPassword)
+    if (!verified || verified.id !== user.id) throw forbidden('The current password is wrong', 'invalid_credentials')
     reply.code(201)
     return createAppPassword(user.id, body.name)
   })
