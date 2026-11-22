@@ -52,6 +52,7 @@ const sidebar = [
       { text: 'Roadmap', link: '/roadmap' },
       { text: 'Provider protocol', link: '/provider-protocol' },
       { text: 'Local search index', link: '/local-search-index' },
+      { text: 'Detached playback UI', link: '/detached-playback-ui' },
     ],
   },
 ]
