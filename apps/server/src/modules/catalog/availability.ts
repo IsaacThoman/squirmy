@@ -14,7 +14,7 @@
  *
  * Library membership is separate from availability and lives here too (`inLibraryAlbum`,
  * `inLibraryRecording`): a user's library is the server's collection (present files no
- * provider delivered) plus what that user saved in `library_items`. A file fetched for
+ * provider delivered) plus what that user saved with the heart (`likes`). A file fetched for
  * playing is cache, so it makes a track `server` without putting anything in a library.
  */
 import type { AlbumAvailability, TrackAvailability } from '@squirmy/contracts'
@@ -33,9 +33,9 @@ export function collectionFile(alias: string): SQL {
   return sql.raw(`(${alias}.missing_since is null and not ${alias}.cached)`)
 }
 
-/** SQL condition: the user saved the entity (expression) to their library. */
-function saved(type: 'album' | 'recording', entity: string, userId: string): SQL {
-  return sql`exists (select 1 from library_items saved where saved.user_id = ${userId} and saved.entity_type = ${type} and saved.entity_id = ${sql.raw(entity)})`
+/** SQL condition: the user saved (hearted) the entity (expression). */
+export function saved(type: 'album' | 'recording' | 'artist', entity: string, userId: string): SQL {
+  return sql`exists (select 1 from likes saved where saved.user_id = ${userId} and saved.entity_type = ${type} and saved.entity_id = ${sql.raw(entity)})`
 }
 
 /**
@@ -79,7 +79,7 @@ function collectedRecording(recording: string): SQL {
 
 function savedAlbumHolds(recording: string, userId: string): SQL {
   return sql`exists (
-    select 1 from media_files present join library_items album_saved
+    select 1 from media_files present join likes album_saved
       on album_saved.user_id = ${userId} and album_saved.entity_type = 'album' and album_saved.entity_id = present.album_id
     where present.recording_id = ${sql.raw(recording)} and present.missing_since is null)`
 }

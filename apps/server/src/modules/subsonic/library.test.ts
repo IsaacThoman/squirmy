@@ -7,13 +7,13 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { libraryItems } from '../../database/schema.js'
+import { likes } from '../../database/schema.js'
 import { startJobs } from '../../jobs/index.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist, createLibraryRoot, createUser } from '../../test/factories.js'
 import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.js'
 import { createAppPassword } from '../auth/service.js'
-import { likeEntity } from '../userdata/likes.js'
+import { likeEntity, unlikeEntity } from '../userdata/likes.js'
 import { addPlaylistItems, createPlaylist } from '../userdata/playlists.js'
 
 describe('subsonic library', () => {
@@ -91,8 +91,10 @@ describe('subsonic library', () => {
     await likeEntity(mira.id, 'album', sampled.albumId)
     const starred = (await mira.client.json('getStarred2')).starred2
     expect((starred.song ?? []).map((song: { id: string }) => song.id)).toEqual([songId(sampled, 0)])
-    // The album is not in her library, so it is not listed as one.
-    expect(starred.album ?? []).toEqual([])
+    // A star is the heart: it saved the album, which is in her library now and listed.
+    expect((starred.album ?? []).map((album: { id: string }) => album.id)).toEqual([albumId(sampled)])
+    await unlikeEntity(mira.id, 'track', sampled.tracks[0]!.recordingId)
+    await unlikeEntity(mira.id, 'album', sampled.albumId)
 
     const playlist = await createPlaylist(mira.id, { name: 'Picked' })
     await addPlaylistItems(mira.id, playlist.id, [{ trackId: sampled.tracks[1]!.recordingId }])
@@ -102,7 +104,7 @@ describe('subsonic library', () => {
   })
 
   it("lists a saved album's present tracks for the user who saved it only", async () => {
-    await db.insert(libraryItems).values({ userId: mira.id, entityType: 'album', entityId: kept.albumId })
+    await db.insert(likes).values({ userId: mira.id, entityType: 'album', entityId: kept.albumId })
     expect(await albumIds(mira)).toEqual([albumId(kept)])
     expect(await albumIds(mira, 'newest')).toEqual([albumId(kept)])
     expect(await artistNames(mira)).toEqual(['Saved Band'])
@@ -122,7 +124,7 @@ describe('subsonic library', () => {
   })
 
   it('lists a saved song without its album', async () => {
-    await db.insert(libraryItems).values({ userId: lune.id, entityType: 'recording', entityId: single.tracks[0]!.recordingId })
+    await db.insert(likes).values({ userId: lune.id, entityType: 'recording', entityId: single.tracks[0]!.recordingId })
     expect(await syncedSongs(lune)).toEqual([songId(single, 0)])
     expect(await randomSongs(lune)).toEqual([songId(single, 0)])
     expect((await lune.client.json('search3', { query: 'saved song' })).searchResult3.song.map((one: { id: string }) => one.id)).toEqual([songId(single, 0)])

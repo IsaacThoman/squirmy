@@ -52,7 +52,6 @@ import {
   LibraryRoot,
   LibraryRootList,
   LibraryStats,
-  type LibraryEntityType,
   type LikeEntityType,
   type LoginRequest,
   Lyrics,
@@ -348,10 +347,6 @@ export function createApiClient(options: ApiClientOptions) {
       deleteRoot: (rootId: string) => send('DELETE', `/admin/library/roots/${id(rootId)}`, Ok),
       scanRoot: (rootId: string) => send('POST', `/admin/library/roots/${id(rootId)}/scan`, ScanRootResponse),
       stats: () => get('/admin/library/stats', LibraryStats),
-      /** Adds to your library; for a requester the server also fetches what is missing. */
-      save: (type: LibraryEntityType, entityId: string) => send('PUT', `/me/library/${type}/${id(entityId)}`, Ok),
-      /** Removes the save only: files, likes and playlists stay. */
-      remove: (type: LibraryEntityType, entityId: string) => send('DELETE', `/me/library/${type}/${id(entityId)}`, Ok),
     },
     matching: {
       reviews: (query: Partial<MatchReviewQuery> = {}) => get('/admin/reviews', MatchReviewList, query),
@@ -401,7 +396,12 @@ export function createApiClient(options: ApiClientOptions) {
     userdata: {
       settings: () => get('/me/settings', UserSettings),
       updateSettings: (body: UpdateUserSettings) => send('PATCH', '/me/settings', UserSettings, body),
+      /**
+       * The heart: saves to your library (the only way in). For a requester the server also
+       * fetches what an album or track is missing.
+       */
       like: (type: LikeEntityType, entityId: string) => send('PUT', `/me/likes/${type}/${id(entityId)}`, Ok),
+      /** Removes the save only: files and playlists stay. */
       unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, Ok),
       likes: <T extends LikeEntityType>(type: T, query: Partial<PageQuery> = {}) =>
         get(`/me/likes/${type}`, likedPages[type] as unknown as z.ZodType<Page<LikedItems[T]>>, query),

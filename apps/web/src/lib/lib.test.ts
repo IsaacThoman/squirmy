@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { safeNext } from '@/auth/session'
 import { keyIsTaken } from '@/player/shortcuts'
 import { codecsFor } from './codecs'
-import { claimTabDevice, deviceName, tabDeviceName } from './device'
+import { claimTabDevice, deviceName } from './device'
 import { formatDuration, formatRelative, formatTotalDuration } from './format'
 import { activeLine, parseLrc } from './lyrics'
 import { dropIndex, moveItem } from './reorder'
@@ -46,14 +46,16 @@ describe('device', () => {
   it('names browsers after the user agent', () => {
     expect(deviceName('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36')).toBe('Chrome on macOS')
     expect(deviceName('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0')).toBe('Firefox on Windows')
-    expect(deviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')).toBe('Safari on iOS')
+    expect(deviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')).toBe('Safari on iPhone')
+    expect(deviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/141.0 Mobile/15E148 Safari/604.1')).toBe('Chrome on iPhone')
+    expect(deviceName('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 Edg/141.0')).toBe('Edge on macOS')
   })
 })
 
 describe('tab devices', () => {
-  it('numbers the second tab of a browser and on', () => {
-    expect(tabDeviceName('Chrome on macOS', 1)).toBe('Chrome on macOS')
-    expect(tabDeviceName('Chrome on macOS', 2)).toBe('Chrome on macOS (2)')
+  it('gives every tab the browser\'s name, with no tab number', async () => {
+    const tab = await claimTabDevice()
+    expect(tab.device.name).not.toMatch(/\(\d+\)$/)
   })
 
   it('marks the claim settled, so the player can read it without suspending', async () => {

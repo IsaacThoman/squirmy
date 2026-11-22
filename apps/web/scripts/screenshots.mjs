@@ -181,7 +181,7 @@ await setup.close()
 await sleep(21_000)
 
 const settingsSections = ['playback', 'appearance', 'account', 'scrobbling', 'app-passwords', 'about']
-const musicPages = { home: '/', library: '/library/albums', album, artist, playlist: `/playlist/${playlist.id}`, search: '/search?q=blue' }
+const musicPages = { home: '/', library: '/library?filter=all', album, artist, playlist: `/playlist/${playlist.id}`, search: '/search?q=blue' }
 
 const shots = [
   // The shell: the sidebar open and folded, and quick search.
@@ -191,16 +191,17 @@ const shots = [
   { name: 'quick-search', path: album, keys: 'ControlOrMeta+k', wait: 500 },
   { name: 'quick-search-results', path: album, keys: 'ControlOrMeta+k', type: 'blue', wait: 1200 },
   // Music.
-  { name: 'library', path: '/library/albums' },
+  { name: 'library', path: '/library?filter=all' },
   { name: 'album', path: album },
   { name: 'artist', path: artist },
   { name: 'playlist', path: `/playlist/${playlist.id}` },
   { name: 'liked', path: '/liked' },
   { name: 'search', path: '/search?q=blue', wait: 1500, height: 1700 },
   { name: 'search-genres', path: '/search' },
-  { name: 'library-songs', path: '/library/songs' },
-  { name: 'library-artists', path: '/library/artists' },
-  { name: 'library-playlists', path: '/library/playlists' },
+  { name: 'library-albums', path: '/library?filter=albums' },
+  { name: 'library-songs', path: '/library?filter=songs' },
+  { name: 'library-artists', path: '/library?filter=artists' },
+  { name: 'library-playlists', path: '/library?filter=playlists' },
   { name: 'wantlist', path: '/wantlist' },
   { name: 'add-music', path: '/imports' },
   // The player: the queue beside the page, Now Playing with its art and its lyrics.

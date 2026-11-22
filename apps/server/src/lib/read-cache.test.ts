@@ -57,11 +57,15 @@ describe('read cache', () => {
     const after = body(await get(`/albums/${album.albumId}`), AlbumDetail)
     expect(after.title).toBe('Renamed quietly')
     expect(after.discs[0]!.tracks[0]!.liked).toBe(true)
+    const elsewhere = await createAlbum({ title: 'Not here yet' })
     const home = body(await get('/home'), HomeResponse)
-    expect((await call('PUT', `/me/likes/album/${album.albumId}`)).statusCode).toBe(200)
+    expect((await call('PUT', `/me/likes/album/${elsewhere.albumId}`)).statusCode).toBe(200)
     const liked = body(await get('/home'), HomeResponse)
-    expect(home.sections.some((section) => section.id === 'liked-albums')).toBe(false)
-    expect(liked.sections.find((section) => section.id === 'liked-albums')).toBeDefined()
+    // The heart saves the album, so Home's Recently added shows it at once.
+    const added = (response: HomeResponse) => response.sections.flatMap((section) =>
+      section.id === 'recently-added' && section.kind === 'albums' ? section.albums.map((item) => item.id) : [])
+    expect(added(home)).not.toContain(elsewhere.albumId)
+    expect(added(liked)).toContain(elsewhere.albumId)
   })
 
   it('keeps users apart: one user’s like leaves the other’s cache alone', async () => {

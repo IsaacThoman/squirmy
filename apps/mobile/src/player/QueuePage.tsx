@@ -7,6 +7,7 @@ import type { TrackSummary } from '@squirmy/contracts';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useViewer } from '../downloads/DownloadsProvider';
 import { useLibraryActions, useLiked, useTrack, useTrackStore } from '../data/library';
+import { heartButton } from '../library/heart';
 import { type QueueEntry, usePlaybackState } from '../playback';
 import { Cover, Icon } from '../ui';
 import { PlayerButton } from './Controls';
@@ -417,10 +418,10 @@ function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: 
       <PlayerButton
         icon={favorite ? 'heart.fill' : 'heart'}
         size={17}
-        label={favorite ? `Unlike ${title}` : `Like ${title}`}
+        label={heartButton(favorite, title || 'this song').label}
         selected={favorite}
         color={favorite ? colors.accent : colors.muted}
-        onPress={() => { selectionFeedback(); if (track) setLiked('track', track.id, !favorite); }}
+        onPress={() => { selectionFeedback(); if (track) setLiked('track', track.id, !favorite, track.title); }}
         style={styles.rowAction}
       />
       <PlayerButton icon="ellipsis" label={`Options for ${title}`} size={16} color={colors.muted}

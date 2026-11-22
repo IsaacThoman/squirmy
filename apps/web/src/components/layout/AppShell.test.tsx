@@ -111,13 +111,13 @@ describe('AppShell', () => {
     })
 
     it('plays a song chosen from the results and stays on the page', async () => {
-      const { socket } = await renderShell('/library/albums')
+      const { socket } = await renderShell('/library?filter=albums')
       await press('k')
       await userEvent.type(await searchField(), 'amber')
       await userEvent.click(await screen.findByRole('option', { name: 'Amber Song · Lune Park' }))
       await waitFor(() => expect(socket.session.current?.trackId).toBe(track('amber').id))
       expect(socket.session.context).toMatchObject({ type: 'search' })
-      expect(where()).toBe('/library/albums')
+      expect(where()).toBe('/library?filter=albums')
       expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()
     })
 
@@ -134,10 +134,10 @@ describe('AppShell', () => {
       await press('k')
       const places = within(await screen.findByRole('listbox', { name: 'Go to' }))
       expect(places.getAllByRole('option').map(option => option.textContent)).toEqual([
-        expect.stringMatching(/^Home/), 'Search and browse genres', 'Albums', 'Artists', 'Songs', 'Playlists', 'Liked Songs', 'Wantlist', 'Add music', 'Admin panel',
+        expect.stringMatching(/^Home/), 'Search and browse genres', 'Library', 'Albums', 'Artists', 'Songs', 'Playlists', 'Liked Songs', 'Wantlist', 'Add music', 'Admin panel',
       ])
       await userEvent.click(places.getByRole('option', { name: 'Artists' }))
-      expect(where()).toBe('/library/artists')
+      expect(where()).toBe('/library?filter=artists')
       expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()
     })
 
@@ -314,7 +314,7 @@ describe('AppShell', () => {
       expect(folded()).toBe(true)
       expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeInTheDocument()
       expect(screen.queryByRole('list', { name: 'Playlists' })).not.toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Albums' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Library' })).toBeInTheDocument()
       expect(localStorage.getItem(COLLAPSED_KEY)).toBe('1')
 
       await press('b', modifier)
@@ -501,7 +501,7 @@ describe('AppShell', () => {
       await renderShell()
       expect(drawerOpen()).toBe(false)
       expect(screen.queryByRole('complementary', { name: 'Sidebar' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: 'Albums' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Library' })).not.toBeInTheDocument()
       expect(opener()).toHaveAttribute('aria-expanded', 'false')
       expect(screen.getByRole('main')).toBeInTheDocument()
       expect(screen.queryByRole('separator', { name: 'Resize sidebar' })).not.toBeInTheDocument()
@@ -513,7 +513,7 @@ describe('AppShell', () => {
       await userEvent.click(opener())
       expect(drawerOpen()).toBe(true)
       const drawer = within(screen.getByRole('complementary', { name: 'Sidebar' }))
-      expect(drawer.getByRole('link', { name: 'Albums' })).toBeInTheDocument()
+      expect(drawer.getByRole('link', { name: 'Library' })).toBeInTheDocument()
       expect(drawer.getByRole('list', { name: 'Playlists' })).toBeInTheDocument()
       expect(screen.getByRole('main').closest('[inert]')).not.toBeNull()
       await waitFor(() => expect(sidebar()).toContainElement(document.activeElement as HTMLElement))
@@ -534,8 +534,9 @@ describe('AppShell', () => {
       stubViewport(true)
       await renderShell()
       await userEvent.click(opener())
-      await userEvent.click(within(sidebar()).getByRole('link', { name: 'Albums' }))
-      expect(where()).toBe('/library/albums')
+      await userEvent.click(within(sidebar()).getByRole('link', { name: 'Library' }))
+      // The Library opens on the filter last chosen in this browser: All the first time.
+      expect(where()).toBe('/library?filter=all')
       expect(drawerOpen()).toBe(false)
     })
 

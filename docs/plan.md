@@ -14,7 +14,8 @@ The technical conventions that implement this plan live in [architecture.md](./a
 - **Files are the source of truth for audio.** Postgres holds everything else, and all of it except user data can be rebuilt.
 - **MusicBrainz IDs identify everything.** Every other service is optional, cached and replaceable.
 - **Music plays even when identification fails.**
-- **User data points at catalog entries, not files.** Likes, playlists and history survive re-rips and retagging.
+- **User data points at catalog entries, not files.** Saves, playlists and history survive re-rips and retagging.
+- **One heart.** Hearting a song, album or artist saves it to your library, and nothing else does: no separate "Add to library", and playing, fetching or downloading never adds. Liked Songs is the hearted songs.
 - **The repository bundles no content sources.** Acquisition providers are a generic interface and the repo names none.
 
 ## Stack and repo
@@ -49,7 +50,7 @@ Library    library_roots (path, mode: read_only | managed, template)
 
 Users      users, auth_sessions, app_passwords, invites, devices
            playback_sessions (state JSON, version, queue version)
-           likes, ratings, playlists, playlist_items, plays, wants,
+           likes (the heart: library saves), ratings, playlists, playlist_items, plays, wants,
            scrobble_deliveries
 
 Providers  acquisition_providers, acquisition_jobs, acquisition_offers, acquisition_misses
@@ -180,6 +181,7 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 **Web**
 
 - Layout: a sidebar that folds to icons and is a drawer on phones, the main view, a player bar along the bottom, a queue panel beside the page.
+- Library: one combined view as on the phone (Liked Songs, playlists, albums, artists, songs behind filter chips), with sorting, a grid or list, and search within it.
 - Search: a search page, and a quick search dialog from any page.
 - Settings in a dialog. Appearance is light, dark or the system's, with a choice of color themes, kept per browser.
 - Audio: `HTMLAudioElement`, the Media Session API, and Web Audio gain.
@@ -189,7 +191,7 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 ## Accounts and security
 
 - First run creates the admin; others join by invite. Roles are admin and member, with flags for uploading and for triggering acquisition.
-- The library is shared. Likes, playlists, history and the session are per user.
+- The server's collection is shared. Each user's library is that collection plus what they hearted; saves, playlists, history and the session are per user.
 - argon2 passwords and opaque session tokens stored hashed. Cookie on web, bearer token on mobile, the same token on the socket.
 - Login rate limiting and CSRF protection.
 - Provider secrets and app passwords are encrypted at rest.

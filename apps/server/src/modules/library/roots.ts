@@ -69,9 +69,10 @@ export async function listRoots(executor: Executor = db, id?: string): Promise<L
     root: libraryRoots,
     // Qualified by hand: inside a subquery Drizzle's bare "id" would mean the inner table's.
     fileCount: sql<number>`(select count(*) from media_files f where f.root_id = library_roots.id and f.missing_since is null)::int`,
+    cachedFileCount: sql<number>`(select count(*) from media_files f where f.root_id = library_roots.id and f.missing_since is null and f.cached)::int`,
     scanning: sql<boolean>`exists (select 1 from pgboss.job j where j.name = 'library.scan' and j.singleton_key = library_roots.id::text and j.state in ('created', 'retry', 'active'))`,
   }).from(libraryRoots).where(id ? eq(libraryRoots.id, id) : undefined).orderBy(asc(libraryRoots.name), asc(libraryRoots.createdAt))
-  return rows.map(({ root, fileCount, scanning }) => ({
+  return rows.map(({ root, fileCount, cachedFileCount, scanning }) => ({
     id: root.id,
     name: root.name,
     path: root.path,
@@ -81,6 +82,7 @@ export async function listRoots(executor: Executor = db, id?: string): Promise<L
     template: root.template,
     scanning,
     fileCount,
+    cachedFileCount,
     lastScanStartedAt: root.lastScanStartedAt?.toISOString() ?? null,
     lastScanFinishedAt: root.lastScanFinishedAt?.toISOString() ?? null,
     lastScanStats: (root.lastScanStats as ScanStats | null) ?? null,
