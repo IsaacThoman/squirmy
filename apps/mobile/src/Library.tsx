@@ -25,6 +25,7 @@ import {
 } from './library/shared';
 import { useRealtime } from './data/realtime';
 import { SongList } from './library/SongList';
+import { usePlayAll } from './library/usePlayAll';
 import { ZoomLink, ZoomSource } from './library/ZoomLink';
 import { usePlaybackState, useTrackPreparing } from './playback';
 import { createThemedStyles, unavailableOpacity, useColors } from './theme';
@@ -139,6 +140,8 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
 }
 
 const filters = ['All', 'Playlists', 'Albums', 'Artists', 'Songs'] as const;
+/** A tap on a song plays it and this many after it. */
+const songsAfter = 300;
 type LibraryFilter = (typeof filters)[number];
 
 export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bottomInset = 155 }: BrowseProps) {
@@ -161,7 +164,13 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const albums = useLibraryAlbums(sort);
   // The server lists artists by name whatever the order asked for.
   const artists = useLibraryArtists('title');
-  const songs = useLibraryTracks(sortOptions[sortFor('Songs', sortName)]);
+  const songSort = sortOptions[sortFor('Songs', sortName)];
+  const songs = useLibraryTracks(songSort);
+  // A tap plays the song and the next few hundred, as on the web, not just the rows scrolled past.
+  const playSongs = usePlayAll({
+    list: songs, tracksOf: items => [...items], limit: start => start + songsAfter,
+    fetchPage: (api, cursor, limit) => api.catalog.tracks({ sort: songSort, cursor, limit }),
+  });
   const playlists = usePlaylists();
   const active = filter === 'Artists' ? artists : filter === 'Songs' ? songs : filter === 'Playlists' ? playlists : albums;
 
@@ -213,6 +222,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
           : sorts.length > 0 ? <LibrarySort options={sorts} value={sortFor(filter, sortName)} onChange={setSortName} /> : <View />}
         {filter !== 'Songs' && <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
           onPress={() => { tapFeedback(); setGrid(!grid); }} />}
+        {filter === 'Songs' && playSongs.busy && <ActivityIndicator accessibilityLabel="Loading songs" />}
       </View>
       {!active.data && <QueryState query={active} what="your library" />}
       {libraryEmpty && filter !== 'Playlists' ? (
@@ -224,7 +234,12 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       {filter === 'Songs' ? (
         <View style={styles.songs}>
           <SongList tracks={tracks} onTrackMenu={track => onTrackMenu(track)}
-            onPlay={start => actions.playTracks(tracks, { start, context: { type: 'other', id: null, title: 'Songs' } })} />
+            onPlay={start => {
+              const play = (list: readonly TrackSummary[]) => actions.playTracks(list, { start, context: { type: 'other', id: null, title: 'Songs' } });
+              // Filtered, the matches on screen are what is played.
+              if (query.trim()) play(tracks);
+              else void playSongs.run(start, false, play);
+            }} />
         </View>
       ) : grid ? <CollectionGrid columns={columns} items={items.map(item => ({
         id: item.key, title: item.title, subtitle: item.subtitle, size,
