@@ -108,7 +108,9 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
           select rl.album_id, 2, rt.id from release_tracks rt join releases rl on rl.id = rt.release_id
           where rt.recording_id = r.id
           union all
-          select r.album_hint_id, 3, null where r.album_hint_id is not null
+          -- Merges do not rewrite hints. A merge points every row that redirected to the
+          -- loser straight at the winner, so one hop reaches the current album.
+          select coalesce(hint.merged_into_id, hint.id), 3, null from albums hint where hint.id = r.album_hint_id
         ) candidate
         order by candidate.rank, candidate.tiebreak limit 1
       ) chosen on true

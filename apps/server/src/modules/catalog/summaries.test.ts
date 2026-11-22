@@ -75,6 +75,17 @@ describe('summaries', () => {
     expect((await artistSummaries([loserArtist.id])).map((artist) => artist.id)).toEqual([winner.artist.id])
   })
 
+  it('shows a catalog stub in the album its hint was merged into', async () => {
+    const user = await createUser()
+    const winner = await createAlbum({ title: 'Kept' })
+    const loser = await createAlbum({ title: 'Stub' })
+    await db.update(albums).set({ mergedIntoId: winner.albumId }).where(eq(albums.id, loser.albumId))
+    const stub = newId()
+    await db.insert(recordings).values({ id: stub, title: 'Lone', artistCredit: 'x', titleKey: 'lone', matchKey: 'x|lone', albumHintId: loser.albumId })
+    const [summary] = await trackSummaries(user.id, [{ id: stub }])
+    expect(summary!.album).toMatchObject({ id: winner.albumId, title: 'Kept' })
+  })
+
   it('summarizes albums and artists with availability and library membership', async () => {
     const owner = await createArtist({ name: 'Owned Artist' })
     const stranger = await createArtist({ name: 'Catalog Artist' })
