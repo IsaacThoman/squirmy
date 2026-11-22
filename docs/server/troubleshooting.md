@@ -76,6 +76,7 @@ Confirm in **Admin → Library** under **Identification**: **Waiting** means not
 
 - **Unidentified albums** have no MusicBrainz id, so their cover can only come from the files: a picture embedded in the tags, or an image in the album's folder named `cover`, `front`, `folder`, `album` or `albumart…`.
 - **Identified albums** get covers in the background, every 30 minutes for albums still missing one. Check that **Cover Art Archive** (and **Deezer**, the fallback) are on in **Admin → Server settings**, and that the server can reach the internet.
+- **Albums you do not own** (new releases, an artist's discography) show the Cover Art Archive's cover, downloaded the first time someone looks at it. For a release from the last few days the archive may have only the full-size original yet, which is then downloaded instead. When the archive has no cover at all, the album takes its Deezer cover, or a picture from its files, if either exists; otherwise it shows none.
 - **Covers that used to work and now do not**: the data folder's `assets/` may have been deleted or not restored. Most images are rebuilt from the music files, folder images and the URLs they came from on their own, some only after a background download, so reload after a minute. Images whose source has changed are not; restore `assets/` from a backup for those ([When `assets/` is lost](./backup.md#when-assets-is-lost)).
 
 ## The app cannot connect

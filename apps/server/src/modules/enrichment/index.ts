@@ -1,5 +1,6 @@
 import { enqueue, schedule } from '../../jobs/index.js'
 import type { ServerModule } from '../types.js'
+import { fallbackCover } from './covers.js'
 import { artistDetailRun, lyricsRun } from './detail.js'
 import { enrichAlbum } from './owned.js'
 import { refreshNewReleases } from './releases.js'
@@ -9,6 +10,8 @@ import { sweep } from './sweep.js'
 export type EnrichAlbumJob = { albumId: string }
 export type EnrichArtistJob = { artistId: string }
 export type EnrichLyricsJob = { recordingId: string }
+/** Queued by the artwork module when it unassigns a cover its source does not have. */
+export type EnrichCoverJob = { albumId: string }
 
 /**
  * Completes catalog rows on demand (the `detail.ts` seam) and decorates owned music in
@@ -16,6 +19,7 @@ export type EnrichLyricsJob = { recordingId: string }
  *   enrichment.album         { albumId }      detail, then cover, description, Deezer ids, lyrics for owned albums
  *   enrichment.artist        { artistId }     profile, discography, image, bio, top tracks
  *   enrichment.lyrics        { recordingId }  an LRCLIB lookup
+ *   enrichment.cover         { albumId }      another cover when its source has none (covers.ts)
  *   enrichment.sweep         queues owned music that was never enriched, every 30 minutes
  *   enrichment.new-releases  refreshes library artists' discographies, weekly
  */
@@ -32,6 +36,9 @@ export const enrichmentModule: ServerModule = {
     })
     registry.define<EnrichLyricsJob>('enrichment.lyrics', { concurrency: 2 }, async ({ recordingId }) => {
       await lyricsRun(recordingId)
+    })
+    registry.define<EnrichCoverJob>('enrichment.cover', { concurrency: 2, retryLimit: 1 }, async ({ albumId }) => {
+      await fallbackCover(albumId)
     })
     registry.define('enrichment.sweep', { retryLimit: 1 }, async () => {
       await sweep()

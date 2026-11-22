@@ -89,7 +89,7 @@ Under **Admin → Providers → Policy**, or `GET` and `PATCH /api/v1/admin/acqu
 
 Everything a provider delivers is cache, not part of anyone's library. Playing a track fetches it and keeps its file so it plays at once next time; adding to a library is only ever the **Add to library** action. Fetched files:
 
-- are filed under `_Fetched/` in the managed folder, with the folder's usual layout inside, so your own folders hold only music you brought;
+- are filed under `_Fetched/` in the managed folder, with the folder's usual layout inside, so your own folders hold only music you brought. A filed file is not moved again when its album later gets a year or a corrected title, but it is when its artist credit changes (a folder named after the artists its tags ran together, `Grimes, VADAKIN`, becomes `Grimes & VADAKIN`), and folders left empty are removed;
 - open no reviews, are left out of **Imports** (`GET /imports?kind=acquisition` lists them) and of the counts in **Admin → Library**, and are counted by `GET /admin/acquisition/usage` instead;
 - are deleted when they are not what was asked for (another song, an extra track nobody uses, a file nothing identified), rather than kept for review.
 

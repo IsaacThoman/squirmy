@@ -1,5 +1,6 @@
 import { ProviderError, RefusedUrlError, requestPublic } from '../../lib/http.js'
 import { getServerSettings } from '../../lib/settings.js'
+import { originalFront } from './coverart.js'
 
 /** Downloaded image bytes. */
 export type FetchedImage = { bytes: Buffer; contentType: string }
@@ -43,7 +44,9 @@ export async function fetchImage(url: string, options: { maxBytes?: number } = {
 /**
  * `fetchImage`, also saying whether the server answered that there is no such image
  * (404 or 410), as the Cover Art Archive does for a release group without a cover. A
- * source that is switched off is asked nothing and is not "gone".
+ * sized Cover Art Archive front that is not there yet is fetched as the original instead
+ * (`originalFront`), and is gone only when that is too. A source that is switched off is
+ * asked nothing and is not "gone".
  */
 export async function downloadImage(url: string, options: { maxBytes?: number } = {}): Promise<{ image: FetchedImage | null; gone: boolean }> {
   if (!(await imageSourceEnabled(url))) return { image: null, gone: false }
@@ -56,6 +59,9 @@ export async function downloadImage(url: string, options: { maxBytes?: number } 
   if (!response) return { image: null, gone: false }
   if (response.status === 404 || response.status === 410) {
     await response.body?.cancel()
+    // A sized Cover Art Archive image is missing while archive.org still derives it.
+    const original = originalFront(url)
+    if (original) return downloadImage(original, options)
     return { image: null, gone: true }
   }
   if (!response.ok) throw new ProviderError('image', `HTTP ${response.status} for ${url}`, response.status)
