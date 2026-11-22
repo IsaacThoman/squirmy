@@ -64,7 +64,8 @@ function SearchDialogHost({ open, onOpenChange }: SearchDialogState) {
   const { controls } = usePlayer()
   const { canRequest } = useOnDemand()
   const [query, setQuery] = useState('')
-  const term = useDebounced(query.trim(), 200, '')
+  // The library answers fast, so results can follow typing: a search per pause between keys, the previous one cancelled.
+  const term = useDebounced(query.trim(), 100, '')
   const search = useQuery({ ...searchQuery(api, 'library', term), enabled: open && term.length > 0, placeholderData: keepPreviousData, meta: { silent: true } })
   const close = () => {
     onOpenChange(false)
