@@ -1,4 +1,4 @@
-import { trackLibraryToggle } from '@squirmy/client-core';
+import { isPlayable, trackLibraryToggle, type Viewer } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
 import type { Href } from 'expo-router';
 import type { TrackDownload } from '../downloads/model';
@@ -40,6 +40,8 @@ export type TrackActionState = {
   wantlist: boolean;
   /** In the user's library; undefined when the server does not say, and then nothing is offered. */
   saved?: boolean;
+  /** Who is signed in: a radio starts from what the server plays for them, never from a download alone. */
+  viewer?: Viewer | null;
 };
 
 /** A key for an action in a list: a track has one "Go to" action per artist. */
@@ -55,7 +57,7 @@ export function trackActionKey(action: Pick<TrackAction, 'id' | 'page'>): string
  * only describes the actions; `useTrackActionRunner` carries one out when it is chosen.
  */
 export function trackActions(track: TrackSummary, state: TrackActionState, { playlist }: TrackActionOptions = {}): TrackAction[] {
-  const { liked, playable, offline, current, download, onItsOwn, wantlist, saved } = state;
+  const { liked, playable, offline, current, download, onItsOwn, wantlist, saved, viewer } = state;
   const online = !offline;
   // A collection song, or one of an album the user added, stays in the library whatever its own save says.
   const library = trackLibraryToggle(track, saved);
@@ -79,7 +81,9 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     downloadAction,
     playable && online && { id: 'playlist', title: 'Add to playlist', icon: 'text.badge.plus', sheet: true,
       href: { pathname: '/add-to-playlist', params: { trackId: track.id, albumId: track.album?.id ?? '' } } },
-    playable && online && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right' },
+    // The server seeds the radio by the queue's rule, so a song that plays only from the
+    // device (gone from the server, or `on_demand` for someone who may not fetch) has none.
+    online && isPlayable(track, viewer) && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right' },
     // Only what does not play for this user: for someone who may fetch music nothing is wanted.
     wantlist && !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star' },
     Boolean(track.album) && { id: 'album', title: 'Go to album', icon: 'square.stack', page: { page: 'album', id: track.album!.id } },

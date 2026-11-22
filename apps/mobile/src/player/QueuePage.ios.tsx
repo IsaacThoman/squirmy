@@ -241,7 +241,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
   const { detail, unavailable: failed } = queueRow(entry, track, { playable, offline, viewer });
   const title = track?.title ?? '';
   const saved = useSaved('track', track?.id, track?.inLibrary);
-  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, saved }) : [];
+  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, saved, viewer }) : [];
   return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
     <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, accessibilityLabel(`${title}, ${detail}`)]}>
       <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape]}>
