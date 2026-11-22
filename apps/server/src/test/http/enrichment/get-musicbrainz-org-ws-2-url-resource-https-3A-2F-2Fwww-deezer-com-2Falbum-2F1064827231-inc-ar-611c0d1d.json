@@ -1,0 +1,65 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/url?resource=https%3A%2F%2Fwww.deezer.com%2Falbum%2F1064827231&inc=artist-rels+release-rels+release-group-rels+recording-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "relations": [
+        {
+          "release": {
+            "packaging-id": null,
+            "text-representation": {
+              "language": "eng",
+              "script": "Latn"
+            },
+            "country": "XW",
+            "packaging": null,
+            "disambiguation": "explicit",
+            "date": "2026-09-04",
+            "barcode": "00881061182917",
+            "release-events": [
+              {
+                "date": "2026-09-04",
+                "area": {
+                  "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                  "sort-name": "[Worldwide]",
+                  "disambiguation": "",
+                  "type-id": null,
+                  "iso-3166-1-codes": [
+                    "XW"
+                  ],
+                  "name": "[Worldwide]",
+                  "type": null
+                }
+              }
+            ],
+            "quality": "normal",
+            "status": null,
+            "title": "PRIMA",
+            "status-id": null,
+            "id": "8d7b66dd-98a5-498c-81c0-baa0ddf749d8"
+          },
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "attribute-ids": {},
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "target-credit": "",
+          "attributes": [],
+          "target-type": "release",
+          "direction": "backward",
+          "begin": null,
+          "type": "free streaming",
+          "attribute-values": {}
+        }
+      ],
+      "id": "978a898e-b13a-4e13-8df4-0a858460aaa4",
+      "resource": "https://www.deezer.com/album/1064827231"
+    }
+  }
+}
