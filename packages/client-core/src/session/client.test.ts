@@ -629,6 +629,73 @@ describe('SessionClient engine', () => {
     expect(resolvePlayback.mock.calls.length).toBe(count + 1)
   })
 
+  it('keeps the gain of what plays when descriptors are forgotten', async () => {
+    const { client, engine } = await playingHere()
+    client.setNormalization('track')
+    const gain = 10 ** (-6 / 20)
+    expect(engine.loaded!.gain).toBeCloseTo(gain)
+    client.forgetPlayback()
+    await vi.advanceTimersByTimeAsync(0)
+    client.dispatch({ type: 'setRepeat', value: 'all' })
+    expect(engine.loaded!.gain).toBeCloseTo(gain)
+    // The preloaded entry takes over: its gain holds as well.
+    engine.finish()
+    client.forgetPlayback()
+    client.dispatch({ type: 'setRepeat', value: 'off' })
+    expect(trackOf(client.getSnapshot().session.current)).toBe(2)
+    expect(engine.loaded!.gain).toBeCloseTo(gain)
+  })
+
+  it('forgets one track without aiming the preload of another again', async () => {
+    const { client, engine, resolvePlayback, calls } = await playingHere()
+    const resolved = resolvePlayback.mock.calls.length
+    const preloads = calls('preload').length
+    client.forgetPlayback(track(3))
+    client.forgetPlayback(track(1))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(resolvePlayback.mock.calls.length).toBe(resolved)
+    expect(calls('preload').length).toBe(preloads)
+
+    resolvePlayback.mockImplementation(async entry => ({ ...descriptor(entry), url: `file:///cache/${entry.trackId}.flac` }))
+    client.forgetPlayback(track(2))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(resolvePlayback.mock.calls.length).toBe(resolved + 1)
+    expect(engine.preloaded).toMatchObject({ url: `file:///cache/${track(2)}.flac` })
+    // Track 1 was forgotten too: it is resolved again when it next loads.
+    client.dispatch({ type: 'next' })
+    await vi.advanceTimersByTimeAsync(0)
+    client.dispatch({ type: 'previous' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls('load').at(-1)![1]).toMatchObject({ url: `file:///cache/${track(1)}.flac` })
+  })
+
+  it('keeps the newer preload when an older resolve of the same entry answers late', async () => {
+    const { client, engine, resolvePlayback } = await playingHere()
+    let answerLate: (value: PlaybackDescriptor) => void = () => undefined
+    resolvePlayback.mockImplementationOnce(entry => new Promise(resolve => { answerLate = () => resolve(descriptor(entry)) }))
+    client.forgetPlayback(track(2))
+    resolvePlayback.mockImplementation(async entry => ({ ...descriptor(entry), url: `file:///cache/${entry.trackId}.flac` }))
+    client.forgetPlayback(track(2))
+    await vi.advanceTimersByTimeAsync(0)
+    answerLate(undefined as never)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(engine.preloaded).toMatchObject({ url: `file:///cache/${track(2)}.flac` })
+  })
+
+  it('keeps a descriptor resolved while another track was forgotten', async () => {
+    const { client, resolvePlayback } = await playingHere()
+    let answer: () => void = () => undefined
+    resolvePlayback.mockImplementationOnce(entry => new Promise(resolve => { answer = () => resolve(descriptor(entry)) }))
+    client.forgetPlayback(track(2))
+    client.forgetPlayback(track(3))
+    answer()
+    await vi.advanceTimersByTimeAsync(0)
+    const resolved = resolvePlayback.mock.calls.length
+    client.dispatch({ type: 'next' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(resolvePlayback.mock.calls.slice(resolved).map(([entry]) => entry.trackId)).not.toContain(track(2))
+  })
+
   it('loads at the current position when the session is transferred here', async () => {
     const { server, transport, client, calls, settle } = setup()
     server.apply({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 }, WEB)
