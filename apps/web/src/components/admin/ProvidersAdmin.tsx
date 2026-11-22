@@ -190,7 +190,7 @@ function ProviderRow({ provider, onToggle, onTest, onClearMisses, onEdit, onDele
       {unavailable > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2 text-sm sm:ml-12">
           <CircleSlash aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          <p className="min-w-0 flex-1 text-muted-foreground">
+          <p className="min-w-0 flex-[1_1_14rem] text-muted-foreground">
             {unavailable === 1 ? '1 track is' : `${unavailable} tracks are`} unavailable because it could not supply {unavailable === 1 ? 'it' : 'them'}. It is asked again within a day, or as soon as it reports a new version.
           </p>
           <Button size="sm" variant="outline" pending={retrying} onClick={() => void retry()}>{!retrying && <RotateCcw />}Retry unavailable tracks ({unavailable})</Button>
