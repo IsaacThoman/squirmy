@@ -24,7 +24,7 @@ Conversions are done with ffmpeg and sent while they are encoded, so playback st
 
 ### The transcode cache
 
-Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted. The folder is safe to delete at any time; it refills as people listen.
+Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted, except those played in the last half hour. The folder is safe to delete at any time; it refills as people listen.
 
 ## Loudness normalization
 
@@ -62,6 +62,6 @@ The playing device loads the next track before the current one ends. In the web 
 
 ## What "preparing" means
 
-A track shows **Preparing…** when it is playable on demand through an [acquisition provider](./acquisition.md) and its file is still being fetched. The session waits at the start of the track and begins as soon as the file arrives. The server starts fetching the next tracks in the queue ahead of time. If the fetch fails, the track is skipped with a notice and stays gray for a day.
+A track shows **Preparing…** when it is playable on demand through an [acquisition provider](./acquisition.md) and its file is still being fetched. The session waits at the start of the track and begins as soon as the file arrives. The server starts fetching the next five tracks in the queue ahead of time. If the fetch fails, the track is skipped with a notice and stays gray for a day; an upcoming track that fails is skipped when reached. After three tracks in a row fail, playback pauses on the third instead of skipping through the queue.
 
 On a server without acquisition providers, nothing is ever preparing.

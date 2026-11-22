@@ -9,11 +9,19 @@ import { cacheRoot, isTranscoding } from './transcode.js'
 /** Files and unfinished rows younger than this may belong to an encoder in another process. */
 const GRACE_MS = 60 * 60_000
 
+/**
+ * Transcodes used this recently are not evicted, even over the cap: someone is probably
+ * listening, and the player's next Range request (a seek, or AVPlayer's next chunk) needs
+ * the file. Requests touch `last_used_at` at most once a minute.
+ */
+const IN_USE_MS = 30 * 60_000
+
 const exists = (file: string) => stat(file).then(() => true, () => false)
 
 /**
  * The `streaming.evict` job. Drops rows whose file is gone and abandoned unfinished rows,
- * deletes least-recently-used transcodes until the cache fits `transcodeCacheMaxBytes`,
+ * deletes least-recently-used transcodes until the cache fits `transcodeCacheMaxBytes`
+ * (sparing ones used in the last half hour),
  * then deletes files no row points at and empty folders.
  */
 export async function evictTranscodes() {
@@ -32,7 +40,9 @@ export async function evictTranscodes() {
 
   const { transcodeCacheMaxBytes } = await getServerSettings()
   let total = ready.reduce((sum, row) => sum + row.bytes, 0)
-  while (total > transcodeCacheMaxBytes && ready.length > 0) {
+  const inUse = Date.now() - IN_USE_MS
+  // Oldest first, so once the next row is in use, so are the rest.
+  while (total > transcodeCacheMaxBytes && ready.length > 0 && ready[0]!.lastUsedAt.getTime() < inUse) {
     const row = ready.shift()!
     await db.delete(transcodes).where(eq(transcodes.id, row.id))
     await unlink(path.join(root, row.storagePath)).catch(() => {})

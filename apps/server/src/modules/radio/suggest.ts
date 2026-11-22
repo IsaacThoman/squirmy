@@ -1,4 +1,5 @@
 import type { QueueSeed } from '@squirmy/contracts'
+import { resolveMerged } from '../catalog/redirects.js'
 import { suggest } from './ranking.js'
 
 /**
@@ -15,5 +16,10 @@ export async function suggestAutoplay(request: {
   exclude: readonly string[]
   limit: number
 }): Promise<QueueSeed[]> {
-  return suggest(request)
+  // Queues and histories keep the ids they were given, and a merge since then leaves
+  // them redirecting. Candidates are current rows, so compare current ids: otherwise the
+  // track a queue entry became is suggested again, and a merged seed has no album.
+  const resolved = await resolveMerged('recordings', [...request.seeds, ...request.exclude])
+  const current = (ids: readonly string[]) => ids.map((id) => resolved.get(id) ?? id)
+  return suggest({ ...request, seeds: current(request.seeds), exclude: current(request.exclude) })
 }

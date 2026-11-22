@@ -5,6 +5,14 @@ import { Id, IsoDateTime, page } from './common.js'
 export const LikeEntityType = z.enum(['track', 'album', 'artist'])
 export type LikeEntityType = z.infer<typeof LikeEntityType>
 
+/**
+ * `PUT/DELETE /me/library/:type/:id`, both answering `Ok` and idempotent. A user's library
+ * is the server's collection plus what they saved here, so saving never needs a file and
+ * removing deletes nothing but the save. Saving an unknown id is 404.
+ */
+export const LibraryEntityType = z.enum(['album', 'track'])
+export type LibraryEntityType = z.infer<typeof LibraryEntityType>
+
 export const PlaylistSummary = z.object({
   id: Id,
   name: z.string(),

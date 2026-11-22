@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
+import { StorageSection } from '../streamingCache/StorageSection';
 import { useColors } from '../theme';
 import {
   lastFmAdminNote, lastFmNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
@@ -43,6 +44,7 @@ export function SettingsScreen() {
               onChange={qualityCellular => update({ qualityCellular })} />
           </Section>
         </> : <Section modifiers={clearRow}><HStack><Spacer /><ProgressView /><Spacer /></HStack></Section>}
+        <StorageSection />
         {screen.listenBrainz && <ListenBrainzSection service={screen.listenBrainz} busy={screen.connectingListenBrainz}
           onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
         {/* Without the server's Last.fm key there is nothing to connect; only an admin can add one. */}

@@ -33,6 +33,17 @@ const notForClients = new Set([
   'POST /acquisition/deliveries/:/complete',
 ])
 
+/**
+ * Client methods that landed with their contracts before the server route, so clients can
+ * build against them. Each entry fails the test once the server registers it: whoever adds
+ * the route deletes its line.
+ */
+const awaitingServer = new Set([
+  'PUT /me/library/:/:',
+  'DELETE /me/library/:/:',
+  'GET /admin/acquisition/usage',
+])
+
 /** `METHOD /path` with every parameter written as `:`, so names do not have to agree. */
 const normalize = (route: string) => route.replace(/:\w+/g, ':')
 
@@ -50,7 +61,8 @@ describe('the API client', () => {
     const covered = new Set(Object.values(apiRoutes).map(normalize))
 
     expect([...native].filter((route) => !covered.has(route) && !notForClients.has(route)).sort(), 'routes with no client method').toEqual([])
-    expect([...covered].filter((route) => !native.has(route)).sort(), 'client methods with no route').toEqual([])
+    expect([...covered].filter((route) => !native.has(route) && !awaitingServer.has(route)).sort(), 'client methods with no route').toEqual([])
     expect([...notForClients].filter((route) => !native.has(route)), 'stale exceptions').toEqual([])
+    expect([...awaitingServer].filter((route) => native.has(route) || !covered.has(route)), 'routes no longer awaiting the server').toEqual([])
   })
 })

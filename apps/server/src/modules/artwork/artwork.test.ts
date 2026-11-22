@@ -10,6 +10,7 @@ import { db } from '../../database/client.js'
 import { albums, assets } from '../../database/schema.js'
 import { createAlbum } from '../../test/factories.js'
 import { useTestDatabase } from '../../test/database.js'
+import { PRERENDERED_SIZES, prerender } from './renditions.js'
 import { assignAlbumArtwork, dominantColor, storeImage } from './store.js'
 
 // Count renders: they are the sharp calls that read a stored original.
@@ -96,9 +97,38 @@ describe('artwork', () => {
     const cached = await app.inject({ url: `/api/v1/art/${asset.id}/300`, headers: { 'if-none-match': etag } })
     expect(cached.statusCode).toBe(304)
     expect(cached.headers['cache-control']).toBe('public, max-age=31536000, immutable')
+    // Cloudflare passes the ETag on weakened, so browsers revalidate with W/.
+    expect((await app.inject({ url: `/api/v1/art/${asset.id}/300`, headers: { 'if-none-match': `W/${etag}` } })).statusCode).toBe(304)
+    expect((await app.inject({ url: `/api/v1/art/${asset.id}/600`, headers: { 'if-none-match': etag } })).statusCode).toBe(200)
     expect((await app.inject({ url: `/api/v1/art/${asset.id}/123` })).statusCode).toBe(404)
     expect((await app.inject({ url: '/api/v1/art/00000000-0000-4000-8000-000000000000/300' })).statusCode).toBe(404)
     expect((await app.inject({ url: '/api/v1/art/not-an-id/300' })).statusCode).toBe(404)
+  })
+
+  it('answers the same rendition with a .webp extension, for CDNs that cache by extension', async () => {
+    const asset = await storeImage(await image('#6a2bc4', 400), { kind: 'cover', source: 'test:ext' })
+    const plain = await app.inject({ url: `/api/v1/art/${asset.id}/300` })
+    const named = await app.inject({ url: `/api/v1/art/${asset.id}/300.webp` })
+    expect(named.statusCode).toBe(200)
+    expect(named.headers['cache-control']).toBe('public, max-age=31536000, immutable')
+    expect(named.headers.etag).toBe(plain.headers.etag)
+    expect(named.rawPayload.equals(plain.rawPayload)).toBe(true)
+    for (const bad of ['300.png', '300.webp.webp', '301.webp', 'x.webp']) {
+      expect((await app.inject({ url: `/api/v1/art/${asset.id}/${bad}` })).statusCode, bad).toBe(404)
+    }
+  })
+
+  it('pre-renders the common sizes once, reading the original once', async () => {
+    const asset = await storeImage(await image('#2bc46a', 800), { kind: 'cover', source: 'test:pre' })
+    const before = renders.count
+    await prerender({ assetId: asset.id })
+    expect(renders.count - before).toBe(PRERENDERED_SIZES.length)
+    const folder = path.join(getConfig().SQUIRMY_DATA_DIR, 'art', asset.id)
+    expect((await readdir(folder)).sort()).toEqual(PRERENDERED_SIZES.map((size) => `${size}.webp`).sort())
+    await prerender({ assetId: asset.id })
+    const served = await app.inject({ url: `/api/v1/art/${asset.id}/600` })
+    expect(await sharp(served.rawPayload).metadata()).toMatchObject({ width: 600, height: 600 })
+    expect(renders.count - before).toBe(PRERENDERED_SIZES.length)
   })
 
   it('renders a rendition once for concurrent requests', async () => {

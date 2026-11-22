@@ -13,6 +13,7 @@ import { NoticeProvider } from '../src/Notice';
 import Player from '../src/Player';
 import { PlayerTransitionProvider } from '../src/player/transition';
 import { PlaybackProvider } from '../src/playback';
+import { StreamingCacheProvider } from '../src/streamingCache/StreamingCacheProvider';
 import { useAppearance, useColors } from '../src/theme';
 
 // Sheets opened by a link or a restored route still get the tabs beneath them.
@@ -36,12 +37,14 @@ export default function RootLayout() {
               <RealtimeProvider>
                 <LibraryProvider>
                   <DownloadsProvider>
-                    <PlaybackProvider>
-                      <PlayerTransitionProvider>
-                        <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
-                        <Routes />
-                      </PlayerTransitionProvider>
-                    </PlaybackProvider>
+                    <StreamingCacheProvider>
+                      <PlaybackProvider>
+                        <PlayerTransitionProvider>
+                          <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
+                          <Routes />
+                        </PlayerTransitionProvider>
+                      </PlaybackProvider>
+                    </StreamingCacheProvider>
                   </DownloadsProvider>
                 </LibraryProvider>
               </RealtimeProvider>

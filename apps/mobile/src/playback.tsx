@@ -24,6 +24,9 @@ import {
   codecsFor, deviceRows, findEntry, isRemote, newlyFailed, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
   seedOf,
 } from './player/session';
+import { useStreamingCache } from './streamingCache/context';
+import { resolvePlayback } from './streamingCache/resolve';
+import { followSession } from './streamingCache/session';
 
 export type { QueueEntry };
 
@@ -53,9 +56,10 @@ const RuntimeContext = createContext<Runtime | null>(null);
  * remote and stays silent. Lock screen and Control Center buttons become session
  * commands too.
  *
- * Downloaded tracks play from their files. The session is saved as it changes, so a
+ * Downloaded tracks play from their files, and so do tracks in the streaming cache, which
+ * follows the session to fetch what plays next. The session is saved as it changes, so a
  * relaunch with no connection shows it (and the commands made offline still reach the
- * server). Offline, an entry that is not downloaded is skipped.
+ * server). Offline, an entry that is neither downloaded nor cached is skipped.
  */
 export function PlaybackProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
@@ -64,6 +68,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   const { socket, offline } = useRealtime();
   const tracks = useTrackStore();
   const downloads = useDownloadManager();
+  const cache = useStreamingCache();
   const notify = useNotice();
   const settings = useUserSettings().data;
   const network = Network.useNetworkState();
@@ -73,8 +78,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   stream.current = { settings, network: network.type };
   // Read through refs so the runtime outlives a new API client, store or notice function:
   // rebuilding it stops the music.
-  const live = useRef({ downloads, offline, api, tracks, notify });
-  live.current = { downloads, offline, api, tracks, notify };
+  const live = useRef({ downloads, cache, offline, api, tracks, notify });
+  live.current = { downloads, cache, offline, api, tracks, notify };
   const onOffline = useRef<((offline: boolean) => void) | null>(null);
   useEffect(() => onOffline.current?.(offline), [offline]);
 
@@ -108,18 +113,18 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           canBoost: false,
           normalization: stream.current.settings?.normalization,
           onLoadError: (entry, error, willRetry) => loadFailed(entry, error, willRetry),
-          resolvePlayback: async entry => {
-            const local = live.current.downloads?.playback(entry.trackId);
-            if (local) return local;
+          resolvePlayback: entry => {
             const { settings: current, network: type } = stream.current;
             const kind = type === Network.NetworkStateType.CELLULAR ? 'cellular' : type === Network.NetworkStateType.WIFI ? 'wifi' : 'other';
-            const { api } = live.current;
-            if (!api) throw new Error('Signed out');
-            return api.streaming.playback(entry.trackId, {
-              albumId: entry.albumId ?? undefined,
-              quality: qualityFor(current ?? defaultQuality, kind),
-              codecs: codecsFor(Platform.OS),
-            });
+            return resolvePlayback(entry, qualityFor(current ?? defaultQuality, kind), {
+              downloaded: trackId => live.current.downloads?.playback(trackId) ?? null,
+              cached: (trackId, quality, any) => live.current.cache?.playback(trackId, quality, any) ?? null,
+              server: (item, quality) => {
+                const { api } = live.current;
+                if (!api) return Promise.reject(new Error('Signed out'));
+                return api.streaming.playback(item.trackId, { albumId: item.albumId ?? undefined, quality, codecs: codecsFor(Platform.OS) });
+              },
+            }, live.current.offline);
           },
         },
       });
@@ -136,7 +141,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           title: track.title,
           artist: track.artistCredit,
           album: track.album?.title,
-          artworkUrl: (track.album?.artwork && live.current.downloads?.artworkUri(track.album.artwork.id))
+          artworkUrl: (track.album?.artwork
+            && (live.current.downloads?.artworkUri(track.album.artwork.id) ?? live.current.cache?.artworkUri(track.album.artwork.id)))
             || (artworkUrl(serverUrl, track.album?.artwork, lockScreenArtSize) ?? undefined),
           durationMs: entry.durationMs || track.durationMs,
         };
@@ -175,7 +181,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       // A file that will not play is skipped. When the next one fails as well, the
       // connection is the likelier cause, so playback pauses instead.
       let lastSkip = -Infinity;
-      // Offline, only downloads can play. One notice per spell offline.
+      // Offline, only downloads and cached tracks can play. One notice per spell offline.
       let toldOffline = false;
       /**
        * Moves past an entry that can't be streamed offline, straight to the next download
@@ -185,11 +191,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       const skipToDownload = (pauseIfNone: boolean) => {
         const { session, queue, isActiveDevice } = client.getSnapshot();
         const current = session.current;
-        const downloads = live.current.downloads;
-        if (!isActiveDevice || !current || downloads?.isDownloaded(current.trackId)) return false;
-        const target = downloads ? nextDownloaded({ ...queue, autoplay: session.autoplay }, id => downloads.isDownloaded(id)) : null;
+        const { downloads, cache } = live.current;
+        const onPhone = (trackId: string) => Boolean(downloads?.isDownloaded(trackId) || cache?.has(trackId));
+        if (!isActiveDevice || !current || onPhone(current.trackId)) return false;
+        const target = nextDownloaded({ ...queue, autoplay: session.autoplay }, onPhone);
         if (!target && !pauseIfNone) return false;
-        if (!toldOffline) notify(target ? 'Skipped songs that aren’t downloaded.' : 'Only downloaded songs play offline.');
+        if (!toldOffline) notify(target ? 'Skipped songs that aren’t downloaded or cached.' : 'Only downloaded or cached songs play offline.');
         toldOffline = true;
         send(target ? { type: 'playQueueEntry', entryId: target.id } : { type: 'pause' });
         return true;
@@ -278,6 +285,11 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (runtime && downloads) return downloads.onFilesChanged(() => runtime.client.forgetPlayback());
   }, [downloads, runtime]);
+
+  // The streaming cache fetches what the session plays next, and has the client forget a track whose file came or went.
+  useEffect(() => {
+    if (runtime && cache) return followSession(cache, runtime.client);
+  }, [cache, runtime]);
 
   const normalization = settings?.normalization;
   useEffect(() => {

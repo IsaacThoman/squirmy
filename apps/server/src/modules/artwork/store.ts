@@ -1,15 +1,18 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { queryKeys } from '@squirmy/contracts'
 import { and, eq, isNull } from 'drizzle-orm'
 import sharp, { type Metadata } from 'sharp'
 import { rgbaToThumbHash } from 'thumbhash'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { albums, assets } from '../../database/schema.js'
+import { albums, artists, assets } from '../../database/schema.js'
+import { enqueue } from '../../jobs/index.js'
 import { AppError, notFound } from '../../lib/errors.js'
 import { newPublicId } from '../../lib/ids.js'
-import { fetchImage } from '../metadata/coverart.js'
+import { invalidate } from '../../realtime/index.js'
+import { downloadImage } from '../metadata/coverart.js'
 
 export type Asset = typeof assets.$inferSelect
 
@@ -97,7 +100,11 @@ export async function storeImage(bytes: Uint8Array, { kind, source }: { kind: As
   const [inserted] = await db.insert(assets).values({ id: newPublicId(), kind, source, ...inspected })
     .onConflictDoNothing({ target: assets.sha256, where: isNull(assets.remoteUrl) })
     .returning()
-  if (inserted) return inserted
+  if (inserted) {
+    // A process without the job system (a script) leaves it to the first request.
+    await enqueue('artwork.render', { assetId: inserted.id }, { singletonKey: inserted.id }).catch(() => {})
+    return inserted
+  }
   // Another job stored the same image a moment ago.
   const [winner] = await db.select().from(assets).where(localBySha(sha256))
   return winner!
@@ -124,7 +131,7 @@ export async function remoteImage(url: string, { kind }: { kind: AssetKind }): P
 export type StoredAsset = Asset & { storagePath: string }
 
 /** How long a failed download is left alone before the next request tries again. */
-const retryFailedAfterMs = 60 * 60 * 1000
+export const retryFailedAfterMs = 60 * 60 * 1000
 
 /** Downloads in progress, so concurrent requests for one remote image share a single fetch. */
 const fetching = new Map<string, Promise<StoredAsset>>()
@@ -151,14 +158,20 @@ export async function ensureStored(assetId: string): Promise<StoredAsset> {
 
 async function download(assetId: string, url: string): Promise<StoredAsset> {
   let inspected: Inspected | undefined
+  let gone = false
   try {
-    const image = await fetchImage(url, { maxBytes })
-    if (image) inspected = await inspectAndWrite(image.bytes)
+    const result = await downloadImage(url, { maxBytes })
+    gone = result.gone
+    if (result.image) inspected = await inspectAndWrite(result.image.bytes)
   } catch {
     // A provider outage and an unusable image end the same way for the caller.
   }
   if (!inspected) {
     await db.update(assets).set({ status: 'failed', checkedAt: new Date() }).where(eq(assets.id, assetId))
+    // The source says there is no such image (a release group without a cover): albums
+    // and artists stop showing it, so clients stop asking for an id that cannot be
+    // served. Whatever assigned it may offer it again once the failure is old.
+    if (gone) await detach(assetId)
     throw notFound('The artwork could not be fetched')
   }
   const [updated] = await db.update(assets)
@@ -166,6 +179,24 @@ async function download(assetId: string, url: string): Promise<StoredAsset> {
     .where(eq(assets.id, assetId))
     .returning()
   return updated as StoredAsset
+}
+
+/**
+ * Unassigns an asset from every album and artist that shows it, and says so: pages,
+ * lists and playlist mosaics that showed it (and the API's cached reads of them) are
+ * refetched. It runs in whichever process asked for the image, the worker included.
+ */
+async function detach(assetId: string) {
+  const now = new Date()
+  const unassigned = await db.update(albums).set({ artworkAssetId: null, updatedAt: now })
+    .where(eq(albums.artworkAssetId, assetId)).returning({ id: albums.id })
+  const unimaged = await db.update(artists).set({ imageAssetId: null, updatedAt: now })
+    .where(eq(artists.imageAssetId, assetId)).returning({ id: artists.id })
+  const keys = [...unassigned.map((row) => queryKeys.album(row.id)), ...unimaged.map((row) => queryKeys.artist(row.id))]
+  if (keys.length === 0) return
+  await invalidate('all', keys).catch((error: unknown) => {
+    if (getConfig().LOG_LEVEL !== 'silent') console.warn('[artwork] Could not send invalidations', error)
+  })
 }
 
 /** Decodes a small copy once for both the placeholder and the color. */

@@ -122,7 +122,8 @@ const seeds = z.array(QueueSeed).min(1).max(5000)
  *   `playOrder`; off restores that order.
  * - `playTracks`: replace the queue with `tracks` and start playing. `startIndex` indexes
  *   `tracks`; when omitted, the first track, or with shuffle the first of the shuffled
- *   order. Without shuffle the tracks before the start are not queued.
+ *   order. Without shuffle the tracks before the start are not queued. The autoplay
+ *   queue is emptied, so the server suggests tracks for the new ones.
  * - `enqueue`: `next` inserts before the queue, `last` appends.
  * - `playQueueEntry`: play an entry of the queue or the autoplay queue now; the entries
  *   before it stay queued.
@@ -254,6 +255,12 @@ export const ServerEvent = z.discriminatedUnion('type', [
     status: z.string(),
   }),
   z.object({ type: z.literal('import.updated'), importId: Id, status: z.string() }),
+  /**
+   * Sent to the user when several tracks in a row failed to load and the session paused
+   * instead of skipping on, so clients show one notice rather than one per track.
+   * `trackId` is the current entry's track when playback paused.
+   */
+  z.object({ type: z.literal('playback.unavailable'), trackId: Id.nullable() }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>
 

@@ -4,7 +4,8 @@ import { thumbHashToDataURL } from 'thumbhash'
 
 export type ArtUrlBuilder = (artwork: Artwork, size: ArtSize) => string
 
-export const apiArtUrl: ArtUrlBuilder = (artwork, size) => `${API_PREFIX}/art/${artwork.id}/${size}`
+// The extension lets a CDN in front of the server cache renditions (Cloudflare caches by extension).
+export const apiArtUrl: ArtUrlBuilder = (artwork, size) => `${API_PREFIX}/art/${artwork.id}/${size}.webp`
 
 /** How `Cover` turns artwork into an image URL. Defaults to the server's art route. */
 export const ArtUrlContext = createContext<ArtUrlBuilder>(apiArtUrl)

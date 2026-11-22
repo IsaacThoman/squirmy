@@ -2,10 +2,11 @@ import type { StreamQuality } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { mediaFiles } from '../../database/schema.js'
+import { albums, mediaFiles } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
+import { buildPlaybackDescriptor } from './playback.js'
 import { codecFamily, mimeFor, parseCodecs } from './profiles.js'
 import { chooseProfile, selectFile } from './select.js'
 
@@ -77,5 +78,24 @@ describe('file selection', () => {
     expect(fallback!.file.id).toBe(lossy128)
     expect(fallback!.profile).toBe('original')
     expect(await selectFile(newId(), { quality: 'original' })).toBeNull()
+  })
+
+  it('prefers the file on an album the client names by an id that lost a merge', async () => {
+    const root = await createLibraryRoot()
+    const studio = await createAlbum({ owned: true, rootId: root.id, tracks: [{ title: 'Song' }] })
+    const compilation = await createAlbum({ tracks: [{ title: 'Song' }] })
+    const recordingId = studio.tracks[0]!.recordingId
+    const onCompilation = newId()
+    await db.insert(mediaFiles).values({
+      id: onCompilation, rootId: root.id, relPath: 'c/01.mp3', size: 1, mtime: new Date(), container: 'MPEG', codec: 'MPEG 1 Layer 3',
+      bitrate: 320_000, recordingId, albumId: compilation.albumId,
+    })
+    // The queue entry still names the compilation's old id after a duplicate of it was merged away.
+    const stale = (await createAlbum({ tracks: [{ title: 'Song' }] })).albumId
+    await db.update(albums).set({ mergedIntoId: compilation.albumId }).where(eq(albums.id, stale))
+
+    const descriptor = await buildPlaybackDescriptor(newId(), recordingId, { quality: 'original', albumId: stale })
+    expect(descriptor.fileId).toBe(onCompilation)
+    expect(descriptor.albumId).toBe(compilation.albumId)
   })
 })

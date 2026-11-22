@@ -197,6 +197,12 @@ export const UpdateAcquisitionProviderRequest = z.object({
   secret: z.string().min(8),
   enabled: z.boolean(),
   priority: z.number().int(),
+  /**
+   * Overrides the coverage the provider declares, and survives later `capabilities`
+   * answers: an operator whose provider fetches nearly anything sets `assume_available` so
+   * search results are playable on first sight instead of after a resolve.
+   */
+  coverage: ProviderCoverage,
 }).partial()
 export type UpdateAcquisitionProviderRequest = z.infer<typeof UpdateAcquisitionProviderRequest>
 
@@ -208,6 +214,15 @@ export type UpdateAcquisitionProviderRequest = z.infer<typeof UpdateAcquisitionP
  */
 export const AcquisitionJobStatus = z.enum(['resolving', 'queued', 'downloading', 'importing', 'completed', 'failed', 'rejected'])
 export type AcquisitionJobStatus = z.infer<typeof AcquisitionJobStatus>
+
+/**
+ * Why a job was started, which orders waiting jobs (`play` first, then `prefetch`,
+ * `download`, `library`). `play`: the current queue entry. `prefetch`: an upcoming entry.
+ * `library`: added to someone's library or an explicit request. `download`: a device is
+ * downloading it.
+ */
+export const AcquisitionOrigin = z.enum(['play', 'prefetch', 'library', 'download'])
+export type AcquisitionOrigin = z.infer<typeof AcquisitionOrigin>
 
 export const AcquisitionJob = z.object({
   id: Id,
@@ -222,6 +237,8 @@ export const AcquisitionJob = z.object({
   error: z.string().nullable(),
   /** The import that received the delivery, once files arrived. */
   importId: Id.nullable(),
+  /** Optional for older servers. */
+  origin: AcquisitionOrigin.optional(),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
   completedAt: IsoDateTime.nullable(),
@@ -234,8 +251,16 @@ export type AcquisitionJobListQuery = z.infer<typeof AcquisitionJobListQuery>
 export const AcquisitionJobList = page(AcquisitionJob)
 export type AcquisitionJobList = z.infer<typeof AcquisitionJobList>
 
-/** Query of `POST /tracks/:id/acquire`: the album the track is played from, so the request names it. */
-export const AcquireQuery = z.object({ albumId: Id.optional() })
+/**
+ * Query of `POST /tracks/:id/acquire` and `POST /albums/:id/acquire`. `albumId` (tracks
+ * only) is the album the track is played from, so the request names it. `origin` defaults
+ * to `library`; a device downloading music says `download`. Play and prefetch requests come
+ * from the server itself, so clients cannot claim them.
+ */
+export const AcquireQuery = z.object({
+  albumId: Id.optional(),
+  origin: z.enum(['library', 'download']).optional(),
+})
 export type AcquireQuery = z.infer<typeof AcquireQuery>
 
 /**
@@ -254,7 +279,11 @@ export const AcquisitionPolicy = z.object({
   preferLossless: z.boolean().default(true),
   /** Reject deliveries larger than this per file. */
   maxFileBytes: z.number().int().min(0).default(500 * 1024 ** 2),
-  /** Stop fetching when acquired files exceed this total. 0 means no limit. */
+  /**
+   * Cache limit for files delivered by providers. Reaching it evicts the least recently
+   * played unpinned files instead of refusing a fetch, so playback never fails on it.
+   * 0 means unlimited.
+   */
   storageQuotaBytes: z.number().int().min(0).default(0),
   /** Fail a job whose provider has not delivered after this long. */
   timeoutSeconds: z.number().int().min(30).max(86_400).default(900),
@@ -267,6 +296,19 @@ export const AcquisitionPolicy = z.object({
   deliveryBaseUrl: z.string().url().nullable().default(null),
 })
 export type AcquisitionPolicy = z.infer<typeof AcquisitionPolicy>
+
+/**
+ * `GET /admin/acquisition/usage`: the provider cache against its limit. Pinned files (saved,
+ * liked, in a playlist or a stored queue, or played in the last day) are never evicted.
+ * `limitBytes` is `storageQuotaBytes`, 0 for unlimited.
+ */
+export const AcquisitionUsage = z.object({
+  cachedFiles: z.number().int().nonnegative(),
+  cachedBytes: z.number().int().nonnegative(),
+  pinnedBytes: z.number().int().nonnegative(),
+  limitBytes: z.number().int().nonnegative(),
+})
+export type AcquisitionUsage = z.infer<typeof AcquisitionUsage>
 
 /** `PATCH /admin/acquisition/policy`. Keys left out keep their value. */
 export const UpdateAcquisitionPolicy = z.object({
