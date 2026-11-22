@@ -15,7 +15,7 @@ adapters/cold-storage  @squirmy/adapter-cold-storage  reference provider: a fold
 adapters/mock          @squirmy/adapter-mock  provider for tests and demos: quiet tagged tones
 ```
 
-npm workspaces, Node 22.13 or newer, TypeScript 6, ESM everywhere except the Expo app. `contracts` and `client-core` compile to `dist` with `tsc`; consumers import the built output, so run `npm run build:packages` (or the packages' `dev` watchers) before typechecking or running anything else. The adapters build the same way (`npm run build:adapters`); the root `typecheck`, `test` and `build` scripts build both. The server image installs only the server's workspaces; the adapters are separate services with their own READMEs.
+npm workspaces, Node 22.13 or newer, TypeScript 6, ESM everywhere except the Expo app. `contracts` and `client-core` compile to `dist` with `tsc`; consumers import the built output, so run `npm run build:packages` (or the packages' `dev` watchers) before typechecking or running anything else. The adapters build the same way (`npm run build:adapters`); the root `typecheck`, `test` and `build` scripts build both. The server image installs only the server's workspaces; `adapters/cold-storage` and `adapters/mock` are separate services with their own READMEs, and `adapters/kit` is the library they share (a workspace package, not published to npm).
 
 | Command | What it does |
 |---|---|
@@ -47,14 +47,14 @@ apps/server/src/
   app.ts                buildApp(): Fastify instance, plugins, auth hook, module routes
   config.ts             zod-parsed environment
   database/             client.ts (lazy db), schema.ts, migrate.ts
-  lib/                  auth, errors, ids, text, crypto, settings, version, ffmpeg, http, paths
+  lib/                  auth, errors, ids, text, crypto, settings, version, ffmpeg, http
   jobs/                 pg-boss wrapper: jobs.define, enqueue, schedule
   realtime/             socket.io server, rooms, publish/invalidate
   modules/<name>/       one folder per module; see the table below
   test/                 database harness, audio fixtures, factories, http fixtures
 ```
 
-- **Boot.** `index.ts` migrates, starts jobs, then in API roles builds the app and attaches realtime, calls each module's `jobs`, `realtime` and `start` hooks for its role, and listens last. SIGTERM undoes those steps in reverse. A worker-only process opens no HTTP port.
+- **Boot.** `index.ts` migrates, runs each module's `jobs` hook in worker roles, starts jobs, then in API roles builds the app, attaches realtime and runs the `realtime` hooks, then runs every module's `start` hook and listens last. A failure at any step, a migration included, logs `[squirmy] failed to start` and undoes the steps done so far. SIGTERM and SIGINT undo them in reverse. A worker-only process opens no HTTP port.
 - **HTTP.** Helmet without CSP, cookies, multipart (streamed, up to 16 GiB per file), and CORS only for the Vite dev origins outside production. Each module's `routes` is registered in its own encapsulated scope under `/api/v1`.
 - **Web app.** When `SQUIRMY_WEB_DIST` is set the built app is served, with `index.html` as the fallback for unknown GET paths outside `/api`, `/rest`, `/socket.io`, `/health` and `/ready`. Hashed files under `assets/` are cached as immutable.
 - `GET /health` answers without touching anything; `GET /ready` checks the database.
@@ -92,12 +92,12 @@ export type ServerModule = {
 | `userdata` | likes, ratings, playlists, history, wants, user settings | 2 |
 | `sessions` | playback sessions over socket.io, devices, play recording | 2–3 |
 | `metadata` | clients for MusicBrainz, Cover Art Archive, Deezer, Wikidata, LRCLIB, ListenBrainz, AcoustID, fanart.tv, Last.fm | 4 |
-| `matching` | album matcher, scoring, review queue, fix match, merges | 4 |
+| `matching` | album matcher, scoring, AcoustID fingerprinting, review queue, fix match, merges | 4 |
 | `enrichment` | covers, artist images, bios, lyrics, external ids, new-release feed | 4 |
 | `organize` | managed roots: planner, mover, journal, undo, tag writer | 4 |
 | `subsonic` | OpenSubsonic API under `/rest` | 5 |
 | `search` | library search, search providers, stub rows, catalog resolve | 6 |
-| `imports` | web upload, inbox folder, staging, filing into a managed root, fingerprinting | 7 |
+| `imports` | web upload, inbox folder, staging, duplicate detection, filing into a managed root | 7 |
 | `acquisition` | provider protocol client, jobs, policy, on-demand playback | 8 |
 | `scrobble` | ListenBrainz and Last.fm submission | 8 |
 | `radio` | autoplay suggestions from similar-artist data | 8 |
@@ -109,7 +109,9 @@ Modules reach each other in three ways, in this order of preference:
 
 1. **Database state.** A module finds its own work by querying for rows that need it (files with no loudness, albums still `pending`). Sweeps make this robust to ordering and restarts. A module may also hold off on work by another module's recorded state: scans skip `_Incoming` folders of imports still moving files, and matching waits for an import to decide its duplicates.
 2. **Jobs by name.** A module may enqueue another module's job (`enqueue('loudness.measure', { fileId })`). The job name and payload are that module's public interface.
-3. **Seam functions.** A few direct calls are declared up front and start as no-ops: `enrichment/detail.ts` (`ensureAlbumDetail`, `ensureArtistDetail`), `acquisition/coverage.ts` (`onDemandRecordings`, `requestRecording`), `radio/suggest.ts` (`suggestAutoplay`). The owning module fills them in; callers never change. In the other direction, sessions exports `onPlayStart` (`sessions/plays.ts`), a subscription to plays opening on the active device, which scrobble uses for "now playing".
+3. **Seam functions.** A few direct calls are declared up front as seams: `enrichment/detail.ts` (`ensureAlbumDetail`, `ensureArtistDetail`), `acquisition/coverage.ts` (`onDemandRecordings`, `requestRecording`), `radio/suggest.ts` (`suggestAutoplay`). The owning module fills them in; callers never change. In the other direction, sessions exports `onPlayStart` (`sessions/plays.ts`), a subscription to plays opening on the active device, which scrobble uses for "now playing".
+
+Beyond those, modules call each other's exported functions directly where sharing beats a copy: the catalog read helpers (`catalog/sql.ts`, `catalog/availability.ts`, `catalog/redirects.ts`, `catalog/summaries.ts`), `library/cleanup.ts`, `matching/merge.ts`, organize's planner and mover, and `search/keys.ts` are used across modules. Import them from the owning module and keep their signatures stable; the owner changes them with their callers.
 
 ### Configuration
 
@@ -166,7 +168,7 @@ await schedule('library.scan-all', '0 4 * * *')
 - Every process starts pg-boss: `index.ts` calls `startJobs({ work })` with `work` true for worker roles. Modules' `jobs` hooks run only in worker roles; a process that enqueues a job it has no definition for creates the queue on first use.
 - `getQueueStats()` counts jobs live; `GET /admin/jobs` returns it.
 - Tests call `startJobs({ work: true })` and then `drainJobs()`, which resolves once no job of a defined queue is ready or active, running retries without waiting out the backoff.
-- Heavy work (loudness, transcodes, fingerprints) uses a low priority so tag reading always goes first.
+- Priority orders jobs within one queue only. Each queue has its own worker slots, so heavy queues are bounded by their `concurrency` (loudness 1, analysis 2) rather than by priority. Background sweeps and safety-net jobs use negative priorities so on-demand jobs of the same queue run first.
 
 ### Realtime
 
@@ -181,7 +183,7 @@ await schedule('library.scan-all', '0 4 * * *')
 
 ### HTTP API
 
-All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`; short lists (users, invites, app passwords, roots, devices) return every item with `nextCursor: null`. `GET /admin/jobs` returns a bare array. `createApiClient` in client-core has one method per route below, and its response schemas are the reference for each route's shape. `apiRoutes` next to it names each method's route; `client-routes.test.ts` fails when the server registers a native route that no method calls and that is not on its short list of routes clients never call (stream and art URLs, the Last.fm callback, provider deliveries), and when a method calls a route the server lacks, unless that route is listed as awaiting the server. Uploads go through `XMLHttpRequest`, which reports progress.
+All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`; short lists (users, invites, app passwords, roots, devices, acquisition providers, an import's albums) return every item with `nextCursor: null`. `GET /admin/jobs` returns a bare array; `GET /admin/albums/:id/candidates` returns `{ items, files }` and the acquire routes `{ items }`, unpaginated. `createApiClient` in client-core has one method per route below, and its response schemas are the reference for each route's shape. `apiRoutes` next to it names each method's route; `client-routes.test.ts` fails when the server registers a native route that no method calls and that is not on its short list of routes clients never call (stream and art URLs, the Last.fm callback, provider deliveries), and when a method calls a route the server lacks, unless that route is listed as awaiting the server. Uploads go through `XMLHttpRequest`, which reports progress.
 
 | Route | Module | Notes |
 |---|---|---|
@@ -190,8 +192,8 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/POST /auth/app-passwords`, `DELETE /auth/app-passwords/:id` | auth | the secret is returned once, on create |
 | `GET/PATCH /me/settings` | userdata | `UserSettings` |
 | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/:id`; `GET/POST /admin/invites`, `DELETE /admin/invites/:id` | admin | the last active admin cannot be demoted, disabled or deleted |
-| `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists directories only, symlinks resolved; home directory by default |
-| `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | a folder that is already a root is 409 `duplicate_root` with `details.rootId`; `template` is checked with organize's `validateTemplate`; a bad one is `invalid_request` with an issue on `template` |
+| `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists the non-hidden directories (and symlinks to directories) of an absolute `path`, which is resolved through symlinks; the server's home directory by default |
+| `GET/POST /admin/library/roots`, `PATCH/DELETE /admin/library/roots/:id`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | a folder that is already a root is 409 `duplicate_root` with `details.rootId`; `template` is checked with organize's `validateTemplate`; a bad one is `invalid_request` with an issue on `template` |
 | `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` |
 | `GET /home` | catalog | `HomeResponse`; no `wantlist` section, and no refresh of wants, while the wantlist is off |
 | `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
@@ -204,7 +206,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | while `wantlistEnabled` is off, `GET /me/wants` is empty, `PUT`/`DELETE` are 404 `wantlist_disabled`, album pages say `wanted: false` and imports skip refreshing wants; stored wants are kept |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
-| `GET /me/scrobbling`, `PUT/DELETE /me/scrobbling/listenbrainz`, `POST /me/scrobbling/lastfm/start`, `DELETE /me/scrobbling/lastfm` | scrobble | every mutation returns `ScrobblingStatus` |
+| `GET /me/scrobbling`, `PUT/DELETE /me/scrobbling/listenbrainz`, `POST /me/scrobbling/lastfm/start`, `DELETE /me/scrobbling/lastfm` | scrobble | the PUT and DELETE routes return `ScrobblingStatus`; `lastfm/start` returns the approval `url` (409 `lastfm_not_configured` without an API key) |
 | `GET /scrobbling/lastfm/callback` | scrobble | no session needed: the signed `state` names the user; redirects to `/settings?lastfm=…` |
 | `POST /radio/track/:id`, `POST /radio/artist/:id` | radio | `RadioResponse`, played with `playTracks` |
 | `GET /admin/reviews`, `GET /admin/reviews/:id`, `POST /admin/reviews/:id/resolve`, `GET /admin/albums/:id/candidates`, `POST /admin/albums/:id/rematch`, `/unmatch` | matching | resolve, rematch with a release and unmatch lock the files; candidates come with the album's files |
@@ -221,7 +223,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 One function decides it, in `modules/catalog/availability.ts`, and every list and page uses it:
 
 - Track: `server` if a present (not missing) `media_files` row has its `recording_id`. Otherwise `on_demand` if an enabled acquisition provider covers it (coverage `assume_available`, or a cached positive resolve) and it is not in `acquisition_misses`. Otherwise `none`.
-- Album: counts owned tracks on its track list (`albumTrackList`, below): the canonical release, plus owned recordings filed under the album that the release does not list. All owned is `full`, some is `partial`; none owned is `on_demand` when its tracks would be, else `none`. `trackCount` and `ownedTrackCount` count the same list, so an album with a present, linked file is never `none`.
+- Album: counts owned tracks on its track list (`albumTrackList`, below): the canonical release (else the album's release with the most tracks), plus owned recordings filed under the album that the release does not list. All owned is `full`, some is `partial`; none owned is `on_demand` when its tracks would be, else `none`. `trackCount` and `ownedTrackCount` count the same list, so an album with a present, linked file is never `none`.
 
 ### Catalog read side
 
@@ -229,7 +231,7 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 - Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge.
 - Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
 - A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
-- An album's track list is `albumTrackList` (`catalog/pages.ts`), for the album page and Subsonic's `getAlbum`: the canonical release's tracks, then owned recordings filed under the album that the release does not list (bonus tracks, files matched with no track) in path order on the last disc, with no position. Subsonic numbers those after the disc's last track. Availability still counts only the canonical tracks.
+- An album's track list is `albumTrackList` (`catalog/pages.ts`), for the album page and Subsonic's `getAlbum`: the canonical release's tracks, then owned recordings filed under the album that the release does not list (bonus tracks, files matched with no track) in path order on the last disc, with no position. Subsonic numbers those after the disc's last track.
 
 ### Search
 
@@ -252,7 +254,7 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 
 - Clients ask `GET /tracks/:id/playback` and receive a signed URL. The stream route accepts the signature instead of a session so `<audio>`, AVPlayer and downloads need no headers. Signatures bind the file id, profile, user id and an expiry of 12 hours.
 - File choice: files of the recording that belong to the requested album first, then lossless over lossy, then higher bitrate.
-- `quality=original` serves the file as is when the client's codec list includes its codec, and transcodes to `aac_256` otherwise. `high` is `aac_256`. `data_saver` is `opus_128` when the client lists opus and `mp3_192` otherwise. The mapping lives in `streaming/profiles.ts`.
+- `chooseProfile` (`streaming/select.ts`) maps a quality to a profile. `original` serves the file when the client decodes its codec. Otherwise the target is the first profile the client decodes from the quality's preference list (`original` and `high`: `aac_256`, then `mp3_320`, `opus_128`, `mp3_192`; `data_saver`: `opus_128`, then `mp3_192`, `aac_256`, `mp3_320`). A lossy file at or below the target bitrate that the client decodes is served as is; one it cannot decode gets the smallest playable profile at or above its own bitrate. Encoder settings are in `streaming/profiles.ts`.
 - Signed URLs carry `exp` (epoch seconds), `uid` and `sig`, an HMAC from `sign('stream', …)`. A request without a valid signature may use the session instead.
 - A URL names the file, not its path, so it keeps working when organize files it: a file not at its row's path is looked for at the other end of a move that is running (organize renames on disk before it updates the row), and is marked missing only when it is in neither place.
 - A transcode is written to the cache while it is streamed to the first requester; later requests get the cached file with Range support. ffmpeg writes to a pipe, so every streamed byte is final: AAC 256k in ADTS (`.aac`), Opus 128k in Ogg, MP3 at constant bitrate without a Xing frame. Encoders: `aac`, `libopus`, `libmp3lame`.
@@ -401,13 +403,15 @@ apps/web/src/
   pages/               route containers: fetch data, pass it to a view
   player/              PlayerProvider (SessionClient), LibraryProvider (likes, wants, playlists), OnDemandProvider (fetching)
   player/engine/       WebPlayerEngine, the Media Session adapter, the page's engine
+  lib/                 formatters, device identity, codec probing, uploads, catalog rules, small helpers
   fixtures/            fictional catalog and an in-memory session, for tests and the /dev pages
+  test/                fake services and render helpers for component tests
 ```
 
 - **Bootstrap.** One API client (same origin, `client: 'web'`) and one `QueryClient`. Before any route renders, `GET /setup/status` and `GET /auth/me` load. Guards: a server without an admin shows the setup wizard on every route; signed-out visitors go to `/login?next=…`; admin routes need the admin role. Signing in or out only changes the cached `me`, and the guards navigate. A 401 from any request signs out; other failures become a toast with the server's message, unless the query or mutation says it shows them itself (`meta: { silent }`, `meta: { inline }`).
 - **Forms** validate with the contract schemas (`useFormSubmit`), show issues under their fields, and map known error codes onto fields.
 - **Realtime.** `RealtimeProvider` opens one socket per signed-in user. `invalidate` refreshes the named queries, every reconnect refreshes all of them, and the shell shows a notice when the socket has been down for three seconds. The socket is in the context for `SessionClient`.
-- **Audio.** `WebPlayerEngine` alternates two `<audio>` elements, each through its own `GainNode`, so normalization can boost. When the browser refuses to start audio the entry goes to `error` and the shell offers "Enable audio", which calls `unlock()` from the click. `/dev/engine` drives it with tones from `scripts/dev-audio.mjs`; `scripts/e2e-engine.mjs` checks it against the contract in Chromium, `scripts/e2e-auth.mjs` walks the account flows against a fresh server, `scripts/e2e-admin.mjs` the admin flows (setup with a real folder, scans, reviews, Fix match, Organize on disk, the search index), `scripts/e2e-playback.mjs` playback on the demo library (transport, queue, likes, playlists, lyrics, gapless ends, two devices, a second user), and `scripts/e2e-polish.mjs` a server started like the Docker image (setup with its configured folder, naming templates, search's top result, the queue's preparing labels).
+- **Audio.** `WebPlayerEngine` alternates two `<audio>` elements, each through its own `GainNode`, so normalization can boost. When the browser refuses to start audio the entry goes to `error` and the shell offers "Enable audio", which calls `unlock()` from the click. `/dev/engine` drives it with tones from `scripts/dev-audio.mjs`; `scripts/e2e-engine.mjs` checks it against the contract in Chromium, `scripts/e2e-auth.mjs` walks the account flows against a fresh server, `scripts/e2e-admin.mjs` the admin flows (setup with a real folder, scans, reviews, Fix match, Organize on disk, the search index), `scripts/e2e-playback.mjs` playback on the demo library (transport, queue, likes, playlists, lyrics, gapless ends, two devices, a second user), `scripts/e2e-polish.mjs` a server started like the Docker image (setup with its configured folder, naming templates, search's top result, the queue's preparing labels), and `scripts/e2e-imports-providers.mjs` adding music (uploads, the inbox, duplicates) and acquisition providers against the mock provider.
 
 - **Data.** Pages read through the hooks in `api/queries.ts`, keyed by `queryKeys`, so the server's invalidations refresh whatever is on screen. Page queries are `silent` and the page shows its own skeleton, error and "Nothing here" (404). Library lists page by cursor as they scroll. Likes and wants are optimistic: `patchEntity` sets `liked`/`wanted` on every cached copy of the entity, and a failure sets it back.
 - **Session.** `PlayerProvider` (inside the signed-in routes) runs one `SessionClient` on the realtime socket with the page's engine. `resolvePlayback` asks for the user's `qualityWifi` and the codecs `canPlayType` confirms (Opus only in Ogg); `setNormalization` follows the user's mode. A `TrackStore` hydrates queue, history and autoplay entries; the current track also has its own query so its heart follows likes. Commands send track ids, album ids and durations only, never `none` tracks; `on_demand` ones go as `preparing`. Playback position is a `PositionClock` that reads `getPositionMs()` on animation frames while playing, so only the clocks and the lyrics re-render. The provider also drives the Media Session (while this tab plays), the tab title, Space and the arrow keys, and toasts entries that fail (and skips a track the browser cannot play).
@@ -430,6 +434,8 @@ apps/mobile/
   src/player/            Now Playing parts, the queue, session view logic (session.ts), lyrics
   src/player/engine/     ExpoAudioEngine (PlayerEngine on expo-audio) and the lock screen adapter
   src/playback.tsx       PlaybackProvider: the SessionClient, its hooks (usePlaybackState, usePosition)
+  src/*.tsx              the tab shell's screens and parts: Now Playing, Library, mini-player, sheets, notices, theme, shared UI
+  src/native/            SwiftUI controls (buttons, menus) for the .ios screens
   src/dev/               development-only screens (the engine bench at /dev/engine)
   modules/now-playing/   local Expo module: Now Playing info and remote commands as JS events
 ```
