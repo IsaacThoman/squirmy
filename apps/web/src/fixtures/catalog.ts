@@ -6,25 +6,12 @@ import type {
   AlbumDetail, AlbumSummary, AlbumType, ArtistDetail, ArtistSummary, Artwork, ArtSize, HomeResponse, Lyrics,
   PlaylistDetail, PlaylistSummary, TrackAvailability, TrackSummary,
 } from '@squirmy/contracts'
-import cover01 from '../../../mobile/assets/covers/01.jpg'
-import cover02 from '../../../mobile/assets/covers/02.jpg'
-import cover03 from '../../../mobile/assets/covers/03.jpg'
-import cover04 from '../../../mobile/assets/covers/04.jpg'
-import cover05 from '../../../mobile/assets/covers/05.jpg'
-import cover06 from '../../../mobile/assets/covers/06.jpg'
-import cover07 from '../../../mobile/assets/covers/07.jpg'
-import cover08 from '../../../mobile/assets/covers/08.jpg'
-import cover09 from '../../../mobile/assets/covers/09.jpg'
-import cover10 from '../../../mobile/assets/covers/10.jpg'
-import cover11 from '../../../mobile/assets/covers/11.jpg'
-import cover12 from '../../../mobile/assets/covers/12.jpg'
 
 /** Stable UUIDs, so fixture links survive reloads. `kind` keeps the id spaces apart. */
 function uuid(kind: number, n: number) {
   return `00000000-0000-4000-8${kind}00-${n.toString(16).padStart(12, '0')}`
 }
 
-const coverFiles = [cover01, cover02, cover03, cover04, cover05, cover06, cover07, cover08, cover09, cover10, cover11, cover12]
 const thumbhashes = [
   'mGcKDwhZiHh/h4d2eWeId3h4mMBHKX8E', 'j5kGFwYMjHd2l3mmameJlneJ52BoD4YH', 'WtcJDwIAh3eWhmijh2eKWKeF9dmnnW8K',
   'WvwGHwL1q4d3eIdth3d3p3mHV3/XCZoC', 'T9cFFwYQWmqGaGhFidh2SMZolAdZeaAD', '0AgKFwRbd4efd3eIiIeHeHd3uPJrS78H',
@@ -36,13 +23,19 @@ const coverColors = [
 ]
 const coverUrls = new Map<string, string>()
 
+/** A plain square in the cover's colour, so the fixture ships no artwork. */
+function coverSvg(color: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="${color}"/></svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
 /** Cover `n` (1–12) as an Artwork. Artist images reuse a cover under their own asset id. */
 function art(n: number, assetId = uuid(9, n)): Artwork {
-  coverUrls.set(assetId, coverFiles[n - 1])
+  coverUrls.set(assetId, coverSvg(coverColors[n - 1]))
   return { id: assetId, color: coverColors[n - 1], thumbhash: thumbhashes[n - 1] }
 }
 
-/** Resolves fixture artwork to the bundled covers. Unknown ids fall back to the real art route. */
+/** Resolves fixture artwork to its generated cover. Unknown ids fall back to the real art route. */
 export function fixtureArtUrl(artwork: Artwork, size: ArtSize) {
   return coverUrls.get(artwork.id) ?? `/api/v1/art/${artwork.id}/${size}`
 }

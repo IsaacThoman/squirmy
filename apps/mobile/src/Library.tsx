@@ -19,6 +19,9 @@ import {
 import { isEmptyGroup, searchSections, type SearchGroup, type SearchSections } from './library/search';
 import { sortFor, sortOptions, sortsFor, type SortName } from './library/sorting';
 import type { Page } from './library/links';
+import { useStartGuard } from './library/pending';
+import { underStatusBar, useRefreshControl } from './library/refresh';
+import { displayFontScale } from './fontScale';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
   onScrollNearEnd, playlistCollection, QueryState, SectionTitle, tapFeedback, useOfflineDim, type Collection,
@@ -44,32 +47,34 @@ export type BrowseProps = {
 
 /**
  * Plays an album from its tile: its tracks come from the cached page when there is one,
- * otherwise from the server.
+ * otherwise from the server. `pending` is true while that request is out; taps meanwhile are ignored.
  */
 export function useAlbumPlayer() {
   const api = useSignedInApi();
   const queryClient = useQueryClient();
   const tracks = useTrackStore();
   const { actions } = usePlaybackState();
-  return (albumId: string) => {
+  const starts = useStartGuard();
+  const play = (albumId: string) => {
     if (!api) return;
-    void queryClient.ensureQueryData({ queryKey: queryKeys.album(albumId), queryFn: () => api.catalog.album(albumId) }).then(album => {
+    starts.run(albumId, () => queryClient.ensureQueryData({ queryKey: queryKeys.album(albumId), queryFn: () => api.catalog.album(albumId) }).then(album => {
       const list = album.discs.flatMap(disc => disc.tracks);
       tracks.prime(list);
       actions.playTracks(list, { shuffle: false, context: { type: 'album', id: album.id, title: album.title } });
-    }, () => undefined);
+    }));
   };
+  return { play, pending: starts.pending };
 }
 
 /** The featured album. Its page zooms out of the whole card; the enclosing `ZoomLink` supplies `onPress`. */
 function HeroCard({ album, size, onPress }: { album: AlbumSummary; size: number; onPress?: () => void }) {
-  const playAlbum = useAlbumPlayer();
+  const albumPlayer = useAlbumPlayer();
   const styles = useStyles();
   return <ZoomSource style={[styles.hero, { minHeight: Math.min(350, size * 0.85), backgroundColor: album.artwork?.color ?? '#322940' }]}>
     <Cover artwork={album.artwork} size={size} radius={0} style={styles.heroCover} />
     <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
     <HeroActions title={album.title} artist={album.artistCredit} onOpen={() => onPress?.()}
-      onPlay={() => { tapFeedback(); playAlbum(album.id); }} />
+      onPlay={() => { tapFeedback(); albumPlayer.play(album.id); }} busy={albumPlayer.pending(album.id)} />
   </ZoomSource>;
 }
 
@@ -116,15 +121,17 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const hero = albums('recently-played')?.find(playable) ?? albums('recently-added')?.find(playable);
   const heroSize = width - gutter * 2;
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
+  const refreshControl = useRefreshControl(home.refetch, top);
+  const statusBar = underStatusBar(top);
 
   return <View style={styles.page}>
     <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
       locations={[0, top / (top + 14), 1]} style={[styles.statusFade, { height: top + 14 }]} />
-    <ScrollView contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={{ paddingTop: top + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
+    <ScrollView contentInsetAdjustmentBehavior="never" refreshControl={refreshControl} {...statusBar.props}
+      contentContainerStyle={{ paddingTop: statusBar.contentTop + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       <View style={[styles.pageHeader, styles.homeHeader]}>
-        <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Listen now</Text>
-        {onOpenDevices && <BrowseButton label="Playback devices" icon="airplay.audio" glass onPress={onOpenDevices} />}
+        <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Listen now</Text>
+        {onOpenDevices && <BrowseButton label="Playback devices" icon="laptopcomputer.and.iphone" glass onPress={onOpenDevices} />}
         {onOpenAccount && <BrowseButton label="Account" icon="person.crop.circle" glass onPress={onOpenAccount} />}
       </View>
       <OfflineBadge style={styles.homeOffline} />
@@ -192,6 +199,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
     [query, songs.items]);
   const empty = filter === 'Songs' ? !tracks.length : !items.length;
   const libraryEmpty = albums.data && !albums.items.length && !query;
+  const refreshControl = useRefreshControl(() => Promise.all([active.refetch(), showsPlaylists && active !== playlists && playlists.refetch()]));
 
   const newPlaylist = () => {
     tapFeedback();
@@ -200,7 +208,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
 
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
-      <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Library</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Library</Text>
       <OfflineBadge />
       {onOpenDownloads && <BrowseButton glass icon="arrow.down.circle" label="Downloads" onPress={() => { tapFeedback(); onOpenDownloads(); }} />}
       <BrowseButton glass icon={showFilter ? 'xmark' : 'magnifyingglass'} label={showFilter ? 'Close library search' : 'Search library'} onPress={() => {
@@ -214,7 +222,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       <LibraryFilters options={filters} value={filter} onChange={value => { tapFeedback(); setFilter(value); }} />
     </View>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" scrollEventThrottle={100}
-      onScroll={onScrollNearEnd(active.loadMore)}
+      onScroll={onScrollNearEnd(active.loadMore)} refreshControl={refreshControl}
       contentContainerStyle={[styles.libraryBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}>
       <View style={styles.sortRow}>
         {filter === 'Playlists'
@@ -255,7 +263,7 @@ const topCoverSize = 76;
 
 /** The best match: an artist or album opens its page (an album can also play); a song plays. */
 function TopResultView({ top, groups, link, onTrackMenu }: SearchSections & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
-  const playAlbum = useAlbumPlayer();
+  const albumPlayer = useAlbumPlayer();
   const { actions } = usePlaybackState();
   const { canPlay } = useAvailability();
   const preparing = useTrackPreparing(top?.type === 'track' ? top.track.id : undefined);
@@ -274,9 +282,10 @@ function TopResultView({ top, groups, link, onTrackMenu }: SearchSections & Pick
       onPress={playable ? play : () => onTrackMenu(track)} onPlay={playable ? play : undefined} />;
   }
   const item = top.type === 'album' ? albumCollection(top.album, link, `Album · ${top.album.artistCredit}`) : artistCollection(top.artist, link);
-  const play = top.type === 'album' && !item.dim ? () => { tapFeedback(); playAlbum(top.album.id); } : undefined;
+  const play = top.type === 'album' && !item.dim ? () => { tapFeedback(); albumPlayer.play(top.album.id); } : undefined;
   return <TopResult title={item.title} subtitle={item.subtitle} size={topCoverSize} dim={item.dim} href={item.href}
-    cover={<CollectionCover item={item} size={topCoverSize} radius={10} />} onPlay={play} />;
+    cover={<CollectionCover item={item} size={topCoverSize} radius={10} />} onPlay={play}
+    busy={top.type === 'album' && albumPlayer.pending(top.album.id)} />;
 }
 
 /** One group of results: artists, then albums, then songs. */
@@ -288,7 +297,7 @@ function SearchGroupView({ title, note, group, link, onTrackMenu }: {
   if (isEmptyGroup(group)) return null;
   return <View style={styles.resultGroup}>
     <View style={styles.groupTitle}>
-      <Text accessibilityRole="header" style={styles.groupText}>{title}</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.groupText}>{title}</Text>
       {note && <Text style={styles.groupNote}>{note}</Text>}
     </View>
     {group.artists.length > 0 && <View style={styles.resultSection}>
@@ -351,15 +360,20 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const answered = search.library.data !== undefined || search.catalog.data !== undefined;
   const genreNames = (genres.data ?? []).slice(0, 6).map(genre => genre.name);
   const genreCovers = useGenreCovers(genreNames);
+  const queryClient = useQueryClient();
+  const refreshControl = useRefreshControl(() => active
+    ? Promise.all([search.library.refetch(), search.catalog.refetch()])
+    : Promise.all([genres.refetch(), queryClient.refetchQueries({ queryKey: [...queryKeys.libraryAlbums(), 'genre'], type: 'active' })]));
 
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
-      <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Search</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Search</Text>
       {active && answered && search.pending && !offline && <ActivityIndicator color={colors.muted} />}
       <OfflineBadge />
     </View>
     <View style={styles.searchHeader}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists" /></View>
-    <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
+    <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" refreshControl={refreshControl}
+      contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       {!active ? genreNames.length > 0 && <>
         <SectionTitle title="Browse by genre" />
         <View style={styles.genres}>

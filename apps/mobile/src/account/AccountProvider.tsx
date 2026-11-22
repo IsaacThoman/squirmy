@@ -41,7 +41,6 @@ function apiFor(server: Server, token: string | null, timeoutMs: number, onUnaut
     getToken: () => token,
     client: clientName,
     fetch: fetchWithTimeout(timeoutMs),
-    validate: __DEV__,
     onUnauthorized,
   });
 }

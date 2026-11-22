@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type PropsWithChildren, type RefObject } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type PropsWithChildren } from 'react';
 import {
   cancelAnimation, Easing, interpolate, ReduceMotion, useAnimatedReaction, useSharedValue, withSpring, withTiming,
   type SharedValue,
@@ -109,10 +109,6 @@ const TransitionContext = createContext<{
   motion: Motion;
   variants: BubbleVariant[];
   registerBubble: (variant: BubbleVariant) => void;
-  /** A mini-player offers itself as the place the player grows from when it is opened from elsewhere. */
-  registerOrigin: (compact: boolean, expand: () => void) => () => void;
-  showPage: RefObject<((page: PlayerPage) => void) | null>;
-  open: (page?: PlayerPage) => void;
   close: () => void;
 } | null>(null);
 
@@ -128,8 +124,6 @@ export function PlayerTransitionProvider({ children }: PropsWithChildren) {
     [lead, follow, bubble, active, expanding, dragging],
   );
   const [variants, setVariants] = useState<BubbleVariant[]>([]);
-  const showPage = useRef<((page: PlayerPage) => void) | null>(null);
-  const origins = useRef(new Map<boolean, () => void>());
 
   useAnimatedReaction(
     () => active.value && !expanding.value && !dragging.value && lead.value <= leadRest && follow.value <= followRest,
@@ -150,35 +144,14 @@ export function PlayerTransitionProvider({ children }: PropsWithChildren) {
     return known.map((item, position) => position === index ? variant : item);
   }), []);
 
-  const registerOrigin = useCallback((compact: boolean, expand: () => void) => {
-    origins.current.set(compact, expand);
-    return () => {
-      if (origins.current.get(compact) === expand) origins.current.delete(compact);
-    };
-  }, []);
-
-  const open = useCallback((page: PlayerPage = 'player') => {
-    showPage.current?.(page);
-    const expand = origins.current.get(false) ?? origins.current.get(true);
-    if (expand) {
-      expand();
-      return;
-    }
-    scheduleOnUI(() => {
-      'worklet';
-      if (!motion.active.value) present(motion, null);
-      settle(motion, true);
-    });
-  }, [motion]);
-
   const close = useCallback(() => scheduleOnUI(() => {
     'worklet';
     if (motion.active.value) settle(motion, false);
   }), [motion]);
 
   const value = useMemo(
-    () => ({ motion, variants, registerBubble, registerOrigin, showPage, open, close }),
-    [motion, variants, registerBubble, registerOrigin, open, close],
+    () => ({ motion, variants, registerBubble, close }),
+    [motion, variants, registerBubble, close],
   );
   return <TransitionContext.Provider value={value}>{children}</TransitionContext.Provider>;
 }

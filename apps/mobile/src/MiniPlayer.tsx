@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { measure, useAnimatedRef, useReducedMotion, useSharedValue } from 'react-native-reanimated';
@@ -11,7 +10,7 @@ export { MiniPlayerContent };
 
 export function MiniPlayer({ compact = false, native = false }: Pick<MiniPlayerContentProps, 'compact' | 'native'>) {
   const router = useRouter();
-  const { motion, registerBubble, registerOrigin } = usePlayerTransition();
+  const { motion, registerBubble } = usePlayerTransition();
   const bubble = useAnimatedRef<View>();
   const reduceMotion = useReducedMotion();
   const pulling = useSharedValue(false);
@@ -34,7 +33,6 @@ export function MiniPlayer({ compact = false, native = false }: Pick<MiniPlayerC
     settle(motion, true);
   };
   const open = () => scheduleOnUI(expand);
-  useEffect(() => registerOrigin(compact, open));
 
   const pullUp = usePanGesture({
     activeOffsetY: -8,
