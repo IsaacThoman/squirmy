@@ -11,7 +11,7 @@ import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { lockUpserts, replaceCredits, upsertArtists, upsertRelease } from '../matching/apply.js'
 import { mergeAlbum, resolveMerged } from '../matching/merge.js'
-import { labelFreeKey } from '../search/keys.js'
+import { labelFreeKey, releaseKey } from '../search/keys.js'
 import { deezer, musicbrainz } from '../metadata/index.js'
 import type { DeezerAlbum } from '../metadata/deezer.js'
 import type { MbReleaseGroup } from '../metadata/musicbrainz.js'
@@ -19,7 +19,7 @@ import { bridgeAlbum, type BridgedAlbum } from './bridge.js'
 import { chooseCanonicalRelease, type EditionHint } from './canonical.js'
 import { buildFromDeezer, creditDeezerTracks, linkDeezerAlbum } from './deezer-rows.js'
 import { fitStrayRecordings } from './fit.js'
-import { adoptMbid, albumOwned, attempt, changed, currentId, day } from './rows.js'
+import { adoptMbid, albumOwned, attempt, changed, currentId, day, linkExternalId } from './rows.js'
 
 /** A complete album is refreshed after this long. */
 const refreshAfterMs = 30 * day
@@ -59,8 +59,11 @@ export async function hydrateAlbum(id: string, { force = false, usable }: { forc
   }).from(albums).leftJoin(releases, eq(releases.id, albums.canonicalReleaseId)).where(eq(albums.id, albumId))
   if (!album || (!force && fresh(album, Date.now()))) return albumId
 
-  const deezerId = await deezerAlbumOf(albumId)
+  let deezerId = await deezerAlbumOf(albumId)
   if (!album.mbid && !deezerId) return albumId
+  // A release group only MusicBrainz listed (an artist page's discography) has no track
+  // list for minutes while MusicBrainz is busy: Deezer's copy of it stands in meanwhile.
+  if (!deezerId && !(await hasTrackList(albumId))) deezerId = await deezerStandIn(albumId, album)
   let dz: DeezerAlbum | null | undefined
   let result = albumId
   // Announced even when a later step fails: what earlier steps committed (a merge into
@@ -102,6 +105,31 @@ export async function hydrateAlbum(id: string, { force = false, usable }: { forc
     await changed([queryKeys.album(result), ...(result === albumId ? [] : [queryKeys.album(albumId)])])
   }
   return result
+}
+
+const shortForm = (type: string) => type === 'single' || type === 'ep'
+
+/**
+ * Deezer's album for a release group that has no Deezer id: a search for its credit and
+ * title, taking the first hit by the same artist of the same release (the same title
+ * first, else the same `releaseKey`) and of a like length (single or EP, else longer).
+ * Its id is recorded on the album, so the Deezer track list stands in and later links
+ * its tracks to MusicBrainz's. Null when none is sure or Deezer is off or failing.
+ */
+async function deezerStandIn(albumId: string, album: Pick<AlbumRow, 'title' | 'artistCredit' | 'type'>): Promise<string | null> {
+  let found: string | null = null
+  await attempt('Deezer album search', async () => {
+    const { albums: hits } = await deezer.search(`${album.artistCredit} ${album.title}`, { types: ['album'], limit: 10 })
+    const credit = matchKey(album.artistCredit)
+    const candidates = hits.filter((hit) => {
+      const artist = matchKey(hit.artist.name)
+      return artist && (credit === artist || credit.startsWith(`${artist} `)) && shortForm(hit.type) === shortForm(album.type)
+    })
+    const hit = candidates.find((one) => matchKey(one.title) === matchKey(album.title))
+      ?? candidates.find((one) => releaseKey(one.title) === releaseKey(album.title))
+    if (hit && await linkExternalId('deezer', 'album', String(hit.id), albumId)) found = String(hit.id)
+  })
+  return found
 }
 
 /**

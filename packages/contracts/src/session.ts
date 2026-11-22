@@ -521,6 +521,8 @@ export const queryKeys = {
   library: () => ['library'] as const,
   album: (id: string) => ['album', id] as const,
   artist: (id: string) => ['artist', id] as const,
+  /** One section of an artist page, paged (`GET /artists/:id/releases`). Under `artist(id)`, so its invalidation covers it. */
+  artistReleases: (id: string, section: string) => ['artist', id, 'releases', section] as const,
   track: (id: string) => ['track', id] as const,
   lyrics: (id: string) => ['lyrics', id] as const,
   likes: () => ['likes'] as const,

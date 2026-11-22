@@ -55,6 +55,21 @@ export async function getImage(qid: string, options: { width?: number } = {}): P
 }
 
 /** The English Wikipedia summary for the entity, or null without an article (or for a disambiguation page). */
+/**
+ * Wikipedia's summary drops parentheticals (pronunciations, roles) but leaves their
+ * separators: "Thom Yorke ; brothers …", "( ; )". Migration 0020_artist_read_model applies
+ * the same cleanup to stored bios.
+ */
+export function cleanExtract(text: string): string {
+  return text
+    .replace(/\(\s*[;,]?\s*\)/g, '')
+    .replace(/\(\s*[;,]\s*/g, '(')
+    .replace(/\s+([;,])/g, '$1')
+    .replace(/\s+\.(\s|$)/g, '.$1')
+    .replace(/ {2,}/g, ' ')
+    .trim()
+}
+
 export async function getWikipediaSummary(qid: string): Promise<WikipediaSummary | null> {
   if (!(await enabled(qid))) return null
   const url = `${wikidataApi}?action=wbgetentities&format=json&ids=${qid}&props=sitelinks&sitefilter=enwiki`
@@ -68,7 +83,7 @@ export async function getWikipediaSummary(qid: string): Promise<WikipediaSummary
   if (!summary?.extract || summary.type === 'disambiguation') return null
   return {
     title: summary.title,
-    text: summary.extract,
+    text: cleanExtract(summary.extract),
     sourceUrl: summary.content_urls?.desktop?.page ?? `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
     license,
   }
