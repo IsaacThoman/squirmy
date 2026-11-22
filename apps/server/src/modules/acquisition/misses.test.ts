@@ -111,6 +111,71 @@ describe('provider misses', () => {
     }
   })
 
+  describe('the five-minute check', () => {
+    let server: Server
+    let checkedUrl = ''
+    /** The status `capabilities` answers with; at 200 it answers as a provider would. */
+    let status = 200
+    beforeAll(async () => {
+      server = createServer((_request, response) => {
+        response.writeHead(status, { 'content-type': 'application/json', ...(status === 429 ? { 'retry-after': '7' } : {}) })
+        response.end(JSON.stringify(status === 200 ? { protocol: 1, name: 'Checked', coverage: 'assume_available', kinds: ['recording'], formats: ['flac'], maxConcurrent: 1, version: '1.0.0' } : { error: 'Unavailable' }))
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      checkedUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    })
+    beforeEach(() => { status = 200 })
+    afterAll(async () => {
+      server.closeAllConnections()
+      await new Promise((resolve) => server.close(resolve))
+    })
+
+    const row = async (providerId: string) => (await db.select().from(acquisitionProviders).where(eq(acquisitionProviders.id, providerId)))[0]!
+    const set = (providerId: string, values: Partial<typeof acquisitionProviders.$inferInsert>) =>
+      db.update(acquisitionProviders).set(values).where(eq(acquisitionProviders.id, providerId))
+    const tenMinutesAgo = () => new Date(Date.now() - 10 * 60_000)
+    const justNow = () => expect.toSatisfy((date: Date | null) => date !== null && Date.now() - date.getTime() < 60_000)
+
+    it('counts an answer as the provider answering, and keeps a failing provider’s error', async () => {
+      const providerId = await provider()
+      await set(providerId, { lastOkAt: tenMinutesAgo(), lastError: 'Resolve timed out' })
+      await checkProviders()
+      expect(await row(providerId)).toMatchObject({ lastOkAt: justNow(), lastError: null })
+
+      // The error is why its fetches fail; answering `capabilities` does not end the outage.
+      const failingSince = new Date(Date.now() - 60_000)
+      await set(providerId, { lastOkAt: tenMinutesAgo(), lastError: 'Signed out', failingSince, failingRecordings: await tracks(3) })
+      await checkProviders()
+      expect(await row(providerId)).toMatchObject({ lastOkAt: justNow(), lastError: 'Signed out', failingSince })
+      expect((await listed(providerId)).failingSince).toBe(failingSince.toISOString())
+    })
+
+    it('keeps a failed check as the last error, without counting it toward failing', async () => {
+      const providerId = (await createProvider({ name: 'Checked', baseUrl: checkedUrl, secret, enabled: true, priority: 0 })).id
+      const lastOkAt = tenMinutesAgo()
+      await set(providerId, { lastOkAt })
+      expect(await row(providerId)).toMatchObject({ lastError: null, identity: expect.stringMatching(/^1\.0\.0#/) })
+
+      status = 503
+      await checkProviders()
+      expect(await row(providerId)).toMatchObject({ lastOkAt, lastError: expect.any(String), failingSince: null, failingRecordings: [] })
+
+      // A streak short of failing is neither extended nor restarted by checks.
+      const failingSince = new Date(Date.now() - 60_000)
+      const streak = await tracks(2)
+      await set(providerId, { failingSince, failingRecordings: streak })
+      for (let check = 0; check < 3; check += 1) await checkProviders()
+      expect(await row(providerId)).toMatchObject({ lastOkAt, failingSince, failingRecordings: streak })
+      expect((await listed(providerId)).failingSince).toBeNull()
+
+      // Rate limited is not a fault, as with a resolve.
+      await set(providerId, { lastError: null })
+      status = 429
+      await checkProviders()
+      expect(await row(providerId)).toMatchObject({ lastOkAt, lastError: null })
+    })
+  })
+
   it('asks again for what a provider missed once it is re-enabled or given a new address, ending its failing streak', async () => {
     const providerId = await provider()
     const [one, two, three] = await tracks(3) as [string, string, string]

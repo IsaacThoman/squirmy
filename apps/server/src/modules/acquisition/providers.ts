@@ -3,7 +3,7 @@ import {
   Id, ProviderCapabilities,
   type AcquisitionProvider, type ClearProviderMissesResponse, type CreateAcquisitionProviderRequest, type ProviderCoverage, type UpdateAcquisitionProviderRequest,
 } from '@squirmy/contracts'
-import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { acquisitionProviders } from '../../database/schema.js'
@@ -242,18 +242,38 @@ export async function testProvider(providerId: string): Promise<AcquisitionProvi
 /**
  * `acquisition.check` (every five minutes and at worker start): asks each enabled provider
  * for its capabilities, so an updated provider is noticed without an admin pressing Test,
- * and its misses stop counting. Only the answer is stored: `last_ok_at` and `last_error`
- * stay about fetches (health.ts), and a provider that does not answer is left as it was.
+ * and its misses stop counting. An answer moves `last_ok_at` on, so the admin page shows it
+ * answering; a failure is kept as `last_error`, as a failed resolve is. Neither touches the
+ * failing streak (health.ts): that counts fetches of recordings, and answering
+ * `capabilities` says nothing about whether the provider can still fetch them.
  */
 export async function checkProviders() {
   const rows = await db.select({ id: acquisitionProviders.id }).from(acquisitionProviders).where(eq(acquisitionProviders.enabled, true))
   for (const { id } of rows) {
     try {
       await storeCapabilities(id, await fetchCapabilities(await providerEndpoint(id)))
+      await noteProviderAnswered(id)
     } catch (error) {
-      if (!(error instanceof ProviderCallError) && getConfig().LOG_LEVEL !== 'silent') console.error('[acquisition] Could not check a provider', error)
+      if (!(error instanceof ProviderCallError)) {
+        if (getConfig().LOG_LEVEL !== 'silent') console.error('[acquisition] Could not check a provider', error)
+        continue
+      }
+      // Rate limited is not a fault, as with a resolve.
+      if (!error.busy) await noteProviderError(id, error.message)
     }
   }
+}
+
+/**
+ * The provider answered a check. The last error goes unless the provider is failing: then
+ * it is why fetches fail, which the admin page shows with the outage, and an answer to
+ * `capabilities` does not make it untrue.
+ */
+async function noteProviderAnswered(providerId: string) {
+  const failing = and(isNotNull(acquisitionProviders.failingSince), sql`cardinality(${acquisitionProviders.failingRecordings}) >= ${FAILING_AFTER}`)
+  await db.update(acquisitionProviders)
+    .set({ lastOkAt: new Date(), lastError: sql`case when ${failing} then ${acquisitionProviders.lastError} else null end`, updatedAt: new Date() })
+    .where(eq(acquisitionProviders.id, providerId))
 }
 
 /** Records a failed call to a provider for the admin page. */
