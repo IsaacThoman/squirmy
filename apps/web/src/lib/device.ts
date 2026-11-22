@@ -1,4 +1,5 @@
 import type { ClientDevice } from '@squirmy/contracts'
+import { readLocalStorage, writeLocalStorage } from './local-storage'
 
 const idKey = 'squirmy.deviceId'
 const nameKey = 'squirmy.deviceName'
@@ -19,42 +20,25 @@ export function deviceName(userAgent: string): string {
   return os ? `${browser} on ${os}` : browser
 }
 
-function read(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-function write(key: string, value: string | null) {
-  try {
-    if (value === null) localStorage.removeItem(key)
-    else localStorage.setItem(key, value)
-  } catch {
-    // Private windows may refuse storage; the value then lasts for this page only.
-  }
-}
-
 let fallbackId: string | null = null
 
 /** The name this browser shows in device lists: the one set in Settings, or one from the user agent. */
 export function browserName(): string {
-  return read(nameKey) ?? deviceName(navigator.userAgent)
+  return readLocalStorage(nameKey) ?? deviceName(navigator.userAgent)
 }
 
 /** Saves the name set in Settings; null goes back to the user agent's. */
 export function saveBrowserName(name: string | null) {
-  write(nameKey, name?.trim() || null)
+  writeLocalStorage(nameKey, name?.trim() || null)
 }
 
 /** This browser as a device of the user's, with an id kept across visits. */
 export function webDevice(): ClientDevice {
-  let id = read(idKey)
+  let id = readLocalStorage(idKey)
   if (!id) {
     id = fallbackId ?? crypto.randomUUID()
     fallbackId = id
-    write(idKey, id)
+    writeLocalStorage(idKey, id)
   }
   return { id, name: browserName(), kind: 'web' }
 }

@@ -14,6 +14,7 @@ import { useLogout } from '@/auth/actions'
 import { setSetupDone, setSignedInUser, useCurrentUser, useMe, useSetupStatus } from '@/auth/session'
 import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView } from '@/components/auth/AuthViews'
 import { SettingsView } from '@/components/views/SettingsView'
+import type { SettingsSectionId } from '@/components/layout/settings-navigation'
 import { browserName, deviceName, webDevice } from '@/lib/device'
 import { toast } from '@/lib/toast'
 import { usePlayer } from '@/player/player-context'
@@ -57,7 +58,12 @@ function useScrobbleConnections() {
   return { listenBrainz, lastFm, disconnect }
 }
 
-export function SettingsPage() {
+export function SettingsPage({ section, onSectionChange, onClose, onCloseAutoFocus }: {
+  section: SettingsSectionId
+  onSectionChange: (section: SettingsSectionId) => void
+  onClose: () => void
+  onCloseAutoFocus: (event: Event) => void
+}) {
   const api = useApi()
   const queryClient = useQueryClient()
   const user = useCurrentUser()
@@ -74,7 +80,11 @@ export function SettingsPage() {
     if (lastFmReturn === null) return
     const message = lastFmReturns[lastFmReturn] ?? lastFmReturns.error
     toast(message)
-    setParams({}, { replace: true })
+    setParams(current => {
+      current.delete('lastfm')
+      current.set('settings', 'scrobbling')
+      return current
+    }, { replace: true })
   }, [lastFmReturn, setParams])
   const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords() })
   const refreshPasswords = () => queryClient.invalidateQueries({ queryKey: appPasswordsKey })
@@ -99,6 +109,10 @@ export function SettingsPage() {
   })
   return (
     <SettingsView
+      section={section}
+      onSectionChange={onSectionChange}
+      onClose={onClose}
+      onCloseAutoFocus={onCloseAutoFocus}
       user={user}
       settings={settings}
       onSettingsChange={patch => update.mutate(patch)}

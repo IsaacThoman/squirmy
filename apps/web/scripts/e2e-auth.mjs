@@ -132,7 +132,9 @@ await step('register with the invite', async () => {
   await guest.getByRole('button', { name: 'Create account' }).click()
   await heading(guest, 'Listen now').waitFor()
   check('registering signs the new user in', path(guest) === '/')
-  check('members get no Admin link', await guest.getByRole('link', { name: 'Admin' }).count() === 0)
+  await guest.getByRole('button', { name: /^Account, / }).click()
+  await guest.getByRole('menuitem', { name: 'Settings' }).waitFor()
+  check('members get no Admin action', await guest.getByRole('menuitem', { name: 'Admin' }).count() === 0)
   for (const route of ['/admin/users', '/admin/settings']) {
     await guest.goto(`${base}${route}`)
     await heading(guest, 'Admins only').waitFor()
@@ -151,7 +153,7 @@ await step('register with the invite', async () => {
 await step('change password', async () => {
   await page.goto(`${base}/settings`)
   await page.getByRole('button', { name: 'Change password' }).click()
-  const dialog = page.getByRole('dialog')
+  const dialog = page.getByRole('dialog', { name: 'Change password' })
   await dialog.getByLabel('Current password').fill('wrong current password')
   await dialog.getByLabel('New password', { exact: true }).fill(admin.newPassword)
   await dialog.getByLabel('Repeat the new password').fill(admin.newPassword)
@@ -167,9 +169,10 @@ await step('change password', async () => {
 })
 
 await step('app passwords', async () => {
+  await page.getByRole('button', { name: 'App passwords', exact: true }).click()
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await page.getByLabel('Name', { exact: true }).fill('Car stereo')
-  await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
+  await page.getByRole('dialog', { name: 'New app password' }).getByRole('button', { name: 'Create' }).click()
   const secret = page.getByRole('textbox', { name: 'App password' })
   await secret.waitFor()
   check('a new app password is shown once', (await secret.inputValue()).length >= 16)
@@ -178,7 +181,7 @@ await step('app passwords', async () => {
   await row.waitFor()
   check('it is listed', true)
   await page.getByRole('button', { name: 'Revoke' }).click()
-  await page.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click()
+  await page.getByRole('dialog', { name: /^Revoke/ }).getByRole('button', { name: 'Revoke' }).click()
   await row.waitFor({ state: 'detached' })
   check('revoking removes it', await page.getByText('No app passwords').isVisible())
 })

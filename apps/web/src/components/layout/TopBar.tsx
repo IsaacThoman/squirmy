@@ -1,17 +1,15 @@
-import type { User } from '@squirmy/contracts'
-import { ChevronLeft, ChevronRight, LogOut, Settings, Shield, Upload } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router'
+import { ChevronLeft, ChevronRight, Menu, Search } from 'lucide-react'
+import { useEffect, useState, type Ref } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { IconButton } from '@/components/ui/icon-button'
-import { DropdownMenu } from '@/components/ui/menu'
+import { DialogTrigger } from '@/components/ui/dialog'
 import { SearchField } from '@/components/ui/search-field'
-import { canUploadMusic } from '@/lib/catalog'
 import { useUrlDraft } from '@/lib/use-url-draft'
 import { cn } from '@/lib/utils'
 import { useScrollContainer } from './scroll-context'
 
-/** History buttons, search and the account menu. Clear until the page scrolls under it. */
-export function TopBar({ user, onLogout }: { user: User; onLogout: () => void }) {
+/** Navigation and search over the scrolling music page. */
+export function TopBar({ navigationTrigger }: { navigationTrigger: Ref<HTMLButtonElement> }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
@@ -37,6 +35,9 @@ export function TopBar({ user, onLogout }: { user: User; onLogout: () => void })
         scrolled && 'bg-background/80 shadow-[0_1px_0_var(--stroke)] backdrop-blur-xl backdrop-saturate-150',
       )}
     >
+      <DialogTrigger asChild>
+        <IconButton ref={navigationTrigger} label="Open navigation" variant="solid" tooltip={false} className="bg-overlay md:hidden"><Menu /></IconButton>
+      </DialogTrigger>
       <div className="flex gap-1.5">
         <IconButton label="Go back" variant="solid" size="sm" disabled={!canGoBack} onClick={() => navigate(-1)} className="bg-overlay backdrop-blur-md"><ChevronLeft /></IconButton>
         <IconButton label="Go forward" variant="solid" size="sm" onClick={() => navigate(1)} className="bg-overlay backdrop-blur-md max-md:hidden"><ChevronRight /></IconButton>
@@ -51,31 +52,11 @@ export function TopBar({ user, onLogout }: { user: User; onLogout: () => void })
         aria-label="Search"
         className="ml-1 w-full max-w-sm max-md:hidden"
       />
-      <div className="ml-auto">
-        <UserMenu user={user} onLogout={onLogout} />
-      </div>
-    </header>
-  )
-}
-
-function UserMenu({ user, onLogout }: { user: User; onLogout: () => void }) {
-  const navigate = useNavigate()
-  const name = user.displayName ?? user.username
-  return (
-    <DropdownMenu
-      entries={[
-        { kind: 'label', label: `${name} · ${user.role === 'admin' ? 'Admin' : 'Member'}` },
-        { label: 'Settings', icon: <Settings />, onSelect: () => navigate('/settings') },
-        ...(canUploadMusic(user) ? [{ label: 'Add music', icon: <Upload />, onSelect: () => navigate('/imports') }] : []),
-        ...(user.role === 'admin' ? [{ label: 'Admin', icon: <Shield />, onSelect: () => navigate('/admin') }] : []),
-        { kind: 'separator' },
-        { label: 'Log out', icon: <LogOut />, onSelect: onLogout },
-      ]}
-      trigger={(
-        <button type="button" aria-label={`Account, ${name}`} className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-on-accent ring-4 ring-transparent transition hover:ring-selection data-[state=open]:ring-selection">
-          {name.slice(0, 1).toUpperCase()}
-        </button>
+      {!onSearch && (
+        <Link to="/search" aria-label="Search" className="ml-auto grid size-10 place-items-center rounded-full bg-overlay text-muted hover:text-foreground md:hidden">
+          <Search aria-hidden className="size-5" />
+        </Link>
       )}
-    />
+    </header>
   )
 }

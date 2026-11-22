@@ -4,9 +4,9 @@ The web app is served by your Squirmy server at its own address, such as `https:
 
 ## Getting around
 
-The sidebar has **Home**, **Search**, your **Library** (**Albums**, **Artists**, **Songs**), the **Wantlist**, **Add music** (for admins and people who may upload), and your **Playlists** with **Liked Songs** at the top. **New playlist** (the **+** next to Playlists) makes one. Admins also see **Admin**.
+The sidebar has **Home**, **Search**, **Albums**, **Artists**, **Songs**, **Wantlist**, and **Add music** (for admins and people who may upload). Under **Playlists**, use the **+** to create one or select **Playlists** to browse them all. **Liked Songs** stays at the top of the list. Collapse the sidebar from its header to make more room for music. On a narrow screen, use **Open navigation** at the top left to show the sidebar.
 
-The menu under your name, top right, has **Settings**, **Add music** (for people who may upload), **Admin** (for admins) and **Log out**.
+The account menu at the bottom of the sidebar has **Settings**, **Admin** (for admins) and **Log out**. Settings opens over the page you're on.
 
 - **Home** shows a featured album (what you played last, else what was added last) and rows of recently added and recently played albums, most played songs, your playlists, liked albums, your wantlist and new releases by artists in your library. On a server with no music yet it says so; admins get **Add a music folder**, which opens **Admin → Library**.
 - **Library** pages load as you scroll and can be sorted and filtered by genre. Counts read "60+" until the last page arrives.
@@ -31,7 +31,7 @@ Click a song, or the play button on an album or playlist. The player bar at the 
 
 - **Song menus** (right-click or the **⋯** button): **Play next**, **Add to queue**, **Add to playlist** (or **New playlist…**), **Start radio**, **Go to album**, and **Add to Wantlist** for music you do not have. You can also drag songs onto a playlist, or onto Liked Songs, in the sidebar.
 - **Queue**: reorder by dragging, or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history. **Autoplay** keeps music going with similar songs from your library when the queue runs out.
-- **Your settings** in **Settings → Playback**: **Volume normalization**, **Streaming quality**, **Cellular quality** (for the iOS app), and **This browser's name**. See [Playback](../server/playback.md).
+- **Your settings** in **Settings → Playback**: **Volume normalization**, **Streaming quality**, **Cellular quality** (for the iOS app). Rename the playback device under **Settings → This browser**. See [Playback](../server/playback.md).
 
 ## Music the server does not have
 
@@ -53,7 +53,7 @@ If the browser refuses to start audio on its own (after a transfer or a reload),
 
 ## Admin
 
-Admins manage the server here. Each page has its own guide:
+Open **Admin** from the account menu. Use the tabs across the top to switch between management pages. On narrow screens, swipe the tab strip to see more sections.
 
 | Page | Guide |
 |---|---|
@@ -66,7 +66,7 @@ Admins manage the server here. Each page has its own guide:
 | **Server settings** | [Configuration](../server/configuration.md#server-settings) |
 | **Jobs** | [Troubleshooting](../server/troubleshooting.md#logs-and-the-jobs-page) |
 
-The server's version is under the admin sections (at the bottom of the page on a phone) and on the sign-in page.
+The server version appears in the Admin header and on the sign-in page.
 
 ## Not there yet
 

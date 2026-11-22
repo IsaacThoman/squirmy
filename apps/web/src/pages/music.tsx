@@ -37,6 +37,8 @@ import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
 import { usePlayer, type PlayOptions } from '@/player/player-context'
 import { useServerEvent } from '@/realtime/realtime-context'
+import { useSettingsNavigation } from '@/components/layout/settings-navigation'
+import { SettingsPage } from './account'
 
 /** Play buttons on cards: the album or playlist is fetched (or read from the cache) first. */
 function usePlayCollections() {
@@ -87,13 +89,18 @@ export function ShellPage() {
   const logout = useLogout()
   const playlists = usePlaylists().data?.items ?? []
   const liked = useLikedTracks()
+  const settings = useSettingsNavigation()
   return (
-    <AppShell
-      user={user}
-      onLogout={logout}
-      playlists={playlists}
-      likedCount={liked.data ? likedLabel(itemsOf(liked.data).length, liked.hasNextPage) : 'Playlist'}
-    />
+    <>
+      <AppShell
+        user={user}
+        onLogout={logout}
+        onOpenSettings={settings.show}
+        playlists={playlists}
+        likedCount={liked.data ? likedLabel(itemsOf(liked.data).length, liked.hasNextPage) : 'Playlist'}
+      />
+      {settings.open && <SettingsPage section={settings.section} onSectionChange={settings.select} onClose={settings.close} onCloseAutoFocus={settings.restoreFocus} />}
+    </>
   )
 }
 

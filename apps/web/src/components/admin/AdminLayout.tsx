@@ -1,61 +1,59 @@
 import { Briefcase, DatabaseZap, FolderTree, HardDrive, ListChecks, PlugZap, SlidersHorizontal, Users } from 'lucide-react'
-import type { FormEvent, ReactNode } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { useEffect, useRef, type FormEvent, type ReactNode } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router'
 import type { FormErrors } from '@/api/errors'
-import { Page } from '@/components/layout/Page'
-import { PageTitle } from '@/components/music/SectionHeader'
 import { Button } from '@/components/ui/button'
 import { DialogClose, DialogFooter } from '@/components/ui/dialog'
 import { FormError } from '@/components/ui/input'
 
-const groups = [
-  {
-    label: 'Music',
-    sections: [
-      { to: '/admin/library', label: 'Library', icon: HardDrive },
-      { to: '/admin/reviews', label: 'Review queue', icon: ListChecks },
-      { to: '/admin/organize', label: 'Organize', icon: FolderTree },
-      { to: '/admin/search-index', label: 'Search index', icon: DatabaseZap },
-      { to: '/admin/providers', label: 'Providers', icon: PlugZap },
-    ],
-  },
-  {
-    label: 'Server',
-    sections: [
-      { to: '/admin/users', label: 'Users & invites', icon: Users },
-      { to: '/admin/settings', label: 'Server settings', icon: SlidersHorizontal },
-      { to: '/admin/jobs', label: 'Jobs', icon: Briefcase },
-    ],
-  },
+const sections = [
+  { to: '/admin/library', label: 'Library', icon: HardDrive },
+  { to: '/admin/reviews', label: 'Review queue', icon: ListChecks },
+  { to: '/admin/organize', label: 'Organize', icon: FolderTree },
+  { to: '/admin/search-index', label: 'Search index', icon: DatabaseZap },
+  { to: '/admin/providers', label: 'Providers', icon: PlugZap },
+  { to: '/admin/users', label: 'Users & invites', icon: Users },
+  { to: '/admin/jobs', label: 'Jobs', icon: Briefcase },
+  { to: '/admin/settings', label: 'Server settings', icon: SlidersHorizontal },
 ]
 
-/** `counts` puts a small number beside a section, keyed by its path: open reviews, say. `version` is the server's. */
+/** The tab strip shares the shell's scroller so page content and the player keep their usual layout. */
 export function AdminLayout({ counts, version }: { counts?: Record<string, number | undefined>; version?: string }) {
+  const nav = useRef<HTMLElement>(null)
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    const strip = nav.current
+    const active = strip?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!strip || !active) return
+    if (active.offsetLeft < strip.scrollLeft || active.offsetLeft + active.offsetWidth > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollLeft = active.offsetLeft - 12
+    }
+  }, [pathname])
+
   return (
-    <Page className="flex flex-col gap-6">
-      <PageTitle>Admin</PageTitle>
-      <div className="flex flex-col gap-8 lg:flex-row">
-        <div className="shrink-0 lg:w-52">
-          <nav aria-label="Admin sections" className="-mx-(--gutter) flex gap-1 overflow-x-auto px-(--gutter) [scrollbar-width:none] lg:mx-0 lg:flex-col lg:gap-5 lg:px-0">
-            {groups.map(group => (
-              <div key={group.label} className="flex shrink-0 gap-1 lg:flex-col">
-                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-quiet max-lg:hidden">{group.label}</p>
-                {group.sections.map(({ to, label, icon: Icon }) => (
-                  <NavLink key={to} to={to} className="group flex h-10 shrink-0 items-center gap-2.5 rounded-xl px-3 text-sm font-semibold text-muted transition-colors hover:bg-overlay hover:text-foreground aria-[current=page]:bg-selection aria-[current=page]:text-accent">
-                    <Icon aria-hidden className="size-[18px]" />{label}
-                    {counts?.[to] ? <span aria-label={`, ${counts[to]} open`} className="ml-auto min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] font-bold leading-5 tabular text-on-accent max-lg:ml-0.5">{counts[to] > 99 ? '99+' : counts[to]}</span> : null}
-                  </NavLink>
-                ))}
-              </div>
-            ))}
-          </nav>
-          {version && <p className="mt-6 px-3 text-xs text-quiet max-lg:hidden">Squirmy {version}</p>}
+    <section className="pb-12 pt-14 md:pt-16">
+      <div className="border-t border-stroke bg-sheet">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-baseline justify-between gap-2 px-(--gutter) pb-2 pt-5">
+          <h1 className="text-2xl font-bold tracking-tight">Admin</h1>
+          {version && <span className="text-xs text-quiet">Squirmy {version}</span>}
         </div>
-        <div className="min-w-0 flex-1"><Outlet /></div>
       </div>
-      {/* Below the page on narrow screens, where the sections are one scrolling row. */}
-      {version && <p className="text-xs text-quiet lg:hidden">Squirmy {version}</p>}
-    </Page>
+      <div className="sticky top-14 z-10 border-b border-stroke bg-sheet md:top-16">
+        <nav ref={nav} aria-label="Admin sections" className="relative mx-auto flex max-w-7xl gap-1 overflow-x-auto px-(--gutter) py-2">
+          {sections.map(({ to, label, icon: Icon }) => {
+            const count = counts?.[to]
+            return (
+              <NavLink key={to} to={to} className="flex h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm font-medium text-muted transition-colors hover:bg-overlay hover:text-foreground aria-[current=page]:bg-selection aria-[current=page]:font-semibold aria-[current=page]:text-accent">
+                <Icon aria-hidden className="size-4" />{label}
+                {count ? <span aria-label={`${count} open`} className="min-w-5 rounded-md bg-accent px-1 text-center text-[11px] font-bold leading-5 tabular text-on-accent">{count > 99 ? '99+' : count}</span> : null}
+              </NavLink>
+            )
+          })}
+        </nav>
+      </div>
+      <div className="mx-auto min-w-0 max-w-7xl px-(--gutter) py-6 sm:py-8"><Outlet /></div>
+    </section>
   )
 }
 

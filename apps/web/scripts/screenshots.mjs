@@ -45,11 +45,9 @@ async function capture(target, shot, scheme, storageState) {
   if (review) await page.getByText('Track by track').or(page.getByText('MusicBrainz offered nothing close')).first().waitFor()
   if (shot.then) await click(shot.then)
   if (shot.create) {
-    // The settings rows load in and move the button; wait for the last of them.
-    await page.getByRole('button', { name: /^(Connect|Disconnect)$/ }).first().waitFor()
     await page.getByRole('button', { name: 'Create', exact: true }).click()
     await page.getByLabel('Name', { exact: true }).fill(shot.create)
-    await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
+    await page.getByRole('dialog', { name: 'New app password' }).getByRole('button', { name: 'Create' }).click()
   }
   await page.mouse.move(0, 0)
   if (!shot.strict) await page.evaluate(() => document.activeElement?.blur())
@@ -132,7 +130,7 @@ const shots = [
   { name: 'queue', path: album, click: 'Queue' },
   { name: 'now-playing', path: '/', click: 'Lyrics', wait: 900 },
   { name: 'settings', path: '/settings' },
-  { name: 'app-password', path: '/settings', create: 'Car stereo' },
+  { name: 'app-password', path: '/settings?settings=app-passwords', create: 'Car stereo' },
   { name: 'admin-users', path: '/admin/users' },
   { name: 'admin-invite', path: '/admin/users', click: 'Invite someone', then: 'Create invite' },
   { name: 'admin-settings', path: '/admin/settings', height: 1500 },
@@ -156,6 +154,7 @@ const shots = [
   ...['home', 'library', 'album', 'artist', 'playlist', 'search'].map(name => ({ name, path: { home: '/', library: '/library/albums', album, artist, playlist: `/playlist/${playlist.id}`, search: '/search?q=blue' }[name], width: 390, height: 844, wait: 1200 })),
   { name: 'now-playing', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming', then: 'Show lyrics', wait: 900 },
   { name: 'queue', path: '/', width: 390, height: 844, click: 'Open Now Playing, Night Swimming', then: 'Show queue' },
+  { name: 'navigation', path: '/', click: 'Open navigation', width: 390, height: 844 },
   { name: 'settings', path: '/settings', width: 390, height: 844 },
   { name: 'admin-users', path: '/admin/users', width: 390, height: 844 },
   { name: 'admin-settings', path: '/admin/settings', width: 390, height: 844 },
@@ -173,10 +172,10 @@ for (const scheme of ['light', 'dark']) {
 // Another device plays: every page shows where, and the devices list offers to bring it here.
 const speaker = await browser.newContext({ storageState: session, viewport: { width: 1024, height: 768 } })
 const playing = await speaker.newPage()
-await playing.goto(`${base}/settings`)
+await playing.goto(`${base}/settings?settings=device`)
 await playing.getByLabel('This browser’s name').fill('Living Room')
 await playing.getByLabel('This browser’s name').press('Enter')
-await playing.locator('body').click({ position: { x: 5, y: 5 } })
+await playing.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Close', exact: true }).click()
 for (let press = 0; press < 16; press += 1) await playing.keyboard.press('ArrowDown')
 await playing.getByRole('button', { name: 'Play', exact: true }).first().click()
 await sleep(1500)

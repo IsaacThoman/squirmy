@@ -132,9 +132,35 @@ describe('setup wizard', () => {
 })
 
 describe('account', () => {
+  it('opens settings from the sidebar and returns to the same search', async () => {
+    renderWithApp(app, '/search?q=blue', fakeServices({ user: users[1] }).services)
+    const account = await screen.findByRole('button', { name: /^Account, / })
+    await userEvent.click(account)
+    expect(screen.queryByRole('menuitem', { name: 'Admin' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Settings' }))
+
+    const settings = await screen.findByRole('dialog', { name: 'Settings' })
+    expect(where()).toBe('/search?q=blue&settings=account')
+    await userEvent.click(within(settings).getByRole('button', { name: 'Playback' }))
+    expect(await within(settings).findByText('Volume normalization')).toBeInTheDocument()
+    expect(where()).toBe('/search?q=blue&settings=playback')
+
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(settings).not.toBeInTheDocument())
+    expect(where()).toBe('/search?q=blue')
+    await waitFor(() => expect(account).toHaveFocus())
+  })
+
+  it('opens scrobbling on a Last.fm callback and clears the callback parameter', async () => {
+    renderWithApp(app, '/settings?lastfm=connected')
+    const settings = await screen.findByRole('dialog', { name: 'Settings' })
+    expect(within(settings).getByRole('heading', { name: 'Scrobbling' })).toBeInTheDocument()
+    await waitFor(() => expect(where()).toBe('/settings?settings=scrobbling'))
+  })
+
   it('shows a new app password once and revokes after confirming', async () => {
     const { services, api } = fakeServices()
-    renderWithApp(app, '/settings', services)
+    renderWithApp(app, '/settings?settings=app-passwords', services)
     await userEvent.click(await screen.findByRole('button', { name: 'Create' }))
     await userEvent.type(screen.getByLabelText('Name'), 'Phone')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -142,7 +168,7 @@ describe('account', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
 
     await userEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[0])
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
+    await userEvent.click(within(await screen.findByRole('dialog', { name: /Revoke/ })).getByRole('button', { name: 'Revoke' }))
     await waitFor(() => expect(api.auth.deleteAppPassword).toHaveBeenCalled())
   })
 
@@ -154,7 +180,7 @@ describe('account', () => {
     await userEvent.type(screen.getByLabelText('Current password'), 'nope')
     await userEvent.type(screen.getByLabelText('New password'), 'a new password')
     await userEvent.type(screen.getByLabelText('Repeat the new password'), 'a new password')
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Change password' }))
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Change password' })).getByRole('button', { name: 'Change password' }))
     expect(await screen.findByText('The current password is wrong')).toBeInTheDocument()
   })
 })

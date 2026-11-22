@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from 'react-router'
 import { AdminOnly, Bootstrap, RequireSetup, SignedInOnly, SignedOutOnly } from '@/auth/guards'
 import { Page } from '@/components/layout/Page'
 import { Spinner } from '@/components/ui/feedback'
-import { LoginPage, RegisterPage, SettingsPage, SetupPage } from '@/pages/account'
+import { LoginPage, RegisterPage, SetupPage } from '@/pages/account'
 import {
   AlbumPage, ArtistPage, HomePage, LibraryAlbumsPage, LibraryArtistsPage, LibraryPlaylistsPage, LibrarySongsPage, LikedPage, NotFoundPage,
   PlaylistPage, SearchPage, ShellPage, WantlistPage,
@@ -59,7 +59,7 @@ export function AppRoutes() {
               <Route path="album/:id" element={<AlbumPage />} />
               <Route path="artist/:id" element={<ArtistPage />} />
               <Route path="playlist/:id" element={<PlaylistPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings" element={<HomePage />} />
               <Route path="imports" element={<Loading><ImportsPage /></Loading>} />
               <Route path="imports/:id" element={<Loading><ImportPage /></Loading>} />
               <Route path="admin" element={<AdminOnly />}>
