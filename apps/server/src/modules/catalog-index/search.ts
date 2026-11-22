@@ -13,6 +13,8 @@ export type CatalogIndexResult = {
   albumName: string | null
   /** Relevance from 0 to 1: text similarity blended with popularity. */
   score: number
+  /** The stored popularity alone, 0 to 1. */
+  popularity: number
 }
 
 export type CatalogIndexSearchOptions = {
@@ -85,10 +87,10 @@ export async function searchCatalogIndex(query: string, options: CatalogIndexSea
            order by kind, name_key collate "C" limit ${prefixCandidates})`,
     ])
     const union = candidates.reduce((all, part) => sql`${all} union all ${part}`)
-    const rows = await sql<{ kind: CatalogIndexKind; mbid: string; name: string; artist_name: string | null; album_name: string | null; relevance: number }[]>`
+    const rows = await sql<{ kind: CatalogIndexKind; mbid: string; name: string; artist_name: string | null; album_name: string | null; relevance: number; popularity: number }[]>`
       with candidates as (${union}),
       ranked as (
-        select distinct on (kind, mbid) kind, mbid, name, artist_name, album_name,
+        select distinct on (kind, mbid) kind, mbid, name, artist_name, album_name, score as popularity,
                (0.8 * word_similarity(${key}, name_key)
                 + 0.1 * (' ' || name_key like ${`% ${key}%`})::int
                 + 0.1 * (name_key in (${key}, ${`the ${key}`}))::int) * (0.5 + 0.5 * score) as relevance
@@ -98,7 +100,7 @@ export async function searchCatalogIndex(query: string, options: CatalogIndexSea
       limited as (
         select *, row_number() over (partition by kind order by relevance desc, name) as position from ranked
       )
-      select kind, mbid, name, artist_name, album_name, relevance from limited
+      select kind, mbid, name, artist_name, album_name, relevance, popularity from limited
       where position <= ${limit}
       order by relevance desc, kind, name`
     return rows.map((row) => ({
@@ -108,6 +110,7 @@ export async function searchCatalogIndex(query: string, options: CatalogIndexSea
       artistName: row.artist_name,
       albumName: row.album_name,
       score: Number(row.relevance),
+      popularity: Number(row.popularity),
     }))
   })
 }

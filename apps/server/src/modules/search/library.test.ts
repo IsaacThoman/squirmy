@@ -112,9 +112,25 @@ describe('GET /search/library', () => {
     expect(await scored('radiohed')).toBe(1)
   })
 
+  it('ranks every result on one list, and pages one kind', async () => {
+    const all = await search('radiohead')
+    expect(all.ranked?.[0]).toMatchObject({ type: 'artist', id: all.artists[0]!.id })
+    expect(all.top).toEqual({ type: 'artist', id: all.artists[0]!.id, score: 3 })
+    const listed = [...all.artists, ...all.albums, ...all.tracks].map((item) => item.id)
+    expect(all.ranked!.map((item) => item.id).sort()).toEqual(listed.sort())
+    expect(all.ranked!.every((item) => item.score > 0 && item.score <= 1)).toBe(true)
+
+    const page = async (offset: number) =>
+      body(await app.inject({ url: `/api/v1/search/library?q=radiohead&type=track&limit=3&offset=${offset}`, headers: user.headers }), SearchResults)
+    const pages = await Promise.all([page(0), page(3), page(6)])
+    expect(pages.every((one) => one.artists.length === 0 && one.albums.length === 0)).toBe(true)
+    expect(pages.map((one) => one.tracks.length)).toEqual([3, 3, 1])
+    expect(pages.flatMap((one) => one.tracks.map((track) => track.id))).toEqual(all.tracks.map((track) => track.id))
+  })
+
   it('works from the second character', async () => {
     expect(titles((await search('ok')).albums)).toEqual(['OK Computer'])
-    expect(await search('o')).toEqual({ artists: [], albums: [], tracks: [], provider: null, top: null })
+    expect(await search('o')).toEqual({ artists: [], albums: [], tracks: [], provider: null, top: null, ranked: [] })
   })
 
   it('tolerates typos', async () => {
