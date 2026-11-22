@@ -356,6 +356,10 @@ export function VirtualTrackList({ tracks, label, variant = 'compact', isWanted,
     overscan: 8,
     scrollMargin: margin,
     initialRect: { width: 1024, height: 900 },
+
+    // Where the page is now: left at 0, the virtualizer scrolls the page back to the top as it
+    // mounts, undoing Back's scroll restoration.
+    initialOffset: () => scroller?.scrollTop ?? 0,
   })
   const last = virtualizer.getVirtualItems().at(-1)?.index ?? -1
   useEndReached(last, tracks.length, onEndReached)
