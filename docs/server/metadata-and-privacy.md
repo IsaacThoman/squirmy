@@ -4,7 +4,7 @@ Squirmy identifies music and fills in covers, images, biographies and lyrics by 
 
 ## Who talks to whom
 
-The web app and the iOS app talk only to your server. Covers and artist images are downloaded by the server and served from `/api/v1/art`, so a listener's browser or phone never contacts a third party for them. (Some admin screens link to MusicBrainz pages, which open only if you click them.)
+The web app and the iOS app talk only to your server. Covers and artist images are downloaded by the server and served from `/api/v1/art`, so a listener's browser or phone never contacts a third party for them. The server downloads images only over HTTPS and only from public addresses, never from your own machine or network, whatever a link in a service's data points to. (Some admin screens link to MusicBrainz pages, which open only if you click them.)
 
 The server contacts the services below. Each sees the server's IP address and this User-Agent, which names the software but nothing about you or your users:
 

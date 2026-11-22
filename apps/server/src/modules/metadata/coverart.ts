@@ -1,4 +1,4 @@
-import { cachedFetch, ProviderError, request, unexpectedResponse } from '../../lib/http.js'
+import { cachedFetch, ProviderError, RefusedUrlError, requestPublic, unexpectedResponse } from '../../lib/http.js'
 import { getServerSettings } from '../../lib/settings.js'
 
 /** Downloaded image bytes. */
@@ -47,8 +47,9 @@ async function frontCover(entity: 'release' | 'release-group', mbid: string): Pr
 }
 
 /**
- * Downloads an image for any provider. Null when the URL is gone, is not an image, or
- * exceeds `maxBytes` (default 20 MB); network failures and 5xx throw ProviderError.
+ * Downloads an image for any provider. Null when the URL is gone, is not an image,
+ * exceeds `maxBytes` (default 20 MB), or is one `requestPublic` refuses (not https, not a
+ * public address, too many redirects); network failures and 5xx throw ProviderError.
  */
 export async function fetchImage(url: string, options: { maxBytes?: number } = {}): Promise<FetchedImage | null> {
   return (await downloadImage(url, options)).image
@@ -60,7 +61,12 @@ export async function fetchImage(url: string, options: { maxBytes?: number } = {
  */
 export async function downloadImage(url: string, options: { maxBytes?: number } = {}): Promise<{ image: FetchedImage | null; gone: boolean }> {
   const maxBytes = options.maxBytes ?? defaultMaxBytes
-  const response = await request('image', url, { headers: { Accept: 'image/*' }, timeoutMs: 30_000 })
+  const response = await requestPublic('image', url, { headers: { Accept: 'image/*' }, timeoutMs: 30_000 }).catch((error: unknown) => {
+    // Refused once is refused for good, so it is not an outage worth retrying.
+    if (error instanceof RefusedUrlError) return null
+    throw error
+  })
+  if (!response) return { image: null, gone: false }
   if (response.status === 404 || response.status === 410) {
     await response.body?.cancel()
     return { image: null, gone: true }

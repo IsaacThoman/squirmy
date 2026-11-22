@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto'
+import dns, { type LookupAddress } from 'node:dns'
+import { isIP } from 'node:net'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { and, eq, gt, sql } from 'drizzle-orm'
+import { Agent } from 'undici'
 import { db } from '../database/client.js'
 import { httpCache } from '../database/schema.js'
+import { isPublicAddress } from './address.js'
 import { AppError } from './errors.js'
 import { getVersion } from './version.js'
 
@@ -68,6 +72,14 @@ export class ProviderError extends AppError {
   }
 }
 
+/** A URL `requestPublic` will not fetch: not https, not on the public internet, or redirected too often. */
+export class RefusedUrlError extends ProviderError {
+  constructor(provider: string, message: string, options?: ErrorOptions) {
+    super(provider, message, undefined, undefined, options)
+    this.name = 'RefusedUrlError'
+  }
+}
+
 /** Builds the error a client throws for a response it cannot use. */
 export function unexpectedResponse(provider: string, result: HttpResult): ProviderError {
   return new ProviderError(provider, `unexpected HTTP ${result.status}: ${result.text.slice(0, 200)}`, result.status)
@@ -79,6 +91,8 @@ const defaultTimeoutMs = 15_000
 const maxRetryWaitMs = 60_000
 /** Most bytes of a body cachedFetch reads. Provider answers are far smaller; more is a fault, and is not kept. */
 const maxBodyBytes = 8 * 1024 * 1024
+const redirectStatuses = new Set([301, 302, 303, 307, 308])
+const maxRedirects = 3
 /** Query parameters that carry credentials; masked in the stored URL. */
 const secretParams = new Set(['api_key', 'client', 'client_key', 'token', 'sk', 'api_sig'])
 
@@ -133,6 +147,79 @@ export async function request(provider: string, url: string, init: RequestInit &
   } catch (error) {
     const timedOut = error instanceof DOMException && error.name === 'TimeoutError'
     throw new ProviderError(provider, timedOut ? `timed out after ${timeoutMs} ms` : `request failed: ${(error as Error).message}`, undefined, undefined, { cause: error })
+  }
+}
+
+/**
+ * `dns.lookup` that fails when a name resolves to any address off the public internet,
+ * so a connection made with it cannot be pointed at this machine or its network, also
+ * not by a name whose address changes between a check and the connection.
+ */
+function publicLookup(
+  hostname: string,
+  options: dns.LookupOptions,
+  callback: (error: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void,
+): void {
+  dns.lookup(hostname, { ...options, all: true }, (error, addresses) => {
+    if (error) return callback(error, '')
+    const refused = addresses.find((entry) => !isPublicAddress(entry.address))
+    if (refused || addresses.length === 0) {
+      const failure: NodeJS.ErrnoException = new Error(`${hostname} resolves to ${refused?.address ?? 'no address'}, which is not public`)
+      failure.code = 'ERR_NON_PUBLIC_ADDRESS'
+      return callback(failure, '')
+    }
+    if (options.all) callback(null, addresses)
+    else callback(null, addresses[0]!.address, addresses[0]!.family)
+  })
+}
+
+/** A fetch `dispatcher` that connects only to public addresses. */
+export const publicDispatcher = new Agent({ connect: { lookup: publicLookup } })
+
+function refusedAddress(error: unknown): boolean {
+  for (let cause = error; cause instanceof Error; cause = cause.cause) {
+    if ((cause as NodeJS.ErrnoException).code === 'ERR_NON_PUBLIC_ADDRESS') return true
+  }
+  return false
+}
+
+function checkPublicUrl(provider: string, url: URL): void {
+  if (url.protocol !== 'https:') throw new RefusedUrlError(provider, `refused a ${url.protocol} URL`)
+  const host = url.hostname.replace(/^\[(.*)\]$/, '$1')
+  // A literal address is connected to without a lookup, so the dispatcher never sees it.
+  if (isIP(host) && !isPublicAddress(host)) throw new RefusedUrlError(provider, `refused the address ${host}`)
+}
+
+/**
+ * `request` for URLs that come from outside, such as image links in provider data: https
+ * only, connections only to public addresses (`publicDispatcher`), and at most three
+ * redirects, each checked the same way. Refusals throw RefusedUrlError.
+ */
+export async function requestPublic(provider: string, url: string, init: Omit<RequestInit, 'redirect'> & { timeoutMs?: number } = {}): Promise<Response> {
+  let target: URL
+  try {
+    target = new URL(url)
+  } catch {
+    throw new RefusedUrlError(provider, 'refused an invalid URL')
+  }
+  for (let redirects = 0; ; redirects++) {
+    checkPublicUrl(provider, target)
+    let response: Response
+    try {
+      response = await request(provider, target.toString(), { ...init, redirect: 'manual', dispatcher: publicDispatcher } as RequestInit)
+    } catch (error) {
+      if (refusedAddress(error)) throw new RefusedUrlError(provider, `refused ${target.hostname}: not a public address`, { cause: error })
+      throw error
+    }
+    const location = redirectStatuses.has(response.status) ? response.headers.get('location') : null
+    if (location === null) return response
+    await response.body?.cancel()
+    if (redirects >= maxRedirects) throw new RefusedUrlError(provider, `more than ${maxRedirects} redirects`)
+    try {
+      target = new URL(location, target)
+    } catch {
+      throw new RefusedUrlError(provider, 'refused an invalid redirect')
+    }
   }
 }
 
