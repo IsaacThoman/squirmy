@@ -52,6 +52,7 @@ Each user has **one** playback session, held by the server: the queue, the curre
 - **Transferring.** Open the devices list (the **Devices** button in the player bar on the web; on iOS, the playback device button in the mini-player or Now Playing, which opens the **Playback device** sheet) and pick a device. Playback continues there from the same position. Each device keeps its own volume.
 - **Each browser tab is its own device.** A second tab of the same browser is listed with "(2)" after its name. Rename the browser in **Settings → Playback → This browser's name**.
 - **When the playing device disappears**, the server waits 20 seconds, then pauses the session at the last known position. Any device can resume it.
+- **Playing separately.** One device can step out of the session and play its own queue while the others play something else, and rejoin later: in the web app, **Devices → Play separately on this tab** ([how it looks](../use/web.md#playing-separately-on-one-device)).
 - **A device is listed only while it is connected.** iOS suspends an app that is paused in the background, so a paused phone drops off the list until it is opened again.
 
 Browsers may refuse to start audio until you have clicked on the page. When that happens after a transfer or a reload, the web app shows "Your browser is holding back audio" with **Enable audio**.

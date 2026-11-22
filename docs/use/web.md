@@ -79,6 +79,15 @@ For members who may not fetch, and on servers without a provider, music that is 
 
 Every open tab is a device in your one playback session. When music plays somewhere else, the player bar says "Playing on …" with **Play here**; the controls drive that device and this tab plays nothing. **Devices** lists where you can play, including **Play in this tab**. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
 
+### Playing separately on one device
+
+To have one tab play its own music while your other devices play something else (two people on one account, or two rooms), open **Devices** and choose **Play separately on this tab**. It happens at once: if this tab was playing it carries on and your other devices pause where they were; otherwise it starts from a paused copy of the queue. While it plays separately the player bar and Now Playing say **Only on this device**; press it to open **Devices** again, which then offers:
+
+- **Rejoin your other devices**: this tab stops, drops its own queue and shows what the others play.
+- **Bring this queue with me**: this tab keeps playing, and your other devices switch to its queue.
+
+Other devices list a tab like this under **Playing separately**, with the song it plays, and playback can't be moved to it. Playing separately survives a reload; after a week away it plays with your other devices again. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
+
 If the browser refuses to start audio on its own (after a transfer or a reload), a notice says "Your browser is holding back audio"; choose **Enable audio**. "Reconnecting to the server…" means the live connection dropped; it comes back by itself, and behind a proxy it usually means WebSockets are not passed through.
 
 ## Settings
@@ -122,7 +131,6 @@ The server's version is at the bottom of each admin page, in **Settings → Abou
 
 ## Not there yet
 
-- **Playing separately on one device.** Every tab is a device of your one session, so two places can't play different music on one account yet.
 - **A history page.** Recent listening is under **History** in the queue panel and in Home's "Recently played".
 
 See [keyboard shortcuts](./keyboard-shortcuts.md).
