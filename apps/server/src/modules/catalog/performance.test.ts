@@ -12,6 +12,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
+import { updateServerSettings } from '../../lib/settings.js'
 import { signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { seedLargeLibrary } from '../../test/library-seed.js'
@@ -34,6 +35,8 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
   beforeAll(async () => {
     app = await buildApp()
     user = await signIn()
+    // Time the wantlist queries rather than the answer for a switched-off wantlist.
+    await updateServerSettings({ wantlistEnabled: true })
     const started = performance.now()
     await seedLargeLibrary({ albums: ALBUMS, tracksPerAlbum: TRACKS_PER_ALBUM, artists: 2_000, unownedEvery: 10, userId: user.id, plays: 50_000, likes: 2_000 })
     report.push(`seeded in ${Math.round(performance.now() - started)} ms`)

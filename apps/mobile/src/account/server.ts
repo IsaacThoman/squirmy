@@ -2,8 +2,11 @@ import { ApiError, createApiClient, type FetchLike } from '@squirmy/client-core'
 import type { SetupStatus } from '@squirmy/contracts';
 import { displayAddress, parseServerAddress } from './address';
 
-/** `registrationRequiresInvite` is false when anyone may create an account. */
-export type Server = { url: string; name: string; version: string; registrationRequiresInvite: boolean };
+/**
+ * `registrationRequiresInvite` is false when anyone may create an account. `wantlistEnabled`
+ * is whether the server's admin turned the wantlist on; while it is off the app never shows it.
+ */
+export type Server = { url: string; name: string; version: string; registrationRequiresInvite: boolean; wantlistEnabled: boolean };
 
 export type ConnectProblem = 'invalid' | 'unreachable' | 'notSquirmy' | 'serverError' | 'needsSetup';
 
@@ -17,7 +20,11 @@ export class ConnectError extends Error {
 
 /** The server at `url` as its setup status describes it. */
 export function serverFrom(url: string, status: SetupStatus): Server {
-  return { url, name: status.serverName, version: status.version, registrationRequiresInvite: status.registrationRequiresInvite };
+  return {
+    url, name: status.serverName, version: status.version, registrationRequiresInvite: status.registrationRequiresInvite,
+    // Release builds do not validate responses, and servers from before the setting leave it out.
+    wantlistEnabled: status.wantlistEnabled === true,
+  };
 }
 
 /** Sent as `X-Squirmy-Client` by every request from the app. */

@@ -63,12 +63,12 @@ The app has Home, Library (playlists, albums, artists and songs), and Search, wi
 - **Queue.** Pull the list down for your listening history. Drag to reorder, or swipe a track for Play Next and Remove.
 - **Search** leads with the **Top result**, the best match for what you typed: an artist or album opens its page (an album also has a play button), a song plays. Below it, **In your library** lists your artists, albums and songs, and **More to discover** the ones from the catalog that you don't have, in the same order.
 - **Downloads.** The download button on an album, a playlist or Liked Songs keeps it on the phone, and a song's menu has **Download**. Downloaded music always plays from the phone. **Downloads**, in the Library header and the account sheet, shows what is kept and sets the download quality, Wi-Fi only and a storage limit.
-- **Every song has a menu**: play next or last, like, add to a playlist, start a radio, go to its album or artist. Songs not in your library can be added to your [wantlist](./wantlist.md).
+- **Every song has a menu**: play next or last, like, add to a playlist, start a radio, go to its album or artist. Songs not in your library can be added to your [wantlist](./wantlist.md), when your server has it on.
 - **Settings**, from the account sheet: **Normalize Volume**, **Streaming Quality** on **Wi-Fi** and on **Cellular**, and scrobbling to [ListenBrainz and Last.fm](../server/scrobbling.md).
 
 ## On-demand songs
 
-When an admin has [connected a provider](../server/acquisition.md), songs that aren't on the server yet but can be fetched show a small cloud next to the artist. Play one and its row, the mini-player and Now Playing say **Preparing…** until the file arrives, then it plays. If the server can't get it, a short notice says so, the song is skipped, and it shows gray. Members need **Can fetch missing music** for this; without it, those songs are gray and their menu offers the wantlist instead.
+When an admin has [connected a provider](../server/acquisition.md), songs that aren't on the server yet but can be fetched show a small cloud next to the artist. Play one and its row, the mini-player and Now Playing say **Preparing…** until the file arrives, then it plays. If the server can't get it, a short notice says so, the song is skipped, and it shows gray. Members need **Can fetch missing music** for this; without it, those songs are gray, and their menu offers the wantlist instead when the server has it on.
 
 ## Known limits
 
