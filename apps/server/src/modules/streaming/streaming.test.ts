@@ -196,6 +196,23 @@ describe('streaming originals', () => {
     expect(row!.missingSince).toBeInstanceOf(Date)
   })
 
+  it('does not mark files missing while their library folder is unavailable', async () => {
+    const mount = await mkdtemp(path.join(tmpdir(), 'squirmy-mount-'))
+    const unmountedRoot = (await createLibraryRoot({ path: mount })).id
+    await makeTone(mount, { path: 'A/01.flac' })
+    const fileId = newId()
+    await db.insert(mediaFiles).values({ id: fileId, rootId: unmountedRoot, relPath: 'A/01.flac', size: 1, mtime: new Date(), container: 'FLAC', codec: 'FLAC', lossless: true })
+    // An external drive or network share that went away: the root folder itself is gone.
+    await rm(mount, { recursive: true, force: true })
+    for (const profile of ['original', 'aac_256'] as const) {
+      const response = await call({ url: signStreamUrl(fileId, profile, memberId).url })
+      expect(response.statusCode, profile).toBe(503)
+      expect(response.json().error.code).toBe('root_unavailable')
+    }
+    const [row] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId))
+    expect(row!.missingSince).toBeNull()
+  })
+
   it('keeps serving a file that organize is moving, at either end of the move', async () => {
     const from = 'Mira/Blue Hour/01 Night.flac'
     const to = 'Mira Vale/Blue Hour (2024)/01 Night Swimming.flac'
