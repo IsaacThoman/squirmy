@@ -176,6 +176,7 @@ describe('import processing', () => {
     // Someone browsed Karma Police and wanted it before anyone had it.
     const browsed = await createAlbum({ title: 'OK Computer', tracks: [{ title: 'Karma Police', mbid: karmaPolice }] })
     const fan = await createUser()
+    await updateServerSettings({ wantlistEnabled: true })
     await wantEntity(fan.id, 'track', browsed.tracks[0]!.recordingId)
 
     const archive = await writeZip(path.join(fixtures, 'OK Computer.zip'), [
@@ -217,6 +218,11 @@ describe('import processing', () => {
   it('removes audio the library already has, and repeats within one import', async () => {
     const root = await managedRoot()
     const before = await db.select({ count: sql<number>`count(*)::int` }).from(mediaFiles)
+    // A want for the album the first import filed, left alone while the wantlist is off.
+    await updateServerSettings({ wantlistEnabled: false })
+    const [owned] = await db.select({ id: albums.id }).from(albums).where(eq(albums.mbid, okComputerGroup))
+    const fan = await createUser()
+    await db.insert(wants).values({ userId: fan.id, entityType: 'album', entityId: owned!.id })
     // The copy is hashed last, after identification has seen every other file hashed.
     const copy = pipeline.hold('library.analyze', fileAt('Again/copy of the first.flac'))
     const analyzed = pipeline.finished.length
@@ -235,6 +241,8 @@ describe('import processing', () => {
     expect(await tree(root.path)).toEqual([])
     expect(await db.select({ count: sql<number>`count(*)::int` }).from(mediaFiles)).toEqual(before)
     expect(http.requests, 'no provider is asked about duplicates').toEqual([])
+    const [want] = await db.select({ fulfilledAt: wants.fulfilledAt }).from(wants).where(eq(wants.userId, fan.id))
+    expect(want!.fulfilledAt).toBeNull()
   })
 
   it('asks no provider about part of an album before its duplicates are decided', async () => {

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAccount, useSignedInApi } from './account/AccountProvider';
+import { useAccount, useSignedInApi, useWantlistEnabled } from './account/AccountProvider';
 import { shade } from './data/color';
 import {
   useGenreCovers, useGenres, useHome, useLibraryAlbums, useLibraryArtists, useLibraryTracks, usePlaylists, useSearch,
@@ -105,7 +105,9 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const { state } = useAccount();
   const home = useHome();
   const offlineDim = useOfflineDim();
-  const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0);
+  const wantlist = useWantlistEnabled();
+  // A Home saved before the wantlist was switched off, or from an older server, may still have it.
+  const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
   const albums = (id: string) => sections.find((section): section is Extract<HomeSection, { kind: 'albums' }> => section.kind === 'albums' && section.id === id)?.albums;
   const hero = albums('recently-played')?.[0] ?? albums('recently-added')?.[0];
   const heroSize = width - gutter * 2;

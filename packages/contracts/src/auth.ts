@@ -25,8 +25,16 @@ export type UserList = z.infer<typeof UserList>
 /**
  * `GET /setup/status`. `needsSetup` is true until the first admin exists.
  * `registrationRequiresInvite` lets sign-in screens say whether anyone can join.
+ * `wantlistEnabled` tells clients whether to show the wantlist at all; servers from before
+ * the setting leave it out, and the default hides it there too.
  */
-export const SetupStatus = z.object({ needsSetup: z.boolean(), version: z.string(), serverName: z.string(), registrationRequiresInvite: z.boolean() })
+export const SetupStatus = z.object({
+  needsSetup: z.boolean(),
+  version: z.string(),
+  serverName: z.string(),
+  registrationRequiresInvite: z.boolean(),
+  wantlistEnabled: z.boolean().default(false),
+})
 export type SetupStatus = z.infer<typeof SetupStatus>
 
 /** Identifies the calling install. `id` is generated once per install and kept. */

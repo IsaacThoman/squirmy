@@ -3,8 +3,8 @@ import type { User } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import { expiredNotice, reduceAuth, signInErrorMessage, type AuthEvent, type AuthState } from './auth';
 
-const server = { url: 'https://music.example.com', name: 'Home', version: '1.0.0', registrationRequiresInvite: true };
-const other = { url: 'http://192.168.1.20:4747', name: 'Studio', version: '1.0.0', registrationRequiresInvite: false };
+const server = { url: 'https://music.example.com', name: 'Home', version: '1.0.0', registrationRequiresInvite: true, wantlistEnabled: false };
+const other = { url: 'http://192.168.1.20:4747', name: 'Studio', version: '1.0.0', registrationRequiresInvite: false, wantlistEnabled: false };
 const user: User = {
   id: '6f1c2e4a-1d2b-4c3d-8e9f-0a1b2c3d4e5f', username: 'ada', displayName: null, role: 'member',
   canUpload: false, canAcquire: false, createdAt: '2026-11-20T08:00:00.000Z', disabled: false,
@@ -56,6 +56,11 @@ describe('reduceAuth', () => {
     expect(run(signedIn, { type: 'serverLoaded', server: { ...updated, url: other.url } })).toBe(signedIn);
     expect(run(signedIn, { type: 'serverLoaded', server: { ...server } })).toBe(signedIn);
     expect(run({ status: 'connect', previous: null }, { type: 'serverLoaded', server: updated })).toEqual({ status: 'connect', previous: null });
+  });
+
+  it('takes the wantlist switch when the admin flips it', () => {
+    const on = { ...server, wantlistEnabled: true };
+    expect(run(signedIn, { type: 'serverLoaded', server: on })).toEqual({ ...signedIn, server: on });
   });
 
   it('updates the user while signed in and ignores stray events elsewhere', () => {

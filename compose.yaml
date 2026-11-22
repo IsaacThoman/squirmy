@@ -38,6 +38,14 @@ services:
       - "4747"
     ports:
       - "${SQUIRMY_PORT:-4747}:4747"
+    # Healthy once migrations have run and the database answers (/ready), as in the image, so
+    # `docker compose ps` and Coolify show a build that cannot start as unhealthy.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 4747) + '/ready').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 4
 
   postgres:
     image: postgres:17
