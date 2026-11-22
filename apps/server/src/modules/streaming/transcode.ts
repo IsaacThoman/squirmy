@@ -9,6 +9,7 @@ import { db } from '../../database/client.js'
 import { transcodes } from '../../database/schema.js'
 import { randomToken } from '../../lib/crypto.js'
 import { AppError } from '../../lib/errors.js'
+import { audioInput } from '../../lib/ffmpeg.js'
 import { newId } from '../../lib/ids.js'
 import { libraryPath, serveFile, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
 import { outputSampleRate, profiles, type MediaFile, type TranscodeProfile } from './profiles.js'
@@ -174,7 +175,7 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile): 
   ]
   const sampleRate = outputSampleRate(file, profile)
   return [
-    '-v', 'error', '-nostdin', '-i', input,
+    '-v', 'error', '-nostdin', ...audioInput(input),
     '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
     ...metadata.flatMap(([key, value]) => value === undefined || value === '' ? [] : ['-metadata', `${key}=${value}`]),
     ...(sampleRate ? ['-ar', String(sampleRate)] : []),

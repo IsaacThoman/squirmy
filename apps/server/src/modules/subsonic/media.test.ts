@@ -14,7 +14,7 @@ import { db } from '../../database/client.js'
 import { albums, artists, lyrics, mediaFiles, transcodes } from '../../database/schema.js'
 import { startJobs } from '../../jobs/index.js'
 import { runFfprobe } from '../../lib/ffmpeg.js'
-import { makeTone } from '../../test/audio.js'
+import { makeTone, writeHostileInputs } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { storeImage } from '../artwork/store.js'
@@ -151,6 +151,16 @@ describe('subsonic media', () => {
     expect(response.headers['content-length']).toBe(String(expected))
     expect(response.rawPayload.length).toBe(expected)
     expect((await probe(response)).streams[0]!.codec_name).toBe('mp3')
+  })
+
+  it('sends no audio from a file whose content makes ffmpeg read another file', async () => {
+    await makeTone(root, { path: 'hostile/real.flac', durationSec: 2 })
+    await writeHostileInputs(path.join(root, 'hostile'), { target: 'real.flac', url: 'http://127.0.0.1:9' })
+    const [night] = await db.select().from(mediaFiles).where(eq(mediaFiles.relPath, 'Mira Vale/Blue Hour/01 Night.flac'))
+    const album = await createAlbum({ title: 'Hostile', owned: true, rootId: night!.rootId, tracks: [{ title: 'Script' }] })
+    await db.update(mediaFiles).set({ relPath: 'hostile/concat.flac', durationMs: 6000 }).where(eq(mediaFiles.id, album.tracks[0]!.fileId!))
+    const response = await get('stream', { id: `tr-${album.tracks[0]!.recordingId}`, maxBitRate: 96 })
+    expect(response.rawPayload.length).toBe(0)
   })
 
   it('downloads the original as an attachment', async () => {

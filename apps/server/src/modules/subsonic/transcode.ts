@@ -13,6 +13,7 @@ import { stat } from 'node:fs/promises'
 import { PassThrough, Readable, Transform } from 'node:stream'
 import { getConfig } from '../../config.js'
 import { notFound } from '../../lib/errors.js'
+import { audioInput } from '../../lib/ffmpeg.js'
 import { libraryPath } from '../streaming/files.js'
 import { codecFamily, outputSampleRate, profiles, type MediaFile, type TranscodeProfile } from '../streaming/profiles.js'
 
@@ -74,7 +75,7 @@ export async function liveEncode(file: MediaFile, plan: Extract<StreamPlan, { ki
   const child = spawn(getConfig().FFMPEG_PATH, [
     '-v', 'error', '-nostdin',
     ...(plan.offsetSeconds > 0 ? ['-ss', String(plan.offsetSeconds)] : []),
-    '-i', input,
+    ...audioInput(input),
     '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
     ...(sampleRate ? ['-ar', String(sampleRate)] : []),
     ...args,
