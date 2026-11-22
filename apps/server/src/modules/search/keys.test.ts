@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editionFreeKey, editionFreeTitle, guessAlbumType, labelFreeKey, prefixEnd, releaseKey } from './keys.js'
+import { editionFreeKey, editionFreeTitle, guessAlbumType, labelFreeKey, prefixEnd, releaseKey, sameArtist } from './keys.js'
 
 describe('editionFreeTitle', () => {
   it('drops edition suffixes in brackets or after a dash', () => {
@@ -83,5 +83,19 @@ describe('guessAlbumType', () => {
     expect(guessAlbumType('Just Keep Watching (From F1® The Movie)', ['Just Keep Watching (From F1® The Movie)'])).toBe('single')
     expect(guessAlbumType('THINK LATER', ['exes'])).toBe('album')
     expect(guessAlbumType('Sports car', [])).toBe('album')
+  })
+})
+
+describe('sameArtist', () => {
+  const titles = (albums: string[], tracks: string[] = []) => ({ albums: new Set(albums), tracks: new Set(tracks) })
+  it('takes a release or two songs in common as one artist', () => {
+    expect(sameArtist(titles(['halfaxa', 'visions']), titles(['halfaxa']))).toBe(true)
+    expect(sameArtist(titles([], ['genesis', 'oblivion']), titles([], ['oblivion', 'genesis', 'be a body']))).toBe(true)
+    expect(sameArtist(titles([], ['intro']), titles([], ['intro']))).toBe(false)
+  })
+
+  it('does not count an album titled like the artist', () => {
+    // Two bands called Genesis may each have a "Genesis".
+    expect(sameArtist(titles(['genesis']), titles(['genesis', 'invisible touch']), 'genesis')).toBe(false)
   })
 })

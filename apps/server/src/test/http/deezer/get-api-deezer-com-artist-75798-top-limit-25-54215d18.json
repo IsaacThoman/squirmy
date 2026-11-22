@@ -1,0 +1,769 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/75798/top?limit=25"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 1174602992,
+          "title": "Rolling in the Deep",
+          "link": "https://www.deezer.com/track/1174602992",
+          "duration": 228,
+          "rank": 745639,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713382,
+            "title": "21",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dc1ce848d830ecc93521be5a78350364/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174603032,
+          "title": "Set Fire to the Rain",
+          "link": "https://www.deezer.com/track/1174603032",
+          "duration": 242,
+          "rank": 755366,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713382,
+            "title": "21",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dc1ce848d830ecc93521be5a78350364/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174604652,
+          "title": "Hello",
+          "link": "https://www.deezer.com/track/1174604652",
+          "duration": 295,
+          "rank": 698953,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713772,
+            "title": "Hello",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/55a45989edf6f4ed46793986d5a0b190/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1522223672,
+          "title": "Easy On Me",
+          "link": "https://www.deezer.com/track/1522223672",
+          "duration": 224,
+          "rank": 920837,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 265655342,
+            "title": "Easy On Me",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/a87ee7c212c7b0f9ae687c378f260324/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 82715364,
+          "title": "Skyfall",
+          "link": "https://www.deezer.com/track/82715364",
+          "duration": 286,
+          "rank": 954166,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 8307448,
+            "title": "Skyfall",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/81e6d7baa7f47b804704922412e7a014/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174605062,
+          "title": "Send My Love (To Your New Lover)",
+          "link": "https://www.deezer.com/track/1174605062",
+          "duration": 223,
+          "rank": 683886,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713912,
+            "title": "25",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/eaeadce7932a97533fe495881d2fcd7a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174605122,
+          "title": "Love In The Dark",
+          "link": "https://www.deezer.com/track/1174605122",
+          "duration": 285,
+          "rank": 664960,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713912,
+            "title": "25",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/eaeadce7932a97533fe495881d2fcd7a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 512575552,
+          "title": "Chasing Pavements",
+          "link": "https://www.deezer.com/track/512575552",
+          "duration": 210,
+          "rank": 538769,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 65728092,
+            "title": "19",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c396bb2d73c016d7a1ffdaca77b5c255/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174603002,
+          "title": "Rumour Has It",
+          "link": "https://www.deezer.com/track/1174603002",
+          "duration": 223,
+          "rank": 516545,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713382,
+            "title": "21",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dc1ce848d830ecc93521be5a78350364/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1557137132,
+          "title": "Oh My God",
+          "link": "https://www.deezer.com/track/1557137132",
+          "duration": 225,
+          "rank": 813212,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 273425942,
+            "title": "30",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/bfaa6999939ce7236b339f875a132f62/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174605082,
+          "title": "When We Were Young",
+          "link": "https://www.deezer.com/track/1174605082",
+          "duration": 290,
+          "rank": 596129,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713912,
+            "title": "25",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/eaeadce7932a97533fe495881d2fcd7a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174605142,
+          "title": "All I Ask",
+          "link": "https://www.deezer.com/track/1174605142",
+          "duration": 271,
+          "rank": 521657,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713912,
+            "title": "25",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/eaeadce7932a97533fe495881d2fcd7a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174603082,
+          "title": "Lovesong",
+          "link": "https://www.deezer.com/track/1174603082",
+          "duration": 316,
+          "rank": 572488,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713382,
+            "title": "21",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dc1ce848d830ecc93521be5a78350364/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174605102,
+          "title": "Water Under the Bridge",
+          "link": "https://www.deezer.com/track/1174605102",
+          "duration": 240,
+          "rank": 611740,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713912,
+            "title": "25",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/eaeadce7932a97533fe495881d2fcd7a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174603012,
+          "title": "Turning Tables",
+          "link": "https://www.deezer.com/track/1174603012",
+          "duration": 250,
+          "rank": 529809,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713382,
+            "title": "21",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dc1ce848d830ecc93521be5a78350364/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 512575642,
+          "title": "Hometown Glory",
+          "link": "https://www.deezer.com/track/512575642",
+          "duration": 271,
+          "rank": 551102,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 65728092,
+            "title": "19",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c396bb2d73c016d7a1ffdaca77b5c255/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1557137152,
+          "title": "I Drink Wine",
+          "link": "https://www.deezer.com/track/1557137152",
+          "duration": 376,
+          "rank": 747047,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 273425942,
+            "title": "30",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/bfaa6999939ce7236b339f875a132f62/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174603022,
+          "title": "Don't You Remember",
+          "link": "https://www.deezer.com/track/1174603022",
+          "duration": 243,
+          "rank": 515668,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713382,
+            "title": "21",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dc1ce848d830ecc93521be5a78350364/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174605132,
+          "title": "Million Years Ago",
+          "link": "https://www.deezer.com/track/1174605132",
+          "duration": 227,
+          "rank": 465315,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713912,
+            "title": "25",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/eaeadce7932a97533fe495881d2fcd7a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174603042,
+          "title": "He Won't Go",
+          "link": "https://www.deezer.com/track/1174603042",
+          "duration": 278,
+          "rank": 493613,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713382,
+            "title": "21",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dc1ce848d830ecc93521be5a78350364/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1174603072,
+          "title": "One And Only",
+          "link": "https://www.deezer.com/track/1174603072",
+          "duration": 348,
+          "rank": 555289,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 192713382,
+            "title": "21",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dc1ce848d830ecc93521be5a78350364/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 512575602,
+          "title": "Right As Rain",
+          "link": "https://www.deezer.com/track/512575602",
+          "duration": 197,
+          "rank": 418813,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 65728092,
+            "title": "19",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c396bb2d73c016d7a1ffdaca77b5c255/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 512575532,
+          "title": "Daydreamer",
+          "link": "https://www.deezer.com/track/512575532",
+          "duration": 220,
+          "rank": 365516,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 65728092,
+            "title": "19",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c396bb2d73c016d7a1ffdaca77b5c255/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1557137182,
+          "title": "Hold On",
+          "link": "https://www.deezer.com/track/1557137182",
+          "duration": 366,
+          "rank": 597603,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 273425942,
+            "title": "30",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/bfaa6999939ce7236b339f875a132f62/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1557137192,
+          "title": "To Be Loved",
+          "link": "https://www.deezer.com/track/1557137192",
+          "duration": 404,
+          "rank": 580795,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 75798,
+              "name": "Adele",
+              "link": "https://www.deezer.com/artist/75798",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 75798,
+            "name": "Adele",
+            "type": "artist"
+          },
+          "album": {
+            "id": 273425942,
+            "title": "30",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/bfaa6999939ce7236b339f875a132f62/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        }
+      ],
+      "total": 51,
+      "next": "https://api.deezer.com/artist/75798/top?limit=25&index=25"
+    }
+  }
+}
