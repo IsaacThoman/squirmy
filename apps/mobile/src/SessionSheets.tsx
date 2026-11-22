@@ -3,6 +3,7 @@ import { PLAYLIST_NAME_MAX_LENGTH, type DeviceInfo, type PlaylistSummary } from 
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Alert } from 'react-native';
 import { useAccount } from './account/AccountProvider';
 import { closeSheet } from './closeSheet';
 import { usePlaylistActions, useTrack } from './data/library';
@@ -149,9 +150,22 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId: string; albu
   useEffect(() => {
     if (list.hasNextPage) list.loadMore();
   }, [list.hasNextPage, list.items.length]);
-  const add = (playlist: Pick<PlaylistSummary, 'id' | 'name'>) => {
+  const add = (playlist: PlaylistSummary) => {
     if (!track) return;
     void Haptics.selectionAsync();
+    // As in Apple Music, a song the playlist already has is added again only when asked to.
+    // When its page was never loaded the server leaves the duplicate out, and the notice offers to add it anyway.
+    if (playlists.has(playlist.id, track.id)) {
+      Alert.alert(`Already in “${playlist.name}”`, `Add “${track.title}” again?`, [
+        // The sheet stays open, so another playlist can be chosen.
+        { text: 'Don’t Add', style: 'cancel' },
+        { text: 'Add Anyway', onPress: () => {
+          playlists.add(playlist, [track], { anyway: true });
+          closeSheet(router);
+        } },
+      ]);
+      return;
+    }
     playlists.add(playlist, [track]);
     closeSheet(router);
   };
