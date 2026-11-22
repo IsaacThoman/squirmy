@@ -2,6 +2,8 @@
 
 /* Dark is a class on <html>, set from the appearance setting (lib/appearance.ts). */
 @custom-variant dark (&:is(.dark *));
+/* A phone on its side: too short to stack a pane over the player's controls. */
+@custom-variant short-landscape (@media (orientation: landscape) and (max-height: 32rem));
 
 /*
  * The colors of the default theme, Squirmy. Other themes replace them through a stylesheet

@@ -1,12 +1,15 @@
 import type { RepeatMode } from '@squirmy/contracts'
 import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { Slider } from '@/components/ui/slider'
 import { formatDuration, formatRemaining } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { isLoading, usePosition, type Player } from '@/player/player-context'
+import { usePosition, type Player } from '@/player/player-context'
+
+/** Desktop-sized buttons grow to a 44px target where the pointer is a finger (a tablet). */
+export const touchTarget = 'pointer-coarse:size-11'
 
 type TransportButtonsProps = {
   player: Player
@@ -21,17 +24,17 @@ export function TransportButtons({ player, large, disabled, modeClassName }: Tra
   const { state, controls } = player
   return (
     <div className={cn('flex items-center justify-center', large ? 'gap-2' : 'gap-1')}>
-      <IconButton label={state.shuffle ? 'Turn off shuffle' : 'Shuffle'} size={large ? 'lg' : 'sm'} shape="round" pressed={state.shuffle} disabled={disabled} onClick={() => controls.setShuffle(!state.shuffle)} className={cn(large && 'size-11', modeClassName)}>
+      <IconButton label={state.shuffle ? 'Turn off shuffle' : 'Shuffle'} size={large ? 'lg' : 'sm'} shape="round" pressed={state.shuffle} disabled={disabled} onClick={() => controls.setShuffle(!state.shuffle)} className={cn(large ? 'size-11' : touchTarget, modeClassName)}>
         <Shuffle />
       </IconButton>
-      <IconButton label="Previous" size={large ? 'xl' : 'sm'} shape="round" disabled={disabled} onClick={controls.previous} className="text-foreground">
+      <IconButton label="Previous" size={large ? 'xl' : 'sm'} shape="round" disabled={disabled} onClick={controls.previous} className={cn('text-foreground', !large && touchTarget)}>
         <SkipBack fill="currentColor" />
       </IconButton>
-      <PlayPauseButton playing={state.playing} loading={isLoading(state)} onClick={controls.togglePlay} large={large} disabled={disabled} className={large ? 'mx-2' : 'mx-1'} />
-      <IconButton label="Next" size={large ? 'xl' : 'sm'} shape="round" disabled={disabled} onClick={controls.next} className="text-foreground">
+      <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} large={large} disabled={disabled} className={large ? 'mx-2' : cn('mx-1', touchTarget)} />
+      <IconButton label="Next" size={large ? 'xl' : 'sm'} shape="round" disabled={disabled} onClick={controls.next} className={cn('text-foreground', !large && touchTarget)}>
         <SkipForward fill="currentColor" />
       </IconButton>
-      <RepeatButton repeat={state.repeat} onClick={controls.cycleRepeat} large={large} disabled={disabled} className={modeClassName} />
+      <RepeatButton repeat={state.repeat} onClick={controls.cycleRepeat} large={large} disabled={disabled} className={cn(!large && touchTarget, modeClassName)} />
     </div>
   )
 }
@@ -121,9 +124,17 @@ export function SeekBar({ durationMs, onSeek, disabled, stacked, className }: Se
   )
 }
 
-/** A mute toggle and a volume slider. */
-export function VolumeControl({ volume, onChange, label = 'Volume', fill, className }: { volume: number; onChange: (volume: number) => void; label?: string; fill?: boolean; className?: string }) {
-  const [restore, setRestore] = useState(volume || 0.7)
+/**
+ * The last volume heard on each device, which unmute goes back to. Kept apart from the
+ * controls, so muting in the bar and unmuting in Now Playing or the devices list agree.
+ */
+const audibleVolumes = new Map<string, number>()
+
+/** A mute toggle and a volume slider for `deviceId`'s volume. */
+export function VolumeControl({ volume, onChange, deviceId, label = 'Volume', fill, className }: { volume: number; onChange: (volume: number) => void; deviceId: string; label?: string; fill?: boolean; className?: string }) {
+  useEffect(() => {
+    if (volume > 0) audibleVolumes.set(deviceId, volume)
+  }, [deviceId, volume])
   const Icon = volume === 0 ? VolumeX : volume < 0.34 ? Volume : volume < 0.67 ? Volume1 : Volume2
   return (
     <div className={cn('flex items-center gap-1', className)}>
@@ -131,8 +142,8 @@ export function VolumeControl({ volume, onChange, label = 'Volume', fill, classN
         label={volume === 0 ? 'Unmute' : 'Mute'}
         size="sm"
         onClick={() => {
-          if (volume) setRestore(volume)
-          onChange(volume ? 0 : restore)
+          if (volume) audibleVolumes.set(deviceId, volume)
+          onChange(volume ? 0 : audibleVolumes.get(deviceId) ?? 0.7)
         }}
       >
         <Icon />
