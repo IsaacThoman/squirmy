@@ -183,7 +183,7 @@ describe('realtime', () => {
     await screen.findByRole('heading', { name: 'Listen now' })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
     act(() => socket.serverEmit('invalidate', { keys: [queryKeys.adminUsers()] }))
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.adminUsers() })
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.adminUsers() }))
 
     vi.useFakeTimers()
     act(() => {
