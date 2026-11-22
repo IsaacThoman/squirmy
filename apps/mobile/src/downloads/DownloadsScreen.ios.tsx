@@ -26,8 +26,9 @@ export function DownloadsScreen() {
   const { settings, summary } = screen;
   // Opened over the account sheet: both close before the page opens beneath.
   const open = (item: DownloadItem) => {
+    if (!item.href) return;
     router.dismissAll();
-    router.navigate(item.collection.href);
+    router.navigate(item.href);
   };
   const empty = summary && !summary.collections.length;
 

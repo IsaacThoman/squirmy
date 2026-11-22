@@ -416,7 +416,7 @@ function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: 
       <PlayerButton
         icon={favorite ? 'heart.fill' : 'heart'}
         size={17}
-        label={favorite ? `Remove ${title} from favorites` : `Favorite ${title}`}
+        label={favorite ? `Unlike ${title}` : `Like ${title}`}
         selected={favorite}
         color={favorite ? colors.accent : colors.muted}
         onPress={() => { selectionFeedback(); if (track) setLiked('track', track.id, !favorite); }}
