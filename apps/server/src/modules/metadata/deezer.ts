@@ -92,12 +92,16 @@ const ttl = 86400
 const quotaCode = 4
 const notFoundCode = 800
 
-/** Deezer reports errors in 200 bodies: quota errors retry, "no data" is a miss. */
+/**
+ * Deezer reports errors in 200 bodies: quota errors retry, "no data" is a miss, and any
+ * other error is not cached, or it would be served as the answer for a day.
+ */
 function classify(result: HttpResult) {
-  const code = (result.json as RawError | undefined)?.error?.code
-  if (code === quotaCode) return 'retry'
-  if (code === notFoundCode) return 'miss'
-  return undefined
+  const error = (result.json as RawError | undefined)?.error
+  if (!error) return undefined
+  if (error.code === quotaCode) return 'retry'
+  if (error.code === notFoundCode) return 'miss'
+  return 'error'
 }
 
 /** GETs an API path; null when Deezer is off or has no such object. */

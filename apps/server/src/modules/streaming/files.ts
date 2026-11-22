@@ -1,10 +1,10 @@
-import { open } from 'node:fs/promises'
+import { open, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { fileMoves, libraryRoots, mediaFiles, organizeBatches } from '../../database/schema.js'
-import { forbidden, notFound } from '../../lib/errors.js'
+import { AppError, forbidden, notFound } from '../../lib/errors.js'
 import type { MediaFile } from './profiles.js'
 
 /** A response ready to send: status, headers and a body (null for HEAD, 416 and similar). */
@@ -55,10 +55,21 @@ async function otherPaths(file: Pick<MediaFile, 'id' | 'relPath'>): Promise<stri
 }
 
 /**
+ * True when the file's library root is a readable folder. A drive or share that is not
+ * mounted takes every file with it; like the scanner, streaming then marks nothing missing,
+ * or the library would lose those albums until a scan finds them again.
+ */
+async function rootAvailable(rootId: string): Promise<boolean> {
+  const [root] = await db.select({ path: libraryRoots.path }).from(libraryRoots).where(eq(libraryRoots.id, rootId))
+  return root ? stat(root.path).then((info) => info.isDirectory(), () => false) : false
+}
+
+/**
  * Calls `attempt` with the file's absolute path, and again at the other paths it may have
  * moved to while `attempt` answers null (not found). A stream URL handed out before
  * organize filed the file keeps working through the move. Throws 404 `file_missing`, and
- * marks the file missing, when it is nowhere.
+ * marks the file missing, when it is nowhere; 503 `root_unavailable`, marking nothing,
+ * when its whole library folder is gone.
  */
 export async function withLibraryFile<T>(file: MediaFile, attempt: (absolutePath: string, file: MediaFile) => Promise<T | null>): Promise<T> {
   const found = await attempt(await libraryPath(file), file)
@@ -68,6 +79,7 @@ export async function withLibraryFile<T>(file: MediaFile, attempt: (absolutePath
     const result = await attempt(await libraryPath(moved), moved)
     if (result !== null) return result
   }
+  if (!await rootAvailable(file.rootId)) throw new AppError(503, 'root_unavailable', 'The library folder holding this file is not available')
   await markMissing(file.id, file.relPath)
   throw notFound('The file is missing from disk', 'file_missing')
 }

@@ -6,10 +6,11 @@ import sharp, { type Metadata } from 'sharp'
 import { rgbaToThumbHash } from 'thumbhash'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { albums, assets } from '../../database/schema.js'
+import { albums, artists, assets } from '../../database/schema.js'
+import { enqueue } from '../../jobs/index.js'
 import { AppError, notFound } from '../../lib/errors.js'
 import { newPublicId } from '../../lib/ids.js'
-import { fetchImage, imageSourceEnabled } from '../metadata/index.js'
+import { downloadImage, imageSourceEnabled } from '../metadata/index.js'
 
 export type Asset = typeof assets.$inferSelect
 
@@ -97,7 +98,11 @@ export async function storeImage(bytes: Uint8Array, { kind, source }: { kind: As
   const [inserted] = await db.insert(assets).values({ id: newPublicId(), kind, source, ...inspected })
     .onConflictDoNothing({ target: assets.sha256, where: isNull(assets.remoteUrl) })
     .returning()
-  if (inserted) return inserted
+  if (inserted) {
+    // A process without the job system (a script) leaves it to the first request.
+    await enqueue('artwork.render', { assetId: inserted.id }, { singletonKey: inserted.id }).catch(() => {})
+    return inserted
+  }
   // Another job stored the same image a moment ago.
   const [winner] = await db.select().from(assets).where(localBySha(sha256))
   return winner!
@@ -124,7 +129,7 @@ export async function remoteImage(url: string, { kind }: { kind: AssetKind }): P
 export type StoredAsset = Asset & { storagePath: string }
 
 /** How long a failed download is left alone before the next request tries again. */
-const retryFailedAfterMs = 60 * 60 * 1000
+export const retryFailedAfterMs = 60 * 60 * 1000
 
 /** Downloads in progress, so concurrent requests for one remote image share a single fetch. */
 const fetching = new Map<string, Promise<StoredAsset>>()
@@ -153,14 +158,20 @@ export async function ensureStored(assetId: string): Promise<StoredAsset> {
 
 async function download(assetId: string, url: string): Promise<StoredAsset> {
   let inspected: Inspected | undefined
+  let gone = false
   try {
-    const image = await fetchImage(url, { maxBytes })
-    if (image) inspected = await inspectAndWrite(image.bytes)
+    const result = await downloadImage(url, { maxBytes })
+    gone = result.gone
+    if (result.image) inspected = await inspectAndWrite(result.image.bytes)
   } catch {
     // A provider outage and an unusable image end the same way for the caller.
   }
   if (!inspected) {
     await db.update(assets).set({ status: 'failed', checkedAt: new Date() }).where(eq(assets.id, assetId))
+    // The source says there is no such image (a release group without a cover): albums
+    // and artists stop showing it, so clients stop asking for an id that cannot be
+    // served. Whatever assigned it may offer it again once the failure is old.
+    if (gone) await detach(assetId)
     throw notFound('The artwork could not be fetched')
   }
   const [updated] = await db.update(assets)
@@ -168,6 +179,12 @@ async function download(assetId: string, url: string): Promise<StoredAsset> {
     .where(eq(assets.id, assetId))
     .returning()
   return updated as StoredAsset
+}
+
+/** Unassigns an asset from every album and artist that shows it. */
+async function detach(assetId: string) {
+  await db.update(albums).set({ artworkAssetId: null, updatedAt: new Date() }).where(eq(albums.artworkAssetId, assetId))
+  await db.update(artists).set({ imageAssetId: null, updatedAt: new Date() }).where(eq(artists.imageAssetId, assetId))
 }
 
 /** Decodes a small copy once for both the placeholder and the color. */

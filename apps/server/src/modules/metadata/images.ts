@@ -36,23 +36,35 @@ export async function imageSourceEnabled(url: string): Promise<boolean> {
  * network failures and 5xx throw ProviderError.
  */
 export async function fetchImage(url: string, options: { maxBytes?: number } = {}): Promise<FetchedImage | null> {
-  if (!(await imageSourceEnabled(url))) return null
+  return (await downloadImage(url, options)).image
+}
+
+/**
+ * `fetchImage`, also saying whether the server answered that there is no such image
+ * (404 or 410), as the Cover Art Archive does for a release group without a cover. A
+ * source that is switched off is asked nothing and is not "gone".
+ */
+export async function downloadImage(url: string, options: { maxBytes?: number } = {}): Promise<{ image: FetchedImage | null; gone: boolean }> {
+  if (!(await imageSourceEnabled(url))) return { image: null, gone: false }
   const maxBytes = options.maxBytes ?? defaultMaxBytes
   const response = await request('image', url, { headers: { Accept: 'image/*' }, timeoutMs: 30_000 })
-  if (response.status === 404 || response.status === 410) return null
+  if (response.status === 404 || response.status === 410) {
+    await response.body?.cancel()
+    return { image: null, gone: true }
+  }
   if (!response.ok) throw new ProviderError('image', `HTTP ${response.status} for ${url}`, response.status)
   const contentType = response.headers.get('content-type')?.split(';')[0]?.trim() ?? ''
   if (!contentType.startsWith('image/') || Number(response.headers.get('content-length') ?? 0) > maxBytes) {
     await response.body?.cancel()
-    return null
+    return { image: null, gone: false }
   }
   const chunks: Buffer[] = []
   let size = 0
   for await (const chunk of response.body ?? []) {
     size += chunk.byteLength
     // Leaving the loop cancels the stream.
-    if (size > maxBytes) return null
+    if (size > maxBytes) return { image: null, gone: false }
     chunks.push(Buffer.from(chunk))
   }
-  return { bytes: Buffer.concat(chunks), contentType }
+  return { image: { bytes: Buffer.concat(chunks), contentType }, gone: false }
 }

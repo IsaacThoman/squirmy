@@ -1,4 +1,5 @@
 import path from 'node:path'
+import compress from '@fastify/compress'
 import cookie from '@fastify/cookie'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
@@ -12,6 +13,7 @@ import { ZodError } from 'zod'
 import { devOrigins, getConfig } from './config.js'
 import { db } from './database/client.js'
 import { SESSION_COOKIE } from './lib/auth.js'
+import { conditionalGet } from './lib/conditional.js'
 import { AppError, forbidden } from './lib/errors.js'
 import { modules } from './modules/index.js'
 import { authenticateToken } from './modules/auth/service.js'
@@ -20,6 +22,7 @@ import { authenticateToken } from './modules/auth/service.js'
 const reservedPrefixes = ['/api', '/rest', '/socket.io', '/health', '/ready']
 const isReserved = (url: string) => reservedPrefixes.some((prefix) => url === prefix || url.startsWith(`${prefix}/`) || url.startsWith(`${prefix}?`))
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
+const compressibleTypes = /^(?:text\/(?!event-stream)|application\/(?:json|javascript|xml|manifest\+json)|image\/svg\+xml)/
 
 function bearerToken(request: FastifyRequest) {
   const header = request.headers.authorization
@@ -52,6 +55,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   // No CSP: the SPA and artwork are served from here. Artwork and streams are also loaded
   // by Subsonic web clients on other origins, which the default same-origin CORP blocks.
   await app.register(helmet, { contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } })
+  // Before compression, so the ETag describes the body and a 304 has nothing to compress.
+  app.addHook('onSend', conditionalGet)
+  // Brotli (quality 4, fast enough to run per response) or gzip for JSON, Subsonic XML and
+  // the web app's text files. Audio, images and anything with a Range are sent as they are.
+  await app.register(compress, { encodings: ['br', 'gzip'], threshold: 1024, customTypes: compressibleTypes })
   await app.register(cookie)
   await app.register(cors, {
     origin: config.NODE_ENV === 'production' ? false : devOrigins,

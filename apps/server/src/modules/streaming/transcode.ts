@@ -18,8 +18,16 @@ type TranscodeRow = typeof transcodes.$inferSelect
 /** `<data>/transcodes`, the root of the transcode cache. */
 export const cacheRoot = () => path.join(getConfig().SQUIRMY_DATA_DIR, 'transcodes')
 
-/** Where a finished transcode lives, relative to the cache root (the `storage_path` column). */
-export const storagePathFor = (fileId: string, profile: TranscodeProfile) => `${fileId}/${profile}.${profiles[profile].extension}`
+/**
+ * Where a finished transcode lives, relative to the cache root (the `storage_path` column).
+ * The name carries the source's size and mtime as the scanner last saw them, so a file
+ * replaced or retagged in place no longer matches its old transcode and is encoded again;
+ * eviction deletes the old one.
+ */
+export function storagePathFor(file: Pick<MediaFile, 'id' | 'size' | 'mtime'>, profile: TranscodeProfile): string {
+  const source = `${file.size.toString(36)}-${file.mtime.getTime().toString(36)}`
+  return `${file.id}/${profile}.${source}.${profiles[profile].extension}`
+}
 
 function deferred() {
   let resolve!: () => void
@@ -63,7 +71,7 @@ class Transcode {
     try {
       if (stopping) throw new Error('The server is stopping')
       const input = await libraryPath(this.file)
-      const storagePath = storagePathFor(this.file.id, this.profile)
+      const storagePath = storagePathFor(this.file, this.profile)
       const target = path.join(cacheRoot(), storagePath)
       await db.insert(transcodes).values({ id: newId(), fileId: this.file.id, profile: this.profile, storagePath, status: 'pending' })
         .onConflictDoUpdate({ target: [transcodes.fileId, transcodes.profile], set: { storagePath, status: 'pending', error: null, lastUsedAt: new Date() } })
@@ -276,13 +284,21 @@ async function touch(row: TranscodeRow) {
     .where(and(eq(transcodes.id, row.id), lt(transcodes.lastUsedAt, new Date(now - 60_000))))
 }
 
+/** The ready transcode of the file as it is now, if there is one. */
+export async function readyTranscode(file: MediaFile, profile: TranscodeProfile): Promise<TranscodeRow | undefined> {
+  const [row] = await db.select().from(transcodes).where(and(
+    eq(transcodes.fileId, file.id), eq(transcodes.profile, profile), eq(transcodes.status, 'ready'),
+    eq(transcodes.storagePath, storagePathFor(file, profile)),
+  ))
+  return row
+}
+
 /**
  * Serves the cached transcode when it is ready on disk (with Range, like an original).
  * Returns null and forgets the row when its file has gone.
  */
-async function serveCached(fileId: string, profile: TranscodeProfile, request: StreamRequest, headers: Record<string, string>): Promise<StreamResponse | null> {
-  const [row] = await db.select().from(transcodes)
-    .where(and(eq(transcodes.fileId, fileId), eq(transcodes.profile, profile), eq(transcodes.status, 'ready')))
+async function serveCached(file: MediaFile, profile: TranscodeProfile, request: StreamRequest, headers: Record<string, string>): Promise<StreamResponse | null> {
+  const row = await readyTranscode(file, profile)
   if (!row) return null
   const response = await serveFile(path.join(cacheRoot(), row.storagePath), profiles[profile].mime, request, headers)
   if (!response) {
@@ -310,7 +326,7 @@ function requireSource(file: MediaFile): Promise<MediaFile> {
  * length, `Accept-Ranges: none`. HEAD reports those headers without starting anything.
  */
 export async function openTranscode(file: MediaFile, profile: TranscodeProfile, request: StreamRequest, headers: Record<string, string> = {}): Promise<StreamResponse> {
-  const cached = await serveCached(file.id, profile, request, headers)
+  const cached = await serveCached(file, profile, request, headers)
   if (cached) return cached
   const source = await requireSource(file)
   const live = { 'content-type': profiles[profile].mime, 'accept-ranges': 'none', 'cache-control': 'private', ...headers }

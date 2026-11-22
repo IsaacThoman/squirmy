@@ -24,7 +24,7 @@ Conversions are done with ffmpeg and sent while they are encoded, so playback st
 
 ### The transcode cache
 
-Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted. The folder is safe to delete at any time; it refills as people listen.
+Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted, except those played in the last half hour. The folder is safe to delete at any time; it refills as people listen.
 
 ## Loudness normalization
 

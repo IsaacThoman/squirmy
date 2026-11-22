@@ -1,12 +1,11 @@
-import { artworkUrl } from '@squirmy/client-core'
-import { ART_SIZES, type ArtSize, type Artwork } from '@squirmy/contracts'
+import { API_PREFIX, ART_SIZES, type ArtSize, type Artwork } from '@squirmy/contracts'
 import { createContext, useContext } from 'react'
 import { thumbHashToDataURL } from 'thumbhash'
 
 export type ArtUrlBuilder = (artwork: Artwork, size: ArtSize) => string
 
-// Same origin, so the path alone; artworkUrl is the one place that knows the route.
-export const apiArtUrl: ArtUrlBuilder = (artwork, size) => artworkUrl('', artwork, size)!
+// The extension lets a CDN in front of the server cache renditions (Cloudflare caches by extension).
+export const apiArtUrl: ArtUrlBuilder = (artwork, size) => `${API_PREFIX}/art/${artwork.id}/${size}.webp`
 
 /** How `Cover` turns artwork into an image URL. Defaults to the server's art route. */
 export const ArtUrlContext = createContext<ArtUrlBuilder>(apiArtUrl)

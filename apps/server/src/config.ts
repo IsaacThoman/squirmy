@@ -36,6 +36,8 @@ const Env = z.object({
   FFMPEG_PATH: z.string().default('ffmpeg'),
   FFPROBE_PATH: z.string().default('ffprobe'),
   FPCALC_PATH: z.string().default('fpcalc'),
+  /** Memory for cached reads (Home, library lists, pages) in the API process; 0 turns the cache off. Default 64, 0 under test. */
+  SQUIRMY_READ_CACHE_MB: z.coerce.number().min(0).max(4096).optional(),
   /** Set by release builds; otherwise the version is dev, with the git commit when there is one. */
   SQUIRMY_VERSION: z.string().optional(),
   /** The commit an image was built from (build argument, or set at run time by Coolify). Without SQUIRMY_VERSION the version is dev+<its first 7 characters>. */

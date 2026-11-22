@@ -32,6 +32,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `SQUIRMY_MANAGED_LIBRARY_PATHS` | unset | The same, but each folder is added as a **managed** folder, which Squirmy may organize and file uploads into ([Organizing files](./organizing.md)). The folder must be writable by the server. A path in both variables is added as managed. Either variable only adds folders: a folder that is already in the library keeps the mode it has; change it in **Admin → Library**. |
 | `SQUIRMY_INBOX_PATH` | unset | A folder watched for music to import, used while the `inboxPath` server setting is unset. See [Adding music](./adding-music.md#the-inbox-folder). |
 | `SQUIRMY_WEB_DIST` | unset (image: `/app/apps/web/dist`) | The built web app to serve. Unset, the server serves only the API; the Vite dev server proxies to it during development. |
+| `SQUIRMY_READ_CACHE_MB` | `64` | Memory the API process may use to keep recent answers for Home, the library lists and album, artist and playlist pages, per user. Changes drop the affected answers at once; anything else is recomputed after five minutes at most. `0` turns the cache off. |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
 | `FFMPEG_PATH` | `ffmpeg` | The `ffmpeg` binary. |
 | `FFPROBE_PATH` | `ffprobe` | The `ffprobe` binary. |

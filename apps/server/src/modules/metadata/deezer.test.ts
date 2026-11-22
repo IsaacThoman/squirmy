@@ -75,6 +75,10 @@ describe('deezer', () => {
 
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: { type: 'ParameterException', message: 'Wrong parameter', code: 500 } }), { headers: { 'content-type': 'application/json' } }))
     await expect(deezer.getArtist(2)).rejects.toBeInstanceOf(ProviderError)
+
+    // An error is not an answer: once Deezer is back, the next call gets the artist.
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ id: 2, name: 'Back' }), { headers: { 'content-type': 'application/json' } }))
+    expect(await deezer.getArtist(2)).toMatchObject({ name: 'Back' })
   })
 
   it('follows next links to collect every page', async () => {

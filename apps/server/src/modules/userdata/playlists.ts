@@ -17,7 +17,7 @@ import { newId } from '../../lib/ids.js'
 import { invalidate } from '../../realtime/index.js'
 import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pagination.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
-import { alignedTrackSummaries } from '../catalog/summaries.js'
+import { alignedTrackSummaries, servable } from '../catalog/summaries.js'
 
 const playlistNotFound = () => notFound('No such playlist', 'playlist_not_found')
 
@@ -37,11 +37,19 @@ export async function playlistSummaries(ids: readonly string[]): Promise<Playlis
     cross join lateral (
       select coalesce(json_agg(json_build_object('id', c.id, 'color', c.color, 'thumbhash', c.thumbhash) order by c.first), '[]'::json) as artworks
       from (
-        select art.id, art.color, art.thumbhash, min(i.position) as first
-        from playlist_items i join albums al on al.id = i.album_id join assets art on art.id = al.artwork_asset_id
-        where i.playlist_id = p.id
-        group by al.id, art.id
-        order by first limit 4
+        -- Albums in order of first appearance, then their covers one by one until four are
+        -- found: the lateral join keeps Postgres from joining every item to its album.
+        select art.id, art.color, art.thumbhash, firsts.first
+        from (
+          select i.album_id, min(i.position) as first from playlist_items i
+          where i.playlist_id = p.id and i.album_id is not null
+          group by i.album_id order by first
+        ) firsts
+        cross join lateral (
+          select art.id, art.color, art.thumbhash from albums al join assets art on art.id = al.artwork_asset_id and ${servable('art')}
+          where al.id = firsts.album_id
+        ) art
+        order by firsts.first limit 4
       ) c
     ) covers
     where p.id = any(${uuidArray([...new Set(ids)])})`)
@@ -105,8 +113,14 @@ async function touch(tx: Transaction, id: string) {
 
 /** Refreshes the owner's devices, and everyone's playlist lists when the playlist is or was public. */
 async function invalidatePlaylist(ownerId: string, isPublic: boolean) {
-  await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.home()])
-  if (isPublic) await invalidate('all', [queryKeys.playlists()])
+  if (!isPublic) {
+    await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.home()])
+    return
+  }
+  // One target list reaches each socket once; the owner is in 'all' as well and would
+  // otherwise refetch the playlists twice.
+  await invalidate([{ user: ownerId }, 'all'], [queryKeys.playlists()])
+  await invalidate({ user: ownerId }, [queryKeys.home()])
 }
 
 /** Creates an empty playlist owned by the user. */

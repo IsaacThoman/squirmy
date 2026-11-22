@@ -14,6 +14,8 @@ import { createAlbum, createArtist } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
 import { buildDump, testCatalog, type Catalog } from '../../test/catalog-index-dump.js'
 import { importCanonicalDump } from '../catalog-index/import.js'
+import { materialize } from './materialize.js'
+import { searchCatalog } from './providers.js'
 
 describe('catalog search from the local index', () => {
   useTestDatabase()
@@ -66,10 +68,14 @@ describe('catalog search from the local index', () => {
     expect(row).toMatchObject({ mbid: yesterday.mbid, albumHintId: album!.id })
   })
 
-  it("shows the user's own copy as owned", async () => {
+  it("matches the user's own copy and leaves it to the library answer", async () => {
     const queen = await createArtist({ name: 'Queen' })
     const opera = await createAlbum({ title: 'A Night at the Opera', artist: queen, owned: true, tracks: [{ title: 'Bohemian Rhapsody' }] })
+    const { provider, results: found } = await searchCatalog('bohemian rhapsody', 5)
+    expect((await materialize(provider!.idSource, found)).tracks[0]).toBe(opera.tracks[0]!.recordingId)
     const results = await search('bohemian rhapsody')
-    expect(results.tracks[0]).toMatchObject({ id: opera.tracks[0]!.recordingId, availability: 'server', album: { id: opera.albumId } })
+    expect(results.tracks.map((track) => track.id)).not.toContain(opera.tracks[0]!.recordingId)
+    const library = body(await app.inject({ url: '/api/v1/search/library?q=bohemian+rhapsody&limit=5', headers: user.headers }), SearchResults)
+    expect(library.tracks[0]).toMatchObject({ id: opera.tracks[0]!.recordingId, availability: 'server', album: { id: opera.albumId } })
   })
 })

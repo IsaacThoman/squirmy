@@ -84,8 +84,9 @@ describe('GET /search/library', () => {
     expect(await top('karma police')).toEqual(['track', 'Karma Police'])
     expect(await top('radiohead lucky')).toEqual(['track', 'Lucky'])
     expect(await top('para')).toEqual(['track', 'Paranoid Android'])
-    // A typo finds the artist, but nothing matches well enough to lead with.
-    expect(await top('radiohed')).toBeNull()
+    // A typo one character away still leads with the artist, as streaming apps do.
+    expect(await top('radiohed')).toEqual(['artist', 'Radiohead'])
+    expect(await top('paranoid andriod')).toBeNull()
   })
 
   it('works from the second character', async () => {

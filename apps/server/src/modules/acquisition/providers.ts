@@ -8,6 +8,7 @@ import { acquisitionProviders } from '../../database/schema.js'
 import { decrypt, encrypt } from '../../lib/crypto.js'
 import { notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
+import { dropCachedReads } from '../../lib/read-cache.js'
 import { fetchCapabilities, ProviderCallError, type ProviderEndpoint } from './client.js'
 
 type ProviderRow = typeof acquisitionProviders.$inferSelect
@@ -66,6 +67,8 @@ export async function activeProviders(): Promise<ActiveProvider[]> {
 /** Forgets the cached provider list. Called after every change; tests call it too. */
 export function invalidateProviders() {
   cache = undefined
+  // Which tracks are on demand follows the providers, and every cached page shows it.
+  dropCachedReads('all', [['acquisition-providers']])
 }
 
 async function loadRow(providerId: string): Promise<ProviderRow> {
