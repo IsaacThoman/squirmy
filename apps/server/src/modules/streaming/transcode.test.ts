@@ -131,6 +131,27 @@ describe('transcodes', () => {
     expect(ranged.rawPayload.equals(first.rawPayload.subarray(100, 200))).toBe(true)
   })
 
+  it('encodes again when the source file is replaced', async () => {
+    const file = await addFile('a/tone.flac')
+    const first = await fetch(file.id, 'mp3_192')
+    await writeFile(path.join(scratch, 'before.mp3'), first.rawPayload)
+    expect(await decodedSeconds(path.join(scratch, 'before.mp3'))).toBeCloseTo(3, 1)
+    expect(await row(file.id, 'mp3_192')).toMatchObject({ status: 'ready' })
+
+    // A different recording copied over the same path; the scanner records its new size and mtime.
+    await copyFile(path.join(root, 'a/long.flac'), path.join(root, file.relPath))
+    const info = await stat(path.join(root, file.relPath))
+    await db.update(mediaFiles).set({ size: info.size, mtime: new Date(Math.floor(info.mtimeMs)) }).where(eq(mediaFiles.id, file.id))
+
+    const second = await fetch(file.id, 'mp3_192')
+    expect(second.statusCode).toBe(200)
+    await writeFile(path.join(scratch, 'after.mp3'), second.rawPayload)
+    expect(await decodedSeconds(path.join(scratch, 'after.mp3'))).toBeCloseTo(20, 1)
+    const ready = await row(file.id, 'mp3_192')
+    expect(ready).toMatchObject({ status: 'ready', bytes: second.rawPayload.length })
+    expect((await fetch(file.id, 'mp3_192', { range: 'bytes=0-9' })).rawPayload.equals(second.rawPayload.subarray(0, 10))).toBe(true)
+  })
+
   it('keeps tags in Ogg Opus and drops the picture', async () => {
     const file = await addFile('a/tone.flac')
     const response = await fetch(file.id, 'opus_128')
