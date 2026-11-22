@@ -41,7 +41,10 @@ To guarantee the server can never write to your music, make the mount read-only 
 
 ```yaml
     volumes:
-      - ${MUSIC_DIR:-./music}:/music:ro
+      - type: bind
+        source: ${MUSIC_DIR:-./music}
+        target: /music
+        read_only: true
 ```
 
 ## 3. Start it
@@ -116,7 +119,7 @@ cd squirmy
 docker compose up -d --build
 ```
 
-The `.env` file goes in this folder. An image built this way reports its version as `dev`. Update it with `git pull` and the same `docker compose up -d --build`.
+The `.env` file goes in this folder. An image built this way reports its version as `dev`. To have it report the commit instead (`dev+<commit>`), build it with `docker compose build --build-arg SOURCE_COMMIT=$(git rev-parse HEAD)` and then run `docker compose up -d`. Update it with `git pull` and the same commands.
 
 ## Uninstalling
 

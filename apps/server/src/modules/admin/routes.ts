@@ -184,6 +184,11 @@ export async function adminRoutes(app: FastifyInstance) {
     // Owned by the matching module: identification that was not possible before.
     await queueNewlyPossibleMatching(before, settings)
     await invalidate('admins', [queryKeys.admin()])
+    // Clients read the switch from the setup status, and Home and the wantlist answer
+    // differently with it off, so open apps show or hide the wantlist without a reload.
+    if (before.wantlistEnabled !== settings.wantlistEnabled) {
+      await invalidate('all', [queryKeys.setupStatus(), queryKeys.home(), queryKeys.wants()])
+    }
     return settings
   })
 

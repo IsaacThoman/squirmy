@@ -3,7 +3,7 @@
 Squirmy is a self-hosted music server with a web app and an iOS app. Point it at your music and it:
 
 - **identifies and organizes your files**: tags are read, albums are matched against MusicBrainz, covers and lyrics are filled in, and managed folders can be renamed into a clean layout, with a preview and undo;
-- **searches all music**: your library comes first, everything else shows gray and can go on your wantlist;
+- **searches all music**: your library comes first, everything else shows gray and can go on an optional wantlist;
 - **keeps one playback session across your devices**: start an album in the browser, continue on your phone, or use one as a remote for the other;
 - **works with Subsonic apps** through an OpenSubsonic API.
 

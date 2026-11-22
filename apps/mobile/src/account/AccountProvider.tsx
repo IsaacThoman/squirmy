@@ -1,4 +1,5 @@
 import { ApiError, createApiClient } from '@squirmy/client-core';
+import { queryKeys } from '@squirmy/contracts';
 import { focusManager, QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type PropsWithChildren,
@@ -122,8 +123,9 @@ export function AccountProvider({ children }: PropsWithChildren) {
   }, [me.data]);
 
   // The server may have been updated or renamed since it was saved; what it says now is shown.
+  // Under the shared key, so the server can refresh it when an admin changes what it reports.
   const status = useQuery({
-    queryKey: ['setup-status', server?.url],
+    queryKey: [...queryKeys.setupStatus(), server?.url],
     queryFn: () => api!.auth.setupStatus(),
     enabled: Boolean(api),
   });
@@ -176,6 +178,12 @@ export function useAccount() {
 export function useSignedInApi(): Api | null {
   const { state, api } = useAccount();
   return state.status === 'signedIn' ? api : null;
+}
+
+/** Whether the signed-in server has the wantlist on. While it is off nothing in the app mentions it. */
+export function useWantlistEnabled(): boolean {
+  const { state } = useAccount();
+  return state.status === 'signedIn' && state.server.wantlistEnabled;
 }
 
 /** The server's root URL, or an empty string before one is chosen. */

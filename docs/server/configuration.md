@@ -37,7 +37,8 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `FFPROBE_PATH` | `ffprobe` | The `ffprobe` binary. |
 | `FPCALC_PATH` | `fpcalc` | The `fpcalc` binary (Chromaprint), used for AcoustID fingerprints. |
 | `NODE_ENV` | `development` (image: `production`) | Outside production, the API also accepts cross-origin requests from the Vite dev server on port 5173. |
-| `SQUIRMY_VERSION` | unset (image: the build argument) | The version reported by `/api/v1/setup/status` (shown on the sign-in page and in Admin), to Subsonic apps and in the User-Agent sent to metadata services. Release images set it to the release number. Unset or empty, the server reports `dev+<commit>` when it runs from a git checkout (the short commit, read once at start) and `dev` otherwise, as in an image built without the argument. |
+| `SQUIRMY_VERSION` | unset (image: the build argument) | The version reported by `/api/v1/setup/status` (shown on the sign-in page and in Admin), to Subsonic apps and in the User-Agent sent to metadata services. Release images set it to the release number. Unset or empty, the server reports `dev+<commit>`: the first 7 characters of `SOURCE_COMMIT` when it is set, else the short commit of the git checkout it runs from (read once at start), and `dev` when there is neither, as in an image built without either argument. |
+| `SOURCE_COMMIT` | unset (image: the build argument) | The commit a source build was built from, used for the `dev+<commit>` version above. Pass it with `--build-arg SOURCE_COMMIT=$(git rev-parse HEAD)`. Coolify sets it in the container on every deployment. Ignored unless it is 7 to 40 hexadecimal characters. |
 
 `compose.yaml` itself reads these from `.env` or the shell:
 
@@ -108,6 +109,12 @@ curl -X PATCH https://music.example.com/api/v1/admin/settings \
 
 Sizes are in bytes, and `importRootId` takes a folder id from `GET /api/v1/admin/library/roots`.
 
+Settings with no screen yet:
+
+| Key | Default | What it does |
+|---|---|---|
+| `wantlistEnabled` | `false` | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
+
 `GET /api/v1/admin/settings` returns every setting; secrets come back only as `listenBrainzTokenSet`, `acoustIdKeySet`, `fanartKeySet` and `lastFmKeySet`. A secret set to `null` or `""` is removed.
 
 Acquisition has its own policy settings; see [Acquisition providers](./acquisition.md#policy).
@@ -145,7 +152,7 @@ services:
     volumes:
       - ${MUSIC_DIR:-./music}:/music
       - squirmy_data:/data
-    # The image's health check calls /health, which a worker does not serve.
+    # The image's health check calls /ready, which a worker does not serve.
     healthcheck:
       disable: true
 ```

@@ -72,6 +72,7 @@ export async function authRoutes(app: FastifyInstance) {
       version: getVersion(),
       serverName: settings.serverName,
       registrationRequiresInvite: settings.registrationRequiresInvite,
+      wantlistEnabled: settings.wantlistEnabled,
     }
   })
 

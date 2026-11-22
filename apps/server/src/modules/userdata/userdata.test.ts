@@ -8,6 +8,7 @@ import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albums, assets, playlistItems, recordings, users, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
+import { updateServerSettings } from '../../lib/settings.js'
 import { invalidate } from '../../realtime/index.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createFile, createPlay } from '../../test/catalog.js'
@@ -298,6 +299,32 @@ describe('userdata', () => {
     const wantsOf = async (who: typeof mira, query = '') => body(await call(who, { url: `/me/wants${query}` }), WantPage)
     const describeItem = (item: WantPage['items'][number]) =>
       item.type === 'album' ? ['album', item.album.id, item.fulfilledAt !== null] : ['track', item.track.id, item.fulfilledAt !== null]
+
+    beforeAll(async () => {
+      await updateServerSettings({ wantlistEnabled: true })
+    })
+
+    it('reads as empty and refuses changes while switched off, keeping what is stored', async () => {
+      const wanter = await signIn()
+      const album = await createAlbum()
+      const other = await createAlbum()
+      body(await call(wanter, { method: 'PUT', url: `/me/wants/album/${album.albumId}` }), Ok)
+
+      await updateServerSettings({ wantlistEnabled: false })
+      try {
+        expect(await wantsOf(wanter)).toEqual({ items: [], nextCursor: null })
+        expect(body(await call(wanter, { url: `/albums/${album.albumId}` }), AlbumDetail).wanted).toBe(false)
+        expect(errorCode(await call(wanter, { method: 'PUT', url: `/me/wants/album/${other.albumId}` }), 404)).toBe('wantlist_disabled')
+        expect(errorCode(await call(wanter, { method: 'DELETE', url: `/me/wants/album/${album.albumId}` }), 404)).toBe('wantlist_disabled')
+        // The import pipeline keeps refreshing wants either way.
+        await refreshWants()
+        expect(await db.select({ entityId: wants.entityId }).from(wants).where(eq(wants.userId, wanter.id))).toEqual([{ entityId: album.albumId }])
+      } finally {
+        await updateServerSettings({ wantlistEnabled: true })
+      }
+      expect((await wantsOf(wanter)).items.map(describeItem)).toEqual([['album', album.albumId, false]])
+      expect(body(await call(wanter, { url: `/albums/${album.albumId}` }), AlbumDetail).wanted).toBe(true)
+    })
 
     it('lists wants newest first and marks them fulfilled once imports cover them', async () => {
       const wanter = await signIn()

@@ -115,7 +115,7 @@ Modules reach each other in three ways, in this order of preference:
 
 Environment variables are parsed in `config.ts`; see that file for the full list. The ones a self-hoster sets: `DATABASE_URL` (required), `SQUIRMY_DATA_DIR`, `SQUIRMY_LIBRARY_PATHS` (read-only roots) and `SQUIRMY_MANAGED_LIBRARY_PATHS` (managed roots), `SQUIRMY_INBOX_PATH`, `PORT`, `PUBLIC_URL`, `TRUST_PROXY`, `SQUIRMY_ROLE`. `SQUIRMY_SECRET` is generated into the data directory on first boot when unset.
 
-Operator settings that change at runtime (provider toggles, API keys, thresholds) live in the `server_settings` table and are edited in the admin UI. Shape: `ServerSettings` in contracts. Secrets are stored encrypted under separate keys and never returned.
+Operator settings that change at runtime (provider toggles, API keys, thresholds) live in the `server_settings` table and are edited in the admin UI. Shape: `ServerSettings` in contracts. Secrets are stored encrypted under separate keys and never returned. Feature switches clients need before signing in, such as `wantlistEnabled` (default off), are also reported by `GET /setup/status`; changing one invalidates `queryKeys.setupStatus()` and what it changes for every client.
 
 ### Data directory
 
@@ -181,11 +181,11 @@ await schedule('library.scan-all', '0 4 * * *')
 
 ### HTTP API
 
-All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`; short lists (users, invites, app passwords, roots, devices) return every item with `nextCursor: null`. `GET /admin/jobs` returns a bare array. `createApiClient` in client-core has one method per route below, and its response schemas are the reference for each route's shape. `apiRoutes` next to it names each method's route; `client-routes.test.ts` fails when the server registers a native route that no method calls and that is not on its short list of routes clients never call (stream and art URLs, the Last.fm callback, provider deliveries). Uploads go through `XMLHttpRequest`, which reports progress.
+All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and return `{ items, nextCursor }`; short lists (users, invites, app passwords, roots, devices) return every item with `nextCursor: null`. `GET /admin/jobs` returns a bare array. `createApiClient` in client-core has one method per route below, and its response schemas are the reference for each route's shape. `apiRoutes` next to it names each method's route; `client-routes.test.ts` fails when the server registers a native route that no method calls and that is not on its short list of routes clients never call (stream and art URLs, the Last.fm callback, provider deliveries), and when a method calls a route the server lacks, unless that route is listed as awaiting the server. Uploads go through `XMLHttpRequest`, which reports progress.
 
 | Route | Module | Notes |
 |---|---|---|
-| `GET /setup/status`, `POST /setup` | auth | create the first admin |
+| `GET /setup/status`, `POST /setup` | auth | create the first admin; the status carries `wantlistEnabled` |
 | `POST /auth/login`, `/auth/logout`, `/auth/register`, `/auth/password`; `GET /auth/me` | auth | |
 | `GET/POST /auth/app-passwords`, `DELETE /auth/app-passwords/:id` | auth | the secret is returned once, on create |
 | `GET/PATCH /me/settings` | userdata | `UserSettings` |
@@ -193,7 +193,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists directories only, symlinks resolved; home directory by default |
 | `GET/POST/PATCH/DELETE /admin/library/roots`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | a folder that is already a root is 409 `duplicate_root` with `details.rootId`; `template` is checked with organize's `validateTemplate`; a bad one is `invalid_request` with an issue on `template` |
 | `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` (artists have one order and no genre filter); tracks by `year` follow their album's year, then path order within it |
-| `GET /home` | catalog | `HomeResponse` |
+| `GET /home` | catalog | `HomeResponse`; no `wantlist` section, and no refresh of wants, while the wantlist is off |
 | `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
 | `POST /tracks/summaries` | catalog | hydrate queue entries |
 | `GET /tracks/:id/playback` | streaming | `PlaybackDescriptor` |
@@ -201,7 +201,7 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET /art/:assetId/:size` | artwork | no auth; immutable cache headers |
 | `PUT/DELETE /me/likes/:type/:id`, `GET /me/likes/:type` | userdata | |
 | `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/:id`, `POST /playlists/:id/items`, `POST /playlists/:id/items/move`, `DELETE /playlists/:id/items/:itemId` | userdata | |
-| `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | |
+| `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | while `wantlistEnabled` is off, `GET /me/wants` is empty, `PUT`/`DELETE` are 404 `wantlist_disabled`, album pages say `wanted: false` and imports skip refreshing wants; stored wants are kept |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults` |
 | `GET /me/scrobbling`, `PUT/DELETE /me/scrobbling/listenbrainz`, `POST /me/scrobbling/lastfm/start`, `DELETE /me/scrobbling/lastfm` | scrobble | every mutation returns `ScrobblingStatus` |
@@ -355,7 +355,7 @@ All clients live in `modules/metadata/` and go through `lib/http.ts`:
 
 - `cachedFetch(provider, url, { ttlSeconds, … })` stores responses in `http_cache` and serves them until they expire. 404s are cached for at most six hours, 5xx never; 429/503 are retried honoring `Retry-After`. `cache: 'reload' | 'no-store'` bypasses the cache for one call.
 - `rateLimit(key, intervalMs)` reserves the next slot in the `rate_limits` table, so the limit holds across processes. MusicBrainz uses 1100 ms (only against musicbrainz.org; a mirror is not limited).
-- User-Agent: `Squirmy/<version> ( https://github.com/IsaacThoman/squirmy )`, with the version from `lib/version.ts`: `SQUIRMY_VERSION` (release images), else `dev+<short commit>` read once at start from git, else `dev`.
+- User-Agent: `Squirmy/<version> ( https://github.com/IsaacThoman/squirmy )`, with the version from `lib/version.ts`: `SQUIRMY_VERSION` (release images), else `dev+<short commit>` from `SOURCE_COMMIT` (a build argument, or set at run time by Coolify) or read once at start from git, else `dev`.
 - Every provider checks its toggle or key in `ServerSettings` and returns null or an empty list rather than throwing when it is off. "Not found" is null too; a provider failure (network, timeout, 5xx, bad key) throws `ProviderError`.
 - Other modules import the clients from `modules/metadata/index.ts`, e.g. `musicbrainz.getRelease(mbid)`.
 - Tests never touch the network. `useHttpFixtures(provider)` from `src/test/http.ts` serves recorded responses from `src/test/http/<provider>/` and fails on any unrecorded request. `SQUIRMY_RECORD_HTTP=1` records missing fixtures from the real service.
@@ -381,6 +381,7 @@ The catalog is a lazy cache of MusicBrainz. `enrichment/detail.ts` completes a r
 - `PlayerEngine`: the interface each platform implements (`load`, `preload`, `play`, `pause`, `seek`, `setGain`, `stop`, status events), with a `FakeEngine` for tests. `SessionClient` drives it when this device is active.
 - `createApiClient({ baseUrl, getToken })`: typed fetch wrapper for every route, returning contract types.
 - `TrackStore`: batched, cached `TrackSummary` hydration for queue entries.
+- `isPlayable(track, viewer)`, `albumPresentation`, `albumNote` and `canFetch`: the one rule for what a viewer can play and how unavailable music looks. `mergeSearch(library, catalog, viewer)` turns the two search answers into one result set.
 - Formatters (`formatDuration`), normalization math (`gainFor(mode, normalization, context)`), and artwork and stream URL helpers.
 
 **Web** (`apps/web`): Vite, React 19, Tailwind 4, Radix primitives, TanStack Query, react-router. Colors and type follow the mobile theme in `apps/mobile/src/theme.ts`. `HTMLAudioElement` plus Web Audio gain implement `PlayerEngine`; the Media Session API mirrors the session.
@@ -433,7 +434,7 @@ apps/mobile/
   modules/now-playing/   local Expo module: Now Playing info and remote commands as JS events
 ```
 
-- **Accounts.** `AccountProvider` owns the auth state: it restores the stored session (holding the splash until the server confirms it, or for at most three seconds offline), creates the API client with the bearer token, and returns to sign-in on a 401. The token and device id go through `Keychain` (`src/account/keychain.ts`), which never rejects: what the keychain refuses is kept in memory for the launch, and the app says once that the next launch will need a sign-in. The server's name, version and invite rule are read again from `GET /setup/status` whenever a server is chosen, so they stay current.
+- **Accounts.** `AccountProvider` owns the auth state: it restores the stored session (holding the splash until the server confirms it, or for at most three seconds offline), creates the API client with the bearer token, and returns to sign-in on a 401. The token and device id go through `Keychain` (`src/account/keychain.ts`), which never rejects: what the keychain refuses is kept in memory for the launch, and the app says once that the next launch will need a sign-in. The server's name, version, invite rule and wantlist switch are read again from `GET /setup/status` whenever a server is chosen, and when the server invalidates it, so they stay current. While the wantlist is off (`useWantlistEnabled`), no screen, menu or Home row mentions it.
 - **Data.** Query keys come from `queryKeys`; lists are infinite queries over the cursor pages. The cache is saved to app storage (expo-sqlite `localStorage`) per server and user, restored before the splash hides, and removed on sign-out. Every response that carries track summaries primes one `TrackStore`, which hydrates queue entries and the lock screen. Likes apply at once through a queue kept in app storage (`LikeQueue`): one that cannot reach the server waits for the next connection, only the last change to an item is sent, and one the server refuses rolls back with a notice.
 - **Realtime.** `RealtimeProvider` opens one socket per signed-in session with `auth.token`. `invalidate` refreshes the named queries (and refetches a changed track's like); every reconnect refreshes all of them. The socket is renewed when the app returns after being suspended (no server ping for 30 seconds) and when the network type changes. A refused handshake rechecks `me`, so a revoked session signs out. The app is *offline* once the socket has been down for 2.5 seconds, or at once when launch could not reach the server.
 - **Playback.** `PlaybackProvider` runs a `SessionClient` on that socket with `ExpoAudioEngine` (`canBoost: false`) and the user's normalization mode. `resolvePlayback` asks for the entry's album, the quality setting for the current network (Wi-Fi or cellular) and the codecs AVPlayer decodes. Components read the session through `usePlaybackState`; the position is polled with `usePosition` by the few components that show it. While another device is active the engine is stopped and the lock screen cleared. An engine error skips the track with a notice, or pauses when the next one fails too.
@@ -456,3 +457,4 @@ apps/mobile/
 - Conventional Commits: `type(scope): imperative summary`. `feat` and `fix` drive releases.
 - Branches are named like commits: `feat-library-scan`, `fix-range-requests`.
 - Pull requests target `dev`. `main` receives merges from `dev`; semantic-release tags a version on every push to `main`.
+- Every push to `main` is deployed to the test environment at once, without waiting for CI. So `main` changes only through a `dev` → `main` pull request whose checks have passed, never by a direct push. A fix made on `main` anyway is merged back into `dev` right away.

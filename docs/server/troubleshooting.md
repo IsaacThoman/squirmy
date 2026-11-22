@@ -27,7 +27,9 @@ HTTP requests and errors are JSON lines; the library, watchers and imports add p
 
 A large **Queued** count on `matching.match-album` right after a first scan is normal: see [identification is slow](#identification-is-slow). A growing **Failed** count is not; the log has the error.
 
-**Health.** `curl http://localhost:4747/health` answers as soon as the process runs; `curl http://localhost:4747/ready` also checks the database and answers 503 when it cannot reach it.
+**Health.** `curl http://localhost:4747/health` answers as soon as the process runs; `curl http://localhost:4747/ready` also checks the database and answers 503 when it cannot reach it. The container's health check uses `/ready`, so `docker compose ps` shows `(healthy)` once migrations have run and the database answers, and `(unhealthy)` after about a minute of failures. `docker inspect <container>` shows the last checks under `State.Health`.
+
+**Which build is running.** `curl http://localhost:4747/api/v1/setup/status` reports `version`: the release number for a release image, `dev+<commit>` for a source build that knows its commit (from `SOURCE_COMMIT` or git), and `dev` for one that does not.
 
 ## The server does not start
 

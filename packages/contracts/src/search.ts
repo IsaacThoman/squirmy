@@ -19,6 +19,12 @@ export type SearchQuery = z.infer<typeof SearchQuery>
 export const SearchTopResult = z.object({
   type: z.enum(['artist', 'album', 'track']),
   id: Id,
+  /**
+   * How exactly it matched: 3 the whole name, 2 the name without edition suffixes, 1 a
+   * prefix. Lets a client pick between the library's and the catalog's top results, which
+   * are ranked separately. Optional for older servers.
+   */
+  score: z.number().int().min(1).max(3).optional(),
 })
 export type SearchTopResult = z.infer<typeof SearchTopResult>
 

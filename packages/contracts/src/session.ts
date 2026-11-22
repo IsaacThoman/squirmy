@@ -255,6 +255,12 @@ export const ServerEvent = z.discriminatedUnion('type', [
     status: z.string(),
   }),
   z.object({ type: z.literal('import.updated'), importId: Id, status: z.string() }),
+  /**
+   * Sent to the user when several tracks in a row failed to load and the session paused
+   * instead of skipping on, so clients show one notice rather than one per track.
+   * `trackId` is the current entry's track when playback paused.
+   */
+  z.object({ type: z.literal('playback.unavailable'), trackId: Id.nullable() }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>
 
@@ -286,6 +292,8 @@ export interface ServerToClientEvents {
  */
 export const queryKeys = {
   me: () => ['me'] as const,
+  /** `GET /setup/status`. Clients may add the server's URL after it. */
+  setupStatus: () => ['setup-status'] as const,
   home: () => ['home'] as const,
   libraryAlbums: () => ['library', 'albums'] as const,
   libraryArtists: () => ['library', 'artists'] as const,
