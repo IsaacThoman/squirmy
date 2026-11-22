@@ -81,10 +81,21 @@ describe('userdata', () => {
       const [target, keys] = invalidated.mock.calls[0]!
       expect(target).toEqual({ user: mira.id })
       expect(keys).toEqual(expect.arrayContaining([
-        queryKeys.likes(), queryKeys.track(track), queryKeys.album(album.albumId), queryKeys.artist(album.artist.id), queryKeys.playlists(), queryKeys.history(),
+        queryKeys.likes(), queryKeys.track(track), queryKeys.album(album.albumId), queryKeys.artist(album.artist.id), queryKeys.history(),
         // Songs lists and search results show the heart too.
         queryKeys.libraryTracks(), queryKeys.search(),
       ]))
+      // The playlists list shows no hearts: only playlists holding the track are refreshed.
+      expect(keys).not.toContainEqual(queryKeys.playlists())
+      const holding = body(await call(mira, { method: 'POST', url: '/playlists', payload: { name: 'Holding' } }), PlaylistSummary, 201)
+      await call(mira, { method: 'POST', url: `/playlists/${holding.id}/items`, payload: { tracks: [{ trackId: track }] } })
+      const other = body(await call(lune, { method: 'POST', url: '/playlists', payload: { name: 'Private elsewhere' } }), PlaylistSummary, 201)
+      await call(lune, { method: 'POST', url: `/playlists/${other.id}/items`, payload: { tracks: [{ trackId: track }] } })
+      invalidated.mockClear()
+      await call(mira, { method: 'DELETE', url: `/me/likes/track/${track}` })
+      const [, unliked] = invalidated.mock.calls[0]!
+      expect(unliked).toContainEqual(queryKeys.playlist(holding.id))
+      expect(unliked).not.toContainEqual(queryKeys.playlist(other.id))
       invalidated.mockClear()
       await call(mira, { method: 'PUT', url: `/me/likes/album/${album.albumId}` })
       expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.likes(), queryKeys.home(), queryKeys.album(album.albumId)])
@@ -142,8 +153,10 @@ describe('userdata', () => {
       const mine = await create(mira, { name: 'Morning', description: 'Slow start' })
       expect(mine).toMatchObject({ name: 'Morning', description: 'Slow start', ownerId: mira.id, ownerName: 'mira', isPublic: false, trackCount: 0, durationMs: 0, artworks: [] })
       expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.playlists(), queryKeys.home()])
+      invalidated.mockClear()
       const shared = await create(lune, { name: 'Shared', isPublic: true })
-      expect(invalidated).toHaveBeenCalledWith('all', [queryKeys.playlists()])
+      // Everyone refreshes the list once, the owner included (they are in 'all' too).
+      expect(invalidated.mock.calls).toEqual([[[{ user: lune.id }, 'all'], [queryKeys.playlists()]], [{ user: lune.id }, [queryKeys.home()]]])
       const secret = await create(lune, { name: 'Secret' })
 
       const visible = body(await call(mira, { url: '/playlists' }), PlaylistPage).items.map((playlist) => playlist.name)
