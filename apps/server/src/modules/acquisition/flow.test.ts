@@ -147,8 +147,16 @@ describe('acquisition end to end', () => {
   const summaryOf = async (id: string) => body(await app.inject({ url: `/api/v1/tracks/${id}`, headers: fan.headers }), TrackSummary)
   const jobsFor = (recordingId: string) => db.select().from(acquisitionJobs).where(sql`${acquisitionJobs.recordingIds} @> array[${recordingId}]::uuid[]`).orderBy(acquisitionJobs.id)
   const acquire = (user: User, recordingId: string) => app.inject({ method: 'POST', url: `/api/v1/tracks/${recordingId}/acquire`, headers: user.headers })
+  /**
+   * Waits until the recording's jobs have ended and the background work they started
+   * (filing, discarding, eviction) is done. A job that has not been created yet does not
+   * count as ended.
+   */
   const settle = async (recordingId: string) => {
-    await eventually(async () => expect((await jobsFor(recordingId)).every((job) => job.completedAt !== null)).toBe(true))
+    await eventually(async () => {
+      const found = await jobsFor(recordingId)
+      expect(found.length > 0 && found.every((job) => job.completedAt !== null)).toBe(true)
+    })
     await drainJobs()
   }
 
@@ -191,8 +199,9 @@ describe('acquisition end to end', () => {
     expect(delivered).toMatchObject({ kind: 'acquisition', status: 'completed', acquisitionJobId: job!.id, userId: fan.id })
 
     expect((await summary()).availability).toBe('server')
-    const statuses = phone.events.flatMap((event) => event.type === 'acquisition.updated' && event.jobId === job!.id ? [event.status] : [])
-    expect(statuses).toEqual(['resolving', 'queued', 'downloading', 'importing', 'completed'])
+    // Events reach the socket after the job row is written.
+    const statuses = () => phone.events.flatMap((event) => event.type === 'acquisition.updated' && event.jobId === job!.id ? [event.status] : [])
+    await eventually(() => expect(statuses()).toEqual(['resolving', 'queued', 'downloading', 'importing', 'completed']), 5000)
     expect(phone.engine.calls.filter(([method]) => method === 'load')).toHaveLength(1)
   })
 
@@ -266,8 +275,12 @@ describe('acquisition end to end', () => {
       await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
       await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }), 20_000)
       await eventually(() => expect(phone.engine.getStatus().state).toBe('playing'), 5000)
-      // What matching does when it decides the file is another recording.
       const [job] = await jobsFor(wanted)
+      const delivered = () => db.select().from(mediaFiles).where(sql`starts_with(${mediaFiles.relPath}, ${`_Incoming/${job!.importId}/`})`)
+      // A delivery of one file is placed on its album while it is identified. Relinking it
+      // while that runs would be overwritten by the placement, so wait for it to be done.
+      await eventually(async () => expect(await delivered()).toMatchObject([{ recordingId: wanted, matchSource: 'request', matchStatus: 'matched' }]), 10_000)
+      // What matching does when it decides the file is another recording.
       const linked = await db.update(mediaFiles).set({ recordingId: other!.id, matchStatus: 'matched' })
         .where(sql`starts_with(${mediaFiles.relPath}, ${`_Incoming/${job!.importId}/`})`).returning()
       expect(linked).toHaveLength(1)
@@ -333,11 +346,13 @@ describe('acquisition end to end', () => {
     await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
     await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: owned }))
 
+    await eventually(async () => expect((await jobsFor(wanted))[0]).toMatchObject({ status: 'failed', error: 'The delivered files are not what was asked for' }))
     const [job] = await jobsFor(wanted)
-    expect(job).toMatchObject({ status: 'failed', error: 'The delivered files are not what was asked for' })
-    // Nothing of it is kept, on disk or in the library, and nothing waits for review.
+    // Nothing of it is kept, on disk or in the library, and nothing waits for review. The
+    // rows go first and the folder after them, both after the job has ended.
     await eventually(async () => expect(await db.select().from(mediaFiles).where(eq(mediaFiles.importId, job!.importId!))).toEqual([]))
-    expect(await readdir(path.join(rootDir, '_Incoming')).catch(() => [])).not.toContain(job!.importId)
+    await eventually(async () => expect(await readdir(path.join(rootDir, '_Incoming')).catch(() => [])).not.toContain(job!.importId))
+    await drainJobs()
     expect(await db.select().from(matchReviews)).toEqual([])
     const [requested] = await db.select().from(recordings).where(eq(recordings.id, wanted))
     expect(requested!.mergedIntoId).toBeNull()
@@ -391,11 +406,10 @@ describe('acquisition end to end', () => {
     await updateAcquisitionPolicy({ maxFileBytes: 1000 })
     const big = await makeTone(fixtures, { path: 'big.flac', durationSec: 2, frequency: 800, tags: { title: 'First Token' } })
     await expect(deliver({ delivery: firstDelivery }, [{ path: big, name: 'big.flac' }])).rejects.toThrow(/413.*file_too_large/)
+    await eventually(async () => expect((await jobsFor(first))[0]).toMatchObject({ status: 'failed' }), 10_000)
     const [failed] = await jobsFor(first)
-    expect(failed).toMatchObject({ status: 'failed' })
     expect(failed!.error).toMatch(/over the limit: Files may be at most 1000 bytes/)
-    const [received] = await db.select().from(imports).where(eq(imports.id, failed!.importId!))
-    expect(received).toMatchObject({ status: 'failed', receivedFiles: 0 })
+    await eventually(async () => expect((await db.select().from(imports).where(eq(imports.id, failed!.importId!)))[0]).toMatchObject({ status: 'failed', receivedFiles: 0 }), 10_000)
     await updateAcquisitionPolicy({ maxFileBytes: 500 * 1024 ** 2 })
 
     // The other job is untouched and still takes its own delivery.
@@ -425,7 +439,7 @@ describe('acquisition end to end', () => {
     // One track: its audio, a cover, lyrics and a cue sheet, and two more.
     for (const index of [1, 2, 3, 4, 5, 6]) expect((await upload(`notes ${index}.lrc`, 'lyrics')).status).toBe(200)
     expect(await upload('notes 7.lrc', 'lyrics')).toMatchObject({ status: 413, body: { error: { code: 'import_too_many_files' } } })
-    expect((await jobsFor(wanted))[0]).toMatchObject({ status: 'failed' })
+    await eventually(async () => expect((await jobsFor(wanted))[0]).toMatchObject({ status: 'failed' }), 10_000)
     expect((await jobsFor(wanted))[0]!.error).toMatch(/over the limit: An import may hold at most 6 files/)
   })
 
@@ -440,7 +454,7 @@ describe('acquisition end to end', () => {
     const jobId = response.items[0]!.id
     await eventually(async () => expect((await jobsFor(interrupted))[0]?.status).toBe('queued'), 10_000)
     await deliver({ delivery: mock.jobs.get(jobId)!.delivery }, [{ path: tone, name: 'interrupted.flac' }])
-    await drainJobs()
+    await settle(interrupted)
     expect((await jobsFor(interrupted))[0]).toMatchObject({ status: 'completed', error: null })
     // Put it back as a restart would have left it: imported, but the job still `importing`.
     await db.update(acquisitionJobs).set({ status: 'importing', completedAt: null, idempotencyKey: `recording:${interrupted}` }).where(eq(acquisitionJobs.id, jobId))
