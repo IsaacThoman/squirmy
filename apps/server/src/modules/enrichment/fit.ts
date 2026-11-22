@@ -84,6 +84,8 @@ function fit(stray: Stray, tracks: readonly Row[]): string | null {
   const sameTitle = tracks.filter((track) => editionFreeKey(track.title) === key)
   if (sameTitle.length !== 1) return null
   const track = sameTitle[0]!
+  // Both carry ISRCs and share none: two recordings (a live take, a re-recording) of one title.
+  if (stray.isrcs.length > 0 && track.isrcs.length > 0 && !stray.isrcs.some((isrc) => track.isrcs.includes(isrc))) return null
   if (stray.durationMs === null || track.durationMs === null) return null
   return Math.abs(stray.durationMs - track.durationMs) <= lengthToleranceMs ? track.id : null
 }
