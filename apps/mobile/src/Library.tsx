@@ -255,9 +255,10 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       contentContainerStyle={[styles.libraryBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
       ListHeaderComponent={<>
         <View style={styles.sortRow}>
+          {/* Matches from the server come best first, whatever the sort. */}
           {filter === 'Playlists'
             ? !offline && <BrowseButton label="New playlist" title="New playlist" icon="plus" onPress={newPlaylist} />
-            : <LibrarySort options={Object.keys(sortOptions) as SortName[]} value={sortName} onChange={setSortName} />}
+            : searching ? <View /> : <LibrarySort options={Object.keys(sortOptions) as SortName[]} value={sortName} onChange={setSortName} />}
           {filter !== 'Songs' && <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
             onPress={() => { tapFeedback(); setGrid(!grid); }} />}
         </View>
