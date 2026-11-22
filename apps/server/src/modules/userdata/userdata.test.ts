@@ -12,7 +12,7 @@ import { invalidate } from '../../realtime/index.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createFile, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
-import { createAlbum } from '../../test/factories.js'
+import { createAlbum, createLibraryRoot } from '../../test/factories.js'
 import { getRatings, setRating } from './likes.js'
 import { refreshWants } from './wants.js'
 
@@ -88,6 +88,15 @@ describe('userdata', () => {
       invalidated.mockClear()
       await call(mira, { method: 'PUT', url: `/me/likes/album/${album.albumId}` })
       expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.likes(), queryKeys.home(), queryKeys.album(album.albumId)])
+    })
+
+    it('refreshes the album a liked bonus track is filed under', async () => {
+      const album = await createAlbum({ owned: true })
+      // A recording the album's release does not list, owned through a file filed under the album.
+      const bonus = (await createAlbum({ tracks: [{ title: 'Hidden Track' }] })).tracks[0]!.recordingId
+      await createFile({ rootId: (await createLibraryRoot()).id, recordingId: bonus, albumId: album.albumId })
+      await call(mira, { method: 'PUT', url: `/me/likes/track/${bonus}` })
+      expect(invalidated.mock.calls[0]![1]).toEqual(expect.arrayContaining([queryKeys.album(album.albumId)]))
     })
 
     it('stores likes against the surviving row of a merge', async () => {
