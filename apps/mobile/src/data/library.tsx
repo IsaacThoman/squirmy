@@ -41,7 +41,9 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   // One store per account, reading the current client: a new client (a token or server
   // update) must not drop the cached summaries or rebuild what is built on the store.
   const apiRef = useRef(api);
-  apiRef.current = api;
+  useEffect(() => {
+    apiRef.current = api;
+  }, [api]);
   const tracks = useMemo(() => new TrackStore(body => apiRef.current?.catalog.trackSummaries(body) ?? noSummaries()), [account]);
   const queue = useMemo(() => api && account ? new LikeQueue(likeStorage(account), async ({ type, id, liked }) => {
     await (liked ? api.userdata.like(type, id) : api.userdata.unlike(type, id));
