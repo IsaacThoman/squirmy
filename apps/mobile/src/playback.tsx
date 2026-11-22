@@ -4,7 +4,7 @@ import {
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
-  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, ServerEvent, SessionCommand, TrackSummary, UserSettings,
+  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, TrackSummary, UserSettings,
 } from '@squirmy/contracts';
 import * as Network from 'expo-network';
 import {
@@ -45,7 +45,7 @@ const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -89,7 +89,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!socket || !live.current.api || !account) return;
     const { tracks } = live.current;
-    const notify = (message: string) => live.current.notify(message);
+    const notify: ReturnType<typeof useNotice> = (message, options) => live.current.notify(message, options);
     let cancelled = false;
     let teardown: (() => void) | undefined;
     void clientDevice().then(device => {
@@ -176,31 +176,28 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       const stopHolding = client.subscribe(holdWhilePreparing);
 
       // Tracks the server could not fetch are skipped by the session: one notice for each
-      // that was playing or next. When several fail in a row the server pauses instead and
-      // says so with `playback.unavailable`; that gets one notice, and no more per track
-      // until the user plays again.
+      // that was playing or next. When several fail in a row, or its provider is failing,
+      // the server pauses instead and says why (the snapshot's `outage`, which comes with the
+      // pause); that gets one notice, and no more per track until the user plays again.
       let outage = false;
-      const tellOutage = () => {
-        if (!outage) notify('Can’t load music right now');
-        outage = true;
-      };
       let previous = client.getSnapshot();
       const stopWatching = client.subscribe(() => {
         const next = client.getSnapshot();
         if (next.session.playing && !previous.session.playing) outage = false;
-        const { skipped, outage: paused } = failureNotices({ ...previous.session, ...previous.queue }, { ...next.session, ...next.queue });
+        const notices = failureNotices(
+          { ...previous.session, ...previous.queue, outage: previous.outage },
+          { ...next.session, ...next.queue, outage: next.outage },
+        );
         previous = next;
-        if (paused) tellOutage();
+        if (notices.outage && !outage) notify(notices.outage.message, { detail: notices.outage.detail });
+        if (notices.outage) outage = true;
         if (outage) return;
+        const { skipped } = notices;
         for (const entry of skipped) {
           const title = tracks.get(entry.trackId, entry.albumId)?.title;
           notify(title ? `Couldn’t play “${title}”. Skipped.` : 'Couldn’t play a song. Skipped.');
         }
       });
-      const onServerEvent = (event: ServerEvent) => {
-        if (event.type === 'playback.unavailable') tellOutage();
-      };
-      socket.on('event', onServerEvent);
       const loading = watchLoading(client);
       const systemVolume = SystemVolume;
       const stopVolume = systemVolume ? syncSystemVolume({
@@ -308,7 +305,6 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         stopErrors();
         onOffline.current = null;
         stopWatching();
-        socket.off('event', onServerEvent);
         loading.dispose();
         stopVolume();
         stopWaiting();

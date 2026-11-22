@@ -324,12 +324,14 @@ function applyFailure(record: SessionRecord, trackId: string, reason?: string): 
   // current, and `setEntryState` only marks its other entries.
   const held: Session = { ...paused, current: { ...current, state: 'failed' }, positionMs: 0, anchorAt: now, stalled: false }
   const change = commit(record, reduceSession(held, { command: { type: 'setEntryState', trackId, state: 'failed' }, now, commandId: newId() }), now)
+  // To the session's own sockets: a detached device's outage is not news to the others.
+  // Sent before the state that pauses, so a client shows the pause with its reason rather
+  // than a generic notice first (see `outage` in client-core's session client).
+  io?.to(sessionRoom(record)).emit('event', { type: 'playback.unavailable', trackId, reason: reason ?? null })
   if (change) {
     broadcast(record, change)
     afterChange(record)
   }
-  // To the session's own sockets: a detached device's outage is not news to the others.
-  io?.to(sessionRoom(record)).emit('event', { type: 'playback.unavailable', trackId, reason: reason ?? null })
 }
 
 /**
