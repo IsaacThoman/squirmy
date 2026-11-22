@@ -12,6 +12,11 @@ export function useSetupStatus() {
   return useQuery({ queryKey: setupStatusKey, queryFn: () => api.auth.setupStatus(), meta: { silent: true } })
 }
 
+/** Whether the server has the wantlist on. Off (the default), the app shows no trace of it. */
+export function useWantlistEnabled() {
+  return useSetupStatus().data?.wantlistEnabled ?? false
+}
+
 /** The signed-in user, or null when signed out. */
 export function useMe() {
   const api = useApi()

@@ -6,7 +6,7 @@ The wantlist is your list of albums and songs you do not have yet. Add gray musi
 
 The wantlist is off unless the server's admin turns it on, and while it is off the apps do not mention it. It is most useful when music reaches the server by hand; with an [acquisition provider](../server/acquisition.md) that can fetch anything, playing a song is quicker than wanting it.
 
-An admin turns it on with the `wantlistEnabled` setting (see [Server settings](../server/configuration.md#server-settings)):
+An admin turns it on in the web app, in **Admin → Server settings → General → Wantlist**, or with the `wantlistEnabled` setting (see [Server settings](../server/configuration.md#server-settings)):
 
 ```sh
 curl -X PATCH https://music.example.com/api/v1/admin/settings \
