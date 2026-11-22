@@ -32,6 +32,10 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
   const client = new SessionClient({
     transport: createSocketTransport(socket),
     device,
+    onDetachedEnded: reason => toast({
+      title: 'Playing with your other devices again',
+      description: reason === 'expired' ? 'This tab was away for over a week, so its own queue was cleared.' : 'Its own queue had already been cleared.',
+    }),
     player: {
       engine,
       baseUrl: '',
@@ -185,6 +189,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       clearQueue: () => dispatch({ type: 'clearQueue' }),
       clearHistory: () => dispatch({ type: 'clearHistory' }),
       transfer: deviceId => dispatch({ type: 'transfer', deviceId }),
+      detach: () => client.detach(),
+      attach: options => client.attach(options),
       renameDevice: name => {
         saveBrowserName(name)
         client.rename(tabDeviceName(browserName(), tab.slot))
@@ -219,6 +225,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     thisDeviceId,
     activeDeviceId: session.activeDeviceId,
     lyrics: lyrics.data ?? null,
+    detached: snapshot.detached,
+    canDetach: snapshot.canDetach,
   }
 
   return (
