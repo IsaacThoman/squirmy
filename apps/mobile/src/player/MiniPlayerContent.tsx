@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useCurrentDurationMs, useLoading, usePlaybackState, usePositionEvery } from '../playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './loading';
+import { whereItPlays } from './session';
 import { Cover, Icon } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import { createThemedStyles, useColors } from '../theme';
@@ -29,7 +30,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
   // A detached phone says so where "Playing on …" would be, so pressing play here is never a surprise.
-  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : detached ? DETACHED_LABEL : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
+  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : detached ? DETACHED_LABEL : remote ? whereItPlays(output) : track?.artistCredit ?? '';
   const deviceLabel = detached ? `${DETACHED_LABEL}. Playback devices` : `Playback device, ${output.name}`;
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();

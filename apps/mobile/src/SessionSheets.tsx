@@ -15,6 +15,7 @@ import { usePageLinks } from './library/links';
 import { matches } from './library/shared';
 import { trackActionKey, useRunTrackAction, useTrackActions } from './library/trackActions';
 import { usePlaybackState } from './playback';
+import { whereItPlays } from './player/session';
 import { useVolumeSlider } from './player/volume';
 import { SystemVolumeSlider } from '../modules/now-playing';
 import {
@@ -73,7 +74,7 @@ export function DeviceSheet() {
 
   return (
     <Sheet title="Playback device">
-      <TrackSummary track={track} subtitle={session.activeDeviceId ? `${session.playing ? 'Playing' : 'Paused'} on ${output.name}` : undefined} />
+      <TrackSummary track={track} subtitle={session.activeDeviceId ? whereItPlays(output, session.playing ? 'Playing' : 'Paused') : undefined} />
       <SheetRows>
         {devices.map(device => (
           <SheetRow key={device.id} title={device.name} icon={device.icon} subtitle={device.subtitle}
@@ -86,7 +87,8 @@ export function DeviceSheet() {
         ))}
       </SheetRows>
       {/* This phone's volume is the system's: its own slider, which the side buttons move too. */}
-      {session.activeDeviceId && (output.isThisDevice && SystemVolumeSlider
+      {/* A device that went away has no volume to set until it is back. */}
+      {session.activeDeviceId && !output.reconnecting && (output.isThisDevice && SystemVolumeSlider
         ? <SheetSystemVolume label={`Volume on ${output.name}`} />
         : <SheetSlider label={`Volume on ${output.name}`} value={shownVolume} onChange={setVolume} />)}
       {canDetach && <SheetRows>

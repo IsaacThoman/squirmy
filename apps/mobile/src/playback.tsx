@@ -45,7 +45,7 @@ const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null, away: null };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -68,7 +68,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
   const account = useAccountKey();
   const serverUrl = useServerUrl();
-  const { socket, offline } = useRealtime();
+  const { socket, offline, setPlayingHere } = useRealtime();
   const tracks = useTrackStore();
   const downloads = useDownloadManager();
   const cache = useStreamingCache();
@@ -293,14 +293,23 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       const appState = AppState.addEventListener('change', status => {
         if (status !== 'active') save();
       });
+      // In the background the socket stays open only while this phone plays (`BackgroundPresence`).
+      const followPlaying = () => {
+        const { isActiveDevice, session } = client.getSnapshot();
+        setPlayingHere(isActiveDevice && session.playing);
+      };
+      const stopFollowing = client.subscribe(followPlaying);
 
       client.start();
+      followPlaying();
       holdWhilePreparing();
       setRuntime({ client, device, loading });
       teardown = () => {
         // Not saved here: this runs on sign-out too, after the account's data was removed.
         clearTimeout(saveTimer);
         appState.remove();
+        stopFollowing();
+        setPlayingHere(false);
         stopSaving();
         stopPreparing();
         stopHolding();
@@ -322,7 +331,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       teardown?.();
       setRuntime(null);
     };
-  }, [account, serverUrl, socket]);
+  }, [account, serverUrl, setPlayingHere, socket]);
 
   // Where a track plays from changed: resolve entries again.
   useEffect(() => {
@@ -418,7 +427,7 @@ export type PlaybackActions = ReturnType<typeof createActions>;
 export function usePlaybackState() {
   const runtime = useContext(RuntimeContext);
   const snapshot = useSnapshot();
-  const { session, queue, devices } = snapshot;
+  const { session, queue, devices, away } = snapshot;
   const current = session.current;
   const track = useTrack(current?.trackId, current?.albumId);
   const { canPlay } = useAvailability();
@@ -426,8 +435,8 @@ export function usePlaybackState() {
   const device = runtime?.device;
   const rows = useMemo(() => {
     const self: DeviceInfo = { id: device?.id ?? '', name: device?.name ?? 'iPhone', kind: device?.kind ?? 'ios', canPlay: true, isActive: false };
-    return deviceRows(devices, self, { activeDeviceId: session.activeDeviceId, playing: session.playing });
-  }, [device, devices, session.activeDeviceId, session.playing]);
+    return deviceRows(devices, self, { activeDeviceId: session.activeDeviceId, playing: session.playing, away });
+  }, [away, device, devices, session.activeDeviceId, session.playing]);
   const output = outputDevice(rows);
   return {
     session,

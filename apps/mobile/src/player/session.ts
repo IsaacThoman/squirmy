@@ -1,4 +1,4 @@
-import { deviceLabel, idleHint, listedDevices, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
+import { type AwayDevice, deviceLabel, idleHint, listedDevices, reconnectingText, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
 import type {
   DeviceInfo, QueueEntry, QueueSeed, RepeatMode, SessionQueue, SessionState, StreamQuality, TrackSummary,
   UserSettings,
@@ -25,40 +25,55 @@ export type DeviceRow = {
   active: boolean;
   canPlay: boolean;
   isThisDevice: boolean;
+  /** "Reconnecting to …" while this is the active device and it went away (the client's `away`); else null. */
+  reconnecting: string | null;
 };
 
 /**
- * The devices sheet: this device first, then the user's other connected devices that
- * can play, one row per browser rather than per tab (client-core `listedDevices`). The
- * server lists a device only while it is connected, so this one is added when the list has
- * not caught up with it yet (or the app is offline).
+ * The devices sheet: this device first, then the user's other live devices that can play,
+ * one row per browser rather than per tab (client-core `listedDevices`). The server lists a
+ * device only while it is live, so this one is added when the list has not caught up with
+ * it yet (or the app is offline).
+ *
+ * The active device can be missing from the list: it went away and the session waits for
+ * it (`away`, from the session client). It keeps a row so the output still names it, but
+ * one that says it is reconnecting and cannot be picked.
  */
 export function deviceRows(
-  devices: readonly DeviceInfo[], thisDevice: DeviceInfo, { activeDeviceId, playing }: Pick<SessionState, 'activeDeviceId' | 'playing'>, now = Date.now(),
+  devices: readonly DeviceInfo[], thisDevice: DeviceInfo,
+  { activeDeviceId, playing, away = null }: Pick<SessionState, 'activeDeviceId' | 'playing'> & { away?: AwayDevice | null }, now = Date.now(),
 ): DeviceRow[] {
   const listed = listedDevices(devices, thisDevice.id);
   const others = listed.filter(device => device.id !== thisDevice.id && device.canPlay);
-  // The session can name a player before the device list has caught up with it (it just
+  const known = activeDeviceId === null || activeDeviceId === thisDevice.id || others.some(device => device.id === activeDeviceId);
+  const waiting = !known && away?.id === activeDeviceId ? away : null;
+  // The session can also name a player before the device list has caught up with it (it just
   // connected). Without a row of its own the output would fall back to this phone, and the
   // sheet would say "Playing on This iPhone" while the phone is silent.
-  const known = activeDeviceId === null || activeDeviceId === thisDevice.id || others.some(device => device.id === activeDeviceId);
-  if (!known) others.push({ id: activeDeviceId, name: 'Another device', kind: 'other', canPlay: true, isActive: true });
+  if (!known) others.push({ ...(waiting?.device ?? { name: 'Another device', kind: 'other' as const }), id: activeDeviceId, canPlay: !waiting, isActive: true });
   const thisName = `This ${thisDevice.kind === 'ios' ? 'iPhone' : 'phone'}`;
   return [thisDevice, ...others].map(device => {
     const active = device.id === activeDeviceId;
     const isThisDevice = device.id === thisDevice.id;
     const label = deviceLabel(device, listed, thisDevice.id, thisName, now);
+    const reconnecting = waiting && device.id === waiting.id ? reconnectingText(waiting.device ? label : null) : null;
     return {
       id: device.id,
-      name: label.name,
+      name: reconnecting && !waiting?.device ? 'Playing device' : label.name,
       // The active device keeps the session while paused, so its row says which it is, as the web app's device menu does.
-      subtitle: active ? playing ? 'Playing' : 'Paused' : isThisDevice ? 'This device' : [kindName(device.kind), idleHint(device.lastSeenAt, now), label.hint].filter(Boolean).join(' · '),
+      subtitle: reconnecting ? 'Reconnecting…' : active ? playing ? 'Playing' : 'Paused' : isThisDevice ? 'This device' : [kindName(device.kind), idleHint(device.lastSeenAt, now), label.hint].filter(Boolean).join(' · '),
       icon: deviceIcon(device.kind),
       active,
       canPlay: device.canPlay,
       isThisDevice,
+      reconnecting,
     };
   });
+}
+
+/** "Playing on …" (or `verb` on …) for the output device, or "Reconnecting to …" while the session waits for it. */
+export function whereItPlays(output: Pick<DeviceRow, 'name' | 'reconnecting'>, verb: 'Playing' | 'Paused' = 'Playing'): string {
+  return output.reconnecting ?? `${verb} on ${output.name}`;
 }
 
 function kindName(kind: DeviceInfo['kind']): string {
