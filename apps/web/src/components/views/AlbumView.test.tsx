@@ -1,18 +1,24 @@
 import type { AlbumDetail } from '@squirmy/contracts'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album } from '@/fixtures/catalog'
 import { users } from '@/fixtures/server'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
+import { dismissToast, toastStore } from '@/lib/toast'
 
 const lowTide = album('low-tide')
 const blueHour = album('blue-hour')
 /** A member who may not have the server fetch music. */
 const robin = users[2]!
 const machinery = /on demand|library yet|get this album|preparing|not on the server|in your library|fetch/i
+const toasts = () => [...document.querySelectorAll('[data-toast]')].map(item => item.textContent)
+
+afterEach(() => {
+  for (const item of toastStore.getSnapshot()) dismissToast(item.id)
+})
 
 describe('album page', () => {
   describe('for someone the server fetches music for', () => {
@@ -83,12 +89,48 @@ describe('album page', () => {
       expect(await screen.findByRole('button', { name: 'Save to library' })).toBeInTheDocument()
     })
 
-    it('puts the heart back when the server refuses', async () => {
+    it('puts the heart back when the server refuses, and replaces the toast with one that says so', async () => {
       const { services, api } = fakeServices()
       api.userdata.like.mockRejectedValueOnce(new Error('No'))
       renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
       await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
-      expect(await screen.findByRole('button', { name: 'Save to library' })).toBeInTheDocument()
+      expect(await screen.findByText('Couldn’t save to your library')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Save to library' })).toBeInTheDocument()
+      expect(screen.queryByText('Saved to your library')).toBeNull()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
+      expect(api.userdata.like).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+      expect(screen.queryByText('Couldn’t save to your library')).toBeNull()
+    })
+
+    it('says a refused removal did not happen', async () => {
+      const { services, api } = fakeServices()
+      api.userdata.unlike.mockRejectedValueOnce(new Error('No'))
+      renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+      await userEvent.click(await screen.findByRole('button', { name: 'Remove from library' }))
+      expect(await screen.findByText('Couldn’t remove from your library')).toBeInTheDocument()
+      expect(screen.queryByText('Removed from your library')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    })
+
+    it('says so when the album is saved, naming it', async () => {
+      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`)
+      await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
+      await waitFor(() => expect(toasts()).toContain('Saved to your libraryLow TideUndo'))
+    })
+
+    it('puts an album removed and then undone back where it was in Recently added', async () => {
+      const { services, api } = fakeServices()
+      const savedAt = '2026-10-01T12:00:00.000Z'
+      api.userdata.unlike.mockResolvedValueOnce({ ok: true, savedAt })
+      renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+      await userEvent.click(await screen.findByRole('button', { name: 'Remove from library' }))
+      await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+      await waitFor(() => expect(api.userdata.like).toHaveBeenCalledWith('album', blueHour.id, { savedAt }))
+      expect(await screen.findByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
     })
 
     it('saves the song playing from the heart in Now Playing, its only library control', async () => {

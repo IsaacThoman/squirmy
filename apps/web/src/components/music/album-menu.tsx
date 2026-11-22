@@ -1,0 +1,49 @@
+import type { ArtistRef, PlaylistSummary } from '@squirmy/contracts'
+import { BookmarkCheck, BookmarkPlus, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus } from 'lucide-react'
+import type { MenuEntry } from '@/components/ui/menu'
+import { librarySaveEntry } from './library-save-entry'
+
+export type AlbumMenuOptions = {
+  artists: ArtistRef[]
+  /** Something on it plays: Play, Play next and Add to queue need it. */
+  playable: boolean
+  /** Offered where nothing else plays the album, such as on a card. */
+  onPlay?: () => void
+  onEnqueue: (placement: 'next' | 'last') => void
+  /** The user's own playlists; `null` is a new one. */
+  playlists: PlaylistSummary[]
+  onAddToPlaylist: (playlist: PlaylistSummary | null) => void
+  /** Whether it is saved, undefined until the album is loaded: the entry waits for it. */
+  liked: boolean | undefined
+  onToggleSaved: () => void
+  /** For music that does not play, while the server has the Wantlist on. */
+  want?: { wanted: boolean; onToggle: () => void }
+  onGoToArtist: (artist: ArtistRef) => void
+}
+
+/**
+ * An album's menu, the same on its page and on its cards, wherever they are: play it, queue it,
+ * add it to a playlist, the one library entry, the Wantlist for what does not play, and its artists.
+ */
+export function albumMenuEntries(options: AlbumMenuOptions): MenuEntry[] {
+  const { artists, playable, onPlay, onEnqueue, playlists, onAddToPlaylist, liked, onToggleSaved, want, onGoToArtist } = options
+  return [
+    ...(onPlay ? [{ label: 'Play', icon: <Play />, disabled: !playable, onSelect: onPlay }] : []),
+    { label: 'Play next', icon: <ListStart />, disabled: !playable, onSelect: () => onEnqueue('next') },
+    { label: 'Add to queue', icon: <ListEnd />, disabled: !playable, onSelect: () => onEnqueue('last') },
+    {
+      kind: 'submenu',
+      label: 'Add to playlist',
+      icon: <ListPlus />,
+      items: [
+        { label: 'New playlist…', icon: <Plus />, onSelect: () => onAddToPlaylist(null) },
+        ...(playlists.length ? [{ kind: 'separator' as const }] : []),
+        ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => onAddToPlaylist(playlist) })),
+      ],
+    },
+    { ...librarySaveEntry({ liked: liked ?? false }, onToggleSaved), disabled: liked === undefined },
+    ...(want ? [{ label: want.wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: want.wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: want.onToggle }] : []),
+    { kind: 'separator' },
+    ...artists.map(artist => ({ label: `Go to ${artist.name}`, icon: <MicVocal />, onSelect: () => onGoToArtist(artist) })),
+  ]
+}
