@@ -82,8 +82,9 @@ async function redirect(tx: Transaction, table: Mergeable, from: string, into: s
 
 /**
  * Merges recording `fromId` into `intoId`: files, release tracks, external ids, lyrics
- * (the winner's are kept), likes, ratings, library saves, playlist items, plays and wants. The winner
- * keeps its own artist credits; the loser's move only when the winner has none.
+ * (the winner's are kept), likes, ratings, library saves, playlist items, plays and wants,
+ * and its ISRCs and explicit flag. The winner keeps its own artist credits; the loser's
+ * move only when the winner has none.
  */
 export async function mergeRecording(fromId: string, intoId: string, executor: Executor = db): Promise<void> {
   await executor.transaction(async (tx) => {
@@ -102,10 +103,14 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
         and not exists (select 1 from ${recordingArtists} r where r.recording_id = ${into})`)
     await moveExternalIds(tx, 'recording', fromId, into)
     for (const table of ['likes', 'ratings', 'wants', 'library_items'] as const) await moveUserRows(tx, table, 'recording', fromId, into)
-    // ISRCs are facts about the sound, so the winner learns the loser's.
+    // ISRCs and the explicit flag are facts about the sound, so the winner learns the
+    // loser's (MusicBrainz rows have no explicit flag; the Deezer rows they absorb do).
     await tx.execute(sql`
       update ${recordings} r set isrcs = array(select distinct unnest(r.isrcs || f.isrcs))
       from ${recordings} f where r.id = ${into} and f.id = ${fromId} and not (f.isrcs <@ r.isrcs)`)
+    await tx.execute(sql`
+      update ${recordings} r set explicit = f.explicit
+      from ${recordings} f where r.id = ${into} and f.id = ${fromId} and r.explicit is null and f.explicit is not null`)
     await redirect(tx, recordings, fromId, into)
   })
 }
@@ -113,7 +118,7 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
 /**
  * Merges album `fromId` into `intoId`: files, editions (releases), external ids, likes,
  * ratings, wants, library saves, playlist items, plays and album hints. The winner keeps its own credits, and takes
- * the loser's artwork and canonical release only when it has none.
+ * the loser's artwork, canonical release, year and date only when it has none.
  */
 export async function mergeAlbum(fromId: string, intoId: string, executor: Executor = db): Promise<void> {
   await executor.transaction(async (tx) => {
@@ -134,7 +139,9 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
     await tx.execute(sql`
       update ${albums} a set
         artwork_asset_id = coalesce(a.artwork_asset_id, f.artwork_asset_id),
-        canonical_release_id = coalesce(a.canonical_release_id, f.canonical_release_id)
+        canonical_release_id = coalesce(a.canonical_release_id, f.canonical_release_id),
+        year = coalesce(a.year, f.year),
+        release_date = coalesce(a.release_date, f.release_date)
       from ${albums} f where a.id = ${into} and f.id = ${fromId}`)
     await redirect(tx, albums, fromId, into)
   })

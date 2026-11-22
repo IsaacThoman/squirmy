@@ -132,6 +132,12 @@ export type UpsertOptions = {
    * that has present files with the canonical release it has.
    */
   canonical: 'always' | 'unless-owned'
+  /**
+   * Writes the release under this album row instead of the release group's row: an
+   * edition row (`albums.edition_of_id`) that shows one release of the group. The row
+   * keeps its title and has no MBID; it takes the group's type, date and credits.
+   */
+  editionAlbumId?: string
 }
 
 export type UpsertedRelease = {
@@ -177,11 +183,19 @@ export async function upsertRelease(tx: Transaction, release: MbRelease, adoptio
   }
   const candidates = adoption.albumIds?.length ? (await tx.select({ id: albums.id }).from(albums)
     .where(and(inArray(albums.id, [...adoption.albumIds]), isNull(albums.mbid), isNull(albums.mergedIntoId)))).map((row) => row.id) : []
-  const localAlbums = (adoption.albumIds ?? []).filter((id) => candidates.includes(id))
+  const localAlbums = options.editionAlbumId ? [] : (adoption.albumIds ?? []).filter((id) => candidates.includes(id))
   const mergedAlbumIds: string[] = []
-  let albumId = await byMbid(tx, albums, group.mbid) ?? localAlbums[0]
-  if (albumId) await tx.update(albums).set(albumValues).where(eq(albums.id, albumId))
-  else {
+  let albumId: string
+  const existingAlbumId = options.editionAlbumId ? undefined : await byMbid(tx, albums, group.mbid) ?? localAlbums[0]
+  if (options.editionAlbumId) {
+    // The edition keeps its own name ("SOS Deluxe: LANA") and has no MBID of its own.
+    const { mbid: _mbid, title: _title, titleKey: _titleKey, matchKey: _matchKey, artistCredit: _artistCredit, ...editionValues } = albumValues
+    albumId = options.editionAlbumId
+    await tx.update(albums).set(editionValues).where(eq(albums.id, albumId))
+  } else if (existingAlbumId) {
+    albumId = existingAlbumId
+    await tx.update(albums).set(albumValues).where(eq(albums.id, albumId))
+  } else {
     albumId = newId()
     await tx.insert(albums).values({ id: albumId, ...albumValues, detailLevel: 1 })
   }
