@@ -1,5 +1,5 @@
 import { StartCatalogIndexImport, type CatalogIndexImport, type CatalogIndexStatus } from '@squirmy/contracts'
-import { Check, DatabaseZap, Download, Trash2, X } from 'lucide-react'
+import { Check, CircleAlert, CircleSlash, DatabaseZap, Download, Trash2, X } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import type { z } from 'zod'
 import { useFormSubmit } from '@/api/errors'
@@ -10,6 +10,7 @@ import { Field, FormError, Input } from '@/components/ui/input'
 import { formatBytes, formatDate, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AdminHeader, Stat } from './AdminLayout'
+import { cardClass, Panel } from './Panel'
 
 type SearchIndexAdminProps = {
   /** Undefined while loading. */
@@ -40,20 +41,20 @@ export function SearchIndexAdmin({ status, starting, onStart, onCancel, onRemove
   const running = status?.latest?.state === 'running' ? status.latest : null
   const problem = status?.latest && (status.latest.state === 'failed' || status.latest.state === 'cancelled') ? status.latest : null
   return (
-    <div className="flex flex-col gap-9">
-      <div>
-        <AdminHeader
-          title="Search index"
-          description="An optional copy of MusicBrainz's catalog on this server, so searching for any artist, album or song is answered here in milliseconds instead of asking an online service."
-        />
-        {!status && <Skeleton className="h-40 rounded-2xl" />}
+    <div>
+      <AdminHeader
+        title="Search index"
+        description="An optional copy of MusicBrainz's catalog on this server, so searching for any artist, album or song is answered here in milliseconds instead of asking an online service."
+      />
+      <div className="flex flex-col gap-7">
+        {!status && <Skeleton className="h-[74px] rounded-xl" />}
         {status && (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-sheet p-4 ring-1 ring-stroke">
-              <div className={cn('flex size-11 shrink-0 items-center justify-center rounded-xl', status.ready ? 'bg-selection text-accent' : 'bg-surface text-quiet')}><DatabaseZap className="size-5" /></div>
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-2 text-[15px] font-bold">Local search index {status.ready ? <Badge tone="accent">Ready</Badge> : <Badge>Not set up</Badge>}</p>
-                <p className="text-[13px] text-muted">
+          <div className="@container flex flex-col gap-3">
+            <div className={cn(cardClass, 'flex flex-wrap items-center gap-3 p-4')}>
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/50 text-muted-foreground"><DatabaseZap className="size-4" /></div>
+              <div className="min-w-0 flex-1 basis-56">
+                <p className="flex items-center gap-2 text-sm font-medium">Local search index {status.ready ? <Badge tone="accent">Ready</Badge> : <Badge>Not set up</Badge>}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {status.ready
                     ? `Dump of ${status.dumpDate ? formatDate(status.dumpDate) : 'an unknown date'}${status.importedAt ? `, imported ${formatRelative(status.importedAt)}` : ''}. MetaBrainz publishes a new one about every two weeks.`
                     : 'Catalog search asks MusicBrainz and Deezer online until an index is imported.'}
@@ -62,7 +63,7 @@ export function SearchIndexAdmin({ status, starting, onStart, onCancel, onRemove
               {status.ready && <Button variant="outline" size="sm" disabled={!!running} onClick={() => setConfirm('remove')}><Trash2 />Remove</Button>}
             </div>
             {status.ready && (
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
                 <Stat label="Artists" value={status.counts.artists.toLocaleString()} />
                 <Stat label="Albums" value={status.counts.albums.toLocaleString()} />
                 <Stat label="Songs" value={status.counts.recordings.toLocaleString()} detail={status.active?.recordingsPerArtist ? `At most ${status.active.recordingsPerArtist.toLocaleString()} per artist` : 'Every recording'} />
@@ -71,19 +72,31 @@ export function SearchIndexAdmin({ status, starting, onStart, onCancel, onRemove
             )}
           </div>
         )}
-      </div>
 
-      {running && <RunningImport run={running} onCancel={() => setConfirm('cancel')} />}
-      {starting && !running && (
-        <p role="status" className="flex items-center gap-3 rounded-2xl bg-sheet px-4 py-3.5 text-sm font-medium ring-1 ring-stroke"><Spinner className="size-4" />Starting the import…</p>
-      )}
-      {problem && !running && !starting && (
-        <p role="status" className={cn('rounded-2xl px-4 py-3 text-sm', problem.state === 'failed' ? 'bg-danger/10 text-danger' : 'bg-surface text-muted')}>
-          <span className="font-semibold">{problem.state === 'failed' ? 'The last import failed' : 'The last import was cancelled'}</span> {formatRelative(problem.finishedAt ?? problem.startedAt)}
-          {problem.error && problem.state === 'failed' ? `: ${problem.error}` : '.'} {status?.ready ? 'The index in use was not touched.' : ''}
-        </p>
-      )}
-      {status && !running && !starting && <ImportForm refresh={status.ready} onStart={onStart} />}
+        {running && <RunningImport run={running} onCancel={() => setConfirm('cancel')} />}
+        {starting && !running && (
+          <p role="status" className={cn(cardClass, 'flex items-center gap-3 px-4 py-3 text-sm')}><Spinner className="size-4" />Starting the import…</p>
+        )}
+        {problem && !running && !starting && (
+          <div role="status" className={cn('flex gap-3 rounded-xl border px-4 py-3', problem.state === 'failed' ? 'border-destructive/30 bg-destructive/10' : 'bg-muted/40')}>
+            {problem.state === 'failed'
+              ? <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
+              : <CircleSlash aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
+            <div className="min-w-0 text-sm">
+              <p className={cn('font-medium', problem.state === 'failed' && 'text-destructive')}>
+                {problem.state === 'failed' ? 'The last import failed' : 'The last import was cancelled'} {formatRelative(problem.finishedAt ?? problem.startedAt)}
+              </p>
+              {((problem.error && problem.state === 'failed') || status?.ready) && (
+                <p className="mt-0.5 text-xs text-muted-foreground wrap-anywhere">
+                  {problem.error && problem.state === 'failed' && `${problem.error.replace(/[.\s]*$/, '')}. `}
+                  {status?.ready && 'The index in use was not touched.'}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+        {status && !running && !starting && <ImportForm refresh={status.ready} onStart={onStart} />}
+      </div>
 
       <ConfirmDialog
         open={confirm === 'cancel'}
@@ -109,27 +122,27 @@ function RunningImport({ run, onCancel }: { run: CatalogIndexImport; onCancel: (
   const current = phases.findIndex(phase => phase.key === run.phase)
   const downloading = run.phase === 'download'
   return (
-    <section aria-label="Import in progress" aria-live="polite" className="flex flex-col gap-4 rounded-2xl bg-sheet p-4 ring-1 ring-stroke">
+    <section aria-label="Import in progress" aria-live="polite" className={cn(cardClass, 'flex flex-col gap-4 p-4')}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[15px] font-semibold">Importing</p>
-          <p className="truncate text-[13px] text-muted">{run.source ?? 'The newest dump from MetaBrainz'} · started {formatRelative(run.startedAt)}</p>
+          <p className="text-sm font-medium">Importing</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{run.source ?? 'The newest dump from MetaBrainz'} · started {formatRelative(run.startedAt)}</p>
         </div>
         <Button size="sm" variant="outline" onClick={onCancel}><X />Cancel</Button>
       </div>
       <ol className="grid grid-cols-3 gap-2">
         {phases.map((phase, index) => (
           <li key={phase.key} aria-current={index === current ? 'step' : undefined} className="flex flex-col gap-1.5">
-            <span className={cn('h-1 rounded-full', index < current ? 'bg-accent' : index === current ? 'animate-pulse bg-accent' : 'bg-stroke')} />
-            <span className={cn('flex items-center gap-1 text-xs font-semibold', index === current ? 'text-foreground' : 'text-quiet')}>
-              {index < current && <Check className="size-3 text-accent" />}{phase.label}
+            <span className={cn('h-1 rounded-full', index < current ? 'bg-primary' : index === current ? 'animate-pulse bg-primary' : 'bg-muted')} />
+            <span className={cn('flex items-center gap-1 text-xs', index === current ? 'font-medium text-foreground' : 'text-muted-foreground')}>
+              {index < current && <Check className="size-3 text-primary" />}{phase.label}
             </span>
           </li>
         ))}
       </ol>
       <div className="flex flex-col gap-1.5">
         <ProgressBar value={downloading && run.totalBytes ? run.bytesRead / run.totalBytes : null} label="Import progress" />
-        <p className="flex flex-wrap justify-between gap-x-3 text-xs font-medium text-muted">
+        <p className="flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
           <span>{phases[Math.max(current, 0)]!.detail}</span>
           <span className="tabular">
             {formatBytes(run.bytesRead)}{run.totalBytes ? ` of ${formatBytes(run.totalBytes)}` : ''} · {run.rowsRead.toLocaleString()} songs read
@@ -140,15 +153,19 @@ function RunningImport({ run, onCancel }: { run: CatalogIndexImport; onCancel: (
   )
 }
 
-function Choice({ name, checked, onChange, label, children }: { name: string; checked: boolean; onChange: () => void; label: string; children?: ReactNode }) {
+/** A radio button as a row: what it chooses and a line about it, then whatever the choice needs once made. */
+function Choice({ name, checked, onChange, label, description, children }: { name: string; checked: boolean; onChange: () => void; label: string; description: string; children?: ReactNode }) {
   return (
-    <label className={cn('flex cursor-pointer gap-3 rounded-xl px-3.5 py-3 transition-colors', checked ? 'bg-selection' : 'bg-surface hover:bg-overlay')}>
-      <input type="radio" name={name} checked={checked} onChange={onChange} className="mt-0.5 size-4 shrink-0 accent-(--accent)" />
-      <span className="flex min-w-0 flex-1 flex-col gap-2">
-        <span className="text-sm font-semibold">{label}</span>
-        {children}
-      </span>
-    </label>
+    <div className={cn('rounded-lg border transition-colors', checked ? 'bg-accent/50' : 'hover:bg-accent/30')}>
+      <label className="flex cursor-pointer gap-3 px-3 py-2.5">
+        <input type="radio" name={name} checked={checked} onChange={onChange} className="mt-0.5 size-4 shrink-0 accent-primary" />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-sm font-medium">{label}</span>
+          <span className="text-xs text-muted-foreground">{description}</span>
+        </span>
+      </label>
+      {children && <div className="pb-3 pl-10 pr-3">{children}</div>}
+    </div>
   )
 }
 
@@ -163,54 +180,50 @@ function ImportForm({ refresh, onStart }: { refresh: boolean; onStart: SearchInd
     void form.submit({ source: latest ? undefined : source, recordingsPerArtist: limited ? Number(limit) : null })
   }
   return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-5">
-      <div className="px-1">
-        <h3 className="text-lg font-bold tracking-tight">{refresh ? 'Import a newer dump' : 'Import the index'}</h3>
-        <p className="mt-0.5 text-[13px] text-muted">
-          {refresh ? 'Search keeps using the current index until the new one is complete.' : 'It runs in the background at low priority. Search starts using it the moment it is complete.'}
-        </p>
-      </div>
-      <div className="grid gap-5 lg:grid-cols-2">
-        <fieldset className="flex min-w-0 flex-col gap-2">
-          <legend className="mb-2 px-1 text-[13px] font-semibold text-muted">Dump</legend>
-          <Choice name="dump" checked={latest} onChange={() => setLatest(true)} label="The newest dump from MetaBrainz">
-            <span className="text-xs text-muted">Downloaded from data.metabrainz.org. CC0, no attribution needed.</span>
-          </Choice>
-          <Choice name="dump" checked={!latest} onChange={() => setLatest(false)} label="A URL or a file on this server">
-            {!latest && (
-              <Field label="Dump" htmlFor="dump-source" error={form.errors.source} hint="A .tar.zst canonical dump, e.g. one you downloaded and checked yourself.">
-                <Input id="dump-source" value={source} onChange={event => setSource(event.target.value)} placeholder="/srv/dumps/musicbrainz-canonical-dump.tar.zst" className="font-mono text-[13px]" aria-invalid={!!form.errors.source} autoFocus />
-              </Field>
-            )}
-          </Choice>
-        </fieldset>
-        <fieldset className="flex min-w-0 flex-col gap-2">
-          <legend className="mb-2 px-1 text-[13px] font-semibold text-muted">Size</legend>
-          <Choice name="size" checked={!limited} onChange={() => setLimited(false)} label="Every recording">
-            <span className="text-xs text-muted">The whole catalog, about 30 million songs.</span>
-          </Choice>
-          <Choice name="size" checked={limited} onChange={() => setLimited(true)} label="Fewer songs for the biggest artists">
-            <span className="text-xs text-muted">Keeps each artist&rsquo;s best recordings, studio albums first. Artists and albums stay complete, and famous music is found just as well.</span>
-            {limited && (
-              <Field label="Songs per artist, at most" htmlFor="per-artist" error={form.errors.recordingsPerArtist}>
-                <Input id="per-artist" type="number" min={1} value={limit} onChange={event => setLimit(event.target.value)} className="w-32 tabular" aria-invalid={!!form.errors.recordingsPerArtist} />
-              </Field>
-            )}
-          </Choice>
-        </fieldset>
-      </div>
-      <dl className="grid gap-x-6 gap-y-2 rounded-2xl bg-sheet p-4 text-[13px] ring-1 ring-stroke sm:grid-cols-[auto_1fr]">
-        {costs.map(cost => (
-          <div key={cost.label} className="contents">
-            <dt className="font-semibold">{cost.label}</dt>
-            <dd className="text-muted max-sm:mb-1">{cost.value}</dd>
+    <Panel
+      title={refresh ? 'Import a newer dump' : 'Import the index'}
+      description={refresh ? 'Search keeps using the current index until the new one is complete.' : 'It runs in the background at low priority. Search starts using it the moment it is complete.'}
+    >
+      <form onSubmit={submit} noValidate className={cn(cardClass, 'divide-y')}>
+        <div className="grid gap-5 p-4 lg:grid-cols-2">
+          <fieldset className="flex min-w-0 flex-col gap-2">
+            <legend className="mb-2 text-sm font-medium">Dump</legend>
+            <Choice name="dump" checked={latest} onChange={() => setLatest(true)} label="The newest dump from MetaBrainz" description="Downloaded from data.metabrainz.org. CC0, no attribution needed." />
+            <Choice name="dump" checked={!latest} onChange={() => setLatest(false)} label="A URL or a file on this server" description="A .tar.zst canonical dump, e.g. one you downloaded and checked yourself.">
+              {!latest && (
+                <Field label="Dump" htmlFor="dump-source" error={form.errors.source}>
+                  <Input id="dump-source" value={source} onChange={event => setSource(event.target.value)} placeholder="/srv/dumps/musicbrainz-canonical-dump.tar.zst" className="font-mono md:text-xs" aria-invalid={!!form.errors.source} autoFocus />
+                </Field>
+              )}
+            </Choice>
+          </fieldset>
+          <fieldset className="flex min-w-0 flex-col gap-2">
+            <legend className="mb-2 text-sm font-medium">Size</legend>
+            <Choice name="size" checked={!limited} onChange={() => setLimited(false)} label="Every recording" description="The whole catalog, about 30 million songs." />
+            <Choice name="size" checked={limited} onChange={() => setLimited(true)} label="Fewer songs for the biggest artists" description="Keeps each artist’s best recordings, studio albums first. Artists and albums stay complete, and famous music is found just as well.">
+              {limited && (
+                <Field label="Songs per artist, at most" htmlFor="per-artist" error={form.errors.recordingsPerArtist}>
+                  <Input id="per-artist" type="number" min={1} value={limit} onChange={event => setLimit(event.target.value)} className="w-32 tabular" aria-invalid={!!form.errors.recordingsPerArtist} />
+                </Field>
+              )}
+            </Choice>
+          </fieldset>
+        </div>
+        <dl className="grid gap-x-6 gap-y-1.5 p-4 text-sm sm:grid-cols-[auto_1fr]">
+          {costs.map(cost => (
+            <div key={cost.label} className="contents">
+              <dt className="text-muted-foreground">{cost.label}</dt>
+              <dd className="max-sm:mb-1.5">{cost.value}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="flex flex-col gap-3 px-4 py-3">
+          <FormError message={form.errors.form} />
+          <div className="flex justify-end">
+            <Button type="submit" size="sm" variant="primary" pending={form.pending}>{!form.pending && <Download />}{refresh ? 'Import again' : 'Start import'}</Button>
           </div>
-        ))}
-      </dl>
-      <FormError message={form.errors.form} />
-      <div className="flex justify-end">
-        <Button type="submit" variant="primary" pending={form.pending}>{!form.pending && <Download />}{refresh ? 'Import again' : 'Start import'}</Button>
-      </div>
-    </form>
+        </div>
+      </form>
+    </Panel>
   )
 }

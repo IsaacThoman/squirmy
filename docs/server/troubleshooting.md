@@ -22,10 +22,15 @@ Request lines show the URL with the values of credential parameters replaced by 
 | `matching.match-album` | Identifying albums against MusicBrainz |
 | `enrichment.album`, `enrichment.artist`, `enrichment.lyrics` | Covers, images, bios, lyrics |
 | `loudness.measure`, `loudness.album` | Loudness for normalization |
-| `streaming.transcode`, `streaming.evict` | Conversions ahead of time, cache trimming |
+| `streaming.evict` | Trimming the transcode cache |
 | `imports.process` | Uploads and the inbox |
 | `acquisition.*` | Fetching through providers |
 | `scrobble.deliver` | Sending plays |
+| `organize.apply`, `organize.revert` | Moving and retagging files into a managed folder, and undoing it |
+| `artwork.recover` | Rebuilding lost image files |
+| `catalog-index.import` | Building the local search index |
+| `library.scan-after` | A full scan waiting for a scan of a few folders to finish |
+| `*.sweep`, `library.scan-all`, `library.purge-missing`, `search.cleanup`, `enrichment.new-releases`, `matching.retry-fingerprints` | Scheduled and follow-up work; see [Scheduled work](./configuration.md#scheduled-work) |
 
 A large **Queued** count on `matching.match-album` right after a first scan is normal: see [identification is slow](#identification-is-slow). A growing **Failed** count is not; the log has the error.
 
@@ -40,7 +45,7 @@ Confirm with `docker compose ps` and `docker compose logs app`.
 - **`DATABASE_URL is required`**, or a connection error: the `postgres` service is not healthy or the URL is wrong. `docker compose logs postgres` tells you which.
 - **Password authentication failed** after changing `POSTGRES_PASSWORD`: the password only applies when the database volume is first created. Put the old one back, or change it inside the database with `ALTER USER squirmy PASSWORD '…'`.
 - **`[squirmy] failed to start`** followed by a migration error: restore the dump you took before upgrading (see [Backup](./backup.md#upgrading)) and report the error.
-- **A `PUBLIC_URL` error**: it must be a full URL such as `https://music.example.com`, or not set at all. An empty value is invalid.
+- **A `PUBLIC_URL` error**: it must be a full URL such as `https://music.example.com`, or empty or not set at all.
 
 ## Nothing appears after adding a folder
 
@@ -97,7 +102,7 @@ Test the stream path from outside with `curl -I https://music.example.com/health
 
 ## Uploads fail on size
 
-- **413 from the proxy** (an HTML error page, often nginx's): the proxy's body size limit. Set `client_max_body_size 0;` in nginx, or the equivalent; see [Reverse proxies](./reverse-proxy.md).
+- **413 from the proxy** (an HTML error page, often nginx's; the web app says the upload was refused "before it reached Squirmy"): the proxy's body size limit. Set `client_max_body_size 0;` in nginx, or the equivalent; see [Reverse proxies](./reverse-proxy.md).
 - **413 from Squirmy** (JSON with `file_too_large` or `import_too_large`): the file or the whole import is over `importMaxFileBytes` (4 GiB) or `importMaxBytes` (64 GiB). Raise them in **Admin → Server settings → Imports** ([Configuration](./configuration.md#server-settings)).
 - **507 `insufficient_storage`**: the upload (or a zip in it) would leave the server's staging disk with less than 1 GiB free. Free some space, or move `SQUIRMY_DATA_DIR` to a bigger disk.
 - **429 `too_many_imports`**: a member already has `importMaxActivePerUser` (3) uploads receiving or processing. Let one finish, or cancel an unfinished one under **Add music**.

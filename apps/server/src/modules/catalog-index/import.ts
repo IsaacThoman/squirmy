@@ -401,8 +401,30 @@ async function runImport(sql: postgres.ReservedSql, options: ImportOptions): Pro
   }
 }
 
+/**
+ * Marks imports still `running` as failed when no process holds the import lock: the
+ * worker that ran them was killed (OOM, SIGKILL, power loss) before it could record
+ * the outcome. Returns whether any row was marked. One statement, so it cannot race an
+ * import that is starting: that one takes the lock before it inserts its row.
+ */
+export async function markInterruptedImports(): Promise<boolean> {
+  const rows = await getSql()<{ id: string }[]>`
+    update catalog_index_imports
+    set state = 'failed', error = 'The import was interrupted', finished_at = now()
+    where state = 'running' and not exists (
+      select 1 from pg_locks
+      where locktype = 'advisory' and objsubid = 1
+        and database = (select oid from pg_database where datname = current_database())
+        and ((classid::bigint << 32) | objid::bigint) = hashtext(${lockKey})::bigint
+    )
+    returning id`
+  return rows.length > 0
+}
+
 /** Asks the running import, in whichever process it runs, to stop. Returns false if none is running. */
 export async function cancelImport(): Promise<boolean> {
+  // An import whose process died cannot read the request; record it as interrupted instead.
+  if (await markInterruptedImports()) return true
   const rows = await db.update(catalogIndexImports)
     .set({ cancelRequested: true })
     .where(eq(catalogIndexImports.state, 'running'))

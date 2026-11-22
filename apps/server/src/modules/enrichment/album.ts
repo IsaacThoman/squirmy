@@ -58,27 +58,32 @@ export async function hydrateAlbum(id: string, { force = false, usable }: { forc
   const deezerId = await externalIdOf('deezer', 'album', albumId)
   if (!album.mbid && !deezerId) return albumId
   let dz: DeezerAlbum | null | undefined
-  if (deezerId && !(await hasTrackList(albumId))) {
-    // MusicBrainz takes a request a second and a bridge or release several, more than a
-    // page waits; Deezer's track list stands in meanwhile and becomes the release later.
-    await attempt('Deezer track list', async () => {
-      dz = await deezer.getAlbum(Number(deezerId))
-      if (!dz) return
-      await buildFromDeezer(albumId, dz)
-      usable?.()
-    })
-  }
-  const groupMbid = album.mbid ?? (deezerId ? await bridgeAlbum(deezerId, { title: album.title, artist: album.artistCredit, type: album.type as AlbumType }) : null)
   let result = albumId
-  if (groupMbid) {
-    const group = await musicbrainz.getReleaseGroup(groupMbid)
-    if (group) result = await fromMusicBrainz(albumId, group)
+  // Announced even when a later step fails: what earlier steps committed (a merge into
+  // the MusicBrainz album, stand-in recordings folded into it) is already visible.
+  try {
+    if (deezerId && !(await hasTrackList(albumId))) {
+      // MusicBrainz takes a request a second and a bridge or release several, more than a
+      // page waits; Deezer's track list stands in meanwhile and becomes the release later.
+      await attempt('Deezer track list', async () => {
+        dz = await deezer.getAlbum(Number(deezerId))
+        if (!dz) return
+        await buildFromDeezer(albumId, dz)
+        usable?.()
+      })
+    }
+    const groupMbid = album.mbid ?? (deezerId ? await bridgeAlbum(deezerId, { title: album.title, artist: album.artistCredit, type: album.type as AlbumType }) : null)
+    if (groupMbid) {
+      const group = await musicbrainz.getReleaseGroup(groupMbid)
+      if (group) result = await fromMusicBrainz(albumId, group)
+    }
+    const [after] = await db.select({ detailLevel: albums.detailLevel }).from(albums).where(eq(albums.id, result))
+    if (dz === undefined) dz = deezerId ? await deezer.getAlbum(Number(deezerId)) : null
+    if (dz && (after?.detailLevel ?? 0) < 2) await buildFromDeezer(result, dz)
+    if (dz) await linkDeezerAlbum(result, dz)
+  } finally {
+    await changed([queryKeys.album(result), ...(result === albumId ? [] : [queryKeys.album(albumId)])])
   }
-  const [after] = await db.select({ detailLevel: albums.detailLevel }).from(albums).where(eq(albums.id, result))
-  if (dz === undefined) dz = deezerId ? await deezer.getAlbum(Number(deezerId)) : null
-  if (dz && (after?.detailLevel ?? 0) < 2) await buildFromDeezer(result, dz)
-  if (dz) await linkDeezerAlbum(result, dz)
-  await changed([queryKeys.album(result), ...(result === albumId ? [] : [queryKeys.album(albumId)])])
   return result
 }
 

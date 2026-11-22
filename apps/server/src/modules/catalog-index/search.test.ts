@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { getConfig } from '../../config.js'
 import { getSql } from '../../database/client.js'
 import { useTestDatabase } from '../../test/database.js'
-import { buildDump, testCatalog, type Catalog } from './fixtures.js'
+import { buildDump, testCatalog, type Catalog } from '../../test/catalog-index-dump.js'
 import { importCanonicalDump } from './import.js'
 import { isCatalogIndexReady, searchCatalogIndex } from './search.js'
 

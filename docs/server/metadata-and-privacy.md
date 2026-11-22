@@ -31,7 +31,7 @@ Responses are cached in the database (`http_cache`), so the same question is not
 | **MetaBrainz data** (`data.metabrainz.org`) | Only when an admin starts a **Search index** import | Nothing beyond the download request | Off | Do not start an import |
 | **Acquisition providers** (addresses you add) | Only after an admin adds one | Title, artist, length, album and ids of tracks being shown or requested | Off | See [Acquisition providers](./acquisition.md) |
 
-Turning a service off stops new requests to it. What it already provided (covers, ids, lyrics) stays.
+Turning a service off stops new requests to it, including downloads of covers and photos it listed earlier that nobody had opened yet; those show no image until the service is back on. What it already provided (downloaded covers, ids, lyrics) stays.
 
 To run a server that sends nothing about your library anywhere, turn off all five sources under **Metadata sources** and add no keys. Music then stays as its tags describe it ("From tags only"), with embedded and folder artwork, embedded and `.lrc` lyrics, and search over your own library.
 
@@ -48,11 +48,11 @@ Add these in **Admin → Server settings → API keys** with **Add key**. They a
 
 ## The MusicBrainz rate limit
 
-The public MusicBrainz server allows about one request per second per client. Squirmy spaces its requests 1.1 seconds apart, across every process, and only for `musicbrainz.org`.
+The public MusicBrainz server allows about one request per second per client. Squirmy spaces its requests 1.1 seconds apart, across every process, and only for `musicbrainz.org` and its subdomains (such as `beta.musicbrainz.org`).
 
 For a large library, that is the bottleneck. Identifying an album and fetching its details takes several requests (on the demo library, about seven per album), so a first scan of 1,000 albums takes a few hours and 10,000 albums more than a day. The music is playable from its tags the whole time, and the work survives restarts.
 
-If you run your own [MusicBrainz mirror](https://musicbrainz.org/doc/MusicBrainz_Server/Setup), enter its base URL (for example `http://musicbrainz-mirror:5000`) in **Admin → Server settings → MusicBrainz server**. Requests to anything other than `musicbrainz.org` are not rate limited.
+If you run your own [MusicBrainz mirror](https://musicbrainz.org/doc/MusicBrainz_Server/Setup), enter its base URL (for example `http://musicbrainz-mirror:5000`) in **Admin → Server settings → MusicBrainz server**. It must be a full `http://` or `https://` address. Requests to anything other than `musicbrainz.org` and its subdomains are not rate limited.
 
 ## The local search index
 

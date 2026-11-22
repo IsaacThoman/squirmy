@@ -8,7 +8,7 @@ describe('AlbumCard availability', () => {
   it('lights an owned album and offers play', () => {
     renderWithApp(<AlbumCard album={summary(album('glass-city'))} onPlay={() => {}} />)
     expect(screen.getByRole('button', { name: 'Play Glass City' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Glass City' })).not.toHaveClass('text-quiet')
+    expect(screen.getByRole('link', { name: 'Glass City' })).not.toHaveClass('text-muted-foreground')
   })
 
   it('counts owned tracks on a partial album', () => {
@@ -19,7 +19,7 @@ describe('AlbumCard availability', () => {
   it('grays out an album that is not in the library and hides play', () => {
     const { container } = renderWithApp(<AlbumCard album={summary(album('live-glasshouse'))} onPlay={() => {}} />)
     expect(screen.queryByRole('button', { name: /Play/ })).toBeNull()
-    expect(screen.getByRole('link', { name: 'Live at the Glasshouse' })).toHaveClass('text-quiet')
+    expect(screen.getByRole('link', { name: 'Live at the Glasshouse' })).toHaveClass('text-muted-foreground')
     expect(container.querySelector('.grayscale')).not.toBeNull()
   })
 

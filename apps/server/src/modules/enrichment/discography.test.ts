@@ -8,7 +8,7 @@ import { createLibraryRoot } from '../../test/factories.js'
 import { createFile } from '../../test/catalog.js'
 import type { MbReleaseGroupSummary } from '../metadata/musicbrainz.js'
 import { upsertDiscography } from './artist.js'
-import { albumRow, albumStub, artistStub } from './test-stubs.js'
+import { albumRow, albumStub, artistStub } from '../../test/enrichment-stubs.js'
 
 const deathGrips = { name: 'Death Grips', mbid: '3d1b0d8b-1f6b-4a1e-8f7c-000000000001' }
 

@@ -9,7 +9,7 @@ Squirmy serves everything from one port (4747): the web app, the API under `/api
 | Traffic | What it needs from the proxy |
 |---|---|
 | `/socket.io` | **WebSocket upgrades.** Playback state, device lists and live updates use one long-lived socket per open app. Without upgrades the web app shows "Reconnecting to the server…" and playback control between devices stops working. |
-| `/api/v1/imports/…/files`, `/api/v1/acquisition/deliveries/…` | **Large request bodies.** Uploads are streamed, up to 4 GiB per file by default (`importMaxFileBytes`) and at most 16 GiB. The proxy must not cap or buffer them. |
+| `/api/v1/imports/…/files`, `/api/v1/acquisition/deliveries/…` | **Large request bodies.** Uploads are streamed, up to 4 GiB per file by default (`importMaxFileBytes`, which an admin can raise). The proxy must not cap or buffer them. |
 | `/api/v1/stream/…`, `/rest/stream` | **Range requests** for seeking, passed through untouched, and **unbuffered responses**: a transcode is sent while ffmpeg encodes it, so buffering delays the start of playback. |
 | Everything | `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`, so the server knows the client and that the request was HTTPS. |
 
@@ -43,7 +43,7 @@ Apply with `docker compose up -d`.
 
 ### Coolify with Traefik
 
-Import the repository using the Docker Compose build strategy and select `/compose.yaml`. Set `MUSIC_DIR` to the absolute path of your music folder on the Coolify server. Set `POSTGRES_PASSWORD`, `TRUST_PROXY=true`, and `PUBLIC_URL` to the browser-facing origin (add `CLIENT_IP_HEADER=CF-Connecting-IP` when a Cloudflare Tunnel connects to Coolify's proxy, but only if Traefik's public ports 80 and 443 do not answer for this host name: otherwise anyone can send a request to the server's own address with any `CF-Connecting-IP`; see [Cloudflare Tunnel](#cloudflare-tunnel)). Set `SQUIRMY_PORT=127.0.0.1:4747` to keep the host port on loopback.
+Import the repository using the Docker Compose build strategy and select `/compose.yaml`. Set `MUSIC_DIR` to the absolute path of your music folder on the Coolify server. Set `POSTGRES_PASSWORD`, `TRUST_PROXY=true`, and `PUBLIC_URL` to the browser-facing origin (add `CLIENT_IP_HEADER=CF-Connecting-IP` when a Cloudflare Tunnel connects to Coolify's proxy, but only if Traefik's public ports 80 and 443 do not answer for this host name: otherwise anyone can send a request to the server's own address with any `CF-Connecting-IP`; see [Cloudflare Tunnel](#cloudflare-tunnel)). `compose.yaml` passes these to the app. Set `SQUIRMY_PORT=127.0.0.1:4747` to keep the host port on loopback.
 
 Assign the domain to the `app` service and set its internal port to `4747`. Coolify creates the Traefik route. If an upstream proxy terminates TLS and connects to Traefik over HTTP, set the Coolify route to HTTP and keep `PUBLIC_URL` set to the public HTTPS origin.
 

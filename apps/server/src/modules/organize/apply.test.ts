@@ -12,7 +12,7 @@ import { realFileOps, type FileOps } from './files.js'
 import { withRootLock } from './journal.js'
 import { planOrganize } from './plan.js'
 import { revertBatch } from './revert.js'
-import { addAlbum, makeRoot, manifest, movesOf, relPathOf, writeFixture } from './test-library.js'
+import { addAlbum, makeRoot, manifest, movesOf, relPathOf, writeFixture } from '../../test/organize-library.js'
 
 describe('organize: apply and revert', () => {
   useTestDatabase()

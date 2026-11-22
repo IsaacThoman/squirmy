@@ -21,8 +21,8 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { storeImage } from '../artwork/store.js'
 import { createAppPassword } from '../auth/service.js'
+import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.js'
 import { setTranscodeSlotLimit } from '../streaming/transcode.js'
-import { subsonicClient, type SubsonicClient } from './test-client.js'
 import { LIVE_ENCODES_PER_USER, liveEncode, planStream } from './transcode.js'
 
 type Probe = { streams: { codec_name: string; sample_rate?: string }[]; format: { duration: string; bit_rate?: string } }

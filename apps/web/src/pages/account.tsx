@@ -1,127 +1,14 @@
 import { ApiError } from '@squirmy/client-core'
-import {
-  DuplicateLibraryRootDetails, queryKeys,
-  type CreateLibraryRootRequest, type ScrobblingStatus, type ScrobbleTarget, type UpdateLibraryRootRequest, type UpdateUserSettings, type User, type UserSettings,
-} from '@squirmy/contracts'
+import { DuplicateLibraryRootDetails, queryKeys, type CreateLibraryRootRequest, type UpdateLibraryRootRequest, type User } from '@squirmy/contracts'
 import { notifyManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { useFolderListing } from '@/api/folders'
-import { useScrobbling, useUserSettings } from '@/api/queries'
 import { useApi } from '@/api/services'
-import { useLogout } from '@/auth/actions'
-import { setSetupDone, setSignedInUser, useCurrentUser, useMe, useSetupStatus } from '@/auth/session'
+import { setSetupDone, setSignedInUser, useMe, useSetupStatus } from '@/auth/session'
 import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView } from '@/components/auth/AuthViews'
-import { SettingsView } from '@/components/views/SettingsView'
-import { browserName, deviceName, webDevice } from '@/lib/device'
-import { toast } from '@/lib/toast'
-import { usePlayer } from '@/player/player-context'
-
-const appPasswordsKey = ['app-passwords'] as const
-
-/** Where Last.fm sends the browser back to, as `?lastfm=` on this page. */
-const lastFmReturns: Record<string, { title: string; description?: string }> = {
-  connected: { title: 'Connected to Last.fm' },
-  denied: { title: 'Last.fm was not connected', description: 'The connection was not approved.' },
-  invalid_state: { title: 'That Last.fm link expired', description: 'Start connecting again.' },
-  error: { title: 'Last.fm did not answer', description: 'Try again in a moment.' },
-}
-
-/** The user's playback settings, saved as they change. */
-function useSettingsUpdate() {
-  const api = useApi()
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (patch: UpdateUserSettings) => api.userdata.updateSettings(patch),
-    onMutate: patch => queryClient.setQueryData<UserSettings>(queryKeys.settings(), settings => settings && { ...settings, ...patch }),
-    onSuccess: settings => {
-      queryClient.setQueryData(queryKeys.settings(), settings)
-      // A service's switch is a setting, and the scrobbling status reports it.
-      return queryClient.invalidateQueries({ queryKey: queryKeys.scrobbling() })
-    },
-    onError: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings() }),
-  })
-}
-
-function useScrobbleConnections() {
-  const api = useApi()
-  const queryClient = useQueryClient()
-  const save = (status: ScrobblingStatus) => queryClient.setQueryData(queryKeys.scrobbling(), status)
-  const listenBrainz = useMutation({ mutationFn: (token: string) => api.scrobble.connectListenBrainz({ token }), onSuccess: save, meta: { inline: true } })
-  const lastFm = useMutation({ mutationFn: () => api.scrobble.startLastFm(), onSuccess: ({ url }) => window.location.assign(url) })
-  const disconnect = useMutation({
-    mutationFn: (target: ScrobbleTarget) => (target === 'listenbrainz' ? api.scrobble.disconnectListenBrainz() : api.scrobble.disconnectLastFm()),
-    onSuccess: save,
-  })
-  return { listenBrainz, lastFm, disconnect }
-}
-
-export function SettingsPage() {
-  const api = useApi()
-  const queryClient = useQueryClient()
-  const user = useCurrentUser()
-  const logout = useLogout()
-  const { controls } = usePlayer()
-  const [params, setParams] = useSearchParams()
-  const settings = useUserSettings().data
-  const scrobbling = useScrobbling().data
-  const update = useSettingsUpdate()
-  const connections = useScrobbleConnections()
-  const [name, setName] = useState(browserName)
-  const lastFmReturn = params.get('lastfm')
-  useEffect(() => {
-    if (lastFmReturn === null) return
-    const message = lastFmReturns[lastFmReturn] ?? lastFmReturns.error
-    toast(message)
-    setParams({}, { replace: true })
-  }, [lastFmReturn, setParams])
-  const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords() })
-  const refreshPasswords = () => queryClient.invalidateQueries({ queryKey: appPasswordsKey })
-  const createPassword = useMutation({ mutationFn: api.auth.createAppPassword, onSuccess: refreshPasswords, meta: { inline: true } })
-  const revokePassword = useMutation({
-    mutationFn: api.auth.deleteAppPassword,
-    onSuccess: () => {
-      toast({ title: 'App password revoked' })
-      return refreshPasswords()
-    },
-  })
-  const changePassword = useMutation({
-    mutationFn: api.auth.changePassword,
-    onSuccess: () => toast({ title: 'Password changed', description: 'Your other sessions were signed out.' }),
-    meta: { inline: true },
-  })
-  // Only the admin route can rename a user, so only admins can rename themselves.
-  const rename = useMutation({
-    mutationFn: (displayName: string | null) => api.admin.updateUser(user.id, { displayName }),
-    onSuccess: updated => queryClient.setQueryData(queryKeys.me(), updated),
-    meta: { inline: true },
-  })
-  return (
-    <SettingsView
-      user={user}
-      settings={settings}
-      onSettingsChange={patch => update.mutate(patch)}
-      deviceName={name}
-      defaultDeviceName={deviceName(navigator.userAgent)}
-      onDeviceNameChange={next => {
-        controls.renameDevice(next)
-        setName(browserName())
-        toast({ title: 'Browser renamed', description: browserName() })
-      }}
-      scrobbling={scrobbling}
-      onConnectListenBrainz={token => connections.listenBrainz.mutateAsync(token)}
-      onConnectLastFm={() => connections.lastFm.mutate()}
-      onDisconnect={target => connections.disconnect.mutateAsync(target)}
-      appPasswords={passwords.data?.items}
-      onCreateAppPassword={request => createPassword.mutateAsync(request)}
-      onRevokeAppPassword={id => revokePassword.mutateAsync(id)}
-      onChangePassword={request => changePassword.mutateAsync(request)}
-      onRename={user.role === 'admin' ? displayName => rename.mutateAsync(displayName) : undefined}
-      onLogout={logout}
-    />
-  )
-}
+import { webDevice } from '@/lib/device'
 
 /** Signing in only updates the session; the signed-out guard then moves on to `next`. */
 function useSignedIn() {
@@ -153,6 +40,7 @@ export function RegisterPage() {
   return (
     <RegisterView
       serverName={status!.serverName}
+      version={status!.version}
       inviteCode={params.get('invite') ?? ''}
       inviteRequired={status!.registrationRequiresInvite}
       onSubmit={request => register.mutateAsync({ ...request, device: webDevice() })}

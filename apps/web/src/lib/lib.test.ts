@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { safeNext } from '@/auth/session'
 import { keyIsTaken } from '@/player/shortcuts'
 import { codecsFor } from './codecs'
-import { deviceName, tabDeviceName } from './device'
+import { claimTabDevice, deviceName, tabDeviceName } from './device'
 import { formatDuration, formatRelative, formatTotalDuration } from './format'
 import { activeLine, parseLrc } from './lyrics'
 import { dropIndex, moveItem } from './reorder'
@@ -54,6 +54,13 @@ describe('tab devices', () => {
   it('numbers the second tab of a browser and on', () => {
     expect(tabDeviceName('Chrome on macOS', 1)).toBe('Chrome on macOS')
     expect(tabDeviceName('Chrome on macOS', 2)).toBe('Chrome on macOS (2)')
+  })
+
+  it('marks the claim settled, so the player can read it without suspending', async () => {
+    const claim = claimTabDevice()
+    const tab = await claim
+    await Promise.resolve()
+    expect(claim).toMatchObject({ status: 'fulfilled', value: tab })
   })
 })
 

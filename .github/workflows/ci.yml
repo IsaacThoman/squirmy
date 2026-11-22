@@ -170,7 +170,7 @@ jobs:
         run: |
           gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "CI failed on main at ${GITHUB_SHA::7}, which the test environment already runs" \
-            --body "CI failed for ${GITHUB_SHA} on main: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Coolify deploys main on push, so this commit is live on the test environment. Fix it on dev and promote again, or revert the merge on main (see the promotion runbook)."
+            --body "CI failed for ${GITHUB_SHA} on main: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Coolify deploys main on push, so this commit is live on the test environment. Fix it on dev and promote again, or revert the merge on main (see the Git section of docs/architecture.md)."
 
   release:
     name: Semantic release
@@ -188,7 +188,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: main
+          # The commit this run tested. If main has moved on meanwhile, semantic-release sees
+          # the local commit is behind and publishes nothing; the newer push's run releases
+          # once its own checks pass.
+          ref: ${{ github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -204,10 +207,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          # main can advance while this run waits for the concurrency lock.
-          git pull --ff-only origin main
-          npm run release
+        run: npm run release
 
   publish:
     name: Publish image
@@ -243,6 +243,12 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: SQUIRMY_VERSION=${{ needs.release.outputs.version }}
+          # Links the package page to the repository and states what the image is.
+          labels: |
+            org.opencontainers.image.source=https://github.com/IsaacThoman/squirmy
+            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=GPL-3.0-or-later
           tags: |
             ghcr.io/isaacthoman/squirmy:${{ needs.release.outputs.version }}
             ghcr.io/isaacthoman/squirmy:latest

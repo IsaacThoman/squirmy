@@ -6,7 +6,7 @@ Nothing in a folder changes until you preview a batch and apply it, and every ba
 
 ## Make a folder managed
 
-1. Make sure the folder is writable by the server. In Docker, the container user is uid 1000, and the volume must not end in `:ro`.
+1. Make sure the folder is writable by the server. In Docker, the container user is uid 1000, and the music volume must not be read-only: no `read_only: true` on it in `compose.yaml` (or `:ro`, on a short-form volume).
 2. In **Admin → Library**, open the folder's **⋯** menu, choose **Edit…**, turn on **Let Squirmy organize this folder**, and **Save**.
 3. Confirm with **Make managed**.
 

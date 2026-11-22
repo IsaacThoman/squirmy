@@ -25,6 +25,9 @@ export const UpdateUserSettings = z.object({
 }).partial()
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 
+/** An http or https address: `new URL` on anything else throws, or fetches nothing. */
+const HttpUrl = z.url({ protocol: /^https?$/ })
+
 /**
  * Operator settings, stored in `server_settings`. Secrets are write-only: reads return
  * `…Set` booleans instead of the value.
@@ -33,7 +36,8 @@ export const ServerSettings = z.object({
   serverName: z.string().default('Squirmy'),
   deezerEnabled: z.boolean().default(true),
   musicBrainzEnabled: z.boolean().default(true),
-  musicBrainzBaseUrl: z.string().default('https://musicbrainz.org'),
+  // A value stored before it was validated must not break every lookup.
+  musicBrainzBaseUrl: HttpUrl.default('https://musicbrainz.org').catch('https://musicbrainz.org'),
   coverArtArchiveEnabled: z.boolean().default(true),
   wikidataEnabled: z.boolean().default(true),
   lrclibEnabled: z.boolean().default(true),
@@ -80,7 +84,7 @@ export const UpdateServerSettings = z.object({
   serverName: z.string(),
   deezerEnabled: z.boolean(),
   musicBrainzEnabled: z.boolean(),
-  musicBrainzBaseUrl: z.string(),
+  musicBrainzBaseUrl: HttpUrl,
   coverArtArchiveEnabled: z.boolean(),
   wikidataEnabled: z.boolean(),
   lrclibEnabled: z.boolean(),

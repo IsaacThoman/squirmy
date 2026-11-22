@@ -68,7 +68,7 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
     origin: config.devCors ? devOrigins : false,
     credentials: true,
   })
-  // Opt-in per route (login, setup, register). Counters are per process.
+  // Opt-in per route: login, setup, register, password changes and provider deliveries. Counters are per process.
   // A larger store than the default 5000 keys, so a flood of new keys cannot evict the
   // counters of the addresses it is attacking.
   await app.register(rateLimit, { global: false, cache: 50_000 })

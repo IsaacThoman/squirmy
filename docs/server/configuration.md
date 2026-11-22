@@ -3,7 +3,7 @@
 Squirmy has two kinds of settings:
 
 - **Environment variables**, read once when the process starts. They say where things are: the database, the data folder, the address the server is reached at. Change them in `compose.yaml` or `.env` and restart.
-- **Server settings**, stored in the database and changed while the server runs, in **Admin → Server settings**. They control metadata sources, API keys, matching and limits. A few have no screen yet and are changed through the API.
+- **Server settings**, stored in the database and changed while the server runs, in **Admin → Server settings**. They control metadata sources, API keys, matching and limits. Every setting can also be changed through the API.
 
 ## The ones that matter
 
@@ -51,6 +51,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `SQUIRMY_PORT` | `4747` | The host port. |
 | `PUBLIC_URL` | unset | Passed through to the app. |
 | `TRUST_PROXY` | `false` | Passed through to the app. |
+| `PUBLIC_URL` | unset | Passed through to the app. Empty counts as unset. |
 | `CLIENT_IP_HEADER` | unset | Passed through to the app. |
 
 To set a variable that `compose.yaml` does not pass through, such as `LOG_LEVEL`, add it under `environment:` of the `app` service:
@@ -70,10 +71,11 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 
 | Section | Setting (as on screen) | Key | Default | What it does |
 |---|---|---|---|---|
-| General | Server name | `serverName` | `Squirmy` | Shown on the sign-in page and to Subsonic apps. |
+| General | Server name | `serverName` | `Squirmy` | Shown on the web app's sign-in page and in the iOS app's connect and sign-in screens. |
+| | Wantlist | `wantlistEnabled` | off | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
 | Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
 | Metadata sources | MusicBrainz | `musicBrainzEnabled` | on | Identifies albums and fills in discographies. Off means nothing new is identified. |
-| | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service. Only `musicbrainz.org` is rate limited, so a mirror lifts the limit. |
+| | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service, a full `http://` or `https://` address. Only `musicbrainz.org` and its subdomains are rate limited, so a mirror lifts the limit. |
 | | Cover Art Archive | `coverArtArchiveEnabled` | on | Album covers. |
 | | Deezer | `deezerEnabled` | on | Catalog search, artist images, top songs and cover fallback. |
 | | Wikidata and Wikipedia | `wikidataEnabled` | on | Artist images and biographies. |
@@ -113,27 +115,21 @@ curl -X PATCH https://music.example.com/api/v1/admin/settings \
 
 Sizes are in bytes, and `importRootId` takes a folder id from `GET /api/v1/admin/library/roots`.
 
-Settings with no screen yet:
-
-| Key | Default | What it does |
-|---|---|---|
-| `wantlistEnabled` | `false` | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
-
 `GET /api/v1/admin/settings` returns every setting; secrets come back only as `listenBrainzTokenSet`, `acoustIdKeySet`, `fanartKeySet` and `lastFmKeySet`. A secret set to `null` or `""` is removed.
 
 Acquisition has its own policy settings; see [Acquisition providers](./acquisition.md#policy).
 
 ### Per-user settings
 
-Each user has their own, in **Settings** in the web app and in the iOS app's account sheet: volume normalization (default Automatic), streaming quality on Wi-Fi (default Original) and on cellular (default High), and scrobbling switches. See [Playback](./playback.md).
+Each user has their own, in **Settings** in the web app and in the iOS app's account sheet: volume normalization (default Automatic), streaming quality on Wi-Fi (default Original) and on cellular (default High), scrobbling switches, and for the iOS app's downloads, the download quality (default Original) and Wi-Fi only (default on). The iOS storage limit for downloads is kept on the phone, not on the server. See [Playback](./playback.md).
 
 ## Splitting the API and the worker
 
-By default one process serves HTTP and runs the background jobs (scans, identification, enrichment, loudness, transcodes ahead of time, imports). On a busy server you can run them separately:
+By default one process serves HTTP and runs the background jobs (scans, identification, enrichment, loudness, imports). On a busy server you can run them separately:
 
 - Run **exactly one** `api` process. Playback sessions are held in that process's memory, so two API processes would disagree about what is playing.
 - Run one or more `worker` processes. A worker opens no HTTP port. File watching and the inbox run in workers.
-- Every process needs the **same** `DATABASE_URL`, the **same data folder** (artwork written by the worker is served by the API; uploads land in the API's staging folder and are processed by a worker), the **same music paths**, and the **same secret** (a shared data folder gives them the same `secret.key`, or set `SQUIRMY_SECRET` on all of them).
+- Every process needs the **same** `DATABASE_URL`, the **same data folder** (artwork written by the worker is served by the API; uploads land in the API's staging folder and are processed by a worker), the **same music paths**, the **same secret** (a shared data folder gives them the same `secret.key`, or set `SQUIRMY_SECRET` on all of them), and the **same `PUBLIC_URL`**: a worker builds the delivery addresses handed to [acquisition providers](./acquisition.md), and without it they would point at `http://localhost:4747`, the worker itself.
 
 A Compose sketch, added to the existing `compose.yaml`:
 
@@ -153,8 +149,14 @@ services:
     environment:
       DATABASE_URL: postgres://squirmy:${POSTGRES_PASSWORD:-squirmy}@postgres:5432/squirmy
       SQUIRMY_ROLE: worker
+      PUBLIC_URL: ${PUBLIC_URL:-}
     volumes:
-      - ${MUSIC_DIR:-./music}:/music
+      # The same mount as the app's.
+      - type: bind
+        source: ${MUSIC_DIR:-./music}
+        target: /music
+        bind:
+          create_host_path: true
       - squirmy_data:/data
     # The image's health check calls /ready, which a worker does not serve.
     healthcheck:

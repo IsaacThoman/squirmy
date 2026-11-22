@@ -245,15 +245,9 @@ export async function getAlbumByUpc(upc: string): Promise<DeezerAlbum | null> {
   return raw ? getAlbum(raw.id) : null
 }
 
-/** The track with this ISRC, as `getTrack` returns it. */
+/** The track with this ISRC, with its album and every contributing artist. */
 export async function getTrackByIsrc(isrc: string): Promise<DeezerTrack | null> {
   const raw = await get<RawTrack>(`track/isrc:${encodeURIComponent(isrc.trim().toUpperCase())}`)
-  return raw ? track(raw) : null
-}
-
-/** One track with ISRC, album and every contributing artist. */
-export async function getTrack(id: number): Promise<DeezerTrack | null> {
-  const raw = await get<RawTrack>(`track/${id}`)
   return raw ? track(raw) : null
 }
 

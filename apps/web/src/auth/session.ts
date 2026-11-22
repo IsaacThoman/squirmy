@@ -4,12 +4,17 @@ import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { createContext, useContext } from 'react'
 import { useApi } from '@/api/services'
 
-export const setupStatusKey = ['setup-status'] as const
+export const setupStatusKey = queryKeys.setupStatus()
 const isAuthKey = (key: readonly unknown[]) => key.length === 1 && (key[0] === setupStatusKey[0] || key[0] === queryKeys.me()[0])
 
 export function useSetupStatus() {
   const api = useApi()
   return useQuery({ queryKey: setupStatusKey, queryFn: () => api.auth.setupStatus(), meta: { silent: true } })
+}
+
+/** Whether the server has the wantlist on. Off (the default), the app shows no trace of it. */
+export function useWantlistEnabled() {
+  return useSetupStatus().data?.wantlistEnabled ?? false
 }
 
 /** The signed-in user, or null when signed out. */

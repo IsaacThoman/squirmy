@@ -5,11 +5,12 @@ import { asc, eq, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db, type Executor } from '../../database/client.js'
 import { libraryRoots } from '../../database/schema.js'
-import { enqueue } from '../../jobs/index.js'
+import { enqueue, findJob, replaceQueuedData, takeQueued } from '../../jobs/index.js'
 import { AppError, badRequest, conflict, forbidden } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
 import { validateTemplate } from '../organize/template.js'
 import { warn } from './progress.js'
+import { scanRoot, type ScanJob } from './scan.js'
 
 type RootRow = typeof libraryRoots.$inferSelect
 
@@ -86,9 +87,53 @@ export async function listRoots(executor: Executor = db, id?: string): Promise<L
   }))
 }
 
-/** Queues a full scan. Returns false when one is already queued or running. */
+/** How long a full scan waits behind a running partial one before it is retried on its own. */
+const followUpDelaySeconds = 15 * 60
+
+/**
+ * Queues a full scan. Returns false when one is already queued or running.
+ *
+ * Every scan of a root holds the root's id as its key, so one runs at a time. When a
+ * watcher or import scan of some paths holds it, the full scan is not dropped: a queued
+ * one becomes a full scan, and a running one is followed by a `library.scan-after`, which
+ * the running scan picks up as soon as it finishes (see `runScan`).
+ */
 export async function requestScan(rootId: string): Promise<boolean> {
-  return (await enqueue('library.scan', { rootId }, { singletonKey: rootId })) !== null
+  const outcome = await queueFullScan(rootId)
+  if (outcome === 'behind') await enqueue('library.scan-after', { rootId }, { singletonKey: rootId, startAfter: followUpDelaySeconds })
+  return outcome !== 'running'
+}
+
+type FullScanOutcome = 'queued' | 'running' | 'behind'
+
+/** `behind`: a scan of only some paths is running, so a full one cannot be queued yet. */
+async function queueFullScan(rootId: string): Promise<FullScanOutcome> {
+  // Each pass loses at most one race against a job that started or finished meanwhile.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (await enqueue('library.scan', { rootId }, { singletonKey: rootId })) return 'queued'
+    const held = await findJob<ScanJob>('library.scan', rootId)
+    if (!held) continue
+    if (!held.data.paths) return 'running'
+    if (held.state === 'active') return 'behind'
+    // A full scan covers the paths the queued one was for.
+    if (await replaceQueuedData<ScanJob>('library.scan', held.id, { rootId })) return 'queued'
+  }
+  return 'behind'
+}
+
+/** `library.scan`: scans, then runs a full scan that was asked for while this one ran. */
+export async function runScan(data: ScanJob) {
+  await scanRoot(data)
+  if (data.paths && await takeQueued('library.scan-after', data.rootId)) await scanRoot({ rootId: data.rootId })
+}
+
+/**
+ * `library.scan-after`: the fallback for a full scan the scan it waited for did not pick up
+ * (that scan failed, or finished just before it was queued). Throws to be retried later
+ * while a partial scan still holds the root.
+ */
+export async function runScanAfter({ rootId }: { rootId: string }) {
+  if (await queueFullScan(rootId) === 'behind') throw new Error('A scan of some of this root\'s paths is still running')
 }
 
 /**

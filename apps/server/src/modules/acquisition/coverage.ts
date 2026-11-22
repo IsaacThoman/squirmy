@@ -4,6 +4,7 @@
  * With no acquisition provider configured (the default) nothing is on demand and
  * requests are answered as failed.
  */
+import type { AcquisitionOrigin } from '@squirmy/contracts'
 import { AppError } from '../../lib/errors.js'
 import { requestTrack } from './jobs.js'
 import { announceOutcome, stillWorking } from './outcomes.js'
@@ -28,7 +29,17 @@ export async function onDemandRecordings(recordingIds: readonly string[]): Promi
  * A request that cannot go ahead (the user may not fetch, nothing covers it, the quota is
  * full) is answered as failed straight away, unless another job is already fetching it.
  */
-export async function requestRecording(request: { userId: string; recordingId: string; albumId?: string | null }): Promise<void> {
+export async function requestRecording(request: {
+  userId: string
+  recordingId: string
+  albumId?: string | null
+  /**
+   * Why it is asked for: `play` for the entry the user is waiting on, `prefetch` for one
+   * further down the queue. Not read yet: it is there for starting waiting jobs in this
+   * order, so a prefetch never holds up what is playing.
+   */
+  origin?: Extract<AcquisitionOrigin, 'play' | 'prefetch'>
+}): Promise<void> {
   try {
     await requestTrack(request.userId, request.recordingId, request.albumId ?? null)
   } catch (error) {

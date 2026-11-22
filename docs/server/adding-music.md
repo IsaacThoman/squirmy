@@ -18,7 +18,7 @@ Imports need a [managed folder](./organizing.md#make-a-folder-managed) to file m
 receiving → extracting → moving → identifying → filing → completed
 ```
 
-1. **Receiving.** Files arrive in the data folder's `staging/` area. Accepted are audio files, `cover.*` and `folder.*` images, `.lrc`, `.cue` and `.log` files, and `.zip` archives. Paths are checked: nothing absolute, no `..`, at most 8 folders deep.
+1. **Receiving.** Files arrive in the data folder's `staging/` area. Accepted are audio files, `cover.*` and `folder.*` images, `.lrc`, `.cue` and `.log` files, and `.zip` archives. Paths are checked: nothing absolute, no `..`, at most 8 levels deep counting the file name.
 2. **Extracting.** Zip archives are unpacked. An archive with an unsafe path, a symbolic link, encryption, more than 10,000 entries, more data than the import may hold, or contents more than 20 times its own size is refused whole. Zips inside zips are skipped.
 3. **Moving.** The files move into `<managed folder>/_Incoming/<import id>/`.
 4. **Identifying.** That folder is scanned. Once every file's audio has been hashed, duplicates are deleted and counted under `duplicatesSkipped`: a file is a **duplicate** when the library already has its audio, when an earlier import that is still processing has it, or when another file in the same import does. Retagged copies count as duplicates too, because the comparison is on the audio, not the tags. The rest is then identified like any other music. This step waits until every file is identified, or for an hour at most.
@@ -51,7 +51,7 @@ Admins can always upload; members need **Can upload music** (see [Users and acce
 
 ### In the web app
 
-**Add music** is in the sidebar and in the account menu for everyone who may upload.
+**Add music** is in the sidebar for everyone who may upload.
 
 1. Drop album folders, files or zip archives on the page, or use **Choose a folder** or **Choose files**. Folders keep their structure. The list shows every file before anything is sent, and files over the size limit are marked and left out.
 2. Press **Upload**. Each file shows its progress, and the bar above shows all of it. **Pause** stops sending and **Resume** carries on where it stopped; **Cancel** throws away what was sent. Keep the tab open until the upload finishes; other pages of the app can be used meanwhile.
