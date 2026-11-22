@@ -1,6 +1,6 @@
 import { Button, Image, Menu, ProgressView, RNHostView } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, buttonStyle, contentShape, controlSize, frame, menuIndicator, progressViewStyle, shapes, tint,
+  accessibilityAddTraits, accessibilityHidden, accessibilityLabel, buttonStyle, contentShape, controlSize, frame, menuIndicator, progressViewStyle, shapes, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
 import type { ComponentProps } from 'react';
@@ -14,8 +14,12 @@ export const plainButton = buttonStyle('plain');
 export const hitShape = contentShape(shapes.rectangle());
 const iconFrame = frame({ width: 44, height: 44 });
 
+/**
+ * A symbol beside a label or inside a labelled button. Hidden from VoiceOver, which would
+ * otherwise read its system name ("Personal Hotspot With A Slash", "Server Rack").
+ */
 export function Symbol({ name, size = 20, color }: { name: string; size?: number; color?: string }) {
-  return <Image systemName={name as SymbolName} size={size} color={color} />;
+  return <Image systemName={name as SymbolName} size={size} color={color} modifiers={[accessibilityHidden(true)]} />;
 }
 
 export function IconButton({ symbol, label, size = 20, color, width = 44, height = 44, selected, busy, onPress }: {

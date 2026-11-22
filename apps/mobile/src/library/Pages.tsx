@@ -179,7 +179,8 @@ function ExpandableText({ text, lines }: { text: string; lines: number }) {
   const styles = useStyles();
   const [expanded, setExpanded] = useState(false);
   const [cut, setCut] = useState(false);
-  return <Pressable disabled={!cut} onPress={() => { tapFeedback(); setExpanded(!expanded); }} style={styles.descriptionBlock}
+  // No `disabled` for an uncut text: VoiceOver would read it as dimmed.
+  return <Pressable onPress={cut ? () => { tapFeedback(); setExpanded(!expanded); } : undefined} style={styles.descriptionBlock}
     accessibilityRole={cut ? 'button' : 'text'} accessibilityHint={cut ? (expanded ? 'Shows less' : 'Shows the whole text') : undefined}>
     <Text style={styles.description} numberOfLines={expanded ? undefined : lines}>{text}</Text>
     {cut && <Text style={styles.moreLabel}>{expanded ? 'Less' : 'More'}</Text>}
@@ -546,6 +547,8 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
       ListHeaderComponent={<>
         <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.genreTitle}>{id}</Text>
         {!albums.data && <QueryState query={albums} what={id} />}
+        {albums.data && !albums.items.length && <EmptyState icon="square.stack" title="No albums yet"
+          description={`Albums tagged ${id} show up here.`} />}
       </>}
       ListFooterComponent={albums.isFetchingNextPage ? <ActivityIndicator style={styles.more} /> : undefined} />
   </View>;

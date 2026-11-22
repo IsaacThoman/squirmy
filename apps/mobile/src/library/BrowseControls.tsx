@@ -59,8 +59,10 @@ export function BrowseButton({ label, icon, title, glass, onPress }: BrowseButto
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
     style={({ pressed }) => [styles.button, glass && styles.glass, pressed && styles.pressed]}>
-    {icon && <Icon name={icon} size={title ? 15 : 19} color={colors.text} />}
+    {/* A chevron that leads somewhere ("See all ›") follows its title. */}
+    {icon && !(title && icon === 'chevron.right') && <Icon name={icon} size={title ? 15 : 19} color={colors.text} />}
     {title && <Text style={styles.buttonTitle}>{title}</Text>}
+    {icon && title && icon === 'chevron.right' && <Icon name={icon} size={15} color={colors.text} />}
   </Pressable>;
 }
 
