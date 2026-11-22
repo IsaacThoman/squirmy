@@ -1,6 +1,8 @@
 import { Button, Host, HStack, ProgressView, RNHostView, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
-import { accessibilityHidden, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, padding, tint } from '@expo/ui/swift-ui/modifiers';
-import { StyleSheet, View } from 'react-native';
+import {
+  accessibilityHidden, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, onTapGesture, padding, tint,
+} from '@expo/ui/swift-ui/modifiers';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { IconButton, hitShape, plainButton } from '../native/Controls';
 import { useCurrentDurationMs, useLoading, usePlaybackState, usePositionEvery } from '../playback';
@@ -11,8 +13,17 @@ import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
 import { usePlayerShown } from './visibility';
 
-const progressIntervalMs = 1000;
 import { useColors } from '../theme';
+
+const progressIntervalMs = 1000;
+/**
+ * The bubble has a fixed height. Two lines fit it up to xLarge (font scale 1.118); from
+ * xxLarge on (1.235) the subtitle would run into the progress bar, so the bubble shows the
+ * title alone, which may then grow as far as the first accessibility size and still clear it.
+ */
+const twoLineFontScale = 1.15;
+const twoLineLimit = dynamicTypeSize({ max: 'xLarge' });
+const oneLineLimit = dynamicTypeSize({ max: 'accessibility1' });
 
 export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
   const colors = useColors();
@@ -21,7 +32,10 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
   // A detached phone says so where "Playing on …" would be, so pressing play here is never a surprise.
-  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : detached ? DETACHED_LABEL : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
+  // The marker outlasts a slow load: the play button's spinner already says it is loading.
+  const subtitle = detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
+  const { fontScale } = useWindowDimensions();
+  const twoLines = !compact && fontScale < twoLineFontScale;
   const deviceLabel = detached ? `${DETACHED_LABEL}. Playback devices` : `Playback device, ${output.name}`;
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
@@ -46,11 +60,12 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
                     </View>
                   </RNHostView>
                 )}
-                {/* The bubble has a fixed height, so its two lines stop growing before they overflow it
-                    (at xxLarge the subtitle already runs into the progress bar). */}
-                <VStack alignment="leading" spacing={1} modifiers={[dynamicTypeSize({ max: 'xLarge' })]}>
+                {/* The compact bubble, inline with the shrunken tab bar, is shorter still and keeps the smaller limit. */}
+                <VStack alignment="leading" spacing={1} modifiers={[twoLines || compact ? twoLineLimit : oneLineLimit]}>
                   <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>
-                  {!compact && <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(detached && loading !== 'slow' ? colors.accent : colors.muted), lineLimit(1)]}>{subtitle}</Text>}
+                  {/* The marker is a shortcut to the device picker, where Rejoin is, as its symbol beside it is. */}
+                  {twoLines && <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(detached ? colors.accent : colors.muted), lineLimit(1),
+                    ...(detached && onDevices && !preview ? [onTapGesture(onDevices)] : [])]}>{subtitle}</Text>}
                 </VStack>
                 <Spacer minLength={4} />
               </HStack>
