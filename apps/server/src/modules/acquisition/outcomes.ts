@@ -19,9 +19,11 @@ import { db, getSql } from '../../database/client.js'
 import { uuidArray } from '../catalog/sql.js'
 import { ownedRecordings } from './catalog.js'
 import { markRecordingFailed, markRecordingReady } from '../sessions/index.js'
+import { OUTAGE_REASON } from './health.js'
 import { activeProviders } from './providers.js'
 
-export type Outcome = { ready: string[]; failed: string[] }
+/** `outage`: the recordings failed because their provider is failing (health.ts). */
+export type Outcome = { ready: string[]; failed: string[]; outage?: boolean }
 
 const channel = 'squirmy_acquisition'
 const maxPayloadBytes = 7900
@@ -40,16 +42,20 @@ export async function announceOutcome(outcome: Partial<Outcome>) {
   // A uuid takes 39 bytes in the payload, so 150 per notification stays under the limit.
   for (let start = 0; start < ids.length; start += 150) {
     const slice = ids.slice(start, start + 150)
-    const payload = JSON.stringify({ ready: slice.filter((item) => item.ready).map((item) => item.id), failed: slice.filter((item) => !item.ready).map((item) => item.id) })
+    const payload = JSON.stringify({
+      ready: slice.filter((item) => item.ready).map((item) => item.id),
+      failed: slice.filter((item) => !item.ready).map((item) => item.id),
+      ...(outcome.outage ? { outage: true } : {}),
+    })
     if (Buffer.byteLength(payload) > maxPayloadBytes) throw new Error('Acquisition outcome too large')
     await getSql()`select pg_notify(${channel}, ${payload})`
   }
 }
 
 /** Applies an outcome to the loaded sessions. Must run in the API process. */
-export async function applyOutcome({ ready, failed }: Outcome) {
+export async function applyOutcome({ ready, failed, outage }: Outcome) {
   for (const id of ready) await markRecordingReady(id)
-  for (const id of failed) await markRecordingFailed(id)
+  for (const id of failed) await markRecordingFailed(id, outage ? OUTAGE_REASON : undefined)
 }
 
 /**

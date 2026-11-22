@@ -23,10 +23,17 @@ export type ActiveProvider = ProviderEndpoint & {
 }
 
 const secretPurpose = 'acquisition-provider-secret'
+/** Different recordings that fail at a provider, with nothing delivered in between, before it is failing (health.ts). */
+export const FAILING_AFTER = 3
 /** Other processes see provider changes within this long. */
 const cacheMs = 30_000
 
 let cache: { value: ActiveProvider[]; at: number } | undefined
+
+/** Whether a provider is failing, from its streak of failed recordings (health.ts). */
+export function isFailing(row: Pick<ProviderRow, 'failingSince' | 'failingRecordings'>): boolean {
+  return row.failingSince !== null && row.failingRecordings.length >= FAILING_AFTER
+}
 
 /** The coverage that counts: the admin's override, else what the provider declared. */
 function coverageOf(row: Pick<ProviderRow, 'coverage' | 'coverageOverride'>): ProviderCoverage {
@@ -45,6 +52,7 @@ export function toProvider(row: ProviderRow): AcquisitionProvider {
     capabilities: row.capabilities && capabilities.success ? capabilities.data : null,
     lastOkAt: row.lastOkAt?.toISOString() ?? null,
     lastError: row.lastError,
+    failingSince: isFailing(row) ? row.failingSince!.toISOString() : null,
   }
 }
 

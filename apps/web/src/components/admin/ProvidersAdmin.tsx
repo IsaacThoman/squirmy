@@ -16,7 +16,7 @@ import { DropdownMenu } from '@/components/ui/menu'
 import { Row, Section } from '@/components/ui/section'
 import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { formatRelative, inGigabytes, inMegabytes } from '@/lib/format'
+import { formatClock, formatRelative, inGigabytes, inMegabytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AdminHeader, DialogForm } from './AdminLayout'
 import { DraftField, type SavePatch } from './DraftField'
@@ -129,14 +129,15 @@ function ProviderRow({ provider, onToggle, onTest, onEdit, onDelete }: { provide
             {provider.enabled ? <Badge tone="accent">Enabled</Badge> : <Badge>Disabled</Badge>}
             <Badge tone="outline">{coverageLabels[provider.coverage]}</Badge>
             {provider.priority !== 0 && <Badge tone="outline" className="tabular">Priority {provider.priority}</Badge>}
+            {provider.failingSince && <Badge tone="danger"><CircleAlert aria-hidden />Failing</Badge>}
           </div>
           <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={provider.baseUrl}>{provider.baseUrl}</p>
-          <p className={cn('mt-1 text-xs', provider.lastError ? 'text-destructive' : 'text-muted-foreground')}>
+          {!provider.failingSince && <p className={cn('mt-1 text-xs', provider.lastError ? 'text-destructive' : 'text-muted-foreground')}>
             {provider.lastError
               ? `Last error: ${provider.lastError}`
               : provider.lastOkAt ? `Answered ${formatRelative(provider.lastOkAt)}` : 'Has not answered yet'}
             {provider.lastError && provider.lastOkAt && <span className="text-muted-foreground"> · last answered {formatRelative(provider.lastOkAt)}</span>}
-          </p>
+          </p>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Switch aria-label={`Enable ${provider.name}`} checked={provider.enabled} onCheckedChange={onToggle} className="mr-2" />
@@ -152,6 +153,16 @@ function ProviderRow({ provider, onToggle, onTest, onEdit, onDelete }: { provide
           />
         </div>
       </div>
+      {provider.failingSince && (
+        <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive sm:ml-12">
+          <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-medium">Fetches have failed since {formatClock(provider.failingSince)}</p>
+            {provider.lastError && <p className="mt-0.5 break-words">Last error: {provider.lastError}</p>}
+            <p className="mt-0.5 text-xs text-muted-foreground">Tracks it fails on stay playable. The first track it delivers clears this.</p>
+          </div>
+        </div>
+      )}
       {result && (
         <div role="status" className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-sm sm:ml-12', result.ok ? 'bg-muted/40' : 'border-destructive/30 bg-destructive/10 text-destructive')}>
           {result.ok ? <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" /> : <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />}

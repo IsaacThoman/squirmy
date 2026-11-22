@@ -302,16 +302,18 @@ function requestUpcoming(record: SessionRecord): void {
 /**
  * Applies a failed fetch of `trackId`. Entries further down are only marked failed, with
  * nothing said: the session skips them quietly when it reaches them. A preparing current
- * entry is skipped, unless it is the `FAILURES_BEFORE_PAUSE`th in a row: then the session
- * pauses on it with the rest of the queue kept, and the user gets one
- * `playback.unavailable` (in that session only) rather than a notice per track. Nothing more is fetched until
- * the user plays again (see `toPrepare`), and `play` moves on from the failed entry.
+ * entry is skipped, unless it is the `FAILURES_BEFORE_PAUSE`th in a row, or the fetch failed
+ * for a known `reason` (the provider is failing, so the next would fail too): then the
+ * session pauses on it with the rest of the queue kept, and the user gets one
+ * `playback.unavailable` (in that session only, with the reason) rather than a notice per
+ * track. Nothing more is fetched until the user plays again (see `toPrepare`), and `play`
+ * moves on from the failed entry.
  */
-function applyFailure(record: SessionRecord, trackId: string): void {
+function applyFailure(record: SessionRecord, trackId: string, reason?: string): void {
   const { current } = record.session
   const skipsCurrent = current?.trackId === trackId && current.state === 'preparing'
   if (skipsCurrent) record.failedInARow += 1
-  if (!current || !skipsCurrent || record.failedInARow < FAILURES_BEFORE_PAUSE) {
+  if (!current || !skipsCurrent || (record.failedInARow < FAILURES_BEFORE_PAUSE && !reason)) {
     applyServer(record, { type: 'setEntryState', trackId, state: 'failed' })
     return
   }
@@ -327,7 +329,7 @@ function applyFailure(record: SessionRecord, trackId: string): void {
     afterChange(record)
   }
   // To the session's own sockets: a detached device's outage is not news to the others.
-  io?.to(sessionRoom(record)).emit('event', { type: 'playback.unavailable', trackId })
+  io?.to(sessionRoom(record)).emit('event', { type: 'playback.unavailable', trackId, reason: reason ?? null })
 }
 
 /**
@@ -804,14 +806,15 @@ export function markRecordingReady(recordingId: string): Promise<void> {
 
 /**
  * Marks every entry of the recording failed in the loaded sessions. A preparing current
- * entry is skipped (or, after several in a row, the session pauses on it); a ready one
- * keeps playing, and only its later plays fail. Entries further down are marked quietly.
+ * entry is skipped (or, after several in a row or with an outage `reason` to tell, the
+ * session pauses on it); a ready one keeps playing, and only its later plays fail. Entries
+ * further down are marked quietly.
  */
-export function markRecordingFailed(recordingId: string): Promise<void> {
-  return setRecordingState(recordingId, 'failed')
+export function markRecordingFailed(recordingId: string, reason?: string): Promise<void> {
+  return setRecordingState(recordingId, 'failed', reason)
 }
 
-async function setRecordingState(recordingId: string, state: 'ready' | 'failed'): Promise<void> {
+async function setRecordingState(recordingId: string, state: 'ready' | 'failed', reason?: string): Promise<void> {
   // The request is answered for sessions that no longer hold the recording too, so one
   // that queues it again asks again instead of waiting on an answer that already came.
   await Promise.all([...loadedRecords()].filter(record => record.requested.has(recordingId) || holds(record, recordingId))
@@ -820,7 +823,7 @@ async function setRecordingState(recordingId: string, state: 'ready' | 'failed')
       if (!record) return
       record.requested.delete(recordingId)
       if (!holds(record, recordingId)) return
-      if (state === 'failed') applyFailure(record, recordingId)
+      if (state === 'failed') applyFailure(record, recordingId, reason)
       else applyServer(record, { type: 'setEntryState', trackId: recordingId, state })
     })))
 }

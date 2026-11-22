@@ -67,7 +67,7 @@ With an [acquisition provider](../server/acquisition.md) connected, the server f
 
 - Play anything. While the song is on its way, the play button and its row show the spinner the player uses for buffering, and the artist stays under the title. If it takes longer than eight seconds, the player says **Still loading…** instead.
 - The server fetches the playing song and the next five ahead of time. Songs waiting in the queue look like any other.
-- A song the server can't get is told once, when it was playing or next ("Couldn't play "…"", **Skipped.**), turns gray with **Not available**, and playback moves on. Failures further down the queue are quiet. If three songs in a row can't be loaded, playback pauses instead of skipping on, with one notice, **Can't load music right now**; press play to try again.
+- A song the server can't get is told once, when it was playing or next ("Couldn't play "…"", **Skipped.**), turns gray with **Not available**, and playback moves on. Failures further down the queue are quiet. If three songs in a row can't be loaded, playback pauses instead of skipping on, with one notice, **Can't load music right now**; press play to try again. When the server knows its source is down, it pauses at the first song and the notice says so.
 
 For members who may not fetch, and on servers without a provider, music that is not on the server is gray and says **Not available**; an album that is partly there says how many of its songs are available.
 

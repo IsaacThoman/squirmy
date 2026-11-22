@@ -596,7 +596,7 @@ describe('sessions', () => {
       await markRecordingFailed(ids[2]!)
       expect(await a.state(4)).toMatchObject({ playing: false, stalled: false, current: { trackId: ids[2], state: 'failed' } })
       expect(queued(a).map(([id]) => id)).toEqual(ids.slice(3))
-      await eventually(() => a.events('event'), (events) => expect(events).toEqual([{ type: 'playback.unavailable', trackId: ids[2] }]))
+      await eventually(() => a.events('event'), (events) => expect(events).toEqual([{ type: 'playback.unavailable', trackId: ids[2], reason: null }]))
 
       // Play moves on from the failed entry, and the count starts again.
       await a.send({ type: 'play' })

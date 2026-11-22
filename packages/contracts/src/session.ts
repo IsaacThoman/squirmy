@@ -406,9 +406,10 @@ export const ServerEvent = z.discriminatedUnion('type', [
    * Sent to the sockets in a session when several tracks in a row failed to load and it
    * paused instead of skipping on, so clients show one notice rather than one per track.
    * A detached device's own session tells that device alone.
-   * `trackId` is the current entry's track when playback paused.
+   * `trackId` is the current entry's track when playback paused. `reason`, when the server
+   * knows one (its provider is failing), is a sentence to show the listener.
    */
-  z.object({ type: z.literal('playback.unavailable'), trackId: Id.nullable() }),
+  z.object({ type: z.literal('playback.unavailable'), trackId: Id.nullable(), reason: z.string().nullable().optional() }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>
 

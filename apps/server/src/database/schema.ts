@@ -777,6 +777,13 @@ export const acquisitionProviders = pgTable('acquisition_providers', {
   capabilities: jsonb('capabilities').$type<Record<string, unknown>>(),
   lastOkAt: at('last_ok_at'),
   lastError: text('last_error'),
+  /**
+   * Since when fetches from this provider have been failing, with nothing delivered since:
+   * the first failure after the last delivery. Null while it delivers.
+   */
+  failingSince: at('failing_since'),
+  /** Recordings that failed since `failingSince` (a few at most): enough of them is an outage. */
+  failingRecordings: uuid('failing_recordings').array().notNull().default(sql`'{}'::uuid[]`),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })
