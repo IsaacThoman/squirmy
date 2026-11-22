@@ -16,6 +16,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { requestRecording } from '../acquisition/coverage.js'
 import { createSession } from '../auth/service.js'
+import { mergeRecording } from '../matching/merge.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { onPlayStart, sessionsModule } from './index.js'
 import { configureSessions, getSnapshot, markRecordingFailed, markRecordingReady, recordExternalPlay, replaceQueue } from './service.js'
@@ -588,6 +589,31 @@ describe('sessions', () => {
       { recordingId: third!.recordingId, msPlayed: third!.durationMs, completed: true },
     ]))
     await eventually(() => a.events('invalidate'), (value) => expect(value).toContainEqual({ keys: [['history'], ['home']] }))
+  })
+
+  it('records a play under the album and recording its track resolves to when it closes', async () => {
+    const clock = stoppedClock()
+    // A catalog stub named as the queue's album: it has no tracks of its own.
+    const stub = await createAlbum({ tracks: [] })
+    const fetched = await createAlbum({ owned: true, tracks: [{ title: 'Fetched' }, { title: 'Also fetched' }] })
+    const [first, second] = fetched.tracks as [typeof fetched.tracks[0], typeof fetched.tracks[0]]
+    const a = await device('device-a-0018')
+    const tracks = [first, second].map((track) => ({ trackId: track.recordingId, albumId: stub.albumId, durationMs: 1 }))
+    await a.send({ type: 'playTracks', tracks, seed: 1 })
+    await a.state(1)
+    clock.advance(30_000)
+    await a.send({ type: 'next' })
+    clock.advance(30_000)
+    // Identification merges the recording while it plays.
+    const winner = (await createAlbum({ tracks: [{ title: 'Canonical' }] })).tracks[0]!.recordingId
+    await mergeRecording(second.recordingId, winner)
+    await a.send({ type: 'pause' })
+    await a.send({ type: 'next' })
+    await a.state(4)
+    await eventually(() => db.select({ recordingId: plays.recordingId, albumId: plays.albumId }).from(plays).where(eq(plays.userId, user.id)).orderBy(plays.startedAt), (rows) => expect(rows).toEqual([
+      { recordingId: first.recordingId, albumId: fetched.albumId },
+      { recordingId: winner, albumId: fetched.albumId },
+    ]))
   })
 
   it('waits for the write of a play that closed just before shutdown', async () => {

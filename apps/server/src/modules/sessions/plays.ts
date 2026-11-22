@@ -4,6 +4,7 @@ import { db } from '../../database/client.js'
 import { plays } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { invalidate } from '../../realtime/index.js'
+import { alignedTrackSummaries } from '../catalog/summaries.js'
 
 /**
  * Play accounting. A play opens when an entry is current and running on the active
@@ -98,14 +99,22 @@ export function isCompleted(msPlayed: number, durationMs: number): boolean {
   return msPlayed >= Math.min(durationMs > 0 ? durationMs / 2 : COMPLETE_CAP_MS, COMPLETE_CAP_MS)
 }
 
-/** Writes a closed play unless it was a skip, then refreshes the user's history screens. */
+/**
+ * Writes a closed play unless it was a skip, then refreshes the user's history screens.
+ *
+ * The play is filed under the recording and album the track resolves to now, not the ids
+ * of its queue entry: an on-demand track queued from a catalog stub album lands on the
+ * album its fetched file was filed under, and identification may merge the recording
+ * while it plays. The entry's ids would leave plays on empty stubs and merged-away rows.
+ */
 export async function savePlay(userId: string, play: OpenPlay): Promise<void> {
   if (play.msPlayed < SKIP_MS) return
   const msPlayed = Math.round(play.msPlayed)
+  const [track] = await alignedTrackSummaries(userId, [{ id: play.recordingId }])
   await insertPlay({
     userId,
-    recordingId: play.recordingId,
-    albumId: play.albumId,
+    recordingId: track?.id ?? play.recordingId,
+    albumId: track ? track.album?.id ?? null : play.albumId,
     deviceId: play.deviceId,
     client: 'app',
     startedAt: new Date(play.startedAt),
