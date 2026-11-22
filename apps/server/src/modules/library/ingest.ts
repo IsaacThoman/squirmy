@@ -191,6 +191,7 @@ class GroupWriter {
       artistCredit,
       primaryArtistId,
       type: plan.album.type,
+      typeGuessed: plan.album.typeGuessed,
       releaseDate: plan.album.date ?? null,
       year: plan.album.year ?? null,
       titleKey: matchKey(plan.album.title),

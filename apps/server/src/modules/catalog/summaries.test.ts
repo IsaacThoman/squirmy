@@ -2,7 +2,7 @@ import { AlbumSummary, ArtistSummary, TrackSummary } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albums, artists, assets, likes, lyrics, mediaFiles, recordingArtists, recordings } from '../../database/schema.js'
+import { albums, artists, assets, likes, lyrics, mediaFiles, recordingArtists, recordings, releaseTracks } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { createAsset } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -58,6 +58,24 @@ describe('summaries', () => {
     await db.update(mediaFiles).set({ recordingId: first.tracks[0]!.recordingId }).where(eq(mediaFiles.id, owned.tracks[0]!.fileId!))
     const [summary] = await trackSummaries(user.id, [{ id: first.tracks[0]!.recordingId }])
     expect(summary).toMatchObject({ album: { id: owned.albumId }, availability: 'server', disc: null, position: null })
+  })
+
+  it('shows a song on its artist’s album rather than on its single, with a cover from any album it is on', async () => {
+    const user = await createUser()
+    const tate = await createArtist({ name: 'Tate McRae' })
+    // "exes" is on its single (2023) and on THINK LATER (2023); the single was written first.
+    const single = await createAlbum({ artist: tate, title: 'exes', type: 'single', year: 2023, tracks: [{ title: 'exes' }] })
+    const album = await createAlbum({ artist: tate, title: 'THINK LATER', year: 2023, tracks: [{ title: 'cut my hair' }, { title: 'exes' }] })
+    await db.update(releaseTracks).set({ recordingId: single.tracks[0]!.recordingId }).where(eq(releaseTracks.id, album.tracks[1]!.releaseTrackId))
+    // Someone else's compilation with it, released earlier.
+    const hits = await createAlbum({ title: 'Hits 2023', type: 'compilation', year: 2022, tracks: [{ title: 'exes' }] })
+    await db.update(releaseTracks).set({ recordingId: single.tracks[0]!.recordingId }).where(eq(releaseTracks.id, hits.tracks[0]!.releaseTrackId))
+    const cover = await createAsset('#334455')
+    await db.update(albums).set({ artworkAssetId: cover.id }).where(eq(albums.id, single.albumId))
+
+    const [exes] = await trackSummaries(user.id, [{ id: single.tracks[0]!.recordingId }])
+    expect(exes!.album).toEqual({ id: album.albumId, title: 'THINK LATER', artwork: { id: cover.id, color: '#334455', thumbhash: 'AAAA' } })
+    expect(exes).toMatchObject({ disc: 1, position: 2 })
   })
 
   it('follows merge redirects for tracks, album contexts, albums and artists', async () => {

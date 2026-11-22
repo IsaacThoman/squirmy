@@ -20,6 +20,7 @@ import { editionFreeKey } from '../search/keys.js'
 import { genreNames } from './album.js'
 import { bridgeArtist } from './bridge.js'
 import { deezerDiscography, deezerTopTrackRow } from './deezer-rows.js'
+import { reconcileArtistAlbums } from './reconcile.js'
 import { adoptMbidNow, attempt, changed, currentId, day, externalIdOf, linkExternalId, share } from './rows.js'
 
 /** A complete artist is refreshed after this long. */
@@ -105,6 +106,9 @@ export async function hydrateArtist(id: string, { force = false } = {}): Promise
     await attempt('artist image', () => artistImage(target, { mbid: null, wikidataId: null, deezerId: dz }))
     await attempt('top tracks', () => topTracks(target, { mbid: null, deezerId: dz }))
   }
+  // Stubs that search wrote while the discography was fetched, or under a second row of
+  // this artist merged since, are folded into their releases now (reconcile.ts).
+  await reconcileArtistAlbums(target)
   await db.update(artists).set({
     detailLevel: complete ? 2 : sql`greatest(${artists.detailLevel}, 1)`,
     fetchedAt: new Date(),
@@ -139,6 +143,7 @@ export async function upsertDiscography(groups: readonly MbReleaseGroupSummary[]
         artistCredit: group.artistName,
         primaryArtistId: group.artistCredit[0] ? artistIds.get(group.artistCredit[0].mbid)! : null,
         type: group.type,
+        typeGuessed: false,
         secondaryTypes: group.secondaryTypes,
         releaseDate: group.date,
         year: group.year,
@@ -173,19 +178,21 @@ export async function upsertDiscography(groups: readonly MbReleaseGroupSummary[]
 }
 
 const compatibleTypes = (a: string, b: string) => a === b || a === 'other' || b === 'other'
+  // Deezer's "ep" is often MusicBrainz's "single", and the other way round.
+  || ((a === 'ep' || a === 'single') && (b === 'ep' || b === 'single'))
 
 /**
  * Album rows search or Deezer created for the discography's release groups: no MBID, no
  * files, the same primary artist, the same title once edition suffixes are dropped
- * (`editionFreeKey`) and a compatible type. A title two groups of the artist share
+ * (`editionFreeKey`) and a compatible type (any, for a guessed one). A title two groups of the artist share
  * ("Weezer") names neither, so its stubs are left alone. Keyed by group MBID.
  */
 async function stubsByGroup(tx: Transaction, groups: readonly MbReleaseGroupSummary[], artistIds: Map<string, string>): Promise<Map<string, string[]>> {
   const primaryOf = (group: MbReleaseGroupSummary) => (group.artistCredit[0] ? artistIds.get(group.artistCredit[0].mbid) ?? null : null)
   const primaries = [...new Set(groups.flatMap((group) => primaryOf(group) ?? []))]
   if (primaries.length === 0) return new Map()
-  const rows = await tx.execute<{ id: string; title: string; type: string; artistId: string }>(sql`
-    select a.id, a.title, a.type, a.primary_artist_id as "artistId" from albums a
+  const rows = await tx.execute<{ id: string; title: string; type: string; typeGuessed: boolean; artistId: string }>(sql`
+    select a.id, a.title, a.type, a.type_guessed as "typeGuessed", a.primary_artist_id as "artistId" from albums a
     where a.mbid is null and a.merged_into_id is null and a.primary_artist_id = any(${uuidArray(primaries)})
       and not exists (select 1 from media_files f where f.album_id = a.id)`)
   const result = new Map<string, string[]>()
@@ -193,7 +200,8 @@ async function stubsByGroup(tx: Transaction, groups: readonly MbReleaseGroupSumm
   for (const row of rows) {
     const key = editionFreeKey(row.title)
     if (!key) continue
-    const fits = groupKeys.filter((one) => one.artistId === row.artistId && one.key === key && compatibleTypes(one.group.type, row.type))
+    // A guessed type (a track's album reference) fits any group of the title.
+    const fits = groupKeys.filter((one) => one.artistId === row.artistId && one.key === key && (row.typeGuessed || compatibleTypes(one.group.type, row.type)))
     if (fits.length !== 1) continue
     const mbid = fits[0]!.group.mbid
     result.set(mbid, [...(result.get(mbid) ?? []), row.id])
@@ -237,6 +245,20 @@ async function artistBio(artistId: string, wikidataId: string | null) {
   const summary = wikidataId ? await wikidata.getWikipediaSummary(wikidataId) : null
   if (!summary) return
   await db.update(artists).set({ bio: summary.text, bioSource: 'wikipedia', bioUrl: summary.sourceUrl, updatedAt: new Date() }).where(eq(artists.id, artistId))
+}
+
+/**
+ * Runs the Deezer top tracks again for an artist, which gives each its album (and so its
+ * artwork). For popular tracks stored before they kept their album. False when Deezer failed.
+ */
+export async function refreshTopTracks(artistId: string): Promise<boolean> {
+  const rows = await db.execute<{ id: string }>(sql`
+    select external_id as id from external_ids where provider = 'deezer' and entity_type = 'artist' and entity_id = ${artistId} order by external_id`)
+  if (rows.length === 0) return true
+  return attempt('top tracks', async () => {
+    const deezerId = await mainDeezerArtist(rows.map((row) => row.id))
+    await topTracks(artistId, { mbid: null, deezerId })
+  })
 }
 
 /**

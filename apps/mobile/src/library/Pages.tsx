@@ -492,9 +492,11 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
     starts.run('radio', () => api.radio.artist(data.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${data.name}.`)));
   };
   const startingRadio = starts.pending('radio');
-  const groups = discography
-    .map(group => ({ title: group.title, albums: data.albums.filter(album => group.types.includes(album.type)) }))
-    .filter(group => group.albums.length);
+  // Releases of other artists that credit this one come last, under their own heading.
+  const groups = [
+    ...discography.map(group => ({ title: group.title, albums: data.albums.filter(album => group.types.includes(album.type)) })),
+    { title: 'Appears on', albums: data.appearsOn ?? [] },
+  ].filter(group => group.albums.length);
 
   return <DetailPage item={artistCollection(data, link)} tint={data.image?.color ?? null} title={data.name}
     info={['Artist', ...data.genres.slice(0, 2)].join('  ·  ')}

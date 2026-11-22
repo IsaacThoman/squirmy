@@ -1,0 +1,821 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/807493/top?limit=25"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 4380671631,
+          "title": "KILLING GOD WITH COMPUTERS",
+          "link": "https://www.deezer.com/track/4380671631",
+          "duration": 197,
+          "rank": 694313,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 1134364511,
+            "title": "爱",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/030d8f6ed0775e3f866af17e838233ff/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 66538771,
+          "title": "Oblivion",
+          "link": "https://www.deezer.com/track/66538771",
+          "duration": 251,
+          "rank": 405997,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 6509005,
+            "title": "Visions",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c85a9ca3e1bc10192a1f893910e1322a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 16620204,
+          "title": "Genesis",
+          "link": "https://www.deezer.com/track/16620204",
+          "duration": 255,
+          "rank": 465570,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 1555231,
+            "title": "Genesis",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/933f719eb9a35bcde452c9bfe94c9d6d/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 861829452,
+          "title": "4ÆM",
+          "link": "https://www.deezer.com/track/861829452",
+          "duration": 270,
+          "rank": 491042,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 128805452,
+            "title": "Miss Anthropocene (Deluxe Edition)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/b069393ca5d13fea704e59d548d2c46d/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 138546547,
+          "title": "Kill V. Maim",
+          "link": "https://www.deezer.com/track/138546547",
+          "duration": 246,
+          "rank": 486314,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 14880621,
+            "title": "Art Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 4337764672,
+          "title": "ACCELERANDO",
+          "link": "https://www.deezer.com/track/4337764672",
+          "duration": 242,
+          "rank": 578640,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 291321071,
+              "name": "VADAKIN",
+              "link": "https://www.deezer.com/artist/291321071",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/5bfed3588a28fc8b3def0605ccaa048c/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 1117510372,
+            "title": "ACCELERANDO",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5bfed3588a28fc8b3def0605ccaa048c/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 138546543,
+          "title": "Flesh without Blood",
+          "link": "https://www.deezer.com/track/138546543",
+          "duration": 264,
+          "rank": 418011,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 14880621,
+            "title": "Art Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1633965572,
+          "title": "Shinigami Eyes",
+          "link": "https://www.deezer.com/track/1633965572",
+          "duration": 159,
+          "rank": 428457,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 290453292,
+            "title": "Shinigami Eyes",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d0d8536ab0cd41a9b7ce7d8d9e7a0973/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1144909922,
+          "title": "Delicate Weapon",
+          "link": "https://www.deezer.com/track/1144909922",
+          "duration": 230,
+          "rank": 512333,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 113706682,
+              "name": "Lizzy Wizzy",
+              "link": "https://www.deezer.com/artist/113706682",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/ce4263faf4ffafac5419b9abf3f4c55f/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 186939312,
+            "title": "Cyberpunk 2077: Radio, Vol. 2 (Original Soundtrack)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d3e3fd3a1d2360511eb43bee4c786028/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 138546559,
+          "title": "Venus Fly",
+          "link": "https://www.deezer.com/track/138546559",
+          "duration": 225,
+          "rank": 366127,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 131935,
+              "name": "Janelle Monáe",
+              "link": "https://www.deezer.com/artist/131935",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/92f85ade98d2839697ef8a248fbe66ee/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 14880621,
+            "title": "Art Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3586140781,
+          "title": "Artificial Angels",
+          "link": "https://www.deezer.com/track/3586140781",
+          "duration": 169,
+          "rank": 393670,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 832200751,
+            "title": "Artificial Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/3d141b932e6c4edee493823ee75fe7f5/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 861829512,
+          "title": "We Appreciate Power",
+          "link": "https://www.deezer.com/track/861829512",
+          "duration": 335,
+          "rank": 338658,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 189672,
+              "name": "HANA",
+              "link": "https://www.deezer.com/artist/189672",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/d41d8cd98f00b204e9800998ecf8427e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 128805452,
+            "title": "Miss Anthropocene (Deluxe Edition)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/b069393ca5d13fea704e59d548d2c46d/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 66538776,
+          "title": "Be a Body",
+          "link": "https://www.deezer.com/track/66538776",
+          "duration": 260,
+          "rank": 211562,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 6509005,
+            "title": "Visions",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c85a9ca3e1bc10192a1f893910e1322a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3484515121,
+          "title": "Image (Grimes Special)",
+          "link": "https://www.deezer.com/track/3484515121",
+          "duration": 215,
+          "rank": 436959,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 10468777,
+              "name": "Magdalena Bay",
+              "link": "https://www.deezer.com/artist/10468777",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/d997d33abc84ad8158e6379c84eeb761/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 10468777,
+            "name": "Magdalena Bay",
+            "type": "artist"
+          },
+          "album": {
+            "id": 796708861,
+            "title": "Image (Grimes Special)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/9519eb48dd9f6192cb9b598da117dc3f/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 138546539,
+          "title": "California",
+          "link": "https://www.deezer.com/track/138546539",
+          "duration": 198,
+          "rank": 314123,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 14880621,
+            "title": "Art Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 138546557,
+          "title": "World Princess part II",
+          "link": "https://www.deezer.com/track/138546557",
+          "duration": 305,
+          "rank": 312873,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 14880621,
+            "title": "Art Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 97089368,
+          "title": "Realiti (Demo)",
+          "link": "https://www.deezer.com/track/97089368",
+          "duration": 267,
+          "rank": 350564,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 9883896,
+            "title": "Realiti (Demo)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/1b295904e9f1c4f7d518c77347171c97/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 861829472,
+          "title": "My Name is Dark (Art Mix)",
+          "link": "https://www.deezer.com/track/861829472",
+          "duration": 356,
+          "rank": 355098,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 128805452,
+            "title": "Miss Anthropocene (Deluxe Edition)",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/b069393ca5d13fea704e59d548d2c46d/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 138546555,
+          "title": "Realiti",
+          "link": "https://www.deezer.com/track/138546555",
+          "duration": 306,
+          "rank": 405711,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 14880621,
+            "title": "Art Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 3924124901,
+          "title": "Face The Flamë",
+          "link": "https://www.deezer.com/track/3924124901",
+          "duration": 224,
+          "rank": 385576,
+          "explicit_lyrics": true,
+          "contributors": [
+            {
+              "id": 13639985,
+              "name": "Yeat",
+              "link": "https://www.deezer.com/artist/13639985",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/87f49e3c06e20dcb431717d5ed502bf6/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 11279454,
+              "name": "YoungBoy Never Broke Again",
+              "link": "https://www.deezer.com/artist/11279454",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/d8d4dbdd6d5eb10491c8dc3b5370ae7e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 13639985,
+            "name": "Yeat",
+            "type": "artist"
+          },
+          "album": {
+            "id": 948379381,
+            "title": "ADL",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/10a08dcbe34a8c6fa37945a143294368/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 1543660742,
+          "title": "A Drug From God",
+          "link": "https://www.deezer.com/track/1543660742",
+          "duration": 192,
+          "rank": 341427,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 11799,
+              "name": "Chris Lake",
+              "link": "https://www.deezer.com/artist/11799",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/6ba671854e3d3d37b83f4af2f07a099c/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 5399152,
+              "name": "NPC",
+              "link": "https://www.deezer.com/artist/5399152",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/187d9f9d3e6695e8b2e96b6841a05c1a/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 11799,
+            "name": "Chris Lake",
+            "type": "artist"
+          },
+          "album": {
+            "id": 270627642,
+            "title": "A Drug From God",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/104cd6f272119058f73af1aec1d3b0bc/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 138546541,
+          "title": "SCREAM",
+          "link": "https://www.deezer.com/track/138546541",
+          "duration": 140,
+          "rank": 254119,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 84318202,
+              "name": "潘PAN",
+              "link": "https://www.deezer.com/artist/84318202",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/6a038a3e765a06efa4ac7b4c65ac652e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 14880621,
+            "title": "Art Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 66538779,
+          "title": "Nightmusic",
+          "link": "https://www.deezer.com/track/66538779",
+          "duration": 238,
+          "rank": 142998,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            },
+            {
+              "id": 1380950,
+              "name": "Majical Cloudz",
+              "link": "https://www.deezer.com/artist/1380950",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/7dec4393c1c36dec25d198b125396a45/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 6509005,
+            "title": "Visions",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c85a9ca3e1bc10192a1f893910e1322a/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 138546551,
+          "title": "Easily",
+          "link": "https://www.deezer.com/track/138546551",
+          "duration": 183,
+          "rank": 268225,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 14880621,
+            "title": "Art Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        },
+        {
+          "id": 138546537,
+          "title": "laughing and not being normal",
+          "link": "https://www.deezer.com/track/138546537",
+          "duration": 107,
+          "rank": 266243,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 807493,
+              "name": "Grimes",
+              "link": "https://www.deezer.com/artist/807493",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+              "type": "artist"
+            }
+          ],
+          "artist": {
+            "id": 807493,
+            "name": "Grimes",
+            "type": "artist"
+          },
+          "album": {
+            "id": 14880621,
+            "title": "Art Angels",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        }
+      ],
+      "total": 99,
+      "next": "https://api.deezer.com/artist/807493/top?limit=25&index=25"
+    }
+  }
+}

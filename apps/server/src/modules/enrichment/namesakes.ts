@@ -15,6 +15,7 @@ import { queryKeys } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { bridgeArtist } from './bridge.js'
+import { reconcileArtistAlbums } from './reconcile.js'
 import { adoptMbidNow, attempt, changed } from './rows.js'
 
 /** Rows looked at per run: each costs one or two MusicBrainz requests, a second apart. */
@@ -45,6 +46,8 @@ export async function bridgeNamesakes(): Promise<string[]> {
       const mbid = await bridgeArtist(row.deezerId, row.name)
       if (!mbid) return
       const into = await adoptMbidNow('artist', row.id, mbid)
+      // The merged row's album stubs now sit beside the artist's release groups.
+      if (into !== row.id) await reconcileArtistAlbums(into)
       bridged.push(row.id)
       await changed([queryKeys.artist(row.id), queryKeys.artist(into)])
     })
