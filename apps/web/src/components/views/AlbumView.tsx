@@ -130,7 +130,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
       <div className="px-(--gutter) pb-10">
         {listing
           ? <div role="status" aria-label="Loading songs" className="px-2 pt-2"><TrackRowsSkeleton rows={Math.min(Math.max(album.trackCount, 6), 14)} /></div>
-          : <div className="-mx-2"><TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" inCollection={album.library === 'collection'} {...actions} /></div>}
+          : <div className="-mx-2"><TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" {...actions} /></div>}
 
         <footer className="mt-8 flex flex-col gap-4 md:max-w-2xl">
           {album.description && <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{album.description}</p>}

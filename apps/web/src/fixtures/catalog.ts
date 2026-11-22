@@ -251,6 +251,8 @@ export const albums: AlbumDetail[] = albumSeeds.map((seed, albumIndex) => {
   const discNumbers = [...new Set(seed.songs.map(song => song.disc ?? 1))]
   const tracks = seed.songs.map(song => {
     const disc = song.disc ?? 1
+    // What is on the server here was brought by its owner: in everyone's library.
+    const collected = (song.availability ?? seed.availability ?? 'server') === 'server'
     const track: TrackSummary = {
       id: uuid(3, tracksBySlug.size + 1),
       mbid: null,
@@ -265,8 +267,8 @@ export const albums: AlbumDetail[] = albumSeeds.map((seed, albumIndex) => {
       liked: Boolean(song.liked),
       explicit: song.explicit ?? false,
       hasLyrics: Boolean(song.lyrics),
-      // What is on the server here was brought by its owner: in everyone's library.
-      inLibrary: (song.availability ?? seed.availability ?? 'server') === 'server',
+      inLibrary: collected,
+      library: collected ? 'collection' : null,
     }
     tracksBySlug.set(song.slug, track)
     return track

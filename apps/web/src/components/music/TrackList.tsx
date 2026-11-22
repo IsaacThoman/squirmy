@@ -10,11 +10,12 @@ import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
-import { isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
+import { isPlayable, trackLibraryToggle, UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
+import { ArtistLinks } from './ArtistLinks'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
 import { PrefetchLink } from './PrefetchLink'
@@ -39,8 +40,6 @@ type SharedProps = {
   variant?: TrackListVariant
   nowPlaying?: NowPlaying | null
   isWanted?: (track: TrackSummary) => boolean
-  /** Songs whose file the server's owner brought: they are in everyone's library, and no one removes them. */
-  inCollection?: boolean
   onPlay: (index: number) => void
   onAction?: (action: TrackAction, track: TrackSummary, index: number) => void
   /** Playlists the track menu offers to add to. */
@@ -102,7 +101,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
  * One song. A song that plays looks the same wherever its file is (on the server, or fetched
  * as it plays); one that does not is gray and says "Not available".
  */
-export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted, inCollection, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
+export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted, onPlay, onAction, playlists, extraMenu, reorder, style }: TrackRowProps) {
   const navigate = useNavigate()
   const viewer = useViewer()
   const { liked } = track
@@ -112,8 +111,8 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const loading = current && nowPlaying.loading
   const play = current ? nowPlaying.onTogglePlay : onPlay
   const act = (action: TrackAction) => onAction?.(action, track, index)
-  // Servers that know who saved what send `inLibrary`; a collection song is in it for good.
-  const library = track.inLibrary === undefined || (inCollection && track.inLibrary) ? null : track.inLibrary
+  // Only what removing would take out of the library: never a collection song or one of an added album.
+  const library = trackLibraryToggle(track)
 
   const menu: MenuEntry[] = [
     { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), disabled: unavailable },
@@ -285,21 +284,6 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
         </div>
       </li>
     </ContextMenu>
-  )
-}
-
-/** The track's artists, each a link. `plain` leaves out the hover color, for rows that are grayed out. */
-function ArtistLinks({ track, plain }: { track: TrackSummary; plain: boolean }) {
-  if (!track.artists.length) return <>{track.artistCredit}</>
-  return (
-    <>
-      {track.artists.map((artist, index) => (
-        <Fragment key={artist.id}>
-          {index > 0 && ', '}
-          <PrefetchLink kind="artist" id={artist.id} to={`/artist/${artist.id}`} className={cn('hover:underline', !plain && 'hover:text-foreground')}>{artist.name}</PrefetchLink>
-        </Fragment>
-      ))}
-    </>
   )
 }
 

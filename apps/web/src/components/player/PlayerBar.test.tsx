@@ -10,9 +10,9 @@ import { MiniPlayer, PlayerBar } from './PlayerBar'
 
 const song = track('night-swimming-demo')
 
-function player(state: 'preparing' | 'ready', entryId = 'entry-1'): Player {
+function player(state: 'preparing' | 'ready', entryId = 'entry-1', current = song): Player {
   const value: PlayerState = {
-    current: { track: song, entry: { id: entryId, trackId: song.id, albumId: song.album?.id ?? null, durationMs: song.durationMs, state } },
+    current: { track: current, entry: { id: entryId, trackId: current.id, albumId: current.album?.id ?? null, durationMs: current.durationMs, state } },
     playing: true, volume: 1, volumes: {}, shuffle: false, repeat: 'off', autoplay: false, context: null,
     queue: [], history: [], autoplayQueue: [], devices, thisDeviceId, activeDeviceId: thisDeviceId, lyrics: null, detached: false, canDetach: false,
   }
@@ -25,6 +25,17 @@ const bar = (value: Player) => (
 
 beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }))
 afterEach(() => vi.useRealTimers())
+
+describe('PlayerBar', () => {
+  it('links each of the song\'s artists to its own page', () => {
+    const lead = song.artists[0]!
+    const guest = { id: '01a20236-8dd0-77ed-9c01-ab24582bf8cf', name: 'Guest Artist' }
+    renderWithApp(bar(player('ready', 'entry-credits', { ...song, artistCredit: `${lead.name} feat. ${guest.name}`, artists: [lead, guest] })))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(within(region).getByRole('link', { name: lead.name })).toHaveAttribute('href', `/artist/${lead.id}`)
+    expect(within(region).getByRole('link', { name: guest.name })).toHaveAttribute('href', `/artist/${guest.id}`)
+  })
+})
 
 describe('PlayerBar while the music is on its way', () => {
   it('spins the play button as for buffering and keeps the artist under the title', () => {
