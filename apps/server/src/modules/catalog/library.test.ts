@@ -1,5 +1,5 @@
 import { AlbumPage, ArtistPage, GenrePage, TrackPage } from '@squirmy/contracts'
-import { eq, inArray } from 'drizzle-orm'
+import { asc, desc, eq, inArray, isNull } from 'drizzle-orm'
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { z } from 'zod'
@@ -57,7 +57,7 @@ describe('library lists', () => {
     await db.update(albums).set({ year: null }).where(eq(albums.id, owned[3]!.albumId))
     await db.update(albums).set({ genres: ['Rock', 'Jazz'] }).where(eq(albums.id, owned[0]!.albumId))
     await db.update(albums).set({ genres: ['Rock'] }).where(inArray(albums.id, [owned[2]!.albumId, gone.albumId]))
-    // Every file arrives in the same instant: recency ties are broken by file id.
+    // Every file arrives in the same instant: recency ties go to the file path (track order), then the id.
     await db.update(mediaFiles).set({ addedAt: new Date('2026-01-01T00:00:00Z') })
   })
   afterAll(async () => {
@@ -153,8 +153,11 @@ describe('library lists', () => {
       expect(tracks.every((track) => track.availability === 'server')).toBe(true)
     }
     const recent = await walk('/api/v1/library/tracks', TrackPage, 5)
-    expect(ids(recent)).toEqual(ids([...all].reverse().map((track) => ({ id: track.recordingId }))))
-    expect(recent[0]!.album?.id).toBe(owned[5]!.albumId)
+    // Songs that arrived together come in track order (by path), not in reverse id order.
+    const byPath = await db.select({ id: mediaFiles.recordingId, albumId: mediaFiles.albumId }).from(mediaFiles)
+      .where(isNull(mediaFiles.missingSince)).orderBy(asc(mediaFiles.relPath), desc(mediaFiles.recordingId))
+    expect(ids(recent)).toEqual(byPath.map((file) => file.id))
+    expect(recent[0]!.album?.id).toBe(byPath[0]!.albumId)
 
     const byTitle = await walk('/api/v1/library/tracks?sort=title', TrackPage, 4)
     const titles = byTitle.map((track) => track.title)

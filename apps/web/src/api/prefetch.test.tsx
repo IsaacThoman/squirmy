@@ -37,7 +37,7 @@ describe('album page', () => {
     const { services, api } = fakeServices()
     const blueHour = album('blue-hour')
     api.catalog.album.mockImplementation(() => new Promise(() => {}))
-    api.catalog.home.mockImplementation(async () => ({ sections: [{ id: 'recently-added', kind: 'albums' as const, title: 'Recently added', albums: [summary(blueHour)] }] }))
+    api.catalog.home.mockImplementation(async () => ({ sections: [{ id: 'recently-added', kind: 'albums' as const, title: 'Recently added', albums: [summary(album('glass-city')), summary(blueHour)] }] }))
     renderWithApp(<AppRoutes />, '/', services)
     const card = await screen.findByRole('link', { name: blueHour.title })
     fireEvent.click(card)
@@ -52,7 +52,7 @@ describe('prefetch', () => {
     try {
       const { services, api } = fakeServices()
       const blueHour = album('blue-hour')
-      api.catalog.home.mockImplementation(async () => ({ sections: [{ id: 'recently-added', kind: 'albums' as const, title: 'Recently added', albums: [summary(blueHour)] }] }))
+      api.catalog.home.mockImplementation(async () => ({ sections: [{ id: 'recently-added', kind: 'albums' as const, title: 'Recently added', albums: [summary(album('glass-city')), summary(blueHour)] }] }))
       renderWithApp(<AppRoutes />, '/', services)
       const card = await screen.findByRole('link', { name: blueHour.title })
       api.catalog.album.mockClear()

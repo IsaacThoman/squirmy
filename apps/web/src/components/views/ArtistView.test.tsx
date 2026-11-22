@@ -149,3 +149,24 @@ describe('see all', () => {
     expect(await screen.findByText('Nothing here')).toBeInTheDocument()
   })
 })
+
+describe('the heart', () => {
+  it('says so when the artist is saved, naming them', async () => {
+    const fake = fakeServices()
+    fake.api.catalog.artist.mockResolvedValue({ ...artistDetail(id)!, liked: false })
+    renderWithApp(<AppRoutes />, `/artist/${id}`, fake.services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
+    expect(fake.api.userdata.like).toHaveBeenCalledWith('artist', id)
+    const toast = (await screen.findByText('Saved to your library')).closest('[data-toast]')!
+    expect(within(toast as HTMLElement).getByText('Mira Vale')).toBeInTheDocument()
+    expect(within(toast as HTMLElement).getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+  })
+
+  it('gives the release cards the album page’s menu', async () => {
+    renderWithApp(<AppRoutes />, `/artist/${id}`)
+    await screen.findByRole('heading', { level: 1, name: 'Mira Vale' })
+    await userEvent.click(screen.getAllByRole('button', { name: 'More options for Blue Hour' })[0]!)
+    expect(await screen.findByRole('menuitem', { name: 'Remove from library' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Add to queue' })).toBeInTheDocument()
+  })
+})

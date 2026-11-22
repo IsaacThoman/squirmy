@@ -88,18 +88,12 @@ export function HomePage() {
   const home = useHome()
   const scan = useScanProgress()
   if (home.error) return <ErrorPage error={home.error} onRetry={() => void home.refetch()} />
-  const sections = home.data?.sections
-  const albums = (id: string) => {
-    const section = sections?.find(candidate => candidate.id === id)
-    return section?.kind === 'albums' ? section.albums : []
-  }
-  // What was played last leads, then what was added; the sections follow in the server's order.
-  const featured = albums('recently-played')[0] ?? albums('recently-added')[0] ?? null
+  const { featured, sections } = featuring(home.data?.sections)
   return (
     <HomeView
       featured={featured}
       sections={sections}
-      empty={Boolean(sections) && sections!.every(isEmptySection)}
+      empty={Boolean(home.data) && home.data!.sections.every(isEmptySection)}
       canAddMusic={user.role === 'admin'}
       canFindMusic={canFetch(user)}
       scan={scan}
@@ -107,6 +101,21 @@ export function HomePage() {
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
     />
   )
+}
+
+/**
+ * The album Home leads with: the one played last, else the one added last. It leaves the rail it
+ * came from, which would otherwise start with it again, and the sections keep the server's order.
+ */
+function featuring(sections: HomeSection[] | undefined) {
+  const source = ['recently-played', 'recently-added']
+    .map(id => sections?.find(section => section.id === id))
+    .find((section): section is Extract<HomeSection, { kind: 'albums' }> => section?.kind === 'albums' && section.albums.length > 0)
+  const album = source?.albums[0]
+  return {
+    featured: album ? { album, label: source!.id === 'recently-played' ? 'Jump back in' : 'Recently added' } as const : null,
+    sections: sections?.map(section => (section === source ? { ...section, albums: section.albums.slice(1) } : section)),
+  }
 }
 
 const isEmptySection = (section: HomeSection) => (
@@ -454,12 +463,18 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   // The server lists artists by name whatever the order asked for.
   const artists = useLibraryList('artists', { sort: 'recent' }, filter === 'artists')
   const songs = useLibraryList('tracks', { sort, genre }, filter === 'songs')
-  const playlists = usePlaylists().data?.items
+  const playlistList = usePlaylists()
+  const playlists = playlistList.data?.items
+  // Without the playlists, Liked Songs and the albums still show; the page says the rest failed.
+  const playlistsFailed = showsPlaylists && !playlists && Boolean(playlistList.error)
   const liked = useLikedTracks()
 
   const searchText = filter === 'playlists' ? '' : query
-  const found = useLibraryMatches(searchText)
+  // A search keeps to the genre chosen, as the lists do; the artists' list takes no genre.
+  const found = useLibraryMatches(searchText, filter === 'artists' ? undefined : genre)
   const searching = searchesServer(searchText)
+  // The search's own failure, once it is done retrying: the list behind it may well have loaded.
+  const searchFailed = searching && !found.pending && found.data === undefined && Boolean(found.error)
   const matched = searching ? found.data : undefined
   const listed = filter === 'artists' ? artists : filter === 'songs' ? songs : showsAlbums ? albums : null
 
@@ -467,9 +482,9 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
     if (filter === 'songs') return undefined
     const collections: LibraryItem[] = []
     if (showsPlaylists) {
-      if (!playlists) return undefined
+      if (!playlists && !playlistsFailed) return undefined
       collections.push(
-        ...[{ kind: 'liked' } as const, ...playlists.map(playlist => ({ kind: 'playlist', playlist }) as const)]
+        ...[{ kind: 'liked' } as const, ...(playlists ?? []).map(playlist => ({ kind: 'playlist', playlist }) as const)]
           .filter(item => matches(query, item.kind === 'liked' ? 'Liked Songs' : item.playlist.name, item.kind === 'liked' ? '' : item.playlist.ownerName)),
       )
     }
@@ -484,7 +499,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       collections.push(...list.map(artist => ({ kind: 'artist', artist }) as const))
     }
     return collections
-  }, [filter, showsPlaylists, showsAlbums, playlists, query, searching, matched, albums.data, artists.data])
+  }, [filter, showsPlaylists, showsAlbums, playlists, playlistsFailed, query, searching, matched, albums.data, artists.data])
 
   const tracks = useMemo(() => {
     if (filter !== 'songs') return undefined
@@ -499,14 +514,14 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
     if (!searching && hasNextPage && !isFetchingNextPage) void fetchNextPage?.()
   }, [searching, hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const error = listed?.error ?? (searching ? found.error : null)
-  if (error && !listed?.data) return <ErrorPage error={error} onRetry={() => void (searching ? found.refetch() : listed?.refetch())} />
+  if (listed?.error && !listed.data) return <ErrorPage error={listed.error} onRetry={() => void listed.refetch()} />
 
   const matchedCount = !matched ? 0 : filter === 'songs' ? matched.tracks.length : filter === 'artists' ? matched.artists.length : matched.albums.length
   const count = filter === 'albums' ? listCount(albums, 'album')
     : filter === 'artists' ? listCount(artists, 'artist')
       : filter === 'songs' ? listCount(songs, 'song')
-        : filter === 'playlists' && playlists ? plural(playlists.length, 'playlist') : undefined
+        // Liked Songs is listed, and labeled, as a playlist, so it counts as one.
+        : filter === 'playlists' && playlists ? plural(playlists.length + 1, 'playlist') : undefined
   const setParam = (key: string, value: string | undefined) => setParams(current => {
     const next = new URLSearchParams(current)
     if (value) next.set(key, value)
@@ -538,6 +553,10 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       onClearGenre={() => setParam('genre', undefined)}
       items={items}
       tracks={tracks}
+      // All lists collections; a search also finds songs, which follow them rather than going unsaid.
+      songMatches={filter === 'all' ? matched?.tracks : undefined}
+      playlistsFailure={playlistsFailed ? { error: playlistList.error, onRetry: () => void playlistList.refetch() } : undefined}
+      searchFailure={searchFailed ? { error: found.error, onRetry: () => void found.refetch() } : undefined}
       count={count}
       likedCount={liked.data ? listCount(liked, 'song') : undefined}
       libraryEmpty={Boolean(albums.data && !itemsOf(albums.data).length && !genre)}

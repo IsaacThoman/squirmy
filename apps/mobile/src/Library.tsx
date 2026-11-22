@@ -18,6 +18,8 @@ import {
   BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField,
   type RowAction, type SearchHandle,
 } from './library/BrowseControls';
+import { homeLayout } from './library/home';
+import { libraryRows, type LibraryRow } from './library/libraryRows';
 import { searchFilterLabels } from './library/search';
 import { useRecentSearches, useSearchList } from './library/useSearchList';
 import { useNotice } from './Notice';
@@ -33,7 +35,7 @@ import {
 import { useRealtime } from './data/realtime';
 import { SongList, useSongListItems } from './library/SongList';
 import { usePlayAll } from './library/usePlayAll';
-import { chunk, type SongRowItem } from './library/rows';
+import type { SongRowItem } from './library/rows';
 import { ZoomLink, ZoomSource } from './library/ZoomLink';
 import { usePlaybackActions } from './playback';
 import { createThemedStyles, unavailableOpacity, useColors } from './theme';
@@ -138,12 +140,10 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const collectionDim = useCollectionDim();
   const wantlist = useWantlistEnabled();
   // A Home saved before the wantlist was switched off, or from an older server, may still have it.
-  const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
-  const albums = (id: string) => sections.find((section): section is Extract<HomeSection, { kind: 'albums' }> => section.kind === 'albums' && section.id === id)?.albums;
+  const listed = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
   const viewer = useViewer();
   // The first thing on Home: something that plays, never a gray card of an album this viewer can't play.
-  const playable = (album: AlbumSummary) => albumPresentation(album, viewer) === 'normal';
-  const hero = albums('recently-played')?.find(playable) ?? albums('recently-added')?.find(playable);
+  const { hero, sections } = homeLayout(listed, album => albumPresentation(album, viewer) === 'normal');
   const heroSize = width - gutter * 2;
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
   const refreshControl = useRefreshControl(home.refetch, top);
@@ -181,11 +181,6 @@ type LibraryFilter = (typeof filters)[number];
 /** Rows drawn per batch, and screens' worth kept around the visible part. */
 const libraryBatch = 12;
 const libraryWindow = 7;
-
-type LibraryRow =
-  | { kind: 'song'; key: string; song: SongRowItem }
-  | { kind: 'tiles'; key: string; items: readonly Collection[] }
-  | { kind: 'row'; key: string; item: Collection };
 
 const libraryRowKey = (row: LibraryRow) => row.key;
 
@@ -273,23 +268,25 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       else playSongs.run(start, false, play);
     },
   });
-  const empty = filter === 'Songs' ? !tracks.length : !items.length;
+  // All, while searching, lists the songs found after the collections.
+  const showsSongs = filter === 'Songs' || (filter === 'All' && searching);
+  const empty = !items.length && !(showsSongs && tracks.length);
   // The invitation is for a library with nothing in it, on the views that list albums: under
   // Songs or Artists, saved songs or artists can be there without a single album.
   const libraryEmpty = (filter === 'Albums' || (filter === 'All' && playlists.data && !playlists.items.length))
     && albums.data && !albums.items.length && !query;
-  const capped = searching && matched && (filter === 'Songs' ? matched.tracks : filter === 'Artists' ? matched.artists : matched.albums).length >= libraryMatchLimit;
+  const capped = searching && matched && (filter === 'Songs' ? matched.tracks.length : filter === 'Artists' ? matched.artists.length
+    : Math.max(matched.albums.length, filter === 'All' ? matched.tracks.length : 0)) >= libraryMatchLimit;
 
   const mode = filter === 'Songs' ? 'songs' : grid ? 'grid' : 'list';
-  const rows = useMemo((): LibraryRow[] => {
-    if (mode === 'songs') return songItems.data.map(song => ({ kind: 'song', key: song.key, song }));
-    if (mode === 'grid') return chunk(items, columns).map(row => ({ kind: 'tiles', key: row[0]!.key, items: row }));
-    return items.map(item => ({ kind: 'row', key: item.key, item }));
-  }, [columns, items, mode, songItems.data]);
+  const rows = useMemo(() => libraryRows({ mode, items, songs: showsSongs ? songItems.data : [], columns }),
+    [columns, items, mode, showsSongs, songItems.data]);
   const renderSong = songItems.renderItem;
   const renderRow = useCallback(({ item: row }: { item: LibraryRow }) => {
     switch (row.kind) {
       case 'song': return <View style={styles.songs}>{renderSong({ item: row.song })}</View>;
+      // The list is inset already; the title brings its own inset.
+      case 'heading': return <View style={styles.songsHeading}><SectionTitle title={row.title} /></View>;
       case 'tiles': return <CollectionGridRow items={row.items.map(item => ({
         id: item.key, title: item.title, subtitle: item.subtitle, size,
         cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
@@ -569,6 +566,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   libraryBody: { paddingHorizontal: gutter },
   sortRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 43, marginBottom: 4 },
   songs: { marginHorizontal: -4 },
+  songsHeading: { marginHorizontal: -gutter, marginTop: 18 },
   more: { marginVertical: 20 },
   matchNote: { color: colors.quiet, fontSize: 13, textAlign: 'center', marginVertical: 18, marginHorizontal: 12 },
   searching: { paddingVertical: 48, alignItems: 'center' },

@@ -56,10 +56,16 @@ async function invalidateSave(userId: string, type: LikeEntityType, id: string) 
  * Saves an entity with the heart (idempotent): the one way into a user's library. Follows
  * merge redirects; 404 when it does not exist. For a user who may fetch music, an album or
  * track is then fetched in the background (`fetchMissingOf`). Returns the id saved.
+ *
+ * `savedAt` puts the save back at the time a removal answered (Undo), so the item returns to
+ * its place in Recently added and Liked Songs; a time in the future is taken as now. An
+ * existing save keeps its own time.
  */
-export async function likeEntity(userId: string, type: LikeEntityType, id: string): Promise<string> {
+export async function likeEntity(userId: string, type: LikeEntityType, id: string, options: { savedAt?: string } = {}): Promise<string> {
   const entityId = await resolveEntity(type, id)
-  await db.insert(likes).values({ userId, entityType: storedType[type], entityId }).onConflictDoNothing()
+  const now = new Date()
+  const savedAt = options.savedAt ? new Date(Math.min(new Date(options.savedAt).getTime(), now.getTime())) : now
+  await db.insert(likes).values({ userId, entityType: storedType[type], entityId, createdAt: savedAt }).onConflictDoNothing()
   await invalidateSave(userId, type, entityId)
   if (type !== 'artist') await fetchMissingOf(userId, type, entityId)
   return entityId
@@ -67,13 +73,18 @@ export async function likeEntity(userId: string, type: LikeEntityType, id: strin
 
 /**
  * Removes a save (idempotent), under the given id and wherever its redirects lead. Nothing
- * else goes: files stay as cache, playlists and history stay.
+ * else goes: files stay as cache, playlists and history stay. Returns when the save was made
+ * (the earliest, should both ids have had one), for Undo; null when there was none.
  */
-export async function unlikeEntity(userId: string, type: LikeEntityType, id: string): Promise<void> {
+export async function unlikeEntity(userId: string, type: LikeEntityType, id: string): Promise<Date | null> {
   const resolved = (await resolveMerged(entityTable[type], [id])).get(id)
   const ids = [...new Set([id, resolved ?? id])]
-  await db.delete(likes).where(and(eq(likes.userId, userId), eq(likes.entityType, storedType[type]), inArray(likes.entityId, ids)))
+  const removed = await db.delete(likes)
+    .where(and(eq(likes.userId, userId), eq(likes.entityType, storedType[type]), inArray(likes.entityId, ids)))
+    .returning({ createdAt: likes.createdAt })
   await invalidateSave(userId, type, resolved ?? id)
+  const times = removed.map((row) => row.createdAt.getTime())
+  return times.length > 0 ? new Date(Math.min(...times)) : null
 }
 
 const likeOrdering = (type: LikeEntityType): Ordering => ({
