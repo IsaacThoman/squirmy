@@ -259,6 +259,8 @@ export class SessionClient {
   private normalization: NormalizationMode
   private loadToken = 0
   private loadingEntryId: string | null = null
+  /** The entry whose stream could not be had yet (offline), and where its first try would have started. */
+  private unloaded: { entryId: string; anchorAt: number; anchorMs: number; startMs: number } | null = null
   /** The entry whose descriptor the server refused; not loaded again until play or a seek. */
   private refusedEntryId: string | null = null
   private preloadTarget: string | null = null
@@ -900,6 +902,8 @@ export class SessionClient {
     const token = ++this.loadToken
     this.loadingEntryId = entry.id
     this.refusedEntryId = null
+    const asked = this.local
+    const startMs = this.startPosition(asked)
     let descriptor: PlaybackDescriptor
     try {
       descriptor = await this.describe(entry)
@@ -910,6 +914,9 @@ export class SessionClient {
       // Whatever the engine still holds is the entry before this one; it must not go on playing.
       if (engine.getStatus().entryId !== entry.id && engine.getStatus().state !== 'idle') engine.stop()
       this.reportLoadFailure(entry, willRetry ? 'buffering' : 'error')
+      if (willRetry && this.unloaded?.entryId !== entry.id) {
+        this.unloaded = { entryId: entry.id, anchorAt: asked.anchorAt, anchorMs: asked.positionMs, startMs }
+      }
       if (willRetry) {
         setTimer(() => {
           if (token === this.loadToken) this.syncEngine(this.local, false)
@@ -926,10 +933,15 @@ export class SessionClient {
     if (session.current?.id !== entry.id) return
     this.hold(entry.id, descriptor)
     this.gain = this.gainOf(entry, descriptor, session)
+    // Time spent unable to load (offline) is not time played: a retry starts where the first
+    // try would have, unless the session was moved meanwhile (a seek, or another device's clock).
+    const unloaded = this.unloaded
+    this.unloaded = null
+    const waited = unloaded?.entryId === entry.id && unloaded.anchorAt === session.anchorAt && unloaded.anchorMs === session.positionMs
     engine.load({
       entryId: entry.id,
       url: streamUrl(baseUrl, descriptor),
-      startMs: this.startPosition(session),
+      startMs: waited ? unloaded.startMs : this.startPosition(session),
       autoplay: session.playing,
       gain: this.gain,
     })

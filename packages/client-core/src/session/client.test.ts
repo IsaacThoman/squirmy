@@ -795,6 +795,32 @@ describe('SessionClient engine', () => {
     expect(server.reports.at(-1)).toMatchObject({ entryId: current.id, status: 'playing' })
   })
 
+  it('starts a song it could not load offline from where it was asked, not from the time waited', async () => {
+    const context = setup()
+    const { client, engine, resolvePlayback, transport, settle, calls } = context
+    let reachable = true
+    resolvePlayback.mockImplementation(async entry => {
+      if (!reachable && entry.trackId === track(3)) throw new ApiError(0, 'network_error', 'Network request failed')
+      return descriptor(entry)
+    })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await settle()
+    transport.disconnect()
+    reachable = false
+    client.dispatch({ type: 'next' })
+    client.dispatch({ type: 'next' })
+    await settle()
+    const current = client.getSnapshot().session.current!
+    expect(current.trackId).toBe(track(3))
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(engine.getStatus().entryId).not.toBe(current.id)
+    reachable = true
+    await vi.advanceTimersByTimeAsync(3000)
+    await settle()
+    expect(calls('load').at(-1)![1]).toMatchObject({ entryId: current.id, startMs: 0 })
+  })
+
   it('stops the engine when another device takes over', async () => {
     const { server, transport, client, engine } = await playingHere()
     server.apply({ type: 'transfer', deviceId: WEB }, WEB)
