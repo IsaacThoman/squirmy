@@ -3,7 +3,7 @@ import { BookmarkCheck, BookmarkPlus, Play } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { usePrefetch, type PrefetchHandlers } from '@/api/prefetch'
-import { albumPresentation, albumTypeLabel, canFetch } from '@/lib/catalog'
+import { albumPresentation, canFetch, releaseSubtitle } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
 import { LikedCover, PlaylistCover } from './CollectionArt'
@@ -91,7 +91,7 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
       to={`/album/${album.id}`}
       prefetch={prefetch}
       title={album.title}
-      subtitle={subtitle === 'year' ? [album.year, albumTypeLabel(album.type)].filter(Boolean).join(' · ') : album.artistCredit}
+      subtitle={subtitle === 'year' ? releaseSubtitle(album) : album.artistCredit}
       art={<Cover artwork={album.artwork} dimmed={dimmed} />}
       onPlay={dimmed ? undefined : onPlay}
       want={dimmed && onWant ? { wanted, onChange: onWant } : undefined}

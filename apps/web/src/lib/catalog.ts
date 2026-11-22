@@ -1,15 +1,9 @@
-import type { AlbumDetail, AlbumSummary, User } from '@squirmy/contracts'
+import type { AlbumDetail, User } from '@squirmy/contracts'
 
 // What plays and how it looks is one rule shared with the iOS app, so the two cannot drift.
-export { albumNote, albumPresentation, canFetch, isPlayable, librarySave, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core'
-
-const albumTypes: Record<AlbumSummary['type'], string> = {
-  album: 'Album', ep: 'EP', single: 'Single', compilation: 'Compilation', live: 'Live', soundtrack: 'Soundtrack', other: 'Release',
-}
-
-export function albumTypeLabel(type: AlbumSummary['type']) {
-  return albumTypes[type]
-}
+export {
+  albumNote, albumPresentation, albumTypeLabel, canFetch, isPlayable, librarySave, releaseSubtitle, UNAVAILABLE_LABEL, type Viewer,
+} from '@squirmy/client-core'
 
 /**
  * An album whose songs the server is still looking up: it said so (`detailPending`), or it is
