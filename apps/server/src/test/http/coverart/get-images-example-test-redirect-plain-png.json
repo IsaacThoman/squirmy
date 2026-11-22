@@ -1,0 +1,14 @@
+{
+  "note": "Hand-written: a redirect to plain http, which fetchImage must not follow.",
+  "request": {
+    "method": "GET",
+    "url": "https://images.example.test/redirect-plain.png"
+  },
+  "response": {
+    "status": 301,
+    "headers": {
+      "location": "http://images.example.test/pixel.png"
+    },
+    "text": ""
+  }
+}

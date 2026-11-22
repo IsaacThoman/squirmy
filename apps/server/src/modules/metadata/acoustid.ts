@@ -1,6 +1,6 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { getConfig } from '../../config.js'
+import { audioInput, runFfprobe } from '../../lib/ffmpeg.js'
 import { cachedFetch, ProviderError } from '../../lib/http.js'
 import { getServerSecret, getServerSettings } from '../../lib/settings.js'
 
@@ -28,22 +28,79 @@ type RawResponse = {
   }[]
 }
 
-const run = promisify(execFile)
 const provider = 'acoustid'
 const ttl = 30 * 86400
 
+/** fpcalc's default: AcoustID fingerprints cover the first two minutes. */
+const FINGERPRINT_SECONDS = 120
+
+type Probe = { format?: { duration?: string }; streams?: { codec_type?: string; sample_rate?: string; channels?: number }[] }
+
 /**
- * Fingerprints an audio file with `fpcalc -json` (FPCALC_PATH). Null when fpcalc is not
- * installed; throws when it cannot decode the file.
+ * Resolves once a child exits with 0, with its stdout unless that is piped elsewhere;
+ * rejects with its stderr otherwise.
+ */
+function finished(child: ChildProcess, name: string, { readStdout = true } = {}): Promise<string> {
+  let stdout = ''
+  let stderr = ''
+  if (readStdout) {
+    child.stdout?.setEncoding('utf8').on('data', (text: string) => {
+      stdout += text
+    })
+  }
+  child.stderr?.setEncoding('utf8').on('data', (text: string) => {
+    stderr = (stderr + text).slice(-2000)
+  })
+  return new Promise((resolve, reject) => {
+    child.once('error', reject)
+    child.once('close', (code) => code === 0 ? resolve(stdout) : reject(new Error(`${name} exited with ${code ?? 'a signal'}: ${stderr.trim()}`)))
+  })
+}
+
+/**
+ * Fingerprints an audio file with fpcalc (FPCALC_PATH). Null when fpcalc is not
+ * installed; throws when the file cannot be decoded.
+ *
+ * fpcalc cannot be told which demuxers it may open a file with, so it never opens the
+ * file: ffmpeg decodes it under the input guard and fpcalc reads the samples from a pipe,
+ * which gives the fingerprint fpcalc computes from the file itself. A pipe carries no
+ * duration, so that comes from the (guarded) probe.
  */
 export async function fingerprint(filePath: string): Promise<Fingerprint | null> {
+  const probe = await runFfprobe(filePath, 'format=duration:stream=codec_type,sample_rate,channels') as Probe
+  const stream = probe.streams?.find((candidate) => candidate.codec_type === 'audio')
+  const rate = Number(stream?.sample_rate)
+  const durationSec = Number(probe.format?.duration)
+  if (!stream?.channels || !(rate > 0) || !Number.isFinite(durationSec)) throw new Error(`No audio to fingerprint in ${filePath}`)
+
+  const config = getConfig()
+  const decoder = spawn(config.FFMPEG_PATH, [
+    '-v', 'error', '-nostdin', ...audioInput(filePath),
+    '-map', '0:a:0', '-t', String(FINGERPRINT_SECONDS), '-c:a', 'pcm_s16le', '-f', 's16le', 'pipe:1',
+  ], { stdio: ['ignore', 'pipe', 'pipe'] })
+  const calculator = spawn(config.FPCALC_PATH, [
+    '-json', '-format', 's16le', '-rate', String(rate), '-channels', String(stream.channels), '-length', String(FINGERPRINT_SECONDS), '-',
+  ], { stdio: ['pipe', 'pipe', 'pipe'] })
+  // A calculator that is missing or done early closes the pipe; the decoder's exit reports it.
+  calculator.stdin!.on('error', () => {})
+  decoder.stdout!.pipe(calculator.stdin!)
+  const decoded = finished(decoder, 'ffmpeg', { readStdout: false })
+  decoded.catch(() => {})
   try {
-    const { stdout } = await run(getConfig().FPCALC_PATH, ['-json', filePath], { maxBuffer: 16 * 1024 * 1024 })
-    const parsed = JSON.parse(stdout) as { fingerprint: string; duration: number }
-    return { fingerprint: parsed.fingerprint, durationSec: Math.round(parsed.duration) }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
-    throw error
+    let stdout: string
+    try {
+      stdout = await finished(calculator, 'fpcalc')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
+    // fpcalc also prints a fingerprint of whatever arrived before a decoder failed.
+    await decoded
+    const parsed = JSON.parse(stdout) as { fingerprint: string }
+    return { fingerprint: parsed.fingerprint, durationSec: Math.round(durationSec) }
+  } finally {
+    if (decoder.exitCode === null) decoder.kill('SIGKILL')
+    if (calculator.exitCode === null) calculator.kill('SIGKILL')
   }
 }
 

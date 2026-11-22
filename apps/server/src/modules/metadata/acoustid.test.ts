@@ -1,14 +1,18 @@
+import { execFile } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { afterAll, describe, expect, it } from 'vitest'
 import { resetConfig } from '../../config.js'
 import { ProviderError } from '../../lib/http.js'
 import { updateServerSettings } from '../../lib/settings.js'
-import { makeTone } from '../../test/audio.js'
+import { makeTone, writeHostileInputs } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { useHttpFixtures } from '../../test/http.js'
 import { fingerprint, lookup } from './acoustid.js'
+
+const run = promisify(execFile)
 
 /** A made-up fingerprint; the lookup fixtures are hand-written for it. */
 const print = 'AQADtEmUaFKSRMmSRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGiRIkSJUqUKFGi'
@@ -30,12 +34,27 @@ describe('acoustid', () => {
     await expect(fingerprint(path.join(directory, 'missing.flac'))).rejects.toThrow()
   })
 
+  it('matches what fpcalc prints for the file itself', async () => {
+    directory ??= await mkdtemp(path.join(tmpdir(), 'squirmy-acoustid-'))
+    const file = await makeTone(directory, { path: 'other.mp3', durationSec: 8, frequency: 523 })
+    const { stdout } = await run('fpcalc', ['-json', file])
+    expect((await fingerprint(file))!.fingerprint).toBe((JSON.parse(stdout) as { fingerprint: string }).fingerprint)
+  })
+
+  it('refuses a file whose content makes the decoder read another file', async () => {
+    directory ??= await mkdtemp(path.join(tmpdir(), 'squirmy-acoustid-'))
+    await makeTone(directory, { path: 'hostile/real.flac', durationSec: 12 })
+    const files = await writeHostileInputs(path.join(directory, 'hostile'), { target: 'real.flac', url: 'http://127.0.0.1:9' })
+    for (const file of [files.concat, files.sdp]) await expect(fingerprint(file)).rejects.toThrow()
+  })
+
   it('returns null when fpcalc is not installed', async () => {
     const previous = process.env.FPCALC_PATH
     process.env.FPCALC_PATH = '/nonexistent/fpcalc'
     resetConfig()
     try {
-      expect(await fingerprint('/nonexistent/file.flac')).toBeNull()
+      directory ??= await mkdtemp(path.join(tmpdir(), 'squirmy-acoustid-'))
+      expect(await fingerprint(await makeTone(directory, { path: 'present.flac', durationSec: 1 }))).toBeNull()
     } finally {
       if (previous === undefined) delete process.env.FPCALC_PATH
       else process.env.FPCALC_PATH = previous

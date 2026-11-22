@@ -1,10 +1,11 @@
 import { mkdir, mkdtemp, readdir, readFile, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 import { Import, ImportAlbumList, ImportFilesResponse, ImportList, ImportOptions } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { imports } from '../../database/schema.js'
@@ -16,6 +17,7 @@ import { makeTone } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { insertRoot } from '../library/roots.js'
 import { sweepImports } from './index.js'
+import { disk, MIN_FREE_BYTES } from './space.js'
 import { stagingDir, stagingRoot } from './staging.js'
 
 type Part = { relativePath?: string; name: string; data: Buffer }
@@ -44,9 +46,9 @@ describe('imports API', () => {
   let member: Awaited<ReturnType<typeof signIn>>
 
   const create = async (who = uploader) => body(await app.inject({ method: 'POST', url: '/api/v1/imports', headers: who.headers, payload: {} }), Import, 201)
-  const upload = async (id: string, parts: Part[], who = uploader) => {
+  const upload = async (id: string, parts: Part[], who = uploader, { chunked = false } = {}) => {
     const { payload, headers } = await multipart(parts)
-    return app.inject({ method: 'POST', url: `/api/v1/imports/${id}/files`, headers: { ...who.headers, ...headers }, payload })
+    return app.inject({ method: 'POST', url: `/api/v1/imports/${id}/files`, headers: { ...who.headers, ...headers }, payload: chunked ? Readable.from([payload]) : payload })
   }
 
   beforeAll(async () => {
@@ -58,6 +60,8 @@ describe('imports API', () => {
     uploader = await signIn({ canUpload: true })
     otherUploader = await signIn({ canUpload: true })
     member = await signIn()
+    // These tests leave imports receiving; the limit has a test of its own.
+    await updateServerSettings({ importMaxActivePerUser: 1000 })
   })
 
   afterAll(async () => {
@@ -197,5 +201,53 @@ describe('imports API', () => {
     expect(await readdir(stagingDir(stuck.id)).catch(() => null)).toBeNull()
     expect(await readdir(orphan).catch(() => null)).toBeNull()
     expect(await readdir(stagingDir(fresh.id))).toEqual([])
+  })
+
+  it('refuses uploads that would leave the server short of disk space', async () => {
+    const created = await create()
+    const free = vi.spyOn(disk, 'freeBytes')
+    const interval = disk.checkEveryBytes
+    try {
+      free.mockResolvedValue(MIN_FREE_BYTES / 2)
+      expect(errorCode(await upload(created.id, [{ name: 'a.flac', data: tone }]), 507)).toBe('insufficient_storage')
+      // The request's own length counts against the space.
+      free.mockResolvedValue(MIN_FREE_BYTES + tone.length / 2)
+      expect(errorCode(await upload(created.id, [{ name: 'a.flac', data: tone }]), 507)).toBe('insufficient_storage')
+      expect(await tree(stagingDir(created.id))).toEqual([])
+
+      free.mockResolvedValue(MIN_FREE_BYTES + 10 * 1024 * 1024)
+      expect(body(await upload(created.id, [{ name: 'a.flac', data: tone }]), ImportFilesResponse).files[0]!.status).toBe('accepted')
+
+      // A body of unknown length is checked again as it arrives.
+      disk.checkEveryBytes = 1024
+      const enough = MIN_FREE_BYTES + 10 * 1024 * 1024
+      free.mockResolvedValueOnce(enough).mockResolvedValueOnce(enough).mockResolvedValue(MIN_FREE_BYTES - 1)
+      expect(errorCode(await upload(created.id, [{ name: 'b.flac', data: tone }], uploader, { chunked: true }), 507)).toBe('insufficient_storage')
+      expect(await tree(stagingDir(created.id))).toEqual(['a.flac'])
+      expect((await readdir(stagingDir(created.id))).some((name) => name.startsWith('.'))).toBe(false)
+    } finally {
+      free.mockRestore()
+      disk.checkEveryBytes = interval
+    }
+  })
+
+  it('limits how many uploads a member has going at once', async () => {
+    const someone = await signIn({ canUpload: true })
+    await updateServerSettings({ importMaxActivePerUser: 2 })
+    try {
+      const first = await create(someone)
+      await create(someone)
+      const refused = await app.inject({ method: 'POST', url: '/api/v1/imports', headers: someone.headers, payload: {} })
+      expect(errorCode(refused, 429)).toBe('too_many_imports')
+      // Others are not affected, and admins are not limited.
+      const neighbour = await signIn({ canUpload: true })
+      for (let count = 0; count < 2; count++) await create(neighbour)
+      for (let count = 0; count < 3; count++) await create(admin)
+      // A cancelled one no longer counts.
+      await app.inject({ method: 'DELETE', url: `/api/v1/imports/${first.id}`, headers: someone.headers })
+      await create(someone)
+    } finally {
+      await updateServerSettings({ importMaxActivePerUser: 1000 })
+    }
   })
 })

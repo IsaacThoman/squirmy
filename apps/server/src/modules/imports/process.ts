@@ -35,6 +35,7 @@ import { planOrganize } from '../organize/plan.js'
 import { refreshWants } from '../userdata/wants.js'
 import { extractArchive, inspectArchive } from './archive.js'
 import { fileKind, numbered } from './paths.js'
+import { hasRoomFor } from './space.js'
 import { announceImport, incomingFolder, releaseStaging, type ImportRow, type ImportWork } from './service.js'
 import { TEMP_PREFIX, treeFiles } from './staging.js'
 
@@ -193,6 +194,9 @@ async function extract(row: ImportRow, stats: Stats, work: ImportWork) {
         }
         const temp = path.join(row.stagingPath, parent, `${TEMP_PREFIX}extract-${shortHash(archive.relPath)}`)
         await rm(temp, { recursive: true, force: true })
+        if (!(await hasRoomFor(row.stagingPath, plan.bytes))) {
+          throw new ImportFailure(`There is not enough free disk space to extract ${archive.relPath}`)
+        }
         const result = await extractArchive(archive.absolute, plan, temp)
         if (result.ok) {
           archives[archive.relPath] = { target: record.target, extracted: result.extracted, skipped: plan.skipped + result.duplicates }

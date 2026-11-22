@@ -1,15 +1,17 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import type { AppPassword, ClientDevice, User } from '@squirmy/contracts'
+import { APP_PASSWORD_LIMIT, type AppPassword, type ClientDevice, type User } from '@squirmy/contracts'
 import argon2 from 'argon2'
-import { and, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, type Executor } from '../../database/client.js'
 import { appPasswords, authSessions, devices, users } from '../../database/schema.js'
 import type { AuthUser } from '../../lib/auth.js'
-import { conflict } from '../../lib/errors.js'
+import { AppError, conflict } from '../../lib/errors.js'
 import { decrypt, encrypt, hashToken, randomToken } from '../../lib/crypto.js'
 import { newId } from '../../lib/ids.js'
 
 const sessionLifetimeMs = 180 * 24 * 60 * 60 * 1000
+/** Devices kept per user; clients choose their ids, so the least recently seen go first. */
+const deviceLimit = 100
 const lastSeenIntervalMs = 60 * 1000
 
 const { passwordHash: _passwordHash, ...userColumns } = getTableColumns(users)
@@ -31,8 +33,32 @@ export function toUser(row: AuthUser): User {
   }
 }
 
+/**
+ * Each argon2 run takes 64 MiB and one of libuv's four threads, which also serve file
+ * reads for streaming and artwork. At most two run at once and a bounded number wait, so
+ * a flood of sign-ins slows sign-ins rather than playback for everyone.
+ */
+const hashSlots = 2
+const hashQueueLimit = 64
+let hashing = 0
+const waiting: (() => void)[] = []
+
+async function withHashSlot<T>(work: () => Promise<T>): Promise<T> {
+  if (hashing < hashSlots) hashing += 1
+  else if (waiting.length >= hashQueueLimit) throw new AppError(503, 'busy', 'The server is busy. Try again in a moment.')
+  else await new Promise<void>((resolve) => waiting.push(resolve))
+  try {
+    return await work()
+  } finally {
+    // A waiter takes over this slot; otherwise it is free again.
+    const next = waiting.shift()
+    if (next) next()
+    else hashing -= 1
+  }
+}
+
 export function hashPassword(password: string) {
-  return argon2.hash(password, { type: argon2.argon2id })
+  return withHashSlot(() => argon2.hash(password, { type: argon2.argon2id }))
 }
 
 let dummyHash: Promise<string> | undefined
@@ -43,8 +69,15 @@ let dummyHash: Promise<string> | undefined
  */
 export async function verifyCredentials(username: string, password: string): Promise<(AuthUser & { passwordHash: string }) | null> {
   const [row] = await db.select().from(users).where(eq(users.usernameKey, usernameKey(username)))
-  dummyHash ??= hashPassword(randomToken())
-  const valid = await argon2.verify(row?.passwordHash ?? await dummyHash, password).catch(() => false)
+  dummyHash ??= hashPassword(randomToken()).catch((error: unknown) => {
+    dummyHash = undefined
+    throw error
+  })
+  const hash = row?.passwordHash ?? await dummyHash
+  const valid = await withHashSlot(() => argon2.verify(hash, password)).catch((error: unknown) => {
+    if (error instanceof AppError) throw error
+    return false
+  })
   return row && valid ? row : null
 }
 
@@ -68,32 +101,43 @@ export async function createSession(executor: Executor, input: {
     userAgent: input.userAgent?.slice(0, 500),
     expiresAt: new Date(Date.now() + sessionLifetimeMs),
   })
-  if (input.device) {
-    const { id, name, kind } = input.device
-    await executor.insert(devices).values({ userId: input.userId, id, name, kind })
-      .onConflictDoUpdate({ target: [devices.userId, devices.id], set: { name, kind, lastSeenAt: new Date() } })
-  }
+  if (input.device) await rememberDevice(executor, input.userId, input.device)
   return { token, sessionId }
+}
+
+/** Records a device as seen, keeping at most `deviceLimit` per user. */
+export async function rememberDevice(executor: Executor, userId: string, device: ClientDevice) {
+  const { id, name, kind } = device
+  const [row] = await executor.insert(devices).values({ userId, id, name, kind })
+    .onConflictDoUpdate({ target: [devices.userId, devices.id], set: { name, kind, lastSeenAt: new Date() } })
+    .returning({ inserted: sql<boolean>`xmax = 0` })
+  if (!row?.inserted) return
+  await executor.execute(sql`
+    delete from ${devices} where ${devices.userId} = ${userId} and ${devices.id} not in (
+      select ${devices.id} from ${devices} where ${devices.userId} = ${userId}
+      order by ${devices.lastSeenAt} desc limit ${deviceLimit})`)
 }
 
 /**
  * Resolves a session token. Sessions slide: each use pushes the expiry out again, written
  * at most once a minute.
  */
-export async function authenticateToken(token: string): Promise<{ user: AuthUser; sessionId: string } | null> {
+export async function authenticateToken(token: string): Promise<{ user: AuthUser; sessionId: string; expiresAt: Date } | null> {
   const now = new Date()
   const [row] = await db
-    .select({ user: userColumns, sessionId: authSessions.id, lastSeenAt: authSessions.lastSeenAt })
+    .select({ user: userColumns, sessionId: authSessions.id, lastSeenAt: authSessions.lastSeenAt, expiresAt: authSessions.expiresAt })
     .from(authSessions)
     .innerJoin(users, eq(users.id, authSessions.userId))
     .where(and(eq(authSessions.tokenHash, hashToken(token)), gt(authSessions.expiresAt, now)))
   if (!row || row.user.disabledAt) return null
+  let expiresAt = row.expiresAt
   if (now.getTime() - row.lastSeenAt.getTime() > lastSeenIntervalMs) {
+    expiresAt = new Date(now.getTime() + sessionLifetimeMs)
     await db.update(authSessions)
-      .set({ lastSeenAt: now, expiresAt: new Date(now.getTime() + sessionLifetimeMs) })
+      .set({ lastSeenAt: now, expiresAt })
       .where(eq(authSessions.id, row.sessionId))
   }
-  return { user: row.user, sessionId: row.sessionId }
+  return { user: row.user, sessionId: row.sessionId, expiresAt }
 }
 
 export async function revokeSession(sessionId: string) {
@@ -130,14 +174,27 @@ export async function listAppPasswords(userId: string): Promise<AppPassword[]> {
 /** Creates an app password. The response is the only time the secret is shown. */
 export async function createAppPassword(userId: string, name: string): Promise<AppPassword> {
   const secret = randomToken(18)
-  const [row] = await db.insert(appPasswords).values({
-    id: newId(),
-    userId,
-    name,
-    secretEncrypted: encrypt(appPasswordPurpose, secret),
-    keyHash: hashToken(secret),
-  }).returning()
-  return toAppPassword(row!, secret)
+  return db.transaction(async (tx) => {
+    // Subsonic auth decrypts every app password of the user on each request; bound them.
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update')
+    const [held] = await tx.select({ count: count() }).from(appPasswords).where(eq(appPasswords.userId, userId))
+    if ((held?.count ?? 0) >= APP_PASSWORD_LIMIT) {
+      throw conflict(`An account can have at most ${APP_PASSWORD_LIMIT} app passwords. Delete one you no longer use.`, 'too_many_app_passwords')
+    }
+    const [row] = await tx.insert(appPasswords).values({
+      id: newId(),
+      userId,
+      name,
+      secretEncrypted: encrypt(appPasswordPurpose, secret),
+      keyHash: hashToken(secret),
+    }).returning()
+    return toAppPassword(row!, secret)
+  })
+}
+
+/** Deletes every app password of a user, for password resets and lost devices. */
+export async function revokeAppPasswords(executor: Executor, userId: string) {
+  await executor.delete(appPasswords).where(eq(appPasswords.userId, userId))
 }
 
 export async function deleteAppPassword(userId: string, id: string): Promise<boolean> {

@@ -7,6 +7,8 @@ import { z } from 'zod'
 import { requireUser, type AuthUser } from '../../lib/auth.js'
 import { AppError, badRequest, conflict, forbidden } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
+import { requireRoomFor } from './space.js'
+import { stagingRoot } from './staging.js'
 import {
   addImportFile, canImport, commitImport, createImport, failImport, getImport, importAlbums, importFor, importOptions, listImports,
 } from './service.js'
@@ -55,6 +57,8 @@ export async function importsRoutes(app: FastifyInstance) {
     if (row.kind !== 'upload') throw conflict('Files can only be uploaded to an upload import', 'import_not_upload')
     if (row.status !== 'receiving') throw conflict('The import is no longer receiving files', 'import_not_receiving')
     if (!request.isMultipart()) throw badRequest('Send the files as multipart/form-data', 'not_multipart')
+    // The whole request when its length is known; addImportFile keeps checking either way.
+    await requireRoomFor(stagingRoot(), Number(request.headers['content-length']) || 0)
     const { importMaxFileBytes } = await getServerSettings()
     const files: ImportFileResult[] = []
     let relativePath: string | undefined
