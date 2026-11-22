@@ -45,4 +45,28 @@ describe('releaseGroups', () => {
       ['Appears On', ['x']],
     ]);
   });
+
+  it('marks every heading of an older server complete, as the page has all of it', () => {
+    const groups = releaseGroups({ albums: [album('a1', 'album'), album('a2', 'album')] });
+    expect(groups).toEqual([expect.objectContaining({ key: 'album', total: 2, paged: false })]);
+  });
+
+  it('uses the server\'s sections, with their counts, in their order and the app\'s words', () => {
+    const groups = releaseGroups({
+      albums: [],
+      sections: [
+        { key: 'mixtape', title: 'Mixtapes', total: 40, items: [album('m1', 'album')] },
+        { key: 'appears_on', title: 'Appears on', total: 1, items: [album('x', 'album')] },
+        { key: 'remixes', title: 'Remixes', total: 3, items: [album('r', 'other')] },
+        { key: 'live', title: 'Live albums', total: 0, items: [] },
+      ],
+    });
+    expect(groups.map(group => [group.key, group.title, group.total, group.paged])).toEqual([
+      ['mixtape', 'Mixtapes', 40, true],
+      ['appears_on', 'Appears On', 1, true],
+      // A section this app does not know shows under the server's title, with what the page has.
+      ['remixes', 'Remixes', 3, false],
+    ]);
+  });
 });
+
