@@ -44,13 +44,16 @@ export async function verifyStreamSignature(fileId: string, profile: StreamProfi
 
 /**
  * `GET /tracks/:id/playback`: picks the file and profile for the recording (after following
- * merges), signs a URL for `userId`, and describes what that URL will deliver. Throws 404
+ * merges of the recording and of `albumId`), signs a URL for `userId`, and describes what that URL will deliver. Throws 404
  * `not_available` when the recording has no present file.
  */
 export async function buildPlaybackDescriptor(userId: string, recordingId: string, query: PlaybackQuery): Promise<PlaybackDescriptor> {
-  // Queue entries and playlists keep ids that later lost a merge.
-  const target = await resolveOne('recordings', recordingId) ?? recordingId
-  const selection = await selectFile(target, { albumId: query.albumId, codecs: query.codecs, quality: query.quality })
+  // Queue entries and playlists keep ids that later lost a merge, for the album as well.
+  const [target, albumId] = await Promise.all([
+    resolveOne('recordings', recordingId).then((id) => id ?? recordingId),
+    query.albumId ? resolveOne('albums', query.albumId).then((id) => id ?? query.albumId) : undefined,
+  ])
+  const selection = await selectFile(target, { albumId, codecs: query.codecs, quality: query.quality })
   if (!selection) throw notFound('No file of this track is available', 'not_available')
   const { file, profile } = selection
   const { url, expiresAt } = signStreamUrl(file.id, profile, userId, { download: query.download })

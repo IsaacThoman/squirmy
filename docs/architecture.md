@@ -251,7 +251,7 @@ One function decides it, in `modules/catalog/availability.ts`, and every list an
 ### Playback and streaming
 
 - Clients ask `GET /tracks/:id/playback` and receive a signed URL. The stream route accepts the signature instead of a session so `<audio>`, AVPlayer and downloads need no headers. Signatures bind the file id, profile, user id and an expiry of 12 hours.
-- File choice: files of the recording that belong to the requested album first, then lossless over lossy, then higher bitrate.
+- File choice: files of the recording that belong to the requested album first, then lossless over lossy, then higher bitrate. Both ids follow merges, so a queue entry that names an album merged away still gets that album's file.
 - `quality=original` serves the file as is when the client's codec list includes its codec, and transcodes to `aac_256` otherwise. `high` is `aac_256`. `data_saver` is `opus_128` when the client lists opus and `mp3_192` otherwise. The mapping lives in `streaming/profiles.ts`.
 - Signed URLs carry `exp` (epoch seconds), `uid` and `sig`, an HMAC from `sign('stream', …)`. A request without a valid signature may use the session instead.
 - A URL names the file, not its path, so it keeps working when organize files it: a file not at its row's path is looked for at the other end of a move that is running (organize renames on disk before it updates the row), and is marked missing only when it is in neither place.
