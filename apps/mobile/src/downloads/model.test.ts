@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canPlay, canRequestMusic, extensionFor, formatBytes, retryDelay, sizeMatches, songPage, trackMark, unavailableReason, waitReason,
+  canPlay, downloadSymbol, extensionFor, formatBytes, retryDelay, sizeMatches, songPage, unavailableReason, waitReason,
 } from './model';
 
 describe('download rules', () => {
@@ -35,33 +35,42 @@ describe('download rules', () => {
     expect(extensionFor({ mime: 'application/octet-stream', codec: 'wav', transcoded: false })).toBe('wav');
   });
 
-  it('plays only downloads offline, and downloads or server files online', () => {
-    const downloaded = (id: string) => id === 'here';
-    const online = { offline: false, downloaded, canRequest: true };
+  const admin = { role: 'admin', canAcquire: false } as const;
+  const requester = { role: 'member', canAcquire: true } as const;
+  const listener = { role: 'member', canAcquire: false } as const;
+
+  it('plays only what is on the phone offline, and what the server has or fetches online', () => {
+    const onDevice = (id: string) => id === 'here';
+    const online = { offline: false, onDevice, viewer: requester };
     expect(canPlay({ id: 'here', availability: 'none' }, { ...online, offline: true })).toBe(true);
     expect(canPlay({ id: 'there', availability: 'server' }, { ...online, offline: true })).toBe(false);
     expect(canPlay({ id: 'there', availability: 'server' }, online)).toBe(true);
     expect(canPlay({ id: 'there', availability: 'on_demand' }, online)).toBe(true);
+    expect(canPlay({ id: 'there', availability: 'on_demand' }, { ...online, viewer: admin })).toBe(true);
     expect(canPlay({ id: 'there', availability: 'none' }, online)).toBe(false);
   });
 
   it('plays on-demand tracks only for those who may have them fetched', () => {
-    const downloaded = () => false;
-    expect(canPlay({ id: 'there', availability: 'on_demand' }, { offline: false, downloaded, canRequest: false })).toBe(false);
-    expect(canPlay({ id: 'there', availability: 'server' }, { offline: false, downloaded, canRequest: false })).toBe(true);
-    expect(canRequestMusic({ role: 'admin', canAcquire: false })).toBe(true);
-    expect(canRequestMusic({ role: 'member', canAcquire: true })).toBe(true);
-    expect(canRequestMusic({ role: 'member', canAcquire: false })).toBe(false);
-    expect(unavailableReason({ availability: 'on_demand' }, false)).toMatch(/ask an admin/);
-    expect(unavailableReason({ availability: 'none' }, false)).toBe('not in your library');
-    expect(unavailableReason({ availability: 'server' }, true)).toBe('not downloaded or cached');
+    const onDevice = () => false;
+    expect(canPlay({ id: 'there', availability: 'on_demand' }, { offline: false, onDevice, viewer: listener })).toBe(false);
+    expect(canPlay({ id: 'there', availability: 'on_demand' }, { offline: false, onDevice, viewer: null })).toBe(false);
+    expect(canPlay({ id: 'there', availability: 'server' }, { offline: false, onDevice, viewer: listener })).toBe(true);
   });
 
-  it('marks downloads, and on-demand tracks that can be fetched', () => {
-    expect(trackMark(undefined, { availability: 'on_demand' }, true)).toBe('icloud.and.arrow.down');
-    expect(trackMark(undefined, { availability: 'on_demand' }, false)).toBeNull();
-    expect(trackMark(undefined, { availability: 'server' }, true)).toBeNull();
-    expect(trackMark({ state: 'done', bytes: 1, gone: false }, { availability: 'server' }, true)).toBe('arrow.down.circle.fill');
+  it('says only "Not available" or, offline, "Not downloaded"', () => {
+    expect(unavailableReason({ availability: 'on_demand' }, false, listener)).toBe('Not available');
+    expect(unavailableReason({ availability: 'none' }, false, requester)).toBe('Not available');
+    expect(unavailableReason({ availability: 'server' }, true, listener)).toBe('Not downloaded');
+    expect(unavailableReason({ availability: 'on_demand' }, true, requester)).toBe('Not downloaded');
+    // Offline or not, what would not play with a connection either is simply not available.
+    expect(unavailableReason({ availability: 'on_demand' }, true, listener)).toBe('Not available');
+    expect(unavailableReason({ availability: 'none' }, true, requester)).toBe('Not available');
+  });
+
+  it('marks downloads only, never where a streamed file comes from', () => {
+    expect(downloadSymbol(undefined)).toBeNull();
+    expect(downloadSymbol({ state: 'done', bytes: 1, gone: false })).toBe('arrow.down.circle.fill');
+    expect(downloadSymbol({ state: 'queued', wait: null })).toBe('arrow.down.circle.dotted');
   });
 
   it('formats sizes', () => {

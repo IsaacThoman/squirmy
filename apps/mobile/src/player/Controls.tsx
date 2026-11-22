@@ -1,5 +1,5 @@
 import type { TrackSummary } from '@squirmy/contracts';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon } from '../ui';
 import { createThemedStyles, useColors } from '../theme';
 
@@ -11,6 +11,8 @@ export type PlayerButtonProps = {
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
   selected?: boolean;
+  /** Shows an activity spinner in place of the icon, as while a track loads; the button still works. */
+  busy?: boolean;
 };
 
 export type DeviceButtonProps = { icon: string; name: string; onPress: () => void };
@@ -18,13 +20,14 @@ export type TrackMenuButtonProps = { track: TrackSummary; onPress: () => void };
 /** Without `onPress` (plain lyrics) the line is only text. */
 export type LyricButtonProps = { line: string; active: boolean; onPress?: () => void };
 
-export function PlayerButton({ icon, label, size = 20, color, onPress, style, selected }: PlayerButtonProps) {
+export function PlayerButton({ icon, label, size = 20, color, onPress, style, selected, busy }: PlayerButtonProps) {
   const colors = useColors();
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
-    accessibilityState={selected === undefined ? undefined : { selected }} onPress={onPress}
+    accessibilityState={selected === undefined ? { busy } : { selected, busy }} onPress={onPress}
     style={({ pressed }) => [styles.icon, style, pressed && styles.pressed]}>
-    <Icon name={icon} size={size} color={color ?? colors.text} />
+    {busy ? <ActivityIndicator size={size >= 32 ? 'large' : 'small'} color={color ?? colors.text} />
+      : <Icon name={icon} size={size} color={color ?? colors.text} />}
   </Pressable>;
 }
 

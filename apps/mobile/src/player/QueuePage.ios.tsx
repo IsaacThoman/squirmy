@@ -8,12 +8,13 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import type { TrackSummary } from '@squirmy/contracts';
 import { useWantlistEnabled } from '../account/AccountProvider';
 import { useRealtime } from '../data/realtime';
-import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
-import { useLiked, useTrack, useTrackStore } from '../data/library';
+import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
+import { useLiked, useSaved, useTrack, useTrackStore } from '../data/library';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner } from '../library/trackActions';
 import { IconButton, Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
 import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
+import { queueRow } from './session';
 import { useColors } from '../theme';
 
 const rowHeight = 54;
@@ -225,7 +226,7 @@ type QueueTrackProps = {
   position?: { index: number; total: number; autoplay: boolean };
 };
 
-/** A queue row. A failed entry is gray and will be skipped, as is one that is not downloaded while offline; a preparing one says so. */
+/** A queue row. A failed entry is gray and will be skipped, as is one that is not on the phone while offline. */
 const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: QueueTrackProps) {
   const colors = useColors();
   const track = useTrack(entry.trackId, entry.albumId);
@@ -236,11 +237,11 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position }: Queue
   const playable = useCanPlay(track);
   const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
-  const downloaded = download?.state === 'done';
-  const failed = entry.state === 'failed' || (offline && !downloaded);
-  const detail = entry.state === 'failed' ? 'Couldn’t be fetched' : failed ? 'Not downloaded' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
+  const viewer = useViewer();
+  const { detail, unavailable: failed } = queueRow(entry, track, { playable, offline, viewer });
   const title = track?.title ?? '';
-  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist }) : [];
+  const saved = useSaved('track', track?.id, track?.inLibrary);
+  const actions = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, saved }) : [];
   return <HStack spacing={0} modifiers={[frame({ height: rowHeight }), ...(failed ? [opacity(0.45)] : [])]}>
     <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, accessibilityLabel(`${title}, ${detail}`)]}>
       <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape]}>

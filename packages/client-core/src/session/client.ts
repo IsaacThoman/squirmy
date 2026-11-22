@@ -64,6 +64,12 @@ export type SessionPlayer = {
   /** The engine can amplify above unity. Defaults to false. */
   canBoost?: boolean
   /**
+   * This device's entry in the session's `volumes` is the system's output volume, which the
+   * platform applies and keeps in step itself (iOS): the engine's gain leaves it out and
+   * plays at full volume, with only normalization applied. Defaults to false.
+   */
+  systemVolume?: boolean
+  /**
    * `resolvePlayback` failed for the current entry. `willRetry` is true for a failure that
    * may pass (no connection, a server error), which is retried every few seconds while the
    * session reports a stall; false when the server refused the track (a 4xx), which the
@@ -804,11 +810,23 @@ export class SessionClient {
     engine.load({
       entryId: entry.id,
       url: streamUrl(baseUrl, descriptor),
-      startMs: positionAt(session, this.serverNow()),
+      startMs: this.startPosition(session),
       autoplay: session.playing,
       gain: this.gain,
     })
     this.preloadNext()
+  }
+
+  /**
+   * Where a load starts: where the session clock is, except for an entry that has only just
+   * started. Its clock has run the few milliseconds the load took to begin, but an exact
+   * seek that short makes a streaming player drop its buffer (a preloaded one included)
+   * and fetch again, which costs a second or two of silence. Starting at 0 is inaudibly
+   * different, and the engine's first report puts the clock right.
+   */
+  private startPosition(session: Session): number {
+    const expected = positionAt(session, this.serverNow())
+    return session.positionMs === 0 && expected < this.driftThresholdMs ? 0 : expected
   }
 
   /** Preloads the entry `trackEnded` would start, so the engine can continue without a gap. */
@@ -837,7 +855,11 @@ export class SessionClient {
         this.hold(next.id, descriptor)
         engine.preload({ entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted) })
       },
-      () => {
+      error => {
+        // A refusal is the server's answer for this entry; asking again on every session
+        // change would get the same one. It stays the target, so only a new target or
+        // `forgetPlayback` asks again, and the entry's own load reports the refusal.
+        if (isRefusal(error)) return
         if (token === this.preloadToken && this.preloadTarget === next.id) this.preloadTarget = null
       },
     )
@@ -871,7 +893,7 @@ export class SessionClient {
   }
 
   private gainOf(entry: QueueEntry, descriptor: PlaybackDescriptor | undefined, session: Session): number {
-    const volume = session.volumes[this.device.id] ?? 1
+    const volume = this.player?.systemVolume ? 1 : session.volumes[this.device.id] ?? 1
     const albumContext = !session.shuffle && session.context?.type === 'album' && session.context.id === entry.albumId
     return volume * gainFor(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false })
   }

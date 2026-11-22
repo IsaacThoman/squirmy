@@ -1,14 +1,15 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { memo, useCallback, useMemo } from 'react';
 import { useLiked } from '../data/library';
 import { useRealtime } from '../data/realtime';
-import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
-import { trackMark, unavailableReason } from '../downloads/model';
-import { useCurrentTrackState, useTrackPreparing } from '../playback';
+import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
+import { downloadSymbol, unavailableReason } from '../downloads/model';
+import { useCurrentTrackState, useTrackLoading } from '../playback';
+import { STILL_LOADING_LABEL } from '../player/loading';
 import {
   sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
 } from './rows';
@@ -86,8 +87,9 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
   const current = playing !== null;
   const playable = useCanPlay(track);
   const { offline } = useRealtime();
-  const mark = trackMark(useTrackDownload(track.id), track, playable);
-  const preparing = useTrackPreparing(track.id);
+  const mark = downloadSymbol(useTrackDownload(track.id));
+  const loading = useTrackLoading(track.id);
+  const viewer = useViewer();
   const onPlay = () => handlers.play(index);
   const onMenu = () => handlers.menu(track, index);
   const onRemove = item.playlist && (() => handlers.remove(item.playlist!.itemId));
@@ -110,19 +112,21 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
   >
     <View style={[styles.songRow, current && styles.songCurrent]}>
       <Pressable accessibilityRole="button"
-        accessibilityLabel={playable ? `Play ${track.title} by ${track.artistCredit}` : `${track.title} by ${track.artistCredit}, ${unavailableReason(track, offline)}`}
+        accessibilityLabel={playable ? `Play ${track.title} by ${track.artistCredit}` : `${track.title} by ${track.artistCredit}, ${unavailableReason(track, offline, viewer)}`}
         style={({ pressed }) => [styles.songInfo, !playable && styles.unavailable, pressed && styles.pressed]}
         onPress={playable ? onPlay : onMenu} onLongPress={onMenu}
         accessibilityActions={playable ? [{ name: 'playNext', label: 'Play next' }] : undefined}
         onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'playNext') playNext(); }}>
         {typeof number === 'number' ? <View style={styles.songPosition}>
-          {current ? <Icon name={playing === 'playing' ? 'waveform' : 'pause.fill'} size={17} color={colors.accent} /> : <Text style={styles.songNumber}>{number}</Text>}
+          {current && loading !== 'none' ? <ActivityIndicator size="small" color={colors.accent} />
+            : current ? <Icon name={playing === 'playing' ? 'waveform' : 'pause.fill'} size={17} color={colors.accent} /> : <Text style={styles.songNumber}>{number}</Text>}
         </View> : <Cover artwork={track.album?.artwork} size={42} radius={8} />}
         <View style={styles.flex}>
           <Text numberOfLines={1} style={[styles.rowTitle, current && styles.currentTitle]}>{track.title}</Text>
           <View style={styles.subtitle}>
-            {mark && !preparing && <Icon name={mark} size={11} color={colors.muted} />}
-            <Text numberOfLines={1} style={[styles.rowSub, preparing && styles.preparing, styles.flex]}>{preparing ? 'Preparing…' : track.artistCredit}</Text>
+            {typeof number !== 'number' && loading !== 'none' ? <ActivityIndicator size="small" color={colors.accent} style={styles.rowSpinner} />
+              : mark && <Icon name={mark} size={11} color={colors.muted} />}
+            <Text numberOfLines={1} style={[styles.rowSub, styles.flex]}>{loading === 'slow' ? STILL_LOADING_LABEL : track.artistCredit}</Text>
           </View>
         </View>
       </Pressable>
@@ -150,7 +154,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   songPosition: { width: 25, alignItems: 'center', marginRight: 2 },
   songNumber: { fontSize: 13, color: colors.quiet, fontVariant: ['tabular-nums'] },
   currentTitle: { color: colors.accent },
-  preparing: { color: colors.accent },
+  rowSpinner: { transform: [{ scale: 0.6 }], width: 12, height: 12 },
   rowIcon: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
   swipeTray: { width: swipeActionWidth },
   swipeAction: { flex: 1, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },

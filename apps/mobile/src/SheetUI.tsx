@@ -123,6 +123,11 @@ export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
   );
 }
 
+/** This phone's system volume; only iOS has one the app can show. */
+export function SheetSystemVolume(_props: { label: string }) {
+  return null;
+}
+
 export function SheetSlider({ label, value, onChange }: SheetSliderProps) {
   const colors = useColors();
   const styles = useStyles();

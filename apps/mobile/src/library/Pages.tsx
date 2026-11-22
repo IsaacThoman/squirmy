@@ -1,8 +1,8 @@
-import { queryKeys, type AlbumSummary, type AlbumType, type HistoryItem, type PlaybackContext, type TrackSummary } from '@squirmy/contracts';
-import { formatTotalDuration } from '@squirmy/client-core';
+import { queryKeys, type AlbumType, type HistoryItem, type PlaybackContext, type TrackSummary } from '@squirmy/contracts';
+import { albumNote, albumPresentation, canFetch, formatTotalDuration } from '@squirmy/client-core';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, FlatList, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue,
@@ -12,7 +12,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useAccount, useSignedInApi, useWantlistEnabled, type Api } from '../account/AccountProvider';
 import { albumExpanding } from '../data/albums';
 import { fallbackTint } from '../data/color';
-import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
+import { useLibraryActions, useLiked, usePlaylistActions, useSaved } from '../data/library';
 import { useAlbum, useArtist, useGenreAlbums, useHistory, useLikedTracks, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
 import { useRealtime } from '../data/realtime';
@@ -26,11 +26,12 @@ import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
 import { AlbumStatusBlur } from './AlbumStatusBlur';
 import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
+import { albumLibraryButton } from './albumLibrary';
 import { CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, nearEnd, playlistCollection,
-  QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useOfflineDim, type Collection,
+  QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useCollectionDim, type Collection,
 } from './shared';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
@@ -237,46 +238,68 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const kept = useDownloadedAlbum(id);
   const data = album.data ?? kept;
   const actions = usePlaybackActions();
-  const { canPlay, offline } = useAvailability();
+  const { canPlay, offline, viewer } = useAvailability();
   const download = useDownloadActions();
+  const notify = useNotice();
   const liked = useLiked('album', id, data?.liked);
-  const { setLiked, want } = useLibraryActions();
+  // Only what was changed here; the server's own answer is `library` on the page.
+  const savedHere = useSaved('album', id, undefined);
+  const { setLiked, want, setSaved } = useLibraryActions();
   const wantlist = useWantlistEnabled();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
     album.data?.discs.some(disc => disc.tracks.some(track => track.availability === 'server')) ? () => download.album(album.data!) : null);
+  // Play pressed before the server had the track list: it starts as soon as the tracks are known.
+  const [waitingPlay, setWaitingPlay] = useState<{ shuffle: boolean } | null>(null);
+  const expanding = album.isPlaceholderData || albumExpanding(album.data, queryClient.getQueryState(queryKeys.album(id))?.dataUpdateCount ?? 0);
+  const discs = data?.discs;
+  useEffect(() => {
+    if (!waitingPlay || !data) return;
+    const list = data.discs.flatMap(disc => disc.tracks);
+    if (list.length) actions.playTracks(list, { shuffle: waitingPlay.shuffle, context: { type: 'album', id: data.id, title: data.title } });
+    if (list.length || !expanding) setWaitingPlay(null);
+  }, [actions, data, discs, expanding, waitingPlay]);
   useBackSwipeOnly();
   if (!data) return <PageFallback query={album} what="this album" onBack={onBack} />;
   const tracks = data.discs.flatMap(disc => disc.tracks);
-  // Not "0 songs · 1 min" with a wantlist button that turns into Play under the finger.
-  const expanding = album.isPlaceholderData || albumExpanding(album.data, queryClient.getQueryState(queryKeys.album(id))?.dataUpdateCount ?? 0);
   const context: PlaybackContext = { type: 'album', id: data.id, title: data.title };
   const play = (shuffle?: boolean, start?: number) => {
     tapFeedback();
     actions.playTracks(tracks, { start, shuffle, context });
   };
-  const owned = data.availability === 'partial' ? `${data.ownedTrackCount} of ${data.trackCount} in your library` : null;
-  const wantable = wantlist && data.availability !== 'full' && !data.wanted && !offline;
-  const buttons = playButtons(tracks, canPlay, play);
-  const wantButton = offline || !wantlist ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
+  const presentation = albumPresentation(data, viewer);
+  // Not "0 songs · 1 min" with buttons that change under the finger: while the server looks
+  // up the songs of an album this viewer can play, Play and Shuffle wait for them.
+  const waitButtons = expanding && !tracks.length && presentation === 'normal' && !offline ? (['play', 'shuffle'] as const).map(kind => ({
+    label: kind === 'play' ? 'Play' : 'Shuffle', symbol: kind === 'play' ? 'play.fill' : 'shuffle', busy: waitingPlay?.shuffle === (kind === 'shuffle'),
+    onPress: () => { tapFeedback(); setWaitingPlay({ shuffle: kind === 'shuffle' }); },
+  })) : null;
+  const buttons = waitButtons ?? playButtons(tracks, canPlay, play);
+  // The wantlist is for music this viewer can't play; for someone who may fetch music nothing is.
+  const unavailable = !expanding && !buttons.length;
+  const wantButton = offline || !wantlist || !unavailable ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
     onPress: () => {
       if (data.wanted) return;
       tapFeedback();
       want('album', data.id, data.title);
     } }];
+  const library = album.data ? albumLibraryButton(album.data, savedHere, offline) : null;
 
   const artistLinks = data.artists.map(artist => ({ name: artist.name, open: () => { tapFeedback(); onOpen(link('artist', artist.id)); } }));
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
     artist={data.artistCredit} artistLinks={artistLinks}
-    info={[typeNames[data.type], data.genres[0], data.year, owned].filter(Boolean).join('  ·  ')}
-    buttons={buttons.length || expanding ? buttons : wantButton} status={control.status}
+    info={[typeNames[data.type], data.genres[0], data.year, albumNote(data, viewer)].filter(Boolean).join('  ·  ')}
+    buttons={buttons.length ? buttons : wantButton} status={control.status}
     nav={[
       // The placeholder does not know whether the album is liked.
       !album.isPlaceholderData && { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.title}` : `Like ${data.title}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked); } },
+      library !== null && { icon: library.icon, label: library.label, selected: library.selected, onPress: () => {
+        tapFeedback();
+        if (library.action === 'none') notify(`“${data.title}” is on this server, so it’s always in your library.`);
+        else setSaved('album', data.id, library.action === 'add', data.title);
+      } },
       control.nav,
-      buttons.length > 0 && wantable && { icon: 'star', label: `Add ${data.title} to your wantlist`,
-        onPress: () => { tapFeedback(); want('album', data.id, data.title); } },
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
     description={data.description} onBack={onBack} onRefresh={album.refetch} bottomInset={bottomInset}>
@@ -448,7 +471,7 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
   const notify = useNotice();
   const artist = useArtist(id);
   const actions = usePlaybackActions();
-  const { canPlay, offline } = useAvailability();
+  const { canPlay, offline, viewer } = useAvailability();
   const liked = useLiked('artist', id, artist.data?.liked);
   const { setLiked } = useLibraryActions();
   const starts = useStartGuard();
@@ -461,7 +484,6 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
     tapFeedback();
     actions.playTracks(top, { start, shuffle, context });
   };
-  const owned = (album: AlbumSummary) => album.availability === 'full' || album.availability === 'partial';
   const radio = () => {
     if (!api) return;
     tapFeedback();
@@ -478,7 +500,8 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
     nav={[
       { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.name}` : `Like ${data.name}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked); } },
-      data.inLibrary && !offline && { icon: 'dot.radiowaves.left.and.right', busy: startingRadio, onPress: radio,
+      // A radio draws on fetched music too for someone who may fetch it; for others, on the library.
+      (data.inLibrary || canFetch(viewer)) && !offline && { icon: 'dot.radiowaves.left.and.right', busy: startingRadio, onPress: radio,
         label: startingRadio ? `Starting a radio for ${data.name}` : `Start a radio for ${data.name}` },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
@@ -488,10 +511,8 @@ export function ArtistScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 
     </TrackSection>}
     {groups.map(group => <View key={group.title} style={styles.section}>
       <SectionTitle title={group.title} />
-      <CollectionRail items={group.albums.map(album => ({
-        ...albumCollection(album, link, [album.year, owned(album) ? null : 'Not in library'].filter(Boolean).join(' · ') || typeNames[album.type]),
-        dim: !owned(album),
-      }))} />
+      {/* Gray only what does not play for this viewer (`albumPresentation`, applied by the rail). */}
+      <CollectionRail items={group.albums.map(album => albumCollection(album, link, album.year ? String(album.year) : typeNames[album.type]))} />
     </View>)}
     {data.similar.length > 0 && <View style={styles.section}>
       <SectionTitle title="Similar artists" />
@@ -506,11 +527,11 @@ export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) 
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const albums = useGenreAlbums(id);
-  const offlineDim = useOfflineDim();
+  const collectionDim = useCollectionDim();
   const refreshControl = useRefreshControl(albums.refetch);
   const columns = width >= 650 ? 4 : 3;
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
-  const rows = useMemo(() => chunk(albums.items.map(album => offlineDim(albumCollection(album, link))), columns), [albums.items, columns, link, offlineDim]);
+  const rows = useMemo(() => chunk(albums.items.map(album => collectionDim(albumCollection(album, link))), columns), [albums.items, columns, link, collectionDim]);
   const renderRow = useCallback(({ item: row }: { item: Collection[] }) => <CollectionGridRow items={row.map(item => ({
     id: item.key, title: item.title, subtitle: item.subtitle, size, cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
   }))} />, [size]);

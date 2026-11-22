@@ -1,4 +1,6 @@
-import { Button, Divider, Host, HStack, Menu, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
+import { Button, Divider, Host, HStack, Menu, RNHostView, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
+import { useWindowDimensions, View } from 'react-native';
+import { SystemVolumeSlider } from '../modules/now-playing';
 import {
   accessibilityAddTraits, accessibilityLabel, background, clipShape, disabled as disabledModifier, font, foregroundStyle,
   frame, lineLimit, menuIndicator, multilineTextAlignment, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
@@ -131,6 +133,21 @@ export function SheetSlider({ label, value, onChange }: SheetSliderProps) {
       <Slider value={value} min={0} max={1} onValueChange={onChange} modifiers={[tint(colors.accent), accessibilityLabel(label)]} />
       <Symbol name="speaker.wave.3.fill" size={15} color={colors.muted} />
     </HStack>
+  </VStack>;
+}
+
+/** This phone's volume, which is the system's: the system slider, which the side buttons move too. */
+export function SheetSystemVolume({ label }: { label: string }) {
+  const colors = useColors();
+  const { width } = useWindowDimensions();
+  if (!SystemVolumeSlider) return null;
+  return <VStack alignment="leading" spacing={6} modifiers={[padding({ top: 6 })]}>
+    <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.muted)]}>{label}</Text>
+    <RNHostView matchContents>
+      <View style={{ width: width - 44, height: 34 }}>
+        <SystemVolumeSlider tint={colors.accent} trackTint={colors.stroke} style={{ flex: 1 }} />
+      </View>
+    </RNHostView>
   </VStack>;
 }
 

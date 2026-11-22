@@ -7,11 +7,11 @@ import { IconButton, Symbol, TrackMenu, hitShape, plainButton } from '../native/
 import type { DeviceButtonProps, LyricButtonProps, PlayerButtonProps, TrackMenuButtonProps } from './Controls';
 import { useColors } from '../theme';
 
-export function PlayerButton({ icon, label, size, color, onPress, style, selected }: PlayerButtonProps) {
+export function PlayerButton({ icon, label, size, color, onPress, style, selected, busy }: PlayerButtonProps) {
   const colors = useColors();
   const { width = 44, height = 44 } = StyleSheet.flatten(style) ?? {};
   return <Host style={[styles.icon, style]}>
-    <IconButton symbol={icon} label={label} size={size} color={color ?? colors.text} onPress={onPress} selected={selected}
+    <IconButton symbol={icon} label={label} size={size} color={color ?? colors.text} onPress={onPress} selected={selected} busy={busy}
       width={Number(width)} height={Number(height)} />
   </Host>;
 }

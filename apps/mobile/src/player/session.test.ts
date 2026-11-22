@@ -1,7 +1,7 @@
 import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  codecsFor, deviceRows, isPlayable, isRemote, newlyFailed, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
+  codecsFor, deviceRows, failureNotices, isPlayable, queueRow, isRemote, newlyFailed, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
   seedOf,
 } from './session';
 
@@ -103,6 +103,35 @@ describe('availability', () => {
     expect(newlyFailed(before, after).map(item => item.id)).toEqual(['a']);
     expect(newlyFailed(after, after)).toEqual([]);
   });
+
+  it('announces a failed current or next entry, not failed prefetches further down', () => {
+    const before = {
+      playing: true, current: entry('a', 'preparing'),
+      queue: [entry('b', 'preparing'), entry('c', 'preparing'), entry('d', 'preparing')], history: [], autoplayQueue: [],
+    };
+    // The current entry fails and is skipped; d, three ahead, fails as well.
+    const skipped = {
+      playing: true, current: entry('b', 'preparing'),
+      queue: [entry('c', 'preparing'), entry('d', 'failed')], history: [entry('a', 'failed')], autoplayQueue: [],
+    };
+    expect(failureNotices(before, skipped)).toEqual({ skipped: [entry('a', 'failed')], outage: false });
+    // The next entry fails while the current one still loads.
+    const nextFailed = { ...skipped, queue: [entry('c', 'failed'), entry('d', 'failed')] };
+    expect(failureNotices(skipped, nextFailed).skipped.map(item => item.id)).toEqual(['c']);
+    expect(failureNotices(nextFailed, nextFailed)).toEqual({ skipped: [], outage: false });
+  });
+
+  it('reports an outage, not a skip, when the session pauses on a failed current entry', () => {
+    const before = { playing: true, current: entry('c', 'preparing'), queue: [entry('d', 'preparing')], history: [], autoplayQueue: [] };
+    const paused = { playing: false, current: entry('c', 'failed'), queue: [entry('d', 'preparing')], history: [], autoplayQueue: [] };
+    expect(failureNotices(before, paused)).toEqual({ skipped: [], outage: true });
+  });
+
+  it('counts the first autoplay suggestion as next when Up Next is empty', () => {
+    const before = { playing: true, current: entry('a', 'ready'), queue: [], history: [], autoplayQueue: [entry('x', 'preparing'), entry('y', 'preparing')] };
+    const after = { ...before, autoplayQueue: [entry('x', 'failed'), entry('y', 'failed')] };
+    expect(failureNotices(before, after).skipped.map(item => item.id)).toEqual(['x']);
+  });
 });
 
 describe('nextRepeat', () => {
@@ -130,5 +159,24 @@ describe('nextDownloaded', () => {
     const queue = Array.from({ length: 5000 }, (_, index) => entry(`t${index}`, 'ready'));
     queue.push(entry('b', 'ready'));
     expect(nextDownloaded({ autoplay: false, queue, autoplayQueue: [] }, isDownloaded)?.id).toBe('b');
+  });
+});
+
+describe('queueRow', () => {
+  const requester = { role: 'member', canAcquire: true } as const;
+  const song = track('a', 'on_demand');
+
+  it('shows a waiting or fetching entry like any other', () => {
+    expect(queueRow(entry('a', 'preparing'), song, { playable: true, offline: false, viewer: requester })).toEqual({ detail: 'Artist', unavailable: false });
+    expect(queueRow(entry('a', 'ready'), song, { playable: true, offline: false, viewer: requester })).toEqual({ detail: 'Artist', unavailable: false });
+  });
+
+  it('says "Not available" for a failed entry and "Not downloaded" offline', () => {
+    expect(queueRow(entry('a', 'failed'), song, { playable: true, offline: false, viewer: requester })).toEqual({ detail: 'Not available', unavailable: true });
+    expect(queueRow(entry('a', 'ready'), song, { playable: false, offline: true, viewer: requester })).toEqual({ detail: 'Not downloaded', unavailable: true });
+  });
+
+  it('does not gray an entry whose summary is still loading', () => {
+    expect(queueRow(entry('a', 'ready'), undefined, { playable: false, offline: true, viewer: requester })).toEqual({ detail: '', unavailable: false });
   });
 });
