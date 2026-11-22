@@ -339,5 +339,13 @@ describe('userdata', () => {
       const [after] = await db.select({ settings: users.settings }).from(users).where(eq(users.id, person.id))
       expect((after!.settings as { secrets: unknown }).secrets).toEqual({ lastFm: 'cipher' })
     })
+
+    it('refreshes the scrobbling status when a service is switched', async () => {
+      const person = await signIn()
+      invalidated.mockClear()
+      body(await call(person, { method: 'PATCH', url: '/me/settings', payload: { scrobbleLastFm: true } }), UserSettings)
+      // The status reports each service's switch, and other devices show it.
+      expect(invalidated).toHaveBeenCalledWith({ user: person.id }, [queryKeys.settings(), queryKeys.scrobbling()])
+    })
   })
 })
