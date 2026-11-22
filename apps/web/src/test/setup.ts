@@ -1,8 +1,13 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
 afterEach(cleanup)
+
+// Pages are loaded lazily, and the first import of a large one can take longer than the
+// default second on a busy machine. Stay under the 5 s test timeout so a real miss still
+// reports which element was not found.
+configure({ asyncUtilTimeout: 4000 })
 
 // jsdom lacks the layout APIs Radix and the virtualizer reach for.
 class ResizeObserverStub {
