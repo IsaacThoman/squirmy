@@ -9,7 +9,7 @@ import { AppError } from '../../lib/errors.js'
 import { requestTrack } from './jobs.js'
 import { announceOutcome, stillWorking } from './outcomes.js'
 import { activeProviders } from './providers.js'
-import { coveredRecordings } from './resolve.js'
+import { announceAvailability, coveredRecordings } from './resolve.js'
 
 /**
  * Of the given unowned recordings (ids already redirect-resolved), the ones an enabled
@@ -61,6 +61,9 @@ export async function requestRecording(request: {
     }
     if ((await stillWorking([request.recordingId])).size > 0) return
     await announceOutcome({ failed: [request.recordingId], cause: await refusalCause(error.code) })
+    // Nothing covers it (a miss, a provider turned off): lists that still show it as on
+    // demand gray it out where it is, for everyone. A refusal of this user changes nothing.
+    if (error.code === 'not_available') await announceAvailability([request.recordingId])
   }
 }
 
