@@ -2,8 +2,8 @@
  * The container of the app shell: the sidebar's playlists, the search dialog and the settings
  * dialog, each with the data it needs.
  */
-import { searchContext } from '@squirmy/client-core'
-import type { PlaylistSummary } from '@squirmy/contracts'
+import { searchContext, searchQueue } from '@squirmy/client-core'
+import type { PlaylistSummary, TrackSummary } from '@squirmy/contracts'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bookmark, Disc3, Heart, House, Library, ListMusic, MicVocal, Music2, Search, ShieldCheck, Upload } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
@@ -21,8 +21,10 @@ import { isSettingsSection, useSettingsDialog } from '@/components/settings/sett
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { albumPresentation, canFetch, canUploadMusic, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
+import { useRecentSearches } from '@/lib/recent-searches'
 import { toast } from '@/lib/toast'
 import { useEventCallback } from '@/lib/use-event-callback'
+import { useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls } from '@/player/player-context'
 import { usePlayCollections } from '@/player/use-play-collections'
@@ -107,7 +109,9 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
   const viewer = useViewer()
   const [query, setQuery] = useState('')
   const typed = query.trim()
-  const search = useMergedSearch(query)
+  const library = useLibrary()
+  const recents = useRecentSearches(user.id)
+  const search = useMergedSearch(query, { playlists: library.playlists })
   const close = () => onOpenChange(false)
   const destinations = useMemo<SearchDestination[]>(() => [
     { label: 'Home', to: '/', icon: House },
@@ -129,24 +133,36 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
   useEffect(() => () => clearTimeout(intentTimer.current), [])
   const onIntent = useEventCallback((choice: SearchChoice) => {
     clearTimeout(intentTimer.current)
-    const target: PrefetchTarget | null = choice.kind === 'artist' ? { kind: 'artist', id: choice.artist.id }
-      : choice.kind === 'album' ? { kind: 'album', id: choice.album.id }
-        : choice.kind === 'track' && !isPlayable(choice.track, viewer) && choice.track.album ? { kind: 'album', id: choice.track.album.id }
+    const item = choice.kind === 'result' ? choice.item : null
+    const target: PrefetchTarget | null = item?.type === 'artist' ? { kind: 'artist', id: item.artist.id }
+      : item?.type === 'album' ? { kind: 'album', id: item.album.id }
+        : item?.type === 'track' && !isPlayable(item.track, viewer) && item.track.album ? { kind: 'album', id: item.track.album.id }
           : null
     if (target) intentTimer.current = setTimeout(() => prefetchPage(client, api, target), HOVER_DELAY_MS)
   })
 
   const choose = (choice: SearchChoice) => {
     close()
-    switch (choice.kind) {
-      case 'artist': return void navigate(`/artist/${choice.artist.id}`)
-      case 'album': return void navigate(`/album/${choice.album.id}`)
-      case 'destination': return void navigate(choice.destination.to)
-      case 'all': return void navigate(`/search?q=${encodeURIComponent(choice.query)}`)
-      case 'track':
-        if (isPlayable(choice.track, viewer)) controls.playTracks([choice.track], 0, searchContext(typed))
-        else if (choice.track.album) void navigate(`/album/${choice.track.album.id}`)
-        else void navigate(`/search?q=${encodeURIComponent(choice.track.title)}`)
+    if (choice.kind === 'destination') return void navigate(choice.destination.to)
+    if (choice.kind === 'all') return void navigate(`/search?q=${encodeURIComponent(choice.query)}`)
+    const { item } = choice
+    // The search page offers what was searched and chosen here too.
+    if (typed) recents.add({ type: 'query', query: typed })
+    recents.add(item)
+    switch (item.type) {
+      case 'artist': return void navigate(`/artist/${item.artist.id}`)
+      case 'album': return void navigate(`/album/${item.album.id}`)
+      case 'playlist': return void navigate(`/playlist/${item.playlist.id}`)
+      case 'track': {
+        const playable = (track: TrackSummary) => isPlayable(track, viewer)
+        if (playable(item.track)) {
+          // As on the search page: the song, then the songs found after it.
+          const { tracks, start } = searchQueue(search.results?.items ?? [], item.track, playable)
+          return controls.playTracks(tracks, start, searchContext(typed))
+        }
+        if (item.track.album) return void navigate(`/album/${item.track.album.id}`)
+        return void navigate(`/search?q=${encodeURIComponent(item.track.title)}`)
+      }
     }
   }
 
@@ -161,7 +177,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
       loading={typed.length > 0 && (!search.results || search.stale || search.catalogPending)}
       destinations={destinations}
       canPlay={track => isPlayable(track, viewer)}
-      isDimmed={choice => (choice.kind === 'album' ? albumPresentation(choice.album, viewer) === 'dimmed' : !choice.artist.inLibrary && !canFetch(viewer))}
+      isDimmed={item => (item.type === 'album' ? albumPresentation(item.album, viewer) === 'dimmed' : !item.artist.inLibrary && !canFetch(viewer))}
       onChoose={choose}
       onIntent={onIntent}
     />

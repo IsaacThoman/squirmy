@@ -1,72 +1,190 @@
-import { mergeSearch, type MergedSearch } from '@squirmy/client-core'
-import type { SearchResults } from '@squirmy/contracts'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { mergeSearch, playlistScore, searchItemKey, type MergedSearch, type SearchItem } from '@squirmy/client-core'
+import { queryKeys, type PlaylistSummary, type SearchKind, type SearchResults } from '@squirmy/contracts'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
 import { useDebounced } from '@/lib/use-debounced'
+import { useEventCallback } from '@/lib/use-event-callback'
 import { useViewer } from '@/player/on-demand-context'
-import { searchQuery } from './queries'
+import { isNotFound, searchQuery } from './queries'
 import { useApi } from './services'
 
 /**
  * One search as the views show it: the library's answer and the catalog's, merged into one
- * set of results for what is typed.
+ * ranked list for what is typed.
  */
 export type SearchState = {
   /** Null until an answer that may be shown has arrived. */
   results: MergedSearch | null
   /**
-   * The results answer a shorter query that what is typed starts with: kept on screen while
-   * the next answer is on its way so the list does not empty with every key, drawn faded,
-   * with no top result and nothing that Enter would open.
+   * The results answer an earlier query: kept on screen while the answer for what is typed
+   * is on its way, so the list does not empty with every key, drawn faded, with nothing that
+   * Enter would open.
    */
   stale: boolean
-  /** The catalog's answer for what is typed is still on its way: its results join at the end. */
+  /** The catalog's answer for what is typed is still on its way. */
   catalogPending: boolean
+  /** The catalog could not be searched for what is typed; the library's results stand alone. */
+  catalogFailed: boolean
+  /** Neither search could be made. */
+  failed: boolean
   /** Neither search exists on this server. */
   unavailable: boolean
+  /** Asks both again, after a failure. */
+  retry: () => void
 }
 
-type Answer = { term: string; data: SearchResults | null }
+type Answer = { term: string; data: SearchResults | null; failed: boolean }
+
+/**
+ * How long the library's answer waits for the catalog's before it shows alone. The two are
+ * ranked together, so a catalog answer arriving after the library's moves rows; most arrive
+ * within this, and the previous results stay on screen meanwhile.
+ */
+export const CATALOG_WAIT_MS = 700
 
 /** The last answer the query gave for the term it was asked, never a placeholder kept from another term. */
 function useAnswer(kind: 'library' | 'catalog', term: string) {
-  const query = useQuery({ ...searchQuery(useApi(), kind, term), placeholderData: keepPreviousData, meta: { silent: true } })
+  const query = useQuery({ ...searchQuery(useApi(), kind, term), placeholderData: keepPreviousData, retry: 1, meta: { silent: true } })
   const [answer, setAnswer] = useState<Answer | null>(null)
   const fresh = term.length > 0 && !query.isPlaceholderData && query.data !== undefined
-  if (fresh && (answer?.term !== term || answer.data !== query.data)) setAnswer({ term, data: query.data })
-  return answer
+  if (fresh && (answer?.term !== term || answer.data !== query.data || answer.failed)) setAnswer({ term, data: query.data, failed: false })
+  const failed = term.length > 0 && query.isError && !query.isFetching
+  if (failed && (answer?.term !== term || !answer.failed)) setAnswer({ term, data: null, failed: true })
+  return { answer, refetch: query.refetch }
 }
-
-const startsWith = (text: string, prefix: string) => text.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase())
 
 /**
  * Searches as the user types. The library answers in milliseconds, so it is asked at once on
- * every short pause; the catalog needs the network and waits for a longer one. Library
- * results show as soon as they arrive and catalog results are appended after them, so rows on
- * screen do not move when the catalog answers. Results never show under a query they do not
- * answer: while the answer for what is typed is on its way, the last one stays only when it
- * answers the start of it (typing on), faded.
+ * every short pause; the catalog needs the network and waits for a longer one. The two are
+ * ranked on one scale (client-core's `mergeSearch`), so the list waits for both, or for
+ * `CATALOG_WAIT_MS` after the library's, with the last results kept (faded) meanwhile; a slower
+ * catalog answer then joins the list where its rows rank. Results never show under a query
+ * they do not answer.
  */
-export function useMergedSearch(typed: string, { catalog: withCatalog = true }: { catalog?: boolean } = {}): SearchState {
+export function useMergedSearch(typed: string, { catalog: withCatalog = true, playlists }: { catalog?: boolean; playlists?: readonly PlaylistSummary[] } = {}): SearchState {
   const viewer = useViewer()
   const term = typed.trim()
   const library = useAnswer('library', useDebounced(term, 60, ''))
-  const catalogTerm = useDebounced(term, 250, '')
-  const catalog = useAnswer('catalog', withCatalog ? catalogTerm : '')
+  const catalog = useAnswer('catalog', useDebounced(withCatalog ? term : '', 250, ''))
+
+  const exactLibrary = library.answer?.term === term ? library.answer : null
+  const exactCatalog = withCatalog && catalog.answer?.term === term ? catalog.answer : null
+  const catalogPending = withCatalog && !exactCatalog
+  // The library's answer has waited long enough for the catalog's.
+  const [waited, setWaited] = useState<string | null>(null)
+  useEffect(() => {
+    if (!exactLibrary || !catalogPending) return
+    const timer = setTimeout(() => setWaited(exactLibrary.term), CATALOG_WAIT_MS)
+    return () => clearTimeout(timer)
+  }, [exactLibrary, catalogPending])
+
+  const current = useMemo(() => {
+    if (!term) return null
+    const ready = exactCatalog || (exactLibrary && (!catalogPending || waited === term))
+    if (!ready) return null
+    const options = playlists ? { playlists: { query: term, items: playlists } } : {}
+    return {
+      term,
+      results: mergeSearch(exactLibrary?.data, exactCatalog?.data, viewer, options),
+      catalogFailed: Boolean(exactCatalog?.failed),
+      failed: Boolean(exactLibrary?.failed && (!withCatalog || exactCatalog?.failed)),
+      unavailable: exactLibrary?.data === null && !exactLibrary.failed && (!withCatalog || (exactCatalog?.data === null && !exactCatalog.failed)),
+    }
+  }, [term, exactLibrary, exactCatalog, catalogPending, waited, withCatalog, playlists, viewer])
+
+  // The last results shown, which stand in (faded) while the next query's are on their way.
+  const [shown, setShown] = useState(current)
+  if (current && current !== shown) setShown(current)
+
+  const retry = useEventCallback(() => {
+    void library.refetch()
+    if (withCatalog) void catalog.refetch()
+  })
   // One object per answer, so views can tell new results from a render.
   return useMemo(() => {
-    if (!term) return { results: null, stale: false, catalogPending: false, unavailable: false }
-    const exactLibrary = library?.term === term ? library : null
-    const exactCatalog = withCatalog && catalog?.term === term ? catalog : null
-    const catalogPending = withCatalog && !exactCatalog
-    const unavailable = exactLibrary?.data === null && (!withCatalog || exactCatalog?.data === null)
-    if (exactLibrary || exactCatalog) {
-      return { results: mergeSearch(exactLibrary?.data, exactCatalog?.data, viewer), stale: false, catalogPending, unavailable }
+    const base = { catalogPending, retry, catalogFailed: false, failed: false, unavailable: false }
+    if (!term) return { ...base, results: null, stale: false, catalogPending: false }
+    if (current) return { ...base, results: current.results, stale: false, catalogFailed: current.catalogFailed, failed: current.failed, unavailable: current.unavailable }
+    if (shown?.results && shown.term !== term) return { ...base, results: { ...shown.results, top: null }, stale: true }
+    return { ...base, results: null, stale: false }
+  }, [term, current, shown, catalogPending, retry])
+}
+
+/** Rows per page of one kind; the server answers at most 50. */
+export const SEARCH_PAGE_SIZE = 30
+/** The contract's largest offset. */
+const lastOffset = 450
+
+type Page = { offset: number; library: SearchResults | null; catalog: SearchResults | null; catalogFailed: boolean }
+
+const listOf = (answer: SearchResults | null, kind: SearchKind) =>
+  (answer ? kind === 'artist' ? answer.artists : kind === 'album' ? answer.albums : answer.tracks : [])
+
+/**
+ * One kind's results for a filter, page by page: each page is the library's and the
+ * catalog's next `SEARCH_PAGE_SIZE` of that kind, ranked together. The last term's pages
+ * stay (faded) while a new term's first page loads.
+ */
+export function useSearchPages(typed: string, kind: SearchKind | null) {
+  const api = useApi()
+  const viewer = useViewer()
+  const term = useDebounced(typed.trim(), 250, typed.trim())
+  const query = useInfiniteQuery({
+    queryKey: [...queryKeys.search(), 'pages', kind, term],
+    enabled: kind !== null && term.length > 0,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam: offset, signal }): Promise<Page> => {
+      const params = { q: term, limit: SEARCH_PAGE_SIZE, type: kind!, offset }
+      const [library, catalog] = await Promise.allSettled([api.search.library(params, { signal }), api.search.catalog(params, { signal })])
+      if (library.status === 'rejected' && catalog.status === 'rejected') throw library.reason
+      const value = (result: PromiseSettledResult<SearchResults>) => (result.status === 'fulfilled' ? result.value : null)
+      // A server without search answers 404 for both: an empty page.
+      const missing = (result: PromiseSettledResult<SearchResults>) => result.status === 'rejected' && isNotFound(result.reason)
+      return { offset, library: value(library), catalog: value(catalog), catalogFailed: catalog.status === 'rejected' && !missing(catalog) }
+    },
+    getNextPageParam: (last: Page) => {
+      const full = [last.library, last.catalog].some(answer => listOf(answer, kind!).length >= SEARCH_PAGE_SIZE)
+      const next = last.offset + SEARCH_PAGE_SIZE
+      return full && next <= lastOffset ? next : undefined
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+    retry: 1,
+    meta: { silent: true },
+  })
+  const items = useMemo(() => {
+    const seen = new Set<string>()
+    const list: SearchItem[] = []
+    for (const page of query.data?.pages ?? []) {
+      for (const item of mergeSearch(page.library, page.catalog, viewer).items) {
+        const key = searchItemKey(item)
+        if (!seen.has(key)) {
+          seen.add(key)
+          list.push(item)
+        }
+      }
     }
-    // Typing on: the shorter query's library results stand in, with no top result of their own.
-    if (library?.data && startsWith(term, library.term)) {
-      return { results: { ...mergeSearch(library.data, null, viewer), top: null }, stale: true, catalogPending, unavailable: false }
-    }
-    return { results: null, stale: false, catalogPending, unavailable: false }
-  }, [term, library, catalog, withCatalog, viewer])
+    return list
+  }, [query.data, viewer])
+  return {
+    items: query.data ? items : null,
+    /** The pages shown are another term's, kept while this one's load. */
+    stale: query.isPlaceholderData || term !== typed.trim(),
+    loading: query.isFetching && !query.isFetchingNextPage,
+    loadingMore: query.isFetchingNextPage,
+    hasMore: Boolean(query.hasNextPage),
+    loadMore: () => void query.fetchNextPage(),
+    failed: query.isError && !query.data,
+    catalogFailed: query.data?.pages.some(page => page.catalogFailed) ?? false,
+    retry: () => void query.refetch(),
+  }
+}
+
+/** The viewer's playlists whose name matches, best first. */
+export function matchingPlaylists(query: string, playlists: readonly PlaylistSummary[]): SearchItem[] {
+  return playlists
+    .map(playlist => ({ playlist, score: playlistScore(query, playlist.name) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ playlist }) => ({ type: 'playlist', playlist }))
 }

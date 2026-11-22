@@ -101,7 +101,7 @@ describe('SearchDialog', () => {
     expectOptions(['Home', 'Albums', 'Wantlist'])
   })
 
-  it('lists artists, then albums, then songs, then “Search everything for …”', () => {
+  it('without a ranking from the server, lists artists, then albums, then songs, then “Search everything for …”', () => {
     renderDialog({ query: 'night', results: found })
     expect(screen.getByRole('listbox', { name: 'Results' })).toBeInTheDocument()
     expectOptions(inOrder)
@@ -129,9 +129,21 @@ describe('SearchDialog', () => {
   const many = merged(manyAnswer)
   const kinds = () => options().slice(0, -1).map(option => (option.textContent.includes('Song · ') ? 'song' : option.textContent.includes('Artist') ? 'artist' : 'album'))
 
-  it('shows three artists, four albums and five songs at most', () => {
+  it('shows the ten best results at most, then the way to the rest', () => {
     renderDialog({ query: 'a', results: many })
-    expect(kinds()).toEqual([...Array<string>(3).fill('artist'), ...Array<string>(4).fill('album'), ...Array<string>(5).fill('song')])
+    expect(kinds()).toEqual([...Array<string>(5).fill('artist'), ...Array<string>(5).fill('album')])
+    expect(options().at(-1)).toHaveAccessibleName('See all results for “a”')
+  })
+
+  it('lists kinds mixed in the order the server ranked them', () => {
+    const ranked = merged({ ...foundAnswer, ranked: [
+      { type: 'track', id: nightSwimming.id, score: 0.9 },
+      { type: 'album', id: lowTide.id, score: 0.8 },
+      { type: 'artist', id: lunePark.id, score: 0.7 },
+    ] })
+    renderDialog({ query: 'night', results: ranked })
+    // What the server did not rank follows, as an older server's answer would show.
+    expectOptions([inOrder[4], inOrder[3], inOrder[1], inOrder[0], inOrder[2], inOrder[5], everything])
   })
 
   it.each([
@@ -142,7 +154,7 @@ describe('SearchDialog', () => {
     renderDialog({ query: 'a', results: withTop(manyAnswer, top) })
     expect(options()[0]).toHaveAccessibleName(name)
     expect(screen.getAllByRole('option', { name })).toHaveLength(1)
-    expect(options()).toHaveLength(14)
+    expect(options()).toHaveLength(11)
   })
 
   it('offers only “Search everything for …” while the first answer is on its way', () => {
@@ -178,11 +190,11 @@ describe('SearchDialog', () => {
   it('chooses the active option with Enter', async () => {
     const { onChoose } = renderDialog({ query: 'night', results: withTop(foundAnswer, { type: 'album', id: lowTide.id }) })
     await userEvent.keyboard('{Enter}')
-    expect(onChoose).toHaveBeenLastCalledWith({ kind: 'album', album: lowTide })
+    expect(onChoose).toHaveBeenLastCalledWith({ kind: 'result', item: { type: 'album', album: lowTide } })
     await userEvent.keyboard('{ArrowDown}{Enter}')
-    expect(onChoose).toHaveBeenLastCalledWith({ kind: 'artist', artist: miraVale })
+    expect(onChoose).toHaveBeenLastCalledWith({ kind: 'result', item: { type: 'artist', artist: miraVale } })
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}')
-    expect(onChoose).toHaveBeenLastCalledWith({ kind: 'track', track: nightSwimming })
+    expect(onChoose).toHaveBeenLastCalledWith({ kind: 'result', item: { type: 'track', track: nightSwimming } })
     expect(onChoose).toHaveBeenCalledTimes(3)
   })
 
@@ -203,7 +215,7 @@ describe('SearchDialog', () => {
   it('chooses a result with a click', async () => {
     const { onChoose } = renderDialog({ query: 'night', results: found })
     await userEvent.click(screen.getByRole('option', { name: 'Blue Hour Album · Mira Vale' }))
-    expect(onChoose).toHaveBeenCalledWith({ kind: 'album', album: blueHour })
+    expect(onChoose).toHaveBeenCalledWith({ kind: 'result', item: { type: 'album', album: blueHour } })
     expect(onChoose).toHaveBeenCalledTimes(1)
   })
 

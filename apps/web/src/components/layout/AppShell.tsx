@@ -11,6 +11,7 @@ import { useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ScrollContainerContext } from './scroll-context'
+import { useScrollMemory } from './scroll-memory'
 import { ShellNotices } from './ShellNotices'
 import { Sidebar } from './Sidebar'
 import { SidebarResizeHandle } from './SidebarResizeHandle'
@@ -110,7 +111,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const toggleShortcut = useRef(toggleSidebar)
   useEffect(() => { toggleShortcut.current = toggleSidebar })
 
-  useEffect(() => { scroller?.scrollTo({ top: 0 }) }, [pathname, scroller])
+  useScrollMemory(scroller)
 
   // Arriving on another page closes what covers it (the drawer, Now Playing), whatever led there.
   const [shownPath, setShownPath] = useState(pathname)
