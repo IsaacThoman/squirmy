@@ -51,6 +51,8 @@ const Env = z.object({
    */
   CLIENT_IP_HEADER: z.string().trim().toLowerCase().regex(/^[a-z0-9-]*$/, 'CLIENT_IP_HEADER must be a header name')
     .transform((value) => value || undefined).optional(),
+  /** Connections in the database query pool of each process. Default 10, 4 under test. */
+  SQUIRMY_DB_POOL_SIZE: z.coerce.number().int().min(2).max(200).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   FFMPEG_PATH: z.string().default('ffmpeg'),
   FFPROBE_PATH: z.string().default('ffprobe'),

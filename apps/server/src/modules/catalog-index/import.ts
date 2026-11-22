@@ -1,7 +1,8 @@
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { and, eq } from 'drizzle-orm'
-import type postgres from 'postgres'
+import postgres from 'postgres'
+import { getConfig } from '../../config.js'
 import { db, getSql } from '../../database/client.js'
 import { catalogIndexImports } from '../../database/schema.js'
 import { conflict } from '../../lib/errors.js'
@@ -254,17 +255,26 @@ async function dropStaging(sql: postgres.Sql) {
  * stops it from any process.
  */
 export async function importCanonicalDump(options: ImportOptions = {}): Promise<ImportResult> {
-  const sql = await getSql().reserve()
+  // A connection of its own: the import keeps it for hours, streaming the download into
+  // COPY, and the query pool is sized for short statements.
+  const own = postgres(getConfig().DATABASE_URL, {
+    max: 1, max_lifetime: null, prepare: false, onnotice: () => {}, connection: { application_name: 'squirmy-catalog-index' },
+  })
   try {
-    const [lock] = await sql<{ locked: boolean }[]>`select pg_try_advisory_lock(hashtext(${lockKey})) as locked`
-    if (!lock?.locked) throw conflict('A search index import is already running', 'catalog_index_import_running')
+    const sql = await own.reserve()
     try {
-      return await runImport(sql, options)
+      const [lock] = await sql<{ locked: boolean }[]>`select pg_try_advisory_lock(hashtext(${lockKey})) as locked`
+      if (!lock?.locked) throw conflict('A search index import is already running', 'catalog_index_import_running')
+      try {
+        return await runImport(sql, options)
+      } finally {
+        await sql`select pg_advisory_unlock(hashtext(${lockKey}))`
+      }
     } finally {
-      await sql`select pg_advisory_unlock(hashtext(${lockKey}))`
+      sql.release()
     }
   } finally {
-    sql.release()
+    await own.end({ timeout: 5 })
   }
 }
 
