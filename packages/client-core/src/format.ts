@@ -7,9 +7,15 @@ export function formatDuration(ms: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-/** Time left, as shown at the right of a scrubber: `−1:23` (with a Unicode minus sign). */
+/**
+ * Time left, as shown at the right of a scrubber: `−1:23` (with a Unicode minus sign).
+ * Rounded up to the second, so it reaches `−0:00` only at the very end (rounded down, the
+ * last second of every track would read `−0:00`), and elapsed plus remaining always make
+ * the whole length.
+ */
 export function formatRemaining(positionMs: number, durationMs: number): string {
-  return `−${formatDuration(Math.max(0, durationMs - positionMs))}`
+  const left = Math.max(0, durationMs - positionMs)
+  return `−${formatDuration(Math.ceil(left / 1000) * 1000)}`
 }
 
 /**

@@ -1,6 +1,6 @@
 import { TrackStore } from '@squirmy/client-core';
 import {
-  queryKeys, type AlbumDetail, type LikeEntityType, type Page, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
+  queryKeys, type AlbumDetail, type LibraryEntityType, type LikeEntityType, type Page, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
   type WantEntityType,
 } from '@squirmy/contracts';
 import { useMutation, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
@@ -15,6 +15,7 @@ import { findTrack, patchEntity, withLikedTrack } from './likePatch';
 import { useRealtime } from './realtime';
 
 type LikeKey = `${LikeEntityType}:${string}`;
+type SaveKey = `${LibraryEntityType}:${string}`;
 
 type LibraryValue = {
   tracks: TrackStore;
@@ -22,6 +23,10 @@ type LibraryValue = {
   likes: ReadonlyMap<LikeKey, boolean>;
   setLiked: (type: LikeEntityType, id: string, liked: boolean) => void;
   want: (type: WantEntityType, id: string, title: string) => void;
+  /** Library additions and removals made here that the screens' data may not show yet. */
+  saves: ReadonlyMap<SaveKey, boolean>;
+  /** Adds to or removes from the user's library, showing it at once; a refusal sets it back with a notice. */
+  setSaved: (type: LibraryEntityType, id: string, saved: boolean, title: string) => void;
 };
 
 const LibraryContext = createContext<LibraryValue | null>(null);
@@ -135,9 +140,46 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   }, [flush, offline]);
   useEffect(() => () => clearTimeout(retry.current.timer), [queue]);
 
-  const value = useMemo<LibraryValue>(() => ({
+  const [saves, setSaves] = useState<ReadonlyMap<SaveKey, boolean>>(new Map());
+  useEffect(() => setSaves(new Map()), [account]);
+  const rememberSave = useCallback((key: SaveKey, saved: boolean | undefined) => setSaves(current => {
+    const next = new Map(current);
+    if (saved === undefined) next.delete(key);
+    else next.set(key, saved);
+    return next;
+  }), []);
+  // Each change waits for the one before it on the same item, so a quick add and remove
+  // reach the server in order.
+  const saving = useRef(new Map<SaveKey, Promise<unknown>>());
+
+  const value: LibraryValue = useMemo<LibraryValue>(() => ({
     tracks,
     likes,
+    saves,
+    setSaved: (type, id, saved, title) => {
+      if (!api) return;
+      const key: SaveKey = `${type}:${id}`;
+      rememberSave(key, saved);
+      patchSaved(queryClient, type, id, saved);
+      const send = () => saved ? api.library.save(type, id) : api.library.remove(type, id);
+      // A quick confirmation that can be taken back, as streaming apps do; the button itself changes too.
+      notify(saved ? `Added “${title}” to your library.` : `Removed “${title}” from your library.`,
+        { label: 'Undo', run: () => value.setSaved(type, id, !saved, title) });
+      const run = (saving.current.get(key) ?? Promise.resolve()).then(send, send).then(() => {
+        // Library lists and Home's "Recently added" change; the item's own pages now carry the new state.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.libraryAlbums() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.libraryTracks() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.libraryArtists() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.home() });
+      }, () => {
+        rememberSave(key, undefined);
+        patchSaved(queryClient, type, id, !saved);
+        notify(saved ? `Couldn’t add “${title}” to your library.` : `Couldn’t remove “${title}” from your library.`);
+      }).finally(() => {
+        if (saving.current.get(key) === run) saving.current.delete(key);
+      });
+      saving.current.set(key, run);
+    },
     setLiked: (type, id, liked) => {
       if (!queue) return;
       remember(`${type}:${id}`, liked);
@@ -154,9 +196,31 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         }
       }, () => notify('Couldn’t add that to your wantlist.'));
     },
-  }), [api, flush, likes, notify, queryClient, queue, remember, tracks]);
+  }), [api, flush, likes, notify, queryClient, queue, remember, rememberSave, saves, tracks]);
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
+}
+
+/**
+ * Shows an addition or removal everywhere at once: track summaries get `inLibrary`, an
+ * album's page `library`. A collection album stays `collection`: removing never applies to it.
+ */
+function patchSaved(queryClient: QueryClient, type: LibraryEntityType, id: string, saved: boolean) {
+  for (const query of queryClient.getQueryCache().getAll()) {
+    const data = query.state.data;
+    const patched = type === 'track'
+      ? patchEntity(data, id, { inLibrary: saved })
+      : patchAlbumLibrary(data, id, saved);
+    if (patched !== data) queryClient.setQueryData(query.queryKey, patched, { updatedAt: query.state.dataUpdatedAt });
+  }
+}
+
+function patchAlbumLibrary(data: unknown, id: string, saved: boolean): unknown {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+  const album = data as Partial<AlbumDetail>;
+  if (album.id !== id || !('library' in album) || album.library === 'collection') return data;
+  const library = saved ? 'saved' : null;
+  return album.library === library ? data : { ...album, library };
 }
 
 function likeStorage(account: string) {
@@ -187,8 +251,17 @@ export function useLiked(type: LikeEntityType, id: string | undefined, liked: bo
 }
 
 export function useLibraryActions() {
-  const { setLiked, want } = useLibrary();
-  return { setLiked, want };
+  const { setLiked, want, setSaved } = useLibrary();
+  return { setLiked, want, setSaved };
+}
+
+/**
+ * Whether an item is in the user's library, counting changes made here that the server's
+ * answer does not show yet. Undefined when the server does not say (an older server).
+ */
+export function useSaved(type: LibraryEntityType, id: string | undefined, saved: boolean | undefined): boolean | undefined {
+  const { saves } = useLibrary();
+  return (id ? saves.get(`${type}:${id}`) : undefined) ?? saved;
 }
 
 /** Playlist edits. Each one updates the cached playlist from the server's answer. */

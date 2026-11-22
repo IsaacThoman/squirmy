@@ -1,4 +1,4 @@
-import { artworkUrl, streamUrl } from '@squirmy/client-core';
+import { artworkUrl, streamUrl, type Viewer } from '@squirmy/client-core';
 import type { AlbumDetail, PlaylistDetail, TrackSummary } from '@squirmy/contracts';
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
@@ -15,7 +15,7 @@ import { downloadIndex } from './database';
 import { downloadFiles, downloadNetwork } from './files';
 import { DownloadManager, type CollectionContent, type DownloadSource } from './manager';
 import {
-  albumCollectionId, canPlay, canRequestMusic, likedId, playlistCollectionId, type CollectionDownload, type CollectionKind, type TrackDownload,
+  albumCollectionId, canPlay, likedId, playlistCollectionId, type CollectionDownload, type CollectionKind, type TrackDownload,
 } from './model';
 
 /** Covers are kept at the size the lock screen uses. */
@@ -26,10 +26,10 @@ const resyncAfterMs = 10 * 60_000;
 /** Server changes come in bursts (a scan, a playlist edit); collections are re-read once they settle. */
 const invalidateDelayMs = 3000;
 
-/** `canRequest`: the user may have on-demand tracks fetched. */
-type DownloadsValue = { manager: DownloadManager | null; offline: boolean; canRequest: boolean };
+/** `viewer`: the signed-in user, whose role and `canAcquire` decide what plays (client-core's `isPlayable`). */
+type DownloadsValue = { manager: DownloadManager | null; offline: boolean; viewer: Viewer | null };
 
-const DownloadsContext = createContext<DownloadsValue>({ manager: null, offline: false, canRequest: false });
+const DownloadsContext = createContext<DownloadsValue>({ manager: null, offline: false, viewer: null });
 
 const noSubscription = () => () => undefined;
 const noVersion = () => 0;
@@ -153,8 +153,12 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
   }, [manager, onInvalidate]);
 
   const { state } = useAccount();
-  const canRequest = state.status === 'signedIn' && canRequestMusic(state.user);
-  const value = useMemo(() => ({ manager, offline, canRequest }), [canRequest, manager, offline]);
+  const user = state.status === 'signedIn' ? state.user : null;
+  const role = user?.role;
+  const canAcquire = user?.canAcquire;
+  // Rebuilt only when what decides playability changes, not on every new user object.
+  const viewer = useMemo(() => role === undefined ? null : { role, canAcquire: canAcquire ?? false }, [canAcquire, role]);
+  const value = useMemo(() => ({ manager, offline, viewer }), [manager, offline, viewer]);
   return <DownloadsContext.Provider value={value}>{children}</DownloadsContext.Provider>;
 }
 
@@ -194,7 +198,7 @@ export function useDownloadsSummary() {
  * has as well. Re-renders when that changes, not on download progress.
  */
 export function useAvailability() {
-  const { manager, offline, canRequest } = useContext(DownloadsContext);
+  const { manager, offline, viewer } = useContext(DownloadsContext);
   const version = useFilesVersion(manager);
   const cache = useStreamingCache();
   const cacheVersion = useCacheFilesVersion();
@@ -202,19 +206,19 @@ export function useAvailability() {
     const downloaded = (trackId: string) => manager?.isDownloaded(trackId) ?? false;
     const onDevice = (trackId: string) => downloaded(trackId) || (cache?.has(trackId) ?? false);
     return {
-      offline, canRequest, downloaded,
-      canPlay: (track: Pick<TrackSummary, 'id' | 'availability'>) => canPlay(track, { offline, downloaded: onDevice, canRequest }),
+      offline, viewer, downloaded,
+      canPlay: (track: Pick<TrackSummary, 'id' | 'availability'>) => canPlay(track, { offline, onDevice, viewer }),
     };
-  }, [cache, cacheVersion, canRequest, manager, offline, version]);
+  }, [cache, cacheVersion, manager, offline, version, viewer]);
 }
 
 /** Whether one track can be played now; re-renders only when the answer changes. */
 export function useCanPlay(track: Pick<TrackSummary, 'id' | 'availability'> | undefined): boolean {
-  const { manager, offline, canRequest } = useContext(DownloadsContext);
+  const { manager, offline, viewer } = useContext(DownloadsContext);
   const subject = track ?? noTrack;
   const cached = useCached(track?.id);
   return useSyncExternalStore(manager?.subscribe ?? noSubscription,
-    () => canPlay(subject, { offline, canRequest, downloaded: trackId => cached || (manager?.isDownloaded(trackId) ?? false) }));
+    () => canPlay(subject, { offline, viewer, onDevice: trackId => cached || (manager?.isDownloaded(trackId) ?? false) }));
 }
 
 /** The local copy of a cover, when one was kept with a download or a cached track. */
@@ -309,4 +313,9 @@ export function useDownloadActions() {
     cap,
     setCap,
   }), [cap, manager, setCap]);
+}
+
+/** The signed-in user as the availability rules see them, or null while signed out. */
+export function useViewer(): Viewer | null {
+  return useContext(DownloadsContext).viewer;
 }

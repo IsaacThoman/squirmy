@@ -11,7 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { formatDuration } from '@squirmy/client-core';
+import { formatDuration, formatRemaining } from '@squirmy/client-core';
 import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
 import { useLibraryActions, useLiked } from './data/library';
@@ -20,12 +20,14 @@ import { MiniPlayerContent } from './MiniPlayer';
 import {
   grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type PlayerPage,
 } from './player/transition';
-import { usePlaybackState, usePosition } from './playback';
+import { useLoading, usePlaybackState, usePosition } from './playback';
+import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
+import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
 import { activeLine, lyricLines } from './player/lyrics';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
-import { RoutePicker } from '../modules/now-playing';
+import { RoutePicker, SystemVolumeSlider } from '../modules/now-playing';
 import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
@@ -88,7 +90,8 @@ export default function Player() {
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
-  const { current, track, actions, preparing, remote, output } = usePlaybackState();
+  const { current, track, actions, remote, output } = usePlaybackState();
+  const loading = useLoading();
   const { setLiked } = useLibraryActions();
   const artwork = track?.album?.artwork;
   const artworkImage = useArtworkImage(artwork, 440);
@@ -106,7 +109,7 @@ export default function Player() {
   const artworkPage = page === 'player';
   const isFavorite = useLiked('track', track?.id, track?.liked);
   const title = track?.title ?? (current ? '' : 'Not Playing');
-  const subtitle = preparing ? 'Preparing…' : remote ? `${track?.artistCredit ?? ''} · ${output.name}` : track?.artistCredit ?? '';
+  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : remote ? `${track?.artistCredit ?? ''} · ${output.name}` : track?.artistCredit ?? '';
   // Phones with a home indicator have rounded displays; a square card would show in their corners.
   const screenCorner = Platform.OS === 'ios' && !Platform.isPad && bottom > 0 ? 40 : 0;
 
@@ -489,7 +492,7 @@ function Scrubber() {
       />
       <View style={styles.timeRow}>
         <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>{elapsed}</Text>
-        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>−{formatDuration(Math.max(0, duration - shown))}</Text>
+        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>{formatRemaining(shown, duration)}</Text>
       </View>
     </>
   );
@@ -503,7 +506,8 @@ function Transport({ compact, page, onToggle, onDevices }: {
 }) {
   const colors = useColors();
   const styles = useStyles();
-  const { session, output, volume, actions, remote } = usePlaybackState();
+  const { session, output, volume, actions, remote, detached } = usePlaybackState();
+  const loading = useLoading();
   const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
 
   return (
@@ -513,7 +517,8 @@ function Transport({ compact, page, onToggle, onDevices }: {
         <PlayerButton icon="backward.fill" label="Previous track" size={27} onPress={() => { selectionFeedback(); actions.previous(); }} />
         <PlayerButton
           icon={session.playing ? 'pause.fill' : 'play.fill'}
-          label={session.playing ? 'Pause' : 'Play'}
+          label={playPauseLabel(session.playing, loading)}
+          busy={loading !== 'none'}
           size={40}
           color={colors.text}
           onPress={() => { selectionFeedback(); actions.playPause(); }}
@@ -524,7 +529,10 @@ function Transport({ compact, page, onToggle, onDevices }: {
       <View style={styles.volumeRow}>
         <Icon name="speaker.fill" size={13} color={colors.muted} />
         <View style={styles.volumeSlider}>
-          <TransportSlider label={`Squirmy volume, ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />
+          {/* This phone's volume is the system's, which the side buttons move too; another device's is the session's. */}
+          {!remote && SystemVolumeSlider
+            ? <SystemVolumeSlider tint={colors.accent} trackTint={colors.stroke} style={styles.systemVolume} />
+            : <TransportSlider label={`Volume, ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />}
         </View>
         <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
         {/* Where this phone's own sound goes: AirPlay, Bluetooth or the speaker. */}
@@ -541,7 +549,8 @@ function Transport({ compact, page, onToggle, onDevices }: {
             onPress={() => onToggle('lyrics')} />
         </View>
         <View style={styles.output}>
-          <DeviceButton icon={output.icon} name={output.name}
+          {/* Detached, the device slot says so: the same place "Playing on …" names a remote. */}
+          <DeviceButton icon={detached ? DETACHED_SYMBOL : output.icon} name={detached ? DETACHED_LABEL : output.name}
             onPress={() => { selectionFeedback(); onDevices(); }} />
         </View>
         <View style={styles.footerSide}>
@@ -592,6 +601,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   primaryButtonCompact: { width: 56, height: 56 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   volumeSlider: { flex: 1 },
+  systemVolume: { height: 34 },
   routePicker: { width: 36, height: 36, marginLeft: 2 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
   footerSide: { flex: 1, alignItems: 'center' },

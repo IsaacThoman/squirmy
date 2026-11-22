@@ -18,7 +18,7 @@ export type TrackAction = {
 
 export type TrackActionId =
   | 'play' | 'resume' | 'next' | 'last' | 'like' | 'unlike' | 'download' | 'retryDownload' | 'removeDownload'
-  | 'playlist' | 'radio' | 'want' | 'album' | 'artist' | 'remove';
+  | 'playlist' | 'radio' | 'want' | 'album' | 'artist' | 'remove' | 'save' | 'unsave';
 
 export type TrackActionOptions = {
   /** The playlist the track is shown in, for "Remove from playlist". */
@@ -37,16 +37,18 @@ export type TrackActionState = {
   onItsOwn: boolean;
   /** The server has the wantlist on. */
   wantlist: boolean;
+  /** In the user's library; undefined when the server does not say, and then nothing is offered. */
+  saved?: boolean;
 };
 
 /**
  * What can be done with `track`, in menu order. Gray tracks can only be liked, wanted (when
- * the server has the wantlist on) and opened. Offline, what needs the server is left out,
+ * the server has the wantlist on), removed from the library and opened. Offline, what needs the server is left out,
  * and likes wait for it. The result
  * only describes the actions; `useTrackActionRunner` carries one out when it is chosen.
  */
 export function trackActions(track: TrackSummary, state: TrackActionState, { playlist }: TrackActionOptions = {}): TrackAction[] {
-  const { liked, playable, offline, current, download, onItsOwn, wantlist } = state;
+  const { liked, playable, offline, current, download, onItsOwn, wantlist, saved } = state;
   const online = !offline;
   const downloadAction: TrackAction | false = download?.state === 'failed' && onItsOwn
     ? { id: 'retryDownload', title: 'Retry download', icon: 'arrow.clockwise' }
@@ -63,11 +65,13 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     liked
       ? { id: 'unlike', title: 'Unlike', icon: 'heart.slash' }
       : { id: 'like', title: 'Like', icon: 'heart' },
+    playable && online && saved === false && { id: 'save', title: 'Add to library', icon: 'plus' },
+    online && saved === true && { id: 'unsave', title: 'Remove from library', icon: 'minus.circle' },
     downloadAction,
     playable && online && { id: 'playlist', title: 'Add to playlist', icon: 'text.badge.plus', sheet: true,
       href: { pathname: '/add-to-playlist', params: { trackId: track.id, albumId: track.album?.id ?? '' } } },
     playable && online && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right' },
-    // Gray tracks, including on-demand ones this user may not have fetched.
+    // Only what does not play for this user: for someone who may fetch music nothing is wanted.
     wantlist && !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star' },
     Boolean(track.album) && { id: 'album', title: 'Go to album', icon: 'square.stack', page: { page: 'album', id: track.album!.id } },
     Boolean(track.artists[0]) && { id: 'artist', title: 'Go to artist', icon: 'music.mic', page: { page: 'artist', id: track.artists[0]!.id } },

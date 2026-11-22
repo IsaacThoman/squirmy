@@ -278,9 +278,9 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError }: {
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError, systemVolume }: {
   canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer; id?: string
-  onLoadError?: SessionPlayer['onLoadError']
+  onLoadError?: SessionPlayer['onLoadError']; systemVolume?: boolean
 } = {}) {
   const transport = new FakeTransport(server)
   const engine = new FakeEngine()
@@ -290,7 +290,7 @@ function setup({ canPlay = true, connect = true, restore, server = new FakeServe
   const client = new SessionClient({
     transport,
     device: { id, name: 'Phone', kind: 'ios' },
-    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError } : undefined,
+    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError, systemVolume } : undefined,
     restore,
     onDetachedEnded: ended,
   })
@@ -611,6 +611,53 @@ describe('SessionClient engine', () => {
     expect(resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2))).toHaveLength(asked + 1)
   })
 
+  it('starts an entry that just became current at 0, though resolving it took a moment', async () => {
+    const { client, resolvePlayback, settle, calls } = await playingHere()
+    resolvePlayback.mockImplementation(async entry => {
+      await new Promise(resolve => setTimeout(resolve, 150))
+      return descriptor(entry)
+    })
+    client.forgetPlayback()
+    client.dispatch({ type: 'next' })
+    await vi.advanceTimersByTimeAsync(200)
+    await settle()
+    expect(calls('load').at(-1)?.[1]).toMatchObject({ entryId: client.getSnapshot().session.current!.id, startMs: 0 })
+  })
+
+  it('still starts a restored entry where it was', async () => {
+    const { client, engine, calls, settle } = await playingHere()
+    client.dispatch({ type: 'seek', positionMs: 42_000 })
+    engine.stop()
+    client.dispatch({ type: 'next' })
+    client.dispatch({ type: 'seek', positionMs: 42_000 })
+    await settle()
+    expect(calls('load').at(-1)?.[1]).toMatchObject({ startMs: 42_000 })
+  })
+
+  it('does not ask again for a preload the server refused on every session change', async () => {
+    const context = setup()
+    const { client, resolvePlayback, settle } = context
+    resolvePlayback.mockImplementation(async entry => {
+      if (entry.trackId === track(2)) throw new ApiError(403, 'forbidden', 'Not for you')
+      return descriptor(entry)
+    })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await settle()
+    const asked = () => resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(2)).length
+    expect(asked()).toBe(1)
+    client.dispatch({ type: 'setVolume', deviceId: PHONE, value: 0.5 })
+    client.dispatch({ type: 'seek', positionMs: 10_000 })
+    client.dispatch({ type: 'pause' })
+    client.dispatch({ type: 'play' })
+    await settle()
+    expect(asked()).toBe(1)
+    // Where it plays from changed: worth asking again.
+    client.forgetPlayback()
+    await settle()
+    expect(asked()).toBe(2)
+  })
+
   it('retries an entry it cannot reach, reporting a stall meanwhile', async () => {
     const onLoadError = vi.fn()
     const context = setup({ onLoadError })
@@ -874,6 +921,19 @@ describe('SessionClient engine', () => {
     expect(calls('setGain').at(-1)).toEqual(['setGain', 0.5])
     client.setNormalization('track')
     expect(engine.loaded!.gain).toBeCloseTo(0.5 * 10 ** (-6 / 20))
+    await settle()
+  })
+
+  it('leaves the volume out of the gain when the system applies it', async () => {
+    const { client, engine, calls, settle } = setup({ systemVolume: true })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await settle()
+    client.dispatch({ type: 'setVolume', deviceId: PHONE, value: 0.5 })
+    expect(client.getSnapshot().session.volumes[PHONE]).toBe(0.5)
+    expect(calls('setGain')).toEqual([])
+    client.setNormalization('track')
+    expect(engine.loaded!.gain).toBeCloseTo(10 ** (-6 / 20))
     await settle()
   })
 

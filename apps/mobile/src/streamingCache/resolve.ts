@@ -13,8 +13,11 @@ export type PlaybackSources = {
 /**
  * Where an entry plays from: a download first, then the streaming cache, then the server.
  * A cached copy below the quality asked for is passed over while the server answers, so
- * the quality setting holds, and plays when it does not. Offline, the server is not
- * asked: a request to a server that can't be reached may only fail after a long wait.
+ * the quality setting holds, and plays when it does not. Offline, a lesser copy is taken
+ * at once rather than after asking the server, since a request to a server that can't be
+ * reached may only fail after a long wait. With nothing on the phone the server is still
+ * asked: "offline" means the socket has been down a few seconds (a network change, say),
+ * and the stream itself may well be reachable.
  */
 export async function resolvePlayback(
   entry: QueueEntry,

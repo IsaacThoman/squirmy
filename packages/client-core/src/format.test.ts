@@ -21,6 +21,12 @@ describe('formatRemaining', () => {
     expect(formatRemaining(60_000, 143_000)).toBe('−1:23')
     expect(formatRemaining(200_000, 143_000)).toBe('−0:00')
   })
+
+  it('rounds up, so the last second is not shown as −0:00', () => {
+    expect(formatRemaining(142_200, 143_000)).toBe('−0:01')
+    expect(formatRemaining(143_000, 143_000)).toBe('−0:00')
+    expect(formatRemaining(60_400, 143_000)).toBe('−1:23')
+  })
 })
 
 describe('formatTotalDuration', () => {

@@ -1,6 +1,7 @@
-import { queryKeys, type AlbumSummary, type HomeSection, type SearchResults, type TrackSummary } from '@squirmy/contracts';
+import { albumPresentation, type SearchTop } from '@squirmy/client-core';
+import { queryKeys, type AlbumSummary, type HomeSection, type TrackSummary } from '@squirmy/contracts';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, type Href } from 'expo-router';
+import { useNavigation, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,12 +13,12 @@ import {
   useLibraryTracks, usePlaylists, useSearch,
 } from './data/queries';
 import { useTrackStore } from './data/library';
-import { useAvailability } from './downloads/DownloadsProvider';
+import { useAvailability, useViewer } from './downloads/DownloadsProvider';
 import {
   BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField, TopResult,
   type SearchHandle,
 } from './library/BrowseControls';
-import { isEmptyGroup, searchSections, type SearchGroup, type SearchSections } from './library/search';
+import { keepOrder, searchView, type SearchView } from './library/search';
 import { sortFor, sortOptions, sortsFor, type SortName } from './library/sorting';
 import type { Page } from './library/links';
 import { useStartGuard } from './library/pending';
@@ -25,14 +26,15 @@ import { underStatusBar, useRefreshControl } from './library/refresh';
 import { displayFontScale } from './fontScale';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
-  playlistCollection, QueryState, SectionTitle, tapFeedback, useOfflineDim, type Collection,
+  playlistCollection, QueryState, RailPlaceholder, SectionTitle, tapFeedback, TopResultPlaceholder, useCollectionDim, type Collection,
 } from './library/shared';
 import { useRealtime } from './data/realtime';
 import { SongList, useSongListItems } from './library/SongList';
 import { usePlayAll } from './library/usePlayAll';
 import { chunk, type SongRowItem } from './library/rows';
 import { ZoomLink, ZoomSource } from './library/ZoomLink';
-import { usePlaybackActions, useTrackPreparing } from './playback';
+import { usePlaybackActions, useTrackLoading } from './playback';
+import { STILL_LOADING_LABEL } from './player/loading';
 import { createThemedStyles, unavailableOpacity, useColors } from './theme';
 import { Cover } from './ui';
 
@@ -114,13 +116,14 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const { width } = useWindowDimensions();
   const { state } = useAccount();
   const home = useHome();
-  const offlineDim = useOfflineDim();
+  const collectionDim = useCollectionDim();
   const wantlist = useWantlistEnabled();
   // A Home saved before the wantlist was switched off, or from an older server, may still have it.
   const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
   const albums = (id: string) => sections.find((section): section is Extract<HomeSection, { kind: 'albums' }> => section.kind === 'albums' && section.id === id)?.albums;
-  // The first thing on Home: something that plays, never a gray card of an album nobody can play.
-  const playable = (album: AlbumSummary) => album.availability !== 'none';
+  const viewer = useViewer();
+  // The first thing on Home: something that plays, never a gray card of an album this viewer can't play.
+  const playable = (album: AlbumSummary) => albumPresentation(album, viewer) === 'normal';
   const hero = albums('recently-played')?.find(playable) ?? albums('recently-added')?.find(playable);
   const heroSize = width - gutter * 2;
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
@@ -141,7 +144,7 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
       {!home.data && <QueryState query={home} what="your music" />}
       {home.data && !sections.length && <EmptyState icon="music.note.house" title="No music yet"
         description={`Add music to a library folder on ${serverName}. It shows up here as soon as it has been scanned.`} />}
-      {hero && <View style={offlineDim(albumCollection(hero, link)).dim && styles.unavailable}>
+      {hero && <View style={collectionDim(albumCollection(hero, link)).dim && styles.unavailable}>
         <ZoomLink href={link('album', hero.id)}><HeroCard album={hero} size={heroSize} /></ZoomLink>
       </View>}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
@@ -164,13 +167,26 @@ type LibraryRow =
 
 const libraryRowKey = (row: LibraryRow) => row.key;
 
+/**
+ * What an empty Library says. The library is what this user added plus the music the
+ * server's owner brought, not everything that was ever played, so it starts out empty for
+ * someone who only streams; Home's Recently played and Most played carry what they listened to.
+ */
+const emptyLibrary = {
+  Albums: { icon: 'square.stack', title: 'Add music to your library',
+    description: 'Albums and songs you add show up here, with the music stored on your server. Find something you love and tap + or Add to library.' },
+  Songs: { icon: 'music.note', title: 'No songs yet', description: 'Songs you add, and the songs of albums you add, show up here.' },
+  Artists: { icon: 'music.mic', title: 'No artists yet', description: 'The artists of albums in your library show up here.' },
+} as const;
+
 export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bottomInset = 155 }: BrowseProps) {
   const styles = useStyles();
-  const offlineDim = useOfflineDim();
+  const collectionDim = useCollectionDim();
   const { offline } = useRealtime();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const actions = usePlaybackActions();
+  const router = useRouter();
   const [filter, setFilter] = useState<LibraryFilter>('All');
   const [sortName, setSortName] = useState<SortName>('Recently added');
   const [grid, setGrid] = useState(true);
@@ -220,8 +236,8 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       collections.push(...searching ? (matched?.artists ?? []).map(artist => artistCollection(artist, link))
         : artists.items.map(artist => artistCollection(artist, link)).filter(item => matches(query, item.title, item.subtitle)));
     }
-    return collections.map(offlineDim);
-  }, [albums.items, artists.items, filter, link, matched, offlineDim, playlists.items, query, searching, showsAlbums, showsPlaylists, sort]);
+    return collections.map(collectionDim);
+  }, [albums.items, artists.items, filter, link, matched, collectionDim, playlists.items, query, searching, showsAlbums, showsPlaylists, sort]);
   const tracks = useMemo(() => searching ? matched?.tracks ?? []
     : songs.items.filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? '')), [matched, query, searching, songs.items]);
   const songItems = useSongListItems({
@@ -257,6 +273,9 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   }, [renderSong, size, styles]);
   // Searching, a pull reloads the matches; otherwise the list, and the playlists shown with it.
   const refreshControl = useRefreshControl(() => Promise.all([active.refetch(), showsPlaylists && active !== playlists && playlists.refetch()]));
+
+  // An empty library is an invitation: Search is where music is found and added.
+  const findMusic = { title: 'Find music', onPress: () => { tapFeedback(); router.navigate('/(tabs)/(search)'); } };
 
   const newPlaylist = () => {
     tapFeedback();
@@ -295,12 +314,11 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
           {filter === 'Songs' && playSongs.busy && <ActivityIndicator accessibilityLabel="Loading songs" />}
         </View>
         {!active.data && <QueryState query={active} what="your library" />}
-        {libraryEmpty && filter !== 'Playlists' ? (
-          <EmptyState icon="music.note.list" title="No music yet" description="Albums and songs appear here once your server has scanned them." />
-        ) : active.data && empty && !(searching && found.pending) && (
-          <EmptyState icon="magnifyingglass" title={query ? 'Nothing found' : 'Nothing here yet'}
-            description={query ? 'Try another search or filter.' : 'Try another filter.'} />
-        )}
+        {libraryEmpty && filter !== 'Playlists' ? <EmptyState {...emptyLibrary.Albums} action={findMusic} />
+          : active.data && empty && !(searching && found.pending) && (query || filter === 'Playlists'
+            ? <EmptyState icon="magnifyingglass" title={query ? 'Nothing found' : 'Nothing here yet'}
+              description={query ? 'Try another search or filter.' : 'Try another filter.'} />
+            : <EmptyState {...emptyLibrary[filter === 'Songs' ? 'Songs' : filter === 'Artists' ? 'Artists' : 'Albums']} action={findMusic} />)}
       </>}
       ListFooterComponent={<>
         {(searching ? found.pending && !empty : listed.isFetchingNextPage) && <ActivityIndicator style={styles.more} />}
@@ -311,79 +329,64 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
 
 const topCoverSize = 76;
 
-/** The best match: an artist or album opens its page (an album can also play); a song plays. */
-function TopResultView({ top, groups, link, onTrackMenu }: SearchSections & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
+/** The best match: an artist or album opens its page (an album can also play); a song plays with the songs found. */
+function TopResultView({ top, tracks, link, onTrackMenu }: { top: SearchTop; tracks: readonly TrackSummary[] } & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
   const albumPlayer = useAlbumPlayer();
   const actions = usePlaybackActions();
   const { canPlay } = useAvailability();
-  const preparing = useTrackPreparing(top?.type === 'track' ? top.track.id : undefined);
-  if (!top) return null;
+  const collectionDim = useCollectionDim();
+  const loading = useTrackLoading(top.type === 'track' ? top.track.id : undefined);
   if (top.type === 'track') {
     const { track } = top;
-    const tracks = groups[top.group].tracks;
     const playable = canPlay(track);
-    const subtitle = preparing ? 'Preparing…' : `Song · ${track.artistCredit}`;
+    const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : `Song · ${track.artistCredit}`;
     const play = () => {
       tapFeedback();
-      actions.playTracks(tracks, { start: tracks.indexOf(track), context: { type: 'search', id: null, title: null } });
+      actions.playTracks(tracks, { start: Math.max(0, tracks.indexOf(track)), context: { type: 'search', id: null, title: null } });
     };
     return <TopResult title={track.title} subtitle={subtitle} size={topCoverSize} dim={!playable}
       cover={<Cover artwork={track.album?.artwork} size={topCoverSize} radius={10} />}
-      onPress={playable ? play : () => onTrackMenu(track)} onPlay={playable ? play : undefined} />;
+      onPress={playable ? play : () => onTrackMenu(track)} onPlay={playable ? play : undefined} busy={loading !== 'none'} />;
   }
-  const item = top.type === 'album' ? albumCollection(top.album, link, `Album · ${top.album.artistCredit}`) : artistCollection(top.artist, link);
+  const item = collectionDim(top.type === 'album' ? albumCollection(top.album, link, `Album · ${top.album.artistCredit}`) : artistCollection(top.artist, link));
   const play = top.type === 'album' && !item.dim ? () => { tapFeedback(); albumPlayer.play(top.album.id); } : undefined;
   return <TopResult title={item.title} subtitle={item.subtitle} size={topCoverSize} dim={item.dim} href={item.href}
     cover={<CollectionCover item={item} size={topCoverSize} radius={10} />} onPlay={play}
     busy={top.type === 'album' && albumPlayer.pending(top.album.id)} />;
 }
 
-/** One group of results: artists, then albums, then songs. */
-function SearchGroupView({ title, note, group, link, onTrackMenu }: {
-  title: string; note?: string; group: SearchGroup;
-} & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
+/**
+ * One result set: the top result, then artists, albums and songs. Rows the library answer
+ * showed keep their places when the catalog's arrive after them; a section the library had
+ * nothing for is held open meanwhile, so nothing below it moves.
+ */
+function SearchResultsView({ view, link, onTrackMenu }: { view: SearchView } & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
   const styles = useStyles();
   const actions = usePlaybackActions();
-  if (isEmptyGroup(group)) return null;
-  return <View style={styles.resultGroup}>
-    <View style={styles.groupTitle}>
-      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.groupText}>{title}</Text>
-      {note && <Text style={styles.groupNote}>{note}</Text>}
-    </View>
-    {group.artists.length > 0 && <View style={styles.resultSection}>
-      <SectionTitle title="Artists" />
-      <CollectionRail items={group.artists.map(artist => artistCollection(artist, link))} size={92} />
-    </View>}
-    {group.albums.length > 0 && <View style={styles.resultSection}>
-      <SectionTitle title="Albums" />
-      <CollectionRail items={group.albums.map(album => albumCollection(album, link))} size={115} />
-    </View>}
-    {group.tracks.length > 0 && <View style={styles.resultSection}>
-      <SectionTitle title="Songs" />
-      <View style={styles.trackList}>
-        <SongList tracks={group.tracks} onTrackMenu={track => onTrackMenu(track)}
-          onPlay={start => actions.playTracks(group.tracks, { start, context: { type: 'search', id: null, title: null } })} />
+  const { top, artists, albums, tracks, waiting } = view;
+  const context = { type: 'search', id: null, title: null } as const;
+  if (view.empty) return <EmptyState icon="magnifyingglass" title="No results" description="Try a different song, album, or artist." />;
+  return <>
+    {(top || waiting.top) && <View style={styles.resultSection}>
+      <SectionTitle title="Top result" />
+      <View style={styles.topResult}>
+        {top ? <TopResultView top={top} tracks={tracks} link={link} onTrackMenu={onTrackMenu} /> : <TopResultPlaceholder size={topCoverSize} />}
       </View>
     </View>}
-  </View>;
-}
-
-function SearchResultsView({ library, catalog, link, onTrackMenu }: {
-  library: SearchResults | undefined; catalog: SearchResults | undefined;
-} & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
-  const styles = useStyles();
-  const sections = searchSections(library, catalog);
-  const { groups } = sections;
-  if (isEmptyGroup(groups.library) && isEmptyGroup(groups.catalog)) {
-    return <EmptyState icon="magnifyingglass" title="No results" description="Try a different song, album, or artist." />;
-  }
-  return <>
-    {sections.top && <View style={styles.resultSection}>
-      <SectionTitle title="Top result" />
-      <View style={styles.topResult}><TopResultView {...sections} link={link} onTrackMenu={onTrackMenu} /></View>
+    {(artists.length > 0 || waiting.artists) && <View style={styles.resultSection}>
+      <SectionTitle title="Artists" />
+      {artists.length ? <CollectionRail items={artists.map(artist => artistCollection(artist, link))} size={92} /> : <RailPlaceholder size={92} round />}
     </View>}
-    <SearchGroupView title="In your library" group={groups.library} link={link} onTrackMenu={onTrackMenu} />
-    <SearchGroupView title="More to discover" note="Not in your library" group={groups.catalog} link={link} onTrackMenu={onTrackMenu} />
+    {(albums.length > 0 || waiting.albums) && <View style={styles.resultSection}>
+      <SectionTitle title="Albums" />
+      {albums.length ? <CollectionRail items={albums.map(album => albumCollection(album, link))} size={115} /> : <RailPlaceholder size={115} />}
+    </View>}
+    {tracks.length > 0 && <View style={styles.resultSection}>
+      <SectionTitle title="Songs" />
+      <View style={styles.trackList}>
+        <SongList tracks={tracks} onTrackMenu={track => onTrackMenu(track)} onPlay={start => actions.playTracks(tracks, { start, context })} />
+      </View>
+    </View>}
   </>;
 }
 
@@ -397,6 +400,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const navigation = useNavigation();
   const tabs = useNavigation<{ addListener: (event: 'tabPress', listener: () => void) => () => void }>('/(tabs)');
   const search = useSearch(query);
+  const viewer = useViewer();
   const genres = useGenres();
   const genreWidth = Math.floor((width - gutter * 2 - 12) / 2);
   const { offline } = useRealtime();
@@ -407,7 +411,24 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
 
   // The server answers nothing under two characters; keep the genres until a search can find something.
   const active = query.trim().length >= 2;
-  const answered = search.library.data !== undefined || search.catalog.data !== undefined;
+  // While the query changes, both answers stay those of the last query until the new ones
+  // arrive. Once one is for the new query, the other's old answer is dropped: rows of the
+  // last query must not show under the new one.
+  const both = search.library.isPlaceholderData && search.catalog.isPlaceholderData;
+  const library = both || !search.library.isPlaceholderData ? search.library.data : undefined;
+  const catalog = both || !search.catalog.isPlaceholderData ? search.catalog.data : undefined;
+  const catalogPending = catalog === undefined && !search.catalog.isError;
+  const answered = library !== undefined || catalog !== undefined;
+  // The order rows were shown in for this query, so a refreshed answer does not move them.
+  const shown = useRef<{ query: string; order: Parameters<typeof keepOrder>[1] }>({ query: '', order: null });
+  const view = useMemo(() => {
+    const merged = searchView(library, catalog, viewer, catalogPending);
+    // Both answers are of the last query until one of the new query arrives.
+    const answeredQuery = both ? shown.current.query : search.query;
+    const kept = keepOrder(merged, shown.current.query === answeredQuery ? shown.current.order : null);
+    shown.current = { query: answeredQuery, order: kept.order };
+    return kept.view;
+  }, [both, catalog, catalogPending, library, search.query, viewer]);
   const genreNames = (genres.data ?? []).slice(0, 6).map(genre => genre.name);
   const genreCovers = useGenreCovers(genreNames);
   const queryClient = useQueryClient();
@@ -438,7 +459,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
       </> : offline
         ? <EmptyState icon="wifi.slash" title="You’re offline" description="Search needs your server. Your downloads are in your Library." />
         : answered
-        ? <SearchResultsView library={search.library.data} catalog={search.catalog.data} link={link} onTrackMenu={onTrackMenu} />
+        ? <SearchResultsView view={view} link={link} onTrackMenu={onTrackMenu} />
         : search.library.isError && search.catalog.isError
           ? <EmptyState icon="wifi.exclamationmark" title="Search isn’t available" description="Check your connection to the server." />
           : <View style={styles.searching}><ActivityIndicator color={colors.muted} /></View>}
@@ -469,11 +490,6 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   searchHeader: { marginHorizontal: gutter, marginTop: 13, marginBottom: 25 },
   genres: { paddingHorizontal: gutter },
   resultSection: { marginBottom: 23 },
-  resultGroup: { marginTop: 6 },
-  groupTitle: { marginHorizontal: gutter, marginBottom: 17, paddingBottom: 9, flexDirection: 'row', alignItems: 'baseline', gap: 9,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
-  groupText: { color: colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -1 },
-  groupNote: { color: colors.quiet, fontSize: 13, fontWeight: '500', flexShrink: 1 },
   topResult: { marginHorizontal: gutter },
   trackList: { marginHorizontal: gutter - 4 },
 }));

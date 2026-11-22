@@ -47,3 +47,30 @@ type ExpoGlobal = { expo?: { getViewConfig?: (moduleName: string, viewName?: str
 export const RoutePicker: ComponentType<RoutePickerProps> | null = (globalThis as ExpoGlobal).expo?.getViewConfig?.('SquirmyNowPlaying')
   ? requireNativeView<RoutePickerProps>('SquirmyNowPlaying')
   : null;
+
+type SystemVolumeModule = {
+  /** The phone's output volume, 0 to 1. */
+  getVolume(): number;
+  /** Moves the output volume; the system shows its volume indicator. */
+  setVolume(volume: number): Promise<void>;
+  addListener(event: 'onVolumeChange', listener: (change: { volume: number }) => void): EventSubscription;
+};
+
+/**
+ * The phone's own output volume, which the side buttons and Control Center change. iOS only;
+ * `null` elsewhere, and in an app built before it was added.
+ */
+export const SystemVolume = requireOptionalNativeModule<SystemVolumeModule>('SquirmySystemVolume');
+
+export type SystemVolumeSliderProps = ViewProps & {
+  /** The filled part of the track and the thumb. */
+  tint?: string;
+  /** The rest of the track. */
+  trackTint?: string;
+};
+
+/** The system volume slider (`MPVolumeView`). It shows nothing in the iOS Simulator, which has no output volume. */
+export const SystemVolumeSlider: ComponentType<SystemVolumeSliderProps> | null = SystemVolume
+  && (globalThis as ExpoGlobal).expo?.getViewConfig?.('SquirmySystemVolume')
+  ? requireNativeView<SystemVolumeSliderProps>('SquirmySystemVolume')
+  : null;

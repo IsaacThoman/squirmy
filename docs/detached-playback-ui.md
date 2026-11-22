@@ -1,6 +1,6 @@
 # Detached playback: UI spec
 
-Status: the protocol, server and shared client code are done. This page says how the web and iOS apps should present them; neither has the controls yet.
+Status: the protocol, server and shared client code are done, and the web and iOS apps have the controls. This page says how they present them.
 
 Normally every device a user signs in on is a view of one shared session: whatever plays, plays in one place, and every device can control it. Detaching lets one device step out of that and play its own queue, so two people in one household (or one person in two rooms) can listen to different things on one account. Re-attaching puts it back.
 

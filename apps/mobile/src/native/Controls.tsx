@@ -1,6 +1,6 @@
-import { Button, Image, Menu, RNHostView } from '@expo/ui/swift-ui';
+import { Button, Image, Menu, ProgressView, RNHostView } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, buttonStyle, contentShape, frame, menuIndicator, shapes,
+  accessibilityAddTraits, accessibilityLabel, buttonStyle, contentShape, controlSize, frame, menuIndicator, progressViewStyle, shapes, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
 import type { ComponentProps } from 'react';
@@ -18,7 +18,7 @@ export function Symbol({ name, size = 20, color }: { name: string; size?: number
   return <Image systemName={name as SymbolName} size={size} color={color} />;
 }
 
-export function IconButton({ symbol, label, size = 20, color, width = 44, height = 44, selected, onPress }: {
+export function IconButton({ symbol, label, size = 20, color, width = 44, height = 44, selected, busy, onPress }: {
   symbol: string;
   label: string;
   size?: number;
@@ -26,6 +26,8 @@ export function IconButton({ symbol, label, size = 20, color, width = 44, height
   width?: number;
   height?: number;
   selected?: boolean;
+  /** Shows the system's activity spinner in place of the symbol; the button still works. */
+  busy?: boolean;
   onPress?: () => void;
 }) {
   const colors = useColors();
@@ -34,8 +36,11 @@ export function IconButton({ symbol, label, size = 20, color, width = 44, height
       plainButton, accessibilityLabel(label),
       ...(selected ? [accessibilityAddTraits(['isSelected'])] : []),
     ]}>
-      <Image systemName={symbol as SymbolName} size={size} color={color ?? colors.text}
-        modifiers={[frame({ width, height }), hitShape]} />
+      {busy
+        ? <ProgressView modifiers={[progressViewStyle('circular'), controlSize(size >= 32 ? 'large' : 'regular'), tint(color ?? colors.text),
+          frame({ width, height }), hitShape]} />
+        : <Image systemName={symbol as SymbolName} size={size} color={color ?? colors.text}
+          modifiers={[frame({ width, height }), hitShape]} />}
     </Button>
   );
 }

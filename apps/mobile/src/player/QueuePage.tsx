@@ -5,12 +5,13 @@ import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withTi
 import { scheduleOnRN } from 'react-native-worklets';
 import type { TrackSummary } from '@squirmy/contracts';
 import { useRealtime } from '../data/realtime';
-import { useTrackDownload } from '../downloads/DownloadsProvider';
+import { useCanPlay, useViewer } from '../downloads/DownloadsProvider';
 import { useLibraryActions, useLiked, useTrack, useTrackStore } from '../data/library';
 import { type QueueEntry, usePlaybackState } from '../playback';
 import { Cover, Icon } from '../ui';
 import { PlayerButton } from './Controls';
 import { selectionFeedback } from './design';
+import { queueRow } from './session';
 import { createThemedStyles, useColors } from '../theme';
 
 const rowHeight = 62;
@@ -373,7 +374,7 @@ function SortableRow({ entry, index, lastIndex, from, destination, offset, onCom
   );
 }
 
-/** A queue row. A failed entry is gray and will be skipped, as is one that is not downloaded while offline; a preparing one says so. */
+/** A queue row. A failed entry is gray and will be skipped, as is one that is not on the phone while offline. */
 function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: {
   entry: QueueEntry;
   onPress: (track: TrackSummary) => void;
@@ -389,10 +390,10 @@ function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: 
   const { setLiked } = useLibraryActions();
   const canManage = onPromote !== undefined || onRemove !== undefined;
   const { offline } = useRealtime();
-  const downloaded = useTrackDownload(entry.trackId)?.state === 'done';
-  const failed = entry.state === 'failed' || (offline && !downloaded);
+  const playable = useCanPlay(track);
+  const viewer = useViewer();
+  const { detail, unavailable: failed } = queueRow(entry, track, { playable, offline, viewer });
   const title = track?.title ?? '';
-  const detail = entry.state === 'failed' ? 'Couldn’t be fetched' : failed ? 'Not downloaded' : entry.state === 'preparing' ? 'Preparing…' : track?.artistCredit ?? '';
 
   return (
     <View style={[styles.trackRow, failed && styles.failed]}>
