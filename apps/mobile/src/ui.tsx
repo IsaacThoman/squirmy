@@ -22,7 +22,7 @@ const material: Record<string, AndroidSymbol> = {
   'plus': 'add', 'repeat': 'repeat', 'repeat.1': 'repeat_one', 'shuffle': 'shuffle',
   'speaker.fill': 'volume_mute', 'speaker.wave.3.fill': 'volume_up', 'speaker.wave.2.fill': 'volume_up',
   'square.and.arrow.up': 'ios_share', 'text.badge.plus': 'playlist_add', 'text.insert': 'playlist_play',
-  'text.line.first.and.arrowtriangle.forward': 'playlist_play', 'trash': 'delete',
+  'text.line.first.and.arrowtriangle.forward': 'playlist_play', 'text.line.last.and.arrowtriangle.forward': 'queue_music', 'trash': 'delete',
   'quote.bubble': 'format_quote', 'waveform': 'graphic_eq', 'xmark': 'close', 'xmark.circle.fill': 'cancel',
   'square.grid.2x2': 'grid_view', 'person.crop.circle': 'account_circle', 'person.crop.circle.fill': 'account_circle',
   'person.crop.circle.badge.plus': 'person_add', 'server.rack': 'dns', 'arrow.left.arrow.right': 'swap_horiz',
