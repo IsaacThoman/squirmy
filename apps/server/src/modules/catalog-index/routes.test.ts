@@ -11,7 +11,7 @@ import { catalogIndexImports } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { useTestDatabase } from '../../test/database.js'
-import { buildDump, testCatalog } from './fixtures.js'
+import { buildDump, testCatalog } from '../../test/catalog-index-dump.js'
 import { catalogIndexModule } from './index.js'
 import { isCatalogIndexReady, searchCatalogIndex } from './search.js'
 

@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { eq } from 'drizzle-orm'
 import { onTestFinished } from 'vitest'
-import { db } from '../../database/client.js'
-import { fileMoves, libraryRoots, mediaFiles, type FileTags, type MatchStatus } from '../../database/schema.js'
-import { newId } from '../../lib/ids.js'
-import { makeTone } from '../../test/audio.js'
-import { createAlbum, createLibraryRoot, type AlbumFactoryInput } from '../../test/factories.js'
+import { db } from '../database/client.js'
+import { fileMoves, libraryRoots, mediaFiles, type FileTags, type MatchStatus } from '../database/schema.js'
+import { newId } from '../lib/ids.js'
+import { makeTone } from './audio.js'
+import { createAlbum, createLibraryRoot, type AlbumFactoryInput } from './factories.js'
 
 /** Test helpers: real files in a temp root, with library rows pointing at them. */
 

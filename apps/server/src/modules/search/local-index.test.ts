@@ -12,7 +12,7 @@ import { body, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
-import { buildDump, testCatalog, type Catalog } from '../catalog-index/fixtures.js'
+import { buildDump, testCatalog, type Catalog } from '../../test/catalog-index-dump.js'
 import { importCanonicalDump } from '../catalog-index/import.js'
 
 describe('catalog search from the local index', () => {

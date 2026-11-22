@@ -1,6 +1,6 @@
 /**
  * Conformance tests through `app.inject`: every call is made in JSON and in XML, and the
- * two must carry the same structure (test-client.ts). Rows come from the factories; the
+ * two must carry the same structure (src/test/subsonic-client.ts). Rows come from the factories; the
  * audio tests with real files are in media.test.ts.
  */
 import { eq } from 'drizzle-orm'
@@ -23,7 +23,7 @@ import { resetAuthFailures } from './auth.js'
 import { folderId } from './ids.js'
 import { extensions } from './handlers/system.js'
 import { methodNames } from './endpoints.js'
-import { subsonicClient, tokenAuth, type SubsonicClient } from './test-client.js'
+import { subsonicClient, tokenAuth, type SubsonicClient } from '../../test/subsonic-client.js'
 
 // Similar artists come from Deezer and ListenBrainz, which tests never reach.
 vi.mock('../radio/index.js', async (importOriginal) => ({

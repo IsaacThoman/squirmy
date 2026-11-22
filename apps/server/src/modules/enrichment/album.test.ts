@@ -11,7 +11,7 @@ import { albumDetail } from '../catalog/pages.js'
 import { hydrateAlbum } from './album.js'
 import { albumDetailRun, ensureAlbumDetail } from './detail.js'
 import { setDetailBudget } from './runner.js'
-import { albumRow, albumStub } from './test-stubs.js'
+import { albumRow, albumStub } from '../../test/enrichment-stubs.js'
 
 const okComputer = 'b1392450-e666-3926-a536-22c65f834433'
 /** The first official 12-track CD, as chooseCanonicalRelease picks it. */
