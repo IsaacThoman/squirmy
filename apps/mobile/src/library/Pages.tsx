@@ -15,8 +15,8 @@ import { useAccount, useSignedInApi, useWantlistEnabled, type Api } from '../acc
 import { albumExpanding } from '../data/albums';
 import { fallbackTint } from '../data/color';
 import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
-import { appearsOnKey, releaseGroups } from '../data/artists';
-import { useAlbum, useArtist, useGenreAlbums, useHistory, useHome, useLikedTracks, usePlaylist } from '../data/queries';
+import { appearsOnKey, isArtistSectionKey, releaseGroups } from '../data/artists';
+import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
 import { useRealtime } from '../data/realtime';
 import {
@@ -568,7 +568,8 @@ function ArtistBody({ artist, link, onOpen, onPlay, onTrackMenu }: {
     </TrackSection>}
     {groups.map(group => <View key={group.key} style={styles.section}>
       <SectionTitle title={group.title}
-        onPress={group.albums.length > railLimit ? () => onOpen(link('releases', releasesId(artist.id, group.key))) : undefined} />
+        onPress={(group.paged ? group.total : group.albums.length) > Math.min(group.albums.length, railLimit)
+          ? () => onOpen(link('releases', releasesId(artist.id, group.key))) : undefined} />
       {/* Gray only what does not play for this viewer (`albumPresentation`, applied by the rail). */}
       <CollectionRail items={group.albums.slice(0, railLimit).map(album => releaseCollection(album, group.key, link))} />
     </View>)}
@@ -593,16 +594,26 @@ const splitId = (id: string) => {
   return at < 0 ? [id, ''] as const : [id.slice(0, at), id.slice(at + 1)] as const;
 };
 
-/** Every release under one heading of an artist's discography, from "See all". */
+/**
+ * Every release under one heading of an artist's discography, from "See all": paged from the
+ * server for one of its sections, or the whole list an older server already sent.
+ */
 export function ReleasesScreen({ id, onBack, link, bottomInset = 155 }: PageProps) {
   const [artistId, key] = splitId(id);
   const artist = useArtist(artistId);
   const group = useMemo(() => artist.data && releaseGroups(artist.data).find(item => item.key === key), [artist.data, key]);
-  const items = useMemo(() => group?.albums.map(album => releaseCollection(album, key, link)) ?? [], [group, key, link]);
+  const paged = isArtistSectionKey(key) && Boolean(artist.data?.sections);
+  const releases = useArtistReleases(artistId, isArtistSectionKey(key) ? key : 'album', paged);
+  const albums = paged ? releases.items : group?.albums ?? [];
+  const items = useMemo(() => albums.map(album => releaseCollection(album, key, link)), [albums, key, link]);
+  const loading = !artist.data || artist.isPlaceholderData;
+  const refresh = () => Promise.all([artist.refetch(), paged && releases.refetch()]);
   return <CollectionGridPage title={group?.title ?? 'Releases'} detail={artist.data?.name} items={items} onBack={onBack}
-    onRefresh={artist.refetch} bottomInset={bottomInset}
-    header={!artist.data || artist.isPlaceholderData ? <QueryState query={{ ...artist, isPending: artist.isPending || artist.isPlaceholderData }} what="these releases" />
-      : !group && <EmptyState icon="square.stack" title="Nothing here" description="This artist has no releases under this heading." />} />;
+    onRefresh={refresh} bottomInset={bottomInset}
+    onEndReached={paged ? releases.loadMore : undefined} loadingMore={paged && releases.isFetchingNextPage}
+    header={loading ? <QueryState query={{ ...artist, isPending: artist.isPending || artist.isPlaceholderData }} what="these releases" />
+      : paged && !releases.data ? <QueryState query={releases} what="these releases" />
+        : !albums.length && <EmptyState icon="square.stack" title="Nothing here" description="This artist has no releases under this heading." />} />;
 }
 
 /** Every song of a section that shows only its first few: an artist's top songs, or a Home row. */

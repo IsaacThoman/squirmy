@@ -1,6 +1,6 @@
 import { ApiError } from '@squirmy/client-core';
 import {
-  queryKeys, type LibrarySort, type Lyrics, type Page, type SearchResults, type TrackSummary, type UpdateUserSettings,
+  queryKeys, type ArtistSectionKey, type LibrarySort, type Lyrics, type Page, type SearchResults, type TrackSummary, type UpdateUserSettings,
   type UserSettings,
 } from '@squirmy/contracts';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -148,6 +148,15 @@ export function useGenreCovers(genres: readonly string[]) {
 export function useGenreAlbums(genre: string) {
   return usePagedQuery([...queryKeys.libraryAlbums(), 'genre', genre],
     (api, cursor) => api.catalog.albums({ genre, cursor, limit: pageSize, sort: 'artist' }));
+}
+
+/**
+ * Every release of one section of an artist page, paged, for its "See all". `enabled` is
+ * false for a server without sections, whose page already lists them all.
+ */
+export function useArtistReleases(artistId: string, section: ArtistSectionKey, enabled: boolean) {
+  return usePagedQuery(queryKeys.artistReleases(artistId, section),
+    (api, cursor) => api.catalog.artistReleases(artistId, { section, cursor, limit: pageSize }), enabled);
 }
 
 /** Synced or plain lyrics, or null when the server has none for the track. */
