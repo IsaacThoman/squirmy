@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { AppState, Platform } from 'react-native';
 import { removeAccountItems } from '../data/accountStorage';
-import { cacheBuster, cacheMaxAgeMs, detailMaxAgeMs, removeCache, restoreCache, saveCache } from '../data/cache';
+import { cacheBuster, cacheMaxAgeMs, detailMaxAgeMs, removeCache, restoreCache, restorePages, saveCache } from '../data/cache';
 import { useNotice } from '../Notice';
 import { removeStreamingCache } from '../streamingCache/database';
 import { reduceAuth, type AuthEvent, type AuthState } from './auth';
@@ -47,7 +47,7 @@ function apiFor(serverUrl: string, token: string | null, timeoutMs: number, onUn
 }
 
 /**
- * Reads the stored session and the saved library, so the first screen shows them at once.
+ * Reads the stored session and the saved lists, so the first screen shows them at once.
  * The server is not asked here: the `me` query confirms the session in the background, and
  * a 401 from it sends the app to sign-in. An unreachable server leaves the app open
  * offline instead of holding the splash screen until a request times out.
@@ -103,6 +103,14 @@ export function AccountProvider({ children }: PropsWithChildren) {
 
   const buster = state.status === 'signedIn' ? cacheBuster(state.server.url, state.user.id) : null;
   useEffect(() => buster ? saveCache(queryClient, buster) : undefined, [buster, queryClient]);
+  // The saved album, artist, playlist and track pages are read once the first screen is up,
+  // so they never hold the splash screen. Once per launch: a later sign-in starts afresh.
+  const pagesRead = useRef(false);
+  useEffect(() => {
+    if (!buster || pagesRead.current) return;
+    pagesRead.current = true;
+    void restorePages(queryClient, buster);
+  }, [buster, queryClient]);
 
   useEffect(() => {
     if (state.status === 'restoring') return;
