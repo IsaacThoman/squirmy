@@ -205,8 +205,12 @@ describe('album page', () => {
         await act(() => vi.advanceTimersByTimeAsync(TRACK_LIST_WAIT_MS))
         expect(await screen.findByText('Still looking for the songs')).toBeInTheDocument()
         expect(screen.queryByRole('status', { name: 'Loading songs' })).toBeNull()
-        api.catalog.album.mockResolvedValue(lowTide)
+        let answer: (album: typeof lowTide) => void = () => {}
+        api.catalog.album.mockImplementation(() => new Promise(resolve => { answer = resolve }))
         fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+        // Busy until the server answers, so a press is seen to do something.
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Check again' })).toHaveAttribute('aria-busy', 'true'))
+        answer(lowTide)
         expect(await screen.findByRole('list', { name: 'Low Tide tracks' })).toBeInTheDocument()
       } finally {
         vi.useRealTimers()

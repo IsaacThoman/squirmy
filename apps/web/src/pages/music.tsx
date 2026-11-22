@@ -144,7 +144,7 @@ export function AlbumPage() {
           album={album}
           artist={artist}
           onPlayAlbum={other => void playAlbum(other)}
-          onRefresh={() => void query.refetch()}
+          onRefresh={() => query.refetch()}
         />
       )}
     </Loaded>
