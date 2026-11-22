@@ -9,6 +9,7 @@ import type {
   QueueEntry,
   QueueSeed,
   ServerToClientEvents,
+  SessionCommand,
 } from '@squirmy/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeEngine } from '../engine.js'
@@ -609,6 +610,20 @@ describe('SessionClient engine', () => {
     await settle()
     expect(trackOf(server.session.current)).toBe(2)
     expect(server.session).toMatchObject({ playing: false, positionMs: 20_000 })
+  })
+
+  it('drops a saved command that is no longer valid, keeping the rest', async () => {
+    const { client } = setup({ connect: false })
+    client.dispatch({ type: 'enqueue', tracks: seeds(1), placement: 'last' })
+    const saved = client.save()
+    const broken = { ...saved.pending[0]!, commandId: 'broken', command: { type: 'enqueue', tracks: 'nope' } as unknown as SessionCommand }
+    const restored = new SessionClient({
+      transport: new FakeTransport(new FakeServer()),
+      device: { id: PHONE, name: 'Phone', kind: 'ios' },
+      restore: { ...saved, pending: [broken, ...saved.pending] },
+    })
+    expect(restored.save().pending.map(pending => pending.commandId)).toEqual([saved.pending[0]!.commandId])
+    expect(trackOf(restored.getSnapshot().queue.queue[0])).toBe(1)
   })
 
   it('restores a session another device plays as it was', async () => {

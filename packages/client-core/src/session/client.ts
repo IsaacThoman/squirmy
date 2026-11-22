@@ -15,7 +15,7 @@ import { streamUrl } from '../api/client.js'
 import type { EngineEvent, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
 import { gainFor } from '../normalization.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
-import { createInitialSession, joinSession, positionAt, reduceSession, type Session, splitSession } from './reducer.js'
+import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
 import type { SessionTransport } from './transport.js'
 
 /**
@@ -293,7 +293,11 @@ export class SessionClient {
 
   private restore(saved: SavedSession): void {
     this.server = { version: saved.version, session: joinSession(saved.state, saved.queue) }
-    this.pending = saved.pending.map(pending => ({ ...pending, sentEpoch: null }))
+    // Replays skip validation, so what comes from storage is checked once here.
+    this.pending = saved.pending.flatMap(pending => {
+      const parsed = SessionCommand.safeParse(pending.command)
+      return parsed.success ? [{ ...pending, command: parsed.data, sentEpoch: null }] : []
+    })
     const session = this.rebase()
     if (session.playing && session.activeDeviceId === this.device.id) {
       this.pending.push(
@@ -460,7 +464,7 @@ export class SessionClient {
   private rebase(): Session {
     let session = this.server?.session ?? createInitialSession()
     for (const pending of this.pending) {
-      session = reduceSession(session, { command: pending.command, now: pending.at, commandId: pending.commandId, deviceId: this.playDeviceId() })
+      session = reduceParsedSession(session, { command: pending.command, now: pending.at, commandId: pending.commandId, deviceId: this.playDeviceId() })
     }
     return session
   }
@@ -585,7 +589,7 @@ export class SessionClient {
     const session = this.local
     const current = session.current
     if (!current) return
-    const predicted = reduceSession(session, {
+    const predicted = reduceParsedSession(session, {
       command: { type: 'trackEnded', entryId: current.id },
       now: this.serverNow(),
       commandId: this.endCommandId(current.id),
