@@ -30,6 +30,13 @@ export type ImportWork = {
   archives?: Record<string, { target?: string; rejected?: string; extracted?: number; skipped?: number; done?: boolean }>
   /** The files identification decided were duplicates, by path, so a rerun can finish removing them. */
   duplicates?: string[]
+  /**
+   * The library files those duplicates were copies of, by id. Whoever asked for the import's
+   * music (an acquisition job) checks them in place of the deleted files.
+   */
+  copies?: string[]
+  /** When `refileImport` last filed what was identified after the import finished. */
+  refiledAt?: string
   /** The organize batch that files the import's identified albums. */
   batchId?: string
   /** The inbox an inbox import came from, so a failed one can be put back. */
@@ -312,6 +319,12 @@ export async function releaseStaging(row: ImportRow) {
 /** One import, for the service's callers. Fails with `import_not_found`. */
 export async function getImport(importId: string): Promise<Import> {
   return toImport(await loadImport(importId))
+}
+
+/** The library files an import's duplicates were copies of: see `ImportWork.copies`. Empty when the import is gone. */
+export async function importCopies(importId: string): Promise<string[]> {
+  const [row] = await db.select({ work: imports.work }).from(imports).where(eq(imports.id, importId))
+  return ((row?.work ?? {}) as ImportWork).copies ?? []
 }
 
 /** Uploading is for admins and members with the upload flag. */

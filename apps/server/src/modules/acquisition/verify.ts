@@ -11,6 +11,11 @@
  *    requested MusicBrainz id, AcoustID must not name other recordings for the file. Two
  *    rows with different MusicBrainz ids are never the same.
  *
+ * A delivery whose audio the library already has counts through that library file: the
+ * import deletes the delivered copy as a duplicate, and the file it kept (`copies`) is
+ * checked in its place. Otherwise a second request for a song the server has under another
+ * row would fail, and the track would turn gray for a day while its audio sits on disk.
+ *
  * In case 2 the two recordings are merged, so the id sessions and playlists hold plays:
  * - a row with a MusicBrainz id beats one without (a search stub is merged into the
  *   identified row the pipeline matched the file to; a local-only row from the file's tags
@@ -25,9 +30,12 @@
  * Matching may still relink a file the early run accepted to a recording with another
  * MusicBrainz id; the final run then finds the request unsatisfied and the job fails (see
  * `finishDelivery` in jobs.ts for what that does to a session already playing it).
+ *
+ * This file only decides which recording a delivered file is. Which album it goes on, and
+ * the linking itself, are in place.ts.
  */
 import path from 'node:path'
-import { and, eq, gte, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { db } from '../../database/client.js'
@@ -44,8 +52,8 @@ import type { JobRow } from './jobs.js'
 /** How far a delivered file's length may be from the requested recording's. */
 export const DURATION_TOLERANCE_MS = 5000
 
-type Recording = typeof recordings.$inferSelect
-type DeliveredFile = { id: string; recordingId: string; durationMs: number; isrcs: string[]; fingerprint: string | null; absolutePath: string }
+export type Recording = typeof recordings.$inferSelect
+export type DeliveredFile = { id: string; recordingId: string; durationMs: number; isrcs: string[]; fingerprint: string | null; absolutePath: string }
 
 const artistOf = (matchKey: string) => matchKey.split('|')[0] ?? ''
 /** One credit is the other with more names after it ("artist" and "artist feat other"). */
@@ -72,11 +80,18 @@ async function acoustIdDisagrees(file: DeliveredFile, mbid: string): Promise<boo
   }
 }
 
-/** Whether `delivered` (the recording a delivered file is linked to) is plainly `requested`. */
-export async function sameRecording(requested: Recording, delivered: Recording, file: DeliveredFile): Promise<boolean> {
+/**
+ * Whether `delivered` (the recording a delivered file is linked to) is plainly `requested`.
+ * `catalog` is for two rows the catalog already had (a search stub and an album's own
+ * recording), not a row built from the file's tags: two such rows that both carry ISRCs and
+ * share none are different recordings (a live take, a re-recording) however alike their
+ * titles and lengths.
+ */
+export async function sameRecording(requested: Recording, delivered: Recording, file: DeliveredFile, { catalog = false } = {}): Promise<boolean> {
   if (requested.mbid && delivered.mbid && requested.mbid !== delivered.mbid) return false
   const isrcs = new Set([...delivered.isrcs, ...file.isrcs].map((isrc) => isrc.toUpperCase()))
   if (requested.isrcs.some((isrc) => isrcs.has(isrc.toUpperCase()))) return true
+  if (catalog && requested.isrcs.length > 0 && isrcs.size > 0) return false
   if (editionFreeKey(requested.title) !== editionFreeKey(delivered.title) || !sameArtist(artistOf(requested.matchKey), artistOf(delivered.matchKey))) return false
   if (requested.durationMs === null || Math.abs(requested.durationMs - file.durationMs) > DURATION_TOLERANCE_MS) return false
   return !(requested.mbid && await acoustIdDisagrees(file, requested.mbid))
@@ -103,28 +118,41 @@ export async function mergeDelivered(requested: Recording, delivered: Recording,
  * import, or still in its `_Incoming` folder (the import marks its rows only every so
  * often). `early` keeps only files that are hashed and have no copy in the library.
  */
-function deliveredFiles(importId: string, early: boolean) {
+export function deliveredFiles(importId: string, early: boolean) {
   const ofImport = or(eq(mediaFiles.importId, importId), sql`exists (
     select 1 from imports i where i.id = ${importId} and i.target_root_id = ${mediaFiles.rootId}
       and starts_with(${mediaFiles.relPath}, ${`${incomingFolder(importId)}/`}))`)
   const usable = early ? and(gte(mediaFiles.probeStage, 2), isNull(mediaFiles.probeError), sql`not exists (
     select 1 from media_files other where other.audio_hash = ${mediaFiles.audioHash} and other.id <> ${mediaFiles.id} and other.missing_since is null)`) : undefined
-  return db.select({
-    id: mediaFiles.id, recordingId: mediaFiles.recordingId, durationMs: mediaFiles.durationMs, tags: mediaFiles.tags,
-    fingerprint: mediaFiles.fingerprint, relPath: mediaFiles.relPath, rootPath: libraryRoots.path,
-  }).from(mediaFiles).innerJoin(libraryRoots, eq(libraryRoots.id, mediaFiles.rootId))
+  return db.select({ file: mediaFiles, rootPath: libraryRoots.path }).from(mediaFiles).innerJoin(libraryRoots, eq(libraryRoots.id, mediaFiles.rootId))
     .where(and(ofImport, isNull(mediaFiles.missingSince), isNotNull(mediaFiles.recordingId), usable))
     .orderBy(mediaFiles.relPath)
+}
+
+/** A file as `sameRecording` looks at it. */
+export function asDelivered(row: { file: typeof mediaFiles.$inferSelect; rootPath: string }, recordingId: string): DeliveredFile {
+  const { file } = row
+  return {
+    id: file.id, recordingId, durationMs: file.durationMs, isrcs: file.tags.isrcs ?? [],
+    fingerprint: file.fingerprint, absolutePath: path.join(row.rootPath, file.relPath),
+  }
 }
 
 /**
  * Checks a delivery against the job's recordings, merging where a delivered file is plainly
  * a requested recording. Returns the requested ids (as the job holds them) that now play.
- * With `early`, only files usable now count, as the module comment describes.
+ * With `early`, only files usable now count, as the module comment describes. `copies` are
+ * the library files the import kept instead of delivered duplicates of them.
  */
-export async function verifyDelivery(job: Pick<JobRow, 'recordingIds' | 'importId'>, { early = false } = {}): Promise<string[]> {
+export async function verifyDelivery(job: Pick<JobRow, 'recordingIds' | 'importId'>, { early = false, copies = [] as readonly string[] } = {}): Promise<string[]> {
   if (!job.importId) return early ? [] : [...await ownedRecordings(job.recordingIds)]
-  const files = await deliveredFiles(job.importId, early)
+  const delivered = await deliveredFiles(job.importId, early)
+  const kept = copies.length === 0 ? [] : await db.select({ file: mediaFiles, rootPath: libraryRoots.path }).from(mediaFiles)
+    .innerJoin(libraryRoots, eq(libraryRoots.id, mediaFiles.rootId))
+    .where(and(inArray(mediaFiles.id, [...copies]), isNull(mediaFiles.missingSince), isNotNull(mediaFiles.recordingId)))
+  const files = [...delivered, ...kept.filter((copy) => !delivered.some((row) => row.file.id === copy.file.id))].map((row) => ({ ...row.file, rootPath: row.rootPath }))
+  // A kept copy is linked to a row the catalog already had, not one built from its tags.
+  const keptIds = new Set(kept.map((row) => row.file.id))
   const resolved = await resolveMerged('recordings', [...job.recordingIds, ...files.map((file) => file.recordingId!)])
   const target = (id: string) => resolved.get(id) ?? id
   const satisfied = early
@@ -154,7 +182,7 @@ export async function verifyDelivery(job: Pick<JobRow, 'recordingIds' | 'importI
         id: file.id, recordingId: delivered.id, durationMs: file.durationMs, isrcs: file.tags.isrcs ?? [],
         fingerprint: file.fingerprint, absolutePath: path.join(file.rootPath, file.relPath),
       }
-      if (!await sameRecording(requested, delivered, candidate) || !await mergeDelivered(requested, delivered, file.id)) continue
+      if (!await sameRecording(requested, delivered, candidate, { catalog: keptIds.has(file.id) }) || !await mergeDelivered(requested, delivered, file.id)) continue
       used.add(file.id)
       satisfied.add(requestedId)
       break
