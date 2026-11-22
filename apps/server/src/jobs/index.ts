@@ -103,6 +103,16 @@ export async function takeQueued(name: string, singletonKey: string): Promise<bo
   return rows.length > 0
 }
 
+/**
+ * Deletes the queue of a job that no longer exists, with any jobs left in it, so Admin →
+ * Jobs stops listing it. A no-op once it is gone.
+ */
+export async function retireQueue(name: string) {
+  const instance = running()
+  if (await instance.getQueue(name)) await instance.deleteQueue(name)
+  queues.delete(name)
+}
+
 /** Runs `name` on a cron expression (UTC). Call it from a module's `jobs` hook or after `startJobs`. */
 export async function schedule(name: string, cron: string) {
   schedules.set(name, cron)

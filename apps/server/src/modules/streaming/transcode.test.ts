@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { mediaFiles, transcodes } from '../../database/schema.js'
-import { jobs, startJobs, stopJobs } from '../../jobs/index.js'
+import { enqueue, getQueueStats, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { makeTone } from '../../test/audio.js'
@@ -198,6 +198,15 @@ describe('transcodes', () => {
     const response = await fetch(gone.id, 'aac_256')
     expect(response.statusCode).toBe(404)
     expect(response.json().error.code).toBe('file_missing')
+  })
+
+  it('drops the queue of the removed streaming.transcode job at worker start', async () => {
+    // What a server that ran an older version still has.
+    await enqueue('streaming.transcode', { fileId: newId(), profile: 'aac_256' })
+    expect((await getQueueStats()).map((queue) => queue.name)).toContain('streaming.transcode')
+    await streamingModule.start!({ role: 'worker' })
+    expect((await getQueueStats()).map((queue) => queue.name)).not.toContain('streaming.transcode')
+    await streamingModule.start!({ role: 'worker' })
   })
 
   it('evicts least recently used transcodes beyond the cap and reconciles with the disk', async () => {

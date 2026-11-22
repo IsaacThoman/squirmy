@@ -1,4 +1,4 @@
-import { enqueue, schedule } from '../../jobs/index.js'
+import { enqueue, retireQueue, schedule } from '../../jobs/index.js'
 import type { ServerModule } from '../types.js'
 import { evictTranscodes } from './cache.js'
 import { streamingRoutes } from './routes.js'
@@ -17,7 +17,11 @@ export const streamingModule: ServerModule = {
     await schedule('streaming.evict', '17 * * * *')
   },
   async start({ role }) {
-    if (role !== 'api') await enqueue('streaming.evict', {}, { singletonKey: 'evict' })
+    if (role !== 'api') {
+      await enqueue('streaming.evict', {}, { singletonKey: 'evict' })
+      // streaming.transcode was removed; nothing ever queued it.
+      await retireQueue('streaming.transcode')
+    }
   },
   stop: stopTranscodes,
 }
