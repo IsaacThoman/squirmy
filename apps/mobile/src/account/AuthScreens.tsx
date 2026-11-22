@@ -39,7 +39,7 @@ export function ConnectScreen() {
     lookup.reset();
   };
 
-  return <AuthPage icon="server.rack" title="Connect to your server"
+  return <AuthPage title="Connect to your server"
     message="Squirmy plays the music on your own server. Enter its address to get started.">
     <AuthSection footer={problem?.message ?? addressHint} tone={problem ? 'error' : 'note'}>
       <AuthField kind="url" placeholder="Server address" value={address} autoFocus={!previous} onSubmit={submit}
@@ -111,8 +111,7 @@ export function SignInScreen() {
     if (ready && !attempt.isPending) attempt.mutate();
   };
 
-  return <AuthPage icon={registering ? 'person.crop.circle.badge.plus' : 'person.crop.circle'}
-    title={registering ? 'Create an account' : 'Sign in'}
+  return <AuthPage title={registering ? 'Create an account' : 'Sign in'}
     message={notice ?? (registering
       ? inviteRequired ? `Use the invite code you were given to join ${server.name}.` : `Create an account on ${server.name}.`
       : `Sign in to listen to ${server.name}.`)}>

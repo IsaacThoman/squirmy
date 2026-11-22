@@ -72,7 +72,7 @@ export function AccountSheet() {
           `Sign out of ${server.name}?`, leaving('You can sign back in at any time.'), 'Sign Out', leave(signOut),
         )} />
       </SheetRows>
-      <SheetNote>{`${appVersion()}\nServer ${serverVersion(server.version).toLowerCase()}`}</SheetNote>
+      <SheetNote mark>{`${appVersion()}\nServer ${serverVersion(server.version).toLowerCase()}`}</SheetNote>
     </SheetFrame>
   );
 }

@@ -7,9 +7,10 @@ import {
   frame, lineLimit, menuIndicator, multilineTextAlignment, onGeometryChange, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrandMark } from './BrandMark';
 import { IconButton, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
 import type {
-  SheetActionProps, SheetFieldProps, SheetFrameProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps,
+  SheetActionProps, SheetFieldProps, SheetFrameProps, SheetNoteProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps,
   TrackSummaryProps,
 } from './SheetUI';
 import { isAccessibilitySize } from './fontScale';
@@ -96,11 +97,20 @@ export function SheetRow({ title, subtitle, icon, selected, destructive, onPress
 }
 
 /** Small print at the foot of a sheet, such as the app's version. */
-export function SheetNote({ children }: { children: string }) {
+export function SheetNote({ mark, children }: SheetNoteProps) {
   const colors = useColors();
-  return <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), frame({ maxWidth: Infinity }),
+  const note = <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), frame({ maxWidth: Infinity }),
     multilineTextAlignment('center')]}>{children}</Text>;
+  if (!mark) return note;
+  return <VStack spacing={6} modifiers={[frame({ maxWidth: Infinity })]}>
+    <RNHostView matchContents>
+      <View style={{ width: markSize, height: markSize }}><BrandMark size={markSize} /></View>
+    </RNHostView>
+    {note}
+  </VStack>;
 }
+
+const markSize = 44;
 
 /**
  * A form row that picks one of a few values from a menu. SwiftUI's own menu picker tints
