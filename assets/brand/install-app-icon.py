@@ -61,13 +61,13 @@ def main():
     mark = RENDERS / 'earthworm-mark.png'            # simplified head, transparent
     small = RENDERS / 'earthworm-mark-bg.png'        # simplified head on the dark background
 
-    # iOS: Icon Composer layers.
+    # iOS: Icon Composer layers, at the 1024 px canvas size. A larger render
+    # adds nothing to the compiled icon and makes the files several times bigger.
     layers = MOBILE / 'Squirmy.icon' / 'Assets'
     layers.mkdir(parents=True, exist_ok=True)
     for render, layer in (('earthworm-icon-body.png', 'earthworm-body.png'),
                           ('earthworm-icon-face.png', 'earthworm-face.png')):
-        shutil.copyfile(RENDERS / render, layers / layer)
-        tag_srgb(layers / layer)
+        resize(RENDERS / render, 1024, layers / layer)
 
     # Expo's default icon, and the Android adaptive icon foreground.
     resize(icon, 1024, MOBILE / 'icon.png')

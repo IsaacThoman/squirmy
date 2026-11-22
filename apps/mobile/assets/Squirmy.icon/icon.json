@@ -22,7 +22,7 @@
           "image-name" : "earthworm-face.png",
           "name" : "earthworm-face",
           "position" : {
-            "scale" : 0.5,
+            "scale" : 1,
             "translation-in-points" : [
               0,
               0
@@ -34,7 +34,7 @@
           "image-name" : "earthworm-body.png",
           "name" : "earthworm-body",
           "position" : {
-            "scale" : 0.5,
+            "scale" : 1,
             "translation-in-points" : [
               0,
               0
