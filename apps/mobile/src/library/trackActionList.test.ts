@@ -32,6 +32,19 @@ describe('trackActions', () => {
     expect(ids(track({ availability: 'none' }), state({ playable: false }))).toEqual(['like', 'want', 'album', 'artist']);
   });
 
+  it('adds to or removes from the library when the server says which it is', () => {
+    expect(ids(track(), state({ saved: false }))).toEqual(['play', 'next', 'last', 'like', 'save', 'download', 'playlist', 'radio', 'album', 'artist']);
+    expect(trackActions(track(), state({ saved: false })).find(action => action.id === 'save')?.title).toBe('Add to library');
+    expect(ids(track(), state({ saved: true }))).toContain('unsave');
+    expect(trackActions(track(), state({ saved: true })).find(action => action.id === 'unsave')?.title).toBe('Remove from library');
+    // A gray track is not offered for adding, but one already added can still be removed.
+    expect(ids(track({ availability: 'none' }), state({ playable: false, saved: false }))).not.toContain('save');
+    expect(ids(track({ availability: 'none' }), state({ playable: false, saved: true }))).toContain('unsave');
+    // Offline neither, and nothing for an older server that does not say.
+    expect(ids(track(), state({ offline: true, saved: true }))).not.toContain('unsave');
+    expect(ids(track(), state({ saved: undefined }))).not.toContain('save');
+  });
+
   it('offers no wantlist when the server has it off', () => {
     expect(ids(track({ availability: 'none' }), state({ playable: false, wantlist: false }))).toEqual(['like', 'album', 'artist']);
   });
