@@ -27,6 +27,7 @@ export const apiRoutes = {
   'admin.updateSettings': 'PATCH /admin/settings',
   'admin.jobs': 'GET /admin/jobs',
   'admin.directories': 'GET /admin/fs',
+  'admin.acquisitionUsage': 'GET /admin/acquisition/usage',
 
   'library.roots': 'GET /admin/library/roots',
   'library.createRoot': 'POST /admin/library/roots',
@@ -34,6 +35,8 @@ export const apiRoutes = {
   'library.deleteRoot': 'DELETE /admin/library/roots/:id',
   'library.scanRoot': 'POST /admin/library/roots/:id/scan',
   'library.stats': 'GET /admin/library/stats',
+  'library.save': 'PUT /me/library/:type/:id',
+  'library.remove': 'DELETE /me/library/:type/:id',
 
   'matching.reviews': 'GET /admin/reviews',
   'matching.review': 'GET /admin/reviews/:id',
