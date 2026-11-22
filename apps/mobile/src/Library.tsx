@@ -1,4 +1,4 @@
-import { albumPresentation, type SearchTop } from '@squirmy/client-core';
+import { albumPresentation, searchContext, type SearchTop } from '@squirmy/client-core';
 import { queryKeys, type AlbumSummary, type HomeSection, type TrackSummary } from '@squirmy/contracts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRouter, type Href } from 'expo-router';
@@ -330,7 +330,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
 const topCoverSize = 76;
 
 /** The best match: an artist or album opens its page (an album can also play); a song plays with the songs found. */
-function TopResultView({ top, tracks, link, onTrackMenu }: { top: SearchTop; tracks: readonly TrackSummary[] } & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
+function TopResultView({ top, tracks, query, link, onTrackMenu }: { top: SearchTop; tracks: readonly TrackSummary[]; query: string } & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
   const albumPlayer = useAlbumPlayer();
   const actions = usePlaybackActions();
   const { canPlay } = useAvailability();
@@ -342,7 +342,9 @@ function TopResultView({ top, tracks, link, onTrackMenu }: { top: SearchTop; tra
     const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : `Song · ${track.artistCredit}`;
     const play = () => {
       tapFeedback();
-      actions.playTracks(tracks, { start: Math.max(0, tracks.indexOf(track)), context: { type: 'search', id: null, title: null } });
+      // The song plays with the other songs found after it, as one from the list does.
+      const list = tracks.some(item => item.id === track.id) ? tracks : [track, ...tracks];
+      actions.playTracks(list, { start: list.findIndex(item => item.id === track.id), context: searchContext(query) });
     };
     return <TopResult title={track.title} subtitle={subtitle} size={topCoverSize} dim={!playable}
       cover={<Cover artwork={track.album?.artwork} size={topCoverSize} radius={10} />}
@@ -360,17 +362,17 @@ function TopResultView({ top, tracks, link, onTrackMenu }: { top: SearchTop; tra
  * showed keep their places when the catalog's arrive after them; a section the library had
  * nothing for is held open meanwhile, so nothing below it moves.
  */
-function SearchResultsView({ view, link, onTrackMenu }: { view: SearchView } & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
+function SearchResultsView({ view, query, link, onTrackMenu }: { view: SearchView; query: string } & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
   const styles = useStyles();
   const actions = usePlaybackActions();
   const { top, artists, albums, tracks, waiting } = view;
-  const context = { type: 'search', id: null, title: null } as const;
+  const context = searchContext(query);
   if (view.empty) return <EmptyState icon="magnifyingglass" title="No results" description="Try a different song, album, or artist." />;
   return <>
     {(top || waiting.top) && <View style={styles.resultSection}>
       <SectionTitle title="Top result" />
       <View style={styles.topResult}>
-        {top ? <TopResultView top={top} tracks={tracks} link={link} onTrackMenu={onTrackMenu} /> : <TopResultPlaceholder size={topCoverSize} />}
+        {top ? <TopResultView top={top} tracks={tracks} query={query} link={link} onTrackMenu={onTrackMenu} /> : <TopResultPlaceholder size={topCoverSize} />}
       </View>
     </View>}
     {(artists.length > 0 || waiting.artists) && <View style={styles.resultSection}>
@@ -463,7 +465,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
       </> : offline
         ? <EmptyState icon="wifi.slash" title="You’re offline" description="Search needs your server. Your downloads are in your Library." />
         : answered
-        ? <SearchResultsView view={view} link={link} onTrackMenu={onTrackMenu} />
+        ? <SearchResultsView view={view} query={search.query} link={link} onTrackMenu={onTrackMenu} />
         : search.library.isError && search.catalog.isError
           ? <EmptyState icon="wifi.exclamationmark" title="Search isn’t available" description="Check your connection to the server." />
           : <View style={styles.searching}><ActivityIndicator color={colors.muted} /></View>}

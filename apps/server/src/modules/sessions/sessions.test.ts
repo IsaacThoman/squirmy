@@ -1,4 +1,5 @@
 import type { AddressInfo } from 'node:net'
+import { positionAt } from '@squirmy/client-core'
 import {
   COMMAND_TRACK_LIMIT, QUEUE_LIMIT,
   type ClientToServerEvents, type CommandAck, type QueueSeed, type ServerToClientEvents, type SessionCommand, type SessionHelloAck,
@@ -10,7 +11,7 @@ import { io as connect, type Socket } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { devices, mediaFiles, playbackSessions, plays, recordings } from '../../database/schema.js'
+import { albums, devices, mediaFiles, playbackSessions, plays, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { matchKey } from '../../lib/text.js'
 import { startRealtime } from '../../realtime/index.js'
@@ -337,7 +338,25 @@ describe('sessions', () => {
     clock.advance(10_000)
     a.socket.disconnect()
     await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0006']))
-    expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
+    expect(await b.state(3)).toMatchObject({ activeDeviceId: null, playing: false, stalled: false, positionMs: 10_000 })
+  })
+
+  it('stops the clock the moment the active device goes away, so the others hold its position', async () => {
+    const clock = stoppedClock()
+    const timers = manualTimers()
+    const a = await device('device-a-0030')
+    const b = await device('device-b-0030')
+    await a.send(playAlbum())
+    await b.state(1)
+    clock.advance(9_000)
+    a.socket.disconnect()
+    const away = await b.state(2)
+    expect(away).toMatchObject({ activeDeviceId: 'device-a-0030', playing: true, stalled: true, positionMs: 9_000, anchorAt: clock.now() })
+    clock.advance(20_000)
+    expect(positionAt(away, clock.now())).toBe(9_000)
+    timers.fireAll()
+    // Paused where the clock stopped: nothing jumps back.
+    expect(await b.state(3)).toMatchObject({ activeDeviceId: null, playing: false, stalled: false, positionMs: 9_000 })
   })
 
   it('pauses a lost device where it was when it went away, and counts no play time after', async () => {
@@ -352,28 +371,34 @@ describe('sessions', () => {
     await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0023']))
     clock.advance(20_000)
     timers.fireAll()
-    expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
+    expect(await b.state(3)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })
     // The paused play is still open; shutdown writes it as counted so far.
     await sessionsModule.stop!()
     expect(await db.select({ msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id))).toEqual([{ msPlayed: 10_000 }])
   })
 
-  it('keeps the active device when it reconnects within the grace period', async () => {
+  it('keeps the active device when it reconnects within the grace period, its clock going on from where it would be', async () => {
     // However slow the reconnect, the grace period only ends when the test says so.
     const timers = manualTimers()
+    const clock = stoppedClock()
     const a = await device('device-a-0007')
     const b = await device('device-b-0007')
     await a.send(playAlbum())
     await b.state(1)
+    clock.advance(5_000)
     a.socket.disconnect()
-    await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0007']))
+    await eventually(() => b.lastDevices()?.map((item) => item.id), (value) => expect(value).toEqual(['device-b-0007']))
+    expect(await b.state(2)).toMatchObject({ stalled: true, positionMs: 5_000 })
     expect(timers.pending()).toBe(1)
-    const back = await device('device-a-0007')
+    clock.advance(3_000)
+    const back = await open('device-a-0007')
+    const hello = await back.hello()
     expect(timers.pending()).toBe(0)
     timers.fireAll()
-    expect((await getSnapshot(user.id)).state.activeDeviceId).toBe('device-a-0007')
-    expect(b.states().map((update) => update.version)).toEqual([1])
-    expect(back.states()).toEqual([])
+    // Most likely only the connection dropped and the music played on.
+    expect(hello.snapshot.state).toMatchObject({ activeDeviceId: 'device-a-0007', playing: true, stalled: false, positionMs: 8_000, anchorAt: clock.now() })
+    expect(await b.state(3)).toEqual(hello.snapshot.state)
+    expect(b.states().map((update) => update.version)).toEqual([1, 2, 3])
   })
 
   it('never shows one user the session of another', async () => {
@@ -423,7 +448,8 @@ describe('sessions', () => {
     a.socket.disconnect()
     await sessionsModule.stop!()
     const b = await device('device-b-0010')
-    expect(await b.state(2)).toMatchObject({ activeDeviceId: null, playing: false })
+    // Whether the clock stopped first depends on when the disconnect was handled.
+    await eventually(() => b.states().at(-1)?.state, (state) => expect(state).toMatchObject({ activeDeviceId: null, playing: false, stalled: false }))
   })
 
   it('takes durations from the database and drops tracks that cannot be played', async () => {
@@ -625,6 +651,44 @@ describe('sessions', () => {
       expect(await a.state(7)).toMatchObject({ playing: true, current: { trackId: ids[5], state: 'preparing' } })
       expect(a.events('event')).toEqual([])
     })
+  })
+
+  it('follows a recording merged while its entry was preparing, taking its id and length', async () => {
+    const stub = await createAlbum({ tracks: [{ title: 'Razorblade', durationMs: 207_000 }, { title: 'Juicebox', durationMs: 180_000 }] })
+    const real = await createAlbum({ tracks: [{ title: 'Razorblade', durationMs: 209_226 }] })
+    const [razorblade, juicebox] = stub.tracks.map((track) => track.recordingId) as [string, string]
+    const delivered = real.tracks[0]!.recordingId
+    for (const id of [razorblade, juicebox, delivered]) onDemand.add(id)
+    const a = await device('device-a-0031')
+    await a.send({ type: 'playTracks', tracks: [razorblade, juicebox].map((trackId) => ({ trackId, albumId: stub.albumId, durationMs: 1 })), seed: 1 }, 'merged')
+    expect(await a.state(1)).toMatchObject({ current: { id: 'merged.0', trackId: razorblade, durationMs: 207_000, state: 'preparing' } })
+    await eventually(() => vi.mocked(requestRecording).mock.calls.length, (count) => expect(count).toBe(2))
+
+    // Acquisition links the file to the row it identified, merging the stub into it, and
+    // answers for that row.
+    await mergeRecording(razorblade, delivered)
+    await db.update(albums).set({ mergedIntoId: real.albumId }).where(eq(albums.id, stub.albumId))
+    const root = await createLibraryRoot()
+    await db.insert(mediaFiles).values({ id: newId(), rootId: root.id, relPath: 'razorblade.flac', size: 1, mtime: new Date(), container: 'flac', codec: 'flac', durationMs: 209_226, recordingId: delivered })
+    await markRecordingReady(delivered)
+    await eventually(() => getSnapshot(user.id), (snapshot) => expect(snapshot.state).toMatchObject({
+      stalled: false,
+      current: { id: 'merged.0', trackId: delivered, albumId: real.albumId, durationMs: 209_226, state: 'ready' },
+    }))
+    expect((await getSnapshot(user.id)).queue.queue).toEqual([{ id: 'merged.1', trackId: juicebox, albumId: real.albumId, durationMs: 180_000, state: 'preparing' }])
+  })
+
+  it('looks the current entry and the next ones up again as playback moves on', async () => {
+    const queued = await createAlbum({ owned: true, tracks: [{ title: 'One', durationMs: 100_000 }, { title: 'Two', durationMs: 200_000 }] })
+    const matched = await createAlbum({ owned: true, tracks: [{ title: 'Two', durationMs: 201_500 }] })
+    const [one, two] = queued.tracks.map((track) => track.recordingId) as [string, string]
+    const a = await device('device-a-0032')
+    await a.send({ type: 'playTracks', tracks: [one, two].map((trackId) => ({ trackId, albumId: queued.albumId, durationMs: 1 })), seed: 1 })
+    await a.state(1)
+    // Matching merges the library's row into the catalog's after it was queued.
+    await mergeRecording(two, matched.tracks[0]!.recordingId)
+    await a.send({ type: 'next' })
+    await eventually(() => getSnapshot(user.id), (snapshot) => expect(snapshot.state.current).toMatchObject({ trackId: matched.tracks[0]!.recordingId, durationMs: 201_500, state: 'ready' }))
   })
 
   it('fails an on-demand entry whose request could not be made, rather than leave it preparing', async () => {
