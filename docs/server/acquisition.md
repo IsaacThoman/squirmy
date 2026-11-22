@@ -16,7 +16,7 @@ This page explains how to connect one, the coverage modes, the policy settings, 
 
 In **Admin → Providers**:
 
-1. **Add provider**, with a name, its base URL and the shared secret you configured on the provider (at least 8 characters). The server asks it for its capabilities right away; the card shows what it reports (its name, single songs or whole albums, formats, how many requests at once) and when it last answered, or its last error. When fetches of three different tracks fail in a row with nothing delivered in between (its sign-in to its source ran out, say), the card is marked **Failing** and says since when, with the last error; the first track it delivers clears it. **Test connection** asks again. The secret is never shown again; editing leaves it alone unless you type a new one.
+1. **Add provider**, with a name, its base URL and the shared secret you configured on the provider (at least 8 characters). The server asks it for its capabilities right away; the card shows what it reports (its name, single songs or whole albums, formats, how many requests at once) and when it last answered, or its last error. When fetches of three different tracks fail in a row with nothing delivered in between (its sign-in to its source ran out, say), the card is marked **Failing** and says since when, with the last error; the first track it delivers clears it. **Test connection** asks again. When some tracks are unavailable because it could not supply them, the card says how many, with **Retry unavailable tracks (N)** (see [Tracks a provider could not supply](#tracks-a-provider-could-not-supply)). The secret is never shown again; editing leaves it alone unless you type a new one.
 2. **Tell the provider where to deliver**, under **Policy → Delivery address**, when it reaches the server at another address than `PUBLIC_URL` or `http://localhost:4747` (see below).
 3. **Allow people to fetch.** Admins always can. For members, turn on **Can fetch missing music** in **Admin → Users & invites**.
 
@@ -56,8 +56,9 @@ Other calls:
 
 | Call | What it does |
 |---|---|
-| `GET /api/v1/admin/acquisition/providers` | Lists providers with their capabilities, last success and last error. |
+| `GET /api/v1/admin/acquisition/providers` | Lists providers with their capabilities, last success, last error and `unavailableTracks`. |
 | `POST /api/v1/admin/acquisition/providers/:id/test` | Asks for capabilities again. |
+| `POST /api/v1/admin/acquisition/providers/:id/clear-misses` | **Retry unavailable tracks**: answers `{ cleared, provider }`, with how many tracks it had made unavailable. |
 | `PATCH /api/v1/admin/acquisition/providers/:id` | Changes `name`, `baseUrl`, `secret`, `enabled`, `priority` or `coverage` (see [Coverage modes](#coverage-modes)). With several providers, higher priority is tried first. |
 | `DELETE /api/v1/admin/acquisition/providers/:id` | Removes it. |
 | `GET /api/v1/admin/acquisition/jobs` | Every fetch: who asked, for what, why (`origin`), which provider, status and error. |
@@ -69,6 +70,18 @@ A provider says how it covers music, which decides what turns from gray to playa
 
 - **`must_resolve`**: a track is shown as playable on demand only after the provider confirmed it has it. The server asks about tracks as lists and pages show them, in batches of up to 100, and remembers the answers: offers for 30 days, "nothing" for a day. Lists update a moment later, once the answers arrive. Cold storage works this way.
 - **`assume_available`**: every track you do not own shows as playable on demand, and so does an album found by search before its track list is known. When a request finds nothing, or a delivery fails, that track turns gray for a day, unless the provider is failing: then its tracks stay playable, and the ones that failed just before it counted as failing turn playable again.
+
+### Tracks a provider could not supply
+
+A track a provider could not supply (it found nothing, refused, or delivered the wrong thing) is unavailable from it for a day. That day ends early when the provider changes, because the cause may be gone:
+
+- it reports another version (or, if it reports none, other capabilities). The server asks every enabled provider every five minutes, so updating a provider is enough;
+- you turn it off and on again, or give it a new address or secret;
+- you press **Retry unavailable tracks (N)** on its card. Use this when you fixed something the provider cannot report, such as its source's settings.
+
+Then its tracks are playable on demand again, and it is asked for them the next time they are played. The old records stay, for the history, until they expire. A provider that is only busy or rate limited never makes a track unavailable: the server asks again after a few seconds, longer each time, and the request waits.
+
+### Setting the mode
 
 The provider declares its mode, but you can set it: `PATCH /api/v1/admin/acquisition/providers/:id` with `{"coverage":"assume_available"}`. Do this for a provider that can fetch nearly anything, so search results are playable on first sight instead of a moment later. Your choice stays when the server asks the provider for its capabilities again; set the other value to change it back.
 

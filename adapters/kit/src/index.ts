@@ -5,7 +5,8 @@
  * files a job produces to the server's upload URL before posting completion.
  *
  * The provider supplies `resolve` (what it can offer for an item) and `fetch` (the files for
- * an offer it made). Nothing else is needed.
+ * an offer it made). Nothing else is needed. Either may throw `ProviderBusyError` when its
+ * source is rate limiting it, so the server asks again later instead of graying the tracks.
  */
 import { timingSafeEqual } from 'node:crypto'
 import { openAsBlob } from 'node:fs'
@@ -25,6 +26,10 @@ export type DeliveryFile = { path: string; name: string }
 export type ProviderOptions = {
   /** The shared secret the server sends as a bearer token. */
   secret: string
+  /**
+   * What `GET /capabilities` answers. Set `version` to the provider's own version: when it
+   * changes, the server asks again for the tracks an older version could not supply.
+   */
   capabilities: Omit<ProviderCapabilities, 'protocol'>
   /** Offers for one requested item; an empty list means it cannot be supplied. */
   resolve: (item: ProviderResolveItem) => Promise<ProviderOffer[]> | ProviderOffer[]
@@ -48,6 +53,8 @@ export type ProviderJob = {
   offerId: string
   status: ProviderJobStatus['status']
   error: string | null
+  /** `busy` when it failed with `ProviderBusyError`: the server sends it again later. */
+  reason: string | null
   /** The latest delivery the server sent: a repeated acquire carries a fresh token. */
   delivery: ProviderAcquireRequest['delivery']
   done: Promise<void>
@@ -63,6 +70,19 @@ export type ProviderServer = {
 }
 
 const maxBodyBytes = 1024 * 1024
+
+/**
+ * Thrown from `resolve` or `fetch` when the provider (or its source) cannot serve the
+ * request now, such as a rate limit. The server retries later and counts it neither as a
+ * track it lacks nor as a failure of the provider. `resolve` answers 429 with
+ * `Retry-After`; a failed job reports `reason: "busy"`.
+ */
+export class ProviderBusyError extends Error {
+  constructor(message = 'Provider is busy', readonly retryAfterSeconds?: number) {
+    super(message)
+    this.name = 'ProviderBusyError'
+  }
+}
 
 class HttpError extends Error {
   constructor(readonly status: number, message: string) {
@@ -85,8 +105,8 @@ async function readJson(request: IncomingMessage): Promise<unknown> {
   }
 }
 
-function send(response: ServerResponse, status: number, body: unknown) {
-  response.writeHead(status, { 'content-type': 'application/json' })
+function send(response: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) {
+  response.writeHead(status, { 'content-type': 'application/json', ...headers })
   response.end(JSON.stringify(body))
 }
 
@@ -123,9 +143,9 @@ export async function deliver(job: Pick<ProviderJob, 'delivery'>, files: readonl
   await post(job.delivery.completeUrl, job.delivery.token, JSON.stringify({ status: 'completed' }))
 }
 
-/** Tells the server a job failed. */
-export async function reportFailure(job: Pick<ProviderJob, 'delivery'>, error: string) {
-  await post(job.delivery.completeUrl, job.delivery.token, JSON.stringify({ status: 'failed', error }))
+/** Tells the server a job failed; `reason: "busy"` asks it to send the job again later. */
+export async function reportFailure(job: Pick<ProviderJob, 'delivery'>, error: string, reason?: string) {
+  await post(job.delivery.completeUrl, job.delivery.token, JSON.stringify({ status: 'failed', error, ...(reason ? { reason } : {}) }))
 }
 
 /** Creates a provider HTTP server. It does not listen until `listen` is called. */
@@ -145,7 +165,8 @@ export function createProviderServer(options: ProviderOptions): ProviderServer {
     } catch (error) {
       job.status = 'failed'
       job.error = error instanceof Error ? error.message : String(error)
-      if (!closing.signal.aborted) await reportFailure(job, job.error).catch(onError)
+      job.reason = error instanceof ProviderBusyError ? 'busy' : null
+      if (!closing.signal.aborted) await reportFailure(job, job.error, job.reason ?? undefined).catch(onError)
     } finally {
       await fetched?.cleanup?.().catch(onError)
     }
@@ -160,21 +181,32 @@ export function createProviderServer(options: ProviderOptions): ProviderServer {
     if (request.method === 'POST' && url.pathname === '/resolve') {
       const parsed = ProviderResolveRequest.safeParse(await readJson(request))
       if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid request')
-      const items = await Promise.all(parsed.data.items.map(async (item) => ({ ref: item.ref, offers: await options.resolve(item) })))
-      return send(response, 200, { items } satisfies ProviderResolveResponse)
+      try {
+        const items = await Promise.all(parsed.data.items.map(async (item) => ({ ref: item.ref, offers: await options.resolve(item) })))
+        return send(response, 200, { items } satisfies ProviderResolveResponse)
+      } catch (error) {
+        if (!(error instanceof ProviderBusyError)) throw error
+        return send(response, 429, { error: error.message }, error.retryAfterSeconds === undefined ? {} : { 'retry-after': String(error.retryAfterSeconds) })
+      }
     }
     if (request.method === 'POST' && url.pathname === '/acquire') {
       const parsed = ProviderAcquireRequest.safeParse(await readJson(request))
       if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid request')
       const { jobId, offerId, delivery } = parsed.data
       const known = jobs.get(jobId)
+      if (known?.status === 'failed' && known.reason === 'busy') {
+        // It failed only because it was busy; the server sending it again means try again now.
+        Object.assign(known, { status: 'queued', error: null, reason: null, delivery })
+        known.done = known.done.then(() => run(known))
+        return send(response, 200, { accepted: true, providerJobId: jobId } satisfies ProviderAcquireResponse)
+      }
       if (known) {
         // The same job again: keep the work, use the newest delivery details.
         known.delivery = delivery
         return send(response, 200, { accepted: true, providerJobId: jobId } satisfies ProviderAcquireResponse)
       }
       if (options.busy?.()) return send(response, 200, { accepted: false, error: 'Provider is busy', reason: 'busy' } satisfies ProviderAcquireResponse)
-      const job: ProviderJob = { jobId, offerId, status: 'queued', error: null, delivery, done: Promise.resolve() }
+      const job: ProviderJob = { jobId, offerId, status: 'queued', error: null, reason: null, delivery, done: Promise.resolve() }
       jobs.set(jobId, job)
       job.done = run(job)
       return send(response, 200, { accepted: true, providerJobId: jobId } satisfies ProviderAcquireResponse)
@@ -183,7 +215,7 @@ export function createProviderServer(options: ProviderOptions): ProviderServer {
     if (status) {
       const job = jobs.get(decodeURIComponent(status[1]!))
       if (!job) throw new HttpError(404, 'No such job')
-      return send(response, 200, { status: job.status, error: job.error } satisfies ProviderJobStatus)
+      return send(response, 200, { status: job.status, error: job.error, ...(job.reason ? { reason: job.reason } : {}) } satisfies ProviderJobStatus)
     }
     throw new HttpError(404, 'Not found')
   }

@@ -12,7 +12,7 @@ import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { promisify } from 'node:util'
 import type { ProviderCoverage, ProviderOffer, ProviderRecordingQuery, ProviderResolveItem } from '@squirmy/contracts'
-import { createProviderServer, type DeliveryFile, type ProviderServer } from '@squirmy/provider-kit'
+import { createProviderServer, ProviderBusyError, type DeliveryFile, type ProviderServer } from '@squirmy/provider-kit'
 
 const run = promisify(execFile)
 
@@ -36,6 +36,10 @@ export type MockSettings = {
   retag?: (track: MockTrack) => MockTrack
   /** Declines this many of the next new jobs as busy. */
   busyTimes: number
+  /** Accepts jobs, then fails this many of the next ones as rate limited (`reason: "busy"`). */
+  rateLimitedTimes: number
+  /** The `version` it reports in `capabilities`; none by default. */
+  version?: string
   /** The `maxConcurrent` it advertises. */
   maxConcurrent: number
   /** Which items it has; everything by default. */
@@ -56,6 +60,7 @@ export const defaultSettings: MockSettings = {
   wrongFile: false,
   priced: false,
   busyTimes: 0,
+  rateLimitedTimes: 0,
   maxConcurrent: 4,
   has: () => true,
   maxSeconds: 1200,
@@ -121,7 +126,10 @@ export function createMockProvider(overrides: Partial<MockSettings> = {}): MockP
       return true
     },
     get capabilities() {
-      return { name: 'Mock tones', coverage: settings.coverage, kinds: settings.kinds, formats: ['flac'], maxConcurrent: settings.maxConcurrent }
+      return {
+        name: 'Mock tones', coverage: settings.coverage, kinds: settings.kinds, formats: ['flac'], maxConcurrent: settings.maxConcurrent,
+        ...(settings.version ? { version: settings.version } : {}),
+      }
     },
     resolve(item) {
       resolved.push(item)
@@ -140,6 +148,10 @@ export function createMockProvider(overrides: Partial<MockSettings> = {}): MockP
       if (!item) throw new Error(`Unknown offer ${offerId}`)
       if (settings.delayMs > 0) await sleep(settings.delayMs, undefined, { signal })
       if (settings.fail) throw new Error('The mock provider was told to fail')
+      if (settings.rateLimitedTimes > 0) {
+        settings.rateLimitedTimes -= 1
+        throw new ProviderBusyError('Rate limited by the source; try again shortly')
+      }
       const tracks: Track[] = item.kind === 'recording'
         ? [recordingTrack(item.recording)]
         : item.album.tracks.filter((track) => track.wanted !== false).map((track) => ({

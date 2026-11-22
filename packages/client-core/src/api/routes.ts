@@ -117,6 +117,7 @@ export const apiRoutes = {
   'acquisition.updateProvider': 'PATCH /admin/acquisition/providers/:id',
   'acquisition.deleteProvider': 'DELETE /admin/acquisition/providers/:id',
   'acquisition.testProvider': 'POST /admin/acquisition/providers/:id/test',
+  'acquisition.clearProviderMisses': 'POST /admin/acquisition/providers/:id/clear-misses',
   'acquisition.policy': 'GET /admin/acquisition/policy',
   'acquisition.updatePolicy': 'PATCH /admin/acquisition/policy',
   'acquisition.jobs': 'GET /admin/acquisition/jobs',

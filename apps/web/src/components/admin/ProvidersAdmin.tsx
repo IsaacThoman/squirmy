@@ -2,7 +2,7 @@ import {
   AcquisitionJobStatus, CreateAcquisitionProviderRequest, UpdateAcquisitionPolicy, UpdateAcquisitionProviderRequest,
   type AcquisitionJob, type AcquisitionPolicy, type AcquisitionProvider, type LibraryRoot,
 } from '@squirmy/contracts'
-import { CircleAlert, CircleCheck, History, MoreHorizontal, Pencil, PlugZap, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { CircleAlert, CircleCheck, CircleSlash, History, MoreHorizontal, Pencil, PlugZap, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import type { z } from 'zod'
@@ -36,6 +36,8 @@ type ProvidersAdminProps = {
   onDelete: (providerId: string) => Promise<unknown>
   /** Asks the provider for its capabilities; resolves to the provider as it answered. */
   onTest: (providerId: string) => Promise<AcquisitionProvider>
+  /** Asks the provider again for every track it could not supply ("Retry unavailable tracks"). */
+  onClearMisses: (providerId: string) => Promise<unknown>
   onSavePolicy: SavePatch<UpdateAcquisitionPolicy>
 }
 
@@ -44,7 +46,7 @@ type ProviderDialog = { kind: 'add' } | { kind: 'edit' | 'delete'; provider: Acq
 const coverageLabels = { assume_available: 'Offers everything', must_resolve: 'Checks each track' } as const
 
 /** Acquisition providers: the services that can supply missing music, how they are used, and what they were asked for. */
-export function ProvidersAdmin({ providers, policy, managedRoots, jobs, jobStatus, onJobStatusChange, onCreate, onUpdate, onDelete, onTest, onSavePolicy }: ProvidersAdminProps) {
+export function ProvidersAdmin({ providers, policy, managedRoots, jobs, jobStatus, onJobStatusChange, onCreate, onUpdate, onDelete, onTest, onClearMisses, onSavePolicy }: ProvidersAdminProps) {
   const [dialog, setDialog] = useState<ProviderDialog | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   return (
@@ -76,6 +78,7 @@ export function ProvidersAdmin({ providers, policy, managedRoots, jobs, jobStatu
                   provider={provider}
                   onToggle={enabled => void onUpdate(provider.id, { enabled }).catch(() => {})}
                   onTest={() => onTest(provider.id)}
+                  onClearMisses={() => onClearMisses(provider.id)}
                   onEdit={() => setDialog({ kind: 'edit', provider })}
                   onDelete={() => setDialog({ kind: 'delete', provider })}
                 />
@@ -104,8 +107,29 @@ export function ProvidersAdmin({ providers, policy, managedRoots, jobs, jobStatu
 
 type TestResult = { ok: true; provider: AcquisitionProvider } | { ok: false; message: string }
 
-function ProviderRow({ provider, onToggle, onTest, onEdit, onDelete }: { provider: AcquisitionProvider; onToggle: (enabled: boolean) => void; onTest: () => Promise<AcquisitionProvider>; onEdit: () => void; onDelete: () => void }) {
+type ProviderRowProps = {
+  provider: AcquisitionProvider
+  onToggle: (enabled: boolean) => void
+  onTest: () => Promise<AcquisitionProvider>
+  onClearMisses: () => Promise<unknown>
+  onEdit: () => void
+  onDelete: () => void
+}
+
+function ProviderRow({ provider, onToggle, onTest, onClearMisses, onEdit, onDelete }: ProviderRowProps) {
   const [testing, setTesting] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const retry = async () => {
+    setRetrying(true)
+    try {
+      await onClearMisses()
+    } catch {
+      // The page reports the failure.
+    } finally {
+      setRetrying(false)
+    }
+  }
+  const unavailable = provider.unavailableTracks
   const [result, setResult] = useState<TestResult | null>(null)
   const test = async () => {
     setTesting(true)
@@ -163,6 +187,15 @@ function ProviderRow({ provider, onToggle, onTest, onEdit, onDelete }: { provide
           </div>
         </div>
       )}
+      {unavailable > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2 text-sm sm:ml-12">
+          <CircleSlash aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+          <p className="min-w-0 flex-[1_1_14rem] text-muted-foreground">
+            {unavailable === 1 ? '1 track is' : `${unavailable} tracks are`} unavailable because it could not supply {unavailable === 1 ? 'it' : 'them'}. It is asked again within a day, or as soon as it reports a new version.
+          </p>
+          <Button size="sm" variant="outline" pending={retrying} onClick={() => void retry()}>{!retrying && <RotateCcw />}Retry unavailable tracks ({unavailable})</Button>
+        </div>
+      )}
       {result && (
         <div role="status" className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-sm sm:ml-12', result.ok ? 'bg-muted/40' : 'border-destructive/30 bg-destructive/10 text-destructive')}>
           {result.ok ? <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" /> : <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />}
@@ -171,7 +204,7 @@ function ProviderRow({ provider, onToggle, onTest, onEdit, onDelete }: { provide
       )}
       {capabilities && (
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-lg bg-muted/50 px-3 py-2.5 sm:ml-12 sm:grid-cols-4">
-          <Capability label="Reports itself as" value={capabilities.name} />
+          <Capability label="Reports itself as" value={capabilities.version ? `${capabilities.name} ${capabilities.version}` : capabilities.name} />
           <Capability label="Supplies" value={capabilities.kinds.map(kind => (kind === 'album' ? 'whole albums' : 'single songs')).join(', ')} />
           <Capability label="Formats" value={capabilities.formats.length ? capabilities.formats.join(', ') : 'Not said'} />
           <Capability label="At once" value={`${capabilities.maxConcurrent} ${capabilities.maxConcurrent === 1 ? 'request' : 'requests'}`} />
