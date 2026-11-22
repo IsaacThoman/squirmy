@@ -94,7 +94,8 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
       to={`/album/${album.id}`}
       prefetch={prefetch}
       title={album.title}
-      subtitle={subtitle === 'year' ? releaseSubtitle(album)
+      subtitle={subtitle === 'year'
+        ? releaseSubtitle(album)
         : subtitle === 'artist-year' ? [album.artistCredit, album.year].filter(Boolean).join(' · ') : album.artistCredit}
       art={<Cover artwork={album.artwork} dimmed={dimmed} />}
       onPlay={dimmed ? undefined : onPlay}
