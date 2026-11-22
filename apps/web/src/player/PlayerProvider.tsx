@@ -280,6 +280,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     devices: [...snapshot.devices],
     thisDeviceId,
     activeDeviceId: session.activeDeviceId,
+    away: snapshot.away,
     lyrics: lyrics.data ?? null,
     detached: snapshot.detached,
     canDetach: snapshot.canDetach,
