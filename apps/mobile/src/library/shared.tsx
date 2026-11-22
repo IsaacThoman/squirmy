@@ -21,6 +21,17 @@ export const gutter = 22;
 export const albumTypeLabels: Record<AlbumSummary['type'], string> = {
   album: 'Album', ep: 'EP', single: 'Single', compilation: 'Compilation', live: 'Live', soundtrack: 'Soundtrack', other: 'Release',
 };
+/** From this text scale (the accessibility sizes) grids and tiles make room for the text. */
+export const largeTextScale = 1.6;
+
+/**
+ * Columns of a grid of tiles. At accessibility text sizes a phone shows two, wider, so a
+ * title keeps more than its first few letters.
+ */
+export function gridColumns(width: number, fontScale: number): number {
+  if (width >= 650) return fontScale >= largeTextScale ? 3 : 4;
+  return fontScale >= largeTextScale ? 2 : 3;
+}
 /** How far in from the left edge a swipe can start and still close a zoomed collection. */
 const backSwipeEdge = 40;
 /** Start loading the next page this far before the end of the list. */

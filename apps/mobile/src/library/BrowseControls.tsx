@@ -35,7 +35,8 @@ export type GenreCardProps = { title: string; color: string; width: number; cove
 export type HeroActionsProps = { title: string; artist: string; onOpen: () => void; onPlay: () => void; busy?: boolean };
 /** One row of a grid of collections; a long grid is a virtualized list of these. */
 export type CollectionGridRowProps = { items: readonly (CollectionButtonProps & { id: string })[] };
-export type GenreGridProps = { items: readonly (GenreCardProps & { id: string })[] };
+/** `columns`: two, or one when large text needs the width. */
+export type GenreGridProps = { items: readonly (GenreCardProps & { id: string })[]; columns?: number };
 export function SearchField({ value, onChange, placeholder, autoFocus, inputRef }: SearchFieldProps) {
   const colors = useColors();
   const styles = useStyles();
