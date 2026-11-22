@@ -20,7 +20,7 @@ HTTP requests and errors are JSON lines; the library, watchers and imports add p
 | `matching.match-album` | Identifying albums against MusicBrainz |
 | `enrichment.album`, `enrichment.artist`, `enrichment.lyrics` | Covers, images, bios, lyrics |
 | `loudness.measure`, `loudness.album` | Loudness for normalization |
-| `streaming.transcode`, `streaming.evict` | Conversions ahead of time, cache trimming |
+| `streaming.evict` | Trimming the transcode cache |
 | `imports.process` | Uploads and the inbox |
 | `acquisition.*` | Fetching through providers |
 | `scrobble.deliver` | Sending plays |

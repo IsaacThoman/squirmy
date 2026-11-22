@@ -125,7 +125,7 @@ Each user has their own, in **Settings** in the web app and in the iOS app's acc
 
 ## Splitting the API and the worker
 
-By default one process serves HTTP and runs the background jobs (scans, identification, enrichment, loudness, transcodes ahead of time, imports). On a busy server you can run them separately:
+By default one process serves HTTP and runs the background jobs (scans, identification, enrichment, loudness, imports). On a busy server you can run them separately:
 
 - Run **exactly one** `api` process. Playback sessions are held in that process's memory, so two API processes would disagree about what is playing.
 - Run one or more `worker` processes. A worker opens no HTTP port. File watching and the inbox run in workers.

@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { mediaFiles, transcodes } from '../../database/schema.js'
-import { drainJobs, enqueue, jobs, startJobs, stopJobs } from '../../jobs/index.js'
+import { jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { makeTone } from '../../test/audio.js'
@@ -198,18 +198,6 @@ describe('transcodes', () => {
     const response = await fetch(gone.id, 'aac_256')
     expect(response.statusCode).toBe(404)
     expect(response.json().error.code).toBe('file_missing')
-  })
-
-  it('prebuilds a transcode as a job and reports its size in the descriptor', async () => {
-    const file = await addFile('a/tone.flac')
-    await enqueue('streaming.transcode', { fileId: file.id, profile: 'aac_256' })
-    await drainJobs()
-    const ready = await row(file.id, 'aac_256')
-    expect(ready).toMatchObject({ status: 'ready' })
-    const before = spawned.ffmpeg
-    const response = await fetch(file.id, 'aac_256')
-    expect(response.headers['content-length']).toBe(String(ready!.bytes))
-    expect(spawned.ffmpeg).toBe(before)
   })
 
   it('evicts least recently used transcodes beyond the cap and reconciles with the disk', async () => {
