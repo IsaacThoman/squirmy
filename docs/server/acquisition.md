@@ -123,6 +123,8 @@ A delivery goes through the normal [import pipeline](./adding-music.md#what-an-i
 
 When the file is linked to a track the server already has other files for (its tags carry that track's MusicBrainz id), the provider's word is not enough: the requested track must share an ISRC with that track in the server's own catalog, or AcoustID must identify the file as it. A provider cannot swap the audio of a track everyone plays by tagging a file that way.
 
+A verified file goes on the album it was asked for, as that album's track, and is filed with it under `_Fetched/`. A track asked for without an album (a popular track on an artist page) goes on the album its own tags name, when one of its artists has exactly one album of that title; a bonus track of an edition the album's track list lacks (a Japanese edition, say) is filed with that album under its own number. When search knew an album under two rows, the file goes on the one with the full track list and the other row becomes a link to it. Deliveries made before these rules are placed the same way when the server starts and once a day.
+
 A file that does not match is deleted, is never linked to the requested track, and the job fails. So are extra files the request did not ask for, unless one is the only copy of a track and already in use (queued, liked, saved, or fetched for someone else), which is kept as cache. An empty audio file is refused on upload.
 
 Every call to a provider has a timeout, sends the shared secret, follows redirects only within the provider's own address and reads at most 4 MiB. A misbehaving provider fails its own jobs and nothing else.

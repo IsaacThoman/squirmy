@@ -6,7 +6,10 @@
  *   showed up once per track fetched, and the files stayed in `_Incoming` under review.
  * - Deliveries that waited for their album's track list when their import ended.
  * - Deliveries placed on a track list built from files, whose album has one from a source
- *   by now.
+ *   by now, or whose album's other row (MusicBrainz's, beside the search stub the request
+ *   named) lists them.
+ * - Deliveries of a request that named no album, for a track with no album hint (a popular
+ *   track from an artist page): placement takes the album the file's tags name (place.ts).
  *
  * It runs the same placement as a new delivery, so the same rules decide: only files a
  * provider delivered for a finished job are looked at, a file goes on an album only as the
@@ -51,7 +54,9 @@ const fileBuilt = (alias: string) => sql.raw(`${alias}.mbid is null and ${alias}
 
 /**
  * Finished jobs with a delivered file that is not placed, or is placed on a track list
- * built from files while its album has one from a source, newest first.
+ * built from files while its album has one from a source, or while another album lists its
+ * recording from a source (the album's own row, when the file sat on a stub of it), newest
+ * first.
  */
 async function jobsToPlace(since: Date | undefined, before: string | null, limit: number) {
   return db.select().from(acquisitionJobs).where(sql`
@@ -67,6 +72,11 @@ async function jobsToPlace(since: Date | undefined, before: string | null, limit
           or (f.match_source = 'request' and f.match_status = 'matched'
             and (f.release_track_id is null or exists (select 1 from releases held where held.id = f.release_id and ${fileBuilt('held')}))
             and exists (select 1 from releases better where better.album_id = f.album_id and not (${fileBuilt('better')})))
+          or (f.match_source = 'request' and f.match_status = 'matched'
+            and exists (select 1 from releases held where held.id = f.release_id and ${fileBuilt('held')})
+            and exists (select 1 from albums stub where stub.id = f.album_id and stub.mbid is null)
+            and exists (select 1 from release_tracks listed join releases elsewhere on elsewhere.id = listed.release_id
+              where listed.recording_id = f.recording_id and elsewhere.album_id <> f.album_id and not (${fileBuilt('elsewhere')})))
         )
     )`).orderBy(sql`${acquisitionJobs.id} desc`).limit(limit)
 }

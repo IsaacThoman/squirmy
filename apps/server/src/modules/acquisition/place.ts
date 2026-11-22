@@ -16,8 +16,17 @@
  * 4. a row for the same album as 1 (same artist, same title once edition suffixes are
  *    dropped): a search stub and the MusicBrainz row of one album are often two rows.
  * When none lists it, the file goes on the requested album (else the hinted one) anyway,
- * on a track list built from the files, in their own track numbers. With no album known
- * at all the file stays on the album its tags built.
+ * on a track list built from the files, in their own track numbers. A request that names
+ * no album for a recording with no hint (a popular track from an artist page) takes the
+ * album the file's own album tag names among its artists' albums as the hint; when that
+ * album lists no track for it (a regional edition's bonus track), the file gets a track list
+ * of its own edition there. With no album known at all the file stays on the album its tags
+ * built.
+ *
+ * When the requested album lists the recording only on a track list built from files (a
+ * search stub the file went on before its MusicBrainz row had a track list), a row for the
+ * same album as in 4 that lists it from a source takes the file, and the stub is merged
+ * into that row once it is empty.
  *
  * - **Album detail first.** An album with no track list from a source gets it fetched
  *   (`ensureAlbumDetail`) before anything is placed on it, because an album with files
@@ -41,8 +50,9 @@ import { INCOMING_FOLDER } from '@squirmy/contracts'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { albums, imports, mediaFiles, recordings } from '../../database/schema.js'
+import { albums, imports, mediaFiles, recordingArtists, recordings } from '../../database/schema.js'
 import { getServerSettings } from '../../lib/settings.js'
+import { matchKey } from '../../lib/text.js'
 import { canonicalRelease } from '../catalog/availability.js'
 import { resolveMerged, resolveOne } from '../catalog/redirects.js'
 import { ensureAlbumDetail } from '../enrichment/detail.js'
@@ -50,7 +60,7 @@ import { lockCatalog } from '../library/cleanup.js'
 import { placeFiles, type Placement } from '../matching/index.js'
 import { announce } from '../matching/match.js'
 import { resolveMerged as resolveMergedIn } from '../matching/merge.js'
-import { editionFreeKey } from '../search/keys.js'
+import { editionFreeKey, textArray } from '../search/keys.js'
 import type { JobRow } from './jobs.js'
 import { invalidateRecordings } from './resolve.js'
 import { asDelivered, deliveredFiles, mergeDelivered, sameRecording, type Recording } from './verify.js'
@@ -224,7 +234,52 @@ async function trackOn(lookup: Lookup, albumId: string, row: Row): Promise<strin
   return listed.length > 0 ? recording.id : null
 }
 
-type Seat = { albumId: string; recordingId: string }
+/** Whether the album lists the recording on a track list from a source, not only on one built from files. */
+async function listsFromSource(albumId: string, recordingId: string): Promise<boolean> {
+  const [row] = await db.execute<{ listed: boolean }>(sql`
+    select exists (select 1 from releases rel join release_tracks rt on rt.release_id = rel.id
+      where rel.album_id = ${albumId} and rt.recording_id = ${recordingId} and (rel.mbid is not null or rel.fetched_at is not null)) as listed`)
+  return Boolean(row?.listed)
+}
+
+/**
+ * The album a delivered file's own album tag names, for a request that named no album and a
+ * recording with no album hint: a popular track played from an artist page, which Deezer's
+ * top tracks give without an album row. It is an album of one of the recording's artists
+ * with the same title once edition suffixes are dropped, and more than a row built from tags:
+ * one that lists the recording, else the only one with a MusicBrainz id, else the only one.
+ * Several equally good rows name nothing. The artists are the recording's credits, also by
+ * name: Deezer's credits of another artist's track can point at the page's own artist row.
+ */
+async function albumTagsName(row: Row, recording: Recording, except: string | null): Promise<string | null> {
+  const key = row.file.tags.album ? editionFreeKey(row.file.tags.album) : ''
+  if (!key) return null
+  const credited = await db.select({ name: recordingArtists.creditedName }).from(recordingArtists).where(eq(recordingArtists.recordingId, recording.id))
+  const names = [...new Set(credited.map((credit) => matchKey(credit.name)).filter(Boolean))]
+  const rows = await db.execute<{ id: string; title: string; mbid: string | null; lists: boolean }>(sql`
+    select a.id, a.title, a.mbid,
+      exists (select 1 from releases rel join release_tracks rt on rt.release_id = rel.id where rel.album_id = a.id and rt.recording_id = ${recording.id}) as lists
+    from albums a
+    where a.merged_into_id is null and a.id is distinct from ${except}::uuid and ${real}
+      and (a.primary_artist_id = ${recording.primaryArtistId}::uuid
+        or a.primary_artist_id in (select ra.artist_id from recording_artists ra where ra.recording_id = ${recording.id})
+        or a.primary_artist_id in (select ar.id from artists ar where ar.merged_into_id is null and ar.name_key = any(${textArray(names)})))
+    order by a.id limit 1000`)
+  const named = rows.filter((one) => editionFreeKey(one.title) === key)
+  const only = (list: typeof named) => (list.length === 1 ? list[0]!.id : null)
+  const listing = named.filter((one) => one.lists)
+  if (listing.length > 0) return only(listing)
+  return only(named.filter((one) => one.mbid)) ?? only(named)
+}
+
+type Seat = {
+  albumId: string
+  recordingId: string
+  /** The requested album row this seat stands in for: another row of the same album, merged into it once empty. */
+  replaces?: string
+  /** The file's tags named the album, which lists no track for it: it gets one on a track list built from files. */
+  ownEdition?: boolean
+}
 
 /** Where a file that is a requested recording goes: see the module comment. */
 async function seatRequested(lookup: Lookup, job: Job, row: Row): Promise<Seat | 'defer' | null> {
@@ -233,7 +288,9 @@ async function seatRequested(lookup: Lookup, job: Job, row: Row): Promise<Seat |
   const requested = job.albumId ? await resolveOne('albums', job.albumId) : null
   const [current] = row.file.albumId ? await db.execute<{ id: string; real: boolean }>(sql`
     select a.id, ${real} as real from albums a where a.id = ${row.file.albumId} and a.merged_into_id is null`) : []
-  const hint = recording.albumHintId ? await resolveOne('albums', recording.albumHintId) : null
+  const hinted = recording.albumHintId ? await resolveOne('albums', recording.albumHintId) : null
+  const tagged = !hinted && !requested && !current?.real ? await albumTagsName(row, recording, current?.id ?? null) : null
+  const hint = hinted ?? tagged
   const young = row.file.addedAt.getTime() > Date.now() - timing.detailWaitMs
   // The album the request named is the answer when it can be: other albums that list the
   // recording (a single, a compilation) are only looked at for a request without one.
@@ -251,6 +308,14 @@ async function seatRequested(lookup: Lookup, job: Job, row: Row): Promise<Seat |
     return null
   }
   const found = await seat(first)
+  // The requested row may list the recording only on a track list built from the files: a
+  // search stub that had no track list when its file was placed. Another row of the same
+  // album that lists the recording from a source is where the file belongs, and the stub,
+  // once empty, is merged into it ("Baggy$$" showed up twice, one track on the stub).
+  if (found && found.albumId === requested && !(await listsFromSource(found.albumId, found.recordingId))) {
+    const better = await seat(await sameAlbumRows(found.albumId))
+    if (better && await listsFromSource(better.albumId, better.recordingId)) return { ...better, replaces: found.albumId }
+  }
   if (found) return found
   // The requested album's track list may still arrive and list it.
   if (requested && young && await detailPending(requested)) return 'defer'
@@ -264,7 +329,11 @@ async function seatRequested(lookup: Lookup, job: Job, row: Row): Promise<Seat |
   // A file on an album of its own that is more than its tags stays there.
   if (!albumId || (current?.real && current.id !== albumId)) return null
   if (young && await detailPending(albumId)) return 'defer'
-  return { albumId, recordingId: recording.id }
+  // A file whose own tags named the album is of an edition its track lists do not show (a
+  // regional bonus track): it gets a track of its own, so it is identified and filed. A
+  // request's album that does not list the file keeps it as an extra (a live take beside the
+  // album's studio recording).
+  return { albumId, recordingId: recording.id, ownEdition: tagged !== null && albumId === await resolveOne('albums', tagged) }
 }
 
 /**
@@ -323,7 +392,11 @@ export async function placeDelivery(job: Job, options: PlaceOptions = {}): Promi
   if (seats.size === 0) return outcome
 
   const byAlbum = new Map<string, Placement[]>()
-  for (const [fileId, seat] of seats) byAlbum.set(seat.albumId, [...byAlbum.get(seat.albumId) ?? [], { fileId, recordingId: seat.recordingId }])
+  const replaced = new Map<string, string[]>()
+  for (const [fileId, seat] of seats) {
+    byAlbum.set(seat.albumId, [...byAlbum.get(seat.albumId) ?? [], { fileId, recordingId: seat.recordingId, ownEdition: seat.ownEdition }])
+    if (seat.replaces) replaced.set(seat.albumId, [...replaced.get(seat.albumId) ?? [], seat.replaces])
+  }
   const albumIds: string[] = []
   const artistIds: string[] = []
   const recordingIds: string[] = []
@@ -343,7 +416,7 @@ export async function placeDelivery(job: Job, options: PlaceOptions = {}): Promi
         }
         if (holding.length === 0) return null
         const extraFileIds = albumId === home ? extras.filter((id) => now.some((row) => row.id === id && mine(row) && row.matchSource !== 'request')) : []
-        return placeFiles(tx, { albumId, files: holding, extraFileIds, redirect: options.redirect })
+        return placeFiles(tx, { albumId, files: holding, extraFileIds, redirect: options.redirect, sameAlbumIds: replaced.get(albumId) })
       })
       if (!result) continue
       outcome.placed.push(...result.changedFileIds)

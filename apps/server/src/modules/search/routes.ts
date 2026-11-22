@@ -7,6 +7,7 @@ import { albumSummaries, artistSummaries, trackSummaries } from '../catalog/summ
 import { warmDetail } from '../enrichment/detail.js'
 import { searchLibrary } from './library.js'
 import { materialize, type StubIds } from './materialize.js'
+import { withoutNamesakes } from './namesakes.js'
 import { searchCatalog } from './providers.js'
 import { topResult } from './top.js'
 import { warmAlbums } from './warm.js'
@@ -51,7 +52,8 @@ export async function searchRoutes(app: FastifyInstance) {
     dropCachedReads('all', [['catalog-stubs']])
     const without = (found: string[], shown: string[]) => found.filter((id) => !shown.includes(id))
     const answer = await respond(user.id, q, {
-      artists: without(ids.artists, library.artists),
+      // One artist per name: Deezer's duplicate pages of one artist are two rows until enrichment merges them.
+      artists: await withoutNamesakes(without(ids.artists, library.artists), library.artists),
       albums: without(ids.albums, library.albums),
       tracks: without(ids.tracks, library.tracks),
     }, provider.name)

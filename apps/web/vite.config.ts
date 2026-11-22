@@ -52,7 +52,8 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler|react-router)[\\/]/ },
-            { name: 'schemas', test: /node_modules[\\/]zod[\\/]|packages[\\/]contracts[\\/]/ },
+            // zod-config.ts goes with the schemas: in a chunk of its own, the app's, it would run after them.
+            { name: 'schemas', test: /node_modules[\\/]zod[\\/]|packages[\\/]contracts[\\/]|src[\\/]zod-config\.ts$/ },
             { name: 'ui', test: /node_modules[\\/](radix-ui|@radix-ui|@floating-ui|@tanstack|lucide-react|socket\.io-client|engine\.io-client|socket\.io-parser)[\\/]/ },
           ],
         },
