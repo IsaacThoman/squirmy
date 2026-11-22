@@ -11,7 +11,7 @@ import { useAccountKey, useSignedInApi, type Api } from '../account/AccountProvi
 import { useNotice } from '../Notice';
 import { accountItem } from './accountStorage';
 import { LikeQueue, refusedNotice, type QueuedLike } from './likeQueue';
-import { findTrack, patchEntity, withLikedTrack } from './likePatch';
+import { findTrack, patchEntity, remembersToDrop, withLikedTrack } from './likePatch';
 import { useRealtime } from './realtime';
 
 type LikeKey = `${LikeEntityType}:${string}`;
@@ -84,7 +84,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   const account = useAccountKey();
   const queryClient = useQueryClient();
   const notify = useNotice();
-  const { onInvalidate, offline, expectEcho } = useRealtime();
+  const { onInvalidate, onChanges, offline, expectEcho } = useRealtime();
   // One store per account, reading the current client: a new client (a token or server
   // update) must not drop the cached summaries or rebuild what is built on the store.
   const apiRef = useRef(api);
@@ -139,7 +139,14 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   const flush = useCallback(() => {
     if (!queue) return;
     clearTimeout(retry.current.timer);
-    void queue.flush().then(({ refused }) => {
+    void queue.flush().then(({ applied, refused }) => {
+      // The server has these now, and every cached copy was patched: what is remembered
+      // here gives way, so a later change from another device shows (Q47's cause).
+      for (const like of applied) {
+        if (queue.pending.some(item => item.type === like.type && item.id === like.id)) continue;
+        remember(`${like.type}:${like.id}`, undefined);
+        patchLike(queryClient, like.type, like.id, like.liked);
+      }
       for (const like of refused) {
         remember(`${like.type}:${like.id}`, undefined);
         patchLike(queryClient, like.type, like.id, !like.liked);
@@ -180,6 +187,16 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   }, [change]);
   const setLiked = useCallback((type: LikeEntityType, id: string, liked: boolean, title?: string) =>
     change({ type, id, liked, ...title !== undefined && { title } }), [change]);
+
+  // What the server announces reaches the queue rows, Now Playing and the lock screen too.
+  // A heart from another device is the server's latest word on the item:
+  // what this device remembered gives way to it, unless a change made here is still on its way.
+  useEffect(() => onChanges((plan, { own }) => {
+    tracks.patch(plan.patches);
+    if (own) return;
+    const drop = remembersToDrop(plan.fields, key => Boolean(queue?.pending.some(like => `${like.type}:${like.id}` === key)));
+    for (const key of drop) remember(key as LikeKey, undefined);
+  }), [onChanges, queue, remember, tracks]);
 
   const value: LibraryValue = useMemo<LibraryValue>(() => ({
     tracks,
