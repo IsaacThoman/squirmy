@@ -3,6 +3,7 @@ import { ART_SIZES, type ArtSize } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import sharp from 'sharp'
 import { z } from 'zod'
+import { etagMatches } from '../../lib/conditional.js'
 import { notFound } from '../../lib/errors.js'
 import { readOriginal } from './recover.js'
 import { dataPath, writeAtomic } from './store.js'
@@ -49,7 +50,7 @@ export async function artworkRoutes(app: FastifyInstance) {
     const { assetId, size } = parsed.data
     const etag = `"${assetId}-${size}"`
     const cacheForever = 'public, max-age=31536000, immutable'
-    if (request.headers['if-none-match'] === etag) return reply.code(304).header('cache-control', cacheForever).header('etag', etag).send()
+    if (etagMatches(request.headers['if-none-match'], etag)) return reply.code(304).header('cache-control', cacheForever).header('etag', etag).send()
     // Only a rendered image is cacheable; a failed remote fetch may succeed later.
     const image = await rendition(assetId, size)
     return reply.header('cache-control', cacheForever).header('etag', etag).type('image/webp').send(image)

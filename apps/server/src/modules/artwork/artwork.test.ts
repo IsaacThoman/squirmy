@@ -96,6 +96,9 @@ describe('artwork', () => {
     const cached = await app.inject({ url: `/api/v1/art/${asset.id}/300`, headers: { 'if-none-match': etag } })
     expect(cached.statusCode).toBe(304)
     expect(cached.headers['cache-control']).toBe('public, max-age=31536000, immutable')
+    // Cloudflare passes the ETag on weakened, so browsers revalidate with W/.
+    expect((await app.inject({ url: `/api/v1/art/${asset.id}/300`, headers: { 'if-none-match': `W/${etag}` } })).statusCode).toBe(304)
+    expect((await app.inject({ url: `/api/v1/art/${asset.id}/600`, headers: { 'if-none-match': etag } })).statusCode).toBe(200)
     expect((await app.inject({ url: `/api/v1/art/${asset.id}/123` })).statusCode).toBe(404)
     expect((await app.inject({ url: '/api/v1/art/00000000-0000-4000-8000-000000000000/300' })).statusCode).toBe(404)
     expect((await app.inject({ url: '/api/v1/art/not-an-id/300' })).statusCode).toBe(404)

@@ -101,6 +101,9 @@ export async function startRealtime(app: FastifyInstance): Promise<Realtime> {
   const io: RealtimeServer = new Server(app.server, {
     path: '/socket.io',
     serveClient: false,
+    // `session:queue` carries the whole queue (about 150 bytes an entry) on every queue
+    // change; compressed it is a tenth of that. Small messages are not worth deflating.
+    perMessageDeflate: { threshold: 1024 },
     cors: config.NODE_ENV === 'production' ? undefined : { origin: devOrigins, credentials: true },
   })
 
