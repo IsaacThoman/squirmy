@@ -203,7 +203,7 @@ async function topTracks(artistId: string, sources: { mbid: string | null; deeze
   const top = await deezer.getArtistTopTracks(Number(sources.deezerId), { limit: topTrackCount })
   const max = Math.max(0, ...top.map((track) => track.rank ?? 0))
   for (const [index, track] of top.entries()) {
-    const id = await deezerTopTrackRow(artistId, track)
+    const id = await deezerTopTrackRow(artistId, sources.deezerId, track)
     const popularity = track.rank ? share(track.rank, max) : share(top.length - index, top.length)
     await db.update(recordings).set({ popularity }).where(eq(recordings.id, id))
   }
