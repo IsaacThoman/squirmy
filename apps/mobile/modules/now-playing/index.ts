@@ -31,12 +31,12 @@ export type RoutePickerProps = ViewProps & {
   activeTint?: string;
 };
 
-declare const globalThis: { expo?: { getViewConfig?: (moduleName: string, viewName?: string) => unknown } };
+type ExpoGlobal = { expo?: { getViewConfig?: (moduleName: string, viewName?: string) => unknown } };
 
 /**
  * The system AirPlay and Bluetooth picker, iOS only. `null` where the native view is missing,
  * such as Android or an app built before it was added.
  */
-export const RoutePicker: ComponentType<RoutePickerProps> | null = globalThis.expo?.getViewConfig?.('SquirmyNowPlaying')
+export const RoutePicker: ComponentType<RoutePickerProps> | null = (globalThis as ExpoGlobal).expo?.getViewConfig?.('SquirmyNowPlaying')
   ? requireNativeView<RoutePickerProps>('SquirmyNowPlaying')
   : null;
