@@ -1,11 +1,12 @@
 import { queryKeys, type CreatePlaylistRequest, type Page, type PlaylistSummary, type TrackSummary, type WantItem } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { patchEntity } from '@/api/patch'
-import { usePlaylists, useWants } from '@/api/queries'
+import { playlistQuery, usePlaylists, useWants } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
+import { AlreadyInPlaylistDialog, type RepeatedAdd } from '@/components/layout/AlreadyInPlaylistDialog'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
 import { plural } from '@/lib/format'
 import { toast } from '@/lib/toast'
@@ -34,6 +35,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const wants = useWants(wantlistEnabled).data
   const allPlaylists = usePlaylists().data
   const [draft, setDraft] = useState<{ tracks: TrackSummary[] } | null>(null)
+  const [repeatedAdd, setRepeatedAdd] = useState<RepeatedAdd | null>(null)
 
   // The heart. A saved track or artist is in the library at once; after a removal only the server
   // knows whether it still is (on the collection, on a saved album), so the lists ask it.
@@ -80,8 +82,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   })
 
   const add = useMutation({
-    mutationFn: ({ playlist, tracks }: { playlist: Pick<PlaylistSummary, 'id' | 'name'>; tracks: TrackSummary[] }) =>
-      api.userdata.addPlaylistItems(playlist.id, { tracks: playlistTracks(tracks) }),
+    mutationFn: ({ playlist, tracks, skipDuplicates }: { playlist: Pick<PlaylistSummary, 'id' | 'name'>; tracks: TrackSummary[]; skipDuplicates?: boolean }) =>
+      api.userdata.addPlaylistItems(playlist.id, { tracks: playlistTracks(tracks), skipDuplicates }),
     onSuccess: (detail, { playlist, tracks }) => {
       queryClient.setQueryData(queryKeys.playlist(detail.id), detail)
       toast({ title: `Added to ${playlist.name}`, description: songs(tracks) })
@@ -108,19 +110,44 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const { mutate: setWanted } = want
   const { mutate: addTo } = add
 
+  // Songs the playlist has already are asked about first. Its cached copy is current enough:
+  // the server's invalidations refresh it whenever it changes elsewhere.
+  const addToPlaylist = useCallback(async (playlist: Pick<PlaylistSummary, 'id' | 'name'>, tracks: TrackSummary[]) => {
+    if (!tracks.length) return
+    const detail = await queryClient.fetchQuery({ ...playlistQuery(api, playlist.id), staleTime: 60_000 }).catch(() => null)
+    const there = new Set(detail?.items.map(item => item.track.id))
+    const repeated = tracks.filter(track => there.has(track.id))
+    if (repeated.length) setRepeatedAdd({ playlist, tracks, repeated })
+    else addTo({ playlist, tracks })
+  }, [api, queryClient, addTo])
+
   const actions = useMemo<LibraryActions>(() => ({
     wantlistEnabled,
     isWanted: (id, fromServer = false) => fromServer || wantedIds.has(id),
     setSaved: (target, saved, options) => setSaved({ target, saved, quiet: options?.quiet }),
     setWanted: (target, wanted) => setWanted({ target, wanted }),
     playlists,
-    addToPlaylist: (playlist, tracks) => { if (tracks.length) addTo({ playlist, tracks }) },
+    addToPlaylist: (playlist, tracks) => void addToPlaylist(playlist, tracks),
     newPlaylist: (tracks = []) => setDraft({ tracks }),
-  }), [wantlistEnabled, wantedIds, playlists, setSaved, setWanted, addTo])
+  }), [wantlistEnabled, wantedIds, playlists, setSaved, setWanted, addToPlaylist])
 
   return (
     <LibraryContext value={actions}>
       {children}
+      <AlreadyInPlaylistDialog
+        add={repeatedAdd}
+        onOpenChange={open => { if (!open) setRepeatedAdd(null) }}
+        onAddAnyway={() => {
+          if (repeatedAdd) addTo({ playlist: repeatedAdd.playlist, tracks: repeatedAdd.tracks })
+          setRepeatedAdd(null)
+        }}
+        onSkip={() => {
+          const fresh = repeatedAdd?.tracks.filter(track => !repeatedAdd.repeated.includes(track)) ?? []
+          // The server leaves out anything added meanwhile, too.
+          if (repeatedAdd && fresh.length) addTo({ playlist: repeatedAdd.playlist, tracks: fresh, skipDuplicates: true })
+          setRepeatedAdd(null)
+        }}
+      />
       <PlaylistDialog
         open={draft !== null}
         onOpenChange={open => { if (!open) setDraft(null) }}

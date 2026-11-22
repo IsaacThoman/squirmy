@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, likedTracks, playlistSummaries, track } from '@/fixtures/catalog'
@@ -644,6 +644,89 @@ describe('AppShell', () => {
       await waitFor(() => expect(screen.getByRole('separator', { name: 'Resize sidebar' })).toBeInTheDocument())
       expect(screen.getByRole('complementary', { name: 'Sidebar' })).toBeInTheDocument()
       expect(screen.getByRole('main').closest('[inert]')).toBeNull()
+    })
+  })
+
+  describe('scroll', () => {
+    /** jsdom lays nothing out: the main column's scroll position is kept by hand, as tall as `height`. */
+    function stubScroll(main: HTMLElement, height = { value: 5000 }) {
+      let top = 0
+      Object.defineProperty(main, 'scrollTop', {
+        configurable: true,
+        get: () => top,
+        set: (value: number) => { top = Math.max(0, Math.min(value, height.value)) },
+      })
+      main.scrollTo = ((options: ScrollToOptions) => { main.scrollTop = options.top ?? 0 }) as typeof main.scrollTo
+      return {
+        scrollTo(value: number) {
+          main.scrollTop = value
+          fireEvent.scroll(main)
+        },
+        get top() { return top },
+        height,
+      }
+    }
+
+    /** Links and Back, as a reader would follow them; the shell's own links vary with the layout. */
+    function Nav() {
+      const navigate = useNavigate()
+      return (
+        <>
+          <button type="button" onClick={() => void navigate('/library?filter=albums')}>to library</button>
+          <button type="button" onClick={() => void navigate('/search')}>to search</button>
+          <button type="button" onClick={() => void navigate('/search?q=soft', { replace: true })}>type a search</button>
+          <button type="button" onClick={() => void navigate(-1)}>back</button>
+        </>
+      )
+    }
+    const go = (name: string) => fireEvent.click(screen.getByRole('button', { name, hidden: true }))
+
+    it('starts a new page at the top, and Back returns to where each page was', async () => {
+      renderWithApp(<><AppRoutes /><Where /><Nav /></>, '/', fakeServices().services)
+      const scroll = stubScroll(await screen.findByRole('main', { hidden: true }))
+      scroll.scrollTo(1368)
+      go('to library')
+      await waitFor(() => expect(where()).toBe('/library?filter=albums'))
+      expect(scroll.top).toBe(0)
+      scroll.scrollTo(400)
+      go('to search')
+      await waitFor(() => expect(where()).toBe('/search'))
+      expect(scroll.top).toBe(0)
+      go('back')
+      await waitFor(() => expect(where()).toBe('/library?filter=albums'))
+      await waitFor(() => expect(scroll.top).toBe(400))
+      go('back')
+      await waitFor(() => expect(where()).toBe('/'))
+      await waitFor(() => expect(scroll.top).toBe(1368))
+    })
+
+    it('keeps the place when the address changes on the same page, and after it', async () => {
+      renderWithApp(<><AppRoutes /><Where /><Nav /></>, '/search', fakeServices().services)
+      const scroll = stubScroll(await screen.findByRole('main', { hidden: true }))
+      scroll.scrollTo(550)
+      go('type a search')
+      await waitFor(() => expect(where()).toBe('/search?q=soft'))
+      expect(scroll.top).toBe(550)
+      go('to library')
+      await waitFor(() => expect(where()).toBe('/library?filter=albums'))
+      go('back')
+      await waitFor(() => expect(where()).toBe('/search?q=soft'))
+      await waitFor(() => expect(scroll.top).toBe(550))
+    })
+
+    it('waits for a page to grow tall enough before giving up on its place', async () => {
+      renderWithApp(<><AppRoutes /><Where /><Nav /></>, '/', fakeServices().services)
+      const scroll = stubScroll(await screen.findByRole('main', { hidden: true }))
+      scroll.scrollTo(1800)
+      go('to library')
+      await waitFor(() => expect(where()).toBe('/library?filter=albums'))
+      // The page comes back short (a list still loading), and grows a moment later.
+      scroll.height.value = 300
+      go('back')
+      await waitFor(() => expect(where()).toBe('/'))
+      expect(scroll.top).toBe(300)
+      scroll.height.value = 5000
+      await waitFor(() => expect(scroll.top).toBe(1800))
     })
   })
 })
