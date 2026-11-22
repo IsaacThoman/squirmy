@@ -251,7 +251,8 @@ describe('detached sessions', () => {
     expect(a.events('session:moved')).toEqual([])
     await tab.send({ type: 'pause' })
     await eventually(() => a.lastState(), (state) => expect(state?.playing).toBe(false))
-    expect(b.lastState()?.playing).toBe(false)
+    // B's pause came from the detach, on another socket, so it is not ordered with A's events.
+    await eventually(() => b.lastState(), (state) => expect(state?.playing).toBe(false))
     // A further socket joins the session the device is in.
     const late = await open('device-a-7')
     expect((await late.hello({ detached: false })).snapshot.scope).toEqual({ type: 'device', deviceId: 'device-a-7' })
@@ -401,6 +402,20 @@ describe('detached sessions', () => {
     await eventually(() => storedRows(), (rows) => expect(rows[0]?.state).toMatchObject({ state: { playing: false, activeDeviceId: null, positionMs: 15_000 } }))
     const last = await open('device-a-14')
     expect((await last.hello({ detached: true })).snapshot.state).toMatchObject({ playing: false, activeDeviceId: null, positionMs: 15_000 })
+  })
+
+  it('acks detaches and attaches past the rate limit rate_limited without applying them', async () => {
+    const a = await device('device-a-17')
+    // Detach and attach share one budget of ten; at one every two seconds, the rest stay limited.
+    const replies = await Promise.all(Array.from({ length: 20 }, (_, index) => (index % 2 ? a.attach() : a.detach())))
+    expect(replies.slice(0, 10).every((reply) => reply.ok)).toBe(true)
+    const limited = replies.filter((reply) => !reply.ok)
+    expect(limited.length).toBeGreaterThanOrEqual(8)
+    expect(limited).toEqual(limited.map(() => ({ ok: false, error: 'rate_limited' })))
+    // The device is where the last move that went through put it.
+    const last = ok(replies.findLast((reply) => reply.ok)!)
+    expect((await a.hello({ detached: true })).snapshot.scope).toEqual(last.snapshot.scope)
+    expect(await storedRows()).toHaveLength(last.snapshot.scope?.type === 'device' ? 1 : 0)
   })
 
   it('keeps at most eight own sessions, making room from the one gone longest', async () => {

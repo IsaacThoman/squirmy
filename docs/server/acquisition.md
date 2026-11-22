@@ -84,13 +84,13 @@ Under **Admin → Providers → Policy**, or `GET` and `PATCH /api/v1/admin/acqu
 
 ## What users see
 
-- Albums and tracks a provider can supply show a cloud icon, "Plays on demand", in the web app; the [iOS app](../use/ios.md#on-demand-songs) marks such songs with a small cloud next to the artist. A web album page offers **Get this album**, which fetches its missing songs and shows how many have arrived; the menu offers it on albums you have part of.
+- Albums and tracks a provider can supply show a cloud icon, "Plays on demand", in the web app; the [iOS app](../use/ios.md#on-demand-songs) marks such songs with a small cloud next to the artist. A web album page offers **Get this album**, which saves the album to your library, fetches its missing songs and shows how many have arrived; the menu offers it on albums you have part of. Songs fetched by playing them, fetched ahead of playing, or downloaded to a device are kept as cache and are not added to anyone's library.
 - Pressing play queues them as usual. A track being fetched shows **Preparing…** wherever it appears (lists, the queue, the player and Now Playing), and the session waits at its start; it plays as soon as the file arrives. Upcoming tracks in the queue are fetched ahead of time.
 - If a fetch fails, a notice says so, the track is skipped, and it shows gray for a day. Upcoming tracks that fail are skipped when reached. When three tracks in a row fail (a provider outage, say), playback pauses on the third rather than skipping through the queue.
 - Autoplay and radios include tracks the provider can fetch for members allowed to fetch, after two tracks the server already has; other members get only tracks on the server.
 - A member without **Can fetch missing music** sees those tracks gray, and their row and menu say to ask an admin.
 - One fetch runs per track or album at a time. If two people or devices ask for the same thing, they share it.
-- Subsonic apps never see on-demand music; they show only what is on the server.
+- Subsonic apps never see on-demand music, nor music fetched only because someone played it: they show each person's library, limited to songs with a file on the server ([details](./subsonic.md)).
 
 ## How deliveries are verified
 

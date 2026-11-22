@@ -14,8 +14,9 @@ import { hashToken } from '../../lib/crypto.js'
 import { AppError, badRequest, conflict, unauthorized } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { addImportFile } from '../imports/index.js'
+import { recordSave } from '../userdata/library.js'
 import {
-  completeDelivery, DELIVERING, ensureImport, finishJob, loadJob, markDownloading, requestAlbum, requestTrack, touchJob, type JobRow,
+  completeDelivery, DELIVERING, ensureImport, finishJob, loadJob, providerFailed, markDownloading, requestAlbum, requestTrack, touchJob, type JobRow,
 } from './jobs.js'
 import { getAcquisitionPolicy, updateAcquisitionPolicy } from './policy.js'
 import { createProvider, deleteProvider, listProviders, testProvider, updateProvider } from './providers.js'
@@ -151,7 +152,22 @@ export async function acquisitionRoutes(app: FastifyInstance) {
 
   app.post('/albums/:id/acquire', async (request, reply): Promise<AcquireResponse> => {
     const user = requireUser(request)
-    const jobs = await requestAlbum(user.id, IdParams.parse(request.params).id)
+    const albumId = IdParams.parse(request.params).id
+    // Only the library action adds to a library (the default origin, which "Get this album"
+    // sends). A device downloading an album, and playback (which asks through the sessions
+    // module, never here), only fetch: the files are cache.
+    const { origin = 'library' } = AcquireQuery.parse(request.query)
+    const save = () => (origin === 'library' ? recordSave(user.id, 'album', albumId) : Promise.resolve(albumId))
+    let jobs
+    try {
+      jobs = await requestAlbum(user.id, albumId)
+    } catch (error) {
+      // Adding an album the server already has (as cache) to the library still adds it.
+      if (error instanceof AppError && error.code === 'already_available') await save()
+      throw error
+    }
+    // Owned by the userdata module, as completed album jobs were converted when library saves arrived.
+    await save()
     reply.code(202)
     return { items: await jobsById(jobs.map((job) => job.id)) }
   })
@@ -189,7 +205,7 @@ export async function acquisitionRoutes(app: FastifyInstance) {
     const job = await deliveringJob(request, JobParams.parse(request.params).jobId)
     const body = ProviderDeliveryComplete.parse(request.body)
     if (body.status === 'failed') {
-      await finishJob(job.id, { status: 'failed', error: `The provider failed: ${body.error ?? 'no reason given'}`, missed: job.recordingIds })
+      await providerFailed(job, `The provider failed: ${body.error ?? 'no reason given'}`)
     } else {
       await completeDelivery(job.id)
     }

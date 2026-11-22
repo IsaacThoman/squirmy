@@ -111,6 +111,20 @@ describe('subsonic media', () => {
     expect((await get('stream', { id: mp3.id, maxBitRate: 320 })).rawPayload.equals(mp3.bytes)).toBe(true)
   })
 
+  it('streams a file a provider delivered, though no list shows it', async () => {
+    const [file] = await db.select({ id: mediaFiles.id, source: mediaFiles.source }).from(mediaFiles).where(eq(mediaFiles.relPath, 'Mira Vale/Blue Hour/01 Night.flac'))
+    await db.update(mediaFiles).set({ source: 'provider:deezer' }).where(eq(mediaFiles.id, file!.id))
+    try {
+      const whole = await get('stream', { id: flac.id })
+      expect(whole.statusCode).toBe(200)
+      expect(whole.rawPayload.equals(flac.bytes)).toBe(true)
+      const album = (await client.json('getAlbum', { id: `al-${flac.albumId}` })).album
+      expect(album.song.map((song: { id: string }) => song.id)).toEqual([mp3.id])
+    } finally {
+      await db.update(mediaFiles).set({ source: file!.source }).where(eq(mediaFiles.id, file!.id))
+    }
+  })
+
   it('transcodes to the best profile under maxBitRate, then serves the cached copy with Range', async () => {
     const live = await get('stream', { id: flac.id, maxBitRate: 256 })
     expect(live.statusCode).toBe(200)
