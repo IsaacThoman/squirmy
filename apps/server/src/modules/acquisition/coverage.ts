@@ -4,7 +4,7 @@
  * With no acquisition provider configured (the default) nothing is on demand and
  * requests are answered as failed.
  */
-import type { AcquisitionOrigin } from '@squirmy/contracts'
+import type { AcquisitionOrigin, EntryFailure } from '@squirmy/contracts'
 import { AppError } from '../../lib/errors.js'
 import { requestTrack } from './jobs.js'
 import { announceOutcome, stillWorking } from './outcomes.js'
@@ -37,8 +37,8 @@ export async function albumCoveredWithoutTracks(): Promise<boolean> {
  * Ask providers for a recording because a user is about to play it. Resolves at once;
  * the result arrives later as a `setEntryState` session command and an invalidation.
  * A request that cannot go ahead (the user may not fetch, nothing covers it, the user has
- * too many fetches running) is answered as failed straight away, unless another job is
- * already fetching it. The cache limit never refuses one: it evicts instead (evict.ts).
+ * too many fetches running) is answered as failed straight away, with its cause, unless
+ * another job is already fetching it. The cache limit never refuses one: it evicts instead (evict.ts).
  */
 export async function requestRecording(request: {
   userId: string
@@ -60,6 +60,18 @@ export async function requestRecording(request: {
       return
     }
     if ((await stillWorking([request.recordingId])).size > 0) return
-    await announceOutcome({ failed: [request.recordingId] })
+    await announceOutcome({ failed: [request.recordingId], cause: await refusalCause(error.code) })
   }
+}
+
+/**
+ * Why a request that could not go ahead failed, for the sessions: the track is not to be had
+ * (no provider can supply it, it is gone, or this user may not fetch), or fetching itself is
+ * down (no provider is enabled any more). Anything else, such as the job limit or a missing
+ * import root, is an `error` the server does not explain to the listener.
+ */
+async function refusalCause(code: string): Promise<EntryFailure> {
+  if (code === 'not_available') return (await activeProviders()).length === 0 ? 'outage' : 'unavailable'
+  if (code === 'track_not_found' || code === 'acquire_not_allowed') return 'unavailable'
+  return 'error'
 }

@@ -3,7 +3,7 @@ import { positionAt } from '@squirmy/client-core'
 import {
   COMMAND_TRACK_LIMIT, QUEUE_LIMIT,
   type ClientToServerEvents, type CommandAck, type QueueSeed, type ServerToClientEvents, type SessionCommand, type SessionHelloAck,
-  type SessionQueue, type SessionState,
+  type ServerEvent, type SessionQueue, type SessionState,
 } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -546,6 +546,7 @@ describe('sessions', () => {
     }
     const requests = () => vi.mocked(requestRecording).mock.calls.map(([request]) => [request.recordingId, request.origin])
     const queued = (peer: Peer) => peer.queues().at(-1)!.queue.queue.map((entry) => [entry.trackId, entry.state])
+    const stops = (peer: Peer) => (peer.events('event') as ServerEvent[]).filter((event) => event.type === 'playback.unavailable')
 
     it('keeps on-demand tracks out of the queue of a user who may not have tracks fetched', async () => {
       const remote = await remoteAlbum(1)
@@ -590,9 +591,9 @@ describe('sessions', () => {
       expect((await a.state(5)).current).toMatchObject({ trackId: second, state: 'ready' })
       await a.send({ type: 'trackEnded', entryId: (await a.state(5)).current!.id })
       expect(await a.state(6)).toMatchObject({ playing: true, current: { trackId: fourth, state: 'preparing' } })
-      // Nothing was said to the user at any point.
+      // Nothing was said to the user at any point, other than why the third failed.
       await new Promise((resolve) => setTimeout(resolve, 100))
-      expect(a.events('event')).toEqual([])
+      expect(a.events('event')).toEqual([{ type: 'playback.failed', trackId: third, failure: 'error' }])
     })
 
     it('waits on an entry whose fetch has no answer yet rather than moving past it', async () => {
@@ -622,7 +623,7 @@ describe('sessions', () => {
       await markRecordingFailed(ids[2]!)
       expect(await a.state(4)).toMatchObject({ playing: false, stalled: false, current: { trackId: ids[2], state: 'failed' } })
       expect(queued(a).map(([id]) => id)).toEqual(ids.slice(3))
-      await eventually(() => a.events('event'), (events) => expect(events).toEqual([{ type: 'playback.unavailable', trackId: ids[2], reason: null }]))
+      await eventually(() => stops(a), (events) => expect(events).toEqual([{ type: 'playback.unavailable', trackId: ids[2], kind: 'failures', reason: null }]))
 
       // Play moves on from the failed entry, and the count starts again.
       await a.send({ type: 'play' })
@@ -631,7 +632,7 @@ describe('sessions', () => {
       await markRecordingFailed(ids[4]!)
       expect(await a.state(7)).toMatchObject({ playing: true, current: { trackId: ids[5], state: 'preparing' } })
       await new Promise((resolve) => setTimeout(resolve, 100))
-      expect(a.events('event')).toHaveLength(1)
+      expect(stops(a)).toHaveLength(1)
     })
 
     it('counts failures in a row only: a track that became ready in between starts the count again', async () => {
@@ -649,7 +650,81 @@ describe('sessions', () => {
       await markRecordingFailed(ids[3]!)
       await markRecordingFailed(ids[4]!)
       expect(await a.state(7)).toMatchObject({ playing: true, current: { trackId: ids[5], state: 'preparing' } })
-      expect(a.events('event')).toEqual([])
+      expect(stops(a)).toEqual([])
+    })
+
+    it('skips tracks the provider does not have and plays on, however many in a row', async () => {
+      const remote = await remoteAlbum(6)
+      const ids = remote.ids
+      const a = await device('device-a-0036')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      for (const [index, id] of ids.slice(0, 4).entries()) {
+        await markRecordingFailed(id, { failure: 'unavailable' })
+        expect(await a.state(2 + index)).toMatchObject({ playing: true, current: { trackId: ids[index + 1], state: 'preparing' } })
+      }
+      // Each was said why, before the state that skipped it, and playback never stopped.
+      expect(a.events('event')).toEqual(ids.slice(0, 4).map((trackId) => ({ type: 'playback.failed', trackId, failure: 'unavailable' })))
+      await markRecordingReady(ids[4]!)
+      expect((await a.state(6)).current).toMatchObject({ trackId: ids[4], state: 'ready' })
+      expect(stops(a)).toEqual([])
+    })
+
+    it('stops once nothing after a track the provider does not have is playable, and says so once', async () => {
+      const remote = await remoteAlbum(4)
+      const ids = remote.ids
+      const a = await device('device-a-0037')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      // The ones fetched ahead fail first, quietly.
+      for (const id of ids.slice(1)) await markRecordingFailed(id, { failure: 'unavailable' })
+      expect(await a.state(4)).toMatchObject({ playing: true, current: { trackId: ids[0], state: 'preparing' } })
+      expect(stops(a)).toEqual([])
+      await markRecordingFailed(ids[0]!, { failure: 'unavailable' })
+      expect(await a.state(5)).toMatchObject({ playing: false, current: { trackId: ids[0], state: 'failed' } })
+      await eventually(() => stops(a), (events) => expect(events).toEqual([{ type: 'playback.unavailable', trackId: ids[0], kind: 'exhausted', reason: null }]))
+    })
+
+    it('says so once when songs not to be had are skipped one by one to the end of the queue', async () => {
+      const remote = await remoteAlbum(3)
+      const ids = remote.ids
+      const a = await device('device-a-0040')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      await markRecordingFailed(ids[0]!, { failure: 'unavailable' })
+      await markRecordingFailed(ids[1]!, { failure: 'unavailable' })
+      expect(await a.state(3)).toMatchObject({ playing: true, current: { trackId: ids[2], state: 'preparing' } })
+      expect(queued(a)).toEqual([])
+      await markRecordingFailed(ids[2]!, { failure: 'unavailable' })
+      expect(await a.state(4)).toMatchObject({ playing: false, current: { trackId: ids[2], state: 'failed' } })
+      await eventually(() => stops(a), (events) => expect(events).toEqual([{ type: 'playback.unavailable', trackId: ids[2], kind: 'exhausted', reason: null }]))
+    })
+
+    it('says nothing more than why when the last track of the queue is not available', async () => {
+      const remote = await remoteAlbum(1)
+      const a = await device('device-a-0038')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      await markRecordingFailed(remote.ids[0]!, { failure: 'unavailable' })
+      expect(await a.state(2)).toMatchObject({ playing: false, current: { trackId: remote.ids[0], state: 'failed' } })
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(a.events('event')).toEqual([{ type: 'playback.failed', trackId: remote.ids[0], failure: 'unavailable' }])
+    })
+
+    it('pauses on the first failure of an outage, with its reason, and fetches nothing more', async () => {
+      const remote = await remoteAlbum(4)
+      const ids = remote.ids
+      const a = await device('device-a-0039')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      await eventually(requests, (value) => expect(value).toHaveLength(4))
+      await markRecordingFailed(ids[0]!, { failure: 'outage', reason: 'Fetching is down.' })
+      expect(await a.state(2)).toMatchObject({ playing: false, current: { trackId: ids[0], state: 'failed' } })
+      expect(queued(a).map(([id]) => id)).toEqual(ids.slice(1))
+      expect(a.events('event')).toEqual([
+        { type: 'playback.failed', trackId: ids[0], failure: 'outage' },
+        { type: 'playback.unavailable', trackId: ids[0], kind: 'outage', reason: 'Fetching is down.' },
+      ])
     })
   })
 
