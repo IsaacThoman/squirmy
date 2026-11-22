@@ -250,8 +250,9 @@ function deviceKind(kind: DeviceInfo['kind']) {
 /** Shown while another device plays: where the sound is, and a way to bring it here. */
 export function PlayingElsewhere({ player, device, onPlayHere, className }: { player: Player; device: DeviceInfo; onPlayHere: () => void; className?: string }) {
   return (
-    <div className={cn('flex h-8 items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-primary', className)}>
-      <DeviceIcon kind={device.kind} className="size-3.5 shrink-0" />
+    // The words are in the text color: the action color on its own tint is under 4.5:1 in several light themes.
+    <div className={cn('flex h-8 items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-foreground', className)}>
+      <DeviceIcon kind={device.kind} className="size-3.5 shrink-0 text-primary" />
       <span className="truncate">{playingOnText(labelDevice(player.state, device))}</span>
       <button type="button" onClick={onPlayHere} className="ml-1.5 h-6 shrink-0 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
         Play here
@@ -270,8 +271,8 @@ export function OnlyOnThisDevice({ player, className }: { player: Player; classN
     <DevicesPopover
       player={player}
       trigger={(
-        <button type="button" className={cn('flex h-8 w-full items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', className)}>
-          <Unlink2 aria-hidden className="size-3.5 shrink-0" />
+        <button type="button" className={cn('flex h-8 w-full items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-foreground outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', className)}>
+          <Unlink2 aria-hidden className="size-3.5 shrink-0 text-primary" />
           Only on this device
         </button>
       )}

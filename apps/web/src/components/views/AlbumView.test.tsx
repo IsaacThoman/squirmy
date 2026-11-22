@@ -1,15 +1,18 @@
 import type { AlbumDetail } from '@squirmy/contracts'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
-import { album } from '@/fixtures/catalog'
+import { album, artistDetail, summary } from '@/fixtures/catalog'
 import { users } from '@/fixtures/server'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
+import { TRACK_LIST_WAIT_MS } from './AlbumView'
+import { AlbumPreview } from './Previews'
 
 const lowTide = album('low-tide')
 const blueHour = album('blue-hour')
+const slowMotion = album('slow-motion')
 /** A member who may not have the server fetch music. */
 const robin = users[2]!
 const machinery = /on demand|library yet|get this album|preparing|not on the server|in your library|fetch/i
@@ -126,6 +129,90 @@ describe('album page', () => {
       await act(() => queryClient.invalidateQueries({ queryKey: ['album', lowTide.id] }))
       await waitFor(() => expect(socket.session.current?.trackId).toBe(lowTide.discs[0].tracks[0].id))
     })
+  })
+
+  describe('without a track list', () => {
+    const bare: AlbumDetail = { ...lowTide, discs: [], trackCount: 0, ownedTrackCount: 0, durationMs: 0 }
+
+    it('says no songs are listed when the server is not looking for them, and cannot be played', async () => {
+      const { services, api } = fakeServices()
+      api.catalog.album.mockResolvedValue(bare)
+      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      expect(await screen.findByText('No songs listed')).toBeInTheDocument()
+      expect(screen.queryByRole('status', { name: 'Loading songs' })).toBeNull()
+      expect(screen.getAllByRole('button', { name: 'Play Low Tide' })[0]).toBeDisabled()
+      expect(screen.queryByText(/0 songs/)).toBeNull()
+    })
+
+    it('stops showing the list as loading after a minute, and can check again', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      try {
+        const { services, api } = fakeServices()
+        api.catalog.album.mockResolvedValue({ ...bare, detailPending: true })
+        renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+        expect(await screen.findByRole('status', { name: 'Loading songs' })).toBeInTheDocument()
+        await act(() => vi.advanceTimersByTimeAsync(TRACK_LIST_WAIT_MS))
+        expect(await screen.findByText('Still looking for the songs')).toBeInTheDocument()
+        expect(screen.queryByRole('status', { name: 'Loading songs' })).toBeNull()
+        api.catalog.album.mockResolvedValue(lowTide)
+        fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+        expect(await screen.findByRole('list', { name: 'Low Tide tracks' })).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  it('credits several artists as the credit reads, each a link', async () => {
+    const { services, api } = fakeServices()
+    const [mira, lune] = [blueHour.artists[0]!, slowMotion.artists[0]!]
+    api.catalog.album.mockResolvedValue({ ...blueHour, artistCredit: `${mira.name} feat. ${lune.name}`, artists: [mira, lune] })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Blue Hour' })
+    const byline = heading.nextElementSibling as HTMLElement
+    expect(byline.textContent).toBe(`${mira.name} feat. ${lune.name}`)
+    expect(within(byline).getByRole('link', { name: lune.name })).toHaveAttribute('href', `/artist/${lune.id}`)
+  })
+
+  it('offers no “Go to album” on its own songs', async () => {
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`)
+    const first = blueHour.discs[0].tracks[0]
+    await userEvent.click(await screen.findByRole('button', { name: `More options for ${first.title}` }))
+    const items = (await screen.findAllByRole('menuitem')).map(item => item.textContent)
+    expect(items).not.toContain('Go to album')
+    expect(items).toContain('Go to artist')
+  })
+
+  it('prints the release date as written, at the precision it has', async () => {
+    const { services, api } = fakeServices()
+    api.catalog.album.mockResolvedValueOnce({ ...blueHour, releaseDate: '1994-01-01' }).mockResolvedValueOnce({ ...slowMotion, releaseDate: '1984-09' })
+    const { unmount } = renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    expect(await screen.findByText('Jan 1, 1994')).toBeInTheDocument()
+    unmount()
+    renderWithApp(<AppRoutes />, `/album/${slowMotion.id}`, services)
+    expect(await screen.findByText('Sep 1984')).toBeInTheDocument()
+  })
+
+  it('ends with other versions of the album and more by its artist', async () => {
+    const { services, api } = fakeServices()
+    const mira = artistDetail(blueHour.artists[0]!.id)!
+    const deluxe = { ...summary(blueHour), id: '00000000-0000-4000-8200-0000000000ee', title: 'Blue Hour (Deluxe Edition)' }
+    api.catalog.artist.mockResolvedValue({ ...mira, albums: [deluxe, ...mira.albums] })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const versions = await screen.findByRole('region', { name: 'Other versions' })
+    expect(within(versions).getByRole('link', { name: 'Blue Hour (Deluxe Edition)' })).toHaveAttribute('href', `/album/${deluxe.id}`)
+    const more = screen.getByRole('region', { name: `More by ${mira.name}` })
+    const titles = within(more).getAllByRole('link').map(link => link.textContent).filter(title => title && title !== 'See all')
+    // Albums and EPs before live albums and singles; never the album itself or a version of it.
+    expect(titles).toEqual(['Paper Moons', 'Live at the Glasshouse', 'Low Tide'])
+    expect(within(more).getByRole('link', { name: 'See all' })).toHaveAttribute('href', `/artist/${mira.id}`)
+  })
+
+  it('shows no song count in the preview while it knows none', async () => {
+    renderWithApp(<AlbumPreview album={{ ...summary(blueHour), trackCount: 0 }} />)
+    expect(await screen.findByRole('status', { name: 'Loading Blue Hour' })).toBeInTheDocument()
+    expect(screen.queryByText(/0 songs/)).toBeNull()
+    expect(screen.getByText('2025')).toBeInTheDocument()
   })
 
   describe('for a member who may not fetch music', () => {
