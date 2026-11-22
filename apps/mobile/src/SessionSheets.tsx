@@ -12,7 +12,7 @@ import { unavailableReason } from './downloads/model';
 import { usePlaylists } from './data/queries';
 import { usePageLinks } from './library/links';
 import { matches } from './library/shared';
-import { useRunTrackAction, useTrackActions } from './library/trackActions';
+import { trackActionKey, useRunTrackAction, useTrackActions } from './library/trackActions';
 import { usePlaybackState } from './playback';
 import { useVolumeSlider } from './player/volume';
 import { SystemVolumeSlider } from '../modules/now-playing';
@@ -124,7 +124,7 @@ export function TrackActionSheet({ id, albumId, playlistId, itemId }: { id: stri
     <Sheet title="Track options">
       <TrackSummary track={track} subtitle={!playable ? `${track.artistCredit} · ${unavailableReason(track, offline, viewer)}` : undefined} />
       <SheetRows>
-        {actions.map(action => <SheetRow key={action.id} title={action.title} icon={action.icon} onPress={() => {
+        {actions.map(action => <SheetRow key={trackActionKey(action)} title={action.title} icon={action.icon} onPress={() => {
           void Haptics.selectionAsync();
           run(action);
         }} />)}

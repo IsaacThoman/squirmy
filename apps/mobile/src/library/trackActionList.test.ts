@@ -1,6 +1,6 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { trackActions, type TrackActionState } from './trackActionList';
+import { trackActionKey, trackActions, type TrackActionState } from './trackActionList';
 
 const track = (parts: Partial<TrackSummary> = {}): TrackSummary => ({
   id: 't', mbid: null, title: 'Song', artistCredit: 'Artist', artists: [{ id: 'ar', name: 'Artist' }], durationMs: 1,
@@ -58,6 +58,27 @@ describe('trackActions', () => {
     expect(ids(track(), state({ download: done, onItsOwn: true }))).toContain('removeDownload');
     expect(ids(track(), state({ download: done, onItsOwn: false }))).not.toContain('removeDownload');
     expect(ids(track(), state({ download: { state: 'failed', error: 'x' }, onItsOwn: true }))).toContain('retryDownload');
+  });
+
+  it('offers a page for each of the track\'s artists', () => {
+    const featured = track({ artistCredit: 'Lead feat. Guest', artists: [{ id: 'lead', name: 'Lead' }, { id: 'guest', name: 'Guest' }] });
+    const artists = trackActions(featured, state()).filter(action => action.id === 'artist');
+    expect(artists.map(action => [action.title, action.page])).toEqual([
+      ['Go to Lead', { page: 'artist', id: 'lead' }],
+      ['Go to Guest', { page: 'artist', id: 'guest' }],
+    ]);
+    expect(new Set(artists.map(trackActionKey)).size).toBe(2);
+    expect(trackActions(track(), state()).find(action => action.id === 'artist')?.title).toBe('Go to artist');
+  });
+
+  it('offers no library entry for a collection song or one of an album the user added', () => {
+    for (const library of ['collection', 'album'] as const) {
+      const actions = ids(track({ inLibrary: true, library }), state({ saved: true }));
+      expect(actions).not.toContain('unsave');
+      expect(actions).not.toContain('save');
+    }
+    expect(ids(track({ inLibrary: true, library: 'saved' }), state({ saved: true }))).toContain('unsave');
+    expect(ids(track({ inLibrary: false, library: null }), state({ saved: false }))).toContain('save');
   });
 
   it('links to the album and artist pages without fixing the tab', () => {

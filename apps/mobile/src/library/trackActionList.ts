@@ -1,3 +1,4 @@
+import { trackLibraryToggle } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
 import type { Href } from 'expo-router';
 import type { TrackDownload } from '../downloads/model';
@@ -41,15 +42,23 @@ export type TrackActionState = {
   saved?: boolean;
 };
 
+/** A key for an action in a list: a track has one "Go to" action per artist. */
+export function trackActionKey(action: Pick<TrackAction, 'id' | 'page'>): string {
+  return action.page ? `${action.id}:${action.page.id}` : action.id;
+}
+
 /**
  * What can be done with `track`, in menu order. Gray tracks can only be liked, wanted (when
- * the server has the wantlist on), removed from the library and opened. Offline, what needs the server is left out,
+ * the server has the wantlist on), removed from the library and opened. Add and Remove from
+ * library appear only where they change the library (see `trackLibraryToggle`). Offline, what needs the server is left out,
  * and likes wait for it. The result
  * only describes the actions; `useTrackActionRunner` carries one out when it is chosen.
  */
 export function trackActions(track: TrackSummary, state: TrackActionState, { playlist }: TrackActionOptions = {}): TrackAction[] {
   const { liked, playable, offline, current, download, onItsOwn, wantlist, saved } = state;
   const online = !offline;
+  // A collection song, or one of an album the user added, stays in the library whatever its own save says.
+  const library = trackLibraryToggle(track, saved);
   const downloadAction: TrackAction | false = download?.state === 'failed' && onItsOwn
     ? { id: 'retryDownload', title: 'Retry download', icon: 'arrow.clockwise' }
     : download && onItsOwn
@@ -65,8 +74,8 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     liked
       ? { id: 'unlike', title: 'Unlike', icon: 'heart.slash' }
       : { id: 'like', title: 'Like', icon: 'heart' },
-    playable && online && saved === false && { id: 'save', title: 'Add to library', icon: 'plus' },
-    online && saved === true && { id: 'unsave', title: 'Remove from library', icon: 'minus.circle' },
+    playable && online && library === false && { id: 'save', title: 'Add to library', icon: 'plus' },
+    online && library === true && { id: 'unsave', title: 'Remove from library', icon: 'minus.circle' },
     downloadAction,
     playable && online && { id: 'playlist', title: 'Add to playlist', icon: 'text.badge.plus', sheet: true,
       href: { pathname: '/add-to-playlist', params: { trackId: track.id, albumId: track.album?.id ?? '' } } },
@@ -74,7 +83,10 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     // Only what does not play for this user: for someone who may fetch music nothing is wanted.
     wantlist && !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star' },
     Boolean(track.album) && { id: 'album', title: 'Go to album', icon: 'square.stack', page: { page: 'album', id: track.album!.id } },
-    Boolean(track.artists[0]) && { id: 'artist', title: 'Go to artist', icon: 'music.mic', page: { page: 'artist', id: track.artists[0]!.id } },
+    // Each credited artist leads to its own page: on an artist's page a featured artist is often not the first.
+    ...track.artists.map((artist): TrackAction => ({
+      id: 'artist', title: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: 'music.mic', page: { page: 'artist', id: artist.id },
+    })),
     playlist !== undefined && online && { id: 'remove', title: 'Remove from playlist', icon: 'minus.circle', destructive: true },
   ];
   return items.filter((item): item is TrackAction => Boolean(item));
