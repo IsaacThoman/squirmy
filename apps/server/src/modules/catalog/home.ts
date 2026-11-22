@@ -16,7 +16,8 @@ const RECENT_PLAYS = 500
 /**
  * The Home screen. Section ids are stable; a section without content is left out.
  *
- * - `recently-added`: library albums with the newest files.
+ * - `recently-added`: the user's library albums, most recently added (a collection file
+ *   arrived or the user saved it) first. Music fetched for playing never enters it.
  * - `recently-played`: albums of the user's latest plays.
  * - `most-played`: the user's most played tracks over the last 90 days.
  * - `playlists`: the user's own playlists, recently updated first.
@@ -28,7 +29,7 @@ export async function home(userId: string): Promise<HomeResponse> {
   const { wantlistEnabled } = await getServerSettings()
   if (wantlistEnabled) await refreshWants(userId)
   const [recentlyAdded, recentlyPlayed, mostPlayed, playlists, liked, wanted, newReleases] = await Promise.all([
-    listLibraryAlbums({ sort: 'recent', limit: RAIL }),
+    listLibraryAlbums(userId, { sort: 'recent', limit: RAIL }),
     db.execute<{ id: string }>(sql`
       select recent.album_id as id from (
         select album_id, started_at from plays where user_id = ${userId} order by started_at desc limit ${RECENT_PLAYS}

@@ -471,6 +471,12 @@ export const mediaFiles = pgTable('media_files', {
   matchSource: text('match_source').$type<MatchSource>(),
   /** scan | upload | inbox | provider:<provider id> */
   source: text('source').notNull().default('scan'),
+  /**
+   * A provider delivered the file, so it is cache rather than collection: it never makes
+   * anything part of a user's library by itself (docs/architecture.md, "Availability").
+   * Generated, so it cannot drift from `source`.
+   */
+  cached: boolean('cached').notNull().generatedAlwaysAs(sql`source like 'provider:%'`),
   importId: uuid('import_id'),
   /** 0 discovered, 1 tags read (playable), 2 audio hash and loudness done. */
   probeStage: smallint('probe_stage').notNull().default(0),
@@ -499,6 +505,10 @@ export const mediaFiles = pgTable('media_files', {
   index('media_files_present_recent').on(t.addedAt, t.id).where(sql`${t.missingSince} is null`),
   index('media_files_present_album').on(t.albumId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
   index('media_files_present_recording').on(t.recordingId, t.addedAt, t.id).where(sql`${t.missingSince} is null`),
+  // Present collection files only: library membership and its "recently added" walks.
+  index('media_files_collection_recent').on(t.addedAt, t.id).where(sql`${t.missingSince} is null and not ${t.cached}`),
+  index('media_files_collection_album').on(t.albumId, t.addedAt, t.id).where(sql`${t.missingSince} is null and not ${t.cached}`),
+  index('media_files_collection_recording').on(t.recordingId, t.addedAt, t.id).where(sql`${t.missingSince} is null and not ${t.cached}`),
   index('media_files_import').on(t.importId),
 ])
 
@@ -634,6 +644,23 @@ export const likes = pgTable('likes', {
 }, (t) => [
   primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
   index('likes_user_recent').on(t.userId, t.entityType, t.createdAt),
+])
+
+/**
+ * What a user added to their library, beyond the server's collection (files that were not
+ * delivered by a provider), which every user has. A save needs no file: the album shows in
+ * the library at once and its files arrive later. Not deleted with the files.
+ */
+export const libraryItems = pgTable('library_items', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  entityType: text('entity_type').$type<'album' | 'recording'>().notNull(),
+  entityId: uuid('entity_id').notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
+  index('library_items_user_recent').on(t.userId, t.entityType, t.createdAt.desc(), t.entityId.desc()),
+  // Who keeps an entity, whatever the user: merges and cache pinning look rows up this way.
+  index('library_items_entity').on(t.entityType, t.entityId),
 ])
 
 /** 1..5 stars. Exists for Subsonic clients. */

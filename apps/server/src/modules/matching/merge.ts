@@ -4,7 +4,7 @@
  *
  * A merge re-points everything that refers to the losing row and leaves the row in place
  * with `merged_into_id` set, so old ids (in clients' caches, playback sessions, links)
- * still resolve. Collisions on unique keys keep the older like, rating or want. Each merge
+ * still resolve. Collisions on unique keys keep the older like, rating, want or library save. Each merge
  * runs in one transaction (a savepoint when given one) and running it again changes
  * nothing.
  */
@@ -38,9 +38,9 @@ export async function resolveMerged(tx: Executor, table: Mergeable, id: string):
  * Where the user has both, the older row wins: its values are copied onto the surviving
  * row, and the loser's row is deleted.
  */
-async function moveUserRows(tx: Transaction, table: 'likes' | 'ratings' | 'wants', type: EntityType, from: string, into: string) {
+async function moveUserRows(tx: Transaction, table: 'likes' | 'ratings' | 'wants' | 'library_items', type: EntityType, from: string, into: string) {
   const age = table === 'ratings' ? sql.raw('updated_at') : sql.raw('created_at')
-  const copy: SQL = table === 'likes'
+  const copy: SQL = table === 'likes' || table === 'library_items'
     ? sql`created_at = f.created_at`
     : table === 'ratings'
       ? sql`rating = f.rating, updated_at = f.updated_at`
@@ -82,7 +82,7 @@ async function redirect(tx: Transaction, table: Mergeable, from: string, into: s
 
 /**
  * Merges recording `fromId` into `intoId`: files, release tracks, external ids, lyrics
- * (the winner's are kept), likes, ratings, playlist items, plays and wants. The winner
+ * (the winner's are kept), likes, ratings, library saves, playlist items, plays and wants. The winner
  * keeps its own artist credits; the loser's move only when the winner has none.
  */
 export async function mergeRecording(fromId: string, intoId: string, executor: Executor = db): Promise<void> {
@@ -101,7 +101,7 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
       update ${recordingArtists} set recording_id = ${into} where recording_id = ${fromId}
         and not exists (select 1 from ${recordingArtists} r where r.recording_id = ${into})`)
     await moveExternalIds(tx, 'recording', fromId, into)
-    for (const table of ['likes', 'ratings', 'wants'] as const) await moveUserRows(tx, table, 'recording', fromId, into)
+    for (const table of ['likes', 'ratings', 'wants', 'library_items'] as const) await moveUserRows(tx, table, 'recording', fromId, into)
     // ISRCs are facts about the sound, so the winner learns the loser's.
     await tx.execute(sql`
       update ${recordings} r set isrcs = array(select distinct unnest(r.isrcs || f.isrcs))
@@ -112,7 +112,7 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
 
 /**
  * Merges album `fromId` into `intoId`: files, editions (releases), external ids, likes,
- * ratings, wants, playlist items and plays. The winner keeps its own credits, and takes
+ * ratings, wants, library saves, playlist items and plays. The winner keeps its own credits, and takes
  * the loser's artwork and canonical release only when it has none.
  */
 export async function mergeAlbum(fromId: string, intoId: string, executor: Executor = db): Promise<void> {
@@ -127,7 +127,7 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
       update ${albumArtists} set album_id = ${into} where album_id = ${fromId}
         and not exists (select 1 from ${albumArtists} a where a.album_id = ${into})`)
     await moveExternalIds(tx, 'album', fromId, into)
-    for (const table of ['likes', 'ratings', 'wants'] as const) await moveUserRows(tx, table, 'album', fromId, into)
+    for (const table of ['likes', 'ratings', 'wants', 'library_items'] as const) await moveUserRows(tx, table, 'album', fromId, into)
     await tx.execute(sql`
       update ${albums} a set
         artwork_asset_id = coalesce(a.artwork_asset_id, f.artwork_asset_id),

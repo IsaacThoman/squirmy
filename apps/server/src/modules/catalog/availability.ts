@@ -9,6 +9,11 @@
  *   not list. All is `full`, some is `partial`. With none owned it is `on_demand` when
  *   every track is, else `none`. An album with a present, linked file is therefore never
  *   `none`, which is what keeps a library album from showing gray.
+ *
+ * Library membership is separate from availability and lives here too (`inLibraryAlbum`,
+ * `inLibraryRecording`): a user's library is the server's collection (present files no
+ * provider delivered) plus what that user saved in `library_items`. A file fetched for
+ * playing is cache, so it makes a track `server` without putting anything in a library.
  */
 import type { AlbumAvailability, TrackAvailability } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
@@ -19,6 +24,40 @@ import { uuidArray } from './sql.js'
 /** SQL condition: a present file links to the recording id expression. */
 export function recordingOwned(recordingId: string): SQL {
   return sql.raw(`exists (select 1 from media_files owned_file where owned_file.recording_id = ${recordingId} and owned_file.missing_since is null)`)
+}
+
+/** SQL condition: the file (alias) is part of the collection: present and not delivered by a provider. */
+export function collectionFile(alias: string): SQL {
+  return sql.raw(`(${alias}.missing_since is null and not ${alias}.cached)`)
+}
+
+/** SQL condition: the user saved the entity (expression) to their library. */
+function saved(type: 'album' | 'recording', entity: string, userId: string): SQL {
+  return sql`exists (select 1 from library_items saved where saved.user_id = ${userId} and saved.entity_type = ${type} and saved.entity_id = ${sql.raw(entity)})`
+}
+
+/**
+ * SQL condition: the album id expression is in the user's library, because a collection
+ * file is linked to it or the user saved it. Without a user, collection only.
+ */
+export function inLibraryAlbum(album: string, userId: string | null): SQL {
+  const owned = sql`exists (select 1 from media_files collected where collected.album_id = ${sql.raw(album)} and ${collectionFile('collected')})`
+  return userId ? sql`(${owned} or ${saved('album', album, userId)})` : owned
+}
+
+/**
+ * SQL condition: the recording id expression is in the user's library: a collection file
+ * links it, the user saved it, or a present file of it belongs to an album the user saved.
+ * Without a user, collection only.
+ */
+export function inLibraryRecording(recording: string, userId: string | null): SQL {
+  const owned = sql`exists (select 1 from media_files collected where collected.recording_id = ${sql.raw(recording)} and ${collectionFile('collected')})`
+  if (!userId) return owned
+  const viaAlbum = sql`exists (
+    select 1 from media_files present join library_items album_saved
+      on album_saved.user_id = ${userId} and album_saved.entity_type = 'album' and album_saved.entity_id = present.album_id
+    where present.recording_id = ${sql.raw(recording)} and present.missing_since is null)`
+  return sql`(${owned} or ${saved('recording', recording, userId)} or ${viaAlbum})`
 }
 
 /**
