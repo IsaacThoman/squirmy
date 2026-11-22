@@ -46,7 +46,7 @@ apps/server/src/
   index.ts              entry: migrate, then start API and/or worker by SQUIRMY_ROLE
   app.ts                buildApp(): Fastify instance, plugins, auth hook, module routes
   config.ts             zod-parsed environment
-  database/             client.ts (lazy db), schema.ts, migrate.ts
+  database/             client.ts (lazy db), locks.ts (session locks), schema.ts, migrate.ts
   lib/                  auth, errors, ids, text, crypto, settings, version, ffmpeg, http
   jobs/                 pg-boss wrapper: jobs.define, enqueue, schedule
   realtime/             socket.io server, rooms, publish/invalidate
@@ -59,6 +59,7 @@ apps/server/src/
 - **Compression and revalidation.** `@fastify/compress` sends brotli (quality 4) or gzip for JSON, XML, JavaScript, CSS, SVG and text of 1 KiB or more; audio, images and ranged responses go as they are. `lib/conditional.ts` gives every successful JSON GET under `/api/v1` a weak `ETag` (a hash of the body) and `Cache-Control: private, no-cache`, unless the route set its own, and answers a matching `If-None-Match` (compared weakly) with an empty 304.
 - **Web app.** When `SQUIRMY_WEB_DIST` is set the built app is served, with `index.html` as the fallback for unknown GET paths outside `/api`, `/rest`, `/socket.io`, `/health` and `/ready`. Hashed files under `assets/` are cached as immutable.
 - `GET /health` answers without touching anything; `GET /ready` checks the database.
+- **Database connections.** Each process has a query pool of `SQUIRMY_DB_POOL_SIZE` connections (10; 4 under test, so tests catch work that assumes more), pg-boss's own pool of 6 (3 under test), and one connection for session locks. Nothing keeps a pooled connection while it waits for other work that needs one: a transaction runs only its own statements (no network call, file copy, job or query on `db` inside it), and a lock that outlives a statement (an import run, an organize batch in a root, the inbox watcher) is taken with `withSessionLock` or `trySessionLock` from `database/locks.ts`, on the lock connection. Holders used to reserve a pooled connection each, and an import keeps its lock while identification waits for probe, ingest and matching jobs, so four imports took a 4-connection pool and waited forever for connections they held themselves. A second take of a key this process holds fails at once, as it would in another process. Work that keeps a connection for hours (the search index import's COPY) opens a client of its own. Transaction-scoped advisory locks are taken in one order: `squirmy:library-catalog` before `squirmy:matching:apply` or `squirmy:search-stubs`.
 
 ### Modules
 
