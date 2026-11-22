@@ -11,3 +11,13 @@ export function metadataHeight(fontScale: number) {
   const artist = 3 + 20 * Math.min(fontScale, secondaryFontScale);
   return Math.ceil(title + artist);
 }
+
+/**
+ * The height of the line under Now Playing's grabber that says what is playing from
+ * ("Playing from album · Dummy"), as on web: an 11 pt heading over a 13 pt title, growing up
+ * to the secondary cap. Its room is kept when there is nothing to say, so the artwork does
+ * not move from one song to the next.
+ */
+export function contextHeight(fontScale: number) {
+  return Math.max(34, Math.ceil(31 * Math.min(fontScale, secondaryFontScale)));
+}

@@ -34,20 +34,13 @@ import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
-import { metadataHeight as metadataHeightFor } from './player/layout';
+import { contextHeight as contextHeightFor, metadataHeight as metadataHeightFor } from './player/layout';
 import { displayFontScale, secondaryFontScale } from './fontScale';
 import { createThemedStyles, useColors } from './theme';
 
 const artworkRadius = 21;
 const artworkGap = 14;
 const grabberHeight = 32;
-/**
- * The line under the grabber that says what is playing from ("Playing from album · Dummy"),
- * as on web. Its room is kept when there is nothing to say, so the artwork does not move
- * from one song to the next.
- */
-const contextHeight = 34;
-const headerHeight = grabberHeight + contextHeight;
 const compactArtworkSize = 54;
 const compactArtworkRadius = 11;
 const artworkInset = 24;
@@ -96,6 +89,8 @@ export default function Player() {
   const [availableHeight, setAvailableHeight] = useState(0);
   const { width, height, fontScale } = useWindowDimensions();
   const metadataHeight = metadataHeightFor(fontScale);
+  const contextHeight = contextHeightFor(fontScale);
+  const headerHeight = grabberHeight + contextHeight;
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
@@ -312,10 +307,10 @@ export default function Player() {
           </Animated.View>
           <Animated.View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }, contentStyle]}>
             <GestureDetector gesture={grabberDismiss}>
-              <Animated.View style={[styles.grabberTouch, grabberStyle]}>
+              <Animated.View style={[styles.grabberTouch, { height: headerHeight }, grabberStyle]}>
                 {/* 44 pt tall, it reaches over the top of the context line, which lets touches through to it. */}
                 <View style={styles.collapse} pointerEvents="box-none"><CollapseButton onPress={close} /></View>
-                <View style={styles.context} pointerEvents="none" accessible={Boolean(context)}
+                <View style={[styles.context, { height: contextHeight }]} pointerEvents="none" accessible={Boolean(context)}
                   accessibilityLabel={context ? `${context.heading}, ${context.title}` : undefined}>
                   {context && <>
                     <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={styles.contextHeading}>{context.heading}</Text>
@@ -613,9 +608,9 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
-  grabberTouch: { height: headerHeight, alignItems: 'center', paddingTop: grabberHeight },
+  grabberTouch: { alignItems: 'center', paddingTop: grabberHeight },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
-  context: { height: contextHeight, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: artworkInset },
+  context: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: artworkInset },
   contextHeading: { color: colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
   contextTitle: { color: colors.text, fontSize: 13, fontWeight: '600', marginTop: 1 },
   deckFrame: { flex: 1 },
