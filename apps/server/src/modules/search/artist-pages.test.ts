@@ -13,7 +13,9 @@ async function artistWithAlbum(name: string, deezerId: string, albumTitle: strin
   await db.insert(artists).values({ id, name, sortName: name, nameKey: matchKey(name), mbid, detailLevel: 2 })
   await db.insert(externalIds).values({ provider: 'deezer', entityType: 'artist', externalId: deezerId, entityId: id })
   const albumId = newId()
-  await db.insert(albums).values({ id: albumId, title: albumTitle, artistCredit: name, primaryArtistId: id, titleKey: matchKey(albumTitle), matchKey: creditKey(name, albumTitle) })
+  await db.insert(albums).values({
+    id: albumId, mbid: mbid ? crypto.randomUUID() : null, title: albumTitle, artistCredit: name, primaryArtistId: id, titleKey: matchKey(albumTitle), matchKey: creditKey(name, albumTitle),
+  })
   await db.insert(albumArtists).values({ albumId, position: 0, artistId: id, creditedName: name })
   return id
 }

@@ -173,11 +173,15 @@ type ArtistInput = { id: string | null; mbid: string | null; name: string; image
  */
 async function sameArtistRow(tx: Transaction, candidates: readonly { id: string; mbid: string | null }[], titles: ArtistTitles | undefined, nameKey: string): Promise<string | undefined> {
   if (!titles || candidates.length === 0 || (titles.albums.size === 0 && titles.tracks.size === 0)) return undefined
+  // A row with an MBID is compared by what MusicBrainz credits it with: its other credits
+  // may be a namesake's that search credited by name (artist-copies.ts).
   const rows = await tx.execute<{ artistId: string; kind: string; title: string }>(sql`
     select aa.artist_id as "artistId", 'album' as kind, al.title from album_artists aa join albums al on al.id = aa.album_id
-    where aa.artist_id = any(${uuidArray(candidates.map((row) => row.id))})
+    join artists ar on ar.id = aa.artist_id
+    where aa.artist_id = any(${uuidArray(candidates.map((row) => row.id))}) and (ar.mbid is null or al.mbid is not null)
     union select ra.artist_id, 'track', r.title from recording_artists ra join recordings r on r.id = ra.recording_id
-    where ra.artist_id = any(${uuidArray(candidates.map((row) => row.id))})`)
+    join artists ar on ar.id = ra.artist_id
+    where ra.artist_id = any(${uuidArray(candidates.map((row) => row.id))}) and (ar.mbid is null or r.mbid is not null)`)
   const fitting = candidates.filter((candidate) => {
     const known: ArtistTitles = { albums: new Set(), tracks: new Set() }
     for (const row of rows) {

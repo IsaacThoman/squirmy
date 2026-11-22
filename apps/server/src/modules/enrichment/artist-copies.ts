@@ -9,8 +9,9 @@
  * A Deezer-only row is the same artist as another row of its name when:
  * 1. MusicBrainz links its Deezer page to that row's MBID (the strongest sign; a page
  *    MusicBrainz links to another artist is a namesake), or
- * 2. the two share a release (`releaseKey`) or two songs (`editionFreeKey`), counting the
- *    rows' catalog credits and what each row's Deezer pages list (albums, popular tracks).
+ * 2. the two share a release (`releaseKey`) or two songs (`editionFreeKey`): for a row with
+ *    an MBID, of what MusicBrainz credits it with; for a Deezer-only row, of its credits
+ *    and what its Deezer pages list (albums, popular tracks).
  * When several rows qualify, the one with an MBID wins if it is the only one; otherwise
  * nothing is merged. A row whose page lists nothing (an empty page) is left alone.
  */
@@ -43,17 +44,24 @@ async function deezerPage(deezerId: string): Promise<ArtistTitles> {
   return titles
 }
 
-/** What a row is known by: its catalog credits and what its Deezer pages list. */
-async function rowTitles(artistId: string, deezerIds: readonly string[]): Promise<ArtistTitles> {
+/**
+ * What a row is known by. A row with an MBID: what MusicBrainz credits it with (albums and
+ * recordings with an MBID), nothing else. Its other credits and Deezer pages may have come
+ * from earlier merges or from search crediting a namesake by name, and counting them let
+ * one wrong merge pull in the next (three other "Genesis" pages into the band). A row
+ * without one: its credits and what its Deezer pages list.
+ */
+async function rowTitles(artistId: string, deezerIds: readonly string[], fromMusicBrainz: boolean): Promise<ArtistTitles> {
   const titles = empty()
+  const sourced = sql.raw(fromMusicBrainz ? 'and x.mbid is not null' : '')
   const rows = await db.execute<{ kind: string; title: string }>(sql`
-    select 'album' as kind, al.title from album_artists aa join albums al on al.id = aa.album_id where aa.artist_id = ${artistId}
-    union select 'track', r.title from recording_artists ra join recordings r on r.id = ra.recording_id where ra.artist_id = ${artistId}`)
+    select 'album' as kind, x.title from album_artists aa join albums x on x.id = aa.album_id where aa.artist_id = ${artistId} ${sourced}
+    union select 'track', x.title from recording_artists ra join recordings x on x.id = ra.recording_id where ra.artist_id = ${artistId} ${sourced}`)
   for (const row of rows) {
     if (row.kind === 'album') titles.albums.add(releaseKey(row.title))
     else titles.tracks.add(editionFreeKey(row.title))
   }
-  for (const id of deezerIds) add(titles, await deezerPage(id))
+  if (!fromMusicBrainz) for (const id of deezerIds) add(titles, await deezerPage(id))
   titles.albums.delete('')
   titles.tracks.delete('')
   return titles
@@ -93,10 +101,10 @@ export async function copyOf(artistId: string): Promise<string | null> {
     // Beach House beside another "Beach House" MusicBrainz knows), whatever titles say.
     if (linked.size > 0) return null
   }
-  const mine = await rowTitles(self.id, self.deezerIds)
+  const mine = await rowTitles(self.id, self.deezerIds, false)
   if (mine.albums.size === 0 && mine.tracks.size === 0) return null
   const fitting: Row[] = []
-  for (const other of others) if (sameArtist(mine, await rowTitles(other.id, other.deezerIds), self.nameKey)) fitting.push(other)
+  for (const other of others) if (sameArtist(mine, await rowTitles(other.id, other.deezerIds, Boolean(other.mbid)), self.nameKey)) fitting.push(other)
   if (fitting.length === 1) return fitting[0]!.id
   const withMbid = fitting.filter((row) => row.mbid)
   return withMbid.length === 1 ? withMbid[0]!.id : null

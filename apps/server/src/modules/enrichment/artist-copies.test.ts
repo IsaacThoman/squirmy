@@ -16,7 +16,10 @@ async function artist(name: string, deezerId: string, input: { mbid?: string; di
   await db.insert(externalIds).values({ provider: 'deezer', entityType: 'artist', externalId: deezerId, entityId: id })
   for (const title of input.albums ?? []) {
     const albumId = newId()
-    await db.insert(albums).values({ id: albumId, title, artistCredit: name, primaryArtistId: id, titleKey: matchKey(title), matchKey: creditKey(name, title) })
+    // A MusicBrainz artist's albums are its release groups.
+    await db.insert(albums).values({
+      id: albumId, mbid: input.mbid ? crypto.randomUUID() : null, title, artistCredit: name, primaryArtistId: id, titleKey: matchKey(title), matchKey: creditKey(name, title),
+    })
     await db.insert(albumArtists).values({ albumId, position: 0, artistId: id, creditedName: name })
   }
   return id
@@ -44,6 +47,17 @@ describe('second Deezer pages of one artist', () => {
     const ids = await db.select({ id: externalIds.externalId }).from(externalIds).where(eq(externalIds.entityId, grimes))
     expect(ids.map((one) => one.id).sort()).toEqual(['285342121', '807493'])
     expect(await db.select({ entityId: likes.entityId }).from(likes).where(eq(likes.userId, user.id))).toEqual([{ entityId: grimes }])
+  })
+
+  it('compares a MusicBrainz artist by what MusicBrainz credits it with, not by what search credited it with', async () => {
+    // Deezer's lo-fi "Genesis" (12515862): search had credited one of its albums to the band
+    // by name, which must not make it the band.
+    const band = await artist('Genesis', '3037', { mbid: '8e3fcd7d-bda1-4ca0-b987-b8528d2ee74e', albums: ['Selling England by the Pound'] })
+    const misCredited = newId()
+    await db.insert(albums).values({ id: misCredited, title: 'Soft Glow', artistCredit: 'Genesis', primaryArtistId: band, titleKey: matchKey('Soft Glow'), matchKey: creditKey('Genesis', 'Soft Glow') })
+    await db.insert(albumArtists).values({ albumId: misCredited, position: 0, artistId: band, creditedName: 'Genesis' })
+    const lofi = await artist('Genesis', '12515862', { albums: ['Soft Glow'] })
+    expect(await foldArtistCopy(lofi)).toBeNull()
   })
 
   it('keeps namesakes apart, and runs again without changing anything', async () => {
