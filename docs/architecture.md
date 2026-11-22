@@ -90,7 +90,7 @@ export type ServerModule = {
 | `catalog` | read side: library lists, artist/album/track pages, track summaries, home, availability | 2 |
 | `streaming` | playback descriptor, signed URLs, `GET /stream`, transcode cache | 2 |
 | `loudness` | EBU R128 measurement, album loudness, normalization values | 2 |
-| `userdata` | likes, ratings, playlists, history, wants, user settings | 2 |
+| `userdata` | likes, ratings, playlists, history, wants, library saves, user settings | 2 |
 | `sessions` | playback sessions over socket.io, devices, play recording | 2–3 |
 | `metadata` | clients for MusicBrainz, Cover Art Archive, Deezer, Wikidata, LRCLIB, ListenBrainz, AcoustID, fanart.tv, Last.fm | 4 |
 | `matching` | album matcher, scoring, AcoustID fingerprinting, review queue, fix match, merges | 4 |
@@ -196,14 +196,15 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `GET/POST /admin/users`, `PATCH/DELETE /admin/users/:id`; `GET/POST /admin/invites`, `DELETE /admin/invites/:id` | admin | the last active admin cannot be demoted, disabled or deleted |
 | `GET/PATCH /admin/settings`, `GET /admin/jobs`, `GET /admin/fs` | admin | `fs` lists the non-hidden directories (and symlinks to directories) of an absolute `path`, which is resolved through symlinks; the server's home directory by default |
 | `GET/POST /admin/library/roots`, `PATCH/DELETE /admin/library/roots/:id`, `POST /admin/library/roots/:id/scan`, `GET /admin/library/stats` | library | a folder that is already a root is 409 `duplicate_root` with `details.rootId`; `template` is checked with organize's `validateTemplate`; a bad one is `invalid_request` with an issue on `template` |
-| `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | owned music only; `sort`, `genre` (artists have one order and no genre filter); tracks by `year` follow their album's year, then path order within it |
-| `GET /home` | catalog | `HomeResponse`; no `wantlist` section, and no refresh of wants, while the wantlist is off |
+| `GET /library/albums`, `/library/artists`, `/library/tracks`, `/library/genres` | catalog | the user's library: the collection plus their saves (see [Availability](#availability)); `sort`, `genre` (artists have one order and no genre filter); tracks by `year` follow their album's year, then path order within it |
+| `GET /home` | catalog | `HomeResponse`; `recently-added` is the user's library; no `wantlist` section, and no refresh of wants, while the wantlist is off |
 | `GET /artists/:id`, `/albums/:id`, `/tracks/:id`, `/tracks/:id/lyrics` | catalog | fetches missing detail on demand; `/tracks/:id` takes `albumId` |
 | `POST /tracks/summaries` | catalog | hydrate queue entries |
 | `GET /tracks/:id/playback` | streaming | `PlaybackDescriptor` |
 | `GET /stream/:fileId`, `/stream/:fileId/:profile` | streaming | signed URL or session; Range |
 | `GET /art/:assetId/:size` | artwork | no auth; immutable cache headers; `:size` may end in `.webp` |
 | `PUT/DELETE /me/likes/:type/:id`, `GET /me/likes/:type` | userdata | |
+| `PUT/DELETE /me/library/:type/:id` | userdata | `album` or `track`; idempotent, follows merges, 404 for an unknown id; a requester's save also asks for the missing files |
 | `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/:id`, `POST /playlists/:id/items`, `POST /playlists/:id/items/move`, `DELETE /playlists/:id/items/:itemId` | userdata | |
 | `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | while `wantlistEnabled` is off, `GET /me/wants` is empty, `PUT`/`DELETE` are 404 `wantlist_disabled`, album pages say `wanted: false` and imports skip refreshing wants; stored wants are kept |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
@@ -222,18 +223,34 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 
 ### Availability
 
-One function decides it, in `modules/catalog/availability.ts`, and every list and page uses it:
+Two separate questions, both answered in `modules/catalog/availability.ts`: can this be played (availability), and is it in this user's library (membership). A file existing answers the first and, on its own, never the second.
 
-- Track: `server` if a present (not missing) `media_files` row has its `recording_id`. Otherwise `on_demand` if an enabled acquisition provider covers it (coverage `assume_available`, or a cached positive resolve) and it is not in `acquisition_misses`. Otherwise `none`.
+**Availability**, which every list and page uses:
+
+- Track: `server` if a present (not missing) `media_files` row has its `recording_id`, whatever its source. Otherwise `on_demand` if an enabled acquisition provider covers it (coverage `assume_available`, or a cached positive resolve) and it is not in `acquisition_misses`. Otherwise `none`.
 - Album: counts owned tracks on its track list (`albumTrackList`, below): the canonical release (else the album's release with the most tracks), plus owned recordings filed under the album that the release does not list. All owned is `full`, some is `partial`; none owned is `on_demand` when its tracks would be, else `none`. `trackCount` and `ownedTrackCount` count the same list, so an album with a present, linked file is never `none`.
+- Clients present it by viewer with `isPlayable` and `albumPresentation` from client-core: for a *requester* (an admin, or a member with `canAcquire`) `on_demand` looks and plays like `server`; for anyone else it is unavailable. Requesters see no badge or count telling the two apart.
+
+**Membership.** A user's library is the server's *collection* plus what that user *saved*:
+
+- **Collection**: a present file whose `source` is not `provider:*` (scanned, uploaded, from the inbox). Shared: it is in every user's library, and only an admin takes it out, by deleting files. `collectionFile(alias)` is the condition.
+- **Cache**: a file a provider delivered. `media_files.cached` is generated from `source like 'provider:%'`, so it cannot drift. Cache makes a track `server` and puts nothing in any library: a song sampled by pressing play stays out of Albums, Songs, Artists and Recently added.
+- **Saved**: a row in `library_items (user_id, entity_type 'album' | 'recording', entity_id, created_at)`, written by `PUT /me/library/:type/:id` and deleted by `DELETE` (owner: userdata). A save needs no file, so a saved album is in the library at once. Removing deletes the row only: files stay as cache; likes, playlists and history stay. For a requester a save also asks acquisition for what is missing, as the `userdata.fetch-saved` job, best effort: the save never waits for it or fails on it. Liking does not save, and saving does not like.
+- **Album** in a user's library: a collection file is linked to it (`media_files.album_id`), or the user saved it (`inLibraryAlbum`).
+- **Track**: a collection file links its recording, or the user saved the recording, or a present file (cache included) links it and that file's album is saved by the user (`inLibraryRecording`). Songs of a saved album therefore appear as their files arrive.
+- **Artist**: credited (`album_artists`) on an album in the user's library. Being featured on a track, or credited on cached music, does not count.
+- Merges move saves as they move likes (the older row wins a collision), and the library's orphan cleanup and `search.cleanup` keep saved rows.
+- The migration that introduced this turned completed album fetches with a requester into saves (with a track-only provider, seven or more track fetches of one album by one requester within a second, more than playing ever starts at once); other single-track fetches came from pressing play and were not carried over. On a server whose files all came from a provider, every library starts empty.
 
 ### Catalog read side
 
-- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. They leave out artwork the art route would answer 404 for: a `missing` asset, or a `failed` download inside the hour before it is tried again. Other modules (search, sessions, userdata) use these rather than writing their own. Subsonic builds its own, because its objects describe files (size, codec, path), but takes availability and redirects from the catalog.
+- `catalog/summaries.ts` builds every `TrackSummary`, `AlbumSummary` and `ArtistSummary`, in batches with a fixed number of queries. They leave out artwork the art route would answer 404 for: a `missing` asset, or a `failed` download inside the hour before it is tried again. Other modules (search, sessions, userdata) use these rather than writing their own. Subsonic builds its own, because its objects describe files (size, codec, path), but takes availability and redirects from the catalog. Summaries are per viewer: `TrackSummary.inLibrary` and `ArtistSummary.inLibrary` follow the viewer's membership (`artistSummaries` without a user answers for the collection alone); `AlbumSummary` carries none, and `AlbumDetail.library` is `collection` (which wins when the album is also saved), `saved` or null.
 - Ids that come from clients follow `merged_into_id` redirects (`catalog/redirects.ts`, one primary-key lookup per hop, at most 16); the summary builders do it themselves, so stored queue and playlist ids keep working after a merge. `POST /tracks/summaries` answers a merged id with the row it was merged into and lists, in `requestedIds`, the id each summary was asked for, so `TrackStore` files it under the id the queue holds.
 - **Cached reads** (`lib/read-cache.ts`). `GET /home`, `/library/*`, `/albums/:id`, `/artists/:id`, `/playlists` and `/playlists/:id` keep their serialized answer and its ETag in the API process, per user and URL, within `SQUIRMY_READ_CACHE_MB` (default 64, least recently used out first; off under test unless set). Each route names the `queryKeys` roots it depends on; an `invalidate` for one of them drops that user's entries (a user target) or everyone's (`all`, `admins`), a root the cache does not know drops everything, and `admin`, `settings`, `scrobbling`, `me` and `lyrics` drop nothing. A read that overlaps a drop is not stored. Entries expire after five minutes, which bounds what nothing announces; catalog searches (stubs credit artists and fill covers) and provider changes drop everything explicitly. Writes made in the background go through `invalidate` like any other, so a worker's reach the API process: an unassigned cover, album stubs a discography adopts (`upsertDiscography` names them, whichever job wrote it), an album hydration (announced even when a later step fails) and `search.cleanup` (each kind it deleted from, by root). Home is computed again two seconds after a drop when it was read in the last 15 minutes.
 - Lists use keyset cursors (`catalog/pagination.ts`): opaque, tied to one ordering, and stable under ties and concurrent inserts. Title and artist orderings are `sortKey` over the stored `*_key` columns, backed by expression indexes in `schema.ts`.
-- A library album has a present file linked to it; a library track has a present file linking its recording; a library artist is credited on a library album.
+- **Library lists** (`catalog/library.ts`) take the user and list their membership (above). Title, artist and year pages (and tracks by year, which place each library track by its newest present file, so a saved track waits for its file) have two shapes, picked per request by `libraryShape`, which counts members up to 2,000 on the membership indexes. A small library is read from its members (collection files by album or recording through the `media_files_collection_*` indexes, plus the user's saves) and sorted, so a catalog full of search stubs costs nothing. A large one walks the catalog's sort index and keeps members, about `limit` rows when most of the catalog is library.
+- `recent` places an item at the later of its newest collection file's `added_at` and its save's `created_at` (for a track, also the save of an album holding a present file of it). It is a union of one walk per way in, each on its own index and keeping only the items whose time it holds, so each item appears once. Its orderings are `albums:recent2` and `tracks:recent2`; cursors from the old newest-file order are refused with `invalid_cursor`. `performance.test.ts` (10,000 albums, 150,000 tracks) and `stubs-performance.test.ts` (200,000 stubs around a library of 50 albums) check every page with EXPLAIN.
+- Home's `recently-added` is the user's library albums by `recent`.
 - An album's track list is `albumTrackList` (`catalog/pages.ts`), for the album page and Subsonic's `getAlbum`: the canonical release's tracks, then owned recordings filed under the album that the release does not list (bonus tracks, files matched with no track) in path order on the last disc, with no position. Subsonic numbers those after the disc's last track.
 
 ### Search

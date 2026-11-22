@@ -57,6 +57,8 @@ export type AlbumFactoryInput = {
    */
   owned?: boolean | number[]
   rootId?: string
+  /** Where the files came from; `provider:<id>` makes them cache, which is in no library by itself. */
+  source?: string
 }
 
 /** Creates an album with one release, recordings and release tracks, optionally with files. */
@@ -137,6 +139,7 @@ export async function createAlbum(input: AlbumFactoryInput = {}) {
         matchStatus: 'unmatched',
         matchSource: 'tags',
         probeStage: 1,
+        source: input.source,
       })
     }
     created.push({ recordingId, releaseTrackId, fileId, title: track.title, durationMs })
