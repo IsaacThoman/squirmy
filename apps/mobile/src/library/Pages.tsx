@@ -254,7 +254,7 @@ function LikedScreen(props: PageProps) {
   if (!tracks) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
   return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={tracks} download={control}
     context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage}
-    empty={{ title: 'Your favorites go here', description: 'Tap a heart next to any song to save it here.' }} props={props} />;
+    empty={{ title: 'No liked songs yet', description: 'Tap the heart on any song to add it to Liked Songs.' }} props={props} />;
 }
 
 function HistoryScreen(props: PageProps) {

@@ -268,7 +268,7 @@ export default function Player() {
       </View>
       {track && <PlayerButton
         icon={isFavorite ? 'heart.fill' : 'heart'}
-        label={isFavorite ? 'Remove from favorites' : 'Favorite song'}
+        label={isFavorite ? `Unlike ${track.title}` : `Like ${track.title}`}
         selected={isFavorite}
         onPress={() => { selectionFeedback(); setLiked('track', track.id, !isFavorite); }}
         color={isFavorite ? colors.accent : colors.text}

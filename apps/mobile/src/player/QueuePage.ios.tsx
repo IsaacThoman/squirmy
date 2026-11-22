@@ -217,7 +217,7 @@ function QueueTrack({ entry, onPlay, children }: {
       </HStack>
     </Button>
     <IconButton symbol={favorite ? 'heart.fill' : 'heart'} size={17}
-      label={favorite ? `Remove ${title} from favorites` : `Favorite ${title}`}
+      label={favorite ? `Unlike ${title}` : `Like ${title}`}
       color={favorite ? colors.accent : colors.muted} selected={favorite} onPress={() => track && setLiked('track', track.id, !favorite)} />
     <TrackMenu track={track}>{children}</TrackMenu>
   </HStack>;

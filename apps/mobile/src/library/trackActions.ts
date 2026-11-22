@@ -63,7 +63,7 @@ export function useTrackActions(track: TrackSummary | undefined, { playlist }: T
     } },
     playable && { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward', run: () => actions.enqueue([track], 'next') },
     playable && { id: 'last', title: 'Play last', icon: 'text.badge.plus', run: () => actions.enqueue([track], 'last') },
-    { id: 'like', title: liked ? 'Remove from Liked Songs' : 'Add to Liked Songs', icon: liked ? 'heart.slash' : 'heart',
+    { id: 'like', title: liked ? 'Unlike' : 'Like', icon: liked ? 'heart.slash' : 'heart',
       run: () => setLiked('track', track.id, !liked) },
     downloadAction,
     playable && online && { id: 'playlist', title: 'Add to playlist', icon: 'text.badge.plus', sheet: true,
