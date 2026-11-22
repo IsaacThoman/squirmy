@@ -6,6 +6,7 @@ import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albumArtists, albums, artists, likes, lyrics, mediaFiles, playlistItems, playlists, recordings, releaseTracks, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
+import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -182,6 +183,10 @@ describe('catalog pages', () => {
     await db.insert(playlistItems).values({ id: newId(), playlistId, position: 0, recordingId: played.tracks[0]!.recordingId, albumId: played.albumId })
     // Someone else's public playlist is not "yours".
     await db.insert(playlists).values({ id: newId(), ownerId: user.id, name: 'Theirs', isPublic: true })
+
+    // The wantlist is off by default, and Home leaves it out until an admin turns it on.
+    expect((await homeOf()).map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'liked-albums'])
+    await updateServerSettings({ wantlistEnabled: true })
 
     const sections = await homeOf()
     expect(sections.map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'liked-albums', 'wantlist'])

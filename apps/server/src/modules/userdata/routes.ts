@@ -7,6 +7,8 @@ import {
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { requireUser } from '../../lib/auth.js'
+import { conflict } from '../../lib/errors.js'
+import { getServerSettings } from '../../lib/settings.js'
 import { listHistory } from './history.js'
 import { likeEntity, listLikes, unlikeEntity } from './likes.js'
 import {
@@ -20,6 +22,10 @@ const LikeParams = z.object({ type: LikeEntityType, id: Id })
 const LikeTypeParams = z.object({ type: LikeEntityType })
 const WantParams = z.object({ type: WantEntityType, id: Id })
 const ItemParams = z.object({ id: Id, itemId: Id })
+
+async function requireWantlist() {
+  if (!(await getServerSettings()).wantlistEnabled) throw conflict('The wantlist is switched off on this server', 'wantlist_disabled')
+}
 
 export async function userdataRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request) => {
@@ -67,14 +73,22 @@ export async function userdataRoutes(app: FastifyInstance) {
 
   app.get('/me/history', async (request): Promise<HistoryPage> => listHistory(requireUser(request).id, PageQuery.parse(request.query)))
 
-  app.get('/me/wants', async (request): Promise<WantPage> => listWants(requireUser(request).id, PageQuery.parse(request.query)))
+  // With the wantlist switched off it reads as empty and refuses changes, leaving the stored
+  // wants as they were so switching it back on brings them back.
+  app.get('/me/wants', async (request): Promise<WantPage> => {
+    const query = PageQuery.parse(request.query)
+    if (!(await getServerSettings()).wantlistEnabled) return { items: [], nextCursor: null }
+    return listWants(requireUser(request).id, query)
+  })
   app.put('/me/wants/:type/:id', async (request): Promise<Ok> => {
     const { type, id } = WantParams.parse(request.params)
+    await requireWantlist()
     await wantEntity(requireUser(request).id, type, id)
     return { ok: true }
   })
   app.delete('/me/wants/:type/:id', async (request): Promise<Ok> => {
     const { type, id } = WantParams.parse(request.params)
+    await requireWantlist()
     await unwantEntity(requireUser(request).id, type, id)
     return { ok: true }
   })
