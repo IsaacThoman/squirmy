@@ -9,7 +9,7 @@ import { sortKeys, isoTime, uuidArray } from '../catalog/sql.js'
 import { sortKey } from '../../lib/text.js'
 import { artistId, coverArtId } from './ids.js'
 import type { Payload } from './protocol.js'
-import { libraryAlbum, libraryAlbumIds, libraryRecording } from './sql.js'
+import { libraryAlbum, libraryAlbumIds, libraryRecording, servableArt } from './sql.js'
 
 export type ArtistRow = {
   id: string
@@ -60,7 +60,7 @@ export async function artistRows(userId: string, ids: readonly string[], rootId?
   const unique = [...new Set(ids)]
   if (unique.length === 0) return []
   const rows = await db.execute<ArtistRow & { owned: boolean }>(sql`
-    select ar.id, ar.mbid, ar.name, ar.sort_name as "sortName", ar.image_asset_id as "imageId",
+    select ar.id, ar.mbid, ar.name, ar.sort_name as "sortName", ${servableArt('ar.image_asset_id')} as "imageId",
       (select count(distinct aa.album_id)::int from album_artists aa
         where aa.artist_id = ar.id and ${libraryAlbum('aa.album_id', userId, rootId)}) as "albumCount",
       exists (select 1 from recording_artists ra where ra.artist_id = ar.id and ${libraryRecording('ra.recording_id', userId, rootId)}) as owned,
@@ -83,7 +83,7 @@ export async function allLibraryArtists(userId: string, rootId?: string | null):
       from owned join album_artists aa on aa.album_id = owned.album_id
       group by aa.artist_id
     )
-    select ar.id, ar.mbid, ar.name, ar.sort_name as "sortName", ar.image_asset_id as "imageId", counted."albumCount",
+    select ar.id, ar.mbid, ar.name, ar.sort_name as "sortName", ${servableArt('ar.image_asset_id')} as "imageId", counted."albumCount",
       ${userColumns}
     from counted join artists ar on ar.id = counted.artist_id ${userJoins(userId)}
     order by ${sortKeys.name('ar')}, ar.id`)

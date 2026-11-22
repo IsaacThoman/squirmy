@@ -5,6 +5,7 @@ import { AppWindow, Laptop, ListPlus, MonitorSpeaker, Smartphone, Speaker, Split
 import { useState, type ReactNode } from 'react'
 import { useApi } from '@/api/services'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { formatIdle } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import type { Player } from '@/player/player-context'
@@ -96,7 +97,7 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
                   <span className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"><DeviceIcon kind={device.kind} className="size-4" /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm" title={deviceName(device, thisDeviceId)}>{deviceName(device, thisDeviceId)}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{device.id === thisDeviceId ? 'Play in this tab' : device.canPlay ? deviceKind(device.kind) : 'Remote control only'}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{device.id === thisDeviceId ? 'Play in this tab' : `${device.canPlay ? deviceKind(device.kind) : 'Remote control only'}${formatIdle(device.lastSeenAt)}`}</span>
                   </span>
                 </button>
               </li>

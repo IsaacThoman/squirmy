@@ -43,6 +43,16 @@ export function formatRelative(iso: string, now = Date.now()): string {
   return 'just now'
 }
 
+/**
+ * " · Active 3 hours ago" for a device last seen (epoch ms) a while ago: what tells apart
+ * two devices of the same name, such as a tab left open on another computer. Nothing for
+ * one in use now, or from a server that does not say.
+ */
+export function formatIdle(lastSeenAt: number | undefined, now = Date.now()): string {
+  if (lastSeenAt === undefined || now - lastSeenAt < 5 * 60_000) return ''
+  return ` · Active ${formatRelative(new Date(lastSeenAt).toISOString(), now)}`
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric' })
 }

@@ -28,6 +28,15 @@ describe('deviceRows', () => {
     ]);
   });
 
+  it('says how long a quiet device has been idle, so two of the same name can be told apart', () => {
+    const now = Date.UTC(2026, 10, 22, 12);
+    const tab = (id: string, minutes: number): DeviceInfo => ({ id, name: 'Chrome on macOS', kind: 'web', canPlay: true, isActive: false, lastSeenAt: now - minutes * 60_000 });
+    const rows = deviceRows([tab('now', 1), tab('minutes', 20), tab('hours', 180), tab('days', 3 * 24 * 60), { ...web, isActive: false }], phone, null, now);
+    expect(rows.slice(1).map(row => row.subtitle)).toEqual([
+      'Web browser', 'Web browser · Active 20 min ago', 'Web browser · Active 3 h ago', 'Web browser · Active 3 days ago', 'Web browser',
+    ]);
+  });
+
   it('lists this device even before the server has', () => {
     expect(deviceRows([], phone, null).map(row => row.id)).toEqual(['phone']);
   });
