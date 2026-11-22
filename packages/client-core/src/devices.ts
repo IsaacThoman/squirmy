@@ -121,7 +121,11 @@ export function deviceLabel(device: DeviceInfo, devices: readonly DeviceInfo[], 
   return { name, relation: 'other', hint: `ID ${shortId(device)}` }
 }
 
-/** "Playing on Chrome on macOS", or "Playing in another tab". */
-export function playingOnText(label: Pick<DeviceLabel, 'name' | 'relation'>): string {
-  return label.relation === 'tab' ? 'Playing in another tab' : `Playing on ${label.name}`
+/**
+ * "Playing on Chrome on macOS", or "Playing in another tab". With `playing` false, "Paused on …":
+ * the device still holds the session, and saying it plays beside a Play button contradicts it.
+ */
+export function playingOnText(label: Pick<DeviceLabel, 'name' | 'relation'>, playing = true): string {
+  const verb = playing ? 'Playing' : 'Paused'
+  return label.relation === 'tab' ? `${verb} in another tab` : `${verb} on ${label.name}`
 }

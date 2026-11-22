@@ -152,9 +152,25 @@ await step('album playback', async () => {
   // Quiet: the tones are near silent already; the volume goes down to 20% as well.
   await page.locator('body').click({ position: { x: 5, y: 5 } })
   for (let press = 0; press < 16; press += 1) await page.keyboard.press('ArrowDown')
+  // Until the first sound the player's button spins: never a plain Pause over silence.
+  const watched = page.evaluate(() => new Promise(resolve => {
+    const start = performance.now()
+    const bare = []
+    const tick = () => {
+      const at = Math.round(performance.now() - start)
+      if (window.__audio.elements.some(audio => !audio.paused && audio.currentTime > 0)) return resolve({ bare, at })
+      const button = document.querySelector('section[aria-label="Player"] button[aria-label="Pause"]')
+      if (button && button.getAttribute('aria-busy') !== 'true') bare.push(at)
+      if (at > 8000) return resolve({ bare, at: null })
+      requestAnimationFrame(tick)
+    }
+    tick()
+  }))
   await page.getByRole('button', { name: 'Play Blue Hour' }).click()
   await page.getByRole('link', { name: 'Night Swimming', exact: true }).waitFor()
   check('playing an album starts its first track', true, await page.title())
+  const start = await watched
+  check('the play button spins until the first sound', start.at !== null && start.bare.length === 0, `sound after ${start.at} ms${start.bare.length ? `, a bare Pause at ${start.bare[0]} ms` : ''}`)
   check('the audio element is advancing', await advancing(page))
   const session = await api(a.context, 'GET', '/me/session')
   check('this browser became the active device', session.state.activeDeviceId !== null && session.state.playing)
@@ -196,7 +212,8 @@ await step('queue', async () => {
 })
 
 await step('likes', async () => {
-  await page.getByRole('button', { name: 'Save to library', exact: true }).first().click()
+  // The playing song's heart, in the player: the album page has its own Save to library.
+  await page.getByRole('region', { name: 'Player' }).getByRole('button', { name: 'Save to library', exact: true }).first().click()
   await page.getByRole('link', { name: /Liked Songs/ }).first().click()
   await page.getByRole('heading', { name: 'Liked Songs', level: 1 }).waitFor()
   const row = page.getByRole('list', { name: 'Liked Songs tracks' }).getByText('Night Swimming', { exact: true })
@@ -402,12 +419,18 @@ await step('remote control', async () => {
 
 await step('play here', async () => {
   await sleep(1500)
+  // A pointer on the button gets the music ready, as a user's does on the way to pressing it.
+  await b.page.getByRole('button', { name: 'Play here' }).first().hover()
+  await sleep(400)
   const before = (await sounding(a.page))?.ms ?? 0
+  const pressed = Date.now()
   await b.page.getByRole('button', { name: 'Play here' }).first().click()
   const silent = await until(() => sounding(a.page), value => value === null, 2000)
   check('the first device stops', silent === null)
-  const here = await until(() => sounding(b.page), value => value !== null, 4000)
+  const here = await until(() => sounding(b.page), value => value !== null, 4000, 20)
+  const gap = Date.now() - pressed
   check('the second starts where the first was', here !== null && Math.abs(here.ms - before) < 2500, `${before} ms there, ${here?.ms} ms here`)
+  check('within a second of the press', here !== null && gap < 1000, `${gap} ms`)
   check('and is advancing', await advancing(b.page))
   await a.page.getByText('Playing on Chrome on macOS').filter({ visible: true }).waitFor({ timeout: 3000 })
   check('the first now shows the second playing', true)
@@ -450,7 +473,11 @@ await step('transfer to a browser that holds audio back', async () => {
   const settled = await until(async () => (await notice.isVisible()) || !(await stalled()) ? 'settled' : null, Boolean, 8000)
   const offered = await notice.isVisible()
   check('reopened as the active device, the tab plays or offers to enable audio', settled !== null, offered ? 'offered "Enable audio"' : 'allowed to play')
-  if (offered) await notice.click()
+  if (offered) {
+    // Held back, nothing plays, so the player says Play, and pressing it starts the music.
+    check('while held back the player shows Play, not Pause', await transport(d.page, 'Play').isVisible() && !(await transport(d.page, 'Pause').isVisible()))
+    await transport(d.page, 'Play').click()
+  }
   check('and the music plays there', await advancing(d.page))
   check('as the same device it was', (await api(d.context, 'GET', '/me/session')).state.activeDeviceId === target?.id)
   await strict.close()

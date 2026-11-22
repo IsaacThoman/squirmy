@@ -72,11 +72,13 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
         dispatch({ type: 'patch', patch: () => ({ detached: false }) })
         return { ok: true }
       },
+      prepareHere: () => {},
       renameDevice: () => {},
     }
   }, [])
 
-  const player = useMemo<Player>(() => ({ state, controls }), [state, controls])
+  // No audio here: what waits is what the fake server is still fetching.
+  const player = useMemo<Player>(() => ({ state: { ...state, waiting: state.waiting || (state.playing && state.current?.entry.state === 'preparing') }, controls }), [state, controls])
 
   return (
     <ArtUrlContext value={fixtureArtUrl}>
@@ -229,6 +231,8 @@ function init(initial?: Partial<PlayerState>): Clock {
     ...withCurrent({
       current,
       playing: true,
+      waiting: false,
+      blocked: false,
       volume: 0.72,
       volumes: { [thisDeviceId]: 0.72, phone: 0.5 },
       shuffle: false,

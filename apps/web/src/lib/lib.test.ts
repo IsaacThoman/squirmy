@@ -1,18 +1,34 @@
+import type { AlbumSummary } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
 import { safeNext } from '@/auth/session'
 import { keyIsTaken } from '@/player/shortcuts'
+import { albumTitleKey, awaitsTrackList, relatedAlbums } from './catalog'
 import { codecsFor } from './codecs'
 import { claimTabDevice, deviceName } from './device'
-import { formatDuration, formatRelative, formatTotalDuration } from './format'
+import { formatDate, formatDuration, formatRelative, formatTotalDuration } from './format'
 import { activeLine, parseLrc } from './lyrics'
 import { dropIndex, moveItem } from './reorder'
 
 describe('format', () => {
-  it('formats durations', () => {
+  it('formats durations as the iOS app does', () => {
     expect(formatDuration(225_000)).toBe('3:45')
-    expect(formatDuration(3_725_000)).toBe('1:02:05')
+    expect(formatDuration(3_725_000)).toBe('62:05')
     expect(formatTotalDuration(34 * 60_000)).toBe('34 min')
     expect(formatTotalDuration(72 * 60_000)).toBe('1 hr 12 min')
+    expect(formatTotalDuration(120 * 60_000)).toBe('2 hr')
+  })
+
+  // `npm test` runs this file again under other time zones (see the web package's test script).
+  it('prints calendar dates as written in every time zone', () => {
+    expect(formatDate('1994-01-01')).toBe('Jan 1, 1994')
+    expect(formatDate('1995-02-06')).toBe('Feb 6, 1995')
+    expect(formatDate('1985')).toBe('1985')
+    expect(formatDate('1984-09')).toBe('Sep 1984')
+  })
+
+  it('prints a timestamp in the local time zone', () => {
+    const local = new Date(2026, 10, 21, 23, 30)
+    expect(formatDate(local.toISOString())).toBe('Nov 21, 2026')
   })
 
   it('formats relative times against a fixed now', () => {
@@ -90,6 +106,14 @@ describe('keyboard shortcuts', () => {
     expect(press('ArrowRight', element('slider'))).toBe(true)
     expect(press(' ', element('plain'), { metaKey: true })).toBe(true)
   })
+
+  it('leave every key to a dialog, but not to Now Playing', () => {
+    document.body.innerHTML = '<div role="dialog"><button id="section">Playback</button></div><div role="dialog" data-player-keys><span id="art">Art</span></div>'
+    const element = (id: string) => document.getElementById(id)!
+    expect(press('ArrowDown', element('section'))).toBe(true)
+    expect(press('ArrowDown', element('art'))).toBe(false)
+    expect(press(' ', element('art'))).toBe(false)
+  })
 })
 
 describe('sign-in redirects', () => {
@@ -108,5 +132,40 @@ describe('sign-in redirects', () => {
     expect(safeNext('/library/albums?sort=title#top')).toBe('/library/albums?sort=title#top')
     expect(safeNext(`${window.location.origin}/search?q=a`)).toBe('/search?q=a')
     expect(safeNext('/a/../settings')).toBe('/settings')
+  })
+})
+
+describe('catalog', () => {
+  it('waits for a track list only while the server says it is looking', () => {
+    expect(awaitsTrackList({ discs: [], detailPending: true })).toBe(true)
+    expect(awaitsTrackList({ discs: [] })).toBe(false)
+    expect(awaitsTrackList({ discs: [{ disc: 1, title: null, tracks: [] }], detailPending: true })).toBe(true)
+  })
+
+  it('gives versions of one album one title key', () => {
+    const key = albumTitleKey('Watch The Throne')
+    expect(albumTitleKey('Watch The Throne (Deluxe)')).toBe(key)
+    expect(albumTitleKey('Watch the Throne - Deluxe Edition')).toBe(key)
+    expect(albumTitleKey('Watch The Throne (Deluxe) [Explicit]')).toBe(key)
+    expect(albumTitleKey('Watch The Throne Tour')).not.toBe(key)
+    expect(albumTitleKey('Pokémon')).toBe(albumTitleKey('Pokemon'))
+    // Only punctuation: kept, so such titles do not all become one album.
+    expect(albumTitleKey('!!!')).not.toBe(albumTitleKey('???'))
+  })
+
+  it('splits an artist’s other releases into versions and more, albums first', () => {
+    const release = (id: string, title: string, type: 'album' | 'single' | 'ep') => ({ id, title, type }) as unknown as AlbumSummary
+    const artist = {
+      mbid: null,
+      albums: [release('1', 'Blue Hour', 'album'), release('2', 'Low Tide', 'single'), release('3', 'Blue Hour (Deluxe)', 'album'), release('4', 'Paper Moons', 'ep'), release('5', 'Glass', 'album')],
+    }
+    const { versions, more } = relatedAlbums({ id: '1', title: 'Blue Hour' }, artist)
+    expect(versions.map(album => album.id)).toEqual(['3'])
+    expect(more.map(album => album.id)).toEqual(['5', '4', '2'])
+    // Each other album once, by its plainest title.
+    const editions = { ...artist, albums: [...artist.albums, release('6', 'Glass (Remastered)', 'album')] }
+    expect(relatedAlbums({ id: '1', title: 'Blue Hour' }, editions).more.map(album => album.id)).toEqual(['5', '4', '2'])
+    expect(relatedAlbums({ id: '1', title: 'Blue Hour' }, { ...artist, mbid: '89ad4ac3-39f7-470e-963a-56509c546377' })).toEqual({ versions: [], more: [] })
+    expect(relatedAlbums({ id: '1', title: 'Blue Hour' }, undefined)).toEqual({ versions: [], more: [] })
   })
 })

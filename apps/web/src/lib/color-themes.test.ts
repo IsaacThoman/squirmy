@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { contrastRatio, flattenHex, lightness, normalizeHex } from './color'
+import { contrastRatio, flattenHex, lightness, mixHex, normalizeHex } from './color'
 import {
   COLOR_THEMES, colorThemeStylesheet, DEFAULT_COLOR_THEME_ID, findColorTheme, paletteVariables, resolvePalette, THEME_APPEARANCES, THEME_ROLES,
   type ColorTheme, type ThemeColors, type ThemeRole,
@@ -163,6 +163,8 @@ describe('readability', () => {
       ['text on the sidebar', palette.text, palette.sidebar],
       ['muted text on the background', flattenHex(palette.mutedText, palette.background), palette.background],
       ['action text on the action color', palette.actionText, palette.action],
+      // The "Playing on …" and "Only on this device" strips: text on a 10 % tint of the action color.
+      ['text on the action tint', palette.text, mixHex(palette.background, palette.action, 0.1)],
     ].map(([pair, text, behind]) => [theme.name, appearance, pair, text, behind] as const)
   }))
 

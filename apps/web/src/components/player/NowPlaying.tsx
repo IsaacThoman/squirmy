@@ -1,6 +1,7 @@
 import { contextLabel } from '@squirmy/client-core'
 import { ChevronDown, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
+import { useRef } from 'react'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
@@ -38,14 +39,29 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   const artwork = item?.track.album?.artwork ?? null
   const elsewhere = playingElsewhere(state)
   const label = contextLabel(state.context)
-  const late = useStillLoading(item?.entry)
+  const late = useStillLoading(item?.entry, state.waiting)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
+  // Opened from the player rather than a dialog trigger, Radix has nothing to give focus back to on close.
+  const opener = useRef<HTMLElement | null>(null)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          // The player's own keys (Space, arrows) still work here, unlike in other dialogs.
+          data-player-keys=""
+          onOpenAutoFocus={() => {
+            // Focus has not moved in yet: this is what opened it.
+            opener.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+          }}
+          onCloseAutoFocus={event => {
+            const target = opener.current
+            opener.current = null
+            if (!target?.isConnected) return
+            event.preventDefault()
+            target.focus()
+          }}
           className="fixed inset-0 z-40 flex animate-slide-in flex-col overflow-clip bg-background pt-[env(safe-area-inset-top)] text-foreground outline-none data-[state=closed]:animate-exit"
         >
           <div aria-hidden className="absolute inset-0">
@@ -59,12 +75,12 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
           </div>
 
           {elsewhere
-            ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} className="relative" />
+            ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} onPrepare={controls.prepareHere} className="relative" />
             : state.detached && <OnlyOnThisDevice player={player} className="relative" />}
 
           <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-5">
             <DialogPrimitive.Close asChild>
-              <IconButton label="Close Now Playing" tooltip={false} className="text-foreground max-md:size-11"><ChevronDown /></IconButton>
+              <IconButton label="Close Now Playing" tooltip={false} className="text-foreground max-md:size-11 pointer-coarse:size-11"><ChevronDown /></IconButton>
             </DialogPrimitive.Close>
             <div className="min-w-0 text-center">
               {label && (
@@ -77,13 +93,15 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             <DevicesPopover
               side="bottom"
               player={player}
-              trigger={<IconButton label="Devices" className={cn('max-md:size-11', elsewhere ? 'text-primary hover:text-primary' : 'text-foreground')}><MonitorSpeaker /></IconButton>}
+              trigger={<IconButton label="Devices" className={cn('max-md:size-11 pointer-coarse:size-11', elsewhere ? 'text-primary hover:text-primary' : 'text-foreground')}><MonitorSpeaker /></IconButton>}
             />
           </div>
 
           <DialogPrimitive.Title className="sr-only">Now Playing</DialogPrimitive.Title>
 
-          <div className={cn('relative grid min-h-0 flex-1 grid-cols-1 gap-8 px-6 py-4 md:px-8 lg:gap-12 lg:px-10', pane !== 'art' && 'lg:grid-cols-2')}>
+          {/* On a phone on its side the controls go beside the artwork, lyrics or queue, which keep the height. */}
+          <div className="relative flex min-h-0 flex-1 flex-col short-landscape:flex-row short-landscape:items-center">
+          <div className={cn('relative grid min-h-0 flex-1 grid-cols-1 gap-8 px-6 py-4 md:px-8 lg:gap-12 lg:px-10 short-landscape:self-stretch short-landscape:py-2', pane !== 'art' && 'lg:grid-cols-2')}>
             {/* A size container, so the artwork is the largest square that fits the space left. */}
             <div className={cn('min-h-0 min-w-0 items-center justify-center [container-type:size]', pane === 'art' ? 'flex' : 'hidden lg:flex')}>
               <Cover artwork={artwork} size={1200} className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" />
@@ -98,7 +116,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             )}
           </div>
 
-          <div className="relative mx-auto w-full max-w-3xl shrink-0 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 md:px-8">
+          <div className="relative mx-auto w-full max-w-3xl shrink-0 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 md:px-8 short-landscape:w-[min(24rem,50%)] short-landscape:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <div className="mb-4 flex items-center gap-3">
               {pane !== 'art' && <Cover artwork={artwork} size={96} className="size-12 lg:hidden" />}
               <div className="min-w-0 flex-1">
@@ -107,21 +125,22 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
                   <p className="truncate text-base text-muted-foreground">
                     {late
                       ? STILL_LOADING_LABEL
-                      : <ArtistLinks track={item.track} onNavigate={() => onOpenChange(false)} />}
+                      : <ArtistLinks credit={item.track} onNavigate={() => onOpenChange(false)} />}
                   </p>
                 )}
               </div>
-              {item && <SaveHeart liked={liked} onToggle={onToggleLike} size="lg" className="max-md:size-11" />}
+              {item && <SaveHeart liked={liked} onToggle={onToggleLike} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
             </div>
             <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
-            <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between">
-              <div className="order-2 flex gap-8 md:order-1 md:w-40 md:gap-1">
-                <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="max-md:size-11"><MessageSquareQuote /></IconButton>
-                <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} pressed={pane === 'queue'} onClick={() => toggle('queue')} className="max-md:size-11"><ListMusic /></IconButton>
+            <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between short-landscape:flex-col!">
+              <div className="order-2 flex gap-8 md:order-1 md:w-40 md:gap-1 short-landscape:order-2! short-landscape:w-auto! short-landscape:gap-8!">
+                <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="max-md:size-11 pointer-coarse:size-11"><MessageSquareQuote /></IconButton>
+                <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} pressed={pane === 'queue'} onClick={() => toggle('queue')} className="max-md:size-11 pointer-coarse:size-11"><ListMusic /></IconButton>
               </div>
-              <div className="order-1 md:order-2"><TransportButtons player={player} large disabled={!item} /></div>
-              <VolumeControl volume={state.volume} onChange={controls.setVolume} fill className="order-3 hidden w-40 md:flex" />
+              <div className="order-1 md:order-2 short-landscape:order-1!"><TransportButtons player={player} large disabled={!item} /></div>
+              <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="order-3 hidden w-40 md:flex short-landscape:hidden!" />
             </div>
+          </div>
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

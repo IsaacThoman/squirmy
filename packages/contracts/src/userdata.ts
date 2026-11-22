@@ -3,14 +3,27 @@ import { AlbumSummary, ArtistSummary, Artwork, TrackSummary } from './catalog.js
 import { Id, IsoDateTime, page } from './common.js'
 
 /**
- * `PUT/DELETE /me/likes/:type/:id`, both answering `Ok` and idempotent: the heart, the one
- * way to save something to a library. A user's library is the server's collection plus what
- * they saved, so saving never needs a file and removing deletes nothing but the save. Saving
- * an album or track also asks for its missing files when the user may fetch music. Saving an
- * unknown id is 404. `GET /me/likes/:type` lists the saves, newest first (Liked Songs).
+ * `PUT/DELETE /me/likes/:type/:id`, both idempotent: the heart, the one way to save something
+ * to a library. A user's library is the server's collection plus what they saved, so saving
+ * never needs a file and removing deletes nothing but the save. Saving an album or track also
+ * asks for its missing files when the user may fetch music. Saving an unknown id is 404.
+ * `PUT` answers `Ok`, `DELETE` an `UnlikeResponse`. `GET /me/likes/:type` lists the saves,
+ * newest first (Liked Songs).
  */
 export const LikeEntityType = z.enum(['track', 'album', 'artist'])
 export type LikeEntityType = z.infer<typeof LikeEntityType>
+
+/**
+ * Query of `PUT /me/likes/:type/:id`. `savedAt`: when the save was made, for Undo of a removal,
+ * which passes back the `savedAt` the removal answered so the item returns to its place in
+ * Recently added and Liked Songs instead of the top. A time in the future is taken as now.
+ */
+export const LikeQuery = z.object({ savedAt: IsoDateTime.optional() })
+export type LikeQuery = z.infer<typeof LikeQuery>
+
+/** Answer of `DELETE /me/likes/:type/:id`: when the removed save was made, null when there was none. */
+export const UnlikeResponse = z.object({ ok: z.literal(true), savedAt: IsoDateTime.nullable() })
+export type UnlikeResponse = z.infer<typeof UnlikeResponse>
 
 /**
  * `PUT/DELETE /me/library/:type/:id`: deprecated aliases of `PUT/DELETE /me/likes/:type/:id`,

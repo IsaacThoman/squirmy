@@ -13,16 +13,18 @@ const RAIL = 20
 const RECENT_PLAYS = 500
 
 /**
- * The Home screen. Section ids are stable; a section without content is left out.
+ * The Home screen, in this order (product decision 30: for someone who streams, what they
+ * played is the front page). Section ids are stable; a section without content is left out.
  *
- * - `recently-added`: the user's library albums, most recently added (a collection file
- *   arrived or the user hearted it) first. Music fetched for playing never enters it. It
- *   replaced `liked-albums`, which listed the same saves once the heart became the save.
  * - `recently-played`: albums of the user's latest plays.
  * - `most-played`: the user's most played tracks over the last 90 days.
  * - `playlists`: the user's own playlists, recently updated first.
+ * - `recently-added`: the user's library albums, most recently added (a collection file
+ *   arrived or the user hearted it) first. Music fetched for playing never enters it. It
+ *   replaced `liked-albums`, which listed the same saves once the heart became the save.
+ * - `new-releases`: recent albums by the user's own artists that their library lacks,
+ *   newest first (`newReleaseAlbumIds`).
  * - `wantlist`: albums on the user's wantlist, newest first. Only while the wantlist is on.
- * - `new-releases`: recent albums by library artists that the library lacks, newest first.
  */
 export async function home(userId: string): Promise<HomeResponse> {
   const { wantlistEnabled } = await getServerSettings()
@@ -41,15 +43,15 @@ export async function home(userId: string): Promise<HomeResponse> {
       group by recording_id order by count(*) desc, max(started_at) desc limit ${RAIL}`).then((rows) => trackSummaries(userId, rows)),
     listPlaylists(userId, { limit: RAIL }, { ownOnly: true }),
     wantlistEnabled ? wantedAlbumIds(userId, RAIL).then(albumSummaries) : [],
-    newReleaseAlbumIds(RAIL).then(albumSummaries),
+    newReleaseAlbumIds(userId, RAIL).then(albumSummaries),
   ])
   const sections: HomeSection[] = [
-    { kind: 'albums', id: 'recently-added', title: 'Recently added', albums: recentlyAdded.items },
     { kind: 'albums', id: 'recently-played', title: 'Recently played', albums: recentlyPlayed },
     { kind: 'tracks', id: 'most-played', title: 'Most played', tracks: mostPlayed },
     { kind: 'playlists', id: 'playlists', title: 'Your playlists', playlists: playlists.items },
-    { kind: 'albums', id: 'wantlist', title: 'Wantlist', albums: wanted },
+    { kind: 'albums', id: 'recently-added', title: 'Recently added', albums: recentlyAdded.items },
     { kind: 'albums', id: 'new-releases', title: 'New releases', albums: newReleases },
+    { kind: 'albums', id: 'wantlist', title: 'Wantlist', albums: wanted },
   ]
   return { sections: sections.filter((section) => sectionItems(section).length > 0) }
 }

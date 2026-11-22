@@ -90,8 +90,32 @@ export function artistOwned(alias: string): SQL {
  */
 export const seqScanOff = sql`select set_config('enable_seqscan', 'off', true)`
 
-/** The query for one kind; exported for the performance test's EXPLAIN. */
-export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number, offset = 0): SQL {
+/** Condition: the album (alias) carries the genre, ignoring case. */
+const albumHasGenre = (album: string, genre: string) =>
+  sql`exists (select 1 from unnest(${sql.raw(album)}.genres) as g(name) where lower(g.name) = lower(${genre}))`
+
+/**
+ * Condition: the row `alias` of the kind belongs to the genre: an album that carries it, a
+ * track on such an album (by its files or its releases), an artist credited on one. `true`
+ * without a genre.
+ */
+function inGenre(kind: LibraryKind, alias: string, genre: string | undefined): SQL {
+  if (!genre) return sql`true`
+  const id = sql.raw(`${alias}.id`)
+  if (kind === 'album') return albumHasGenre(alias, genre)
+  if (kind === 'artist') return sql`exists (select 1 from album_artists ga_aa join albums ga on ga.id = ga_aa.album_id where ga_aa.artist_id = ${id} and ${albumHasGenre('ga', genre)})`
+  return sql`(
+    exists (select 1 from media_files gf join albums ga on ga.id = gf.album_id where gf.recording_id = ${id} and gf.missing_since is null and ${albumHasGenre('ga', genre)})
+    or exists (select 1 from release_tracks grt join releases grl on grl.id = grt.release_id join albums ga on ga.id = grl.album_id
+      where grt.recording_id = ${id} and ${albumHasGenre('ga', genre)}))`
+}
+
+/**
+ * The query for one kind; exported for the performance test's EXPLAIN. With a genre, only
+ * candidates of that genre are kept, before the page is cut, so `offset` pages within it
+ * (the Library's search inside a genre chip).
+ */
+export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number, offset = 0, genre?: string): SQL {
   const end = prefixEnd(key)
   const recent = sql`select recording_id, album_id from plays where user_id = ${userId} order by started_at desc limit ${recentPlays}`
 
@@ -115,6 +139,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
         select ra.artist_id as id, count(*)::int as plays from (${recent}) p join recording_artists ra on ra.recording_id = p.recording_id group by 1
       )
       select a.id from candidates c join artists a on a.id = c.id left join played on played.id = a.id
+      where ${inGenre('artist', 'a', genre)}
       order by (a.name_key in (${key}, ${`the ${key}`}))::int * 2 + starts_with(a.name_key, ${key})::int desc,
         word_similarity(${key}, a.name_key) desc, coalesce(played.plays, 0) desc,
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'artist' and l.entity_id = a.id) desc,
@@ -155,6 +180,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
     ),
     played as (select ${playedBy} as id, count(*)::int as plays from (${recent}) p group by 1)
     select t.id from candidates c join ${table} t on t.id = c.id left join played on played.id = t.id
+    where ${inGenre(kind, 't', genre)}
     order by greatest(
         (select max(case
           when t.title_key in (k.title, 'the ' || k.title) and ${creditMatches('t')} then 2
@@ -169,16 +195,17 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
 
 /**
  * Ids of the best owned artists, albums and tracks for a `matchKey` query, at most `limit`
- * of each after skipping `offset`; only the `types` asked for (the others are empty).
+ * of each after skipping `offset`; only the `types` asked for (the others are empty), and
+ * with a `genre` only what belongs to it (`inGenre`).
  */
-export async function searchLibrary(userId: string, key: string, limit: number, page: { offset?: number; types?: readonly LibraryKind[] } = {}):
+export async function searchLibrary(userId: string, key: string, limit: number, page: { offset?: number; types?: readonly LibraryKind[]; genre?: string } = {}):
   Promise<{ artists: string[]; albums: string[]; tracks: string[] }> {
   const offset = page.offset ?? 0
   const ids = async (kind: LibraryKind) => {
     if (page.types && !page.types.includes(kind)) return []
     return db.transaction(async (tx) => {
       await tx.execute(seqScanOff)
-      return (await tx.execute<{ id: string }>(libraryQuery(kind, userId, key, limit, offset))).map((row) => row.id)
+      return (await tx.execute<{ id: string }>(libraryQuery(kind, userId, key, limit, offset, page.genre))).map((row) => row.id)
     })
   }
   const [artists, albums, tracks] = await Promise.all([ids('artist'), ids('album'), ids('track')])

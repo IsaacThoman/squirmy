@@ -58,4 +58,14 @@ describe('release presentation', () => {
     expect(formatReleaseDate('2021-13')).toBe('2021')
     expect(formatReleaseDate('soon')).toBeNull()
   })
+
+  // The same answer in every time zone: the package's test script runs this file under several.
+  it('keeps dates that read a day or a year early west of UTC when parsed as instants', () => {
+    expect(formatReleaseDate('1994-01-01')).toBe('Jan 1, 1994')
+    expect(formatReleaseDate('1995-02-06')).toBe('Feb 6, 1995')
+    expect(formatReleaseDate('1985')).toBe('1985')
+    expect(formatReleaseDate('1984-09')).toBe('Sep 1984')
+    expect(formatReleaseDate('1999-00-00')).toBe('1999')
+    expect(formatReleaseDate('1999-04-00')).toBe('Apr 1999')
+  })
 })

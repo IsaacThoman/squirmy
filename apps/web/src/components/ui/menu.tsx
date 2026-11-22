@@ -70,9 +70,9 @@ export function DropdownMenu({ trigger, entries, align = 'end', side, contentCla
   )
 }
 
-export function ContextMenu({ entries, children }: { entries: MenuEntry[]; children: ReactNode }) {
+export function ContextMenu({ entries, children, onOpenChange }: { entries: MenuEntry[]; children: ReactNode; onOpenChange?: (open: boolean) => void }) {
   return (
-    <ContextPrimitive.Root>
+    <ContextPrimitive.Root onOpenChange={onOpenChange}>
       <ContextPrimitive.Trigger asChild>{children}</ContextPrimitive.Trigger>
       <ContextPrimitive.Portal>
         <ContextPrimitive.Content collisionPadding={8} className={cn(menuContentClass, fitsContext)}>

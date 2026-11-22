@@ -311,6 +311,19 @@ describe('WebPlayerEngine', () => {
     expect(engine.getStatus().state).toBe('error')
   })
 
+  it('opens the output when warmed, without starting what the browser held back', async () => {
+    context.state = 'suspended'
+    engine.warm()
+    expect(context.resume).toHaveBeenCalledTimes(1)
+    engine.load({ entryId: 'e1', url: '/a', startMs: 0, autoplay: true, gain: 1 })
+    audioOf('/a').playResult = 'blocked'
+    ready('/a')
+    await flush()
+    expect(engine.isBlocked()).toBe(true)
+    engine.warm()
+    expect(engine.isBlocked()).toBe(true)
+  })
+
   it('reports a blocked play through the error path until unlocked', async () => {
     engine.load({ entryId: 'e1', url: '/a', startMs: 0, autoplay: true, gain: 1 })
     const audio = audioOf('/a')

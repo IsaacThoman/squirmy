@@ -54,6 +54,10 @@ export function VirtualGrid<T>({ items, getKey, renderItem, label, onEndReached,
     overscan: 3,
     scrollMargin: layout.margin,
     initialRect: { width: 1024, height: 900 },
+
+    // Where the page is now: left at 0, the virtualizer scrolls the page back to the top as it
+    // mounts, undoing Back's scroll restoration.
+    initialOffset: () => scroller?.scrollTop ?? 0,
   })
   useEndReached(virtualizer.getVirtualItems().at(-1)?.index ?? -1, rows, onEndReached, list ? 10 : 3)
 
