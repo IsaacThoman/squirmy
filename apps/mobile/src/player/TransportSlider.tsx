@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { I18nManager, StyleSheet, View } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import { createThemedStyles } from '../theme';
@@ -25,12 +25,18 @@ export default function TransportSlider({
     return (I18nManager.isRTL ? 1 - fraction : fraction) * maximum;
   };
   const update = onPreview ?? onChange;
+  // As on Apple Music: the track thickens while a finger drags it.
+  const [dragging, setDragging] = useState(false);
   const drag = usePanGesture({
     runOnJS: true,
     maxPointers: 1,
-    onActivate: ({ x }) => update(positionAt(x)),
+    onActivate: ({ x }) => {
+      setDragging(true);
+      update(positionAt(x));
+    },
     onUpdate: ({ x }) => update(positionAt(x)),
     onDeactivate: ({ x, canceled }) => {
+      setDragging(false);
       if (!canceled) onChange(positionAt(x));
       onPreview?.(null);
     },
@@ -58,7 +64,7 @@ export default function TransportSlider({
         onLayout={({ nativeEvent: { layout } }) => { width.current = layout.width; }}
         style={styles.touch}
       >
-        <View pointerEvents="none" style={styles.track}>
+        <View pointerEvents="none" style={[styles.track, dragging && styles.trackDragging]}>
           <View style={[styles.fill, { width: `${percent}%` }]} />
         </View>
       </View>
@@ -69,6 +75,8 @@ export default function TransportSlider({
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   // A 44pt touch target around a thin track, without taking 44pt of the layout.
   touch: { height: 44, marginVertical: -8, justifyContent: 'center' },
+  // No thumb: a thin track at rest, the same 6pt as the system volume slider beside it, and 10pt while dragged.
   track: { height: 6, borderRadius: 3, backgroundColor: colors.stroke, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 3, backgroundColor: colors.accent },
+  trackDragging: { height: 10, borderRadius: 5 },
+  fill: { height: '100%', borderRadius: 5, backgroundColor: colors.accent },
 }));

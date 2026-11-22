@@ -12,6 +12,8 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 140,
           "backgroundColor": "#ffffff",
           "dark": { "backgroundColor": "#111014" },
           "ios": { "dark": { "backgroundColor": "#000000" } }
@@ -23,6 +25,7 @@
     ],
     "ios": {
       "bundleIdentifier": "com.isaacthoman.music",
+      "icon": "./assets/Squirmy.icon",
       "supportsTablet": true,
       "infoPlist": {
         "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true },
@@ -30,7 +33,8 @@
       }
     },
     "android": {
-      "package": "com.isaacthoman.music"
+      "package": "com.isaacthoman.music",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#f4f0fc" }
     }
   }
 }
