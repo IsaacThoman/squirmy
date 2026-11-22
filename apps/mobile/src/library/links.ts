@@ -8,12 +8,28 @@ export function pageHref(tab: Tab, page: Page, id: string): Href {
   return { pathname: `/(tabs)/(${tab})/${page}/[id]`, params: { id } } as Href;
 }
 
-/** The tab on screen, also from a sheet or Now Playing above it. */
-export function useCurrentTab(): Tab {
-  const root = useRootNavigationState();
-  const tabs = root?.routes.find(route => route.name === '(tabs)')?.state;
+type NavigationState = { routes: readonly { name: string; state?: NavigationState }[]; index?: number } | undefined;
+
+/** The tab navigator's state, however deep it sits. */
+function tabsIn(state: NavigationState): NavigationState {
+  for (const route of state?.routes ?? []) {
+    if (route.name === '(tabs)') return route.state;
+    const inner = tabsIn(route.state);
+    if (inner) return inner;
+  }
+  return undefined;
+}
+
+/** The tab on screen in a navigation state. */
+export function tabOf(state: NavigationState): Tab {
+  const tabs = tabsIn(state);
   const name = tabs?.routes[tabs.index ?? 0]?.name;
   return name === '(library)' ? 'library' : name === '(search)' ? 'search' : 'home';
+}
+
+/** The tab on screen, also from a sheet or Now Playing above it. */
+export function useCurrentTab(): Tab {
+  return tabOf(useRootNavigationState());
 }
 
 /** Links to pages in the current tab. */

@@ -1,33 +1,36 @@
 import { queryKeys, type AlbumSummary, type HomeSection, type LibrarySort as SortKey, type SearchResults, type TrackSummary } from '@squirmy/contracts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, type Href } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAccount, useSignedInApi } from './account/AccountProvider';
 import { shade } from './data/color';
 import {
-  useGenreCovers, useGenres, useHome, useLibraryAlbums, useLibraryArtists, useLibraryTracks, usePlaylists, useSearch,
+  libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbums, useLibraryArtists, useLibraryMatches,
+  useLibraryTracks, usePlaylists, useSearch,
 } from './data/queries';
 import { useTrackStore } from './data/library';
 import { useAvailability } from './downloads/DownloadsProvider';
 import {
-  BrowseButton, CollectionGrid, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField, TopResult,
+  BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField, TopResult,
   type SearchHandle,
 } from './library/BrowseControls';
 import { isEmptyGroup, searchSections, type SearchGroup, type SearchSections } from './library/search';
 import type { Page } from './library/links';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
-  onScrollNearEnd, playlistCollection, QueryState, SectionTitle, tapFeedback, useOfflineDim, type Collection,
+  playlistCollection, QueryState, SectionTitle, tapFeedback, useOfflineDim, type Collection,
 } from './library/shared';
 import { useRealtime } from './data/realtime';
-import { SongList } from './library/SongList';
+import { SongList, useSongListItems } from './library/SongList';
+import { chunk, type SongRowItem } from './library/rows';
 import { ZoomLink, ZoomSource } from './library/ZoomLink';
-import { usePlaybackState, useTrackPreparing } from './playback';
+import { usePlaybackActions, useTrackPreparing } from './playback';
 import { createThemedStyles, unavailableOpacity, useColors } from './theme';
 import { Cover } from './ui';
+
 
 export type BrowseProps = {
   /** Where a page lives in this tab. Tiles link there so the page can zoom out of their cover. */
@@ -48,7 +51,7 @@ export function useAlbumPlayer() {
   const api = useSignedInApi();
   const queryClient = useQueryClient();
   const tracks = useTrackStore();
-  const { actions } = usePlaybackState();
+  const actions = usePlaybackActions();
   return (albumId: string) => {
     if (!api) return;
     void queryClient.ensureQueryData({ queryKey: queryKeys.album(albumId), queryFn: () => api.catalog.album(albumId) }).then(album => {
@@ -82,7 +85,7 @@ function sectionSize(section: HomeSection) {
 
 function HomeRail({ section, link, onOpen, onTrackMenu }: { section: HomeSection } & Pick<BrowseProps, 'link' | 'onOpen' | 'onTrackMenu'>) {
   const styles = useStyles();
-  const { actions } = usePlaybackState();
+  const actions = usePlaybackActions();
   const seeAll = section.id === 'recently-played' ? () => onOpen(link('playlist', 'recent')) : undefined;
   return <View style={styles.homeSection}>
     <SectionTitle title={section.title} onPress={seeAll} />
@@ -137,6 +140,16 @@ const filters = ['All', 'Playlists', 'Albums', 'Artists', 'Songs'] as const;
 const sortOptions = { 'Recently added': 'recent', Title: 'title', Artist: 'artist', Year: 'year' } as const satisfies Record<string, SortKey>;
 type LibraryFilter = (typeof filters)[number];
 type SortName = keyof typeof sortOptions;
+/** Rows drawn per batch, and screens' worth kept around the visible part. */
+const libraryBatch = 12;
+const libraryWindow = 7;
+
+type LibraryRow =
+  | { kind: 'song'; key: string; song: SongRowItem }
+  | { kind: 'tiles'; key: string; items: readonly Collection[] }
+  | { kind: 'row'; key: string; item: Collection };
+
+const libraryRowKey = (row: LibraryRow) => row.key;
 
 export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bottomInset = 155 }: BrowseProps) {
   const styles = useStyles();
@@ -144,7 +157,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const { offline } = useRealtime();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { actions } = usePlaybackState();
+  const actions = usePlaybackActions();
   const [filter, setFilter] = useState<LibraryFilter>('All');
   const [sortName, setSortName] = useState<SortName>('Recently added');
   const [grid, setGrid] = useState(true);
@@ -154,28 +167,66 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const columns = width >= 650 ? 4 : 3;
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   const showsPlaylists = filter === 'All' || filter === 'Playlists';
-  const albums = useLibraryAlbums(sort);
-  const artists = useLibraryArtists(sort);
-  const songs = useLibraryTracks(sort);
-  const playlists = usePlaylists();
-  const active = filter === 'Artists' ? artists : filter === 'Songs' ? songs : filter === 'Playlists' ? playlists : albums;
-
-  // Filtering looks through everything, so keep loading while there is a filter.
-  useEffect(() => {
-    if (query.trim()) active.loadMore();
-  }, [active, query]);
+  const showsAlbums = filter === 'All' || filter === 'Albums';
+  // Only the lists the filter shows are loaded.
+  const albums = useLibraryAlbums(sort, showsAlbums);
+  const artists = useLibraryArtists(sort, filter === 'Artists');
+  const songs = useLibraryTracks(sort, filter === 'Songs');
+  const playlists = usePlaylists(showsPlaylists);
+  // A filter of two characters or more searches the whole library on the server; a single
+  // character only narrows what is already loaded.
+  const searchText = filter === 'Playlists' ? '' : query;
+  const found = useLibraryMatches(searchText);
+  const searching = [...searchText.trim()].length >= libraryMatchMinLength;
+  const listed = filter === 'Artists' ? artists : filter === 'Songs' ? songs : filter === 'Playlists' ? playlists : albums;
+  const active = searching ? found : listed;
+  const loadMore = searching ? undefined : listed.loadMore;
+  const matched = found.data;
 
   const items = useMemo(() => {
     const collections: Collection[] = [];
-    if (showsPlaylists) collections.push(likedCollection(link), ...playlists.items.map(playlist => playlistCollection(playlist, link)));
-    if (filter === 'All' || filter === 'Albums') collections.push(...albums.items.map(album => albumCollection(album, link)));
-    if (filter === 'Artists') collections.push(...artists.items.map(artist => artistCollection(artist, link)));
-    return collections.filter(item => matches(query, item.title, item.subtitle)).map(offlineDim);
-  }, [albums.items, artists.items, filter, link, offlineDim, playlists.items, query, showsPlaylists]);
-  const tracks = useMemo(() => songs.items.filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? '')),
-    [query, songs.items]);
+    if (showsPlaylists) {
+      collections.push(...[likedCollection(link), ...playlists.items.map(playlist => playlistCollection(playlist, link))]
+        .filter(item => matches(query, item.title, item.subtitle)));
+    }
+    if (showsAlbums) {
+      collections.push(...searching ? (matched?.albums ?? []).map(album => albumCollection(album, link))
+        : albums.items.map(album => albumCollection(album, link)).filter(item => matches(query, item.title, item.subtitle)));
+    }
+    if (filter === 'Artists') {
+      collections.push(...searching ? (matched?.artists ?? []).map(artist => artistCollection(artist, link))
+        : artists.items.map(artist => artistCollection(artist, link)).filter(item => matches(query, item.title, item.subtitle)));
+    }
+    return collections.map(offlineDim);
+  }, [albums.items, artists.items, filter, link, matched, offlineDim, playlists.items, query, searching, showsAlbums, showsPlaylists]);
+  const tracks = useMemo(() => searching ? matched?.tracks ?? []
+    : songs.items.filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? '')), [matched, query, searching, songs.items]);
+  const songItems = useSongListItems({
+    tracks, onTrackMenu: track => onTrackMenu(track),
+    onPlay: start => actions.playTracks(tracks, { start, context: { type: 'other', id: null, title: 'Songs' } }),
+  });
   const empty = filter === 'Songs' ? !tracks.length : !items.length;
   const libraryEmpty = albums.data && !albums.items.length && !query;
+  const capped = searching && matched && (filter === 'Songs' ? matched.tracks : filter === 'Artists' ? matched.artists : matched.albums).length >= libraryMatchLimit;
+
+  const mode = filter === 'Songs' ? 'songs' : grid ? 'grid' : 'list';
+  const rows = useMemo((): LibraryRow[] => {
+    if (mode === 'songs') return songItems.data.map(song => ({ kind: 'song', key: song.key, song }));
+    if (mode === 'grid') return chunk(items, columns).map(row => ({ kind: 'tiles', key: row[0]!.key, items: row }));
+    return items.map(item => ({ kind: 'row', key: item.key, item }));
+  }, [columns, items, mode, songItems.data]);
+  const renderSong = songItems.renderItem;
+  const renderRow = useCallback(({ item: row }: { item: LibraryRow }) => {
+    switch (row.kind) {
+      case 'song': return <View style={styles.songs}>{renderSong({ item: row.song })}</View>;
+      case 'tiles': return <CollectionGridRow items={row.items.map(item => ({
+        id: item.key, title: item.title, subtitle: item.subtitle, size,
+        cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
+      }))} />;
+      case 'row': return <CollectionRow title={row.item.title} subtitle={row.item.subtitle} size={50} dim={row.item.dim}
+        cover={<CollectionCover item={row.item} size={50} radius={9} />} href={row.item.href} />;
+    }
+  }, [renderSong, size, styles]);
 
   const newPlaylist = () => {
     tapFeedback();
@@ -197,35 +248,31 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
     <View style={styles.filters}>
       <LibraryFilters options={filters} value={filter} onChange={value => { tapFeedback(); setFilter(value); }} />
     </View>
-    <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" scrollEventThrottle={100}
-      onScroll={onScrollNearEnd(active.loadMore)}
-      contentContainerStyle={[styles.libraryBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}>
-      <View style={styles.sortRow}>
-        {filter === 'Playlists'
-          ? !offline && <BrowseButton label="New playlist" title="New playlist" icon="plus" onPress={newPlaylist} />
-          : <LibrarySort options={Object.keys(sortOptions) as SortName[]} value={sortName} onChange={setSortName} />}
-        {filter !== 'Songs' && <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
-          onPress={() => { tapFeedback(); setGrid(!grid); }} />}
-      </View>
-      {!active.data && <QueryState query={active} what="your library" />}
-      {libraryEmpty && filter !== 'Playlists' ? (
-        <EmptyState icon="music.note.list" title="No music yet" description="Albums and songs appear here once your server has scanned them." />
-      ) : active.data && empty && (
-        <EmptyState icon="magnifyingglass" title={query ? 'Nothing found' : 'Nothing here yet'}
-          description={query ? 'Try another search or filter.' : 'Try another filter.'} />
-      )}
-      {filter === 'Songs' ? (
-        <View style={styles.songs}>
-          <SongList tracks={tracks} onTrackMenu={track => onTrackMenu(track)}
-            onPlay={start => actions.playTracks(tracks, { start, context: { type: 'other', id: null, title: 'Songs' } })} />
+    <FlatList key={mode} data={rows} renderItem={renderRow} keyExtractor={libraryRowKey}
+      initialNumToRender={libraryBatch} maxToRenderPerBatch={libraryBatch} windowSize={libraryWindow}
+      keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      onEndReached={loadMore} onEndReachedThreshold={1.5}
+      contentContainerStyle={[styles.libraryBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
+      ListHeaderComponent={<>
+        <View style={styles.sortRow}>
+          {filter === 'Playlists'
+            ? !offline && <BrowseButton label="New playlist" title="New playlist" icon="plus" onPress={newPlaylist} />
+            : <LibrarySort options={Object.keys(sortOptions) as SortName[]} value={sortName} onChange={setSortName} />}
+          {filter !== 'Songs' && <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
+            onPress={() => { tapFeedback(); setGrid(!grid); }} />}
         </View>
-      ) : grid ? <CollectionGrid columns={columns} items={items.map(item => ({
-        id: item.key, title: item.title, subtitle: item.subtitle, size,
-        cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
-      }))} /> : items.map(item => <CollectionRow key={item.key} title={item.title} subtitle={item.subtitle} size={50} dim={item.dim}
-        cover={<CollectionCover item={item} size={50} radius={9} />} href={item.href} />)}
-      {active.isFetchingNextPage && <ActivityIndicator style={styles.more} />}
-    </ScrollView>
+        {!active.data && <QueryState query={active} what="your library" />}
+        {libraryEmpty && filter !== 'Playlists' ? (
+          <EmptyState icon="music.note.list" title="No music yet" description="Albums and songs appear here once your server has scanned them." />
+        ) : active.data && empty && !(searching && found.pending) && (
+          <EmptyState icon="magnifyingglass" title={query ? 'Nothing found' : 'Nothing here yet'}
+            description={query ? 'Try another search or filter.' : 'Try another filter.'} />
+        )}
+      </>}
+      ListFooterComponent={<>
+        {(searching ? found.pending && !empty : listed.isFetchingNextPage) && <ActivityIndicator style={styles.more} />}
+        {capped && <Text style={styles.matchNote}>Showing the best {libraryMatchLimit} matches. Type more to narrow them down.</Text>}
+      </>} />
   </View>;
 }
 
@@ -234,7 +281,7 @@ const topCoverSize = 76;
 /** The best match: an artist or album opens its page (an album can also play); a song plays. */
 function TopResultView({ top, groups, link, onTrackMenu }: SearchSections & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
   const playAlbum = useAlbumPlayer();
-  const { actions } = usePlaybackState();
+  const actions = usePlaybackActions();
   const { canPlay } = useAvailability();
   const preparing = useTrackPreparing(top?.type === 'track' ? top.track.id : undefined);
   if (!top) return null;
@@ -262,7 +309,7 @@ function SearchGroupView({ title, note, group, link, onTrackMenu }: {
   title: string; note?: string; group: SearchGroup;
 } & Pick<BrowseProps, 'link' | 'onTrackMenu'>) {
   const styles = useStyles();
-  const { actions } = usePlaybackState();
+  const actions = usePlaybackActions();
   if (isEmptyGroup(group)) return null;
   return <View style={styles.resultGroup}>
     <View style={styles.groupTitle}>
@@ -377,6 +424,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   sortRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 43, marginBottom: 4 },
   songs: { marginHorizontal: -4 },
   more: { marginVertical: 20 },
+  matchNote: { color: colors.quiet, fontSize: 13, textAlign: 'center', marginVertical: 18, marginHorizontal: 12 },
   searchHeader: { marginHorizontal: gutter, marginTop: 13, marginBottom: 25 },
   genres: { paddingHorizontal: gutter },
   resultSection: { marginBottom: 23 },
