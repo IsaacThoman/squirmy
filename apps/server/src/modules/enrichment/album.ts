@@ -18,7 +18,7 @@ import type { MbReleaseGroup } from '../metadata/musicbrainz.js'
 import { bridgeAlbum, type BridgedAlbum } from './bridge.js'
 import { chooseCanonicalRelease, type EditionHint } from './canonical.js'
 import { buildFromDeezer, creditDeezerTracks, linkDeezerAlbum } from './deezer-rows.js'
-import { fitStrayRecordings } from './fit.js'
+import { fitStrayRecordings, standInsFor } from './fit.js'
 import { adoptMbid, albumOwned, attempt, changed, currentId, day, linkExternalId } from './rows.js'
 
 /** A complete album is refreshed after this long. */
@@ -137,7 +137,7 @@ async function deezerStandIn(albumId: string, album: Pick<AlbumRow, 'title' | 'a
  * and the clean version of one album, or two copies), the explicit one, so the page shows
  * the songs as released rather than the radio edit.
  */
-async function deezerAlbumOf(albumId: string): Promise<string | null> {
+export async function deezerAlbumOf(albumId: string): Promise<string | null> {
   const rows = await db.select({ id: externalIds.externalId }).from(externalIds)
     .where(and(eq(externalIds.provider, 'deezer'), eq(externalIds.entityType, 'album'), eq(externalIds.entityId, albumId)))
     .orderBy(externalIds.createdAt, externalIds.externalId)
@@ -204,7 +204,9 @@ async function fromMusicBrainz(albumId: string, group: MbReleaseGroup, edition: 
       const providerReleases = (await tx.select({ id: releases.id }).from(releases)
         .where(and(eq(releases.albumId, target), isNull(releases.mbid),
           sql`not exists (select 1 from media_files f where f.release_id = ${releases.id})`))).map((row) => row.id)
-      const upserted = await upsertRelease(tx, release, { releaseIds: providerReleases }, { canonical: 'always' })
+      // The songs the album already lists (Deezer's track list, a delivery's) keep their rows.
+      const recordings = await standInsFor(tx, target, release)
+      const upserted = await upsertRelease(tx, release, { releaseIds: providerReleases, recordings }, { canonical: 'always' })
       if (upserted.albumId !== target) {
         await mergeAlbum(target, upserted.albumId, tx)
         target = upserted.albumId
@@ -267,7 +269,8 @@ async function asEdition(albumId: string, group: MbReleaseGroup, releaseMbid: st
       const providerReleases = (await tx.select({ id: releases.id }).from(releases)
         .where(and(eq(releases.albumId, albumId), isNull(releases.mbid),
           sql`not exists (select 1 from media_files f where f.release_id = ${releases.id})`))).map((row) => row.id)
-      await upsertRelease(tx, release, { releaseIds: providerReleases }, { canonical: 'always', editionAlbumId: albumId })
+      const recordings = await standInsFor(tx, albumId, release)
+      await upsertRelease(tx, release, { releaseIds: providerReleases, recordings }, { canonical: 'always', editionAlbumId: albumId })
       await fitStrayRecordings(tx, albumId)
     } else {
       await tx.update(albums).set({
