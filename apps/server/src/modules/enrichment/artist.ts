@@ -120,13 +120,16 @@ export async function hydrateArtist(id: string, { force = false } = {}): Promise
  */
 export async function upsertDiscography(groups: readonly MbReleaseGroupSummary[]): Promise<string[]> {
   if (groups.length === 0) return []
+  // Albums whose stubs were merged or took the MBID: pages, lists and playlists that show
+  // them change, whichever caller (an artist page, the new-release job) wrote them.
+  const adopted = new Set<string>()
   const rows = await db.transaction(async (tx) => {
     await lockUpserts(tx)
     const artistIds = await upsertArtists(tx, groups.flatMap((group) => group.artistCredit))
     const stubs = await stubsByGroup(tx, groups, artistIds)
     const written: { id: string; mbid: string; artworkAssetId: string | null; inserted: boolean }[] = []
     for (const group of groups) {
-      await adoptStubs(tx, group.mbid, stubs.get(group.mbid) ?? [])
+      for (const id of await adoptStubs(tx, group.mbid, stubs.get(group.mbid) ?? [])) adopted.add(id)
       const values = {
         mbid: group.mbid,
         title: group.title,
@@ -152,6 +155,7 @@ export async function upsertDiscography(groups: readonly MbReleaseGroupSummary[]
     }
     return written
   })
+  await changed([...adopted].map((id) => queryKeys.album(id)))
   if ((await getServerSettings()).coverArtArchiveEnabled) {
     for (const row of rows) {
       if (row.artworkAssetId) continue
@@ -199,8 +203,8 @@ async function stubsByGroup(tx: Transaction, groups: readonly MbReleaseGroupSumm
  * into the row that has it, else the first takes it and the others merge into that one.
  * Merges leave redirects, so ids clients hold keep working.
  */
-async function adoptStubs(tx: Transaction, mbid: string, stubIds: readonly string[]) {
-  if (stubIds.length === 0) return
+async function adoptStubs(tx: Transaction, mbid: string, stubIds: readonly string[]): Promise<string[]> {
+  if (stubIds.length === 0) return []
   const [existing] = await tx.select({ id: albums.id }).from(albums).where(eq(albums.mbid, mbid))
   let into = existing ? await resolveMerged(tx, albums, existing.id) : null
   for (const id of stubIds) {
@@ -210,6 +214,7 @@ async function adoptStubs(tx: Transaction, mbid: string, stubIds: readonly strin
       into = id
     }
   }
+  return [...stubIds, into!]
 }
 
 /** Keeps the image an artist has (from the user's folders, say); else Deezer's picture, fanart.tv, then Wikidata, as a lazy remote image. */
