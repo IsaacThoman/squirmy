@@ -3,6 +3,8 @@
  * two must carry the same structure (test-client.ts). Rows come from the factories; the
  * audio tests with real files are in media.test.ts.
  */
+import { randomUUID } from 'node:crypto'
+import { COMMAND_TRACK_LIMIT } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -564,6 +566,18 @@ describe('subsonic', () => {
       expect(await mira.client.error('savePlayQueueByIndex', { id: ids })).toBe(10)
       expect(await mira.client.error('savePlayQueue', { id: ids })).toBe(10)
       expect(await mira.client.error('savePlayQueue', { id: ids, current: song(blueHour, 0) })).toBe(0)
+    })
+
+    it('keeps a bounded part of a very long saved queue', async () => {
+      const unknown = (count: number) => Array.from({ length: count }, () => `tr-${randomUUID()}`)
+      const ids = [song(kites, 0), ...unknown(COMMAND_TRACK_LIMIT), song(blueHour, 0), song(blueHour, 1), ...unknown(COMMAND_TRACK_LIMIT), song(gray, 0)]
+      await mira.client.call('savePlayQueue', { id: ids, current: song(blueHour, 0) }, { method: 'POST' })
+      const snapshot = await getSnapshot(mira.id)
+      expect(snapshot.state.current?.trackId).toBe(blueHour.tracks[0]!.recordingId)
+      expect(snapshot.queue.queue.map((entry) => entry.trackId)).toEqual([blueHour.tracks[1]!.recordingId])
+      // What came before the current song is remembered only as far back as one command carries.
+      const { playQueue } = await mira.client.call('getPlayQueue')
+      expect(playQueue.entry.map((entry: { id: string }) => entry.id)).toEqual([song(blueHour, 0), song(blueHour, 1)])
     })
 
     it('shows changes made in Squirmy and clears with no ids', async () => {
