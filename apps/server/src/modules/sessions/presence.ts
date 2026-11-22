@@ -33,13 +33,34 @@ export function connectedDevice(userId: string, deviceId: string): PresentDevice
   return presence.get(userId)?.get(deviceId)
 }
 
-/** Connected devices in the order they connected. */
-export function listDevices(userId: string, activeDeviceId: string | null): DeviceInfo[] {
-  return [...(presence.get(userId)?.values() ?? [])].map(device => ({
-    id: device.id,
-    name: device.name,
-    kind: device.kind,
-    canPlay: device.canPlay,
-    isActive: device.id === activeDeviceId,
-  }))
+/** The ids of the device's connected sockets. */
+export function deviceSockets(userId: string, deviceId: string): string[] {
+  return [...(presence.get(userId)?.get(deviceId)?.sockets ?? [])]
+}
+
+/** Ids of the user's connected devices, in the order they connected. */
+export function connectedDeviceIds(userId: string): string[] {
+  return [...(presence.get(userId)?.keys() ?? [])]
+}
+
+/**
+ * Connected devices in the order they connected. `detached` gives what a detached device
+ * plays on its own; such a device is listed as one the shared session cannot move to.
+ */
+export function listDevices(
+  userId: string,
+  activeDeviceId: string | null,
+  detached: (deviceId: string) => DeviceInfo['detached'] = () => undefined,
+): DeviceInfo[] {
+  return [...(presence.get(userId)?.values() ?? [])].map((device) => {
+    const own = detached(device.id)
+    return {
+      id: device.id,
+      name: device.name,
+      kind: device.kind,
+      canPlay: device.canPlay && !own,
+      isActive: device.id === activeDeviceId,
+      ...(own ? { detached: own } : {}),
+    }
+  })
 }

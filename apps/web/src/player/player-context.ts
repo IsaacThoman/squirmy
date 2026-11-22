@@ -1,3 +1,4 @@
+import type { SessionMoveResult } from '@squirmy/client-core'
 import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useSyncExternalStore } from 'react'
 
@@ -23,6 +24,10 @@ export type PlayerState = {
   thisDeviceId: string
   activeDeviceId: string | null
   lyrics: Lyrics | null
+  /** This tab plays on its own: everything above is its own session, not the one the user's other devices share. */
+  detached: boolean
+  /** `detach` can work: this tab plays and the server supports it. */
+  canDetach: boolean
 }
 
 export type PlayOptions = { shuffle?: boolean }
@@ -51,6 +56,10 @@ export type PlayerControls = {
   clearQueue: () => void
   clearHistory: () => void
   transfer: (deviceId: string) => void
+  /** Takes this tab out of the shared session into one of its own. Resolves once the server has answered. */
+  detach: () => Promise<SessionMoveResult>
+  /** Puts this tab back in the shared session; `bringQueue` makes the shared session what this tab was playing. */
+  attach: (options?: { bringQueue?: boolean }) => Promise<SessionMoveResult>
   /** Renames this browser in every device list; null goes back to the name from the user agent. */
   renameDevice: (name: string | null) => void
 }
