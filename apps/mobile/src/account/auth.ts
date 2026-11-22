@@ -18,7 +18,7 @@ export type AuthEvent =
   | { type: 'connected'; server: Server }
   | { type: 'signedIn'; token: string; user: User }
   | { type: 'userLoaded'; user: User }
-  /** The server answered `GET /setup/status` again: its name, version or invite rule may have changed. */
+  /** The server answered `GET /setup/status` again: its name, version, invite rule or wantlist switch may have changed. */
   | { type: 'serverLoaded'; server: Server }
   /** A request made with `token` came back 401. */
   | { type: 'unauthorized'; token: string }
@@ -66,7 +66,8 @@ export function reduceAuth(state: AuthState, event: AuthEvent): AuthState {
 }
 
 function sameServer(a: Server, b: Server): boolean {
-  return a.name === b.name && a.version === b.version && a.registrationRequiresInvite === b.registrationRequiresInvite;
+  return a.name === b.name && a.version === b.version && a.registrationRequiresInvite === b.registrationRequiresInvite
+    && a.wantlistEnabled === b.wantlistEnabled;
 }
 
 /** What to tell the person when signing in or registering fails. */

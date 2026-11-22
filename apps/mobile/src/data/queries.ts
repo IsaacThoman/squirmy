@@ -6,6 +6,7 @@ import {
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSignedInApi, type Api } from '../account/AccountProvider';
+import { albumExpanding, albumPlaceholder, findAlbumSummary } from './albums';
 import { useTrackStore } from './library';
 
 const pageSize = 60;
@@ -79,7 +80,22 @@ export function usePlaylists(enabled = true) {
 
 export function useAlbum(id: string) {
   const prime = usePrime();
-  return useApiQuery(queryKeys.album(id), async api => prime(await api.catalog.album(id), album => album.discs.flatMap(disc => disc.tracks)));
+  const api = useSignedInApi();
+  const queryClient = useQueryClient();
+  // Looked up once per page: the header can draw from the tile that opened it.
+  const [placeholder] = useState(() => {
+    const summary = findAlbumSummary(queryClient.getQueryCache().getAll().map(query => query.state.data), id);
+    return summary && albumPlaceholder(summary);
+  });
+  return useQuery({
+    queryKey: queryKeys.album(id),
+    queryFn: async () => prime(await api!.catalog.album(id), album => album.discs.flatMap(disc => disc.tracks)),
+    enabled: Boolean(api),
+    placeholderData: placeholder,
+    // An album the server has only heard of (from search or an artist's discography) comes
+    // back without tracks while the server looks them up; the next answer has them.
+    refetchInterval: query => albumExpanding(query.state.data, query.state.dataUpdateCount) ? 2000 : false,
+  });
 }
 
 export function useArtist(id: string) {

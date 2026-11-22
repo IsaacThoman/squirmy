@@ -1,7 +1,7 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { useNavigationContainerRef, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef } from 'react';
-import { useSignedInApi } from '../account/AccountProvider';
+import { useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
 import { closeSheet } from '../closeSheet';
 import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
 import { useRealtime } from '../data/realtime';
@@ -10,7 +10,8 @@ import { songsId, type TrackDownload } from '../downloads/model';
 import { useNotice } from '../Notice';
 import { useIsCurrentTrack, usePlaybackActions } from '../playback';
 import { usePlayerTransition } from '../player/transition';
-import { pageHref, tabOf } from './links';
+import { pageHref } from './links';
+import { tabIn } from './tabs';
 import { trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
 
 export { trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
@@ -60,7 +61,7 @@ export function useTrackActionRunner(inSheet = false) {
   }, []);
 
   const open = useCallback((action: TrackAction) => {
-    const href = action.href ?? (action.page && pageHref(tabOf(navigation.getRootState()), action.page.page, action.page.id));
+    const href = action.href ?? (action.page && pageHref(tabIn(navigation.getRootState()), action.page.page, action.page.id));
     if (!href) {
       if (inSheet) closeSheet(router);
       return;
@@ -98,6 +99,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
   const download = useTrackDownload(track?.id);
   const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
   const isCurrent = useIsCurrentTrack(track?.id);
+  const wantlist = useWantlistEnabled();
   const playlists = usePlaylistActions();
   const { perform } = useTrackActionRunner();
   if (!track) return [];
@@ -105,7 +107,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
     ...options.playlist,
     onRemove: options.playlist.onRemove ?? ((itemId: string) => playlists.removeItem(options.playlist!.id, itemId)),
   };
-  return trackActions(track, { liked, playable, offline, isCurrent, download, onItsOwn }, { playlist })
+  return trackActions(track, { liked, playable, offline, isCurrent, download, onItsOwn, wantlist }, { playlist })
     .map(action => ({ ...action, run: () => perform(track, action, { playlist }) }));
 }
 

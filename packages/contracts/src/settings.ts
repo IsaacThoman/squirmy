@@ -58,6 +58,12 @@ export const ServerSettings = z.object({
   importMaxFileBytes: z.number().int().min(1).default(4 * 1024 ** 3),
   /** Largest import, counting what its archives extract to. */
   importMaxBytes: z.number().int().min(1).default(64 * 1024 ** 3),
+  /**
+   * Whether people can keep a wantlist of music the server does not have. Off by default:
+   * with a provider that can fetch anything it is noise. Turning it off keeps the stored
+   * wants, so turning it back on restores them.
+   */
+  wantlistEnabled: z.boolean().default(false),
 })
 export type ServerSettings = z.infer<typeof ServerSettings>
 
@@ -81,6 +87,7 @@ export const UpdateServerSettings = z.object({
   inboxPath: z.string().nullable(),
   importMaxFileBytes: z.number().int().min(1),
   importMaxBytes: z.number().int().min(1),
+  wantlistEnabled: z.boolean(),
   listenBrainzToken: z.string().nullable(),
   acoustIdKey: z.string().nullable(),
   fanartKey: z.string().nullable(),

@@ -1,11 +1,12 @@
 import { AlbumDetail, ArtistDetail, HomeResponse, Lyrics, TrackPage, TrackSummariesResponse, TrackSummary } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albumArtists, albums, artists, likes, lyrics, mediaFiles, playlistItems, playlists, recordings, releaseTracks, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
+import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -43,8 +44,12 @@ describe('catalog pages', () => {
     await db.update(albums).set({ genres: ['Ambient'], description: 'Quiet.' }).where(eq(albums.id, album.albumId))
     await db.insert(likes).values({ userId: user.id, entityType: 'album', entityId: album.albumId })
     await db.insert(wants).values({ userId: user.id, entityType: 'album', entityId: album.albumId })
+    // Nothing is wanted while the wantlist is off.
+    expect(body(await get(`/albums/${album.albumId}`), AlbumDetail).wanted).toBe(false)
 
+    await updateServerSettings({ wantlistEnabled: true })
     const detail = body(await get(`/albums/${album.albumId}`), AlbumDetail)
+    await updateServerSettings({ wantlistEnabled: false })
     expect(ensureAlbumDetail).toHaveBeenCalledWith(album.albumId)
     expect(detail).toMatchObject({
       title: 'Two Sides', availability: 'partial', trackCount: 3, ownedTrackCount: 2, liked: true, wanted: true,
@@ -183,6 +188,13 @@ describe('catalog pages', () => {
     // Someone else's public playlist is not "yours".
     await db.insert(playlists).values({ id: newId(), ownerId: user.id, name: 'Theirs', isPublic: true })
 
+    // The wantlist is off by default: Home leaves it out and does not refresh wants.
+    expect((await homeOf()).map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'liked-albums'])
+    const ownedWant = async () => (await db.select({ fulfilledAt: wants.fulfilledAt }).from(wants)
+      .where(and(eq(wants.userId, fresh.id), eq(wants.entityId, played.albumId))))[0]!.fulfilledAt
+    expect(await ownedWant()).toBeNull()
+    await updateServerSettings({ wantlistEnabled: true })
+
     const sections = await homeOf()
     expect(sections.map((section) => section.id)).toEqual(['recently-added', 'recently-played', 'most-played', 'playlists', 'liked-albums', 'wantlist'])
     const byId = Object.fromEntries(sections.map((section) => [section.id, section]))
@@ -194,5 +206,6 @@ describe('catalog pages', () => {
     expect(byId.playlists).toMatchObject({ kind: 'playlists', title: 'Your playlists', playlists: [{ name: 'Mine', trackCount: 1 }] })
     expect(byId['liked-albums']).toMatchObject({ kind: 'albums', albums: [{ id: liked.albumId }] })
     expect(byId.wantlist).toMatchObject({ kind: 'albums', albums: [{ id: wanted.albumId }] })
+    expect(await ownedWant()).not.toBeNull()
   })
 })

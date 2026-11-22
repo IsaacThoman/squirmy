@@ -8,7 +8,7 @@ const track = (parts: Partial<TrackSummary> = {}): TrackSummary => ({
   availability: 'server', liked: false, explicit: null, hasLyrics: false, ...parts,
 } as TrackSummary);
 const state = (parts: Partial<TrackActionState> = {}): TrackActionState => ({
-  liked: false, playable: true, offline: false, isCurrent: false, download: undefined, onItsOwn: false, ...parts,
+  liked: false, playable: true, offline: false, isCurrent: false, download: undefined, onItsOwn: false, wantlist: true, ...parts,
 });
 const ids = (...args: Parameters<typeof trackActions>) => trackActions(...args).map(action => action.id);
 
@@ -28,6 +28,10 @@ describe('trackActions', () => {
 
   it('lets a gray track only be liked, wanted and opened', () => {
     expect(ids(track({ availability: 'none' }), state({ playable: false }))).toEqual(['like', 'want', 'album', 'artist']);
+  });
+
+  it('offers no wantlist when the server has it off', () => {
+    expect(ids(track({ availability: 'none' }), state({ playable: false, wantlist: false }))).toEqual(['like', 'album', 'artist']);
   });
 
   it('leaves out what needs the server while offline', () => {

@@ -16,4 +16,11 @@ describe('settings patches', () => {
     }
     expect(Object.keys(UpdateUserSettings.shape).sort()).toEqual(Object.keys(UserSettings.shape).sort())
   })
+
+  it('keeps the wantlist off unless an admin turns it on', () => {
+    expect(ServerSettings.parse({}).wantlistEnabled).toBe(false)
+    expect(ServerSettings.parse({ wantlistEnabled: true }).wantlistEnabled).toBe(true)
+    expect(UpdateServerSettings.parse({ wantlistEnabled: true })).toEqual({ wantlistEnabled: true })
+    expect(UpdateServerSettings.safeParse({ wantlistEnabled: 'yes' }).success).toBe(false)
+  })
 })

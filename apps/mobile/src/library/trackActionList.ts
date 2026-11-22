@@ -34,15 +34,18 @@ export type TrackActionState = {
   download: TrackDownload | undefined;
   /** Downloaded on its own, not only as part of an album or playlist, so it can be removed here. */
   onItsOwn: boolean;
+  /** The server has the wantlist on. */
+  wantlist: boolean;
 };
 
 /**
- * What can be done with `track`, in menu order. Gray tracks can only be liked, wanted and
- * opened. Offline, what needs the server is left out, and likes wait for it. The result
+ * What can be done with `track`, in menu order. Gray tracks can only be liked, wanted (when
+ * the server has the wantlist on) and opened. Offline, what needs the server is left out,
+ * and likes wait for it. The result
  * only describes the actions; `useTrackActionRunner` carries one out when it is chosen.
  */
 export function trackActions(track: TrackSummary, state: TrackActionState, { playlist }: TrackActionOptions = {}): TrackAction[] {
-  const { liked, playable, offline, isCurrent, download, onItsOwn } = state;
+  const { liked, playable, offline, isCurrent, download, onItsOwn, wantlist } = state;
   const online = !offline;
   const downloadAction: TrackAction | false = download?.state === 'failed' && onItsOwn
     ? { id: 'retryDownload', title: 'Retry download', icon: 'arrow.clockwise' }
@@ -62,7 +65,7 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
       href: { pathname: '/add-to-playlist', params: { trackId: track.id, albumId: track.album?.id ?? '' } } },
     playable && online && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right' },
     // Gray tracks, including on-demand ones this user may not have fetched.
-    !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star' },
+    wantlist && !playable && track.availability !== 'server' && online && { id: 'want', title: 'Add to wantlist', icon: 'star' },
     Boolean(track.album) && { id: 'album', title: 'Go to album', icon: 'square.stack', page: { page: 'album', id: track.album!.id } },
     Boolean(track.artists[0]) && { id: 'artist', title: 'Go to artist', icon: 'music.mic', page: { page: 'artist', id: track.artists[0]!.id } },
     playlist !== undefined && online && { id: 'remove', title: 'Remove from playlist', icon: 'minus.circle', destructive: true },

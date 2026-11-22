@@ -1,5 +1,6 @@
-import type { AlbumSummary, AlbumType, PlaybackContext, TrackSummary } from '@squirmy/contracts';
+import { queryKeys, type AlbumSummary, type AlbumType, type PlaybackContext, type TrackSummary } from '@squirmy/contracts';
 import { formatTotalDuration } from '@squirmy/client-core';
+import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, FlatList, Platform, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -8,7 +9,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { useAccount, useSignedInApi } from '../account/AccountProvider';
+import { useAccount, useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
+import { albumExpanding } from '../data/albums';
 import { fallbackTint } from '../data/color';
 import { useLibraryActions, useLiked, usePlaylistActions } from '../data/library';
 import { useAlbum, useArtist, useGenreAlbums, useHistory, useLikedTracks, usePlaylist } from '../data/queries';
@@ -184,6 +186,7 @@ function playButtons(tracks: readonly TrackSummary[], canPlay: (track: TrackSumm
 
 export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const album = useAlbum(id);
+  const queryClient = useQueryClient();
   const kept = useDownloadedAlbum(id);
   const data = album.data ?? kept;
   const actions = usePlaybackActions();
@@ -191,20 +194,23 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
   const download = useDownloadActions();
   const liked = useLiked('album', id, data?.liked);
   const { setLiked, want } = useLibraryActions();
+  const wantlist = useWantlistEnabled();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
     album.data?.discs.some(disc => disc.tracks.some(track => track.availability === 'server')) ? () => download.album(album.data!) : null);
   useBackSwipeOnly();
   if (!data) return <PageFallback query={album} what="this album" onBack={onBack} />;
   const tracks = data.discs.flatMap(disc => disc.tracks);
+  // Not "0 songs · 1 min" with a wantlist button that turns into Play under the finger.
+  const expanding = album.isPlaceholderData || albumExpanding(album.data, queryClient.getQueryState(queryKeys.album(id))?.dataUpdateCount ?? 0);
   const context: PlaybackContext = { type: 'album', id: data.id, title: data.title };
   const play = (shuffle?: boolean, start?: number) => {
     tapFeedback();
     actions.playTracks(tracks, { start, shuffle, context });
   };
   const owned = data.availability === 'partial' ? `${data.ownedTrackCount} of ${data.trackCount} in your library` : null;
-  const wantable = data.availability !== 'full' && !data.wanted && !offline;
+  const wantable = wantlist && data.availability !== 'full' && !data.wanted && !offline;
   const buttons = playButtons(tracks, canPlay, play);
-  const wantButton = offline ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
+  const wantButton = offline || !wantlist ? [] : [{ label: data.wanted ? 'On your wantlist' : 'Add to wantlist', symbol: data.wanted ? 'star.fill' : 'star',
     onPress: () => {
       if (data.wanted) return;
       tapFeedback();
@@ -213,9 +219,10 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title} artist={data.artistCredit}
     info={[typeNames[data.type], data.genres[0], data.year, owned].filter(Boolean).join('  ·  ')}
-    buttons={buttons.length ? buttons : wantButton} status={control.status}
+    buttons={buttons.length || expanding ? buttons : wantButton} status={control.status}
     nav={[
-      { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.title}` : `Like ${data.title}`, selected: liked,
+      // The placeholder does not know whether the album is liked.
+      !album.isPlaceholderData && { icon: liked ? 'heart.fill' : 'heart', label: liked ? `Unlike ${data.title}` : `Like ${data.title}`, selected: liked,
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked); } },
       control.nav,
       buttons.length > 0 && wantable && { icon: 'star', label: `Add ${data.title} to your wantlist`,
@@ -223,8 +230,10 @@ export function AlbumScreen({ id, onBack, onTrackMenu, link, bottomInset = 155 }
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
     description={data.description} onBack={onBack} bottomInset={bottomInset}>
-    <TrackSection title="Tracklist" detail={songCount(tracks, data.durationMs)}>
-      <SongList tracks={tracks} numbered onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
+    <TrackSection title="Tracklist" detail={tracks.length ? songCount(tracks, data.durationMs) : undefined}>
+      {tracks.length ? <SongList tracks={tracks} numbered onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
+        : expanding ? <ActivityIndicator style={{ marginVertical: 28 }} accessibilityLabel="Loading songs" />
+          : <EmptyState icon="music.note" title="No songs listed" description="The server doesn’t know this album’s songs yet." />}
     </TrackSection>
   </DetailPage>;
 }

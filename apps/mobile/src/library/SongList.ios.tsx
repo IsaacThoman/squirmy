@@ -6,6 +6,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
+import { useWantlistEnabled } from '../account/AccountProvider';
 import { useLiked } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload } from '../downloads/DownloadsProvider';
@@ -94,9 +95,10 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const onItsOwn = useDownloadedOnItsOwn(track.id, download);
   const mark = trackMark(download, track, playable);
   const preparing = useTrackPreparing(track.id);
+  const wantlist = useWantlistEnabled();
   const options = playlist && { playlist: { ...playlist, onRemove: handlers.remove } };
   // Described from what the row already reads; nothing runs until an item is chosen.
-  const actions = trackActions(track, { liked, playable, offline, isCurrent: current, download, onItsOwn }, options);
+  const actions = trackActions(track, { liked, playable, offline, isCurrent: current, download, onItsOwn, wantlist }, options);
   const perform = (action: TrackAction) => run(track, action, options);
 
   return (

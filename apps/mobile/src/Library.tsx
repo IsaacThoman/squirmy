@@ -1,11 +1,11 @@
-import { queryKeys, type AlbumSummary, type HomeSection, type LibrarySort as SortKey, type SearchResults, type TrackSummary } from '@squirmy/contracts';
+import { queryKeys, type AlbumSummary, type HomeSection, type SearchResults, type TrackSummary } from '@squirmy/contracts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAccount, useSignedInApi } from './account/AccountProvider';
+import { useAccount, useSignedInApi, useWantlistEnabled } from './account/AccountProvider';
 import { shade } from './data/color';
 import {
   libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbums, useLibraryArtists, useLibraryMatches,
@@ -18,6 +18,7 @@ import {
   type SearchHandle,
 } from './library/BrowseControls';
 import { isEmptyGroup, searchSections, type SearchGroup, type SearchSections } from './library/search';
+import { sortFor, sortOptions, sortsFor, type SortName } from './library/sorting';
 import type { Page } from './library/links';
 import {
   albumCollection, artistCollection, CollectionCover, CollectionRail, EmptyState, gutter, likedCollection, matches, OfflineBadge,
@@ -108,9 +109,13 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const { state } = useAccount();
   const home = useHome();
   const offlineDim = useOfflineDim();
-  const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0);
+  const wantlist = useWantlistEnabled();
+  // A Home saved before the wantlist was switched off, or from an older server, may still have it.
+  const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
   const albums = (id: string) => sections.find((section): section is Extract<HomeSection, { kind: 'albums' }> => section.kind === 'albums' && section.id === id)?.albums;
-  const hero = albums('recently-played')?.[0] ?? albums('recently-added')?.[0];
+  // The first thing on Home: something that plays, never a gray card of an album nobody can play.
+  const playable = (album: AlbumSummary) => album.availability !== 'none';
+  const hero = albums('recently-played')?.find(playable) ?? albums('recently-added')?.find(playable);
   const heroSize = width - gutter * 2;
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
 
@@ -137,9 +142,7 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
 }
 
 const filters = ['All', 'Playlists', 'Albums', 'Artists', 'Songs'] as const;
-const sortOptions = { 'Recently added': 'recent', Title: 'title', Artist: 'artist', Year: 'year' } as const satisfies Record<string, SortKey>;
 type LibraryFilter = (typeof filters)[number];
-type SortName = keyof typeof sortOptions;
 /** Rows drawn per batch, and screens' worth kept around the visible part. */
 const libraryBatch = 12;
 const libraryWindow = 7;
@@ -163,6 +166,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const [grid, setGrid] = useState(true);
   const [showFilter, setShowFilter] = useState(false);
   const [query, setQuery] = useState('');
+  const sorts = sortsFor(filter);
   const sort = sortOptions[sortName];
   const columns = width >= 650 ? 4 : 3;
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
@@ -170,8 +174,9 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const showsAlbums = filter === 'All' || filter === 'Albums';
   // Only the lists the filter shows are loaded.
   const albums = useLibraryAlbums(sort, showsAlbums);
-  const artists = useLibraryArtists(sort, filter === 'Artists');
-  const songs = useLibraryTracks(sort, filter === 'Songs');
+  // The server lists artists by name whatever the order asked for.
+  const artists = useLibraryArtists('title', filter === 'Artists');
+  const songs = useLibraryTracks(sortOptions[sortFor('Songs', sortName)], filter === 'Songs');
   const playlists = usePlaylists(showsPlaylists);
   // A filter of two characters or more searches the whole library on the server; a single
   // character only narrows what is already loaded.
@@ -189,16 +194,18 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       collections.push(...[likedCollection(link), ...playlists.items.map(playlist => playlistCollection(playlist, link))]
         .filter(item => matches(query, item.title, item.subtitle)));
     }
+    // Sorted by year, the year says why an album is where it is.
+    const subtitle = (album: AlbumSummary) => sort === 'year' && album.year ? `${album.artistCredit} · ${album.year}` : album.artistCredit;
     if (showsAlbums) {
       collections.push(...searching ? (matched?.albums ?? []).map(album => albumCollection(album, link))
-        : albums.items.map(album => albumCollection(album, link)).filter(item => matches(query, item.title, item.subtitle)));
+        : albums.items.map(album => albumCollection(album, link, subtitle(album))).filter(item => matches(query, item.title, item.subtitle)));
     }
     if (filter === 'Artists') {
       collections.push(...searching ? (matched?.artists ?? []).map(artist => artistCollection(artist, link))
         : artists.items.map(artist => artistCollection(artist, link)).filter(item => matches(query, item.title, item.subtitle)));
     }
     return collections.map(offlineDim);
-  }, [albums.items, artists.items, filter, link, matched, offlineDim, playlists.items, query, searching, showsAlbums, showsPlaylists]);
+  }, [albums.items, artists.items, filter, link, matched, offlineDim, playlists.items, query, searching, showsAlbums, showsPlaylists, sort]);
   const tracks = useMemo(() => searching ? matched?.tracks ?? []
     : songs.items.filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? '')), [matched, query, searching, songs.items]);
   const songItems = useSongListItems({
@@ -258,7 +265,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
           {/* Matches from the server come best first, whatever the sort. */}
           {filter === 'Playlists'
             ? !offline && <BrowseButton label="New playlist" title="New playlist" icon="plus" onPress={newPlaylist} />
-            : searching ? <View /> : <LibrarySort options={Object.keys(sortOptions) as SortName[]} value={sortName} onChange={setSortName} />}
+            : !searching && sorts.length > 0 ? <LibrarySort options={sorts} value={sortFor(filter, sortName)} onChange={setSortName} /> : <View />}
           {filter !== 'Songs' && <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
             onPress={() => { tapFeedback(); setGrid(!grid); }} />}
         </View>
@@ -372,7 +379,8 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     if (navigation.isFocused()) searchInput.current?.focus();
   }), [navigation, tabs]);
 
-  const active = Boolean(query.trim());
+  // The server answers nothing under two characters; keep the genres until a search can find something.
+  const active = query.trim().length >= 2;
   const answered = search.library.data !== undefined || search.catalog.data !== undefined;
   const genreNames = (genres.data ?? []).slice(0, 6).map(genre => genre.name);
   const genreCovers = useGenreCovers(genreNames);
@@ -380,7 +388,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   return <View style={[styles.page, { paddingTop: top + 12 }]}>
     <View style={styles.pageHeader}>
       <Text accessibilityRole="header" style={[styles.pageTitle, styles.flex]}>Search</Text>
-      {active && search.pending && !offline && <ActivityIndicator color={colors.muted} />}
+      {active && answered && search.pending && !offline && <ActivityIndicator color={colors.muted} />}
       <OfflineBadge />
     </View>
     <View style={styles.searchHeader}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists" /></View>
@@ -402,7 +410,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
         ? <SearchResultsView library={search.library.data} catalog={search.catalog.data} link={link} onTrackMenu={onTrackMenu} />
         : search.library.isError && search.catalog.isError
           ? <EmptyState icon="wifi.exclamationmark" title="Search isn’t available" description="Check your connection to the server." />
-          : null}
+          : <View style={styles.searching}><ActivityIndicator color={colors.muted} /></View>}
     </ScrollView>
   </View>;
 }
@@ -426,6 +434,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   songs: { marginHorizontal: -4 },
   more: { marginVertical: 20 },
   matchNote: { color: colors.quiet, fontSize: 13, textAlign: 'center', marginVertical: 18, marginHorizontal: 12 },
+  searching: { paddingVertical: 48, alignItems: 'center' },
   searchHeader: { marginHorizontal: gutter, marginTop: 13, marginBottom: 25 },
   genres: { paddingHorizontal: gutter },
   resultSection: { marginBottom: 23 },
