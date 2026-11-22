@@ -2,6 +2,7 @@ import type { AlbumSummary, ArtistSummary, PlaylistSummary } from '@squirmy/cont
 import { BookmarkCheck, BookmarkPlus, CloudDownload, Play } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import { usePrefetch, type PrefetchHandlers } from '@/api/prefetch'
 import { Tooltip } from '@/components/ui/tooltip'
 import { albumTypeLabel, isUnowned } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
@@ -20,10 +21,12 @@ type CardProps = {
   dimmed?: boolean
   badge?: ReactNode
   centered?: boolean
+  /** Starts loading the linked page when the card is hovered, focused or pressed. */
+  prefetch?: PrefetchHandlers
 }
 
 /** Artwork, a title and a subtitle, linking to a page. A play button rises on hover. */
-function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered }: CardProps) {
+function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered, prefetch }: CardProps) {
   return (
     <div className={cn('group/card relative flex min-w-0 flex-col rounded-2xl p-2 -m-2 transition-colors duration-150 hover:bg-overlay focus-within:bg-overlay', centered && 'items-center text-center')}>
       <div className="relative w-full">
@@ -54,7 +57,7 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, badge, centered 
           </button>
         )}
       </div>
-      <Link to={to} title={title} className={cn('mt-2.5 truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none', dimmed && 'text-quiet', 'w-full')}>
+      <Link to={to} title={title} {...prefetch} className={cn('mt-2.5 truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none', dimmed && 'text-quiet', 'w-full')}>
         {title}
       </Link>
       <div className={cn('mt-0.5 w-full truncate text-[13px] text-muted', dimmed && 'text-quiet')}>{subtitle}</div>
@@ -79,9 +82,11 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
   // On demand only for people who may fetch music; gray for everyone else.
   const onDemand = album.availability === 'on_demand' && canRequest
   const dimmed = album.availability === 'none' || (album.availability === 'on_demand' && !canRequest)
+  const prefetch = usePrefetch({ kind: 'album', id: album.id })
   return (
     <Card
       to={`/album/${album.id}`}
+      prefetch={prefetch}
       title={album.title}
       subtitle={subtitle === 'year' ? [album.year, albumTypeLabel(album.type)].filter(Boolean).join(' · ') : album.artistCredit}
       art={<Cover artwork={album.artwork} dimmed={dimmed} className={cn(onDemand && 'opacity-80')} />}
@@ -96,9 +101,11 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
 }
 
 export function ArtistCard({ artist }: { artist: ArtistSummary }) {
+  const prefetch = usePrefetch({ kind: 'artist', id: artist.id })
   return (
     <Card
       to={`/artist/${artist.id}`}
+      prefetch={prefetch}
       title={artist.name}
       subtitle="Artist"
       centered

@@ -10,6 +10,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { moveItem } from '@/lib/reorder'
+import { useCachedSummary } from '@/api/prefetch'
 import {
   isNotFound, itemsOf, loadItems, searchQuery, useAlbum, useArtist, useGenres, useHome, useLibraryList, useLikedTracks, usePlaylist, usePlaylists, useWants,
   type LibraryKind,
@@ -27,6 +28,7 @@ import { ArtistView } from '@/components/views/ArtistView'
 import { HomeView, type ScanProgress } from '@/components/views/HomeView'
 import { LibraryAlbumsView, LibraryArtistsView, LibraryPlaylistsView, LibrarySongsView, type LibraryListProps } from '@/components/views/LibraryView'
 import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
+import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
 import { SearchView } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
 import { useDebounced } from '@/lib/use-debounced'
@@ -97,14 +99,18 @@ export function HomePage() {
 
 export function AlbumPage() {
   const id = useParams().id ?? ''
-  return <Loaded query={useAlbum(id)} skeleton={<CollectionSkeleton />}>{album => <AlbumView key={album.id} album={album} />}</Loaded>
+  const query = useAlbum(id)
+  const summary = useCachedSummary('album', id, query.data === undefined)
+  return <Loaded query={query} skeleton={summary ? <AlbumPreview album={summary} /> : <CollectionSkeleton />}>{album => <AlbumView key={album.id} album={album} />}</Loaded>
 }
 
 export function ArtistPage() {
   const { playAlbum } = usePlayCollections()
   const id = useParams().id ?? ''
+  const query = useArtist(id)
+  const summary = useCachedSummary('artist', id, query.data === undefined)
   return (
-    <Loaded query={useArtist(id)} skeleton={<CollectionSkeleton round />}>
+    <Loaded query={query} skeleton={summary ? <ArtistPreview artist={summary} /> : <CollectionSkeleton round />}>
       {artist => <ArtistView key={artist.id} artist={artist} onPlayAlbum={album => void playAlbum(album)} />}
     </Loaded>
   )
@@ -273,7 +279,9 @@ function useLibraryPage<K extends LibraryKind>(kind: K) {
   const filter = useLibraryFilter()
   const genres = useGenres().data?.items.map(genre => genre.name)
   const list = useLibraryList(kind, { sort: filter.sort, genre: filter.genre })
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = list
+  // While another sort's list stands in, its cursor is not this list's.
+  const { isFetchingNextPage, fetchNextPage } = list
+  const hasNextPage = list.hasNextPage && !list.isPlaceholderData
   const props = {
     items: list.data && itemsOf(list.data),
     more: hasNextPage,

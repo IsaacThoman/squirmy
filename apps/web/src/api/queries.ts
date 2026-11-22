@@ -1,6 +1,6 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
 import { queryKeys, type AlbumSummary, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
-import { useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
+import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
 import { useApi } from './services'
 
 /**
@@ -35,6 +35,7 @@ export function useHome() {
 }
 
 export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.album(id), queryFn: () => api.catalog.album(id), meta: silent })
+export const artistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.artist(id), queryFn: () => api.catalog.artist(id), meta: silent })
 export const playlistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.playlist(id), queryFn: () => api.userdata.playlist(id), meta: silent })
 
 export function useAlbum(id: string) {
@@ -42,8 +43,7 @@ export function useAlbum(id: string) {
 }
 
 export function useArtist(id: string) {
-  const api = useApi()
-  return useQuery({ queryKey: queryKeys.artist(id), queryFn: () => api.catalog.artist(id), meta: silent })
+  return useQuery(artistQuery(useApi(), id))
 }
 
 export function usePlaylist(id: string) {
@@ -82,16 +82,20 @@ const libraryKeys = { albums: queryKeys.libraryAlbums, artists: queryKeys.librar
 const pageSizes: Record<LibraryKind, number> = { albums: 60, artists: 60, tracks: 100 }
 
 /** One of the library's lists, a page at a time as it scrolls. */
-export function useLibraryList<K extends LibraryKind>(kind: K, filter: LibraryFilter) {
-  const api = useApi()
+export const libraryListQuery = <K extends LibraryKind>(api: ApiClient, kind: K, filter: LibraryFilter) => {
   const fetchers = { albums: api.catalog.albums, artists: api.catalog.artists, tracks: api.catalog.tracks }
-  return useInfiniteQuery({
+  return infiniteQueryOptions({
     queryKey: [...libraryKeys[kind](), filter],
     queryFn: ({ pageParam }) => fetchers[kind]({ ...filter, cursor: pageParam, limit: pageSizes[kind] }) as Promise<Page<LibraryItems[K]>>,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.nextCursor ?? undefined,
     meta: silent,
   })
+}
+
+/** A new sort or genre keeps the current list on screen until its own first page arrives. */
+export function useLibraryList<K extends LibraryKind>(kind: K, filter: LibraryFilter) {
+  return useInfiniteQuery({ ...libraryListQuery(useApi(), kind, filter), placeholderData: keepPreviousData })
 }
 
 export function useLikedTracks() {

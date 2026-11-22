@@ -6,6 +6,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Bookmark, Disc3, Heart, House, ListMusic, MicVocal, Music2, Search, ShieldCheck, Upload } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
+import { usePrefetchStartPages } from '@/api/prefetch'
 import { itemsOf, loadItems, searchQuery, useLikedTracks, usePlaylists } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useLogout } from '@/auth/actions'
@@ -34,6 +35,7 @@ export function ShellPage() {
   const playlists = usePlaylists().data?.items ?? []
   const liked = useLikedTracks()
   const playLiked = async () => controls.playTracks(await loadItems(liked, 5000), 0, { type: 'liked', id: null, title: 'Liked Songs' })
+  usePrefetchStartPages()
   return (
     <AppShell
       user={user}
