@@ -76,7 +76,9 @@ The **Missing from disk** count under **Identification** in **Admin → Library*
 
 ## Identified, in review, from tags only
 
-**Admin → Library** counts files in four states:
+**Admin → Library** counts the **Collection**: files that were scanned, uploaded or imported. Music a provider fetched for playing is cache, so it is not counted there; the page says how many such files there are, and **Admin → Providers → Cache** has their size ([The cache](./acquisition.md#the-cache)). A folder's own line counts every file in it, and splits them as "12 in the collection · 110 cached" when it holds the cache under `_Fetched/`.
+
+The collection's files are in four states:
 
 | On screen | Meaning |
 |---|---|

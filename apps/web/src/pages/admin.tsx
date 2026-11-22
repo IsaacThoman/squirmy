@@ -39,6 +39,7 @@ const acquisitionKey = [...queryKeys.admin(), 'acquisition'] as const
 const providersKey = [...acquisitionKey, 'providers'] as const
 const policyKey = [...acquisitionKey, 'policy'] as const
 const acquisitionJobsKey = [...acquisitionKey, 'jobs'] as const
+const usageKey = [...acquisitionKey, 'usage'] as const
 const JOBS_REFRESH_MS = 3000
 // Organize jobs and index imports report progress only in the database, so their screens poll while one runs.
 const RUNNING_REFRESH_MS = 1500
@@ -108,6 +109,7 @@ export function AdminLibraryPage() {
   const templateInfo = useTemplateInfo()
   const [params, setParams] = useSearchParams()
   const stats = useQuery({ queryKey: statsKey, queryFn: () => api.library.stats() })
+  const cache = useQuery({ queryKey: usageKey, queryFn: () => api.admin.acquisitionUsage() })
   const openReviews = useOpenReviewCount()
   const [progress, setProgress] = useState<Record<string, ScanProgress>>({})
   const [browsePath, setBrowsePath] = useState<string>()
@@ -158,6 +160,7 @@ export function AdminLibraryPage() {
       <LibraryAdmin
         roots={roots.data}
         stats={stats.data}
+        cache={cache.data}
         openReviews={openReviews}
         progress={progress}
         templateInfo={templateInfo}
@@ -384,16 +387,18 @@ export function AdminProvidersPage() {
   const jobStatus = AcquisitionJobStatus.safeParse(params.get('status')).data ?? null
   const providers = useQuery({ queryKey: providersKey, queryFn: () => api.acquisition.providers(), select: page => page.items })
   const policy = useQuery({ queryKey: policyKey, queryFn: () => api.acquisition.policy() })
+  const usage = useQuery({ queryKey: usageKey, queryFn: () => api.admin.acquisitionUsage() })
   const jobs = useQuery({
     queryKey: [...acquisitionJobsKey, jobStatus],
     queryFn: () => api.acquisition.jobs({ status: jobStatus ?? undefined, limit: 100 }),
     select: page => page.items,
     placeholderData: keepPreviousData,
   })
-  // A job that ends can change a provider's health too.
+  // A job that ends can change a provider's health too, and a delivery fills the cache.
   useServerEvent('acquisition.updated', () => {
     void queryClient.invalidateQueries({ queryKey: acquisitionJobsKey })
     void queryClient.invalidateQueries({ queryKey: providersKey })
+    void queryClient.invalidateQueries({ queryKey: usageKey })
   })
   const refresh = () => queryClient.invalidateQueries({ queryKey: providersKey })
   const replace = (provider: AcquisitionProvider) => queryClient.setQueryData<{ items: AcquisitionProvider[] }>(providersKey, page => page && { ...page, items: page.items.map(item => item.id === provider.id ? provider : item) })
@@ -436,7 +441,11 @@ export function AdminProvidersPage() {
   })
   const policyUpdate = {
     mutationFn: (patch: UpdateAcquisitionPolicy) => api.acquisition.updatePolicy(patch),
-    onSuccess: (updated: AcquisitionPolicy) => queryClient.setQueryData(policyKey, updated),
+    onSuccess: (updated: AcquisitionPolicy) => {
+      queryClient.setQueryData(policyKey, updated)
+      // The usage carries the limit.
+      return queryClient.invalidateQueries({ queryKey: usageKey })
+    },
   }
   const savePolicy = useMutation(policyUpdate)
   const savePolicyField = useMutation({ ...policyUpdate, meta: { inline: true } })
@@ -445,6 +454,7 @@ export function AdminProvidersPage() {
     <ProvidersAdmin
       providers={providers.data}
       policy={policy.data}
+      usage={usage.data}
       managedRoots={managedOnly(roots.data)}
       jobs={jobs.data}
       jobStatus={jobStatus}

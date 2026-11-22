@@ -88,6 +88,15 @@ describe('library admin', () => {
     expect(screen.getByRole('progressbar', { name: 'Reading tags in Music' })).toHaveAttribute('aria-valuenow', '25')
     expect(screen.getByText('30 of 120')).toBeInTheDocument()
   })
+
+  it('counts the collection apart from the provider cache, and says so on the folder too', () => {
+    const stats = { artists: 0, albums: 0, tracks: 0, files: 0, bytes: 0, durationMs: 0, matched: 0, unmatched: 0, inReview: 0, pending: 0, missing: 0 }
+    const cache = { cachedFiles: 110, cachedBytes: 970 * 1024 ** 2, pinnedBytes: 0, limitBytes: 0 }
+    renderLibrary({ roots: [{ ...root, fileCount: 110, cachedFileCount: 110 }], stats, cache })
+    expect(screen.getByText(/The 110 files \(970 MB\) fetched for playing are cache/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Providers' })).toHaveAttribute('href', '/admin/providers')
+    expect(screen.getByText(/0 in the collection · 110 cached/)).toBeInTheDocument()
+  })
 })
 
 describe('match comparison', () => {
