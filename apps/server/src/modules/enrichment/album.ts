@@ -4,16 +4,17 @@
  * no MusicBrainz match.
  */
 import { queryKeys, type AlbumType } from '@squirmy/contracts'
-import { and, eq, isNull, sql } from 'drizzle-orm'
-import { db, type Transaction } from '../../database/client.js'
+import { and, eq, isNull } from 'drizzle-orm'
+import { db } from '../../database/client.js'
 import { albums, releases } from '../../database/schema.js'
-import { lockUpserts, upsertRelease, type UpsertedRelease } from '../matching/apply.js'
-import { mergeAlbum, mergeRecording } from '../matching/merge.js'
+import { lockUpserts, upsertRelease } from '../matching/apply.js'
+import { mergeAlbum } from '../matching/merge.js'
 import { deezer, musicbrainz } from '../metadata/index.js'
 import type { MbReleaseGroup } from '../metadata/musicbrainz.js'
 import { bridgeAlbum } from './bridge.js'
 import { chooseCanonicalRelease } from './canonical.js'
 import { buildFromDeezer, linkDeezerAlbum } from './deezer-rows.js'
+import { fitStrayRecordings } from './fit.js'
 import { adoptMbid, albumOwned, changed, currentId, day, externalIdOf } from './rows.js'
 
 /** A complete album is refreshed after this long. */
@@ -68,7 +69,8 @@ export async function hydrateAlbum(id: string, { force = false } = {}): Promise<
 /**
  * Writes the group's canonical release under the album row, merging the row into the
  * group's own row when one exists (a bridged stub) or MusicBrainz answered with another
- * id (a merge on their side). An album with files keeps its releases as they are.
+ * id (a merge on their side), then folds recordings that stood in for its tracks into
+ * them (`fit.ts`). An album with files keeps its releases as they are.
  */
 async function fromMusicBrainz(albumId: string, group: MbReleaseGroup): Promise<string> {
   const chosen = (await albumOwned(albumId)) ? null : chooseCanonicalRelease(group.releases)
@@ -85,25 +87,9 @@ async function fromMusicBrainz(albumId: string, group: MbReleaseGroup): Promise<
         await mergeAlbum(target, upserted.albumId, tx)
         target = upserted.albumId
       }
-      await mergeRecordingStubs(tx, upserted)
     }
+    await fitStrayRecordings(tx, target)
     await tx.update(albums).set({ genres: genreNames(group.genres), detailLevel: 2, fetchedAt: new Date(), updatedAt: new Date() }).where(eq(albums.id, target))
     return target
   })
-}
-
-/**
- * Merges recordings that only stood in for the release's tracks (rows from a search or
- * from Deezer: no MBID, no files) into the MusicBrainz recording with the same ISRC.
- */
-async function mergeRecordingStubs(tx: Transaction, upserted: UpsertedRelease) {
-  const ids = [...new Set([...upserted.tracks.values()].map((track) => track.recordingId))]
-  if (ids.length === 0) return
-  const stubs = await tx.execute<{ id: string; into: string }>(sql`
-    select distinct on (s.id) s.id, r.id as into
-    from recordings r join recordings s on s.isrcs && r.isrcs and s.id <> r.id
-    where r.id in ${ids} and s.mbid is null and s.merged_into_id is null
-      and not exists (select 1 from media_files f where f.recording_id = s.id)
-    order by s.id, r.id`)
-  for (const stub of stubs) await mergeRecording(stub.id, stub.into, tx)
 }

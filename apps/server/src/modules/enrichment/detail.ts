@@ -8,10 +8,13 @@
  * queued as a safety net in case the process stops first (it finds the row complete and
  * does nothing otherwise). Concurrent callers for one row share one run.
  */
+import { queryKeys } from '@squirmy/contracts'
 import { enqueue } from '../../jobs/index.js'
 import { hydrateAlbum } from './album.js'
 import { hydrateArtist } from './artist.js'
+import { fitStrayRecordingsNow } from './fit.js'
 import { fetchLyrics } from './lyrics.js'
+import { changed } from './rows.js'
 import { shared, warn, withinBudget } from './runner.js'
 
 /** Seconds before the safety-net job starts, so it does not race the run it backs up. */
@@ -27,7 +30,10 @@ async function onPage(run: Promise<void>, job: string, id: string, data: object)
 /** The shared run that completes an album's detail; jobs and pages use the same one. */
 export function albumDetailRun(albumId: string): Promise<void> {
   return shared(`album:${albumId}`, async () => {
-    await hydrateAlbum(albumId)
+    const result = await hydrateAlbum(albumId)
+    // A file filed under an album that is already complete (a fetched track) may still be
+    // on a stand-in recording; folding it in needs no provider.
+    if (result && (await fitStrayRecordingsNow(result)) > 0) await changed([queryKeys.album(result)])
   })
 }
 

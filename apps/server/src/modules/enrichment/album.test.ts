@@ -2,17 +2,21 @@ import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../../database/client.js'
 import { externalIds, httpCache, recordings, releases, releaseTracks } from '../../database/schema.js'
+import { newId } from '../../lib/ids.js'
+import { creditKey, matchKey } from '../../lib/text.js'
 import { startJobs, stopJobs } from '../../jobs/index.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
-import { createAlbum, createUser } from '../../test/factories.js'
+import { createFile } from '../../test/catalog.js'
+import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
 import { albumDetail } from '../catalog/pages.js'
 import { hydrateAlbum } from './album.js'
 import { albumDetailRun, ensureAlbumDetail } from './detail.js'
 import { setDetailBudget } from './runner.js'
-import { albumRow, albumStub } from './test-stubs.js'
+import { albumRow, albumStub, artistStub } from './test-stubs.js'
 
+const radiohead = 'a74b1b7f-71a5-4011-9441-d0b5e4122711'
 const okComputer = 'b1392450-e666-3926-a536-22c65f834433'
 /** The first official 12-track CD, as chooseCanonicalRelease picks it. */
 const okComputerCanonical = '1834eae1-741b-3c03-9ca5-0df3decb43ea'
@@ -218,5 +222,53 @@ describe('album detail bounds', () => {
     await expect(ensureAlbumDetail(albumId)).resolves.toBeUndefined()
     expect(await albumDetail(context.userId, albumId)).toMatchObject({ id: albumId, discs: [] })
     expect((await albumRow(albumId)).detailLevel).toBe(0)
+  })
+})
+
+describe('album detail folds stand-in recordings into the release', () => {
+  const context = useAlbumTests()
+
+  /** A recording as Deezer's top tracks store it: no MBID, no ISRC, Deezer's rounded length. */
+  async function topTrackStub(title: string, artistId: string, durationMs: number) {
+    const id = newId()
+    await db.insert(recordings).values({ id, title, artistCredit: 'Radiohead', primaryArtistId: artistId, durationMs, titleKey: matchKey(title), matchKey: creditKey('Radiohead', title) })
+    return id
+  }
+
+  async function trackRows(albumId: string) {
+    const page = await albumDetail(context.userId, albumId)
+    return page.discs.flatMap((disc) => disc.tracks)
+  }
+
+  it('merges a top-track stub that owns a file filed under the album into its MusicBrainz track', async () => {
+    const artistId = await artistStub({ name: 'Radiohead', mbid: radiohead })
+    const { albumId } = await albumStub({ title: 'OK Computer', artist: 'Radiohead', artistId, mbid: okComputer })
+    await ensureAlbumDetail(albumId)
+    // Played from the artist page, fetched, and filed under the complete album.
+    const stub = await topTrackStub('Karma Police', artistId, 262_000)
+    const root = await createLibraryRoot()
+    await createFile({ rootId: root.id, recordingId: stub, albumId })
+    await ensureAlbumDetail(albumId)
+
+    const [row] = await db.select({ mergedIntoId: recordings.mergedIntoId }).from(recordings).where(eq(recordings.id, stub))
+    expect(row!.mergedIntoId).not.toBeNull()
+    const tracks = await trackRows(albumId)
+    expect(tracks).toHaveLength(12)
+    expect(tracks.find((track) => track.title === 'Karma Police')).toMatchObject({ position: 6, availability: 'server' })
+    expect((await albumDetail(context.userId, albumId)).availability).toBe('partial')
+  })
+
+  it('merges a loose top-track stub of the album artist, and leaves other versions alone', async () => {
+    const [artist] = await db.execute<{ id: string }>(sql`select id from artists where mbid = ${radiohead}`)
+    const [album] = await db.execute<{ id: string }>(sql`select id from albums where mbid = ${okComputer}`)
+    const stub = await topTrackStub('No Surprises', artist!.id, 229_000)
+    const live = await topTrackStub('Lucky (Live)', artist!.id, 259_000)
+    const longer = await topTrackStub('Let Down', artist!.id, 340_000)
+    // Fresh already: a page visit still folds in stand-ins that turned up since.
+    await ensureAlbumDetail(album!.id)
+    const merged = async (id: string) => (await db.select({ into: recordings.mergedIntoId }).from(recordings).where(eq(recordings.id, id)))[0]!.into
+    expect(await merged(stub)).not.toBeNull()
+    expect(await merged(live)).toBeNull()
+    expect(await merged(longer)).toBeNull()
   })
 })
