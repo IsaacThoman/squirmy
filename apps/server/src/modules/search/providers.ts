@@ -30,7 +30,8 @@ export type ProviderAlbum = {
   title: string
   artistCredit: string
   artists: ProviderCredit[]
-  type: AlbumType
+  /** Null when the provider names no type: an album known only as a track's album. */
+  type: AlbumType | null
   year: number | null
   releaseDate: string | null
   artworkUrl: string | null
@@ -106,14 +107,15 @@ function deezerTrack(track: DeezerTrack): ProviderTrack {
     explicit: track.explicit,
     popularity: track.rank === null ? null : Math.min(1, track.rank / deezerTopRank),
     isrcs: track.isrc ? [track.isrc] : [],
-    // Deezer names the album but not its artist or type; the track's artist stands in.
+    // Deezer names the album but not its artist or type; the track's artist stands in. The
+    // type stays unknown: calling it an album filed singles under Albums (materialize.ts).
     album: track.album && {
       id: String(track.album.id),
       mbid: null,
       title: track.album.title,
       artistCredit: track.artist.name,
       artists: [deezerCredit(track.artist)],
-      type: 'album',
+      type: null,
       year: null,
       releaseDate: null,
       artworkUrl: track.album.coverUrl,
@@ -231,7 +233,7 @@ export const localIndexProvider: SearchProvider = {
       artistCredit: artistName,
       artists: credit(artistName),
       // The index does not record album types.
-      type: 'album',
+      type: null,
       year: null,
       releaseDate: null,
       artworkUrl: await releaseGroupCover(mbid),

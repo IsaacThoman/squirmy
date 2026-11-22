@@ -1,0 +1,153 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/search/artist?q=tate+mcrae&limit=25"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 13817211,
+          "name": "Tate McRae",
+          "link": "https://www.deezer.com/artist/13817211",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/b12c2090606779c0ba39eac6e3d2708e/1000x1000-000000-80-0-0.jpg",
+          "nb_album": 72,
+          "nb_fan": 627426,
+          "type": "artist"
+        },
+        {
+          "id": 412323391,
+          "name": "Tate Mcrae",
+          "link": "https://www.deezer.com/artist/412323391",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 1,
+          "type": "artist"
+        },
+        {
+          "id": 425057701,
+          "name": "Tate Mcrae",
+          "link": "https://www.deezer.com/artist/425057701",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 1,
+          "nb_fan": 0,
+          "type": "artist"
+        },
+        {
+          "id": 143711282,
+          "name": "Tate McRae & Jeremy Zucker",
+          "link": "https://www.deezer.com/artist/143711282",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 84,
+          "type": "artist"
+        },
+        {
+          "id": 259856,
+          "name": "Fuzion",
+          "link": "https://www.deezer.com/artist/259856",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/dd3b9d577d69f3fe3b9bae9eaf0f25d9/1000x1000-000000-80-0-0.jpg",
+          "nb_album": 90,
+          "nb_fan": 1928,
+          "type": "artist"
+        },
+        {
+          "id": 138766142,
+          "name": "blackbear with Tate McRae",
+          "link": "https://www.deezer.com/artist/138766142",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 15,
+          "type": "artist"
+        },
+        {
+          "id": 135416092,
+          "name": "Tate McRae x Khalid",
+          "link": "https://www.deezer.com/artist/135416092",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 224,
+          "type": "artist"
+        },
+        {
+          "id": 208325337,
+          "name": "Tate McRae &. Ali Gatie",
+          "link": "https://www.deezer.com/artist/208325337",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 293,
+          "type": "artist"
+        },
+        {
+          "id": 127463032,
+          "name": "Ely Oaks",
+          "link": "https://www.deezer.com/artist/127463032",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/a59804f23181151d539791823330da58/1000x1000-000000-80-0-0.jpg",
+          "nb_album": 81,
+          "nb_fan": 11238,
+          "type": "artist"
+        },
+        {
+          "id": 89822422,
+          "name": "SAYGRACE, Tate McRae & Audrey Mika",
+          "link": "https://www.deezer.com/artist/89822422",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 5,
+          "type": "artist"
+        },
+        {
+          "id": 129265122,
+          "name": "Regard x Troye Sivan x Tate McRae",
+          "link": "https://www.deezer.com/artist/129265122",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 21,
+          "type": "artist"
+        },
+        {
+          "id": 132791832,
+          "name": "Regard feat. Troye Sivan & Tate McRae",
+          "link": "https://www.deezer.com/artist/132791832",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 1391,
+          "type": "artist"
+        },
+        {
+          "id": 89822412,
+          "name": "SAYGRACE feat. Tate McRae & Audrey Mika",
+          "link": "https://www.deezer.com/artist/89822412",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 11,
+          "type": "artist"
+        },
+        {
+          "id": 137146132,
+          "name": "Regard, Troye Sivan & KC Lights feat. Tate McRae",
+          "link": "https://www.deezer.com/artist/137146132",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg",
+          "nb_album": 0,
+          "nb_fan": 6,
+          "type": "artist"
+        },
+        {
+          "id": 360450422,
+          "name": "Tate McRave",
+          "link": "https://www.deezer.com/artist/360450422",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/4b6bd3056b79e3db2ec98b5c947ec01e/1000x1000-000000-80-0-0.jpg",
+          "nb_album": 1,
+          "nb_fan": 9,
+          "type": "artist"
+        }
+      ],
+      "total": 15
+    }
+  }
+}
