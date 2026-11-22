@@ -49,7 +49,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
         </Pressable>
         {!compact && <Pressable accessibilityRole="button" accessibilityLabel={`Playback device, ${output.name}`}
           style={styles.control} onPress={onDevices}>
-          <Icon name="airplay.audio" size={21} color={colors.accent} />
+          <Icon name="laptopcomputer.and.iphone" size={21} color={colors.accent} />
         </Pressable>}
         <Pressable accessibilityRole="button" accessibilityLabel={session.playing ? 'Pause' : 'Play'}
           onPress={preview ? undefined : actions.playPause} style={styles.control}>

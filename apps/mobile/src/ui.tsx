@@ -9,7 +9,7 @@ import { useColors } from './theme';
 type AppleSymbol = Extract<ComponentProps<typeof SymbolView>['name'], string>;
 
 const material: Record<string, AndroidSymbol> = {
-  'airplay.audio': 'cast', 'arrow.down': 'arrow_downward', 'arrow.up.arrow.down': 'swap_vert',
+  'laptopcomputer.and.iphone': 'devices', 'arrow.down': 'arrow_downward', 'arrow.up.arrow.down': 'swap_vert',
   'checkmark': 'check', 'checkmark.circle.fill': 'check_circle', 'chevron.down': 'expand_more',
   'chevron.left': 'chevron_left', 'chevron.right': 'chevron_right',
   'chevron.up.chevron.down': 'unfold_more', 'clock.arrow.circlepath': 'history',

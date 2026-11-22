@@ -46,7 +46,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
                 <Spacer minLength={4} />
               </HStack>
             </Button>
-            {!compact && <IconButton symbol="airplay.audio" label={`Playback device, ${output.name}`}
+            {!compact && <IconButton symbol="laptopcomputer.and.iphone" label={`Playback device, ${output.name}`}
               size={20} color={colors.accent} onPress={onDevices} />}
             <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={session.playing ? 'Pause' : 'Play'}
               size={22} onPress={preview ? undefined : actions.playPause} />

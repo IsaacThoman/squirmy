@@ -521,7 +521,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
       <View style={styles.volumeRow}>
         <Icon name="speaker.fill" size={13} color={colors.muted} />
         <View style={styles.volumeSlider}>
-          <TransportSlider label={`Volume on ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />
+          <TransportSlider label={`Squirmy volume, ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />
         </View>
         <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
       </View>
