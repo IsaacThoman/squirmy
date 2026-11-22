@@ -4,7 +4,7 @@
  * A stub goes when it is older than `stubMaxAgeDays`, never gained detail (albums and
  * artists at `detail_level` 0 with no MusicBrainz releases; recordings on no release),
  * is not a merge redirect or target, and nothing points at it: no file, like, rating,
- * want, playlist item, play, stored playback session, album hint of a kept recording or
+ * want, library save, playlist item, play, stored playback session, album hint of a kept recording or
  * credit. Their `external_ids` rows go with them; `assets` are left alone.
  */
 import { sql, type SQL } from 'drizzle-orm'
@@ -27,6 +27,7 @@ function unreferenced(type: 'recording' | 'album' | 'artist', table: string, ali
   const column = sql.raw(`${type}_id`)
   return sql`${userData}
     and not exists (select 1 from wants where entity_type = ${type} and entity_id = ${id})
+    and not exists (select 1 from library_items where entity_type = ${type} and entity_id = ${id})
     and not exists (select 1 from playlist_items where ${column} = ${id})
     and not exists (select 1 from plays where ${column} = ${id})`
 }

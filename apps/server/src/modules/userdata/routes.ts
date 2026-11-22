@@ -1,5 +1,5 @@
 import {
-  AddPlaylistItemsRequest, CreatePlaylistRequest, Id, LikeEntityType, MovePlaylistItemRequest, PageQuery, UpdatePlaylistRequest,
+  AddPlaylistItemsRequest, CreatePlaylistRequest, Id, LibraryEntityType, LikeEntityType, MovePlaylistItemRequest, PageQuery, UpdatePlaylistRequest,
   UpdateUserSettings, WantEntityType,
   type AlbumSummary, type ArtistSummary, type HistoryPage, type Ok, type Page, type PlaylistDetail, type PlaylistPage, type PlaylistSummary,
   type TrackSummary, type UserSettings, type WantPage,
@@ -10,6 +10,7 @@ import { requireUser } from '../../lib/auth.js'
 import { notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { listHistory } from './history.js'
+import { removeFromLibrary, saveToLibrary } from './library.js'
 import { likeEntity, listLikes, unlikeEntity } from './likes.js'
 import {
   addPlaylistItems, createPlaylist, deletePlaylist, getPlaylist, listPlaylists, movePlaylistItem, removePlaylistItem, updatePlaylist,
@@ -20,6 +21,7 @@ import { listWants, unwantEntity, wantEntity } from './wants.js'
 const IdParams = z.object({ id: Id })
 const LikeParams = z.object({ type: LikeEntityType, id: Id })
 const LikeTypeParams = z.object({ type: LikeEntityType })
+const LibraryParams = z.object({ type: LibraryEntityType, id: Id })
 const WantParams = z.object({ type: WantEntityType, id: Id })
 const ItemParams = z.object({ id: Id, itemId: Id })
 
@@ -44,6 +46,17 @@ export async function userdataRoutes(app: FastifyInstance) {
   })
   app.get('/me/likes/:type', async (request): Promise<Page<TrackSummary | AlbumSummary | ArtistSummary>> =>
     listLikes(requireUser(request).id, LikeTypeParams.parse(request.params).type, PageQuery.parse(request.query)))
+
+  app.put('/me/library/:type/:id', async (request): Promise<Ok> => {
+    const { type, id } = LibraryParams.parse(request.params)
+    await saveToLibrary(requireUser(request).id, type, id)
+    return { ok: true }
+  })
+  app.delete('/me/library/:type/:id', async (request): Promise<Ok> => {
+    const { type, id } = LibraryParams.parse(request.params)
+    await removeFromLibrary(requireUser(request).id, type, id)
+    return { ok: true }
+  })
 
   app.get('/playlists', async (request): Promise<PlaylistPage> => listPlaylists(requireUser(request).id, PageQuery.parse(request.query)))
   app.post('/playlists', async (request, reply): Promise<PlaylistSummary> => {

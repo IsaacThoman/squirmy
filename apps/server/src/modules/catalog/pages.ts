@@ -6,7 +6,7 @@ import { notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
 import { similarArtists } from '../radio/index.js'
-import { canonicalRelease } from './availability.js'
+import { canonicalRelease, collectionFile } from './availability.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
 
@@ -51,7 +51,8 @@ export async function albumTrackList(albumId: string): Promise<AlbumTrack[]> {
 
 /**
  * The album page: its summary plus the album's track list (`albumTrackList`) grouped by
- * disc, every track with its own availability. Fetches missing detail first.
+ * disc, every track with its own availability, and whether and why the album is in the
+ * user's library. Fetches missing detail first.
  */
 export async function albumDetail(userId: string, id: string): Promise<AlbumDetail> {
   await ensureAlbumDetail(await resolveOrThrow('albums', id, 'album'))
@@ -59,10 +60,18 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
   const albumId = await resolveOrThrow('albums', id, 'album')
   const [[summary], [extra], tracks, { wantlistEnabled }] = await Promise.all([
     albumSummaries([albumId]),
-    db.execute<{ releaseDate: string | null; genres: string[]; description: string | null; label: string | null; liked: boolean; wanted: boolean }>(sql`
+    db.execute<{
+      releaseDate: string | null; genres: string[]; description: string | null; label: string | null; liked: boolean; wanted: boolean
+      library: 'collection' | 'saved' | null
+    }>(sql`
       select coalesce(rl.release_date, a.release_date) as "releaseDate", a.genres, a.description, rl.label,
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'album' and l.entity_id = a.id) as liked,
-        exists (select 1 from wants w where w.user_id = ${userId} and w.entity_type = 'album' and w.entity_id = a.id and w.fulfilled_at is null) as wanted
+        exists (select 1 from wants w where w.user_id = ${userId} and w.entity_type = 'album' and w.entity_id = a.id and w.fulfilled_at is null) as wanted,
+        -- A collection album is everyone's and cannot be removed, so that wins over a save.
+        case
+          when exists (select 1 from media_files f where f.album_id = a.id and ${collectionFile('f')}) then 'collection'
+          when exists (select 1 from library_items li where li.user_id = ${userId} and li.entity_type = 'album' and li.entity_id = a.id) then 'saved'
+        end as library
       from albums a left join releases rl on rl.id = ${canonicalRelease('a')}
       where a.id = ${albumId}`),
     albumTrackList(albumId),
@@ -98,7 +107,7 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
   await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
   const artistId = await resolveOrThrow('artists', id, 'artist')
   const [[summary], [profile], albums, top, similar] = await Promise.all([
-    artistSummaries([artistId]),
+    artistSummaries([artistId], userId),
     db.execute<{ sortName: string | null; disambiguation: string | null; bio: string | null; bioUrl: string | null; genres: string[]; liked: boolean }>(sql`
       select a.sort_name as "sortName", a.disambiguation, a.bio, a.bio_url as "bioUrl", a.genres,
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'artist' and l.entity_id = a.id) as liked
@@ -118,7 +127,7 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
       order by (select count(*) from plays p where p.recording_id = r.id and p.completed) desc,
         r.popularity desc nulls last, r.title_key, r.id
       limit ${TOP_TRACKS}`),
-    similarArtists(artistId, { limit: SIMILAR }).then((rows) => artistSummaries(rows.map((row) => row.artistId))),
+    similarArtists(artistId, { limit: SIMILAR }).then((rows) => artistSummaries(rows.map((row) => row.artistId), userId)),
   ])
   if (!summary || !profile) throw notFound('No such artist', 'artist_not_found')
   const [albumList, topTracks] = await Promise.all([

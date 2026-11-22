@@ -18,11 +18,14 @@ export async function catalogRoutes(app: FastifyInstance) {
     requireUser(request)
   })
 
-  app.get('/library/albums', async (request): Promise<AlbumPage> => listLibraryAlbums(LibraryQuery.parse(request.query)))
-  app.get('/library/artists', async (request): Promise<ArtistPage> => listLibraryArtists(LibraryQuery.parse(request.query)))
+  app.get('/library/albums', async (request): Promise<AlbumPage> =>
+    listLibraryAlbums(requireUser(request).id, LibraryQuery.parse(request.query)))
+  app.get('/library/artists', async (request): Promise<ArtistPage> =>
+    listLibraryArtists(requireUser(request).id, LibraryQuery.parse(request.query)))
   app.get('/library/tracks', async (request): Promise<TrackPage> =>
     listLibraryTracks(requireUser(request).id, LibraryQuery.parse(request.query)))
-  app.get('/library/genres', async (request): Promise<GenrePage> => listLibraryGenres(PageQuery.parse(request.query)))
+  app.get('/library/genres', async (request): Promise<GenrePage> =>
+    listLibraryGenres(requireUser(request).id, PageQuery.parse(request.query)))
 
   app.get('/home', async (request): Promise<HomeResponse> => home(requireUser(request).id))
 

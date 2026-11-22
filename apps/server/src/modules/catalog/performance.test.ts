@@ -16,7 +16,7 @@ import { updateServerSettings } from '../../lib/settings.js'
 import { signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { seedLargeLibrary } from '../../test/library-seed.js'
-import { libraryAlbumsQuery, libraryArtistsQuery, libraryGenresQuery, libraryTracksQuery } from './library.js'
+import { libraryAlbumsQuery, libraryArtistsQuery, libraryGenresQuery, libraryShape, libraryShapeQuery, libraryTracksQuery } from './library.js'
 
 const ALBUMS = 10_000
 const TRACKS_PER_ALBUM = 15
@@ -39,6 +39,18 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
     await updateServerSettings({ wantlistEnabled: true })
     const started = performance.now()
     await seedLargeLibrary({ albums: ALBUMS, tracksPerAlbum: TRACKS_PER_ALBUM, artists: 2_000, unownedEvery: 10, userId: user.id, plays: 50_000, likes: 2_000 })
+    // Saves next to the collection: albums without files, and tracks of them.
+    await db.execute(sql`
+      insert into library_items (user_id, entity_type, entity_id, created_at)
+      select ${user.id}, 'album', a.id, timestamptz '2026-01-01' + n * interval '20 minutes'
+      from (select id, row_number() over (order by id) as n from albums a
+        where not exists (select 1 from media_files f where f.album_id = a.id) limit 500) a`)
+    await db.execute(sql`
+      insert into library_items (user_id, entity_type, entity_id, created_at)
+      select ${user.id}, 'recording', rt.recording_id, timestamptz '2026-01-01' + n * interval '15 minutes'
+      from (select rt.recording_id, row_number() over (order by rt.recording_id) as n from release_tracks rt
+        where not exists (select 1 from media_files f where f.recording_id = rt.recording_id) limit 500) rt`)
+    await db.execute(sql`analyze library_items`)
     report.push(`seeded in ${Math.round(performance.now() - started)} ms`)
   }, 300_000)
   afterEach(() => {
@@ -71,16 +83,24 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
   }
 
   it('keeps list queries on their indexes', async () => {
+    const albums = await libraryShape(user.id, 'albums')
+    const tracks = await libraryShape(user.id, 'tracks')
+    expect([albums, tracks]).toEqual(['large', 'large'])
+    for (const kind of ['albums', 'tracks'] as const) {
+      const time = await explain(libraryShapeQuery(user.id, kind))
+      report.push(`query ${kind} shape: ${time.toFixed(2)} ms`)
+      expect(time, `${kind} shape`).toBeLessThan(50)
+    }
     const cases: [string, (cursor?: string) => SQL, string][] = []
     for (const sort of ['recent', 'title', 'artist', 'year'] as const) {
-      cases.push([`albums ${sort}`, (cursor) => libraryAlbumsQuery({ sort, limit: 50, cursor }), `/api/v1/library/albums?sort=${sort}`])
+      cases.push([`albums ${sort}`, (cursor) => libraryAlbumsQuery(user.id, { sort, limit: 50, cursor }, albums), `/api/v1/library/albums?sort=${sort}`])
     }
-    cases.push(['albums genre=Jazz by title', (cursor) => libraryAlbumsQuery({ sort: 'title', genre: 'Jazz', limit: 50, cursor }), '/api/v1/library/albums?sort=title&genre=Jazz'])
+    cases.push(['albums genre=Jazz by title', (cursor) => libraryAlbumsQuery(user.id, { sort: 'title', genre: 'Jazz', limit: 50, cursor }, albums), '/api/v1/library/albums?sort=title&genre=Jazz'])
     for (const sort of ['recent', 'title', 'artist'] as const) {
-      cases.push([`tracks ${sort}`, (cursor) => libraryTracksQuery({ sort, limit: 50, cursor }), `/api/v1/library/tracks?sort=${sort}`])
+      cases.push([`tracks ${sort}`, (cursor) => libraryTracksQuery(user.id, { sort, limit: 50, cursor }, tracks), `/api/v1/library/tracks?sort=${sort}`])
     }
-    cases.push(['tracks genre=Jazz by title', (cursor) => libraryTracksQuery({ sort: 'title', genre: 'Jazz', limit: 50, cursor }), '/api/v1/library/tracks?sort=title&genre=Jazz'])
-    cases.push(['artists', (cursor) => libraryArtistsQuery({ limit: 50, cursor }), '/api/v1/library/artists'])
+    cases.push(['tracks genre=Jazz by title', (cursor) => libraryTracksQuery(user.id, { sort: 'title', genre: 'Jazz', limit: 50, cursor }, tracks), '/api/v1/library/tracks?sort=title&genre=Jazz'])
+    cases.push(['artists', (cursor) => libraryArtistsQuery(user.id, { limit: 50, cursor }, albums), '/api/v1/library/artists'])
 
     for (const [name, query, url] of cases) {
       const first = await explain(query())
@@ -93,7 +113,7 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
       await route(`${url}${separator}limit=50`)
       await route(`${url}${separator}limit=50&cursor=${cursor}`)
     }
-    report.push(`query genres: ${(await explain(libraryGenresQuery({ limit: 50 }))).toFixed(2)} ms`)
+    report.push(`query genres: ${(await explain(libraryGenresQuery(user.id, { limit: 50 }, albums))).toFixed(2)} ms`)
   }, 300_000)
 
   it('serves pages and home quickly', async () => {
