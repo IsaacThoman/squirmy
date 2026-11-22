@@ -7,7 +7,7 @@ import type { HomeSection, Page as ListPage, PlaylistDetail, TrackSummary } from
 import { queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
 import { CloudOff, Compass } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { moveItem } from '@/lib/reorder'
@@ -117,10 +117,26 @@ const isEmptySection = (section: HomeSection) => (
 )
 
 export function AlbumPage() {
+  const { playAlbum } = usePlayCollections()
   const id = useParams().id ?? ''
   const query = useAlbum(id)
   const summary = useCachedSummary('album', id, query.data === undefined)
-  return <Loaded query={query} skeleton={summary ? <AlbumPreview album={summary} /> : <CollectionSkeleton />}>{album => <AlbumView key={album.id} album={album} />}</Loaded>
+  // The lead artist's discography, for other versions and "More by" under the songs; asked once the album is here.
+  const leadId = query.data?.artists[0]?.id
+  const artist = useArtist(leadId ?? '', { enabled: Boolean(leadId), poll: false }).data
+  return (
+    <Loaded query={query} skeleton={summary ? <AlbumPreview album={summary} /> : <CollectionSkeleton />}>
+      {album => (
+        <AlbumView
+          key={album.id}
+          album={album}
+          artist={artist}
+          onPlayAlbum={other => void playAlbum(other)}
+          onRefresh={() => void query.refetch()}
+        />
+      )}
+    </Loaded>
+  )
 }
 
 export function ArtistPage() {
@@ -162,10 +178,18 @@ export function ArtistReleasesPage() {
 
 export function PlaylistPage() {
   const id = useParams().id ?? ''
-  return <Loaded query={usePlaylist(id)} skeleton={<CollectionSkeleton />}>{playlist => <EditablePlaylist key={playlist.id} playlist={playlist} />}</Loaded>
+  // The playlist being deleted is not asked for again: the server's invalidation of the
+  // playlists also refreshes this one, which would answer 404 while the page is still open.
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const query = usePlaylist(id, deleting !== id)
+  return (
+    <Loaded query={query} skeleton={<CollectionSkeleton />}>
+      {playlist => <EditablePlaylist key={playlist.id} playlist={playlist} onDeleting={on => setDeleting(on ? playlist.id : null)} />}
+    </Loaded>
+  )
 }
 
-function EditablePlaylist({ playlist }: { playlist: PlaylistDetail }) {
+function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; onDeleting: (deleting: boolean) => void }) {
   const api = useApi()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -184,15 +208,22 @@ function EditablePlaylist({ playlist }: { playlist: PlaylistDetail }) {
     },
     meta: { inline: true },
   })
+  const deleted = useRef(false)
   const remove = useMutation({
     mutationFn: () => api.userdata.deletePlaylist(playlist.id),
+    onMutate: () => onDeleting(true),
+    onError: () => onDeleting(false),
     onSuccess: () => {
+      deleted.current = true
       toast({ title: 'Playlist deleted', description: playlist.name })
       void navigate('/library?filter=playlists', { replace: true })
-      queryClient.removeQueries({ queryKey: key })
       return queryClient.invalidateQueries({ queryKey: queryKeys.playlists(), exact: true })
     },
   })
+  // Dropped from the cache once the page has gone: removed while it shows, the page would ask for it again.
+  useEffect(() => () => {
+    if (deleted.current) queryClient.removeQueries({ queryKey: queryKeys.playlist(playlist.id), exact: true })
+  }, [queryClient, playlist.id])
   // Moves and removals show at once; the server's answer, or a refetch after a failure, replaces them.
   const move = useMutation({
     mutationFn: ({ itemId, toIndex }: { itemId: string; toIndex: number }) => api.userdata.movePlaylistItem(playlist.id, { itemId, toIndex }),
@@ -230,7 +261,7 @@ function EditablePlaylist({ playlist }: { playlist: PlaylistDetail }) {
         open={dialog === 'delete'}
         onOpenChange={open => setDialog(open ? 'delete' : null)}
         title={`Delete “${playlist.name}”?`}
-        description="The playlist goes away for everyone. The songs stay in the library."
+        description={`${playlist.isPublic ? 'It is public, so it goes away for everyone who can see it. ' : ''}This can’t be undone. No songs are removed from your library or your other playlists.`}
         confirmLabel="Delete"
         onConfirm={() => remove.mutateAsync()}
       />
