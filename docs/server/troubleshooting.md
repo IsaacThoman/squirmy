@@ -122,7 +122,7 @@ The same release can reach the server from several places: search results from D
 
 ## An album lists a song twice
 
-A song can reach an album from several sources: MusicBrainz's track list, Deezer's, and the tags of a file a provider delivered. They often name it differently ("I'm The Man" and "I’m the Man") or carry different ISRCs for the same recording. One copy then plays while the other is grayed out. The server matches such rows by ISRC, then by title, then by position and length, and merges them into one. Likes, plays, playlists and queue entries move with the merge. This happens when the album's track list is written, when the album is opened, daily at 04:50 and when the server starts. Two versions of a song stay apart: a live take, a remix, a version with another guest, or copies whose lengths differ by more than a few seconds.
+A song can reach an album from several sources: MusicBrainz's track list, Deezer's, and the tags of a file a provider delivered. They often name it differently ("I'm The Man" and "I’m the Man") or carry different ISRCs for the same recording. One copy then plays while the other is grayed out. The server matches such rows by ISRC, then by title, then by position and length, and merges them into one. Likes, plays, playlists and queue entries move with the merge. This happens when the album's track list is written, when the album is opened, daily at 04:50 and when the server starts. A song on the album that the server holds only on another release, such as the single it came out on first, plays that copy. Two versions of a song stay apart: a live take, a remix, a version with another guest, or copies whose lengths differ by more than a few seconds.
 
 ## The first open of an artist page is slow
 

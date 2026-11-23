@@ -149,6 +149,10 @@
 @layer base {
   /* Borders are the theme's border color unless a class says otherwise. */
   *, ::before, ::after, ::backdrop { border-color: var(--border); }
+  /* Apply only to scrolling axes so clipped children and horizontal rails can pass vertical wheel input through. */
+  html, body, .overflow-auto, .overflow-scroll { overscroll-behavior: none; }
+  .overflow-y-auto, .overflow-y-scroll, [data-radix-scroll-area-viewport] { overscroll-behavior-y: none; }
+  .overflow-x-auto, .overflow-x-scroll { overscroll-behavior-x: none; }
   html, body, #root { height: 100%; }
   body {
     background: var(--background);
@@ -157,7 +161,6 @@
     font-feature-settings: 'cv11', 'ss03';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    overscroll-behavior: none;
   }
   ::selection { background: color-mix(in srgb, var(--primary) 28%, transparent); }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
