@@ -94,6 +94,17 @@ describe('AppShell', () => {
       expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()
     })
 
+    it('gives focus back to what had it when closed', async () => {
+      await renderShell()
+      const home = screen.getByRole('link', { name: 'Home' })
+      home.focus()
+      await press('k')
+      await userEvent.type(await searchField(), 'blue')
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument())
+      await waitFor(() => expect(home).toHaveFocus())
+    })
+
     it('searches everything as you type and opens the best match with Enter', async () => {
       const { api } = await renderShell()
       await press('k')
@@ -227,6 +238,24 @@ describe('AppShell', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Account, Alex Rivera' }))
       await userEvent.click(await screen.findByRole('menuitem', { name: 'Settings' }))
       expect(await settings()).toBeInTheDocument()
+    })
+
+    it('give focus back to the account button when opened from its menu, and to what had it when opened with the shortcut', async () => {
+      await renderShell()
+      const account = screen.getByRole('button', { name: 'Account, Alex Rivera' })
+      await userEvent.click(account)
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Settings' }))
+      await userEvent.click(within(await settings()).getByRole('button', { name: 'Close' }))
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument())
+      await waitFor(() => expect(account).toHaveFocus())
+
+      const home = screen.getByRole('link', { name: 'Home' })
+      home.focus()
+      await press(',')
+      await settings()
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument())
+      await waitFor(() => expect(home).toHaveFocus())
     })
 
     it('open over the home page at /settings', async () => {

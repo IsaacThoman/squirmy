@@ -335,7 +335,9 @@ export function SearchPage() {
   const viewer = useViewer()
   const controls = usePlayerControls()
   const [params, setParams] = useSearchParams()
-  const genres = useGenres().data?.items.map(genre => genre.name) ?? []
+  const genreList = useGenres()
+  // Null until known, so the page's guidance does not flash before the genres arrive; none if they did not load.
+  const genres = useMemo(() => genreList.data?.items.map(genre => genre.name) ?? (genreList.isError ? [] : null), [genreList.data, genreList.isError])
   const query = params.get('q') ?? ''
   const filter = filterOf(params.get('type'))
   const [typed, setTyped] = useUrlDraft(query)
@@ -350,7 +352,7 @@ export function SearchPage() {
     if (filter === 'all') {
       return {
         items: allItems, stale: all.stale, pending: Boolean(allItems) && !all.stale && all.catalogPending,
-        failed: all.failed, catalogFailed: all.catalogFailed, unavailable: all.unavailable, retry: all.retry,
+        failed: all.failed, catalogFailed: all.catalogFailed, unavailable: all.unavailable, retry: all.retry, retrying: all.retrying,
       }
     }
     if (filter === 'playlist') {
@@ -360,8 +362,8 @@ export function SearchPage() {
     const standIn = pages.items === null && allItems && !all.stale ? allItems.filter(item => item.type === filter) : null
     return {
       items: pages.items ?? standIn, stale: pages.items !== null && pages.stale, pending: pages.loadingMore || (standIn !== null && pages.loading),
-      failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry,
-      hasMore: pages.hasMore, loadMore: pages.loadMore,
+      failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry, retrying: pages.loading,
+      hasMore: pages.hasMore, loadMore: pages.loadMore, moreFailed: pages.moreFailed, moreError: pages.error,
     }
   }, [all, pages, filter, term, library.playlists])
 
