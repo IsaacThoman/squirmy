@@ -935,6 +935,26 @@ describe('SessionClient engine', () => {
     expect(calls('stop')).toEqual([])
   })
 
+  it('reclaims the session when the server gave up on it while a song another device chose was still loading', async () => {
+    const { server, transport, client, engine, calls, settle } = await playingHere()
+    engine.holdLoads = true
+    server.apply({ type: 'next' }, WEB)
+    transport.flush()
+    await settle()
+    expect(engine.getStatus()).toMatchObject({ entryId: client.getSnapshot().session.current!.id, state: 'loading' })
+    transport.disconnect()
+    await vi.advanceTimersByTimeAsync(25_000)
+    server.apply({ type: 'deviceLost', deviceId: PHONE })
+    transport.connect()
+    await settle()
+    expect(server.session).toMatchObject({ activeDeviceId: PHONE, playing: true })
+    expect(trackOf(server.session.current)).toBe(2)
+    expect(client.getSnapshot()).toMatchObject({ isActiveDevice: true, session: { playing: true } })
+    engine.ready()
+    expect(engine.getStatus().state).toBe('playing')
+    expect(calls('stop')).toEqual([])
+  })
+
   it('keeps the tracks it ended offline after the server gave up on it', async () => {
     const { server, transport, client, engine, settle } = await playingHere(4)
     transport.disconnect()

@@ -39,7 +39,9 @@ export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInte
   return new ExpoAudioEngine({
     ...options,
     createSilence: () => createAudioPlayer(silence, { keepAudioSessionActive: true }),
-    // Keeping the session active between entries lets the next one start without a gap.
+    // A player keeps the session active from its first play() until it is removed, so the
+    // next entry can start without a gap. Before that first play() it keeps nothing; the
+    // engine covers that time with silence.
     createPlayer: url => {
       ensureAudioMode();
       return createAudioPlayer({ uri: url }, { updateInterval: updateIntervalMs, keepAudioSessionActive: true });
