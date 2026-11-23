@@ -19,7 +19,6 @@ import { IconButton } from '@/components/ui/icon-button'
 import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { albumNote, albumPresentation, albumTypeLabel, awaitsTrackList, isPlayable, relatedAlbums } from '@/lib/catalog'
 import { formatReleaseDate, formatTotalDuration, plural } from '@/lib/format'
-import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls } from '@/player/player-context'
@@ -81,26 +80,21 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
   const owned = album.availability === 'full' || album.availability === 'partial'
 
   const play = (shuffle: boolean) => {
-    if (playable.length) controls.playTracks(tracks, 0, context, { shuffle })
+    if (playable.length) controls.playTracks(tracks, 0, context, { shuffle, collection: true })
     else setQueued(shuffle ? 'shuffle' : 'play')
   }
   // Pressed while the songs were on their way: it plays once, when they arrive.
   const arrived = playable.length > 0
   const pending = queued !== null && !arrived
   useEffect(() => {
-    if (queued && arrived) controls.playTracks(tracks, 0, context, { shuffle: queued === 'shuffle' })
+    if (queued && arrived) controls.playTracks(tracks, 0, context, { shuffle: queued === 'shuffle', collection: true })
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- only the arrival plays; later changes to the list do not
   }, [queued, arrived])
 
-  const want = () => {
-    library.setWanted({ type: 'album', album }, !wanted)
-    toast({ title: wanted ? 'Removed from Wantlist' : 'Added to Wantlist', description: album.title })
-  }
+  // The header's buttons show the change; the menu's entries wait for the server and say it worked.
+  const want = () => library.setWanted({ type: 'album', album }, !wanted)
   const toggleSaved = () => library.setSaved({ type: 'album', id: album.id, title: album.title }, !album.liked)
-  const enqueue = (placement: 'next' | 'last') => {
-    controls.enqueue(playable, placement)
-    toast({ title: placement === 'next' ? 'Playing next' : 'Added to queue', description: album.title })
-  }
+  const enqueue = (placement: 'next' | 'last') => controls.enqueue(playable, placement)
   const note = albumNote(album, viewer)
 
   return (
@@ -119,6 +113,7 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
         ]}
         actions={(
           <PlayActions
+            id={album.id}
             title={album.title}
             onPlay={playable.length || waiting ? () => play(false) : undefined}
             onShuffle={playable.length > 1 || waiting ? () => play(true) : undefined}
@@ -167,17 +162,18 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
               )
               : <EmptyState icon={<Music />} title="No songs listed" description="The server doesn’t know this album’s songs yet." />}
 
+        {/* Under the songs, as in the iOS app: the facts first, then what is written about the album. */}
         <footer className="mt-8 flex flex-col gap-4 md:max-w-2xl">
-          {album.description && <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{album.description}</p>}
-          {album.genres.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">{album.genres.map(genre => <Badge key={genre} tone="outline">{genre}</Badge>)}</div>
-          )}
           {(album.releaseDate || album.label) && (
             <div className="text-xs leading-relaxed text-muted-foreground">
               {album.releaseDate && <p>{formatReleaseDate(album.releaseDate)}</p>}
               {album.label && <p>℗ {album.year} {album.label}</p>}
             </div>
           )}
+          {album.genres.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">{album.genres.map(genre => <Badge key={genre} tone="outline">{genre}</Badge>)}</div>
+          )}
+          {album.description && <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{album.description}</p>}
         </footer>
 
         {(versions.length > 0 || more.length > 0) && (

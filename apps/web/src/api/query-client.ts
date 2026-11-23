@@ -1,17 +1,6 @@
 import { ApiError } from '@squirmy/client-core'
 import { MutationCache, notifyManager, QueryCache, QueryClient } from '@tanstack/react-query'
-import { errorMessage } from '@/api/errors'
 import { signedOut } from '@/auth/session'
-import { toast } from '@/lib/toast'
-
-declare module '@tanstack/react-query' {
-  interface Register {
-    /** `silent`: the screen shows the failure itself. */
-    queryMeta: { silent?: boolean }
-    /** `inline`: the form shows the failure next to its fields. */
-    mutationMeta: { inline?: boolean }
-  }
-}
 
 // The cache tells its observers about a change in a microtask, not the library's default
 // zero-delay timeout. An optimistic update (the heart, a playlist change) then reaches the
@@ -26,22 +15,20 @@ const retriable = (error: unknown) => !(error instanceof ApiError) || error.stat
 
 /**
  * A 401 anywhere means the session ended (logged out elsewhere, password changed,
- * account disabled): the route guards then show sign-in. Other failures become a toast
- * with the server's message, except background refetches, which keep showing what they had.
+ * account disabled): the route guards then show sign-in. Every other failure is shown where it
+ * happened: a page's read by its `QueryState` or `loadFailure`, an action by the control, form or
+ * player status line that started it. A background refetch keeps showing what it had.
  */
 export function createQueryClient(): QueryClient {
   const client: QueryClient = new QueryClient({
     queryCache: new QueryCache({
-      onError: (error, query) => {
-        if (isUnauthorized(error)) return signedOut(client)
-        if (query.meta?.silent || query.state.data !== undefined) return
-        toast({ title: errorMessage(error) })
+      onError: error => {
+        if (isUnauthorized(error)) signedOut(client)
       },
     }),
     mutationCache: new MutationCache({
-      onError: (error, _variables, _context, mutation) => {
-        if (isUnauthorized(error)) return signedOut(client)
-        if (!mutation.meta?.inline) toast({ title: errorMessage(error) })
+      onError: error => {
+        if (isUnauthorized(error)) signedOut(client)
       },
     }),
     defaultOptions: {

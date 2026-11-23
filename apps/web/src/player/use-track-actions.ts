@@ -3,7 +3,6 @@ import type { AlbumSummary, PlaybackContext, TrackSummary } from '@squirmy/contr
 import { useMemo } from 'react'
 import type { NowPlaying, TrackAction } from '@/components/music/TrackList'
 import { albumPresentation } from '@/lib/catalog'
-import { toast } from '@/lib/toast'
 import { useLibrary } from './library-context'
 import { useViewer } from './on-demand-context'
 import { usePlayer } from './player-context'
@@ -31,16 +30,14 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
     onTogglePlay: controls.togglePlay,
   }, [current, state.playing, state.outage, loading, controls])
 
-  const onAction = (action: TrackAction, track: TrackSummary, index: number) => {
+  // The menu entries say what worked, and wait for what the server answers (a save, a playlist) to say why it did not.
+  const onAction = (action: TrackAction, track: TrackSummary, index: number): void | Promise<unknown> => {
     if (action === 'play-next' || action === 'enqueue') {
       controls.enqueue([track], action === 'play-next' ? 'next' : 'last')
-      toast({ title: action === 'play-next' ? 'Playing next' : 'Added to queue', description: track.title })
     } else if (action === 'like') {
-      library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)
+      return library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)
     } else if (action === 'want') {
-      const wanted = !library.isWanted(track.id)
-      library.setWanted({ type: 'track', track }, wanted)
-      toast({ title: wanted ? 'Added to Wantlist' : 'Removed from Wantlist', description: track.title })
+      return library.setWanted({ type: 'track', track }, !library.isWanted(track.id))
     } else if (action === 'radio') {
       controls.startRadio({ type: 'track', id: track.id })
     } else if (action === 'remove') {
@@ -51,7 +48,7 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
       const playlistId = action.slice('add-to:'.length)
       const playlist = library.playlists.find(candidate => candidate.id === playlistId)
       if (playlistId === 'new') library.newPlaylist([track])
-      else if (playlist) library.addToPlaylist(playlist, [track])
+      else if (playlist) return library.addToPlaylist(playlist, [track])
     }
   }
 
@@ -74,9 +71,7 @@ export function useAlbumWants() {
   const viewer = useViewer()
   return (album: AlbumSummary): { wanted?: boolean; onWant?: (wanted: boolean) => void } => (!library.wantlistEnabled || albumPresentation(album, viewer) !== 'dimmed' ? {} : {
     wanted: library.isWanted(album.id),
-    onWant: (wanted: boolean) => {
-      library.setWanted({ type: 'album', album }, wanted)
-      toast({ title: wanted ? 'Added to Wantlist' : 'Removed from Wantlist', description: album.title })
-    },
+    // The bookmark shows the change, and says so beside itself when the server refuses it.
+    onWant: (wanted: boolean) => void library.setWanted({ type: 'album', album }, wanted),
   })
 }

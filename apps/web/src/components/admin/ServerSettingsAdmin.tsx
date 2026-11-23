@@ -4,7 +4,8 @@ import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Badge, Skeleton } from '@/components/ui/feedback'
-import { Field, Input } from '@/components/ui/input'
+import { errorMessage } from '@/api/errors'
+import { Field, FormError, Input } from '@/components/ui/input'
 import { Row, Section } from '@/components/ui/section'
 import { Select } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
@@ -12,6 +13,7 @@ import { Switch } from '@/components/ui/switch'
 import { inGigabytes } from '@/lib/format'
 import { AdminHeader } from './AdminLayout'
 import { DraftField, SaveStatus, type SavePatch, type SaveState } from './DraftField'
+import { SettingRow } from './Panel'
 
 type Save = SavePatch<UpdateServerSettings>
 type Toggle = 'musicBrainzEnabled' | 'coverArtArchiveEnabled' | 'deezerEnabled' | 'wikidataEnabled' | 'lrclibEnabled' | 'registrationRequiresInvite' | 'wantlistEnabled'
@@ -36,9 +38,9 @@ export function ServerSettingsAdmin({ settings, failure, managedRoots, onSave, s
   const [editing, setEditing] = useState<Secret | null>(null)
   if (!settings) return failure ? <div><AdminHeader title="Server settings" description="Changes apply right away." />{failure}</div> : <SettingsSkeleton />
   const toggle = (key: Toggle, label: string, description?: string) => (
-    <Row label={label} description={description}>
-      <Switch aria-label={label} checked={settings[key]} onCheckedChange={value => void onSave({ [key]: value }).catch(() => {})} />
-    </Row>
+    <SettingRow label={label} description={description}>
+      {save => <Switch aria-label={label} checked={settings[key]} onCheckedChange={value => void save(() => onSave({ [key]: value }))} />}
+    </SettingRow>
   )
   const secret = (key: Secret, set: boolean, label: string, description: string) => (
     <Row label={label} description={description}>
@@ -119,16 +121,16 @@ function ImportSettings({ settings, managedRoots, onSave }: { settings: ServerSe
   ]
   return (
     <Section title="Imports" description={<>Uploads and the inbox are filed into a managed music folder once they are identified. Fetched music is kept apart as a cache; see <Link to="/admin/providers" className="text-primary underline-offset-4 hover:underline">Providers</Link>.</>}>
-      <Row
+      <SettingRow
         label="Import into"
         description={managedRoots && roots.length === 0
           ? <>No folder is managed yet. Make one in <Link to="/admin/library" className="text-primary underline-offset-4 hover:underline">Library</Link>.</>
           : 'With several managed folders, imports wait until one is chosen.'}
       >
-        {roots.length > 0 && (
-          <Select label="Import into" className="w-64 max-w-full" value={chosen ?? ONLY_ROOT} options={options} onValueChange={value => void onSave({ importRootId: value === ONLY_ROOT ? null : value }).catch(() => {})} />
+        {save => roots.length > 0 && (
+          <Select label="Import into" className="w-64 max-w-full" value={chosen ?? ONLY_ROOT} options={options} onValueChange={value => void save(() => onSave({ importRootId: value === ONLY_ROOT ? null : value }))} />
         )}
-      </Row>
+      </SettingRow>
       <Row
         htmlFor="inbox-path"
         label="Inbox folder"
@@ -150,16 +152,18 @@ function MatchThreshold({ value, onSave }: { value: number; onSave: Save }) {
   const [dragging, setDragging] = useState<number | null>(null)
   const percent = dragging ?? Math.round(value * 100)
   return (
-    <Row label="Accept matches automatically above" description="Lower matches wait in the review queue.">
-      <div className="flex w-64 max-w-full items-center gap-3">
-        <Slider
-          label="Automatic match threshold" value={percent} max={100} step={1} valueText={`${percent}%`}
-          onValueChange={setDragging}
-          onValueCommit={next => void onSave({ matchAutoAcceptScore: next / 100 }).catch(() => {}).finally(() => setDragging(null))}
-        />
-        <span className="w-10 text-right text-sm tabular">{percent}%</span>
-      </div>
-    </Row>
+    <SettingRow label="Accept matches automatically above" description="Lower matches wait in the review queue.">
+      {save => (
+        <div className="flex w-64 max-w-full items-center gap-3">
+          <Slider
+            label="Automatic match threshold" value={percent} max={100} step={1} valueText={`${percent}%`}
+            onValueChange={setDragging}
+            onValueCommit={next => void save(() => onSave({ matchAutoAcceptScore: next / 100 })).then(() => setDragging(null))}
+          />
+          <span className="w-10 text-right text-sm tabular">{percent}%</span>
+        </div>
+      )}
+    </SettingRow>
   )
 }
 
@@ -179,14 +183,17 @@ function SecretDialog({ secret, isSet, onOpenChange, onSave }: { secret: Secret;
   const { title, description, fields } = secrets[secret]
   const [values, setValues] = useState<Record<string, string>>({})
   const [pending, setPending] = useState<'save' | 'remove' | null>(null)
+  const [error, setError] = useState<string>()
   const complete = fields.every(field => values[field.key]?.trim())
   const run = async (kind: 'save' | 'remove') => {
     setPending(kind)
+    setError(undefined)
     try {
       await onSave(Object.fromEntries(fields.map(field => [field.key, kind === 'save' ? values[field.key].trim() : null])))
       onOpenChange(false)
-    } catch {
-      // Reported by the page; the dialog stays open.
+    } catch (failure) {
+      // Said above the buttons; the dialog stays open to try again.
+      setError(errorMessage(failure))
     } finally {
       setPending(null)
     }
@@ -208,6 +215,7 @@ function SecretDialog({ secret, isSet, onOpenChange, onSave }: { secret: Secret;
               />
             </Field>
           ))}
+          <FormError message={error} />
           <DialogFooter className="sm:justify-between">
             {isSet ? <Button variant="danger" pending={pending === 'remove'} onClick={() => void run('remove')}>Remove key</Button> : <span />}
             <div className="flex flex-col-reverse gap-2 sm:flex-row">

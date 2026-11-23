@@ -139,7 +139,11 @@ function Hero({ album, label, onPlay }: { album: AlbumSummary; label: string; on
         </Link>
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wider text-white/70">{label}</p>
-          <h2 className="mt-1.5 line-clamp-2 text-balance text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">{album.title}</h2>
+          {/*
+            * Beside the sidebar on a tablet, or between a landscape phone's insets, the column is
+            * under 210px: an ordinary three-word title takes three lines there, so three are kept.
+            */}
+          <h2 title={album.title} className="mt-1.5 line-clamp-3 text-balance text-2xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-3xl md:text-4xl">{album.title}</h2>
           <p className="mt-1.5 truncate text-sm text-white/75 sm:text-base">{album.artistCredit}{album.year && ` · ${album.year}`}</p>
           <div className="mt-4 flex gap-2 sm:mt-5">
             <Button variant="primary" onClick={onPlay} className="bg-white text-black hover:bg-white/90 focus-visible:ring-white"><Play fill="currentColor" />Play</Button>

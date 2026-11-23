@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { renderWithApp } from '@/test/render'
 import { LyricsPane } from './Lyrics'
 
+const synced: Lyrics = { trackId: '00000000-0000-4000-8300-000000000002', synced: '[00:01.00]One\n[00:02.00]Two\n[00:03.00]Three', plain: null, instrumental: false, source: 'LRCLIB' }
 const plain: Lyrics = { trackId: '00000000-0000-4000-8300-000000000001', synced: null, plain: 'Paper boats\nOn the water', instrumental: false, source: 'LRCLIB' }
 
 describe('LyricsPane', () => {
@@ -32,5 +33,27 @@ describe('LyricsPane', () => {
     renderWithApp(<LyricsPane lyrics={plain} status="ready" onSeek={vi.fn()} />)
     expect(screen.getByText(/Paper boats/)).toBeInTheDocument()
     expect(screen.getByText('Lyrics from LRCLIB')).toBeInTheDocument()
+  })
+
+  it('is one stop for Tab, moved through with the arrow keys, and seeks with Enter', async () => {
+    const onSeek = vi.fn()
+    renderWithApp(<><button type="button">Before</button><LyricsPane lyrics={synced} status="ready" onSeek={onSeek} /><button type="button">After</button></>)
+    const list = screen.getByRole('listbox', { name: 'Lyrics' })
+    expect(screen.getAllByRole('option')).toHaveLength(3)
+    screen.getByRole('button', { name: 'Before' }).focus()
+    await userEvent.tab()
+    // Tab comes to the line playing, or the first.
+    const playing = screen.getAllByRole('option').find(option => option.getAttribute('aria-selected') === 'true') ?? screen.getByRole('option', { name: 'One' })
+    expect(document.activeElement).toBe(playing)
+    await userEvent.keyboard('{Home}{ArrowDown}{ArrowDown}')
+    expect(document.activeElement).toBe(screen.getByRole('option', { name: 'Three' }))
+    await userEvent.keyboard('{Enter}')
+    expect(onSeek).toHaveBeenLastCalledWith(3000)
+    await userEvent.keyboard('{ArrowUp}')
+    expect(document.activeElement).toBe(screen.getByRole('option', { name: 'Two' }))
+    // One more Tab leaves the lyrics, whatever line the keyboard was on.
+    await userEvent.tab()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'After' }))
+    expect(list).toBeInTheDocument()
   })
 })

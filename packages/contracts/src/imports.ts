@@ -54,6 +54,31 @@ export const ImportFileRejection = z.enum([
 ])
 export type ImportFileRejection = z.infer<typeof ImportFileRejection>
 
+/** Extensions the library scans as audio, lower case. */
+export const AUDIO_EXTENSIONS = ['mp3', 'flac', 'm4a', 'mp4', 'aac', 'ogg', 'oga', 'opus', 'wav', 'aiff', 'aif', 'wv', 'ape', 'wma', 'dsf'] as const
+const audioExtensions = new Set<string>(AUDIO_EXTENSIONS)
+const coverExtensions = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'])
+const sidecarExtensions = new Set(['lrc', 'cue', 'log'])
+
+export type ImportFileKind = 'audio' | 'sidecar' | 'archive'
+
+/**
+ * What an import takes a file as, by its name (or path) alone, or null when it is
+ * `unsupported_type`. Clients ask it before sending, so a file the server would refuse is
+ * shown as refused from the start; the server asks it again.
+ */
+export function importFileKind(name: string): ImportFileKind | null {
+  const base = name.slice(name.lastIndexOf('/') + 1)
+  const dot = base.lastIndexOf('.')
+  if (dot <= 0) return null
+  const extension = base.slice(dot + 1).toLowerCase()
+  if (audioExtensions.has(extension)) return 'audio'
+  if (extension === 'zip') return 'archive'
+  if (sidecarExtensions.has(extension)) return 'sidecar'
+  const stem = base.slice(0, dot).toLowerCase()
+  return (stem === 'cover' || stem === 'folder') && coverExtensions.has(extension) ? 'sidecar' : null
+}
+
 export const ImportCounts = z.object({
   /** Files accepted while receiving; an archive counts as one. */
   filesReceived: z.number().int(),

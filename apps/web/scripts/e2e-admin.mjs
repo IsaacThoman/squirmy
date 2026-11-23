@@ -1,7 +1,8 @@
 // Walks the admin flows in real Chromium against a server that has not been set up yet:
 // setup with a real folder, live scan progress and library statistics, adding and removing
 // folders, the review queue, Fix match, Organize (checking the files on disk) and the local
-// search index. Identification talks to MusicBrainz, so a run takes a few minutes.
+// search index. Each result is checked where the app says it: the review queue's note, the Fix
+// match dialog, the batch in Organize. Identification talks to MusicBrainz, so a run takes a few minutes.
 //
 // Usage: node scripts/e2e-admin.mjs <baseUrl> --demo <dir> --work <dir>
 //   --demo  a library made by `npm run demo:library -w @squirmy/server -- <dir>` (read, never changed)
@@ -71,7 +72,7 @@ async function prepare() {
   // A small canonical dump built the way the server's tests build theirs.
   await mkdir(path.dirname(dump), { recursive: true })
   const script = path.join(path.dirname(dump), 'build-dump.mts')
-  const fixtures = path.join(server, 'src', 'modules', 'catalog-index', 'fixtures.ts')
+  const fixtures = path.join(server, 'src', 'test', 'catalog-index-dump.ts')
   await writeFile(script, `import { writeFileSync } from 'node:fs'\nimport { buildDump, testCatalog } from ${JSON.stringify(fixtures)}\nwriteFileSync(${JSON.stringify(dump)}, buildDump(testCatalog()))\n`)
   run('npx', ['tsx', script], { cwd: server })
 }
@@ -82,7 +83,6 @@ const page = await context.newPage()
 page.on('pageerror', error => console.log(`page error: ${error.message}`))
 const heading = name => page.getByRole('heading', { name, exact: true })
 const button = (name, scope = page) => scope.getByRole('button', { name, exact: true })
-const toast = text => page.getByText(text, { exact: true }).first()
 const api = async (route, method = 'GET') => {
   const response = await page.request.fetch(`${base}/api/v1${route}`, { method, headers: { 'X-Squirmy-Request': '1' } })
   return response.json()
@@ -205,8 +205,10 @@ await step('review queue', async () => {
   check('the detail compares the files with the release track by track', await differing.isVisible() && await detail.getByText('Airbag').isVisible())
   const reviewId = new URL(page.url()).searchParams.get('review')
   await button('Use this release').click()
-  await toast('Release applied').waitFor()
+  // The note above the queue says what was done once the album has left it.
+  await page.getByRole('status').filter({ hasText: /^Release applied to “OK Computer”\.$/ }).waitFor()
   await page.getByText('Nothing to review').waitFor()
+  check('the queue says what was done in place', true)
   const review = await api(`/admin/reviews/${reviewId}`)
   const album = await api(`/albums/${review.albumId}`)
   check('use this release resolves the review', review.status === 'resolved')
@@ -230,7 +232,11 @@ await step('fix match', async () => {
   await dialog.getByText(/Identified on MusicBrainz/).waitFor({ timeout: minutes(1) })
   check('fix match shows the current identification', true)
   await button('Use the tags', dialog).click()
-  await toast('Playing from its tags').waitFor()
+  // The dialog stays to say what the choice did, and offers only Done.
+  await dialog.getByRole('status').filter({ hasText: 'Playing from its tags. The files are locked to their tags.' }).waitFor()
+  check('the dialog says what Use the tags did, with only Done left', await button('Done', dialog).isVisible() && !(await button('Use this release', dialog).count()))
+  await button('Done', dialog).click()
+  await dialog.waitFor({ state: 'detached' })
   let album = await albumNamed('Abbey Road')
   check('unmatch puts the album back on its tags', album && album.mbid === null)
 
@@ -240,7 +246,9 @@ await step('fix match', async () => {
   await button('Search', dialog).click()
   await dialog.getByText('Track by track').waitFor({ timeout: minutes(2) })
   await button('Use this release', dialog).click()
-  await page.getByText(/^Matched to /).first().waitFor()
+  await dialog.getByRole('status').filter({ hasText: /^Matched to .+\. The files are locked to this release\.$/ }).waitFor()
+  await button('Done', dialog).click()
+  await dialog.waitFor({ state: 'detached' })
   album = await albumNamed('Abbey Road')
   check('rematch identifies the album with the chosen release', !!album?.mbid, album?.mbid)
 })

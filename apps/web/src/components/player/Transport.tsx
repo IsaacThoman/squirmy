@@ -137,7 +137,7 @@ export function VolumeControl({ volume, onChange, deviceId, label = 'Volume', fi
   }, [deviceId, volume])
   const Icon = volume === 0 ? VolumeX : volume < 0.34 ? Volume : volume < 0.67 ? Volume1 : Volume2
   return (
-    <div className={cn('flex items-center gap-1', className)}>
+    <div className={cn('flex items-center gap-1 pointer-coarse:gap-2', className)}>
       <IconButton
         label={volume === 0 ? 'Unmute' : 'Mute'}
         size="sm"

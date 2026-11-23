@@ -6,7 +6,6 @@ import { useState, type ReactNode } from 'react'
 import { useApi } from '@/api/services'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatIdle } from '@/lib/format'
-import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { labelDevice, whereItPlays, type Player } from '@/player/player-context'
 import { VolumeControl } from './Transport'
@@ -16,7 +15,7 @@ export function DeviceIcon({ kind, className }: { kind: DeviceInfo['kind']; clas
   return <Icon aria-hidden className={className} />
 }
 
-/** "Listening on …" and the other places this session can play. */
+/** "Listening on …" (or "Paused on …") and the other places this session can play. */
 export function DevicesPopover({ player, trigger, side = 'top' }: { player: Player; trigger: ReactNode; side?: 'top' | 'bottom' }) {
   const [open, setOpen] = useState(false)
   return (
@@ -71,7 +70,8 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
             {active ? <DeviceIcon kind={active.kind} className="size-4" /> : away?.device ? <DeviceIcon kind={away.device.kind} className="size-4" /> : <MonitorSpeaker aria-hidden className="size-4" />}
           </div>
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Listening on</p>
+            {/* Never "listening" to a session that is paused: Play here and the picker keep it paused. */}
+            <p className="text-xs text-muted-foreground">{active && !player.state.playing ? 'Paused on' : 'Listening on'}</p>
             {away
               ? <p className="truncate text-sm font-medium" role="status">{reconnectingText(away.device ? labelDevice(player.state, away.device) : null)}</p>
               : <p className={cn('truncate text-sm font-medium', active && 'text-primary')}>{active ? name(active) : 'Nothing right now'}</p>}
@@ -123,8 +123,10 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
             onClick={async () => {
               const playing = player.state.playing && player.state.activeDeviceId === thisDeviceId
               const result = await player.controls.detach()
-              if (!result.ok) return toast({ title: moveError(result, 'Couldn’t play separately.') })
-              toast(playing ? { title: 'Playing only on this device', description: 'Your other devices are paused where they were.' } : { title: 'Playing only on this device' })
+              // Said on the player's status line, which stays in sight as the picker closes.
+              if (!result.ok) return player.controls.tell({ message: moveError(result, 'Couldn’t play separately.'), tone: 'error' })
+              // The player then says "Only on this device"; what it did to the other devices is said here.
+              if (playing) player.controls.tell({ message: 'Playing only on this device', detail: 'Your other devices are paused where they were.', tone: 'info' })
               onTransferred?.()
             }}
           />
@@ -142,9 +144,9 @@ function DetachedList({ player, separate, onDone }: { player: Player; separate: 
   const rejoin = async (bringQueue: boolean) => {
     const stopped = !bringQueue && playing ? current?.track.title : undefined
     const result = await player.controls.attach(bringQueue ? { bringQueue: true } : undefined)
-    if (!result.ok) return toast({ title: moveError(result, 'Couldn’t rejoin.') })
+    if (!result.ok) return player.controls.tell({ message: moveError(result, 'Couldn’t rejoin.'), tone: 'error' })
     // Rejoining drops this tab's queue, so say what stopped; it cannot be had back.
-    if (stopped) toast({ title: 'Rejoined your other devices', description: `Stopped “${stopped}”.` })
+    if (stopped) player.controls.tell({ message: 'Rejoined your other devices', detail: `Stopped “${stopped}”.`, tone: 'info' })
     onDone?.()
   }
   return (
@@ -153,7 +155,7 @@ function DetachedList({ player, separate, onDone }: { player: Player; separate: 
         <div className="flex items-center gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><Unlink2 aria-hidden className="size-4" /></div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-primary">Playing only on this device</p>
+            <p className="text-sm font-medium text-primary">{playing ? 'Playing only on this device' : 'Only on this device'}</p>
             <p className="truncate text-xs text-muted-foreground">{current ? current.track.title : 'Nothing playing'}</p>
           </div>
         </div>
@@ -209,7 +211,6 @@ function SeparateTrack({ state }: { state: NonNullable<DeviceInfo['detached']> }
     queryKey: [...queryKeys.track(trackId ?? ''), albumId],
     queryFn: () => api.catalog.track(trackId!, { albumId: albumId ?? undefined }),
     enabled: Boolean(trackId),
-    meta: { silent: true },
   }).data
   if (!trackId) return <>Nothing playing</>
   // Until (or unless) the song is known, what it is doing still says something.
@@ -217,7 +218,8 @@ function SeparateTrack({ state }: { state: NonNullable<DeviceInfo['detached']> }
   return <>{track.title}{!state.playing && ' · Paused'}</>
 }
 
-const rowClass = 'flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:opacity-50'
+// Focus is the shared ring, drawn inside the row so the popover's edge does not clip it.
+const rowClass = 'flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50'
 
 function GroupLabel({ children }: { children: ReactNode }) {
   return <p className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{children}</p>
@@ -260,12 +262,13 @@ function deviceKind(kind: DeviceInfo['kind']) {
 export function PlayingElsewhere({ player, device, onPlayHere, onPrepare, className }: { player: Player; device: DeviceInfo; onPlayHere: () => void; onPrepare?: () => void; className?: string }) {
   return (
     // The words are in the text color: the action color on its own tint is under 4.5:1 in several light themes.
+    // Play here keeps a paused session paused, as moving the music anywhere does; the words say "Paused on …".
     <div className={cn('flex h-8 items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-foreground', className)}>
       <DeviceIcon kind={device.kind} className="size-3.5 shrink-0 text-primary" />
       <span className="truncate">{whereItPlays(player.state, device)}</span>
       {/* Pointing at it is reason enough to get the music ready: it is usually pressed next. Its
           hit area reaches past the 32px strip to a 44px target for a finger. */}
-      <button type="button" onClick={onPlayHere} onPointerEnter={onPrepare} onPointerDown={onPrepare} onFocus={onPrepare} className="relative ml-1.5 h-6 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-2.5 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
+      <button type="button" onClick={onPlayHere} onPointerEnter={onPrepare} onPointerDown={onPrepare} onFocus={onPrepare} className="relative ml-1.5 h-6 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-2.5 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
         Play here
       </button>
     </div>

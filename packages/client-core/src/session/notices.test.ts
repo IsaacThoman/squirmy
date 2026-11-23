@@ -56,14 +56,21 @@ describe('PlaybackNoticeWatcher', () => {
     expect(update({ current: entry(2) })).toEqual({ ...none, skipped: [{ entry: entry(1), failure: 'error' }] })
   })
 
-  it('tells the next song once it fails, and nothing further down until passed', () => {
+  it('tells a song further on at its turn, when playback passes over it, not when it fails', () => {
     const { update } = watcher({ [track(2)]: 'error' })
     update({ current: entry(1, 'ready'), queue: [entry(2), entry(3), entry(4)] })
     expect(update({ current: entry(1, 'ready'), queue: [entry(2), entry(3), entry(4, 'failed')] })).toEqual(none)
-    expect(update({ current: entry(1, 'ready'), queue: [entry(2, 'failed'), entry(3), entry(4, 'failed')] }).skipped)
+    // Still first in Up next: nothing is said yet.
+    expect(update({ current: entry(1, 'ready'), queue: [entry(2, 'failed'), entry(3), entry(4, 'failed')] })).toEqual(none)
+    // Its turn: the session passes over it.
+    expect(update({ current: entry(3), queue: [entry(4, 'failed')], history: [entry(1, 'ready')] }).skipped)
       .toEqual([{ entry: entry(2, 'failed'), failure: 'error' }])
-    // Already told: reaching it says nothing more.
-    expect(update({ current: entry(3), queue: [entry(4, 'failed')], history: [entry(1, 'ready')] })).toEqual(none)
+  })
+
+  it('says nothing of failed songs the listener jumped past', () => {
+    const { update } = watcher({ [track(2)]: 'error' })
+    update({ current: entry(1, 'ready'), queue: [entry(2, 'failed'), entry(3), entry(4)] })
+    expect(update({ current: entry(4), history: [entry(1, 'ready')] })).toEqual(none)
   })
 
   it('collapses songs not available into one run that counts them, the passed-over ones too, until a song plays', () => {
@@ -77,14 +84,17 @@ describe('PlaybackNoticeWatcher', () => {
     // A song plays: the next one not available starts a new run.
     update({ current: entry(6, 'ready'), queue: [entry(7)] })
     const failures = watcher({ [track(7)]: 'unavailable' })
-    failures.update({ current: entry(6, 'ready'), queue: [entry(7)] })
-    expect(failures.update({ current: entry(6, 'ready'), queue: [entry(7, 'failed')] }).unavailable).toEqual({ count: 1, entry: entry(7, 'failed') })
+    failures.update({ current: entry(6, 'ready'), queue: [entry(7), entry(8)] })
+    expect(failures.update({ current: entry(6, 'ready'), queue: [entry(7, 'failed'), entry(8)] })).toEqual(none)
+    expect(failures.update({ current: entry(8), history: [entry(6, 'ready')] }).unavailable).toEqual({ count: 1, entry: entry(7, 'failed') })
   })
 
-  it('tells a song that ended the queue, held failed, like any other', () => {
+  it('tells a song playback stayed on, failed (picked, or the end of the queue), as one that could not play', () => {
     const { update } = watcher({ [track(1)]: 'unavailable' })
-    update({ current: entry(1) })
-    expect(update({ current: entry(1, 'failed'), playing: false })).toEqual({ ...none, unavailable: { count: 1, entry: entry(1, 'failed') } })
+    update({ current: entry(1), queue: [entry(2)] })
+    expect(update({ current: entry(1, 'failed'), queue: [entry(2)], playing: false })).toEqual({ ...none, skipped: [{ entry: entry(1, 'failed'), failure: 'unavailable', held: true }] })
+    expect(skipNotice('Intro', 'unavailable', true)).toEqual({ message: 'Couldn’t play “Intro”', detail: 'It isn’t available.' })
+    expect(skipNotice(undefined, 'error', true)).toEqual({ message: 'Couldn’t play this song' })
   })
 
   it('tells a stop once instead of the song, and nothing per song until playback resumes', () => {
@@ -114,14 +124,16 @@ describe('PlaybackNoticeWatcher', () => {
       .toEqual({ ...none, stopped: { message: 'Several songs in a row aren’t available', detail: 'Playback is paused.' } })
   })
 
-  it('counts the first autoplay suggestion as next when Up Next is empty', () => {
+  it('tells a failed autoplay suggestion at its turn too', () => {
     const { watching } = watcher({ [track(2)]: 'error' })
     const shape = (state: QueueEntry['state']) => {
       const { state: session, queue } = splitSession({ ...createInitialSession(), current: entry(1, 'ready'), playing: true, autoplay: true, autoplayQueue: [entry(2, state), entry(3, state)] })
       return { session, queue, connection: 'online' as const, outage: null }
     }
     watching.update(shape('preparing'))
-    expect(watching.update(shape('failed')).skipped.map(skip => skip.entry.id)).toEqual(['e.2'])
+    expect(watching.update(shape('failed'))).toEqual(none)
+    const { state: session, queue } = splitSession({ ...createInitialSession(), current: entry(3), playing: true, autoplay: true, history: [entry(1, 'ready')] })
+    expect(watching.update({ session, queue, connection: 'online', outage: null }).skipped.map(skip => skip.entry.id)).toEqual(['e.2'])
   })
 
   it('says nothing offline, or on its first look', () => {

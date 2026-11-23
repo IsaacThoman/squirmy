@@ -1,18 +1,19 @@
 import { ApiError } from '@squirmy/client-core'
 import { act, cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it, type Mock } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album } from '@/fixtures/catalog'
-import { dismissToast, toastStore } from '@/lib/toast'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 
+/** What the player's status line says, wherever it shows (the bar, Now Playing). */
+const lines = () => [...new Set([...document.querySelectorAll('p[data-tone]')].map(line => line.textContent ?? ''))]
+
 describe('telling failures', () => {
-  afterEach(() => act(() => { for (const item of toastStore.getSnapshot()) dismissToast(item.id) }))
   const lowTide = album('low-tide')
   const [song, edit] = lowTide.discs[0].tracks
-  const titles = () => toastStore.getSnapshot().map(item => `${item.title} ${item.description ?? ''}`.trim())
+  const titles = lines
 
   async function playLowTide() {
     const fake = fakeServices()
@@ -25,14 +26,16 @@ describe('telling failures', () => {
   const failTrack = (socket: ReturnType<typeof fakeServices>['socket'], trackId: string) =>
     act(() => socket.serverApply({ type: 'setEntryState', trackId, state: 'failed' }))
 
-  it('tells once, by name, a song that was current or next and could not be had', async () => {
+  it('tells a song further on only at its turn, and one playback stays on as one that could not play', async () => {
     const { socket } = await playLowTide()
+    // Still in Up next: nothing is said of it yet.
     failTrack(socket, edit.id)
-    expect(await screen.findByText(`Couldn’t play “${edit.title}”`)).toBeInTheDocument()
-    // The last song: the session keeps it current, stopped, and it is told the same way.
+    await act(() => new Promise(resolve => setTimeout(resolve, 1700)))
+    expect(titles()).toEqual([])
+    // The session keeps the current song, stopped, as nothing after it plays: it was not skipped.
     failTrack(socket, song.id)
     expect(await screen.findByText(`Couldn’t play “${song.title}”`)).toBeInTheDocument()
-    expect(titles().filter(title => title.startsWith('Couldn’t play'))).toEqual([`Couldn’t play “${edit.title}” Skipped.`, `Couldn’t play “${song.title}” Skipped.`])
+    expect(titles()).toEqual([`Couldn’t play “${song.title}”`])
   })
 
   it('tells lightly of a song the provider does not have, as the server says', async () => {
@@ -48,7 +51,7 @@ describe('telling failures', () => {
     const { socket } = await playLowTide()
     act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id }))
     act(() => socket.serverSet(session => ({ ...session, playing: false, current: session.current && { ...session.current, state: 'failed' } })))
-    expect(await screen.findByText('Can’t load music right now')).toBeInTheDocument()
+    expect(await screen.findByText('Can’t load music right now. Playback is paused.')).toBeInTheDocument()
     failTrack(socket, edit.id)
     await act(() => new Promise(resolve => setTimeout(resolve, 50)))
     expect(titles().filter(title => title.startsWith('Couldn’t play'))).toEqual([])
@@ -63,7 +66,7 @@ describe('telling failures', () => {
     act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id }))
     act(() => socket.serverSet(session => ({ ...session, playing: false })))
     await act(() => new Promise(resolve => setTimeout(resolve, 1700)))
-    expect(titles()).toEqual(['Can’t load music right now Playback is paused.'])
+    expect(titles()).toEqual(['Can’t load music right now. Playback is paused.'])
   })
 
   it('does not gray out the song playback paused on in an outage, as it does one that failed in a row of errors', async () => {
@@ -71,7 +74,7 @@ describe('telling failures', () => {
       const { socket } = await playLowTide()
       act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id, kind, reason: kind === 'outage' ? 'Fetching is down.' : null }))
       act(() => socket.serverSet(session => ({ ...session, playing: false, current: session.current && { ...session.current, state: 'failed' } })))
-      await screen.findByText('Can’t load music right now')
+      await screen.findByText(/^Can’t load music right now/)
     }
     await pausedOn('outage')
     expect(screen.queryAllByTitle('Not available')).toEqual([])
@@ -84,7 +87,7 @@ describe('telling failures', () => {
     const { socket } = await playLowTide()
     act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id, kind: 'outage', reason: 'The server can’t fetch music on demand right now.' }))
     act(() => socket.serverSet(session => ({ ...session, playing: false, current: session.current && { ...session.current, state: 'failed' } })))
-    expect(await screen.findByText('The server can’t fetch music on demand right now. Playback is paused.')).toBeInTheDocument()
+    expect(await screen.findByText(/The server can’t fetch music on demand right now\. Playback is paused\.$/)).toBeInTheDocument()
   })
 
   it('says once that none of the remaining songs are available', async () => {
@@ -142,16 +145,48 @@ describe('fresh track details', () => {
 })
 
 describe('a track the server refuses to stream', () => {
-  afterEach(() => act(() => { for (const item of toastStore.getSnapshot()) dismissToast(item.id) }))
-
-  it('is told once and skipped', async () => {
+  it('stays, paused and told, when the listener picked it: no other song starts', async () => {
     const { services, socket, api } = fakeServices()
     const blueHour = album('blue-hour')
-    const [first, second] = blueHour.discs[0].tracks
+    const [first] = blueHour.discs[0].tracks
+    api.streaming.playback.mockRejectedValueOnce(new ApiError(404, 'not_found', 'Not found'))
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    // The song's own row: picked by name.
+    await userEvent.click(await screen.findByRole('button', { name: `Play ${first.title}` }))
+    expect(await screen.findByText(`Couldn’t play “${first.title}”`)).toBeInTheDocument()
+    await waitFor(() => expect(socket.session.playing).toBe(false))
+    expect(socket.session.current?.trackId).toBe(first.id)
+    expect(lines().join(' ')).not.toMatch(/Skipped/)
+  })
+
+  it('moves on past a first song it cannot have when the album is played from its header', async () => {
+    const { services, socket, api } = fakeServices()
+    const blueHour = album('blue-hour')
+    const [first] = blueHour.discs[0].tracks
     api.streaming.playback.mockRejectedValueOnce(new ApiError(404, 'not_found', 'Not found'))
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
-    expect(await screen.findByText(`Couldn’t play “${first.title}”`)).toBeInTheDocument()
-    await waitFor(() => expect(socket.session.current?.trackId).toBe(second.id))
+    // Played as a whole, as streaming apps play a list with a grayed-out first song.
+    await waitFor(() => expect(socket.session.current?.trackId).not.toBe(first.id))
+    expect(lines().join(' ')).not.toMatch(/Couldn’t play “.*”\. It isn’t available/)
+  })
+
+  it('is told and skipped when playback came to it by itself', async () => {
+    const { services, socket, api } = fakeServices()
+    const blueHour = album('blue-hour')
+    // Next, not a song picked by name, brings it on. (A shuffle started on a random song, now and
+    // then one the fake server never fetches, which made this test fail a sixth of the time.)
+    const [first, refused] = blueHour.discs[0].tracks
+    // The rest fail as the fake's do: no audio in tests, a failure the client retries.
+    const playback = api.streaming.playback as unknown as Mock<(trackId: string) => Promise<never>>
+    playback.mockImplementation(async trackId => {
+      throw trackId === refused.id ? new ApiError(404, 'not_found', 'Not found') : new Error('No audio in tests')
+    })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
+    await waitFor(() => expect(socket.session.current?.trackId).toBe(first.id))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Next' })[0]!)
+    expect(await screen.findByText(`Couldn’t play “${refused.title}”. Skipped.`)).toBeInTheDocument()
+    await waitFor(() => expect(socket.session.current?.trackId).not.toBe(refused.id))
   })
 })

@@ -231,9 +231,10 @@ await step('search', async () => {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Search' }).click()
   await page.getByRole('heading', { name: 'Search', level: 1 }).waitFor()
   page.on('request', listen)
-  await page.getByRole('combobox', { name: 'Search' }).pressSequentially('blue hour', { delay: 40 })
-  const results = page.getByRole('listbox', { name: 'Results for blue hour' })
-  await results.getByRole('option').filter({ hasText: 'Blue Hour' }).first().waitFor()
+  await page.getByRole('searchbox', { name: 'Search' }).pressSequentially('blue hour', { delay: 40 })
+  // The ranked list is a plain list: each row's link or button is a control of its own.
+  const results = page.getByRole('list', { name: 'Results for blue hour' })
+  await results.getByRole('listitem').filter({ hasText: 'Blue Hour' }).first().waitFor()
   await sleep(500)
   page.off('request', listen)
   check('library results come from the server', true)
@@ -247,7 +248,7 @@ await step('search', async () => {
       && catalog.length === 1 && catalog[0] === 'catalog:blue hour' && library.length + catalog.length === asked.length,
     asked.join(', '))
   // One ranked list, every kind mixed, each row saying what it is: no sections, none named for the library.
-  const rows = await results.getByRole('option').allTextContents()
+  const rows = await results.getByRole('listitem').allTextContents()
   check('one list, the album named first, each row saying what it is', /^Blue Hour(Album|EP|Single) · Mira Vale/.test(rows[0] ?? '') && rows.every(row => / · |Artist|Playlist/.test(row)), rows.slice(0, 4).join(' / '))
   const headings = await page.getByRole('main').getByRole('heading', { level: 2 }).allTextContents()
   check('no sections', headings.length === 0, headings.join(' / '))
@@ -306,7 +307,7 @@ await step('quick search', async () => {
   await arrowTo(/^See all results for/)
   await field.press('Enter')
   await page.waitForURL(url => url.pathname === '/search' && url.searchParams.get('q') === 'mira')
-  check('the last option opens the search page for the query', await page.getByRole('combobox', { name: 'Search' }).inputValue() === 'mira')
+  check('the last option opens the search page for the query', await page.getByRole('searchbox', { name: 'Search' }).inputValue() === 'mira')
   await transport(page, 'Pause').click()
 })
 
@@ -321,11 +322,13 @@ await step('playlists', async () => {
     await page.getByRole('button', { name: `More options for ${title}` }).click()
     await page.getByRole('menuitem', { name: 'Add to playlist' }).click()
     await page.getByRole('menuitem', { name: 'E2E Mix' }).click()
-    await page.getByText('Added to E2E Mix').first().waitFor()
+    // The menu item says it worked for a moment before its menu closes.
+    await page.getByRole('menuitem', { name: 'Added to E2E Mix' }).waitFor()
   }
   const sidebarLink = sidebarPlaylists(page).getByRole('link', { name: /E2E Mix/ })
   await page.getByRole('list', { name: 'Blue Hour tracks' }).getByRole('listitem').filter({ hasText: 'Stay Until Morning' }).dragTo(sidebarLink)
-  await page.getByText('Added to E2E Mix').first().waitFor()
+  // The playlist the songs were dropped on says Added beside its name.
+  await sidebarLink.getByText('Added', { exact: true }).waitFor()
   await sidebarLink.click()
   const rows = () => page.getByRole('list', { name: 'E2E Mix tracks' }).getByRole('listitem').evaluateAll(items => items.map(item => item.querySelector('span.truncate')?.textContent))
   const added = await until(rows, value => value.length === 3)
@@ -359,8 +362,10 @@ await step('lyrics', async () => {
   if (started !== 'Night Swimming') await tracks.getByText('Night Swimming', { exact: true }).dblclick()
   await page.getByRole('link', { name: 'Night Swimming', exact: true }).waitFor()
   await page.getByRole('button', { name: 'Lyrics', exact: true }).click()
-  await page.getByRole('button', { name: 'Blue on the water' }).click()
-  const active = () => page.getByRole('dialog').locator('button[aria-current="true"]').textContent()
+  // The lines are one list for Tab, each an option; the one sung now is selected.
+  const lines = page.getByRole('listbox', { name: 'Lyrics' })
+  await lines.getByRole('option', { name: 'Blue on the water' }).click()
+  const active = () => lines.locator('[role="option"][aria-selected="true"]').textContent()
   const line = await until(active, text => text === 'Blue on the water')
   check('clicking a line seeks to it', line === 'Blue on the water', line)
   const later = await until(active, text => text === 'No one around us', 6000)
@@ -392,11 +397,11 @@ await step('a second device', async () => {
   await a.page.getByRole('menuitem', { name: 'Settings' }).click()
   await a.page.getByLabel('This browser’s name').fill('E2E Speaker')
   await a.page.getByLabel('This browser’s name').press('Enter')
-  await a.page.getByText('Browser renamed', { exact: true }).first().waitFor({ timeout: 5000 }).catch(() => { throw new Error('no “Browser renamed” notice') })
-  await a.page.keyboard.press('Escape')
   const settings = a.page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('status').filter({ hasText: /^Saved$/ }).waitFor({ timeout: 5000 }).catch(() => { throw new Error('no “Saved” beside the browser’s name') })
+  await a.page.keyboard.press('Escape')
   const closed = await settings.waitFor({ state: 'detached', timeout: 2000 }).then(() => true, () => false)
-  check('Escape closes Settings while the “Browser renamed” notice shows', closed, closed ? '' : 'the first Escape only dismissed the notice')
+  check('Escape closes Settings at once while “Saved” shows', closed, closed ? '' : 'the first Escape did not close it')
   // A user presses it again.
   if (!closed) await a.page.keyboard.press('Escape')
   await settings.waitFor({ state: 'detached', timeout: 5000 }).catch(() => { throw new Error('Escape did not close Settings') })

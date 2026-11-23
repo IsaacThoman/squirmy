@@ -20,7 +20,8 @@ import { templateExample } from '@/lib/template'
 import { cn } from '@/lib/utils'
 import { AdminHeader, DialogForm, Stat } from './AdminLayout'
 import { ManagedConfirmation, ManagedSwitchRow, SwitchRow } from './ManagedSwitch'
-import { cardClass, DataTable, FolderPath, OptionGroup, Panel, Td, Th, Tr } from './Panel'
+import { useNote } from './note'
+import { cardClass, DataTable, FolderPath, InlineNote, OptionGroup, Panel, Td, Th, Tr } from './Panel'
 
 export type ScanProgress = Omit<Extract<ServerEvent, { type: 'scan.progress' }>, 'type'>
 
@@ -48,7 +49,8 @@ type LibraryAdminProps = {
   editRootId?: string | null
   onEditorClosed?: () => void
   folders: FolderBrowser
-  onScan: (rootId: string) => Promise<unknown>
+  /** Answers whether a scan was started; false when one is already running. */
+  onScan: (rootId: string) => Promise<{ queued: boolean }>
   onAdd: (request: z.input<typeof CreateLibraryRootRequest>) => Promise<unknown>
   onUpdate: (rootId: string, patch: UpdateLibraryRootRequest) => Promise<unknown>
   onRemove: (rootId: string) => Promise<unknown>
@@ -106,9 +108,9 @@ export function LibraryAdmin({ roots, stats, cache, openReviews, progress, templ
                   key={root.id}
                   root={root}
                   live={progress[root.id]}
-                  onScan={() => void onScan(root.id).catch(() => {})}
+                  onScan={() => onScan(root.id)}
                   onEdit={() => setDialog({ kind: 'edit', root })}
-                  onToggle={() => void onUpdate(root.id, { enabled: !root.enabled }).catch(() => {})}
+                  onToggle={() => onUpdate(root.id, { enabled: !root.enabled })}
                   onRemove={() => setDialog({ kind: 'remove', root })}
                 />
               ))}
@@ -212,7 +214,17 @@ function activity(root: LibraryRoot, live: ScanProgress | undefined): { label: s
   return root.scanning ? { label: 'Scanning', value: null } : null
 }
 
-function RootRow({ root, live, onScan, onEdit, onToggle, onRemove }: { root: LibraryRoot; live: ScanProgress | undefined; onScan: () => void; onEdit: () => void; onToggle: () => void; onRemove: () => void }) {
+type RootRowProps = { root: LibraryRoot; live: ScanProgress | undefined; onScan: () => Promise<{ queued: boolean }>; onEdit: () => void; onToggle: () => Promise<unknown>; onRemove: () => void }
+
+/**
+ * A folder, with what it is busy with. A scan that starts shows as its progress, and a folder
+ * enabled or disabled as its badge; the row says only what does not show: a scan already
+ * running, or why the server refused.
+ */
+function RootRow({ root, live, onScan, onEdit, onToggle, onRemove }: RootRowProps) {
+  const { note, run } = useNote()
+  const scan = () => void run(onScan, ({ queued }) => (queued ? null : 'Already scanning. The folder is scanned again once this scan finishes.'))
+  const toggle = () => void run(onToggle)
   const busy = activity(root, live)
   const last = root.lastScanStats
   return (
@@ -233,16 +245,17 @@ function RootRow({ root, live, onScan, onEdit, onToggle, onRemove }: { root: Lib
             {last && ` · ${last.filesAdded.toLocaleString()} added, ${last.filesChanged.toLocaleString()} changed, ${last.filesMissing.toLocaleString()} missing`}
             {last?.errors ? <span className="text-destructive"> · {plural(last.errors, 'unreadable file')}</span> : null}
           </p>
+          <InlineNote note={note} className="mt-1" />
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button size="sm" variant="outline" className="max-sm:hidden" disabled={root.scanning || !root.enabled} onClick={onScan}>
+          <Button size="sm" variant="outline" className="max-sm:hidden" disabled={root.scanning || !root.enabled} onClick={scan}>
             {root.scanning ? <Spinner className="size-4 text-current" label="Scanning" /> : <ScanLine />}{root.scanning ? 'Scanning' : 'Scan now'}
           </Button>
           <DropdownMenu
             entries={[
-              { label: 'Scan now', icon: <ScanLine />, disabled: root.scanning || !root.enabled, onSelect: onScan },
+              { label: 'Scan now', icon: <ScanLine />, disabled: root.scanning || !root.enabled, onSelect: scan },
               { label: 'Edit…', icon: <Pencil />, onSelect: onEdit },
-              { label: root.enabled ? 'Disable' : 'Enable', icon: <Power />, onSelect: onToggle },
+              { label: root.enabled ? 'Disable' : 'Enable', icon: <Power />, onSelect: toggle },
               { kind: 'separator' },
               { label: 'Remove folder…', icon: <Trash2 />, danger: true, onSelect: onRemove },
             ]}

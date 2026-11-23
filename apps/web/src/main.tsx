@@ -10,7 +10,6 @@ import { createQueryClient } from '@/api/query-client'
 import { createServices, ServicesContext } from '@/api/services'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { Toaster } from '@/components/ui/toast'
 import { startAppearance } from '@/lib/appearance'
 import { claimTabDevice } from '@/lib/device'
 import { EngineProvider } from '@/player/engine/EngineProvider'
@@ -40,7 +39,6 @@ createRoot(document.getElementById('root')!).render(
               <ErrorBoundary className="min-h-dvh justify-center">
                 <AppRoutes />
               </ErrorBoundary>
-              <Toaster />
             </EngineProvider>
           </TooltipProvider>
         </BrowserRouter>

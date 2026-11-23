@@ -2,6 +2,7 @@ import { CloudOff, TriangleAlert } from 'lucide-react'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
+import { usePageTitle } from '@/lib/document-title'
 import { cn } from '@/lib/utils'
 
 /**
@@ -19,7 +20,10 @@ type ErrorBoundaryProps = {
   children: ReactNode
   /** When it changes, a shown error is dropped and the children render again (another page, say). */
   resetKey?: unknown
-  /** What shows instead of the children; by default a message with a way to try again. */
+  /**
+   * What shows instead of the children; by default a message with a way to try again, which
+   * stands for the whole page: its heading is the page's title, and it names the tab.
+   */
   fallback?: (props: { error: unknown; retry: () => void }) => ReactNode
   className?: string
 }
@@ -49,16 +53,23 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     const { error, failed } = this.state
     if (!failed) return this.props.children
     if (this.props.fallback) return this.props.fallback({ error, retry: this.retry })
-    return <ErrorMessage error={error} onRetry={this.retry} className={this.props.className} />
+    return <PageError error={error} onRetry={this.retry} className={this.props.className} />
   }
 }
 
+/** A page that failed in place of the page: its heading is the page's, and the tab is named for it. */
+function PageError(props: { error: unknown; onRetry: () => void; className?: string }) {
+  usePageTitle('Page did not load')
+  return <ErrorMessage {...props} headingLevel={1} />
+}
+
 /** What a failed part of the app shows: reload for a missing download, try again for anything else. */
-export function ErrorMessage({ error, onRetry, className }: { error: unknown; onRetry: () => void; className?: string }) {
+export function ErrorMessage({ error, onRetry, className, headingLevel }: { error: unknown; onRetry: () => void; className?: string; headingLevel?: 1 | 2 | 3 }) {
   const missing = isChunkLoadError(error)
   return (
     <EmptyState
       className={cn('py-20', className)}
+      headingLevel={headingLevel}
       icon={missing ? <CloudOff /> : <TriangleAlert />}
       title={missing ? 'This part of Squirmy could not be loaded' : 'Something went wrong'}
       description={missing ? 'Squirmy may have been updated, or the connection dropped. Reload to get the latest version.' : 'This part of Squirmy hit an error. Try again, or reload the page if it keeps happening.'}

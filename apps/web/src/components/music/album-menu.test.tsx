@@ -1,10 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, home, summary } from '@/fixtures/catalog'
 import { users } from '@/fixtures/server'
-import { dismissToast, toastStore } from '@/lib/toast'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 import { AlbumCard } from './Cards'
@@ -14,10 +13,6 @@ const blueHour = album('blue-hour')
 const member = users[1]!
 
 const entries = () => screen.getAllByRole('menuitem').map(item => item.textContent)
-
-afterEach(() => {
-  for (const item of toastStore.getSnapshot()) dismissToast(item.id)
-})
 
 describe('album menu', () => {
   it('is the album page’s on its cards, with Play, which the page has as a button', async () => {
@@ -47,7 +42,7 @@ describe('album menu', () => {
   // (#117), which add Go to album; this only checks one is there for an album result.
   it('leaves search’s album rows a menu of their own', async () => {
     renderWithApp(<AppRoutes />, '/search?q=blue')
-    const results = await screen.findByRole('listbox', { name: /^Results for/ })
+    const results = await screen.findByRole('list', { name: /^Results for/ })
     await userEvent.click(await within(results).findByRole('button', { name: 'More options for Blue Hour' }))
     expect(await screen.findByRole('menuitem', { name: 'Add to playlist' })).toBeInTheDocument()
   })

@@ -1,4 +1,4 @@
-import type { CatalogIndexStatus, MatchCandidate, MatchFile, OrganizeBatch, OrganizeBatchSummary } from '@squirmy/contracts'
+import type { CatalogIndexStatus, MatchCandidate, MatchFile, MatchReviewDetail, OrganizeBatch, OrganizeBatchSummary, User } from '@squirmy/contracts'
 import { DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TAGS_NOT_REVERTED } from '@squirmy/contracts'
 import { ApiError } from '@squirmy/client-core'
 import { screen, within } from '@testing-library/react'
@@ -7,18 +7,22 @@ import { describe, expect, it, vi } from 'vitest'
 import { root, templateInfo } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 import { LibraryAdmin } from './LibraryAdmin'
+import { FixMatchView } from './FixMatchDialog'
 import { CandidateComparison } from './MatchCompare'
 import { OrganizeAdmin } from './OrganizeAdmin'
+import { ReviewAdmin } from './ReviewAdmin'
 import { SearchIndexAdmin } from './SearchIndexAdmin'
+import { UsersAdmin } from './UsersAdmin'
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const ok = () => vi.fn(async () => ({ ok: true }))
+const refused = (message: string) => vi.fn(async () => { throw new ApiError(409, 'conflict', message) })
 
 function renderLibrary(overrides: Partial<Parameters<typeof LibraryAdmin>[0]> = {}) {
   const props = {
     roots: [root], stats: undefined, openReviews: 0, progress: {}, templateInfo,
     folders: { path: '/srv', listing: { path: '/srv', parent: '/', directories: [] }, error: undefined, onBrowse: vi.fn() },
-    onScan: ok(), onAdd: ok(), onUpdate: ok(), onRemove: ok(), onFixMatch: vi.fn(),
+    onScan: vi.fn(async () => ({ queued: true })), onAdd: ok(), onUpdate: ok(), onRemove: ok(), onFixMatch: vi.fn(),
     ...overrides,
   }
   renderWithApp(<LibraryAdmin {...props} />)
@@ -81,6 +85,35 @@ describe('library admin', () => {
     renderLibrary({ roots: [{ ...root, mode: 'managed' }], editRootId: root.id })
     expect(screen.getByRole('dialog', { name: 'Edit Music' })).toBeInTheDocument()
     expect(screen.getByLabelText('Naming template')).toBeInTheDocument()
+  })
+
+  it('says on the folder\'s row when a scan is already running, and nothing when one starts', async () => {
+    const onScan = vi.fn(async () => ({ queued: true }))
+    renderLibrary({ onScan })
+    const row = screen.getByRole('listitem', { name: 'Music' })
+    await userEvent.click(within(row).getByRole('button', { name: 'Scan now' }))
+    expect(onScan).toHaveBeenCalledWith(root.id)
+    expect(within(row).getByRole('status')).toBeEmptyDOMElement()
+    onScan.mockResolvedValueOnce({ queued: false })
+    await userEvent.click(within(row).getByRole('button', { name: 'Scan now' }))
+    expect(await within(row).findByRole('status')).toHaveTextContent('Already scanning. The folder is scanned again once this scan finishes.')
+  })
+
+  it('says why a folder could not be disabled on its row', async () => {
+    renderLibrary({ onUpdate: refused('The folder is busy') })
+    await userEvent.click(screen.getByRole('button', { name: 'More options for Music' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Disable' }))
+    const row = screen.getByRole('listitem', { name: 'Music' })
+    expect(await within(row).findByText('The folder is busy')).toBeInTheDocument()
+  })
+
+  it('says why a folder could not be removed in the confirmation, and keeps it open', async () => {
+    renderLibrary({ onRemove: refused('A scan is running') })
+    await userEvent.click(screen.getByRole('button', { name: 'More options for Music' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove folder…' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove folder' }))
+    expect(await within(dialog).findByText('A scan is running')).toBeInTheDocument()
   })
 
   it('shows live scan progress', () => {
@@ -154,6 +187,14 @@ describe('organize admin', () => {
     expect(handlers.onApply).toHaveBeenCalledWith([id(20)])
   })
 
+  it('says under the preview why it could not be applied', async () => {
+    renderWithApp(<OrganizeAdmin {...props()} onApply={refused('Another batch is running in this folder')} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Apply all' }))
+    const panel = screen.getByRole('region', { name: 'Preview' })
+    expect(await within(panel).findByText('Another batch is running in this folder')).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Apply all' })).toBeEnabled()
+  })
+
   it('says which template a preview used and where to change it', () => {
     renderWithApp(<OrganizeAdmin {...props()} />)
     expect(screen.getByText('This folder’s template')).toBeInTheDocument()
@@ -211,5 +252,69 @@ describe('search index admin', () => {
     await userEvent.type(screen.getByLabelText('Songs per artist, at most'), '50')
     await userEvent.click(screen.getByRole('button', { name: 'Start import' }))
     expect(handlers.onStart).toHaveBeenCalledWith({ recordingsPerArtist: 50 })
+  })
+})
+
+describe('review queue', () => {
+  const review: MatchReviewDetail = {
+    id: id(40), rootId: root.id, groupKey: 'okc', albumId: id(41), status: 'open', bestScore: 0.6, candidateCount: 0, createdAt: '2026-11-20T10:00:00.000Z', resolvedAt: null,
+    summary: { artist: 'Radiohead', album: 'OK Computer', year: 1997, folder: 'okc', trackCount: 2 },
+    candidates: [], files: [],
+  }
+
+  it('says what was decided once the next album takes its place, and why it was not', async () => {
+    const onResolve = vi.fn(async () => ({ ok: true }))
+    const { rerender } = renderWithApp(<ReviewAdmin status="open" onStatusChange={vi.fn()} reviews={[review]} rootNames={{}} selectedId={review.id} onSelect={vi.fn()} detail={review} onResolve={onResolve} onSearch={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Keep as it is' }))
+    expect(onResolve).toHaveBeenCalledWith(review, { action: 'keep_local' })
+    expect(await screen.findByText('Kept “OK Computer” as tagged.')).toBeInTheDocument()
+    rerender(<ReviewAdmin status="open" onStatusChange={vi.fn()} reviews={[review]} rootNames={{}} selectedId={review.id} onSelect={vi.fn()} detail={review} onResolve={refused('The review was already closed')} onSearch={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(await screen.findByText('The review was already closed')).toBeInTheDocument()
+  })
+})
+
+describe('fix match', () => {
+  it('says what a choice did and offers only Done', async () => {
+    const onOpenChange = vi.fn()
+    renderWithApp(<FixMatchView album={undefined} files={[]} candidates={[]} searching={false} searchError={undefined} actionError={undefined} pending={null} done="Matching again. The matcher looks at the album again in the background." onSearch={vi.fn()} onAction={vi.fn()} onOpenChange={onOpenChange} />)
+    expect(screen.getByText('Matching again. The matcher looks at the album again in the background.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Use this release' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('says why the album did not load where it would be', () => {
+    renderWithApp(<FixMatchView album={undefined} albumError="The album is gone" files={undefined} candidates={undefined} searching={false} searchError={undefined} actionError={undefined} pending={null} onSearch={vi.fn()} onAction={vi.fn()} onOpenChange={vi.fn()} />)
+    expect(screen.getByText('The album is gone')).toBeInTheDocument()
+  })
+})
+
+describe('users admin', () => {
+  const user: User = {
+    id: id(50), username: 'sam', displayName: 'Sam', role: 'member', disabled: true, canUpload: false, canAcquire: false, createdAt: '2026-11-01T10:00:00.000Z',
+  } as User
+  const render = (onUpdateUser: (userId: string, patch: object) => Promise<unknown>) => renderWithApp(
+    <UsersAdmin users={[user]} invites={[]} currentUserId={id(51)} inviteLink={() => ''} onCreateUser={ok()} onUpdateUser={onUpdateUser} onDeleteUser={ok()} onCreateInvite={vi.fn()} onRevokeInvite={ok()} />,
+  )
+
+  it('says on the user\'s row why the account could not be enabled', async () => {
+    render(refused('The account is locked'))
+    await userEvent.click(screen.getByRole('button', { name: 'Manage sam' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Enable account' }))
+    const row = screen.getByText('@sam').closest('tr')!
+    expect(await within(row).findByText('The account is locked')).toBeInTheDocument()
+  })
+
+  it('says on the user\'s row that a new password was set', async () => {
+    const onUpdateUser = vi.fn(async () => user)
+    render(onUpdateUser)
+    await userEvent.click(screen.getByRole('button', { name: 'Manage sam' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Reset password…' }))
+    await userEvent.type(await screen.findByLabelText('New password'), 'a long new password')
+    await userEvent.click(screen.getByRole('button', { name: 'Set password' }))
+    expect(onUpdateUser).toHaveBeenCalledWith(user.id, { password: 'a long new password' })
+    const row = screen.getByText('@sam').closest('tr')!
+    expect(await within(row).findByText('Password changed. They were signed out everywhere.')).toBeInTheDocument()
   })
 })

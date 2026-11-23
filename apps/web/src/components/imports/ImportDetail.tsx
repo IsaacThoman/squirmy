@@ -2,6 +2,8 @@ import type { Import, ImportAlbum, ImportKind } from '@squirmy/contracts'
 import { Check, CircleAlert, CloudDownload, FolderInput, ListChecks, Upload, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import { useNote } from '@/components/admin/note'
+import { InlineNote } from '@/components/admin/Panel'
 import { Cover } from '@/components/music/Cover'
 import { Button } from '@/components/ui/button'
 import { Badge, Skeleton, Spinner } from '@/components/ui/feedback'
@@ -28,6 +30,9 @@ export function ImportStateBadge({ item }: { item: Import }) {
   )
 }
 
+/** Said once an import is cancelled, beside the badge that says it too. */
+export const CANCELLED_NOTE = 'Import cancelled. The files it received are gone.'
+
 type ImportDetailProps = {
   item: Import
   /** Who started it, for admins looking at someone else's. */
@@ -35,7 +40,7 @@ type ImportDetailProps = {
   /** Undefined until loaded; only asked for once the import is done. */
   albums: ImportAlbum[] | undefined
   isAdmin: boolean
-  onCancel?: () => void
+  onCancel?: () => Promise<unknown>
   /** Below the result: what an upload could not send, say. */
   children?: ReactNode
 }
@@ -44,6 +49,7 @@ type ImportDetailProps = {
 export function ImportDetail({ item, owner, albums, isAdmin, onCancel, children }: ImportDetailProps) {
   const { counts } = item
   const done = item.status === 'completed'
+  const { note, run } = useNote()
   return (
     <div className="flex flex-col gap-6">
       <div className="overflow-hidden rounded-xl border bg-card">
@@ -57,8 +63,9 @@ export function ImportDetail({ item, owner, albums, isAdmin, onCancel, children 
             <p className="mt-0.5 text-sm text-muted-foreground">
               {[kindLabels[item.kind], owner, `started ${formatRelative(item.createdAt)}`, item.completedAt && `finished ${formatRelative(item.completedAt)}`].filter(Boolean).join(' · ')}
             </p>
+            <InlineNote note={note} className="mt-1" />
           </div>
-          {item.status === 'receiving' && onCancel && <Button size="sm" variant="outline" onClick={onCancel}><X />Cancel</Button>}
+          {item.status === 'receiving' && onCancel && <Button size="sm" variant="outline" onClick={() => void run(onCancel, () => CANCELLED_NOTE)}><X />Cancel</Button>}
         </div>
         <Steps item={item} />
       </div>
@@ -137,7 +144,7 @@ function AlbumsOf({ albums }: { albums: ImportAlbum[] | undefined }) {
       <ul className="mt-3 divide-y overflow-hidden rounded-xl border bg-card">
         {albums.map(({ album, files, filed }) => (
           <li key={album.id}>
-            <Link to={`/album/${album.id}`} className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent/60">
+            <Link to={`/album/${album.id}`} className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
               <Cover artwork={album.artwork} size={96} className="size-10" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{album.title}</span>

@@ -17,6 +17,8 @@ type LoadErrorProps = {
   /** What did not load, as a sentence: "Your app passwords did not load". */
   title: string
   error?: unknown
+  /** Said under the title instead of the error's own message. */
+  description?: string
   onRetry: () => void
   /** The retry is in flight: the button shows it and cannot be pressed twice. */
   retrying?: boolean
@@ -35,8 +37,7 @@ type LoadErrorProps = {
  * rather than leaving its skeleton up: a skeleton says "wait", and after a failure waiting does
  * nothing.
  */
-export function LoadError({ title, error, onRetry, retrying = false, variant = 'section', headingLevel = 1, className }: LoadErrorProps) {
-  const description = error === undefined ? undefined : errorMessage(error)
+export function LoadError({ title, error, description = error === undefined ? undefined : errorMessage(error), onRetry, retrying = false, variant = 'section', headingLevel = 1, className }: LoadErrorProps) {
   const retry = <Button variant={variant === 'page' ? 'primary' : 'outline'} size={variant === 'page' ? 'md' : 'sm'} pending={retrying} onClick={onRetry}>{!retrying && <RotateCw />}Try again</Button>
   if (variant === 'page') {
     return <div role="alert"><EmptyState icon={<CloudOff />} title={title} description={description} action={retry} headingLevel={headingLevel} className={className} /></div>
@@ -71,9 +72,9 @@ type QueryStateProps<T> = {
 
 /**
  * One query's three states: its skeleton while the first answer is on the way, a retry when it
- * failed, and the content once it came. A failed refetch keeps showing the last answer (the toast
- * or the realtime notice says what went wrong), so content never turns into an error under the
- * reader. Try again puts the skeleton back while it waits: a query with no answer yet drops its
+ * failed, and the content once it came. A failed refetch keeps showing the last answer (the
+ * shell's notice says when the connection is lost), so content never turns into an error under
+ * the reader. Try again puts the skeleton back while it waits: a query with no answer yet drops its
  * error when it fetches again.
  */
 export function QueryState<T>({ query, loading, errorTitle, variant, errorClassName, renderError, children }: QueryStateProps<T>) {

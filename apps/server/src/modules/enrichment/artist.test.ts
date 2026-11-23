@@ -2,7 +2,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import { ARTIST_SECTION_PREVIEW } from '@squirmy/contracts'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, artistTopTracks, assets, externalIds, recordings } from '../../database/schema.js'
+import { albumArtists, albums, artistTopTracks, artists, assets, externalIds, recordings } from '../../database/schema.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createUser } from '../../test/factories.js'
@@ -188,11 +188,21 @@ describe('artist detail', () => {
     await updateServerSettings({ deezerEnabled: false, wikidataEnabled: false })
     try {
       const various = await artistStub({ name: 'Various Artists', mbid: '89ad4ac3-39f7-470e-963a-56509c546377' })
+      // What older code stored: a store's stock photo and Wikipedia's article on compilation albums.
+      const photo = await remoteImage('https://cdn-images.dzcdn.net/images/artist/various/1000x1000.jpg', { kind: 'artist' })
+      await db.update(artists).set({ imageAssetId: photo.id, bio: 'A compilation album comprises tracks…', bioSource: 'wikipedia', bioUrl: 'https://en.wikipedia.org/wiki/Compilation_album' })
+        .where(eq(artists.id, various))
       const before = await counts()
       http.requests.length = 0
       await hydrateArtist(various)
-      expect(await artistRow(various)).toMatchObject({ name: 'Various Artists', detailLevel: 2 })
+      expect(await artistRow(various)).toMatchObject({
+        name: 'Various Artists', detailLevel: 2, imageAssetId: null, bio: null, bioSource: null, bioUrl: null,
+        // MusicBrainz's are "add compilations to this artist" and the genres of what is filed under it.
+        disambiguation: null, genres: [],
+      })
       expect(http.requests.filter((url) => url.includes('release-group'))).toEqual([])
+      // No picture is looked for.
+      expect(http.requests.filter((url) => !url.includes('musicbrainz.org'))).toEqual([])
       expect(await counts()).toEqual(before)
     } finally {
       await updateServerSettings({ deezerEnabled: true, wikidataEnabled: true })

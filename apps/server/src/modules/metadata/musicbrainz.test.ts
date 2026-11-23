@@ -38,6 +38,9 @@ describe('musicbrainz', () => {
     expect(mb.albumType('Album', ['DJ-mix'])).toBe('compilation')
     expect(mb.albumType('Album', ['Mixtape/Street'])).toBe('album')
     expect(mb.albumType('Broadcast')).toBe('other')
+    // Radiohead's Meeting People Is Easy: a film, not an album.
+    expect(mb.albumType('Other', ['Soundtrack'])).toBe('other')
+    expect(mb.albumType(null, ['Soundtrack'])).toBe('soundtrack')
     expect(mb.albumType(null)).toBe('other')
     expect(mb.normalizeDate('1997-06-16')).toEqual({ date: '1997-06-16', year: 1997 })
     expect(mb.normalizeDate('1997-06')).toEqual({ date: '1997-06', year: 1997 })
