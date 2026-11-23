@@ -137,7 +137,7 @@ function AlbumsOf({ albums }: { albums: ImportAlbum[] | undefined }) {
       <ul className="mt-3 divide-y overflow-hidden rounded-xl border bg-card">
         {albums.map(({ album, files, filed }) => (
           <li key={album.id}>
-            <Link to={`/album/${album.id}`} className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent/60">
+            <Link to={`/album/${album.id}`} className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
               <Cover artwork={album.artwork} size={96} className="size-10" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{album.title}</span>
