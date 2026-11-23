@@ -466,25 +466,27 @@ const runNotice = () => page.getByText(/^(Skipped (“.+”|\d+ songs) — not a
 /** Playback is paused or stopped: the player bar offers Play. */
 const paused = async () => (await button('Play', playerBar()).count()) > 0 && !(await button('Pause', playerBar()).count())
 
+/**
+ * A provider that fails every job is down, not short of a song (#119): playback pauses on the
+ * first one with one notice that says so, and nothing is said per song.
+ */
+const outageNotice = () => page.getByText('Can’t load music right now', { exact: true }).first()
+
 await step('a provider that fails', async () => {
   mock.settings.fail = true
   const track = await missingTrack('Aphex Twin')
   try {
     await playFromSearch('Aphex Twin', track)
-    // The provider reports each job failed: that song is skipped and playback goes on, under one
-    // notice that counts the songs skipped, until five in a row pause it (or the queue runs out).
-    // A provider that fails at once can skip five songs between two looks: the counting notice may
-    // already have given way to the stop notice, which then stands for the run.
-    await runNotice().waitFor({ timeout: minutes(3) })
-    check('a song the provider fails on is skipped, with one counting notice', true, await runNotice().textContent())
-    await runStopNotice().waitFor({ timeout: minutes(8) })
-    check('a run of them stops playback, with one notice', await paused(), await runStopNotice().textContent())
+    await outageNotice().waitFor({ timeout: minutes(3) })
+    check('a provider that fails pauses playback with one notice', await paused(), track.title)
+    check('and says nothing per song', !(await page.getByText(/^Couldn’t play “/).count()) && !(await page.getByText(/^Skipped /).count()))
+    const providers = await get('/admin/acquisition/providers')
+    const shelf = (providers.items ?? providers).find(provider => provider.name === 'Shelf')
+    check('the provider is reported failing, not the songs missing', Boolean(shelf?.failingSince), shelf?.failingSince)
     await shoot('on-demand-failed', { toasts: true })
   } finally {
     mock.settings.fail = false
   }
-  const after = await until(() => get(`/tracks/${track.id}`), value => value.availability === 'none', 10_000)
-  check('and the track is gray after a refresh', after.availability === 'none')
   await page.goto(`${base}/admin/providers?status=failed`)
   const failedRow = page.getByRole('list', { name: 'Requests' }).getByRole('listitem').filter({ has: page.getByText(`${track.title} — ${track.artistCredit}`, { exact: true }) }).first()
   await failedRow.waitFor()
