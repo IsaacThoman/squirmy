@@ -13,6 +13,8 @@ const palettes = {
     danger: '#FF8F87',
     onAccent: '#19142B',
     stroke: '#FFFFFF22',
+    // The unfilled part of a slider: at least 3:1 against Now Playing's backdrop and the sheets, so the control shows before any of it is filled.
+    sliderTrack: '#7A7484',
     overlay: '#FFFFFF0D',
     selection: '#CBC1FF1F',
     grabber: '#FFFFFF66',
@@ -22,6 +24,9 @@ const palettes = {
     fadedTitle: fadedText.dark.title,
     fadedCredit: fadedText.dark.credit,
     playerGradient: ['#11101B8A', '#181322AF', '#100E18', '#0E0C15'],
+    // Swipe actions on song and queue rows: Play next and Add to queue. White glyphs sit on them in both appearances.
+    swipeNext: '#8071D4',
+    swipeQueue: '#3D826D',
   },
   light: {
     background: '#FFFFFF',
@@ -34,6 +39,7 @@ const palettes = {
     danger: '#C42B2B',
     onAccent: '#FFFFFF',
     stroke: '#30213B26',
+    sliderTrack: '#857D91',
     overlay: '#30213B0D',
     selection: '#5B439E17',
     grabber: '#30213B75',
@@ -43,6 +49,8 @@ const palettes = {
     fadedTitle: fadedText.light.title,
     fadedCredit: fadedText.light.credit,
     playerGradient: ['#FFF9FFB8', '#FAF5FBE0', '#F8F4FC', '#F7F3FB'],
+    swipeNext: '#8071D4',
+    swipeQueue: '#3D826D',
   },
 } as const;
 

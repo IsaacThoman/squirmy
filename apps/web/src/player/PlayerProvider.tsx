@@ -322,6 +322,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     canDetach: snapshot.canDetach,
     status: statusLine,
     radioPending,
+    outage: snapshot.outage,
   }
 
   return (

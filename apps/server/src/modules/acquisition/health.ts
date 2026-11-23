@@ -6,7 +6,8 @@
  * So failures the provider is answerable for (it could not be reached, refused a call, or
  * reported the job failed) are counted per provider, by recording, until it next delivers.
  * Once `FAILING_AFTER` different recordings have failed, the provider is failing: the misses
- * that streak left are dropped (the tracks were not the problem), later failures record
+ * that streak left are dropped (the tracks were not the problem, so the sessions that
+ * skipped them as not available are told they are playable again), later failures record
  * none, the admin page says since when it has failed and why, and the sessions waiting on
  * its fetches pause with a reason (`OUTAGE_REASON`) instead of skipping down the queue.
  * Fetches still go to it: the first one it delivers ends the outage.
@@ -14,6 +15,7 @@
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { uuidArray } from '../catalog/sql.js'
+import { announceOutcome } from './outcomes.js'
 import { isFailing } from './providers.js'
 import { announceAvailability } from './resolve.js'
 
@@ -48,7 +50,10 @@ export async function noteProviderFailure(providerId: string, message: string, r
     where provider_id = ${providerId} and entity_type = 'recording'
       and entity_id = any(${uuidArray(row.failing)}) and created_at >= ${since.toISOString()}
     returning entity_id as id`)
-  await announceAvailability(cleared.map((miss) => miss.id))
+  const ids = cleared.map((miss) => miss.id)
+  await announceAvailability(ids)
+  // Sessions skipped those tracks as not available: they are playable after all.
+  await announceOutcome({ restored: ids })
   return true
 }
 

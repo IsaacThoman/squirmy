@@ -1,6 +1,6 @@
 import { reduceSession, type Session } from '@squirmy/client-core';
 import type { PlaybackDescriptor, QueueEntry, StreamQuality, TrackSummary } from '@squirmy/contracts';
-import { checkIntervalMs, type NetworkKind } from '../downloads/model';
+import { checkIntervalMs, formatBytes, type NetworkKind } from '../downloads/model';
 
 /**
  * One recording kept by the streaming cache, in one quality. Unlike a download nobody
@@ -264,4 +264,12 @@ export function plan(input: PlanInput): Plan {
     free -= 1;
   }
   return { start, cancel, keep };
+}
+
+/**
+ * What Clear in Settings takes away, said before it happens: the cached songs stop playing
+ * offline. Downloads are kept apart and stay.
+ */
+export function clearCacheMessage({ count, usedBytes }: { count: number; usedBytes: number }, device: string): string {
+  return `The ${count} ${count === 1 ? 'song' : 'songs'} (${formatBytes(usedBytes)}) kept from streaming will be removed from this ${device} and won’t play without a connection until you play them again. Downloads stay.`;
 }

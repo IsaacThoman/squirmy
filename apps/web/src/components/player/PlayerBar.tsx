@@ -1,4 +1,4 @@
-import { Ellipsis, Heart, ListMusic, Maximize2, MessageSquareQuote, MonitorSpeaker, Music2 } from 'lucide-react'
+import { ChevronUp, Ellipsis, Heart, ListMusic, MessageSquareQuote, MonitorSpeaker, Music2 } from 'lucide-react'
 import { useLayoutEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
@@ -12,6 +12,7 @@ import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading
 import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
 import { PlayerStatusLine } from './PlayerStatus'
 import { PlayPauseButton, SeekBar, touchTarget, TransportButtons, VolumeControl } from './Transport'
+import { useNowPlayingWheel } from './use-now-playing-wheel'
 
 /** The bar is the sidebar's color, so what is hovered in it takes the sidebar's hover color. */
 const barClass = '@container bg-sidebar text-sidebar-foreground [--accent:var(--sidebar-accent)]'
@@ -76,9 +77,10 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
   // keeps some room: they are behind More, and Now Playing has them.
   const lyricsFit = stacked || width >= ONE_ROW_FITS
   const heartFits = lyricsFit
+  const onWheel = useNowPlayingWheel('up', onOpenNowPlaying)
   return (
     // A landmark, so screen readers can jump to the player and tests can find it by name.
-    <section ref={setSection} aria-label="Player" className={cn(barClass, 'pb-[env(safe-area-inset-bottom)]')}>
+    <section ref={setSection} aria-label="Player" className={cn(barClass, 'pb-[env(safe-area-inset-bottom)]')} onWheel={item ? onWheel : undefined}>
       {/*
         Stacked: the song and the tools on top, the transport under them across the bar.
         A phone on its side keeps one row (there is no height to spare): the track takes what the
@@ -100,7 +102,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
               <button type="button" aria-label="Open Now Playing" onClick={onOpenNowPlaying} className="group relative shrink-0 rounded-[5px] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar">
                 <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-12 rounded-[5px]" />
                 <span className="absolute inset-0 flex items-center justify-center rounded-[5px] bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  <Maximize2 aria-hidden className="size-4" />
+                  <ChevronUp aria-hidden className="size-4" />
                 </span>
               </button>
               {/* Two lines of words, too close for 44 px each; on a touch screen the cover opens Now Playing (`data-inline-links`). */}
@@ -145,13 +147,13 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
             trigger={<IconButton label="Devices" size="sm" className={cn(touchTarget, (elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
           />
           {volumeFits && <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} />}
-          {nowPlayingFits && <IconButton label="Now Playing" size="sm" disabled={!item} onClick={onOpenNowPlaying} className={touchTarget}><Maximize2 /></IconButton>}
+          {nowPlayingFits && <IconButton label="Now Playing" size="sm" disabled={!item} onClick={onOpenNowPlaying} className={touchTarget}><ChevronUp /></IconButton>}
           {!volumeFits && (
             <MoreControls>
               <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="gap-2.5 px-1 py-1" />
               {!nowPlayingFits && (
                 <button type="button" disabled={!item} onClick={onOpenNowPlaying} className={moreRowClass}>
-                  <Maximize2 aria-hidden className="size-4 text-muted-foreground" />Now Playing
+                  <ChevronUp aria-hidden className="size-4 text-muted-foreground" />Now Playing
                 </button>
               )}
               {!lyricsFit && (
@@ -211,6 +213,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
   const item = state.current
   const elsewhere = playingElsewhere(state)
   const late = useStillLoading(item?.entry, state.waiting)
+  const onWheel = useNowPlayingWheel('up', onOpenNowPlaying)
   const devices = (
     <DevicesPopover
       player={player}
@@ -234,7 +237,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
     )
   }
   return (
-    <section aria-label="Player" className={cn(barClass, 'relative pb-[env(safe-area-inset-bottom)]')}>
+    <section aria-label="Player" className={cn(barClass, 'relative pb-[env(safe-area-inset-bottom)]')} onWheel={onWheel}>
       <div className="flex h-16 items-center gap-1 border-t pl-3 pr-2">
         <button type="button" aria-label={`Open Now Playing, ${item.track.title}`} onClick={onOpenNowPlaying} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
           <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-10 rounded-[5px]" />

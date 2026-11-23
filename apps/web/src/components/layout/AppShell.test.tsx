@@ -573,6 +573,32 @@ describe('AppShell', () => {
   })
 
   describe('Now Playing', () => {
+    it('slides with scrolling content and leaves wheel input inside the queue alone', async () => {
+      await renderShell()
+      const bar = screen.getByRole('region', { name: 'Player' })
+      fireEvent.wheel(bar, { deltaY: 100 })
+      expect(screen.queryByRole('dialog', { name: 'Now Playing' })).toBeNull()
+
+      await press('k')
+      await userEvent.type(await searchField(), 'amber')
+      await userEvent.click(await screen.findByRole('option', { name: 'Amber Song · Lune Park' }))
+      fireEvent.wheel(bar, { deltaY: -100 })
+      fireEvent.wheel(bar, { deltaY: 100, ctrlKey: true })
+      fireEvent.wheel(bar, { deltaX: 100, deltaY: 40 })
+      fireEvent.wheel(bar, { deltaY: 16 })
+      expect(screen.queryByRole('dialog', { name: 'Now Playing' })).toBeNull()
+      fireEvent.wheel(bar, { deltaY: 20 })
+
+      const dialog = await screen.findByRole('dialog', { name: 'Now Playing' })
+      fireEvent.wheel(dialog, { deltaY: 100 })
+      expect(dialog).toBeInTheDocument()
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Show queue' }))
+      fireEvent.wheel(within(dialog).getByText('Up next'), { deltaY: -100 })
+      expect(dialog).toBeInTheDocument()
+      fireEvent.wheel(dialog, { deltaY: -100 })
+      await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    }, 15_000)
+
     it('gives focus back to what opened it when it closes', async () => {
       await renderShell()
       await press('k')

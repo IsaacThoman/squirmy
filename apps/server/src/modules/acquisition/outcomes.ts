@@ -19,7 +19,7 @@ import { getConfig } from '../../config.js'
 import { db, getSql } from '../../database/client.js'
 import { uuidArray } from '../catalog/sql.js'
 import { ownedRecordings } from './catalog.js'
-import { markRecordingFailed, markRecordingReady } from '../sessions/index.js'
+import { markRecordingFailed, markRecordingReady, markRecordingRestored } from '../sessions/index.js'
 import { OUTAGE_REASON } from './health.js'
 import { currentMisses } from './misses.js'
 import { activeProviders } from './providers.js'
@@ -28,7 +28,7 @@ import { activeProviders } from './providers.js'
  * `cause`: why the `failed` recordings failed (see `EntryFailure`); `error` when left out.
  * `outage` is how workers before `cause` said `cause: 'outage'`.
  */
-export type Outcome = { ready: string[]; failed: string[]; cause?: EntryFailure; outage?: boolean }
+export type Outcome = { ready: string[]; failed: string[]; cause?: EntryFailure; outage?: boolean; restored?: string[] }
 
 const channel = 'squirmy_acquisition'
 const maxPayloadBytes = 7900
@@ -55,10 +55,15 @@ export async function announceOutcome(outcome: Partial<Outcome>) {
     if (Buffer.byteLength(payload) > maxPayloadBytes) throw new Error('Acquisition outcome too large')
     await getSql()`select pg_notify(${channel}, ${payload})`
   }
+  const restored = outcome.restored ?? []
+  for (let start = 0; start < restored.length; start += 150) {
+    await getSql()`select pg_notify(${channel}, ${JSON.stringify({ ready: [], failed: [], restored: restored.slice(start, start + 150) })})`
+  }
 }
 
 /** Applies an outcome to the loaded sessions. Must run in the API process. */
-export async function applyOutcome({ ready, failed, cause, outage }: Outcome) {
+export async function applyOutcome({ ready, failed, cause, outage, restored = [] }: Outcome) {
+  for (const id of restored) await markRecordingRestored(id)
   for (const id of ready) await markRecordingReady(id)
   const failure = cause ?? (outage ? 'outage' : 'error')
   for (const id of failed) await markRecordingFailed(id, failure === 'outage' ? { failure, reason: OUTAGE_REASON } : { failure })

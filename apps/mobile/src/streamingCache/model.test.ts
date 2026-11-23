@@ -2,7 +2,7 @@ import { createInitialSession, reduceSession, type Session } from '@squirmy/clie
 import type { QueueSeed, SessionCommand, StreamQuality } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  estimateBytes, evictions, inUse, limitOptions, defaultLimitBytes, minFreeBytes, outlookOf, pick, plan, policyFor, reconcile,
+  clearCacheMessage, estimateBytes, evictions, inUse, limitOptions, defaultLimitBytes, minFreeBytes, outlookOf, pick, plan, policyFor, reconcile,
   sameOutlook, type CacheRow, type Near, type Outlook, type PlanInput,
 } from './model';
 
@@ -232,5 +232,12 @@ describe('prefetch plan', () => {
   it('holds back a track whose last fetch failed until it may be tried again', () => {
     expect(started(plan(input({ retryAt: trackId => trackId === id(2) ? now + 1 : undefined })))).toEqual([3, 1]);
     expect(started(plan(input({ retryAt: trackId => trackId === id(2) ? now : undefined })))).toEqual([2, 3]);
+  });
+});
+
+describe('clearCacheMessage', () => {
+  it('says how much goes and that it stops playing offline', () => {
+    expect(clearCacheMessage({ count: 21, usedBytes: 233 * 1024 * 1024 }, 'iPhone')).toMatch(/^The 21 songs \(.+\) kept from streaming will be removed from this iPhone and won’t play without a connection/);
+    expect(clearCacheMessage({ count: 1, usedBytes: 1 }, 'phone')).toMatch(/^The 1 song \(/);
   });
 });

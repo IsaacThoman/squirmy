@@ -5,7 +5,7 @@ import { errorMessage } from '@/api/errors'
 import { cn } from '@/lib/utils'
 import { Spinner } from './feedback'
 
-export const menuContentClass = 'z-50 min-w-44 max-w-[calc(100vw-1rem)] origin-(--radix-popper-transform-origin) animate-enter overflow-y-auto overflow-x-hidden overscroll-contain rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=closed]:animate-exit'
+export const menuContentClass = 'z-50 min-w-44 max-w-[calc(100vw-1rem)] origin-(--radix-popper-transform-origin) animate-enter overflow-y-auto overflow-x-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=closed]:animate-exit'
 /** A long menu (every playlist under "Add to playlist") scrolls within the room the screen has. */
 const fitsDropdown = 'max-h-(--radix-dropdown-menu-content-available-height)'
 const fitsContext = 'max-h-(--radix-context-menu-content-available-height)'

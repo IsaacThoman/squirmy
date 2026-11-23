@@ -8,10 +8,12 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
 import { useAccountKey, useSignedInApi, useWantlistEnabled, type Api } from '../account/AccountProvider';
-import { useNotice } from '../Notice';
+import { announce, useBriefFailures } from '../inlineFeedback';
+import { heartFailure } from '../library/heart';
+import { playlistEditFailure, wantFailure } from '../library/failures';
 import { accountItem } from './accountStorage';
 import { applyChanges } from './changes';
-import { LikeQueue, refusedNotice, type QueuedLike } from './likeQueue';
+import { LikeQueue, type QueuedLike } from './likeQueue';
 import { findTrack, remembersToDrop, withLikedTrack } from './likePatch';
 import { useRealtime } from './realtime';
 
@@ -22,18 +24,26 @@ type LibraryValue = {
   /** Hearts changed here (or on another device) since the screens' data was loaded. */
   likes: ReadonlyMap<LikeKey, boolean>;
   /**
-   * The heart, the one way to save to or remove from the library. It shows at once with a
-   * notice that can undo it; a refusal sets it back, and its notice, which replaces that one,
-   * can try again. `title` names the item there.
+   * The heart, the one way to save to or remove from the library. It shows at once, and the
+   * heart itself is the confirmation; a refusal sets it back and shows on the heart for a few
+   * seconds (`likeFailures`). `title` names the item there.
    */
   setLiked: (type: LikeEntityType, id: string, liked: boolean, title?: string) => void;
+  /** Hearts the server just refused, by `type:id`: the value it would not take. */
+  likeFailures: ReadonlyMap<string, boolean>;
   /** Whether the item is on the wantlist: as changed here, else as the server lists it (or says so itself, `fromServer`). */
   isWanted: (id: string, fromServer?: boolean) => boolean;
   /**
    * Adds the item to the wantlist or takes it off, the same both ways as on web. It shows at
-   * once with a notice that can undo it; a refusal sets it back with a notice.
+   * once; a refusal sets it back and shows on the control for a few seconds (`wantFailures`).
    */
   setWanted: (type: WantEntityType, id: string, wanted: boolean, title: string) => void;
+  /** Wantlist changes the server just refused, by id: the value it would not take. */
+  wantFailures: ReadonlyMap<string, boolean>;
+  /** Playlist edits the server just refused, by playlist id: what the playlist's page says, for a few seconds. */
+  playlistFailures: ReadonlyMap<string, string>;
+  /** Shows `message` on the playlist's page and announces it; null takes it away, as the next edit does. */
+  failPlaylist: (id: string, message: string | null) => void;
 };
 
 const LibraryContext = createContext<LibraryValue | null>(null);
@@ -77,7 +87,6 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
   const account = useAccountKey();
   const queryClient = useQueryClient();
-  const notify = useNotice();
   const { onInvalidate, onChanges, offline, expectEcho } = useRealtime();
   // One store per account, reading the current client: a new client (a token or server
   // update) must not drop the cached summaries or rebuild what is built on the store.
@@ -86,16 +95,12 @@ export function LibraryProvider({ children }: PropsWithChildren) {
     apiRef.current = api;
   }, [api]);
   const tracks = useMemo(() => new TrackStore(body => apiRef.current?.catalog.trackSummaries(body) ?? noSummaries()), [account]);
-  const queue = useMemo(() => api && account ? new LikeQueue(likeStorage(account), async ({ type, id, liked }, savedAt) => {
+  const queue = useMemo(() => api && account ? new LikeQueue(likeStorage(account), ({ type, id, liked }) => {
     // The server patches this phone too (it already shows the change, so that echo is not
     // refetched) and invalidates the lists that gain or lose the item: the library's, Liked
-    // Songs (in its place, for an Undo) and Home. A reconnect refreshes them if that is missed.
+    // Songs and Home. A reconnect refreshes them if that is missed.
     expectEcho([type, id]);
-    // An Undo of a removal gives the save its old time back, so it keeps its place in the lists.
-    const answer = liked
-      ? await api.userdata.like(type, id, savedAt ? { savedAt } : {}).then(() => undefined)
-      : await api.userdata.unlike(type, id).then(removed => ({ savedAt: removed.savedAt }));
-    return answer;
+    return liked ? api.userdata.like(type, id) : api.userdata.unlike(type, id);
   }) : null, [account, api, expectEcho]);
   const [likes, setLikes] = useState<ReadonlyMap<LikeKey, boolean>>(new Map());
   useEffect(() => setLikes(new Map(queue?.pending.map(like => [`${like.type}:${like.id}`, like.liked] as const))), [queue]);
@@ -128,8 +133,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   const isOffline = useRef(offline);
   isOffline.current = offline;
   const retry = useRef<{ timer?: ReturnType<typeof setTimeout>; delayMs: number }>({ delayMs: retryFirstMs });
-  // `change`, for a refusal's Try again; it is made below, from `flush`.
-  const changeRef = useRef<(like: QueuedLike) => void>(() => undefined);
+  const { failures: likeFailures, fail: failLike, drop: dropLikeFailure } = useBriefFailures<boolean>();
   const flush = useCallback(() => {
     if (!queue) return;
     clearTimeout(retry.current.timer);
@@ -144,8 +148,9 @@ export function LibraryProvider({ children }: PropsWithChildren) {
       for (const like of refused) {
         remember(`${like.type}:${like.id}`, undefined);
         patchLike(queryClient, like.type, like.id, !like.liked);
-        // Takes the place of the "Saved" notice the heart showed, which would otherwise still be up.
-        notify(refusedNotice(like.liked), { action: { label: 'Try again', run: () => changeRef.current(like) } });
+        // The heart shows it, and a tap on it sends the same change again.
+        failLike(`${like.type}:${like.id}`, like.liked);
+        announce(heartFailure(like.liked, like.title));
       }
       // Offline, the reconnect sends what is left; online, the server failed, so try again later.
       if (queue.pending.length && !isOffline.current) {
@@ -156,29 +161,22 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         retry.current.delayMs = retryFirstMs;
       }
     });
-  }, [notify, queryClient, queue, remember]);
+  }, [failLike, queryClient, queue, remember]);
   useEffect(() => {
     if (!offline) flush();
   }, [flush, offline]);
   useEffect(() => () => clearTimeout(retry.current.timer), [queue]);
 
-  /** Applies a heart at once and queues it. Offline it waits in the queue: that is not a failure, so the notice stands. */
-  const change = useCallback(function change(like: QueuedLike) {
+  /** Applies a heart at once and queues it. Offline it waits in the queue: that is not a failure, so nothing says so. */
+  const change = useCallback((like: QueuedLike) => {
     if (!queue) return;
-    const { type, id, liked, title } = like;
+    const { type, id, liked } = like;
+    dropLikeFailure(`${type}:${id}`);
     remember(`${type}:${id}`, liked);
     patchLike(queryClient, type, id, liked);
     queue.add(like);
     flush();
-    // A quick confirmation that can be taken back, as streaming apps do; the heart itself changes too.
-    // Undoing a removal restores the save with its old time.
-    const name = title ? `“${title}” ` : '';
-    notify(liked ? `Saved ${name}to your library.` : `Removed ${name}from your library.`,
-      { action: { label: 'Undo', run: () => change({ type, id, liked: !liked, title, ...!liked && { restore: true } }) } });
-  }, [flush, notify, queryClient, queue, remember]);
-  useEffect(() => {
-    changeRef.current = change;
-  }, [change]);
+  }, [dropLikeFailure, flush, queryClient, queue, remember]);
   const setLiked = useCallback((type: LikeEntityType, id: string, liked: boolean, title?: string) =>
     change({ type, id, liked, ...title !== undefined && { title } }), [change]);
 
@@ -210,32 +208,46 @@ export function LibraryProvider({ children }: PropsWithChildren) {
     return next;
   }), []);
 
+  const { failures: wantFailures, fail: failWant, drop: dropWantFailure } = useBriefFailures<boolean>();
   const setWanted = useCallback((type: WantEntityType, id: string, wanted: boolean, title: string) => {
     if (!api) return;
+    dropWantFailure(id);
     changeWant(id, wanted);
     const patchAlbum = (value: boolean) => {
       if (type === 'album') queryClient.setQueryData<AlbumDetail>(queryKeys.album(id), album => album && { ...album, wanted: value });
     };
     patchAlbum(wanted);
-    notify(wanted ? `Added “${title}” to your wantlist.` : `Removed “${title}” from your wantlist.`,
-      { action: { label: 'Undo', run: () => setWanted(type, id, !wanted, title) } });
     (wanted ? api.userdata.want(type, id) : api.userdata.unwant(type, id)).then(
       () => queryClient.invalidateQueries({ queryKey: queryKeys.wants() }).then(() => changeWant(id, undefined)),
       () => {
         changeWant(id, undefined);
         patchAlbum(!wanted);
-        notify(wanted ? 'Couldn’t add that to your wantlist.' : 'Couldn’t take that off your wantlist.');
+        // The control shows it, and a tap on it sends the same change again.
+        failWant(id, wanted);
+        announce(wantFailure(wanted, title));
       },
     );
-  }, [api, changeWant, notify, queryClient]);
+  }, [api, changeWant, dropWantFailure, failWant, queryClient]);
+
+  // Kept here rather than in the page: a removal made from a song's menu sheet is told on the playlist's page beneath it.
+  const { failures: playlistFailures, fail: failPlaylistEdit, drop: dropPlaylistFailure } = useBriefFailures<string>();
+  const failPlaylist = useCallback((id: string, message: string | null) => {
+    if (message === null) return dropPlaylistFailure(id);
+    failPlaylistEdit(id, message);
+    announce(message);
+  }, [dropPlaylistFailure, failPlaylistEdit]);
 
   const value: LibraryValue = useMemo<LibraryValue>(() => ({
     tracks,
     likes,
     setLiked,
+    likeFailures,
     isWanted: (id, fromServer = false) => wantChanges.get(id) ?? (fromServer || wantedIds.has(id)),
     setWanted,
-  }), [likes, setLiked, setWanted, tracks, wantChanges, wantedIds]);
+    wantFailures,
+    playlistFailures,
+    failPlaylist,
+  }), [failPlaylist, likeFailures, likes, playlistFailures, setLiked, setWanted, tracks, wantChanges, wantFailures, wantedIds]);
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
 }
@@ -275,6 +287,29 @@ export function useLikeChanges(): ReadonlyMap<string, boolean> {
   return useLibrary().likes;
 }
 
+/** The change to the item's heart that the server just refused, if any: the value it would not take. */
+export function useLikeFailure(type: LikeEntityType, id: string | undefined): boolean | undefined {
+  const { likeFailures } = useLibrary();
+  return id ? likeFailures.get(`${type}:${id}`) : undefined;
+}
+
+/** Every heart change the server just refused, by `type:id`, for a list that builds its menus from what it already read. */
+export function useLikeFailures(): ReadonlyMap<string, boolean> {
+  return useLibrary().likeFailures;
+}
+
+/** The wantlist change the server just refused for the item, if any: the value it would not take. */
+export function useWantFailure(id: string | undefined): boolean | undefined {
+  const { wantFailures } = useLibrary();
+  return id ? wantFailures.get(id) : undefined;
+}
+
+/** What the playlist's page says about an edit the server just refused, for a few seconds. */
+export function usePlaylistFailure(id: string | undefined): string | undefined {
+  const { playlistFailures } = useLibrary();
+  return id ? playlistFailures.get(id) : undefined;
+}
+
 export function useLibraryActions() {
   const { setLiked, setWanted } = useLibrary();
   return { setLiked, setWanted };
@@ -286,26 +321,32 @@ export function useWanted(id: string | undefined, fromServer?: boolean): boolean
   return id ? isWanted(id, fromServer) : false;
 }
 
-type AddChange = { id: string; name: string; tracks: readonly TrackSummary[]; anyway?: boolean; before?: number };
+type AddChange = { id: string; tracks: readonly TrackSummary[]; anyway?: boolean };
 
-/** Playlist edits. Each one updates the cached playlist from the server's answer. */
+/** What adding answered: `skipped` when the playlist already had the songs, so the server left them out. */
+export type AddResult = { skipped: boolean };
+
+/**
+ * Playlist edits. Each one updates the cached playlist from the server's answer. Creating,
+ * renaming and adding are made from sheets, which wait for the answer and show a refusal
+ * themselves; a refused move, removal or deletion is shown on the playlist's page
+ * (`usePlaylistFailure`), and a move or removal goes back to how it was.
+ */
 export function usePlaylistActions() {
   const api = useSignedInApi();
   const queryClient = useQueryClient();
-  const notify = useNotice();
+  const { failPlaylist } = useLibrary();
   const settle = (playlist: PlaylistDetail | PlaylistSummary) => {
     if ('items' in playlist) queryClient.setQueryData(queryKeys.playlist(playlist.id), playlist);
     void queryClient.invalidateQueries({ queryKey: [...queryKeys.playlists(), 'list'] });
     void queryClient.invalidateQueries({ queryKey: queryKeys.home() });
   };
-  const failed = (what: string) => () => notify(`Couldn’t ${what}. Try again.`);
   const cached = (id: string) => queryClient.getQueryData<PlaylistDetail>(queryKeys.playlist(id));
   const run = <T,>(work: (api: Api) => Promise<T>) => api ? work(api) : Promise.reject(new Error('Signed out'));
 
   const create = useMutation({
     mutationFn: (name: string) => run(api => api.userdata.createPlaylist({ name })),
     onSuccess: settle,
-    onError: failed('create the playlist'),
   });
   const rename = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => run(api => api.userdata.updatePlaylist(id, { name })),
@@ -313,41 +354,32 @@ export function usePlaylistActions() {
       queryClient.setQueryData<PlaylistDetail>(queryKeys.playlist(summary.id), playlist => playlist && { ...playlist, ...summary });
       settle(summary);
     },
-    onError: failed('rename the playlist'),
   });
   const remove = useMutation({
     mutationFn: (id: string) => run(api => api.userdata.deletePlaylist(id)),
+    onMutate: id => failPlaylist(id, null),
     onSuccess: (_ok, id) => {
       queryClient.removeQueries({ queryKey: queryKeys.playlist(id) });
       void queryClient.invalidateQueries({ queryKey: [...queryKeys.playlists(), 'list'] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.home() });
     },
-    onError: failed('delete the playlist'),
+    onError: (_error, id) => failPlaylist(id, playlistEditFailure('delete')),
   });
-  // Without `anyway`, tracks the playlist already has are left out, and the notice says so.
+  // Without `anyway`, tracks the playlist already has are left out.
   const add = useMutation({
     mutationFn: ({ id, tracks, anyway }: AddChange) => run(api => api.userdata.addPlaylistItems(id, {
       tracks: tracks.map(track => ({ trackId: track.id, albumId: track.album?.id ?? null })),
       skipDuplicates: !anyway,
     })),
-    onSuccess: (playlist, change) => {
-      settle(playlist);
-      const { name, before } = change;
-      // The answer is the whole playlist, so an unchanged length is how a skipped duplicate shows.
-      if (!change.anyway && before !== undefined && playlist.items.length === before) {
-        notify(`Already in “${name}”.`, { action: { label: 'Add Anyway', run: () => add.mutate({ ...change, anyway: true }) } });
-      } else {
-        notify(`Added to “${name}”.`);
-      }
-    },
-    onError: failed('add to the playlist'),
+    onSuccess: settle,
   });
-  /** Moves and removals show at once; the server's answer replaces the guess. */
+  /** Moves and removals show at once; the server's answer replaces the guess, and a refusal puts it back. */
   const edit = useMutation({
     mutationFn: (change: { id: string; itemId: string; toIndex?: number }) => run(api => change.toIndex === undefined
       ? api.userdata.removePlaylistItem(change.id, change.itemId)
       : api.userdata.movePlaylistItem(change.id, { itemId: change.itemId, toIndex: change.toIndex })),
     onMutate: async ({ id, itemId, toIndex }) => {
+      failPlaylist(id, null);
       await queryClient.cancelQueries({ queryKey: queryKeys.playlist(id) });
       const previous = queryClient.getQueryData<PlaylistDetail>(queryKeys.playlist(id));
       if (previous) {
@@ -358,61 +390,36 @@ export function usePlaylistActions() {
       }
       return { previous };
     },
-    onError: (_error, { id }, context) => {
+    onError: (_error, { id, toIndex }, context) => {
       if (context?.previous) queryClient.setQueryData(queryKeys.playlist(id), context.previous);
-      notify('Couldn’t change the playlist. Try again.');
+      failPlaylist(id, playlistEditFailure(toIndex === undefined ? 'remove' : 'move'));
     },
     onSuccess: settle,
   });
 
-  /**
-   * Removes an item with an Undo notice. Undo adds the track again (the server gives it a
-   * new item) and moves it back to where it was; the list shows it there at once.
-   */
-  const removeItem = (id: string, itemId: string) => {
-    const playlist = cached(id);
-    const index = playlist?.items.findIndex(item => item.itemId === itemId) ?? -1;
-    const item = playlist?.items[index];
-    // Whether the server took the removal; a refusal has its own notice and puts the item back.
-    const removed = edit.mutateAsync({ id, itemId }).then(() => true, () => false);
-    if (!playlist || !item) return;
-    const putBack = () => run(async api => {
-      const added = await api.userdata.addPlaylistItems(id, { tracks: [{ trackId: item.track.id, albumId: item.track.album?.id ?? null }] });
-      const restored = added.items.at(-1);
-      if (!restored || index >= added.items.length - 1) return added;
-      return api.userdata.movePlaylistItem(id, { itemId: restored.itemId, toIndex: index });
-    }).then(settle, () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.playlist(id) });
-      notify(`Couldn’t put the song back in “${playlist.name}”. Try again.`);
-    });
-    const undo = () => {
-      queryClient.setQueryData<PlaylistDetail>(queryKeys.playlist(id), current => {
-        if (!current || current.items.some(other => other.itemId === itemId)) return current;
-        const items = [...current.items];
-        items.splice(Math.min(index, items.length), 0, item);
-        return { ...current, items, trackCount: items.length };
-      });
-      void removed.then(ok => ok ? putBack() : undefined);
-    };
-    notify(`Removed from “${playlist.name}”.`, { action: { label: 'Undo', run: undo } });
-  };
-
   return {
     create: (name: string) => create.mutateAsync(name),
     rename: (id: string, name: string) => rename.mutateAsync({ id, name }),
-    remove: (id: string) => remove.mutate(id),
+    /** Resolves once the server has deleted it; a refusal is shown on the playlist's page. */
+    remove: (id: string) => remove.mutateAsync(id),
     /**
      * Whether the playlist already has the track, from its cached page; undefined when
      * that page has not been loaded.
      */
     has: (id: string, trackId: string) => cached(id)?.items.some(item => item.track.id === trackId),
-    /** Adds the tracks, leaving out ones the playlist has unless `anyway` (the person chose to add them again). */
-    add: (playlist: Pick<PlaylistSummary, 'id' | 'name'> & Partial<Pick<PlaylistSummary, 'trackCount'>>, tracks: readonly TrackSummary[], options: { anyway?: boolean } = {}) =>
-      add.mutate({
-        id: playlist.id, name: playlist.name, tracks, anyway: options.anyway,
-        before: cached(playlist.id)?.items.length ?? playlist.trackCount,
-      }),
+    /**
+     * Adds the tracks, leaving out ones the playlist has unless `anyway` (the person chose to
+     * add them again). Resolves once the server has answered; rejects when it refused.
+     */
+    add: async (playlist: Pick<PlaylistSummary, 'id'> & Partial<Pick<PlaylistSummary, 'trackCount'>>, tracks: readonly TrackSummary[],
+      options: { anyway?: boolean } = {}): Promise<AddResult> => {
+      const before = cached(playlist.id)?.items.length ?? playlist.trackCount;
+      const answer = await add.mutateAsync({ id: playlist.id, tracks, anyway: options.anyway });
+      // The answer is the whole playlist, so an unchanged length is how a skipped duplicate shows.
+      return { skipped: !options.anyway && before !== undefined && answer.items.length === before };
+    },
     move: (id: string, itemId: string, toIndex: number) => edit.mutate({ id, itemId, toIndex }),
-    removeItem,
+    /** Removes the item at once, with no Undo: the song can be added again from its menu. */
+    removeItem: (id: string, itemId: string) => edit.mutate({ id, itemId }),
   };
 }

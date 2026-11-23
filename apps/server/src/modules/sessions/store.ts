@@ -59,6 +59,12 @@ export type SessionRecord = {
    * queue from one song at its end.
    */
   skippedTracks: Set<string>
+  /**
+   * Tracks whose fetch failed in a provider outage while not current, with the current
+   * entry at the time: they stay preparing and are not asked for again until the current
+   * entry changes, so a failing provider is not asked over and over.
+   */
+  deferred: Map<string, string | null>
   /** The current entry autoplay suggestions were last asked for, so an empty answer is not asked again. */
   autoplayAskedFor: string | null
   /**
@@ -139,6 +145,7 @@ function newRecord(userId: string, deviceId: string | null, fields: Pick<Session
     requested: new Map(),
     failedInARow: 0,
     skippedTracks: new Set(),
+    deferred: new Map(),
     autoplayAskedFor: null,
     picked: null,
     persistTimer: null,

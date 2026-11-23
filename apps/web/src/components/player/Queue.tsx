@@ -1,3 +1,4 @@
+import { readsUnavailable, type SessionOutage } from '@squirmy/client-core'
 import { GripVertical, Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
@@ -35,7 +36,7 @@ export function QueueContent({ player, modes = true }: { player: Player; modes?:
         {state.current && (
           <section aria-labelledby={`${id}-now`}>
             <QueueHeading id={`${id}-now`}>Now playing</QueueHeading>
-            <QueueRow item={state.current} current playing={state.playing} waiting={state.waiting} />
+            <QueueRow item={state.current} current playing={state.playing} waiting={state.waiting} outage={state.outage} />
           </section>
         )}
         {modes && (
@@ -114,6 +115,8 @@ function ClearButton({ label, onClick }: { label: string; onClick: () => void })
 
 type QueueRowProps = {
   item: QueueItem
+  /** Why playback stopped on the current entry: the one held in an outage does not read as unavailable. */
+  outage?: SessionOutage | null
   current?: boolean
   playing?: boolean
   /** Playing and not heard yet (`PlayerState.waiting`): the current row spins. */
@@ -128,10 +131,10 @@ type QueueRowProps = {
  * while its music is on its way, shows the spinner. One that could not be had is gray, says
  * "Not available" and does not play.
  */
-function QueueRow({ item, current, playing = false, waiting = false, faded, onPlay: play, children }: QueueRowProps) {
+function QueueRow({ item, current, playing = false, waiting = false, outage = null, faded, onPlay: play, children }: QueueRowProps) {
   const { track, entry } = item
   const library = useLibrary()
-  const failed = entry.state === 'failed'
+  const failed = readsUnavailable(entry, outage)
   const loading = current && (waiting || entry.state === 'preparing')
   const onPlay = failed ? undefined : play
   const body = (

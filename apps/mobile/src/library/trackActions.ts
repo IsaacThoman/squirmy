@@ -3,13 +3,13 @@ import { useNavigationContainerRef, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef } from 'react';
 import { useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
 import { closeSheet } from '../closeSheet';
-import { useLibraryActions, useLiked, usePlaylistActions, useWanted } from '../data/library';
+import { useLibraryActions, useLiked, useLikeFailure, usePlaylistActions, useWanted, useWantFailure } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useDownloadManager, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { songsId, type TrackDownload } from '../downloads/model';
-import { useNotice } from '../Notice';
 import { useCurrentTrackState, usePlaybackActions } from '../playback';
 import { usePlayerTransition } from '../player/transition';
+import { playbackStatus } from '../player/usePlaybackStatus';
 import { pageHref } from './links';
 import { tabIn } from './tabs';
 import { createStartGuard } from './pending';
@@ -37,15 +37,14 @@ export function useTrackActionRunner(inSheet = false) {
   const navigation = useNavigationContainerRef();
   const { close } = usePlayerTransition();
   const api = useSignedInApi();
-  const notify = useNotice();
   const actions = usePlaybackActions();
   const { setLiked, setWanted } = useLibraryActions();
   const manager = useDownloadManager();
-  const live = useRef({ api, notify, actions, setLiked, setWanted, manager, close });
-  live.current = { api, notify, actions, setLiked, setWanted, manager, close };
+  const live = useRef({ api, actions, setLiked, setWanted, manager, close });
+  live.current = { api, actions, setLiked, setWanted, manager, close };
 
   const perform = useCallback((track: TrackSummary, action: TrackAction, { playlist }: TrackActionOptions = {}) => {
-    const { api, notify, actions, setLiked, setWanted, manager } = live.current;
+    const { api, actions, setLiked, setWanted, manager } = live.current;
     switch (action.id) {
       case 'play': return actions.playNow(track);
       case 'resume': return actions.play();
@@ -57,11 +56,9 @@ export function useTrackActionRunner(inSheet = false) {
       case 'retryDownload': return void manager?.retry();
       case 'removeDownload': return void manager?.removeTrack(track.id);
       case 'radio':
-        // The menu closes at once, so the notice is what shows the radio is on its way.
-        if (api) radioStarts.run('radio', () => {
-          notify('Starting radio…');
-          return api.radio.track(track.id).then(actions.playRadio, () => notify('Couldn’t start a radio from this song.'));
-        });
+        // The menu has closed by the time the server answers, so a failure shows in the player.
+        if (api) radioStarts.run('radio', () => api.radio.track(track.id).then(actions.playRadio,
+          () => playbackStatus.report({ message: `Couldn’t start a radio from “${track.title}”` })));
         return undefined;
       case 'want': return setWanted('track', track.id, true, track.title);
       case 'unwant': return setWanted('track', track.id, false, track.title);
@@ -112,6 +109,8 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
   const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
   const wanted = useWanted(track?.id);
+  const likeFailure = useLikeFailure('track', track?.id);
+  const wantFailure = useWantFailure(track?.id);
   const playlists = usePlaylistActions();
   const { perform } = useTrackActionRunner();
   if (!track) return [];
@@ -119,7 +118,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
     ...options.playlist,
     onRemove: options.playlist.onRemove ?? ((itemId: string) => playlists.removeItem(options.playlist!.id, itemId)),
   };
-  return trackActions(track, { liked, playable, offline, current, download, onItsOwn, wantlist, wanted, viewer }, { playlist })
+  return trackActions(track, { liked, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer }, { playlist })
     .map(action => ({ ...action, run: () => perform(track, action, { playlist }) }));
 }
 

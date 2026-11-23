@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import { displayAddress, isExposedHttp } from './address';
-import { useAccount } from './AccountProvider';
+import { unsavedSignIn, useAccount } from './AccountProvider';
 import { signInErrorMessage } from './auth';
 import { AuthField, AuthLink, AuthPage, AuthSection, AuthServer, AuthSubmit, type FieldHandle } from './AuthForm';
 import { ConnectError, findServer } from './server';
@@ -61,7 +61,7 @@ export function ConnectScreen() {
 type Mode = 'signIn' | 'register';
 
 export function SignInScreen() {
-  const { state, signIn, register, switchServer } = useAccount();
+  const { state, unsaved, signIn, register, switchServer } = useAccount();
   const [mode, setMode] = useState<Mode>('signIn');
   const serverUrl = state.status === 'signIn' ? state.server.url : '';
   const [inviteCode, setInviteCode] = useState('');
@@ -112,7 +112,8 @@ export function SignInScreen() {
   };
 
   return <AuthPage title={registering ? 'Create an account' : 'Sign in'}
-    message={notice ?? (registering
+    // A keychain that refused here won't keep this sign-in either, so the page says so before it is typed.
+    message={notice ?? (unsaved ? unsavedSignIn : registering
       ? inviteRequired ? `Use the invite code you were given to join ${server.name}.` : `Create an account on ${server.name}.`
       : `Sign in to listen to ${server.name}.`)}>
     <AuthServer server={server} onChange={switchServer} />

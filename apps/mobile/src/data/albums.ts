@@ -1,18 +1,32 @@
 import type { AlbumDetail, AlbumSummary } from '@squirmy/contracts';
 
-/** Tries to get the track list of an album the server is still filling in, about 2 s apart. */
-const expandRetries = 5;
 /** How deep `findAlbumSummary` looks into a cached answer. */
 const maxDepth = 5;
 
 /**
- * Whether an album's page should wait for its track list rather than show it empty. An
- * album the server has only heard of (from search or a discography) first comes back with
- * no tracks while the server looks them up; a later answer has them. `answers` counts the
- * answers so far, so a genuinely empty album stops being asked for.
+ * How often an album page asks again for songs the server is still looking up, and for how
+ * long it keeps asking (and saying it is looking) before it says the songs are late. As on web.
  */
-export function albumExpanding(album: { trackCount: number; discs: readonly unknown[] } | undefined, answers: number): boolean {
-  return album !== undefined && album.trackCount === 0 && album.discs.length === 0 && answers <= expandRetries;
+export const trackListPollMs = 3000;
+export const trackListWaitMs = 60_000;
+
+/**
+ * Whether the server is still looking up an album's songs: it lists none yet and says its
+ * detail is pending (`detailPending`). An album the server has only heard of (from search or
+ * a discography) comes back like that first; the answers that follow have the songs. The
+ * same rule as web's `awaitsTrackList`.
+ */
+export function awaitsTrackList(album: Pick<AlbumDetail, 'discs' | 'detailPending'> | undefined): boolean {
+  return album !== undefined && album.discs.every(disc => !disc.tracks.length) && Boolean(album.detailPending);
+}
+
+/**
+ * How soon to ask again for an album whose page has waited `waitingFor` ms for its songs:
+ * every `trackListPollMs` while it is `awaiting` them, for `trackListWaitMs`; then not at all,
+ * and the page offers to check again, which starts a new wait.
+ */
+export function trackListPoll(waitingFor: number, awaiting: boolean): number | false {
+  return awaiting && waitingFor < trackListWaitMs ? trackListPollMs : false;
 }
 
 function isAlbumSummary(value: object, id: string): value is AlbumSummary {

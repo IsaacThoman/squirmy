@@ -336,7 +336,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
               ref={setScroller}
               tabIndex={-1}
               // Its own layer: a sticky page header stays under the floating queue's backdrop.
-              className="relative isolate min-w-0 flex-1 overflow-y-auto overscroll-contain outline-none [--gutter:1rem] md:[--gutter:1.5rem]"
+              className="relative isolate min-w-0 flex-1 overflow-y-auto outline-none [--gutter:1rem] md:[--gutter:1.5rem]"
             >
               <ScrollContainerContext value={scroller}>
                 {/* A page that fails shows a message in its place; the next page starts afresh. */}

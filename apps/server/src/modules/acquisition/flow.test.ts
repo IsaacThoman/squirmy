@@ -33,7 +33,7 @@ import { matchingModule } from '../matching/index.js'
 import { sessionsModule } from '../sessions/index.js'
 import { requestRecording } from './coverage.js'
 import { acquisitionModule } from './index.js'
-import { configureAcquisition, finishJob, sweepJobs } from './jobs.js'
+import { configureAcquisition, finishJob, providerFailed, sweepJobs } from './jobs.js'
 import { applyOutcome, recentOutcomes } from './outcomes.js'
 import { updateAcquisitionPolicy } from './policy.js'
 import { createProvider, updateProvider } from './providers.js'
@@ -638,11 +638,14 @@ describe('acquisition end to end', () => {
   it('hands a job back to a provider that took it and then failed as rate limited: no miss, no failure counted', async () => {
     configureAcquisition({ slotWaitSeconds: 1 })
     try {
-      mock.settings.rateLimitedTimes = 2
       const album = await createAlbum({ title: 'Rate Limited', tracks: [{ title: 'Third Time', durationMs: 3000 }] })
       const wanted = album.tracks[0]!.recordingId
+      // Only this job is rate limited: a fetch still running from an earlier test must not use the limits up.
+      mock.settings.rateLimits = (item) => item.kind === 'recording' && item.recording.title === 'Third Time'
+      mock.settings.rateLimitedTimes = 2
       const phone = await device(fan)
-      play(phone, [wanted], album.albumId)
+      // Seeded as preparing, as clients send on-demand tracks: ready is then only ever the server's word.
+      phone.client.dispatch({ type: 'playTracks', tracks: [{ trackId: wanted, albumId: album.albumId, durationMs: 0, state: 'preparing' }], seed: 1 })
       await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }), 30_000)
       await settle(wanted)
       expect(mock.settings.rateLimitedTimes).toBe(0)
@@ -652,8 +655,25 @@ describe('acquisition end to end', () => {
       const [provider] = await db.execute<{ failing: string[] }>(sql`select failing_recordings as failing from acquisition_providers where id = ${providerId}`)
       expect(provider!.failing).not.toContain(wanted)
     } finally {
+      mock.settings.rateLimitedTimes = 0
+      delete mock.settings.rateLimits
       configureAcquisition({ slotWaitSeconds: 5 })
     }
+  })
+
+  it('hands a job back as busy even when the provider fails it before its acceptance is recorded', async () => {
+    // A fast provider rate limited at once can report the job failed before the server has
+    // moved it from resolving to queued. It must go back to waiting, not fail.
+    mock.settings.delayMs = 120_000
+    const album = await createAlbum({ title: 'Too Quick', tracks: [{ title: 'At Once', durationMs: 3000 }] })
+    const wanted = album.tracks[0]!.recordingId
+    body(await acquire(fan, wanted), AcquireResponse, 202)
+    await eventually(async () => expect((await jobsFor(wanted))[0]).toMatchObject({ status: 'queued' }), 10_000)
+    const [job] = await db.update(acquisitionJobs).set({ status: 'resolving' }).where(eq(acquisitionJobs.recordingId, wanted)).returning()
+    await providerFailed(job!, 'The provider failed: Rate limited by the source', { reason: 'busy' })
+    expect((await jobsFor(wanted))[0]).toMatchObject({ status: 'resolving', completedAt: null, uploadTokenHash: null })
+    expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, wanted))).toEqual([])
+    await finishJob(job!.id, { status: 'failed', error: 'Ended by the test' })
   })
 
   it('starts the track being played before prefetches and library saves that were asked for earlier', async () => {
@@ -769,5 +789,31 @@ describe('acquisition end to end', () => {
     await settle(ids[3]!)
     expect(await health()).toMatchObject({ failingSince: null, lastError: null })
     expect((await jobsFor(ids[3]!))[0]?.status).toBe('completed')
+  })
+
+  // Fetches run side by side: one that fails just before the provider is marked failing
+  // finishes after the streak's misses were cleared. It must not leave its miss behind,
+  // nor may one that recovery comes after: the outage was never about these tracks.
+  it('leaves no miss for any track whose failure was part of an outage, however the failures raced', async () => {
+    const missesOf = (ids: string[]) => db.select().from(acquisitionMisses).where(and(eq(acquisitionMisses.providerId, providerId), inArray(acquisitionMisses.entityId, ids)))
+    const album = await createAlbum({ title: 'All at Once', tracks: Array.from({ length: 10 }, (_, index) => ({ title: `Together ${index + 1}`, durationMs: 3000 })) })
+    const ids = album.tracks.map((track) => track.recordingId)
+    const screens = await observe(await signIn())
+    mock.settings.fail = true
+    await Promise.all(ids.map(async (id) => body(await acquire(fan, id), AcquireResponse, 202)))
+    for (const id of ids) await settle(id)
+    // What open screens were told last about each track is what they show.
+    await eventually(() => expect(ids.map((id) => availabilityIn(screens.changes, id).at(-1))).toEqual(ids.map(() => 'on_demand')), 5000)
+    expect((await Promise.all(ids.map(async (id) => (await jobsFor(id))[0]?.status)))).toEqual(ids.map(() => 'failed'))
+    expect(await missesOf(ids)).toEqual([])
+    expect([...(await trackAvailability(ids)).values()]).toEqual(ids.map(() => 'on_demand'))
+
+    // Recovery keeps them playable, and the first delivery ends the outage.
+    mock.settings.fail = false
+    body(await acquire(fan, ids[0]!), AcquireResponse, 202)
+    await settle(ids[0]!)
+    expect(await missesOf(ids)).toEqual([])
+    expect([...(await trackAvailability(ids.slice(1))).values()]).toEqual(ids.slice(1).map(() => 'on_demand'))
+    screens.close()
   })
 })

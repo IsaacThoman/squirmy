@@ -6,8 +6,8 @@ import { scheduleOnRN } from 'react-native-worklets';
 import type { TrackSummary } from '@squirmy/contracts';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useViewer } from '../downloads/DownloadsProvider';
-import { useLibraryActions, useLiked, useTrack, useTrackStore } from '../data/library';
-import { heartButton } from '../library/heart';
+import { useLibraryActions, useLiked, useLikeFailure, useTrack, useTrackStore } from '../data/library';
+import { heartButton, heartColor } from '../library/heart';
 import { type QueueEntry, usePlaybackState } from '../playback';
 import { Cover, Icon } from '../ui';
 import { PlayerButton } from './Controls';
@@ -77,7 +77,7 @@ export default function QueuePage({ onTrackMenu }: QueueProps) {
         {history.length > 0 && (
           <Pressable style={styles.historyJump} accessibilityRole="button" onPress={historyVisible ? jumpToCurrent : showHistory}>
             <Icon name={historyVisible ? 'waveform' : 'clock.arrow.circlepath'} color={colors.accent} size={14} />
-            <Text style={styles.historyJumpText}>{historyVisible ? 'Now playing' : 'History'}</Text>
+            <Text style={styles.historyJumpText}>{historyVisible ? 'Up next' : 'History'}</Text>
           </Pressable>
         )}
       </View>
@@ -388,6 +388,7 @@ function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: 
   const styles = useStyles();
   const track = useTrack(entry.trackId, entry.albumId);
   const favorite = useLiked('track', track?.id, track?.liked);
+  const heart = heartButton(favorite, track?.title || 'this song', useLikeFailure('track', track?.id));
   const { setLiked } = useLibraryActions();
   const canManage = onPromote !== undefined || onRemove !== undefined;
   const { offline } = useRealtime();
@@ -416,11 +417,11 @@ function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: 
         </View>
       </Pressable>
       <PlayerButton
-        icon={favorite ? 'heart.fill' : 'heart'}
+        icon={heart.icon}
         size={17}
-        label={heartButton(favorite, title || 'this song').label}
+        label={heart.label}
         selected={favorite}
-        color={favorite ? colors.accent : colors.muted}
+        color={heartColor(heart, colors, colors.muted)}
         onPress={() => { selectionFeedback(); if (track) setLiked('track', track.id, !favorite, track.title); }}
         style={styles.rowAction}
       />

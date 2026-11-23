@@ -7,7 +7,7 @@ import { useDownloadActions, useDownloadsSummary } from '../downloads/DownloadsP
 import { formatBytes } from '../downloads/model';
 import { SheetFrame, SheetInfo, SheetNote, SheetRow, SheetRows } from '../SheetUI';
 import { displayAddress, serverVersion } from './address';
-import { useAccount } from './AccountProvider';
+import { unsavedSignIn, useAccount } from './AccountProvider';
 
 /**
  * About as long as a sheet takes to slide away. The closed sheet's route is already gone,
@@ -24,7 +24,7 @@ function appVersion(): string {
 
 export function AccountSheet() {
   const router = useRouter();
-  const { state, signOut, switchServer } = useAccount();
+  const { state, unsaved, signOut, switchServer } = useAccount();
   const downloads = useDownloadsSummary();
   const { removeAll } = useDownloadActions();
   if (state.status !== 'signedIn') return null;
@@ -57,7 +57,8 @@ export function AccountSheet() {
     <SheetFrame title="Account" onClose={() => closeSheet(router)}>
       <SheetInfo icon="person.crop.circle.fill" title={user.displayName ?? user.username}
         subtitle={[user.displayName && user.username, user.role === 'admin' ? 'Admin' : 'Member'].filter(Boolean).join(' · ')} />
-      <SheetInfo icon="server.rack" title={server.name} subtitle={displayAddress(server.url)} />
+      <SheetInfo icon="server.rack" title={server.name} subtitle={displayAddress(server.url)} address />
+      {unsaved && <SheetNote error>{unsavedSignIn}</SheetNote>}
       <SheetRows>
         {/* Opened over this sheet, so closing them comes back here. */}
         <SheetRow title="Settings" subtitle="Volume, streaming quality, scrobbling" icon="gearshape" onPress={() => router.push('/settings')} />

@@ -1,3 +1,4 @@
+import { readsUnavailable } from '@squirmy/client-core'
 import type { AlbumSummary, PlaybackContext, TrackSummary } from '@squirmy/contracts'
 import { useMemo } from 'react'
 import type { NowPlaying, TrackAction } from '@/components/music/TrackList'
@@ -25,9 +26,9 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
     trackId: current.track.id,
     playing: state.playing,
     loading,
-    failed: current.entry.state === 'failed',
+    failed: readsUnavailable(current.entry, state.outage),
     onTogglePlay: controls.togglePlay,
-  }, [current, state.playing, loading, controls])
+  }, [current, state.playing, state.outage, loading, controls])
 
   // The menu entries say what worked, and wait for what the server answers (a save, a playlist) to say why it did not.
   const onAction = (action: TrackAction, track: TrackSummary, index: number): void | Promise<unknown> => {

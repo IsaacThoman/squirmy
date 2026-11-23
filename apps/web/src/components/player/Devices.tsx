@@ -26,7 +26,7 @@ export function DevicesPopover({ player, trigger, side = 'top' }: { player: Play
         align="end"
         aria-label="Playback devices"
         // On a short screen (a phone on its side) the list scrolls inside the room there is, so its last action stays reachable.
-        className="max-h-(--radix-popover-content-available-height) w-72 overflow-y-auto overscroll-contain p-1"
+        className="max-h-(--radix-popover-content-available-height) w-72 overflow-y-auto p-1"
         // Focus goes to the popover, not to its first button: that would raise the mute button's tooltip over the list.
         onOpenAutoFocus={event => {
           event.preventDefault()

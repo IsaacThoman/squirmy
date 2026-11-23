@@ -31,14 +31,15 @@ export function SettingsScreen() {
     <Host style={styles.page}>
       <VStack spacing={0}>
         <SheetFormHeader title="Settings" onClose={() => closeSheet(router)} />
-        {/* Clear, so the sheet's own background shows behind the header and the form alike. */}
+        {/* Clear, so the sheet's own background shows behind the header and the form alike. Footers and
+            values take `muted`: the form's own secondary gray is about 3.2:1 on this sheet in Light. */}
         <Form modifiers={[scrollDismissesKeyboard('interactively'), scrollContentBackground('hidden'), tint(colors.accent)]}>
         {settings ? <>
-          <Section title="Playback" footer={<Text>{normalizationNote}</Text>}>
+          <Section title="Playback" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{normalizationNote}</Text>}>
             <SheetPickerRow label="Normalize Volume" value={settings.normalization} options={normalizationOptions}
               onChange={normalization => update({ normalization })} />
           </Section>
-          <Section title="Streaming Quality" footer={<Text>{qualityNote}</Text>}>
+          <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{qualityNote}</Text>}>
             <SheetPickerRow label="Wi-Fi" value={settings.qualityWifi} options={qualityOptions} onChange={qualityWifi => update({ qualityWifi })} />
             <SheetPickerRow label="Cellular" value={settings.qualityCellular} options={qualityOptions}
               onChange={qualityCellular => update({ qualityCellular })} />
@@ -46,16 +47,17 @@ export function SettingsScreen() {
         </> : <Section modifiers={clearRow}><HStack><Spacer /><ProgressView /><Spacer /></HStack></Section>}
         <StorageSection />
         {screen.listenBrainz && <ListenBrainzSection service={screen.listenBrainz} busy={screen.connectingListenBrainz}
-          onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
+          error={screen.errors.listenbrainz} onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
         {/* Without the server's Last.fm key there is nothing to connect; only an admin can add one. */}
-        {lastFm?.available && <Section title="Last.fm" footer={<Text>{lastFmNote}</Text>}>
+        {lastFm?.available && <Section title="Last.fm" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{lastFmNote}</Text>}>
           <ServiceStatus service={lastFm} />
           {lastFm.connected && !lastFm.needsAttention
             ? <Button label="Disconnect" role="destructive" onPress={() => screen.disconnect('lastfm')} />
             : <Button label={lastFm.connected ? 'Connect Again' : 'Connect'} onPress={screen.connectLastFm}
               modifiers={[tint(colors.accent)]} />}
+          {screen.errors.lastfm && <ServiceError message={screen.errors.lastfm} />}
         </Section>}
-        {lastFm && !lastFm.available && screen.isAdmin && <Section footer={<Text>{lastFmAdminNote}</Text>}>{null}</Section>}
+        {lastFm && !lastFm.available && screen.isAdmin && <Section footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{lastFmAdminNote}</Text>}>{null}</Section>}
         </Form>
       </VStack>
     </Host>
@@ -71,14 +73,20 @@ function ServiceStatus({ service }: { service: ScrobbleService }) {
   </VStack>;
 }
 
-function ListenBrainzSection({ service, busy, onConnect, onDisconnect }: {
-  service: ScrobbleService; busy: boolean; onConnect: (token: string) => void; onDisconnect: () => void;
+/** A refusal, in the error color, under the control that was refused (the app has no toasts). */
+function ServiceError({ message }: { message: string }) {
+  const colors = useColors();
+  return <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.danger)]}>{message}</Text>;
+}
+
+function ListenBrainzSection({ service, busy, error, onConnect, onDisconnect }: {
+  service: ScrobbleService; busy: boolean; error?: string; onConnect: (token: string) => void; onDisconnect: () => void;
 }) {
   const colors = useColors();
   const [token, setToken] = useState('');
   const text = useNativeState('');
   const connected = service.connected && !service.needsAttention;
-  return <Section title="ListenBrainz" footer={<Text>{connected
+  return <Section title="ListenBrainz" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{connected
     ? 'Your plays are sent to ListenBrainz.'
     : 'Paste the user token from your ListenBrainz settings page.'}</Text>}>
     <ServiceStatus service={service} />
@@ -93,6 +101,7 @@ function ListenBrainzSection({ service, busy, onConnect, onDisconnect }: {
         </HStack>
       </Button>
     </>}
+    {error && <ServiceError message={error} />}
   </Section>;
 }
 

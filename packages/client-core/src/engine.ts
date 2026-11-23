@@ -113,6 +113,9 @@ export class FakeEngine implements PlayerEngine {
   preloaded: FakeEntry | null = null
   /** Duration used by `seek` clamping and by `finish`. */
   durationMs = 180_000
+  /** Leaves each load `loading` until `ready()`, as a stream that takes a while to start. */
+  holdLoads = false
+  private held: boolean | null = null
   private state: EngineState = 'idle'
   private basePosition = 0
   private baseTime = 0
@@ -126,7 +129,20 @@ export class FakeEngine implements PlayerEngine {
     if (this.preloaded?.entryId === request.entryId) this.preloaded = null
     this.setPosition(request.startMs)
     this.setState('loading')
+    if (this.holdLoads) {
+      this.held = request.autoplay
+      return
+    }
     this.setState(request.autoplay ? 'playing' : 'paused')
+  }
+
+  /** Finishes a load `holdLoads` kept waiting. */
+  ready(): void {
+    if (this.held === null || this.state !== 'loading') return
+    const autoplay = this.held
+    this.held = null
+    this.setPosition(this.position())
+    this.setState(autoplay ? 'playing' : 'paused')
   }
 
   preload(request: EnginePreload | null): void {

@@ -17,7 +17,6 @@ import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './da
 import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
-import { useNotice } from './Notice';
 import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { favoriteState } from './player/engine/favorite';
 import { loadSession, sessionSaver } from './player/savedSession';
@@ -26,6 +25,7 @@ import {
   qualityFor, seedOf,
 } from './player/session';
 import { watchLoading, type LoadingPhase, type LoadingWatch } from './player/loading';
+import { playbackStatus } from './player/usePlaybackStatus';
 import { syncSystemVolume } from './player/systemVolume';
 import { SystemVolume } from '../modules/now-playing';
 import { useStreamingCache } from './streamingCache/context';
@@ -73,7 +73,6 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   const tracks = useTrackStore();
   const downloads = useDownloadManager();
   const cache = useStreamingCache();
-  const notify = useNotice();
   const likes = useLikeChanges();
   const { setLiked } = useLibraryActions();
   const settings = useUserSettings().data;
@@ -82,10 +81,10 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   // Read when a track is resolved, so a change applies from the next track on.
   const stream = useRef({ settings, network: network.type });
   stream.current = { settings, network: network.type };
-  // Read through refs so the runtime outlives a new API client, store or notice function:
+  // Read through refs so the runtime outlives a new API client or store:
   // rebuilding it stops the music.
-  const live = useRef({ downloads, cache, offline, api, tracks, notify, likes, setLiked });
-  live.current = { downloads, cache, offline, api, tracks, notify, likes, setLiked };
+  const live = useRef({ downloads, cache, offline, api, tracks, likes, setLiked });
+  live.current = { downloads, cache, offline, api, tracks, likes, setLiked };
   const onOffline = useRef<((offline: boolean) => void) | null>(null);
   useEffect(() => onOffline.current?.(offline), [offline]);
   // A heart changed, here or on another device: the lock screen's star follows.
@@ -95,7 +94,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!socket || !live.current.api || !account) return;
     const { tracks } = live.current;
-    const notify: ReturnType<typeof useNotice> = (message, options) => live.current.notify(message, options);
+    // What playback has to say shows in the player, in place of the artist (`playbackStatus`).
+    const report = (notice: PlaybackNotice, lasting = false) => playbackStatus.report(notice, { lasting });
     let cancelled = false;
     let teardown: (() => void) | undefined;
     void clientDevice().then(device => {
@@ -116,9 +116,9 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         transport: createSocketTransport(socket),
         device,
         restore: saved?.session,
-        onDetachedEnded: reason => notify(reason === 'expired'
+        onDetachedEnded: reason => report({ message: reason === 'expired'
           ? 'This phone was away for over a week, so it’s playing with your other devices again.'
-          : 'This phone is playing with your other devices again.'),
+          : 'This phone is playing with your other devices again.' }),
         player: {
           engine,
           baseUrl: serverUrl,
@@ -176,7 +176,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         onSeek: positionMs => send({ type: 'seek', positionMs }),
         favoriteFor: entryId => favoriteState(trackOf(entryId), live.current.likes),
         // The in-app heart's path: shown at once, sent (or queued offline), set back with a
-        // notice if the server refuses. The app may be in the background; it still runs.
+        // failure on the heart if the server refuses. The app may be in the background; it still runs.
         onFavorite: (entryId, saved) => {
           const track = trackOf(entryId);
           if (track) live.current.setLiked('track', track.id, saved, track.title);
@@ -209,18 +209,20 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       const stopRefreshing = refreshFetchedTracks(client, tracks);
 
       // What to say when the server could not fetch songs, worded as on the web
-      // (client-core's `PlaybackNoticeWatcher`): one notice per song that was playing or
+      // (client-core's `PlaybackNoticeWatcher`): one status per song that was playing or
       // next, one counting a run of songs the provider does not have, and one when playback stops on a
       // failure instead, with no more per song until playback resumes.
       const notices = new PlaybackNoticeWatcher(trackId => client.failureOf(trackId));
-      const tell = ({ message, detail }: PlaybackNotice) => notify(message, detail ? { detail } : undefined);
       notices.update(client.getSnapshot());
       const stopWatching = client.subscribe(() => {
-        const { skipped, unavailable, stopped } = notices.update(client.getSnapshot());
-        for (const { entry, failure } of skipped) tell(skipNotice(tracks.get(entry.trackId, entry.albumId)?.title, failure));
-        // The notice shows one at a time, so a run's growing count replaces the last.
-        if (unavailable) tell(unavailableNotice(unavailable, tracks.get(unavailable.entry.trackId, unavailable.entry.albumId)?.title));
-        if (stopped) tell(stopped);
+        const snapshot = client.getSnapshot();
+        // A pause the player was explaining is over.
+        if (snapshot.session.playing) playbackStatus.resume();
+        const { skipped, unavailable, stopped } = notices.update(snapshot);
+        for (const { entry, failure } of skipped) report(skipNotice(tracks.get(entry.trackId, entry.albumId)?.title, failure));
+        // The player shows one status at a time, so a run's growing count replaces the last.
+        if (unavailable) report(unavailableNotice(unavailable, tracks.get(unavailable.entry.trackId, unavailable.entry.albumId)?.title));
+        if (stopped) report(stopped, true);
       });
       const loading = watchLoading(client);
       const systemVolume = SystemVolume;
@@ -241,7 +243,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       // A file that will not play is skipped. When the next one fails as well, the
       // connection is the likelier cause, so playback pauses instead.
       let lastSkip = -Infinity;
-      // Offline, only downloads and cached tracks can play. One notice per spell offline.
+      // Offline, only downloads and cached tracks can play. Said once per spell offline.
       let toldOffline = false;
       /**
        * Moves past an entry that can't be streamed offline, straight to the next download
@@ -256,7 +258,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         if (!isActiveDevice || !current || onPhone(current.trackId)) return false;
         const target = nextDownloaded({ ...queue, autoplay: session.autoplay }, onPhone);
         if (!target && !pauseIfNone) return false;
-        if (!toldOffline) notify(target ? 'Skipped songs that aren’t downloaded or cached.' : 'Only downloaded or cached songs play offline.');
+        if (!toldOffline) report({ message: target ? 'Skipped songs that aren’t downloaded or cached.' : 'Only downloaded or cached songs play offline.' }, !target);
         toldOffline = true;
         send(target ? { type: 'playQueueEntry', entryId: target.id } : { type: 'pause' });
         return true;
@@ -279,12 +281,13 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         const { session, connection } = client.getSnapshot();
         if (session.current?.id !== entryId || (live.current.offline && skipToDownload(true))) return;
         const title = tracks.get(session.current.trackId, session.current.albumId)?.title;
+        const notice = title ? { message: `Couldn’t play “${title}”`, detail: message } : { message };
         if (connection === 'online' && Date.now() - lastSkip > errorSkipWindowMs) {
           lastSkip = Date.now();
-          notify(title ? `Couldn’t play “${title}”. ${message}` : message);
+          report(notice);
           send({ type: 'next' });
         } else {
-          notify(message);
+          report(notice, true);
           send({ type: 'pause' });
         }
       };
@@ -340,6 +343,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         onOffline.current = null;
         onLikes.current = null;
         stopWatching();
+        playbackStatus.clear();
         loading.dispose();
         stopVolume();
         stopWaiting();

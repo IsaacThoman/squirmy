@@ -16,6 +16,8 @@ import { LyricsPane } from './Lyrics'
 import { PlayerStatusLine } from './PlayerStatus'
 import { QueueContent } from './Queue'
 import { SeekBar, TransportButtons, VolumeControl } from './Transport'
+import { useNowPlayingWheel } from './use-now-playing-wheel'
+import './now-playing.css'
 
 export type NowPlayingPane = 'art' | 'lyrics' | 'queue'
 
@@ -42,6 +44,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
   const label = contextLabel(state.context)
   const late = useStillLoading(item?.entry, state.waiting)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
+  const onWheel = useNowPlayingWheel('down', () => onOpenChange(false))
   // Opened from the player rather than a dialog trigger, Radix has nothing to give focus back to on close.
   const opener = useRef<HTMLElement | null>(null)
 
@@ -52,6 +55,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
           aria-describedby={undefined}
           // The player's own keys (Space, arrows) still work here, unlike in other dialogs.
           data-player-keys=""
+          onWheel={open ? onWheel : undefined}
           onOpenAutoFocus={() => {
             // Focus has not moved in yet: this is what opened it.
             opener.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
@@ -63,7 +67,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             event.preventDefault()
             target.focus()
           }}
-          className="fixed inset-0 z-40 flex animate-slide-in flex-col overflow-clip bg-background pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] text-foreground outline-none data-[state=closed]:animate-exit"
+          className="now-playing-slide fixed inset-0 z-40 flex flex-col overflow-clip bg-background pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] text-foreground outline-none"
         >
           <div aria-hidden className="absolute inset-0">
             {artwork && (
@@ -141,7 +145,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             </div>
             {pane !== 'art' && (
               // Alone, the pane is as wide as the controls under it.
-              <div className="mx-auto min-h-0 w-full min-w-0 max-w-[44rem] lg:max-w-none">
+              <div data-now-playing-scroll className="mx-auto min-h-0 w-full min-w-0 max-w-[44rem] lg:max-w-none">
                 {pane === 'lyrics'
                   ? <div className="-mx-1 h-full"><LyricsPane lyrics={state.lyrics} onSeek={controls.seek} /></div>
                   : <div className="-mx-2 h-full overflow-y-auto lg:mx-auto lg:max-w-xl"><QueueContent player={player} modes={false} /></div>}

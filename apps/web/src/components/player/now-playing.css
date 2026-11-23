@@ -1,0 +1,17 @@
+@media (prefers-reduced-motion: no-preference) {
+  .now-playing-slide[data-state='open'] {
+    animation: now-playing-rise 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .now-playing-slide[data-state='closed'] {
+    animation: now-playing-lower 240ms cubic-bezier(0.4, 0, 0.75, 1) forwards;
+  }
+}
+
+@keyframes now-playing-rise {
+  from { transform: translateY(100%); }
+}
+
+@keyframes now-playing-lower {
+  to { transform: translateY(100%); }
+}

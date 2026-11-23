@@ -1,8 +1,9 @@
 import { queryKeys, type NormalizationMode, type ScrobbleService, type ScrobblingStatus, type StreamQuality } from '@squirmy/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
+import { useState } from 'react';
 import { useScrobbling, useUpdateSettings, useUserSettings } from '../data/queries';
-import { useNotice } from '../Notice';
+import { announce } from '../inlineFeedback';
 import { useAccount, useSignedInApi } from './AccountProvider';
 
 export const normalizationOptions: readonly { value: NormalizationMode; label: string }[] = [
@@ -40,12 +41,27 @@ export function scrobbleDetail(service: ScrobbleService): string {
   return `Connected as ${service.account ?? 'you'}${queued}`;
 }
 
-/** The signed-in user's settings and scrobbling connections, with the changes the settings screen makes. */
+/** What the settings screen says under a service's controls when the server or the service refused. */
+export const scrobbleFailures = {
+  token: 'ListenBrainz didn’t accept that token.',
+  disconnect: 'Couldn’t disconnect. Try again.',
+  lastFm: 'Couldn’t reach Last.fm. Try again.',
+} as const;
+
+/**
+ * The signed-in user's settings and scrobbling connections, with the changes the settings
+ * screen makes. A refused change is kept per service (`errors`), for the screen to show under
+ * that service's controls until the next try.
+ */
 export function useSettingsScreen() {
   const api = useSignedInApi();
   const { state } = useAccount();
   const queryClient = useQueryClient();
-  const notify = useNotice();
+  const [errors, setErrors] = useState<Partial<Record<ScrobbleService['target'], string>>>({});
+  const setError = (target: ScrobbleService['target'], message: string | null) => {
+    setErrors(current => ({ ...current, [target]: message ?? undefined }));
+    if (message) announce(message);
+  };
   const settings = useUserSettings();
   const scrobbling = useScrobbling();
   const update = useUpdateSettings();
@@ -54,13 +70,15 @@ export function useSettingsScreen() {
 
   const connectListenBrainz = useMutation({
     mutationFn: (token: string) => api!.scrobble.connectListenBrainz({ token }),
+    onMutate: () => setError('listenbrainz', null),
     onSuccess: setStatus,
-    onError: () => notify('ListenBrainz didn’t accept that token.'),
+    onError: () => setError('listenbrainz', scrobbleFailures.token),
   });
   const disconnect = useMutation({
     mutationFn: (target: ScrobbleService['target']) => target === 'listenbrainz' ? api!.scrobble.disconnectListenBrainz() : api!.scrobble.disconnectLastFm(),
+    onMutate: target => setError(target, null),
     onSuccess: setStatus,
-    onError: () => notify('Couldn’t disconnect. Try again.'),
+    onError: (_error, target) => setError(target, scrobbleFailures.disconnect),
   });
   const connectLastFm = useMutation({
     mutationFn: async () => {
@@ -69,7 +87,8 @@ export function useSettingsScreen() {
       await WebBrowser.openBrowserAsync(url);
       await queryClient.invalidateQueries({ queryKey: queryKeys.scrobbling() });
     },
-    onError: () => notify('Couldn’t reach Last.fm. Try again.'),
+    onMutate: () => setError('lastfm', null),
+    onError: () => setError('lastfm', scrobbleFailures.lastFm),
   });
 
   return {
@@ -82,5 +101,7 @@ export function useSettingsScreen() {
     connectingListenBrainz: connectListenBrainz.isPending,
     connectLastFm: () => connectLastFm.mutate(),
     disconnect: disconnect.mutate,
+    /** What the last try for each service was refused with, shown under its controls. */
+    errors,
   };
 }

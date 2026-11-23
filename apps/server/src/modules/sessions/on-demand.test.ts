@@ -5,7 +5,7 @@ import path from 'node:path'
 import { createMockProvider, type MockProvider } from '@squirmy/adapter-mock'
 import { FakeEngine, SessionClient } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
-import { PlaybackDescriptor, type QueueEntry, type ServerEvent } from '@squirmy/contracts'
+import { AlbumDetail, PlaybackDescriptor, type QueueEntry, type ServerEvent } from '@squirmy/contracts'
 import { inArray } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect } from 'socket.io-client'
@@ -23,6 +23,7 @@ import { createAlbum } from '../../test/factories.js'
 import { OUTAGE_REASON } from '../acquisition/health.js'
 import { acquisitionModule } from '../acquisition/index.js'
 import { configureAcquisition } from '../acquisition/jobs.js'
+import { currentMisses } from '../acquisition/misses.js'
 import { updateAcquisitionPolicy } from '../acquisition/policy.js'
 import { createProvider } from '../acquisition/providers.js'
 import { importsModule } from '../imports/index.js'
@@ -160,6 +161,38 @@ describe('sessions with on-demand tracks', () => {
     expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toHaveLength(1)
     expect(phone.client.getSnapshot().session).toMatchObject({ playing: false, current: { trackId: current!.trackId } })
     mock.settings.fail = false
+  }, 90_000)
+
+  // A provider outage is not about the tracks: none it failed during it may stay gray.
+  it('leaves no track gray after an outage, however its failures raced, and plays once the provider recovers', async () => {
+    mock.settings.fail = true
+    const album = await remoteAlbum(12)
+    const user = await signIn({ canAcquire: true })
+    const phone = await device(user)
+    play(phone, album)
+    await eventually(() => expect(phone.client.getSnapshot()).toMatchObject({ session: { playing: false }, outage: { kind: 'outage' } }))
+    // Every fetch that went out has ended.
+    await eventually(async () => {
+      const started = await db.select({ status: acquisitionJobs.status, completedAt: acquisitionJobs.completedAt }).from(acquisitionJobs).where(inArray(acquisitionJobs.recordingId, album.ids))
+      expect(started.length).toBeGreaterThan(0)
+      expect(started.every((job) => job.completedAt !== null)).toBe(true)
+    })
+    expect(await currentMisses(album.ids)).toEqual([])
+    const shown = body(await app.inject({ url: `/api/v1/albums/${album.albumId}`, headers: user.headers }), AlbumDetail)
+    expect(shown.discs.flatMap((disc) => disc.tracks.map((track) => track.availability))).toEqual(album.ids.map(() => 'on_demand'))
+    // Nor does the queue read any of them as not available: only the song it paused on is failed.
+    await eventually(() => {
+      const { session: { current }, queue: { queue } } = phone.client.getSnapshot()
+      expect(queue.filter((entry) => entry.state === 'failed')).toEqual([])
+      expect(current).toMatchObject({ state: 'failed' })
+    })
+    const held = phone.client.getSnapshot().session.current!
+
+    // Nothing is asked for while paused. Once the provider is back, playing on fetches what is next.
+    mock.settings.fail = false
+    phone.client.dispatch({ type: 'play' })
+    await eventually(() => expect(phone.client.getSnapshot().session).toMatchObject({ playing: true, current: { state: 'ready' } }))
+    expect(album.ids.indexOf(phone.client.getSnapshot().session.current!.trackId)).toBe(album.ids.indexOf(held.trackId) + 1)
   }, 90_000)
 
   it('skips songs the provider does not have and plays on, without pausing', async () => {
