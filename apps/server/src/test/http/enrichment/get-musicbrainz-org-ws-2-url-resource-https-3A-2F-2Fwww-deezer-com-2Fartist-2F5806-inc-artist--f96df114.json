@@ -1,0 +1,41 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/url?resource=https%3A%2F%2Fwww.deezer.com%2Fartist%2F5806&inc=artist-rels+release-rels+release-group-rels+recording-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "relations": [
+        {
+          "ended": false,
+          "source-credit": "",
+          "artist": {
+            "disambiguation": "",
+            "sort-name": "Yorke, Thom",
+            "id": "8ed2e0b3-aa4c-4e13-bec3-dc7393ed4d6b",
+            "name": "Thom Yorke",
+            "type": "Person",
+            "country": "GB",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+          },
+          "end": null,
+          "attribute-ids": {},
+          "type-id": "769085a1-c2f7-4c24-a532-2375a77693bd",
+          "target-credit": "",
+          "attributes": [],
+          "target-type": "artist",
+          "direction": "backward",
+          "begin": null,
+          "type": "free streaming",
+          "attribute-values": {}
+        }
+      ],
+      "id": "5c96ec1c-25ab-4387-a793-365b1a7489cc",
+      "resource": "https://www.deezer.com/artist/5806"
+    }
+  }
+}

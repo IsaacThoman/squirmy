@@ -1,0 +1,22 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/12515862"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 12515862,
+      "name": "Genesis",
+      "link": "https://www.deezer.com/artist/12515862",
+      "picture_xl": "https://cdn-images.dzcdn.net/images/artist/d41d8cd98f00b204e9800998ecf8427e/1000x1000-000000-80-0-0.jpg",
+      "nb_album": 106,
+      "nb_fan": 521,
+      "type": "artist"
+    }
+  }
+}

@@ -8,6 +8,7 @@ import { IconButton, hitShape, plainButton } from '../native/Controls';
 import { useCurrentDurationMs, useLoading, usePlaybackState, usePositionEvery } from '../playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './loading';
+import { whereItPlays } from './session';
 import { Cover } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
@@ -33,7 +34,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   const title = track?.title ?? (current ? '' : 'Not Playing');
   // A detached phone says so where "Playing on …" would be, so pressing play here is never a surprise.
   // The marker outlasts a slow load: the play button's spinner already says it is loading.
-  const subtitle = detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? `Playing on ${output.name}` : track?.artistCredit ?? '';
+  const subtitle = detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? whereItPlays(output) : track?.artistCredit ?? '';
   const { fontScale } = useWindowDimensions();
   const twoLines = !compact && fontScale < twoLineFontScale;
   const deviceLabel = detached ? `${DETACHED_LABEL}. Playback devices` : `Playback device, ${output.name}`;

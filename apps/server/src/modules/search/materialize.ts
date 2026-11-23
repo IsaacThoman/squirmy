@@ -32,7 +32,7 @@ import { recordingOwned } from '../catalog/availability.js'
 import { mergeAlbum, mergeRecording } from '../matching/merge.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { uuidArray } from '../catalog/sql.js'
-import { editionFreeKey, guessAlbumType, labelFreeKey, prefixEnd, textArray } from './keys.js'
+import { editionFreeKey, guessAlbumType, labelFreeKey, prefixEnd, releaseKey, sameArtist, textArray, type ArtistTitles } from './keys.js'
 import { artistOwned } from './library.js'
 import type { IdSource, ProviderAlbum, ProviderArtist, ProviderCredit, ProviderResults, ProviderTrack } from './providers.js'
 
@@ -164,7 +164,40 @@ type ArtistInput = { id: string | null; mbid: string | null; name: string; image
  * `artistRef`. A credit without any provider id reuses the artist with its name, owned
  * first, and only otherwise becomes a stub with no external id.
  */
-async function resolveArtists(tx: Transaction, source: IdSource, inputs: ArtistInput[], assets: Images): Promise<Map<string, string>> {
+/**
+ * Of the rows named like a provider artist whose id is not known yet, the one it is by what
+ * the response credits it with (`sameArtist`): Deezer keeps second pages for some artists,
+ * and storing one as an artist of its own showed the artist twice. Only the catalog's
+ * credits are compared here, so a search never waits on more requests; a page that shows
+ * nothing in common becomes a row of its own, and the enrichment module looks again.
+ */
+async function sameArtistRow(tx: Transaction, candidates: readonly { id: string; mbid: string | null }[], titles: ArtistTitles | undefined, nameKey: string): Promise<string | undefined> {
+  if (!titles || candidates.length === 0 || (titles.albums.size === 0 && titles.tracks.size === 0)) return undefined
+  // A row with an MBID is compared by what MusicBrainz credits it with: its other credits
+  // may be a namesake's that search credited by name (artist-copies.ts).
+  const rows = await tx.execute<{ artistId: string; kind: string; title: string }>(sql`
+    select aa.artist_id as "artistId", 'album' as kind, al.title from album_artists aa join albums al on al.id = aa.album_id
+    join artists ar on ar.id = aa.artist_id
+    where aa.artist_id = any(${uuidArray(candidates.map((row) => row.id))}) and (ar.mbid is null or al.mbid is not null)
+    union select ra.artist_id, 'track', r.title from recording_artists ra join recordings r on r.id = ra.recording_id
+    join artists ar on ar.id = ra.artist_id
+    where ra.artist_id = any(${uuidArray(candidates.map((row) => row.id))}) and (ar.mbid is null or r.mbid is not null)`)
+  const fitting = candidates.filter((candidate) => {
+    const known: ArtistTitles = { albums: new Set(), tracks: new Set() }
+    for (const row of rows) {
+      if (row.artistId !== candidate.id) continue
+      if (row.kind === 'album') known.albums.add(releaseKey(row.title))
+      else known.tracks.add(editionFreeKey(row.title))
+    }
+    return sameArtist(titles, known, nameKey)
+  })
+  if (fitting.length === 1) return fitting[0]!.id
+  const withMbid = fitting.filter((row) => row.mbid)
+  return withMbid.length === 1 ? withMbid[0]!.id : undefined
+}
+
+async function resolveArtists(tx: Transaction, source: IdSource, inputs: ArtistInput[], assets: Images,
+  credited: Map<string, ArtistTitles> = new Map(), stubbedNamesakes: Set<string> = new Set()): Promise<Map<string, string>> {
   const refs = new Map<string, ArtistInput>()
   for (const input of inputs) {
     const known = refs.get(artistRef(input))
@@ -190,8 +223,10 @@ async function resolveArtists(tx: Transaction, source: IdSource, inputs: ArtistI
     let id = (ref.id && external.get(ref.id)) || (ref.mbid && mbids.get(ref.mbid)) || undefined
     if (!id && (ref.id || ref.mbid)) {
       const only = sameName.length === 1 ? sameName[0]! : undefined
-      // An artist already known under another id of this provider is someone else.
+      // An artist already known under another id of this provider is someone else, unless
+      // what the response credits it with says it is a second page of that artist.
       if (only && compatible(only.mbid, ref.mbid) && !(ref.id && only.hasSourceId)) id = only.id
+      else if (ref.id && !ref.mbid) id = await sameArtistRow(tx, sameName, credited.get(key), matchKey(ref.name))
     } else if (!id) {
       id = sameName[0]?.id
     }
@@ -205,7 +240,11 @@ async function resolveArtists(tx: Transaction, source: IdSource, inputs: ArtistI
   await followMerges(tx, 'artists', resolved)
 
   for (const stub of stubs) stub.imageAssetId = assets.get(planned.get(stub.id)!.imageUrl ?? '') ?? null
-  for (const [planId, id] of await insertStubs(tx, artists, stubs)) resolved.set(artistRef(planned.get(planId)!), id)
+  for (const [planId, id] of await insertStubs(tx, artists, stubs)) {
+    const ref = planned.get(planId)!
+    resolved.set(artistRef(ref), id)
+    if (named.some((row) => row.nameKey === matchKey(ref.name))) stubbedNamesakes.add(id)
+  }
 
   await addExternalIds(tx, source, 'artist', [...refs].map(([key, ref]) => [ref.id, resolved.get(key)!]))
   for (const [key, ref] of refs) {
@@ -451,6 +490,22 @@ async function resolveTracks(tx: Transaction, source: IdSource, tracks: Provider
   return tracks.map((track) => resolved.get(track.id)!)
 }
 
+/** What each credited artist of a response is credited with: release and song keys, keyed by `artistRef`. */
+function creditedTitles(results: ProviderResults): Map<string, ArtistTitles> {
+  const titles = new Map<string, ArtistTitles>()
+  const of = (credit: ProviderCredit) => {
+    const key = artistRef(credit)
+    let found = titles.get(key)
+    if (!found) titles.set(key, found = { albums: new Set(), tracks: new Set() })
+    return found
+  }
+  for (const album of [...results.albums, ...results.tracks.flatMap((track) => (track.album ? [track.album] : []))]) {
+    for (const credit of album.artists) of(credit).albums.add(releaseKey(album.title))
+  }
+  for (const track of results.tracks) for (const credit of track.artists) of(credit).tracks.add(editionFreeKey(track.title))
+  return titles
+}
+
 /**
  * Stores `results` of a provider whose ids are `source`'s and returns their catalog ids.
  * Idempotent: the same results again give the same ids and add no rows.
@@ -465,12 +520,13 @@ export async function materialize(source: IdSource, results: ProviderResults): P
     images(albumInputs.map((album) => album.artworkUrl), 'cover'),
   ])
   const stubbedArtists = new Set<string>()
+  const stubbedNamesakes = new Set<string>()
   const ids = await db.transaction(async (tx) => {
     await lockStubs(tx)
     const artistIds = await resolveArtists(tx, source, [
       ...results.artists,
       ...[...albumInputs, ...results.tracks].flatMap((item) => item.artists.map((credit) => ({ ...credit, imageUrl: null }))),
-    ], artistImages)
+    ], artistImages, creditedTitles(results), stubbedNamesakes)
     const trackTitles = new Map<string, string[]>()
     for (const track of results.tracks) {
       if (track.album) trackTitles.set(albumRef(track.album), [...(trackTitles.get(albumRef(track.album)) ?? []), track.title])
@@ -493,7 +549,11 @@ export async function materialize(source: IdSource, results: ProviderResults): P
   })
   // The artist's discography may have been written while this response was (or under
   // another row of the artist): the enrichment module folds new stubs into their releases.
-  await enqueueMany('enrichment.reconcile', [...stubbedArtists].map((artistId) => ({ data: { artistId }, singletonKey: artistId })))
+  await enqueueMany<{ artistId?: string; artistCopy?: string }>('enrichment.reconcile', [
+    ...[...stubbedArtists].map((artistId) => ({ data: { artistId }, singletonKey: artistId })),
+    // A new artist row beside another of its name may be a second Deezer page of it.
+    ...[...stubbedNamesakes].map((artistId) => ({ data: { artistCopy: artistId }, singletonKey: `copy:${artistId}` })),
+  ])
     .catch((error: unknown) => {
       if (getConfig().LOG_LEVEL !== 'silent') console.warn('[search] Could not queue release reconciliation', error)
     })

@@ -13,12 +13,13 @@ import {
 import { AppState, Platform } from 'react-native';
 import { useAccountKey, useServerUrl, useSignedInApi } from './account/AccountProvider';
 import { clientDevice } from './account/storage';
-import { useTrack, useTrackStore } from './data/library';
+import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './data/library';
 import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
 import { useNotice } from './Notice';
 import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
+import { favoriteState } from './player/engine/favorite';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
   codecsFor, deviceRows, findEntry, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds,
@@ -45,7 +46,7 @@ const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null, away: null };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -68,11 +69,13 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
   const account = useAccountKey();
   const serverUrl = useServerUrl();
-  const { socket, offline } = useRealtime();
+  const { socket, offline, setPlayingHere } = useRealtime();
   const tracks = useTrackStore();
   const downloads = useDownloadManager();
   const cache = useStreamingCache();
   const notify = useNotice();
+  const likes = useLikeChanges();
+  const { setLiked } = useLibraryActions();
   const settings = useUserSettings().data;
   const network = Network.useNetworkState();
   const [runtime, setRuntime] = useState<Runtime | null>(null);
@@ -81,10 +84,13 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   stream.current = { settings, network: network.type };
   // Read through refs so the runtime outlives a new API client, store or notice function:
   // rebuilding it stops the music.
-  const live = useRef({ downloads, cache, offline, api, tracks, notify });
-  live.current = { downloads, cache, offline, api, tracks, notify };
+  const live = useRef({ downloads, cache, offline, api, tracks, notify, likes, setLiked });
+  live.current = { downloads, cache, offline, api, tracks, notify, likes, setLiked };
   const onOffline = useRef<((offline: boolean) => void) | null>(null);
   useEffect(() => onOffline.current?.(offline), [offline]);
+  // A heart changed, here or on another device: the lock screen's star follows.
+  const onLikes = useRef<(() => void) | null>(null);
+  useEffect(() => onLikes.current?.(), [likes]);
 
   useEffect(() => {
     if (!socket || !live.current.api || !account) return;
@@ -141,6 +147,11 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       let waitingForItem = false;
       // The entry and summary on the lock screen, to notice when that summary is replaced.
       let shown: { entryId: string; track: TrackSummary } | null = null;
+      const trackOf = (entryId: string) => {
+        const { session, queue } = client.getSnapshot();
+        const entry = findEntry({ ...session, ...queue }, entryId);
+        return (entry && tracks.peek(entry.trackId, entry.albumId)) ?? (shown?.entryId === entryId ? shown.track : undefined);
+      };
       const nowPlaying = connectNowPlaying(engine, entryId => {
         const { session, queue } = client.getSnapshot();
         const entry = findEntry({ ...session, ...queue }, entryId);
@@ -163,7 +174,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         onNext: () => send({ type: 'next' }),
         onPrevious: () => send({ type: 'previous' }),
         onSeek: positionMs => send({ type: 'seek', positionMs }),
+        favoriteFor: entryId => favoriteState(trackOf(entryId), live.current.likes),
+        // The in-app heart's path: shown at once, sent (or queued offline), set back with a
+        // notice if the server refuses. The app may be in the background; it still runs.
+        onFavorite: (entryId, saved) => {
+          const track = trackOf(entryId);
+          if (track) live.current.setLiked('track', track.id, saved, track.title);
+        },
       });
+      onLikes.current = nowPlaying.refreshFavorite;
       const stopWaiting = tracks.subscribe(() => {
         if (waitingForItem) return nowPlaying.refresh();
         if (!shown) return;
@@ -172,6 +191,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         const entry = findEntry({ ...session, ...queue }, shown.entryId);
         const latest = entry && tracks.peek(entry.trackId, entry.albumId);
         if (latest && latest !== shown.track) nowPlaying.refresh();
+        else nowPlaying.refreshFavorite();
       });
 
       // While the server fetches the current song, the phone keeps its audio session (and
@@ -293,14 +313,23 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       const appState = AppState.addEventListener('change', status => {
         if (status !== 'active') save();
       });
+      // In the background the socket stays open only while this phone plays (`BackgroundPresence`).
+      const followPlaying = () => {
+        const { isActiveDevice, session } = client.getSnapshot();
+        setPlayingHere(isActiveDevice && session.playing);
+      };
+      const stopFollowing = client.subscribe(followPlaying);
 
       client.start();
+      followPlaying();
       holdWhilePreparing();
       setRuntime({ client, device, loading });
       teardown = () => {
         // Not saved here: this runs on sign-out too, after the account's data was removed.
         clearTimeout(saveTimer);
         appState.remove();
+        stopFollowing();
+        setPlayingHere(false);
         stopSaving();
         stopPreparing();
         stopHolding();
@@ -309,6 +338,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         stopAudioSession();
         stopErrors();
         onOffline.current = null;
+        onLikes.current = null;
         stopWatching();
         loading.dispose();
         stopVolume();
@@ -322,7 +352,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       teardown?.();
       setRuntime(null);
     };
-  }, [account, serverUrl, socket]);
+  }, [account, serverUrl, setPlayingHere, socket]);
 
   // Where a track plays from changed: resolve entries again.
   useEffect(() => {
@@ -418,7 +448,7 @@ export type PlaybackActions = ReturnType<typeof createActions>;
 export function usePlaybackState() {
   const runtime = useContext(RuntimeContext);
   const snapshot = useSnapshot();
-  const { session, queue, devices } = snapshot;
+  const { session, queue, devices, away } = snapshot;
   const current = session.current;
   const track = useTrack(current?.trackId, current?.albumId);
   const { canPlay } = useAvailability();
@@ -426,8 +456,8 @@ export function usePlaybackState() {
   const device = runtime?.device;
   const rows = useMemo(() => {
     const self: DeviceInfo = { id: device?.id ?? '', name: device?.name ?? 'iPhone', kind: device?.kind ?? 'ios', canPlay: true, isActive: false };
-    return deviceRows(devices, self, { activeDeviceId: session.activeDeviceId, playing: session.playing });
-  }, [device, devices, session.activeDeviceId, session.playing]);
+    return deviceRows(devices, self, { activeDeviceId: session.activeDeviceId, playing: session.playing, away });
+  }, [away, device, devices, session.activeDeviceId, session.playing]);
   const output = outputDevice(rows);
   return {
     session,
