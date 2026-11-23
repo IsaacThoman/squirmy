@@ -1,3 +1,4 @@
+import { ApiError } from '@squirmy/client-core'
 import type { DirectoryListing, Import, ImportAlbum, ImportOptions, LibraryRoot, TrackSummary } from '@squirmy/contracts'
 import { Bell, Check, Heart, Inbox, MoreHorizontal, Play, Plus, Settings, Shuffle, Trash2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
@@ -12,12 +13,14 @@ import { AlbumCard, ArtistCard, CardGrid, GenreTile, PlaylistCard } from '@/comp
 import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
 import { Cover } from '@/components/music/Cover'
 import { Equalizer } from '@/components/music/Equalizer'
+import { SaveHeart } from '@/components/music/LibrarySave'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { SectionHeader } from '@/components/music/SectionHeader'
 import { TrackList, TrackRow, type NowPlaying } from '@/components/music/TrackList'
 import { DeviceList, PlayingElsewhere } from '@/components/player/Devices'
 import { LyricsPane } from '@/components/player/Lyrics'
 import { MiniPlayer, PlayerBar } from '@/components/player/PlayerBar'
+import { PlayerStatusLine } from '@/components/player/PlayerStatus'
 import { QueueContent } from '@/components/player/Queue'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
@@ -39,9 +42,9 @@ import { album, albums, artists, lyricsFor, playlistSummaries, summary, track } 
 import { FixtureProviders } from '@/fixtures/FixtureProviders'
 import { setAppearanceMode, setColorTheme, useAppearance } from '@/lib/appearance'
 import { COLOR_THEMES } from '@/lib/color-themes'
-import { toast } from '@/lib/toast'
 import type { UploadFileState, UploadSnapshot } from '@/lib/upload'
 import { cn } from '@/lib/utils'
+import { LibraryFailures, LibraryFailuresContext } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
 
 /** Each surface token with the text color that goes on it, then the line colors. */
@@ -60,14 +63,18 @@ const capitalize = (word: string) => word[0].toUpperCase() + word.slice(1)
 const sortOptions = [{ value: 'recent', label: 'Recently added' }, { value: 'title', label: 'Title' }, { value: 'artist', label: 'Artist' }] as const
 type Sort = (typeof sortOptions)[number]['value']
 
+const refused = () => new Promise<never>((_resolve, reject) => { setTimeout(() => reject(new ApiError(503, 'unavailable', 'The server is busy. Try again.')), 600) })
+
+/** Items say in place what worked, wait for what the server answers, and say on themselves why it did not. */
 const menu: MenuEntry[] = [
   { kind: 'label', label: 'Night Swimming' },
-  { label: 'Play next', icon: <Shuffle />, shortcut: '⌘N', onSelect: () => toast({ title: 'Playing next' }) },
-  { label: 'Save to library', icon: <Heart />, onSelect: () => toast({ title: 'Saved to your library' }) },
-  { kind: 'submenu', label: 'Add to playlist', icon: <Plus />, items: playlistSummaries.map(playlist => ({ label: playlist.name, onSelect: () => toast({ title: `Added to ${playlist.name}` }) })) },
+  { label: 'Play next', icon: <Shuffle />, shortcut: '⌘N', onSelect: () => {}, done: 'Playing next' },
+  { label: 'Save to library', icon: <Heart />, onSelect: () => later(), done: 'Saved to library' },
+  { label: 'Save, refused', icon: <Heart />, onSelect: refused, done: 'Saved to library' },
+  { kind: 'submenu', label: 'Add to playlist', icon: <Plus />, items: playlistSummaries.map(playlist => ({ label: playlist.name, onSelect: () => later(), done: `Added to ${playlist.name}` })) },
   { kind: 'separator' },
   { label: 'Disabled item', onSelect: () => {}, disabled: true },
-  { label: 'Delete', icon: <Trash2 />, danger: true, onSelect: () => toast({ title: 'Deleted' }) },
+  { label: 'Delete', icon: <Trash2 />, danger: true, onSelect: () => {} },
 ]
 
 // Fixtures for the pages that add music and for the pages before sign-in.
@@ -340,10 +347,7 @@ function Surfaces() {
           <ProgressBar value={0.4} label="Example progress" />
           <ProgressBar value={null} label="Progress of unknown length" />
         </div>
-        <Line>
-          <Button variant="outline" onClick={() => toast({ title: 'Added to queue', description: 'Night Swimming', action: { label: 'Undo', onClick: () => {} } })}>Show toast</Button>
-          <Button variant="outline" onClick={() => toast({ title: 'Saved' })}>Show a short toast</Button>
-        </Line>
+        <InlineFeedback />
         <div className="flex max-w-md items-center gap-3">
           <Skeleton className="size-12" />
           <div className="flex flex-1 flex-col gap-2"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-3 w-1/3" /></div>
@@ -351,6 +355,43 @@ function Surfaces() {
         <EmptyState icon={<Inbox />} title="Empty state" description="A sentence about why it is empty and what to do." action={<Button variant="primary">Do something</Button>} className="max-w-md rounded-xl border py-10" />
       </Group>
     </>
+  )
+}
+
+/**
+ * Nothing floats over the page to say what happened: a control says it in its own place. A heart
+ * the server refused goes back and says so beside itself; playback news is on the player's status line.
+ */
+function InlineFeedback() {
+  const [failures] = useState(() => new LibraryFailures())
+  const [liked, setLiked] = useState(false)
+  return (
+    <LibraryFailuresContext value={failures}>
+      <Line>
+        <span className="flex items-center gap-2 text-sm">
+          <SaveHeart
+            id="kitchen-sink"
+            liked={liked}
+            title="Night Swimming"
+            onToggle={() => {
+              setLiked(!liked)
+              // Refused a moment later, as a server would.
+              setTimeout(() => {
+                setLiked(liked)
+                failures.fail('save:kitchen-sink', liked ? 'Couldn’t remove. Try again.' : 'Couldn’t save. Try again.', 'Couldn’t save “Night Swimming” to your library. Try again.')
+              }, 400)
+            }}
+          />
+          A heart the server refuses
+        </span>
+      </Line>
+      <div className="flex max-w-md flex-col gap-1.5 rounded-xl border p-3">
+        <p className="text-sm font-medium">Night Swimming</p>
+        <PlayerStatusLine status={{ message: 'Skipped “Blue in the Dark” — not available', tone: 'info', key: 'demo' }} />
+        <PlayerStatusLine status={{ message: 'Couldn’t play separately.', detail: 'Try again.', tone: 'error', key: 'demo' }} />
+        <PlayerStatusLine status={{ message: 'Starting radio…', tone: 'busy', key: 'demo' }} />
+      </div>
+    </LibraryFailuresContext>
   )
 }
 
@@ -479,7 +520,6 @@ function AddingMusic() {
   const [state, setState] = useState<UploadState>('Drop zone')
   const snapshot = uploadSnapshot(state)
   const unavailable = state.startsWith('No folder') ? 'no_managed_root' as const : null
-  const said = (title: string) => () => toast({ title })
   return (
     <Group title="Add music">
       <div className="flex max-w-4xl flex-col gap-6">
@@ -489,18 +529,18 @@ function AddingMusic() {
           isAdmin={state !== 'No folder, member'}
           upload={snapshot}
           reading={state === 'Reading'}
-          onDrop={said('Dropped')}
-          onPick={said('Picked')}
+          onDrop={() => {}}
+          onPick={() => {}}
           onStart={() => setState('Uploading')}
           onPause={() => setState('Paused')}
           onCancel={() => setState('Drop zone')}
           onClear={() => setState('Drop zone')}
           onRemove={() => {}}
         />
-        <ImportsList imports={imports} ownerOf={item => (item.kind === 'upload' ? 'you' : null)} onCancel={said('Import cancelled')} />
-        <ImportsList imports={undefined} ownerOf={() => null} onCancel={() => {}} />
-        <ImportsList imports={[]} ownerOf={() => null} onCancel={() => {}} />
-        <ImportDetail item={imports[1]} albums={undefined} isAdmin onCancel={said('Import cancelled')} />
+        <ImportsList imports={imports} ownerOf={item => (item.kind === 'upload' ? 'you' : null)} onCancel={later} />
+        <ImportsList imports={undefined} ownerOf={() => null} onCancel={later} />
+        <ImportsList imports={[]} ownerOf={() => null} onCancel={later} />
+        <ImportDetail item={imports[1]} albums={undefined} isAdmin onCancel={later} />
         <ImportDetail item={{ ...imports[2], timedOut: true }} owner="you" albums={importAlbums} isAdmin>
           <NotTaken files={uploadFiles} />
         </ImportDetail>
@@ -543,7 +583,7 @@ function BeforeSignIn() {
           {view === 'Setup: music' && <SetupLibraryView {...library} roots={roots} alreadyAdded={roots[0].id} />}
           {view === 'Setup: first folder' && <SetupLibraryView {...library} roots={[]} />}
           {view === 'Setup: done' && <SetupDoneView folderPaths={roots.map(root => root.path)} onFinish={() => setView(null)} />}
-          {view === 'Unreachable' && <UnreachableView message="The server did not answer." onRetry={() => toast({ title: 'Trying again' })} />}
+          {view === 'Unreachable' && <UnreachableView message="The server did not answer." onRetry={() => {}} />}
           {view === 'Splash' && <SplashView />}
         </div>
       )}

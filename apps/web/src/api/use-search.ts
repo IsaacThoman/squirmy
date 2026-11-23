@@ -46,7 +46,7 @@ export const CATALOG_WAIT_MS = 700
 
 /** The last answer the query gave for the term it was asked, never a placeholder kept from another term. */
 function useAnswer(kind: 'library' | 'catalog', term: string) {
-  const query = useQuery({ ...searchQuery(useApi(), kind, term), placeholderData: keepPreviousData, retry: 1, meta: { silent: true } })
+  const query = useQuery({ ...searchQuery(useApi(), kind, term), placeholderData: keepPreviousData, retry: 1 })
   const [answer, setAnswer] = useState<Answer | null>(null)
   const fresh = term.length > 0 && !query.isPlaceholderData && query.data !== undefined
   if (fresh && (answer?.term !== term || answer.data !== query.data || answer.failed)) setAnswer({ term, data: query.data, failed: false })
@@ -178,7 +178,6 @@ export function useSearchPages(typed: string, kind: SearchKind | null) {
     placeholderData: keepPreviousData,
     staleTime: 60_000,
     retry: 1,
-    meta: { silent: true },
   })
   const items = useMemo(() => {
     const seen = new Set<string>()

@@ -20,6 +20,5 @@ export function useFolderListing(path: string | undefined, enabled = true) {
     queryFn: () => api.admin.directories({ path }),
     enabled,
     retry: false,
-    meta: { silent: true },
   })
 }

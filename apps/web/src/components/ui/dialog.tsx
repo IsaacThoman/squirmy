@@ -1,9 +1,9 @@
 import { X } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
-import { createContext, useContext, useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
+import { errorMessage } from '@/api/errors'
 import { cn } from '@/lib/utils'
 import { Button } from './button'
-import { holdsEscape, registerDialog } from './dialog-stack'
 import { FormError } from './input'
 
 /**
@@ -55,15 +55,8 @@ function useCloseAutoFocus(onCloseAutoFocus?: (event: Event) => void) {
   }
 }
 
-/** Radix's dialog root, registered while open so a toast's Escape still reaches it. */
+/** Radix's dialog root, which gives focus back to what opened it. */
 export function Dialog({ open, onOpenChange, ...props }: ComponentProps<typeof DialogPrimitive.Root>) {
-  const latest = useRef(onOpenChange)
-  useEffect(() => { latest.current = onOpenChange })
-  useEffect(() => {
-    if (!open) return
-    // Known to the toaster, which hands this dialog the Escape a toast hears first.
-    return registerDialog(() => latest.current?.(false))
-  }, [open])
   const opener = useOpener(open)
   return <OpenerContext value={opener}><DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} /></OpenerContext>
 }
@@ -112,6 +105,9 @@ function useFocusedFieldInView() {
     }
   }, [])
 }
+
+/** A search field with text takes Escape to clear itself before a dialog may close. */
+const holdsEscape = (target: EventTarget | null) => target instanceof HTMLInputElement && target.type === 'search' && Boolean(target.value)
 
 /**
  * Escape first clears a search field that has text, as it does outside a dialog; the next one
@@ -209,27 +205,35 @@ type ConfirmDialogProps = {
   title: string
   description: ReactNode
   confirmLabel: string
-  /** Closes the dialog once it resolves; a rejection keeps it open. */
+  /** Closes the dialog once it resolves; a rejection keeps it open and says why above the buttons. */
   onConfirm: () => Promise<unknown>
 }
 
 /** Asks before something that cannot be undone. */
 export function ConfirmDialog({ open, onOpenChange, title, description, confirmLabel, onConfirm }: ConfirmDialogProps) {
   const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string>()
+  const change = (next: boolean) => {
+    if (!next) setError(undefined)
+    onOpenChange(next)
+  }
   const confirm = async () => {
     setPending(true)
+    setError(undefined)
     try {
       await onConfirm()
-      onOpenChange(false)
-    } catch {
-      // The caller reports the failure; the dialog stays so it can be retried.
+      change(false)
+    } catch (failure) {
+      // Said here, where it was asked for; the dialog stays so it can be tried again.
+      setError(errorMessage(failure))
     } finally {
       setPending(false)
     }
   }
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={change}>
       <DialogContent title={title} description={description}>
+        <FormError message={error} />
         <DialogFooter>
           <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
           <Button variant="danger" pending={pending} onClick={() => void confirm()}>{confirmLabel}</Button>

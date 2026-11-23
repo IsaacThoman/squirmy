@@ -72,9 +72,9 @@ type QueryStateProps<T> = {
 
 /**
  * One query's three states: its skeleton while the first answer is on the way, a retry when it
- * failed, and the content once it came. A failed refetch keeps showing the last answer (the toast
- * or the realtime notice says what went wrong), so content never turns into an error under the
- * reader. Try again puts the skeleton back while it waits: a query with no answer yet drops its
+ * failed, and the content once it came. A failed refetch keeps showing the last answer (the
+ * shell's notice says when the connection is lost), so content never turns into an error under
+ * the reader. Try again puts the skeleton back while it waits: a query with no answer yet drops its
  * error when it fetches again.
  */
 export function QueryState<T>({ query, loading, errorTitle, variant, errorClassName, renderError, children }: QueryStateProps<T>) {
