@@ -318,11 +318,12 @@ describe('ExpoAudioEngine', () => {
     expect(silences).toHaveLength(2);
     expect(silences[1].playing).toBe(true);
 
-    // The silence goes only once the new player plays, which keeps the session from then on.
+    // The silence goes just before the new player is asked to play, whose play() keeps the session
+    // from then on: over AirPlay the song did not start while the silence still played.
     players[2].load();
     expect(engine.getStatus()).toMatchObject({ entryId: 'c', state: 'playing' });
     expect(silences[1].released).toBe(true);
-    expect(timeline).toEqual(['silence play', 'remove https://x/a', 'remove https://x/b', 'play https://x/c', 'silence remove']);
+    expect(timeline).toEqual(['silence play', 'remove https://x/a', 'remove https://x/b', 'silence remove', 'play https://x/c']);
   });
 
   it('plays no silence for a load that is not to play, and stops it for a pause or a failure while loading', () => {
@@ -354,6 +355,76 @@ describe('ExpoAudioEngine', () => {
     vi.advanceTimersByTime(2000);
     expect(engine.getStatus().state).toBe('playing');
     expect(silences[1].released).toBe(true);
+  });
+
+  it('pauses and plays again a player whose playhead has not moved since play(), with growing waits', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].frozen = true;
+    players[0].load();
+    const plays = () => players[0].calls.filter(call => call === 'play').length;
+    expect(plays()).toBe(1);
+    expect(silences[0].released).toBe(true);
+    vi.advanceTimersByTime(1500);
+    expect(plays()).toBe(1);
+    vi.advanceTimersByTime(500);
+    expect(plays()).toBe(2);
+    expect(players[0].calls.slice(-2)).toEqual(['pause', 'play']);
+    vi.advanceTimersByTime(4000);
+    expect(plays()).toBe(3);
+    vi.advanceTimersByTime(8000);
+    expect(plays()).toBe(4);
+    // Three tries, then it is left to the player.
+    vi.advanceTimersByTime(30_000);
+    expect(plays()).toBe(4);
+    expect(engine.getStatus().state).not.toBe('playing');
+  });
+
+  it('stops trying again once the playhead moves, and does not try for a paused player', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].frozen = true;
+    players[0].load();
+    vi.advanceTimersByTime(2000);
+    players[0].frozen = false;
+    vi.advanceTimersByTime(30_000);
+    expect(players[0].calls.filter(call => call === 'play')).toHaveLength(2);
+    expect(engine.getStatus().state).toBe('playing');
+
+    engine.load({ entryId: 'b', url: 'https://x/b', startMs: 0, autoplay: false, gain: 1 });
+    players[1].frozen = true;
+    players[1].load();
+    vi.advanceTimersByTime(30_000);
+    expect(players[1].calls.filter(call => call === 'play')).toHaveLength(0);
+  });
+
+  it('logs each start with the player\'s state and the output, and what the native player reports', () => {
+    const lines: string[] = [];
+    const logged = new ExpoAudioEngine({
+      createPlayer: url => {
+        const player = new FakePlayer(url);
+        players.push(player);
+        return player;
+      },
+      createSilence: () => new FakeSilence(),
+      log: line => lines.push(line),
+      describeOutput: () => 'AirPlay “Kitchen”',
+    });
+    logged.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    const player = players.at(-1)!;
+    player.emit({ didJustFinish: false, timeControlStatus: 'paused' });
+    player.load();
+    player.emit({ didJustFinish: false, timeControlStatus: 'waitingToPlayAtSpecifiedRate', reasonForWaitingToPlay: 'evaluatingBufferingRate' });
+    player.emit({ didJustFinish: false, timeControlStatus: 'playing' });
+    expect(lines).toEqual([
+      'a idle → loading at 0 ms',
+      'silence on',
+      'a player new → paused',
+      'silence off',
+      'a play() at 0 ms, player paused, on AirPlay “Kitchen”',
+      'a loading → playing at 0 ms',
+      'a player paused → waiting (evaluatingBufferingRate)',
+      'a player waiting (evaluatingBufferingRate) → playing',
+    ]);
+    logged.stop();
   });
 
   it('reports buffering while the player waits for data', () => {

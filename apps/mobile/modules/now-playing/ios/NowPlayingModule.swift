@@ -89,6 +89,11 @@ public class NowPlayingModule: Module {
       self.applyFavorite()
     }.runOnQueue(.main)
 
+    // Where the sound goes now, for the log: a song that will not start can depend on the output (AirPlay).
+    Function("currentOutputs") { () -> [[String: String]] in
+      AVAudioSession.sharedInstance().currentRoute.outputs.map { ["type": $0.portType.rawValue, "name": $0.portName] }
+    }
+
     AsyncFunction("clear") {
       self.clear()
     }.runOnQueue(.main)
