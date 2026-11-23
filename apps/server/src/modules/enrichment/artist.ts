@@ -13,7 +13,7 @@ import { getServerSettings } from '../../lib/settings.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { assignAlbumArtwork, remoteImage } from '../artwork/index.js'
 import { lockUpserts, replaceCredits, upsertArtists } from '../matching/apply.js'
-import { uuidArray } from '../catalog/sql.js'
+import { placeholderArtist, remoteAsset, uuidArray } from '../catalog/sql.js'
 import { mergeAlbum, resolveMerged } from '../matching/merge.js'
 import { deezer, fanart, listenbrainz, musicbrainz, wikidata } from '../metadata/index.js'
 import type { MbArtist, MbReleaseGroupSummary, MbUrl } from '../metadata/musicbrainz.js'
@@ -121,10 +121,11 @@ export async function hydrateArtist(id: string, { force = false, usable }: { for
   const rowDeezerIds = await deezerIdsOf(artistId)
   if (!artist.mbid && rowDeezerIds.length === 0) return artistId
   const ready = once(usable)
-  // Various Artists and the other placeholders have no discography or popular tracks of
-  // their own: every compilation is credited to them (hundreds of thousands of rows), and
-  // their Wikipedia article is about compilation albums.
-  const placeholder = Boolean(artist.mbid && musicbrainz.specialPurposeArtists.has(artist.mbid))
+  // Various Artists and the other placeholders have no discography, popular tracks,
+  // picture or bio of their own: every compilation is credited to them (hundreds of
+  // thousands of rows), stores show a stock photo, and their Wikipedia article is about
+  // compilation albums.
+  let placeholder = isPlaceholder(artist.mbid)
 
   // Reading only, so it can run beside the Deezer pass; rows change once both are done.
   const profileRun = (async () => {
@@ -173,6 +174,8 @@ export async function hydrateArtist(id: string, { force = false, usable }: { for
       await attempt('namesake Deezer page', () => detachDeezerArtist(artistId, stray.deezerId, stray.created))
       await changed([queryKeys.artist(artistId)])
     }
+    // A row bridged by name ("Various Artists" from Deezer) is a placeholder too.
+    placeholder ||= isPlaceholder(profile.mbid)
     target = await adoptMbidNow('artist', artistId, profile.mbid)
     const [row] = await db.select({ name: artists.name }).from(artists).where(eq(artists.id, target))
     const name = displayName(row?.name ?? profile.name, profile)
@@ -180,10 +183,12 @@ export async function hydrateArtist(id: string, { force = false, usable }: { for
       name,
       sortName: name === profile.name ? profile.sortName : name,
       nameKey: matchKey(name),
-      disambiguation: profile.disambiguation || null,
+      // A placeholder's disambiguation is a note to MusicBrainz's editors ("add compilations
+      // to this artist"), and its genres are those of whatever was filed under it.
+      disambiguation: placeholder ? null : profile.disambiguation || null,
       kind: profile.type,
       country: profile.country,
-      genres: genreNames(profile.genres),
+      genres: placeholder ? [] : genreNames(profile.genres),
       updatedAt: new Date(),
     }).where(eq(artists.id, target))
     for (const one of mbLinked) await linkExternalId('deezer', 'artist', one, target)
@@ -191,7 +196,7 @@ export async function hydrateArtist(id: string, { force = false, usable }: { for
 
     // 2. Each a request or two, so the page fills in before the discography is done.
     const steps = [
-      await attempt('artist image', () => artistImage(target, { mbid: profile.mbid, wikidataId: profile.wikidataId, deezerId, informed: true })),
+      placeholder || await attempt('artist image', () => artistImage(target, { mbid: profile.mbid, wikidataId: profile.wikidataId, deezerId, informed: true })),
       placeholder || await attempt('bio', () => artistBio(target, profile.wikidataId)),
       placeholder || await attempt('top tracks', () => topTracks(target, { mbid: profile.mbid, deezerId })),
     ]
@@ -211,7 +216,7 @@ export async function hydrateArtist(id: string, { force = false, usable }: { for
       },
     }))
     complete = discography && steps.every(Boolean)
-    if (placeholder) await db.update(artists).set({ bio: null, bioSource: null, bioUrl: null }).where(eq(artists.id, target))
+    if (placeholder) await clearPlaceholderProfile(target)
   } else if (quick || rowDeezerIds.length > 0) {
     // MusicBrainz could not name the artist (or failed): Deezer is all there is.
     const deezerId = quick?.deezerId ?? await mainDeezerArtist(rowDeezerIds)
@@ -232,6 +237,23 @@ export async function hydrateArtist(id: string, { force = false, usable }: { for
   }).where(eq(artists.id, target))
   await changed(pageKeys(target, artistId))
   return target
+}
+
+function isPlaceholder(mbid: string | null): boolean {
+  return Boolean(mbid && musicbrainz.specialPurposeArtists.has(mbid))
+}
+
+/**
+ * Takes what older code stored for a placeholder (Various Artists) off it: the bio, genres,
+ * disambiguation and a picture from the web. A picture from the user's folders stays.
+ * Migration 0021 (`0021_artist_page_repairs.sql`) did the same for rows stored before.
+ */
+export async function clearPlaceholderProfile(artistId: string): Promise<void> {
+  await db.execute(sql`
+    update artists a set bio = null, bio_source = null, bio_url = null, disambiguation = null, genres = '{}',
+      image_asset_id = case when exists (select 1 from assets s where s.id = a.image_asset_id and ${remoteAsset('s')}) then null else a.image_asset_id end,
+      updated_at = now()
+    where a.id = ${artistId} and ${placeholderArtist('a')}`)
 }
 
 function pageKeys(target: string, artistId: string) {
@@ -371,9 +393,11 @@ async function adoptStubs(tx: Transaction, mbid: string, stubIds: readonly strin
  * Without it an image the artist has stays.
  */
 async function artistImage(artistId: string, sources: { mbid: string | null; wikidataId: string | null; deezerId: string | null; informed: boolean }) {
-  const [row] = await db.execute<{ imageAssetId: string | null; source: string | null }>(sql`
-    select a.image_asset_id as "imageAssetId", s.source from artists a left join assets s on s.id = a.image_asset_id where a.id = ${artistId}`)
-  if (!row) return
+  const [row] = await db.execute<{ imageAssetId: string | null; source: string | null; placeholder: boolean }>(sql`
+    select a.image_asset_id as "imageAssetId", s.source, ${placeholderArtist('a')} as placeholder
+    from artists a left join assets s on s.id = a.image_asset_id where a.id = ${artistId}`)
+  // A placeholder (Various Artists) gets no picture: the stores' is a stock photo.
+  if (!row || row.placeholder) return
   const local = row.imageAssetId !== null && !/^https?:\/\//i.test(row.source ?? '')
   if (local || (row.imageAssetId && !sources.informed)) return
   const url = (sources.deezerId ? (await deezer.getArtist(Number(sources.deezerId)))?.imageUrl : null)

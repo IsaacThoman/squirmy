@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, artistTopTracks, artists, likes, lyrics, mediaFiles, playlistItems, playlists, recordingArtists, recordings, releaseTracks, wants } from '../../database/schema.js'
+import { albumArtists, albums, artistTopTracks, artists, assets, likes, lyrics, mediaFiles, playlistItems, playlists, recordingArtists, recordings, releaseTracks, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
@@ -191,6 +191,29 @@ describe('catalog pages', () => {
     const detail = body(await get(`/artists/${various.id}`), ArtistDetail)
     expect(detail).toMatchObject({ topTracks: [], radio: false, similar: [] })
     expect(detail.sections!.map((section) => section.key)).toEqual(['album'])
+  })
+
+  it('shows a placeholder artist without a picture from the web, bio, genres or disambiguation', async () => {
+    // [anonymous]: Various Artists is taken by the test above.
+    const various = await createArtist({ name: '[anonymous]', mbid: 'f731ccc4-e22a-43af-a747-64213329e088' })
+    // As older enrichment stored them: a store's stock photo and MusicBrainz's note to its editors.
+    const photo = await createAsset('#abcdef')
+    await db.update(assets).set({ source: 'https://cdn-images.dzcdn.net/images/artist/various/1000x1000.jpg' }).where(eq(assets.id, photo.id))
+    await db.update(artists).set({
+      imageAssetId: photo.id, disambiguation: 'add compilations to this artist', bio: 'A compilation album comprises tracks…',
+      bioUrl: 'https://en.wikipedia.org/wiki/Compilation_album', genres: ['pop rock'],
+    }).where(eq(artists.id, various.id))
+    await createAlbum({ artist: various, title: 'Now 1', owned: true })
+    const detail = body(await get(`/artists/${various.id}`), ArtistDetail)
+    expect(detail).toMatchObject({ image: null, disambiguation: null, bio: null, bioUrl: null, genres: [] })
+
+    // A picture from the user's folders is theirs to show; another artist's picture from the web shows.
+    const local = await createAsset('#123456')
+    await db.update(artists).set({ imageAssetId: local.id }).where(eq(artists.id, various.id))
+    expect(body(await get(`/artists/${various.id}`), ArtistDetail).image?.color).toBe('#123456')
+    const real = await createArtist({ name: 'Real Band', mbid: crypto.randomUUID() })
+    await db.update(artists).set({ imageAssetId: photo.id }).where(eq(artists.id, real.id))
+    expect(body(await get(`/artists/${real.id}`), ArtistDetail).image?.color).toBe('#abcdef')
   })
 
   it('orders a discography by year when an album has no release date', async () => {

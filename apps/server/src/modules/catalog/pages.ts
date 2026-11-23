@@ -229,7 +229,7 @@ async function discography(artistId: string): Promise<{ rows: DiscographyRow[]; 
  * Top tracks are the artist's stored list (`artist_top_tracks`) in its order; an artist
  * without one (music only in the library) ranks its tracks by completed plays on this
  * server, then popularity. MusicBrainz's placeholders (Various Artists) have none, no
- * radio and no similar artists: they stand for no one in particular.
+ * radio, no similar artists and no profile beyond the name: they stand for no one in particular.
  */
 export async function artistDetail(userId: string, id: string): Promise<ArtistDetail> {
   const settled = await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
@@ -248,6 +248,9 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
     placeholder ? false : canStartArtistRadio(userId, artistId),
   ])
   if (!summary || !profile) throw notFound('No such artist', 'artist_not_found')
+  // Nor a bio, genres or disambiguation: MusicBrainz's is a note to its editors ("add
+  // compilations to this artist") and Wikipedia's article is about compilation albums.
+  if (placeholder) Object.assign(profile, { disambiguation: null, bio: null, bioUrl: null, genres: [] })
 
   const bySection = new Map<ArtistSectionKey, DiscographyRow[]>()
   for (const row of rows) {
