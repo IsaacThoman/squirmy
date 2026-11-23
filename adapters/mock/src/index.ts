@@ -38,6 +38,12 @@ export type MockSettings = {
   busyTimes: number
   /** Accepts jobs, then fails this many of the next ones as rate limited (`reason: "busy"`). */
   rateLimitedTimes: number
+  /**
+   * Which items `rateLimitedTimes` applies to; all by default. A test that counts the rate
+   * limits one job met narrows it to that job's item, so a fetch still running from an
+   * earlier test does not use one up.
+   */
+  rateLimits?: (item: ProviderResolveItem) => boolean
   /** The `version` it reports in `capabilities`; none by default. */
   version?: string
   /** The `maxConcurrent` it advertises. */
@@ -148,7 +154,7 @@ export function createMockProvider(overrides: Partial<MockSettings> = {}): MockP
       if (!item) throw new Error(`Unknown offer ${offerId}`)
       if (settings.delayMs > 0) await sleep(settings.delayMs, undefined, { signal })
       if (settings.fail) throw new Error('The mock provider was told to fail')
-      if (settings.rateLimitedTimes > 0) {
+      if (settings.rateLimitedTimes > 0 && (settings.rateLimits?.(item) ?? true)) {
         settings.rateLimitedTimes -= 1
         throw new ProviderBusyError('Rate limited by the source; try again shortly')
       }
