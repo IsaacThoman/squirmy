@@ -48,7 +48,7 @@ export function ShellPage() {
   const liked = useLikedTracks()
   const onPlayPlaylist = useEventCallback((playlist: PlaylistSummary) => void playPlaylist(playlist))
   const onPlayLiked = useEventCallback(() => {
-    void loadItems(liked, 5000).then(tracks => controls.playTracks(tracks, 0, { type: 'liked', id: null, title: 'Liked Songs' }))
+    void loadItems(liked, 5000).then(tracks => controls.playTracks(tracks, 0, { type: 'liked', id: null, title: 'Liked Songs' }, { collection: true }))
   })
   const onLogout = useEventCallback(logout)
 

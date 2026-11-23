@@ -150,8 +150,8 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
         actions={(
           <PlayActions
             title={title}
-            onPlay={playable ? () => play(0) : undefined}
-            onShuffle={playable ? () => play(0, { shuffle: true }) : undefined}
+            onPlay={playable ? () => play(0, { collection: true }) : undefined}
+            onShuffle={playable ? () => play(0, { shuffle: true, collection: true }) : undefined}
           >
             {menu}
           </PlayActions>

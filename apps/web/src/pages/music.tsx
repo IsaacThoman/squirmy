@@ -599,7 +599,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       canAddMusic={user.role === 'admin'}
       onPlayAlbum={album => void playAlbum(album)}
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
-      onPlayLiked={() => void loadItems(liked, 5000).then(list => controls.playTracks(list, 0, likedContext))}
+      onPlayLiked={() => void loadItems(liked, 5000).then(list => controls.playTracks(list, 0, likedContext, { collection: true }))}
       onPlaySong={index => void playSong(index)}
       onNewPlaylist={() => library.newPlaylist()}
     />

@@ -290,6 +290,19 @@ describe('album page', () => {
     expect(screen.queryByText('Artist', { selector: 'span' })).toBeNull()
   })
 
+  it('plays the album as a whole from its header, and a song by name from its row', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await screen.findByRole('list', { name: 'Blue Hour tracks' })
+    const startedFrom = () => socket.commands.filter(command => command.type === 'playTracks').map(command => command.type === 'playTracks' && command.startedFrom)
+    // A row: that song, which stays put if it cannot be had.
+    await userEvent.click(screen.getByRole('button', { name: `Play ${blueHour.discs[0].tracks[2]!.title}` }))
+    // The header: past a first song that cannot be had, as streaming apps do.
+    await userEvent.click(screen.getAllByRole('button', { name: 'Play Blue Hour' })[0]!)
+    await userEvent.click(screen.getByRole('button', { name: 'Shuffle Blue Hour' }))
+    await waitFor(() => expect(startedFrom()).toEqual(['song', 'collection', 'collection']))
+  })
+
   it('credits several artists as the credit reads, each a link', async () => {
     const { services, api } = fakeServices()
     const [mira, lune] = [blueHour.artists[0]!, slowMotion.artists[0]!]

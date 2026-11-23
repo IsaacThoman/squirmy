@@ -179,7 +179,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     onSuccess: ({ tracks, context }) => {
       status.clear(RADIO_STATUS)
       picked.set(null)
-      client.dispatch({ type: 'playTracks', tracks, startIndex: 0, shuffle: false, seed: randomSeed(), context })
+      client.dispatch({ type: 'playTracks', tracks, startIndex: 0, shuffle: false, seed: randomSeed(), context, startedFrom: 'collection' })
     },
     onError: (_error, seed) => status.show({
       message: seed.type === 'artist' ? 'Couldn’t start this artist’s radio' : 'Couldn’t start a radio from this song',
@@ -224,6 +224,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
       setAutoplay: value => dispatch({ type: 'setAutoplay', value }),
       playTracks: (tracks, startIndex = 0, context, options = {}) => {
+        // A song by name stays put if it cannot be had; a list played whole moves on past it.
+        const byName = !options.shuffle && !options.collection
         const candidates = tracks.flatMap((track, index) => (playable(track) ? [{ track, index }] : []))
         if (!candidates.length) return
         store.prime(tracks)
@@ -238,8 +240,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           shuffle: options.shuffle || undefined,
           seed: randomSeed(),
           context: context ?? null,
+          startedFrom: byName ? 'song' : 'collection',
         })
-        picked.set(options.shuffle ? null : latest().session.current?.id ?? null)
+        picked.set(byName ? latest().session.current?.id ?? null : null)
       },
       enqueue: (tracks, placement) => {
         const seeds = tracks.filter(playable).slice(0, MAX_SEEDS).map(seedOf)

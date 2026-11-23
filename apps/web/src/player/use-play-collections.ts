@@ -17,7 +17,7 @@ export function usePlayCollections() {
   const play = async <T,>(name: string, query: { queryKey: QueryKey; queryFn: () => Promise<T> }, tracks: (data: T) => TrackSummary[], context: (data: T) => PlaybackContext) => {
     try {
       const data = await queryClient.fetchQuery(query)
-      controls.playTracks(tracks(data), 0, context(data))
+      controls.playTracks(tracks(data), 0, context(data), { collection: true })
     } catch (error) {
       controls.tell({ message: `Couldn’t play “${name}”`, detail: errorMessage(error), tone: 'error' })
     }

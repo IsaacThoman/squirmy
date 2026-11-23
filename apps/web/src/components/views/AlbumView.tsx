@@ -80,14 +80,14 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
   const owned = album.availability === 'full' || album.availability === 'partial'
 
   const play = (shuffle: boolean) => {
-    if (playable.length) controls.playTracks(tracks, 0, context, { shuffle })
+    if (playable.length) controls.playTracks(tracks, 0, context, { shuffle, collection: true })
     else setQueued(shuffle ? 'shuffle' : 'play')
   }
   // Pressed while the songs were on their way: it plays once, when they arrive.
   const arrived = playable.length > 0
   const pending = queued !== null && !arrived
   useEffect(() => {
-    if (queued && arrived) controls.playTracks(tracks, 0, context, { shuffle: queued === 'shuffle' })
+    if (queued && arrived) controls.playTracks(tracks, 0, context, { shuffle: queued === 'shuffle', collection: true })
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- only the arrival plays; later changes to the list do not
   }, [queued, arrived])
 

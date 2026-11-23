@@ -56,7 +56,11 @@ export type PlayerState = {
 
 export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'
 
-export type PlayOptions = { shuffle?: boolean }
+/**
+ * `collection`: the listener played the list as a whole (a header's or card's Play), not one of
+ * its songs by name, so a first song that cannot be had is passed over. Shuffle always is.
+ */
+export type PlayOptions = { shuffle?: boolean; collection?: boolean }
 export type RadioSeed = { type: 'track' | 'artist'; id: string }
 
 /** The commands the UI sends. They mirror `SessionCommand` in the contracts. */

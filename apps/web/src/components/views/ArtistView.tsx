@@ -69,8 +69,8 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
           <PlayActions
             id={artist.id}
             title={artist.name}
-            onPlay={playable ? () => controls.playTracks(artist.topTracks, 0, context) : undefined}
-            onShuffle={playable ? () => controls.playTracks(artist.topTracks, 0, context, { shuffle: true }) : undefined}
+            onPlay={playable ? () => controls.playTracks(artist.topTracks, 0, context, { collection: true }) : undefined}
+            onShuffle={playable ? () => controls.playTracks(artist.topTracks, 0, context, { shuffle: true, collection: true }) : undefined}
             liked={artist.liked}
             onLike={() => library.setSaved({ type: 'artist', id: artist.id, title: artist.name }, !artist.liked)}
           >

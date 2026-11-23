@@ -835,9 +835,14 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
       record.failedInARow = 0
       record.skippedTracks.clear()
     }
-    // A song started by name (shuffle picks the first itself) is the one the listener wants.
-    if ((command.type === 'playQueueEntry' || (command.type === 'playTracks' && command.startIndex !== undefined)) && next.current?.id !== record.session.current?.id) {
+    // A song started by name (its row, or an entry of the queue) is the one the listener wants. A
+    // whole list started (a header's Play, Shuffle, a radio, or a client that does not say) moves
+    // on past a first song that cannot be had.
+    const byName = command.type === 'playQueueEntry' || (command.type === 'playTracks' && command.startedFrom === 'song' && !command.shuffle)
+    if (byName && next.current?.id !== record.session.current?.id) {
       record.picked = next.current?.id ?? null
+    } else if (command.type === 'playTracks') {
+      record.picked = null
     }
     // Playing again asks again for what an outage left waiting.
     if (command.type === 'play' || command.type === 'playTracks') record.deferred.clear()
