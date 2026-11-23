@@ -10,8 +10,8 @@ import type { TrackSummary } from '@squirmy/contracts';
 import { useWantlistEnabled } from '../account/AccountProvider';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
-import { useLiked, useTrack, useTrackStore, useWanted } from '../data/library';
-import { heartButton } from '../library/heart';
+import { useLiked, useLikeFailure, useTrack, useTrackStore, useWanted, useWantFailure } from '../data/library';
+import { heartButton, heartColor } from '../library/heart';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner, type TrackAction } from '../library/trackActions';
 import { IconButton, Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
 import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
@@ -313,6 +313,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, editing
   const lines = isAccessibilitySize(fontScale) ? [] : [lineLimit(1)];
   const track = useTrack(entry.trackId, entry.albumId);
   const favorite = useLiked('track', track?.id, track?.liked);
+  const likeFailure = useLikeFailure('track', track?.id);
   const { offline } = useRealtime();
   const download = useTrackDownload(entry.trackId);
   const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
@@ -320,6 +321,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, editing
   const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
   const wanted = useWanted(track?.id);
+  const wantFailure = useWantFailure(track?.id);
   const viewer = useViewer();
   const row = queueRow(entry, track, { playable, offline, viewer });
   const failed = row.unavailable;
@@ -327,9 +329,9 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, editing
   const pending = track ? null : pendingQueueRow(offline);
   const title = track?.title ?? '';
   const detail = pending?.detail || row.detail;
-  const listed = track ? trackActions(track, { liked: favorite, playable, offline, current, download, onItsOwn, wantlist, wanted, viewer }) : [];
+  const listed = track ? trackActions(track, { liked: favorite, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer }) : [];
   const actions = position ? queuedEntryActions(listed, position) : listed;
-  const heart = heartButton(favorite, title);
+  const heart = heartButton(favorite, title, likeFailure);
   // A failed or gray song fades its cover, and its text takes colors that stay readable (3:1);
   // the heart and menu keep their full color, since they still work.
   const label = accessibilityLabel([pending?.title ?? title, detail].filter(Boolean).join(', '));
@@ -348,7 +350,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, editing
       {body}
     </Button>}
     {track && !editing && <IconButton symbol={heart.icon} size={17} label={heart.label}
-      color={favorite ? colors.accent : colors.muted} selected={heart.selected}
+      color={heartColor(heart, colors, colors.muted)} selected={heart.selected}
       onPress={() => handlers.run(track, { id: favorite ? 'unlike' : 'like', title, icon: 'heart' })} />}
     {track && !editing && <TrackActionsMenu actions={actions} label={`More options for ${title}`}
       onRun={action => position ? handlers.runQueued(entry, track, action, position) : handlers.run(track, action)}>

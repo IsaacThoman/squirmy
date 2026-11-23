@@ -8,6 +8,7 @@ import { whereItPlays } from './session';
 import { Cover, Icon } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import { createThemedStyles, useColors } from '../theme';
+import { usePlaybackStatus } from './usePlaybackStatus';
 import { usePlayerShown } from './visibility';
 
 const progressIntervalMs = 1000;
@@ -27,11 +28,13 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   const styles = useStyles();
   const { current, track, output, session, actions, remote, detached } = usePlaybackState();
   const loading = useLoading();
+  const status = usePlaybackStatus();
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
   // A detached phone says so where "Playing on …" would be, so pressing play here is never a surprise.
   // The marker outlasts a slow load: the play button's spinner already says it is loading.
-  const subtitle = detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? whereItPlays(output, session.playing ? 'Playing' : 'Paused') : track?.artistCredit ?? '';
+  // What playback has to say comes first, for its few seconds or for as long as the pause it explains.
+  const subtitle = status ? status.message : detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? whereItPlays(output, session.playing ? 'Playing' : 'Paused') : track?.artistCredit ?? '';
   const deviceLabel = detached ? `${DETACHED_LABEL}. Playback devices` : `Playback device, ${output.name}`;
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
@@ -47,14 +50,14 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
       importantForAccessibility={preview ? 'no-hide-descendants' : 'auto'}
       style={styles.flex}>
       <Animated.View style={[styles.container, compact && styles.compact, visibility]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Open Now Playing, ${title}`}
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open Now Playing, ${[title, status?.message ?? (detached && DETACHED_LABEL)].filter(Boolean).join(', ')}`}
           onPress={onOpen} style={styles.info}>
           {preview ? <View style={{ width: size, height: size }} /> : (
             <Cover artwork={track?.album?.artwork} size={size} radius={8} />
           )}
           <View style={styles.copy}>
             <Text numberOfLines={1} style={styles.title}>{title}</Text>
-            {!compact && <Text numberOfLines={1} style={[styles.subtitle, detached && { color: colors.accent }]}>{subtitle}</Text>}
+            {!compact && <Text numberOfLines={1} style={[styles.subtitle, (detached || status) && { color: colors.accent }]}>{subtitle}</Text>}
           </View>
         </Pressable>
         {!compact && <Pressable accessibilityRole="button" accessibilityLabel={deviceLabel}

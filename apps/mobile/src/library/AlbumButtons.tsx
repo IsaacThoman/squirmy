@@ -9,6 +9,8 @@ export type AlbumNavProps = {
   selected?: boolean;
   /** Shows activity in place of the icon, such as a download running. */
   busy?: boolean;
+  /** The server refused what the button did: its icon takes the error color for a few seconds. */
+  failed?: boolean;
 };
 
 /** The buttons under a collection's title. The first is the prominent one. */
@@ -17,16 +19,18 @@ export type AlbumPlaybackProps = {
   /**
    * `busy`: the action has started and is still loading; a spinner shows in place of its symbol.
    * `disabled`: there is nothing for it to do yet, so it stays in its place, faded, and ignores taps.
+   * `failed`: the server refused what it did; its symbol and label say so in the error color.
+   * `spoken`: what VoiceOver says, when the label alone (with the title after it) would not read well.
    */
-  actions: readonly { label: string; symbol: string; onPress: () => void; busy?: boolean; disabled?: boolean }[];
+  actions: readonly { label: string; symbol: string; onPress: () => void; busy?: boolean; disabled?: boolean; failed?: boolean; spoken?: string }[];
 };
 
-export function AlbumNavButton({ icon, label, onPress, selected, busy }: AlbumNavProps) {
+export function AlbumNavButton({ icon, label, onPress, selected, busy, failed }: AlbumNavProps) {
   const colors = useColors();
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={selected === undefined ? { busy } : { selected, busy }}
     style={({ pressed }) => [styles.nav, pressed && styles.pressed]} onPress={onPress}>
-    {busy ? <ActivityIndicator color={colors.text} /> : <Icon name={icon} size={20} color={selected ? colors.accent : colors.text} />}
+    {busy ? <ActivityIndicator color={colors.text} /> : <Icon name={icon} size={20} color={failed ? colors.danger : selected ? colors.accent : colors.text} />}
   </Pressable>;
 }
 
@@ -34,15 +38,15 @@ export function AlbumPlaybackButtons({ title, actions }: AlbumPlaybackProps) {
   const colors = useColors();
   const styles = useStyles();
   return <View style={styles.controls}>
-    {actions.map(({ label, symbol, onPress, busy, disabled }, index) => (
-      <Pressable key={label} accessibilityRole="button" accessibilityLabel={`${label} ${title}`} accessibilityState={{ busy, disabled }} disabled={disabled}
-        style={({ pressed }) => [styles.action, index === 0 && styles.play, disabled && styles.disabled, pressed && styles.pressed]} onPress={onPress}>
-        {busy
-          ? <ActivityIndicator color={index === 0 ? colors.onAccent : colors.text} />
-          : <Icon name={symbol} size={17} color={index === 0 ? colors.onAccent : colors.text} />}
-        <Text style={[styles.label, index === 0 && styles.playLabel]}>{label}</Text>
-      </Pressable>
-    ))}
+    {actions.map(({ label, symbol, onPress, busy, disabled, failed, spoken }, index) => {
+      const prominent = index === 0 && !failed;
+      const color = failed ? colors.danger : prominent ? colors.onAccent : colors.text;
+      return <Pressable key={index} accessibilityRole="button" accessibilityLabel={spoken ?? `${label} ${title}`} accessibilityState={{ busy, disabled }} disabled={disabled}
+        style={({ pressed }) => [styles.action, prominent && styles.play, disabled && styles.disabled, pressed && styles.pressed]} onPress={onPress}>
+        {busy ? <ActivityIndicator color={color} /> : <Icon name={symbol} size={17} color={color} />}
+        <Text style={[styles.label, { color }]}>{label}</Text>
+      </Pressable>;
+    })}
   </View>;
 }
 
@@ -53,6 +57,5 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   controls: { flexDirection: 'row', gap: 9, marginTop: 18, alignSelf: 'stretch' },
   action: { backgroundColor: colors.surface, borderRadius: 24, minHeight: 46, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, flex: 1 },
   play: { backgroundColor: colors.accent },
-  label: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  playLabel: { color: colors.onAccent },
+  label: { fontSize: 15, fontWeight: '700' },
 }));

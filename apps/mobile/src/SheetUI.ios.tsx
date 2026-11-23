@@ -1,4 +1,4 @@
-import { Button, Divider, Host, HStack, Menu, RNHostView, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
+import { Button, Divider, Host, HStack, Menu, ProgressView, RNHostView, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
 import { useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { SystemVolumeSlider } from '../modules/now-playing';
@@ -73,7 +73,7 @@ export function SheetScroll({ height, children }: SheetScrollProps) {
   </ScrollView>;
 }
 
-export function SheetRow({ title, subtitle, icon, selected, destructive, onPress }: SheetRowProps) {
+export function SheetRow({ title, subtitle, icon, selected, destructive, busy, onPress }: SheetRowProps) {
   const colors = useColors();
   const iconColor = destructive ? colors.danger : selected ? colors.accent : colors.muted;
   return <>
@@ -90,18 +90,18 @@ export function SheetRow({ title, subtitle, icon, selected, destructive, onPress
           {subtitle && <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>{subtitle}</Text>}
         </VStack>
         <Spacer minLength={4} />
-        {selected && <Symbol name="checkmark" size={15} color={colors.accent} />}
+        {busy ? <ProgressView /> : selected && <Symbol name="checkmark" size={15} color={colors.accent} />}
       </HStack>
     </Button>
     <Divider modifiers={[padding({ leading: 39 })]} />
   </>;
 }
 
-/** Small print at the foot of a sheet, such as the app's version. */
-export function SheetNote({ mark, children }: SheetNoteProps) {
+/** Small print at the foot of a sheet, such as the app's version, or what the sheet tried and couldn't do (`error`). */
+export function SheetNote({ mark, error, children }: SheetNoteProps) {
   const colors = useColors();
-  const note = <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), frame({ maxWidth: Infinity }),
-    multilineTextAlignment('center')]}>{children}</Text>;
+  const note = <Text modifiers={[font(error ? { textStyle: 'footnote', weight: 'semibold' } : { textStyle: 'caption' }),
+    foregroundStyle(error ? colors.danger : colors.muted), frame({ maxWidth: Infinity }), multilineTextAlignment('center')]}>{children}</Text>;
   if (!mark) return note;
   return <VStack spacing={6} modifiers={[frame({ maxWidth: Infinity })]}>
     <RNHostView matchContents>

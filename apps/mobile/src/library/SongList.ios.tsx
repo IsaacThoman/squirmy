@@ -8,7 +8,7 @@ import { librarySave } from '@squirmy/client-core';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { useWantlistEnabled } from '../account/AccountProvider';
-import { useLiked, useWanted } from '../data/library';
+import { useLiked, useLikeFailure, useWanted, useWantFailure } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { downloadSymbol, unavailableReason } from '../downloads/model';
@@ -18,7 +18,7 @@ import { STILL_LOADING_LABEL } from '../player/loading';
 import { isAccessibilitySize } from '../fontScale';
 import { spokenDuration, trackDuration } from './duration';
 import type { SongListProps } from './SongList';
-import { heartButton } from './heart';
+import { heartButton, heartColor } from './heart';
 import {
   sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
 } from './rows';
@@ -117,6 +117,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const { track, number, playlist, showArtist, album } = item;
   const colors = useColors();
   const liked = useLiked('track', track.id, track.liked);
+  const likeFailure = useLikeFailure('track', track.id);
   const playing = useCurrentTrackState(track.id);
   const current = playing !== null;
   const playable = useCanPlay(track);
@@ -127,6 +128,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const loading = useTrackLoading(track.id);
   const wantlist = useWantlistEnabled();
   const wanted = useWanted(track.id);
+  const wantFailure = useWantFailure(track.id);
   const viewer = useViewer();
   // At accessibility sizes titles and credits take more lines, and the length moves under the title.
   const large = isAccessibilitySize(useWindowDimensions().fontScale);
@@ -138,8 +140,8 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const rowFrame = measuresRows ? frame({ minHeight: rowHeight }) : frame({ height: rowHeight });
   const options = { playlist: playlist && { ...playlist, onRemove: handlers.remove }, album };
   // Described from what the row already reads; nothing runs until an item is chosen.
-  const actions = trackActions(track, { liked, playable, offline, current: playing, download, onItsOwn, wantlist, wanted, viewer }, options);
-  const heart = heartButton(liked, track.title);
+  const actions = trackActions(track, { liked, likeFailure, playable, offline, current: playing, download, onItsOwn, wantlist, wanted, wantFailure, viewer }, options);
+  const heart = heartButton(liked, track.title, likeFailure);
   const perform = (action: TrackAction) => run(track, action, options);
 
   return (
@@ -194,7 +196,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
           <ContextMenu.Items><TrackActionButtons actions={actions} onRun={perform} /></ContextMenu.Items>
         </ContextMenu>
         <IconButton symbol={heart.icon} size={19} label={heart.label} selected={heart.selected}
-          color={liked ? colors.accent : colors.muted} onPress={() => perform(liked ? quick.unlike : quick.like)} />
+          color={heartColor(heart, colors, colors.muted)} onPress={() => perform(liked ? quick.unlike : quick.like)} />
         <TrackActionsMenu actions={actions} onRun={perform} label={`More options for ${track.title}`} />
       </HStack>
       {playable && !current && <SwipeActions.Actions edge="leading">

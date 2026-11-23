@@ -233,6 +233,19 @@ export function EmptyState({ icon, title, description, action }: {
   </View>;
 }
 
+/**
+ * A refused change, told under the control or header where it was made (the app has no
+ * toasts), as the download's status line is. Its caller announces it to VoiceOver.
+ */
+export function FailureLine({ message }: { message: string }) {
+  const colors = useColors();
+  const styles = useStyles();
+  return <View style={styles.failure} accessibilityRole="text" accessibilityLabel={message}>
+    <Icon name="exclamationmark.circle" size={13} color={colors.danger} />
+    <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.failureText}>{message}</Text>
+  </View>;
+}
+
 /** A query's first load, or its failure with a way to try again. Null once there is data to show. */
 export function QueryState({ query, what }: {
   query: { isPending: boolean; isError: boolean; error?: unknown; refetch: () => unknown }; what: string;
@@ -300,4 +313,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   // At least 28 tall, taller when the text is large, so the word is never cut.
   offline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, minHeight: 28, borderRadius: 14, backgroundColor: colors.surface },
   offlineText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  // Stretched and wrapping, as the download's status line is, so a long line stays on the page at large sizes.
+  failure: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 14, alignSelf: 'stretch', marginHorizontal: gutter },
+  failureText: { color: colors.danger, fontSize: 13, fontWeight: '600', flexShrink: 1, textAlign: 'center' },
 }));

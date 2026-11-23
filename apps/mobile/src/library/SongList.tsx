@@ -4,8 +4,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { memo, useCallback, useMemo } from 'react';
-import { useLiked } from '../data/library';
-import { heartButton } from './heart';
+import { useLiked, useLikeFailure } from '../data/library';
+import { heartButton, heartColor } from './heart';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { downloadSymbol, unavailableReason } from '../downloads/model';
@@ -89,6 +89,7 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
   const colors = useColors();
   const styles = useStyles();
   const liked = useLiked('track', track.id, track.liked);
+  const heart = heartButton(liked, track.title, useLikeFailure('track', track.id));
   const playing = useCurrentTrackState(track.id);
   const current = playing !== null;
   const playable = useCanPlay(track);
@@ -148,9 +149,9 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
         </View>
         {numbered && <Text style={[styles.duration, !playable && styles.fadedCredit]}>{trackDuration(track.durationMs)}</Text>}
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={heartButton(liked, track.title).label} accessibilityState={{ selected: liked }}
+      <Pressable accessibilityRole="button" accessibilityLabel={heart.label} accessibilityState={{ selected: liked }}
         onPress={() => { tapFeedback(); run(track, { id: liked ? 'unlike' : 'like', title: '', icon: '' }); }} style={styles.rowIcon}>
-        <Icon name={liked ? 'heart.fill' : 'heart'} size={19} color={liked ? colors.accent : colors.muted} />
+        <Icon name={heart.icon} size={19} color={heartColor(heart, colors, colors.muted)} />
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${track.title}`} onPress={onMenu} style={styles.rowIcon}>
         <Icon name="ellipsis" size={19} color={colors.muted} />

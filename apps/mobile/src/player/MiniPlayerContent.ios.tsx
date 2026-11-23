@@ -12,6 +12,7 @@ import { whereItPlays } from './session';
 import { Cover } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
+import { usePlaybackStatus } from './usePlaybackStatus';
 import { usePlayerShown } from './visibility';
 
 import { useColors } from '../theme';
@@ -23,6 +24,7 @@ const progressIntervalMs = 1000;
  * the bubble shows the title alone, which may then grow as far as the first accessibility size
  * and still clear it. Played separately, the bubble keeps both lines at every size, held at
  * xLarge: "Only on this device" is what says the phone is not playing for the other devices.
+ * So does a playback status (a skipped song, a pause the server caused): the app has no toasts.
  */
 const twoLineFontScale = 1.15;
 const twoLineLimit = dynamicTypeSize({ max: 'xLarge' });
@@ -32,13 +34,15 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   const colors = useColors();
   const { current, track, output, session, actions, remote, detached } = usePlaybackState();
   const loading = useLoading();
+  const status = usePlaybackStatus();
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
   // A detached phone says so where "Playing on …" would be, so pressing play here is never a surprise.
   // The marker outlasts a slow load: the play button's spinner already says it is loading.
-  const subtitle = detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? whereItPlays(output, session.playing ? 'Playing' : 'Paused') : track?.artistCredit ?? '';
+  // What playback has to say comes first, for its few seconds or for as long as the pause it explains.
+  const subtitle = status ? status.message : detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? whereItPlays(output, session.playing ? 'Playing' : 'Paused') : track?.artistCredit ?? '';
   const { fontScale } = useWindowDimensions();
-  const twoLines = !compact && (detached || fontScale < twoLineFontScale);
+  const twoLines = !compact && (detached || status !== null || fontScale < twoLineFontScale);
   const deviceLabel = detached ? `${DETACHED_LABEL}. Playback devices` : `Playback device, ${output.name}`;
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
@@ -50,7 +54,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
     </RNHostView>
   );
   const titleText = <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>;
-  const subtitleText = <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(detached ? colors.accent : colors.muted), lineLimit(1)]}>{subtitle}</Text>;
+  const subtitleText = <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(detached || status ? colors.accent : colors.muted), lineLimit(1)]}>{subtitle}</Text>;
   // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
   // visible rather than hidden so the controls still take touches as the player settles back in.
   const visibility = useAnimatedStyle(() => ({
@@ -67,7 +71,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
                 own: stacked under the title, each would get half the bubble (about 22 pt) to touch. The crossed-out
                 link beside it, 44 pt square, opens the device picker, where Rejoin is. */}
             <Button onPress={onOpen} modifiers={[plainButton,
-              accessibilityLabel(`Open Now Playing, ${[title, detached && DETACHED_LABEL].filter(Boolean).join(', ')}`)]}>
+              accessibilityLabel(`Open Now Playing, ${[title, status?.message ?? (detached && DETACHED_LABEL)].filter(Boolean).join(', ')}`)]}>
               <HStack spacing={9} modifiers={[frame({ minHeight: 44 }), hitShape]}>
                 {cover}
                 {/* The compact bubble, inline with the shrunken tab bar, is shorter still and keeps the smaller limit. */}

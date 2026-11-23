@@ -39,7 +39,7 @@ export function SettingsScreen() {
       </> : <ActivityIndicator />}
       <StorageSection />
       {screen.listenBrainz && <ListenBrainz service={screen.listenBrainz} busy={screen.connectingListenBrainz}
-        onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
+        error={screen.errors.listenbrainz} onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
       {screen.lastFm && !screen.lastFm.available && screen.isAdmin && <Text style={styles.note}>{lastFmAdminNote}</Text>}
       {screen.lastFm?.available && <>
         <Text style={styles.heading}>Last.fm</Text>
@@ -48,13 +48,14 @@ export function SettingsScreen() {
             subtitle={scrobbleDetail(screen.lastFm)} icon="music.note"
             onPress={() => screen.lastFm?.connected && !screen.lastFm.needsAttention ? screen.disconnect('lastfm') : screen.connectLastFm()} />
         </SheetRows>
+        {screen.errors.lastfm && <Text style={[styles.note, styles.error]}>{screen.errors.lastfm}</Text>}
       </>}
     </SheetFrame>
   </ScrollView>;
 }
 
-function ListenBrainz({ service, busy, onConnect, onDisconnect }: {
-  service: ScrobbleService; busy: boolean; onConnect: (token: string) => void; onDisconnect: () => void;
+function ListenBrainz({ service, busy, error, onConnect, onDisconnect }: {
+  service: ScrobbleService; busy: boolean; error?: string; onConnect: (token: string) => void; onDisconnect: () => void;
 }) {
   const colors = useColors();
   const styles = useStyles();
@@ -72,12 +73,14 @@ function ListenBrainz({ service, busy, onConnect, onDisconnect }: {
         <Text style={styles.connectText}>Connect</Text>
       </Pressable>
     </View>}
+    {error && <Text style={[styles.note, styles.error]}>{error}</Text>}
   </>;
 }
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   heading: { color: colors.text, fontSize: 17, fontWeight: '700', marginTop: 6 },
   note: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+  error: { color: colors.danger, fontWeight: '600' },
   tokenRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   input: { flex: 1, minHeight: 44, borderRadius: 12, paddingHorizontal: 12, backgroundColor: colors.surface, color: colors.text },
   connect: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, justifyContent: 'center', backgroundColor: colors.accent },

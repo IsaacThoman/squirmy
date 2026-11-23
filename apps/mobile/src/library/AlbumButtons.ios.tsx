@@ -11,7 +11,7 @@ import { useColors } from '../theme';
 type SymbolName = ComponentProps<typeof Image>['systemName'];
 const hitShape = contentShape(shapes.rectangle());
 
-export function AlbumNavButton({ icon, label, onPress, selected, busy }: AlbumNavProps) {
+export function AlbumNavButton({ icon, label, onPress, selected, busy, failed }: AlbumNavProps) {
   const colors = useColors();
   const glass = isLiquidGlassAvailable();
   // The glass adds its own padding around the content: 30 inside makes the button 44 across,
@@ -28,7 +28,7 @@ export function AlbumNavButton({ icon, label, onPress, selected, busy }: AlbumNa
         {busy
           ? <ProgressView modifiers={[progressViewStyle('circular'), controlSize('regular'), tint(colors.text), size, hitShape]} />
           // The button carries the label; left alone, the image would announce its symbol's name.
-          : <Image systemName={icon as SymbolName} size={20} color={selected ? colors.accent : colors.text} modifiers={[size, hitShape, accessibilityHidden(true)]} />}
+          : <Image systemName={icon as SymbolName} size={20} color={failed ? colors.danger : selected ? colors.accent : colors.text} modifiers={[size, hitShape, accessibilityHidden(true)]} />}
       </Button>
     </Host>
   );
@@ -40,10 +40,12 @@ export function AlbumPlaybackButtons({ title, actions }: AlbumPlaybackProps) {
     // As tall as the labels need: they follow the reader's text size, up to where two still fit side by side.
     <Host matchContents={{ vertical: true }} style={{ marginTop: 18, alignSelf: 'stretch' }}>
       <HStack spacing={9} modifiers={[dynamicTypeSize({ max: 'accessibility2' })]}>
-        {actions.map(({ label, symbol, onPress, busy, disabled }, index) => {
-          const color = index === 0 ? colors.onAccent : colors.text;
-          return <Button key={label} onPress={onPress}
-            modifiers={[buttonStyle('plain'), background(index === 0 ? colors.accent : colors.surface), clipShape('capsule'), accessibilityLabel(`${label} ${title}`),
+        {actions.map(({ label, symbol, onPress, busy, disabled, failed, spoken }, index) => {
+          // A failure keeps the button's place and shape; the error color says what went wrong.
+          const color = failed ? colors.danger : index === 0 ? colors.onAccent : colors.text;
+          return <Button key={index} onPress={onPress}
+            modifiers={[buttonStyle('plain'), background(index === 0 && !failed ? colors.accent : colors.surface), clipShape('capsule'),
+              accessibilityLabel(spoken ?? `${label} ${title}`),
               ...(disabled ? [disabledModifier(true), opacity(0.45)] : [])]}>
             <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity }), frame({ minHeight: 46 }), padding({ vertical: 6 }), hitShape]}>
               {busy

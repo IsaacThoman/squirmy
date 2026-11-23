@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TrackSummary as Track } from '@squirmy/contracts';
 import { BrandMark } from './BrandMark';
@@ -8,15 +8,21 @@ import { Cover, Icon } from './ui';
 import { createThemedStyles, useColors } from './theme';
 
 export type SheetFrameProps = { title: string; onClose: () => void; children?: ReactNode };
-/** `destructive` colors the row for an action that ends something, such as signing out. */
+/**
+ * `destructive` colors the row for an action that ends something, such as signing out.
+ * `busy`: what it started waits on the server; a spinner stands in for its checkmark's place.
+ */
 export type SheetRowProps = {
   title: string; subtitle?: string; icon: string; color?: string;
-  selected?: boolean; destructive?: boolean; onPress: () => void;
+  selected?: boolean; destructive?: boolean; busy?: boolean; onPress: () => void;
 };
 /** `address`: the subtitle is a server address, kept on one line and shortened in the middle, never wrapped (wrapped, iOS hyphenates a host name). */
 export type SheetInfoProps = { icon: string; title: string; subtitle: string; address?: boolean };
-/** `mark` puts the mascot above the text, for the app's own version. */
-export type SheetNoteProps = { mark?: boolean; children: string };
+/**
+ * `mark` puts the mascot above the text, for the app's own version. `error`: what the sheet
+ * tried was refused, said in the error color where it happened (the app has no toasts).
+ */
+export type SheetNoteProps = { mark?: boolean; error?: boolean; children: string };
 export type TrackSummaryProps = { track: Track | undefined; subtitle?: string };
 export type SheetSliderProps = { label: string; value: number; onChange: (value: number) => void };
 export type SheetFieldProps = {
@@ -69,12 +75,12 @@ export function SheetScroll({ height, children }: SheetScrollProps) {
   return <ScrollView style={{ maxHeight: height }} contentContainerStyle={styles.rows} keyboardShouldPersistTaps="handled">{children}</ScrollView>;
 }
 
-export function SheetRow({ title, subtitle, icon, color, selected, destructive, onPress }: SheetRowProps) {
+export function SheetRow({ title, subtitle, icon, color, selected, destructive, busy, onPress }: SheetRowProps) {
   const colors = useColors();
   const styles = useStyles();
   const tone = destructive ? colors.danger : undefined;
   return (
-    <Pressable accessibilityRole="button" accessibilityState={selected === undefined ? undefined : { selected }}
+    <Pressable accessibilityRole="button" accessibilityState={selected === undefined && !busy ? undefined : { selected, busy }}
       onPress={onPress}
       style={({ pressed }) => [styles.sheetRow, selected && styles.selectedRow, pressed && styles.pressed]}>
       <View style={[styles.rowIcon, selected && styles.selectedIcon]}><Icon name={icon} size={20} color={tone ?? color ?? colors.text} /></View>
@@ -82,15 +88,15 @@ export function SheetRow({ title, subtitle, icon, color, selected, destructive, 
         <Text style={[styles.rowTitle, tone ? { color: tone } : null]}>{title}</Text>
         {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
       </View>
-      {selected && <Icon name="checkmark" size={17} color={colors.accent} />}
+      {busy ? <ActivityIndicator color={colors.muted} /> : selected && <Icon name="checkmark" size={17} color={colors.accent} />}
     </Pressable>
   );
 }
 
 /** Small print at the foot of a sheet, such as the app's version. */
-export function SheetNote({ mark, children }: SheetNoteProps) {
+export function SheetNote({ mark, error, children }: SheetNoteProps) {
   const styles = useStyles();
-  if (!mark) return <Text style={styles.note}>{children}</Text>;
+  if (!mark) return <Text style={[styles.note, error && styles.error]}>{children}</Text>;
   return <View style={styles.markedNote}>
     <BrandMark size={44} />
     <Text style={styles.note}>{children}</Text>
@@ -188,6 +194,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   rowTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
   rowSubtitle: { color: colors.muted, fontSize: 13, fontWeight: '500' },
   note: { color: colors.muted, fontSize: 12, textAlign: 'center' },
+  error: { color: colors.danger, fontSize: 13, fontWeight: '600' },
   markedNote: { alignItems: 'center', gap: 6 },
   slider: { gap: 4, paddingHorizontal: 4 },
   sliderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

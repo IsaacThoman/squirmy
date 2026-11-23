@@ -47,7 +47,7 @@ export function SettingsScreen() {
         </> : <Section modifiers={clearRow}><HStack><Spacer /><ProgressView /><Spacer /></HStack></Section>}
         <StorageSection />
         {screen.listenBrainz && <ListenBrainzSection service={screen.listenBrainz} busy={screen.connectingListenBrainz}
-          onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
+          error={screen.errors.listenbrainz} onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
         {/* Without the server's Last.fm key there is nothing to connect; only an admin can add one. */}
         {lastFm?.available && <Section title="Last.fm" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{lastFmNote}</Text>}>
           <ServiceStatus service={lastFm} />
@@ -55,6 +55,7 @@ export function SettingsScreen() {
             ? <Button label="Disconnect" role="destructive" onPress={() => screen.disconnect('lastfm')} />
             : <Button label={lastFm.connected ? 'Connect Again' : 'Connect'} onPress={screen.connectLastFm}
               modifiers={[tint(colors.accent)]} />}
+          {screen.errors.lastfm && <ServiceError message={screen.errors.lastfm} />}
         </Section>}
         {lastFm && !lastFm.available && screen.isAdmin && <Section footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{lastFmAdminNote}</Text>}>{null}</Section>}
         </Form>
@@ -72,8 +73,14 @@ function ServiceStatus({ service }: { service: ScrobbleService }) {
   </VStack>;
 }
 
-function ListenBrainzSection({ service, busy, onConnect, onDisconnect }: {
-  service: ScrobbleService; busy: boolean; onConnect: (token: string) => void; onDisconnect: () => void;
+/** A refusal, in the error color, under the control that was refused (the app has no toasts). */
+function ServiceError({ message }: { message: string }) {
+  const colors = useColors();
+  return <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.danger)]}>{message}</Text>;
+}
+
+function ListenBrainzSection({ service, busy, error, onConnect, onDisconnect }: {
+  service: ScrobbleService; busy: boolean; error?: string; onConnect: (token: string) => void; onDisconnect: () => void;
 }) {
   const colors = useColors();
   const [token, setToken] = useState('');
@@ -94,6 +101,7 @@ function ListenBrainzSection({ service, busy, onConnect, onDisconnect }: {
         </HStack>
       </Button>
     </>}
+    {error && <ServiceError message={error} />}
   </Section>;
 }
 

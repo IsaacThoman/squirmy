@@ -12,7 +12,7 @@ import {
   libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbumIds, useLibraryAlbums, useLibraryArtists,
   useLibraryMatches, useLibraryTracks, usePlaylists,
 } from './data/queries';
-import { useLibraryActions } from './data/library';
+import { useLibraryActions, useLikeFailures } from './data/library';
 import { useAvailability, useViewer } from './downloads/DownloadsProvider';
 import {
   BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField,
@@ -23,15 +23,17 @@ import { libraryRows, type LibraryRow } from './library/libraryRows';
 import { libraryAlbumMatches } from './library/librarySearch';
 import { searchFilterLabels } from './library/search';
 import { useRecentSearches, useSearchList } from './library/useSearchList';
-import { useNotice } from './Notice';
+import { useBriefFailures } from './inlineFeedback';
+import { playAllFailure, radioFailure } from './library/failures';
+import { playbackStatus } from './player/usePlaybackStatus';
 import { sortFor, sortOptions, sortsFor, type SortChoices } from './library/sorting';
 import type { Page } from './library/links';
 import { useAlbumPlayer, useCollectionActions } from './library/collectionActions';
 import { underStatusBar, useRefreshControl } from './library/refresh';
 import { displayFontScale, isAccessibilitySize } from './fontScale';
 import {
-  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, largeTextScale, likedCollection, matches, OfflineBadge,
-  playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
+  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, largeTextScale, likedCollection, matches,
+  OfflineBadge, playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './library/shared';
 import { useRealtime } from './data/realtime';
 import { SongList, useSongListItems } from './library/SongList';
@@ -339,6 +341,8 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
             onPress={() => { tapFeedback(); setGrid(!grid); }} />}
           {filter === 'Songs' && playSongs.busy && <ActivityIndicator accessibilityLabel="Loading songs" />}
         </View>
+        {/* A tap on a song plays the next few hundred; when they can't be loaded it plays what was, and says so here. */}
+        {filter === 'Songs' && playSongs.failed && <FailureLine message={playAllFailure} />}
         {!active.data && <QueryState query={active} what="your library" />}
         {libraryEmpty ? <EmptyState {...emptyLibrary.Albums} action={findMusic} />
           : active.data && empty && !(searching && found.pending) && (query || filter === 'Playlists'
@@ -405,9 +409,11 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const { canPlay } = useAvailability();
   const albumPlayer = useAlbumPlayer();
   const api = useSignedInApi();
-  const notify = useNotice();
   const viewer = useViewer();
   const { setLiked } = useLibraryActions();
+  const likeFailures = useLikeFailures();
+  // An artist's radio that didn't start: its menu entry says so for a few seconds, and choosing it tries again.
+  const radioFailures = useBriefFailures<true>();
 
   useTabRetap(() => searchInput.current?.focus());
 
@@ -438,7 +444,13 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const saveAction = (type: 'album' | 'artist', id: string, name: string, liked: boolean | undefined): RowAction[] => {
     if (liked === undefined) return [];
     const { saved, label } = librarySave({ liked });
-    return [{ title: label, icon: saved ? 'heart.slash' : 'heart', onPress: () => { tapFeedback(); setLiked(type, id, !saved, name); } }];
+    // A refused change was set back; the entry that makes it again says so (as the track menu does).
+    const failed = likeFailures.has(`${type}:${id}`);
+    return [{
+      title: failed ? `Couldn’t ${saved ? 'remove from' : 'save to'} library. Try again` : label,
+      icon: failed ? 'exclamationmark.circle' : saved ? 'heart.slash' : 'heart',
+      onPress: () => { tapFeedback(); setLiked(type, id, !saved, name); },
+    }];
   };
   const menuFor = (item: Exclude<SearchItem, { type: 'track' }>): RowAction[] => {
     if (offline) return [];
@@ -454,10 +466,16 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
       ];
     }
     if (item.type === 'artist') {
+      const radioFailed = radioFailures.failures.has(item.artist.id);
       return [{
-        title: 'Start radio', icon: 'dot.radiowaves.left.and.right', onPress: () => {
+        title: radioFailed ? radioFailure : 'Start radio', icon: radioFailed ? 'exclamationmark.circle' : 'dot.radiowaves.left.and.right', onPress: () => {
           tapFeedback();
-          api?.radio.artist(item.artist.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${item.artist.name}.`));
+          radioFailures.drop(item.artist.id);
+          api?.radio.artist(item.artist.id).then(actions.playRadio, () => {
+            radioFailures.fail(item.artist.id, true);
+            // The menu has closed, so the player says it too (and VoiceOver hears it from there).
+            playbackStatus.report({ message: `Couldn’t start a radio for ${item.artist.name}` });
+          });
         },
       }, ...saveAction('artist', item.artist.id, item.artist.name, item.artist.liked)];
     }

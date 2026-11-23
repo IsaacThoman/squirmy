@@ -9,7 +9,6 @@ import { AccountProvider, createQueryClient, useAccount } from '../src/account/A
 import { LibraryProvider } from '../src/data/library';
 import { RealtimeProvider } from '../src/data/realtime';
 import { DownloadsProvider } from '../src/downloads/DownloadsProvider';
-import { NoticeProvider } from '../src/Notice';
 import Player from '../src/Player';
 import { PlayerTransitionProvider } from '../src/player/transition';
 import { PlaybackProvider } from '../src/playback';
@@ -32,24 +31,21 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <ThemeProvider value={theme}>
         <QueryClientProvider client={queryClient}>
-          {/* Above the notices, which move out of Now Playing's way while it is open. */}
           <PlayerTransitionProvider>
-            <NoticeProvider>
-              <AccountProvider>
-                <RealtimeProvider>
-                  <LibraryProvider>
-                    <DownloadsProvider>
-                      <StreamingCacheProvider>
-                        <PlaybackProvider>
-                          <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
-                          <Routes />
-                        </PlaybackProvider>
-                      </StreamingCacheProvider>
-                    </DownloadsProvider>
-                  </LibraryProvider>
-                </RealtimeProvider>
-              </AccountProvider>
-            </NoticeProvider>
+            <AccountProvider>
+              <RealtimeProvider>
+                <LibraryProvider>
+                  <DownloadsProvider>
+                    <StreamingCacheProvider>
+                      <PlaybackProvider>
+                        <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
+                        <Routes />
+                      </PlaybackProvider>
+                    </StreamingCacheProvider>
+                  </DownloadsProvider>
+                </LibraryProvider>
+              </RealtimeProvider>
+            </AccountProvider>
           </PlayerTransitionProvider>
         </QueryClientProvider>
       </ThemeProvider>

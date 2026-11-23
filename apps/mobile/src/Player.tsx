@@ -14,8 +14,8 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { contextLabel, formatDuration, formatRemaining } from '@squirmy/client-core';
 import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
-import { useLibraryActions, useLiked } from './data/library';
-import { heartButton } from './library/heart';
+import { useLibraryActions, useLiked, useLikeFailure } from './data/library';
+import { heartButton, heartColor } from './library/heart';
 import { loadFailure } from './data/errors';
 import { useLyrics } from './data/queries';
 import { MiniPlayerContent } from './MiniPlayer';
@@ -26,6 +26,7 @@ import { useLoading, usePlaybackState, usePosition } from './playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
 import { activeLine, lineInView, lyricLines } from './player/lyrics';
+import { usePlaybackStatus } from './player/usePlaybackStatus';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
@@ -113,8 +114,12 @@ export default function Player() {
   const artY = Math.max(0, (availableHeight - artSize - artworkGap - metadataHeight) / 2);
   const artworkPage = page === 'player';
   const isFavorite = useLiked('track', track?.id, track?.liked);
+  const heart = heartButton(isFavorite, track?.title ?? '', useLikeFailure('track', track?.id));
   const title = track?.title ?? (current ? '' : 'Not Playing');
   const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : remote ? `${track?.artistCredit ?? ''} · ${output.name}` : track?.artistCredit ?? '';
+  // What playback has to say (a skipped song, a pause the server caused) takes the artist's
+  // lines for a while, in the room `metadataHeight` keeps for two: its quieter detail goes on the second.
+  const status = usePlaybackStatus();
   // Phones with a home indicator have rounded displays; a square card would show in their corners.
   const screenCorner = Platform.OS === 'ios' && !Platform.isPad && bottom > 0 ? 40 : 0;
 
@@ -279,14 +284,20 @@ export default function Player() {
         <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={displayFontScale}
           style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{title}</Text>
         {/* Two lines too: a featured artist ("feat. Pharrell Williams & Nile Rodgers") is part of the credit. */}
-        <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>
+        {status
+          ? <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale}
+            accessibilityLabel={status.detail ? `${status.message}. ${status.detail}` : status.message}
+            style={[compact ? styles.compactTrackArtist : styles.artist, styles.status]}>
+            {status.message}{!compact && status.detail ? <Text style={styles.statusDetail}>{`\n${status.detail}`}</Text> : null}
+          </Text>
+          : <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>}
       </View>
       {track && <PlayerButton
-        icon={isFavorite ? 'heart.fill' : 'heart'}
-        label={heartButton(isFavorite, track.title).label}
+        icon={heart.icon}
+        label={heart.label}
         selected={isFavorite}
         onPress={() => { selectionFeedback(); setLiked('track', track.id, !isFavorite, track.title); }}
-        color={isFavorite ? colors.accent : colors.text}
+        color={heartColor(heart, colors, colors.text)}
       />}
       {track && <TrackMenuButton track={track} onPress={() => openTrackMenu(track.id, track.album?.id)} />}
     </>
@@ -665,6 +676,9 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: colors.text },
   compactTitle: { fontSize: 25 },
   artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
+  // The same color as "Only on this device", the mini player's other status.
+  status: { color: colors.accent, fontWeight: '600' },
+  statusDetail: { color: colors.muted, fontWeight: '500' },
   lyricPage: { flex: 1, paddingHorizontal: 25 },
   noLyrics: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   noLyricsTitle: { color: colors.muted, fontSize: 16, fontWeight: '600', textAlign: 'center' },

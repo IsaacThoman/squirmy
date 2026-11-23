@@ -12,7 +12,7 @@ import { useAccount, useSignedInApi, useWantlistEnabled, type Api } from '../acc
 import { awaitsTrackList, trackListWaitMs } from '../data/albums';
 import { fallbackTint } from '../data/color';
 import { isNotFound } from '../data/errors';
-import { useLibraryActions, useLiked, usePlaylistActions, useWanted } from '../data/library';
+import { useLibraryActions, useLiked, useLikeFailure, usePlaylistActions, usePlaylistFailure, useWanted, useWantFailure } from '../data/library';
 import { appearsOnKey, isArtistSectionKey, releaseGroups } from '../data/artists';
 import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
@@ -21,7 +21,7 @@ import {
   useAvailability, useDownloadActions, useDownloadedAlbum, useDownloadedLikes, useDownloadedPlaylist,
 } from '../downloads/DownloadsProvider';
 import { albumCollectionId, likedId as likedDownloadId, playlistCollectionId } from '../downloads/model';
-import { useNotice } from '../Notice';
+import { announce, useBriefFailures } from '../inlineFeedback';
 import { usePlaybackActions } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
@@ -29,9 +29,11 @@ import { AlbumStatusBlur } from './AlbumStatusBlur';
 import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
 import { CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
+import { playAllFailure, radioFailure, wantFailureLabel, wantFailure as wantFailureMessage } from './failures';
 import { heartButton } from './heart';
 import {
-  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, likedCollection, nearEnd, playlistCollection,
+  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, likedCollection, nearEnd,
+  playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useCollectionDim, type Collection,
 } from './shared';
 import { useCollectionActions } from './collectionActions';
@@ -251,6 +253,8 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const { canPlay, offline, viewer } = useAvailability();
   const download = useDownloadActions();
   const liked = useLiked('album', id, data?.liked);
+  const likeFailure = useLikeFailure('album', id);
+  const wantFailure = useWantFailure(id);
   const { setLiked, setWanted } = useLibraryActions();
   const wantlist = useWantlistEnabled();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
@@ -294,8 +298,12 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const waits = awaiting && !overdue && presentation === 'normal' && !offline;
   // The wantlist is for music this viewer can't play; for someone who may fetch music nothing is.
   const unavailable = !awaiting && !playable;
-  // Added and removed alike, worded as on web.
-  const wantButton = offline || !wantlist || !unavailable ? [] : [{ label: wanted ? 'Remove from wantlist' : 'Add to wantlist', symbol: wanted ? 'star.fill' : 'star',
+  // Added and removed alike, worded as on web. A refused change was set back; for a few seconds
+  // the button says so, and a tap sends it again.
+  const wantButton = offline || !wantlist || !unavailable ? [] : [{
+    ...wantFailure === undefined
+      ? { label: wanted ? 'Remove from wantlist' : 'Add to wantlist', symbol: wanted ? 'star.fill' : 'star' }
+      : { label: wantFailureLabel(wantFailure), symbol: 'exclamationmark.circle', failed: true, spoken: wantFailureMessage(wantFailure, data.title) },
     onPress: () => {
       tapFeedback();
       setWanted('album', data.id, !wanted, data.title);
@@ -317,7 +325,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     buttons={buttons} status={control.status}
     nav={[
       // The heart saves the album to the library. The placeholder does not know whether it is saved.
-      !album.isPlaceholderData && { ...heartButton(liked, data.title),
+      !album.isPlaceholderData && { ...heartButton(liked, data.title, likeFailure),
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked, data.title); } },
       control.nav,
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
@@ -421,8 +429,9 @@ function TrackListPage({ item, title, info, tracks, playAll, context, empty, loa
     else playTracks(tracks);
   };
   const songs = useSongListItems({ tracks, onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) });
+  // Play or Shuffle could load only part of the list: it says so under them, for a few seconds.
   return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play, playAll?.busy)}
-    nav={download ? [download.nav] : []} status={download?.status}
+    nav={download ? [download.nav] : []} status={<>{playAll?.failed && <FailureLine message={playAllFailure} />}{download?.status}</>}
     onBack={props.onBack} onEndReached={loadMore} onRefresh={refresh} bottomInset={props.bottomInset ?? 155}
     list={tracks.length ? { ...songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)} />
@@ -469,8 +478,11 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const { canPlay } = useAvailability();
   const { offline } = useRealtime();
   const edits = usePlaylistActions();
+  // A removal, move or deletion the server refused: put back, and said under the header.
+  const failure = usePlaylistFailure(id);
   const download = useDownloadActions();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const control = useDownloadControl(playlistCollectionId(id), data?.name ?? '',
     playlist.data?.items.map(item => item.track), () => download.playlist(playlist.data!));
   const items = data?.items;
@@ -499,9 +511,10 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const rename = () => onOpen({ pathname: '/name-playlist', params: { mode: 'rename', id: data.id, name: data.name } });
   const remove = () => Alert.alert(`Delete “${data.name}”?`, 'This can’t be undone.', [
     { text: 'Cancel', style: 'cancel' },
+    // The page waits for the server, so a refusal is told here, on the playlist still there.
     { text: 'Delete Playlist', style: 'destructive', onPress: () => {
-      edits.remove(data.id);
-      onBack();
+      setDeleting(true);
+      edits.remove(data.id).then(onBack, () => setDeleting(false));
     } },
   ]);
   const manage = () => {
@@ -523,12 +536,13 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
 
   return <DetailPage item={playlistCollection(data, link)} tint={data.artworks[0]?.color ?? null} title={data.name}
     artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info="Playlist"
-    buttons={playButtons(tracks, canPlay, play)} description={data.description} status={control.status}
+    buttons={playButtons(tracks, canPlay, play)} description={data.description}
+    status={<>{failure && <FailureLine message={failure} />}{control.status}</>}
     nav={[
       control.nav,
       mine && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
         label: editing ? 'Finish reordering' : 'Reorder songs', selected: editing, onPress: () => { tapFeedback(); setEditing(!editing); } },
-      mine && { icon: 'ellipsis', label: `Manage ${data.name}`, onPress: manage },
+      mine && { icon: 'ellipsis', label: deleting ? `Deleting ${data.name}` : `Manage ${data.name}`, busy: deleting, onPress: deleting ? () => undefined : manage },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
     // Reordering drags rows within one native list, so while editing every row is drawn.
@@ -543,13 +557,15 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
 export function ArtistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const styles = useStyles();
   const api = useSignedInApi();
-  const notify = useNotice();
   const artist = useArtist(id);
   const actions = usePlaybackActions();
   const { canPlay, offline, viewer } = useAvailability();
   const liked = useLiked('artist', id, artist.data?.liked);
+  const likeFailure = useLikeFailure('artist', id);
   const { setLiked } = useLibraryActions();
   const starts = useStartGuard();
+  // A radio that didn't start says so on its button for a few seconds; a tap tries again.
+  const radioFailures = useBriefFailures<true>();
   useBackSwipeOnly();
   if (!artist.data) return <PageFallback query={artist} what="this artist" onBack={onBack} />;
   const data = artist.data;
@@ -562,23 +578,29 @@ export function ArtistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInse
   const radio = () => {
     if (!api) return;
     tapFeedback();
-    starts.run('radio', () => api.radio.artist(data.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${data.name}.`)));
+    radioFailures.drop('radio');
+    starts.run('radio', () => api.radio.artist(data.id).then(actions.playRadio, () => {
+      radioFailures.fail('radio', true);
+      announce(`Couldn’t start a radio for ${data.name}. Try again.`);
+    }));
   };
   const startingRadio = starts.pending('radio');
+  const radioFailed = radioFailures.failures.has('radio');
   const placeholder = artist.isPlaceholderData;
 
   // The disambiguation ("60s band from the UK") tells same-name artists apart, as on web.
   return <DetailPage item={artistCollection(data, link)} tint={data.image?.color ?? null} title={data.name}
     info={['Artist', data.disambiguation, ...data.genres.slice(0, 2)].filter(Boolean).join('  ·  ')}
-    buttons={playButtons(top, canPlay, play)}
+    buttons={playButtons(top, canPlay, play)} status={radioFailed && <FailureLine message={`${radioFailure}.`} />}
     nav={[
       // The heart saves (follows) the artist, which puts it in the library. The placeholder
       // does not know whether the artist is saved.
-      !placeholder && { ...heartButton(liked, data.name), onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked, data.name); } },
+      !placeholder && { ...heartButton(liked, data.name, likeFailure), onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked, data.name); } },
       // Only when the server says a radio starts for this user (for a requester, from what it
       // can fetch too); an older server does not say, and then the library decides.
-      !placeholder && (data.radio ?? (data.inLibrary || canFetch(viewer))) && !offline && { icon: 'dot.radiowaves.left.and.right', busy: startingRadio, onPress: radio,
-        label: startingRadio ? `Starting a radio for ${data.name}` : `Start a radio for ${data.name}` },
+      !placeholder && (data.radio ?? (data.inLibrary || canFetch(viewer))) && !offline && {
+        icon: radioFailed ? 'exclamationmark.circle' : 'dot.radiowaves.left.and.right', busy: startingRadio, failed: radioFailed, onPress: radio,
+        label: startingRadio ? `Starting a radio for ${data.name}` : radioFailed ? `${radioFailure}, ${data.name}` : `Start a radio for ${data.name}` },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
     onBack={onBack} onRefresh={artist.refetch} bottomInset={bottomInset}>
