@@ -1,4 +1,4 @@
-import { type AwayDevice, deviceLabel, listedDevices, playingOnText, reconnectingText, type DeviceLabel, type SessionMoveResult } from '@squirmy/client-core'
+import { type AwayDevice, deviceLabel, listedDevices, playingOnText, reconnectingText, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
 import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useSyncExternalStore } from 'react'
 
@@ -45,6 +45,8 @@ export type PlayerState = {
   detached: boolean
   /** `detach` can work: this tab plays and the server supports it. */
   canDetach: boolean
+  /** Why playback stopped on a failed current entry, when the server said (client-core's `SessionOutage`). */
+  outage?: SessionOutage | null
 }
 
 export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'

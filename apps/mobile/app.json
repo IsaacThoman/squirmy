@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.isaacthoman.music",
-      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#f4f0fc" }
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#9d99d6" }
     }
   }
 }

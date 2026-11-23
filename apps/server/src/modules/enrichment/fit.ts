@@ -45,7 +45,8 @@ type Stray = TrackRef & {
  * - loose: a recording with no file and on no release (a search or top-track stub) led by
  *   an artist of the album, fitted by title and length.
  *
- * Returns how many were merged. Call it under `lockUpserts`.
+ * Then a track with no file of its own joins the copy of its song another release holds
+ * (`joinHeldCopies`). Returns how many were merged. Call it under `lockUpserts`.
  */
 export async function fitStrayRecordings(tx: Transaction, albumId: string): Promise<number> {
   const tracks = await tx.execute<TrackRef & { artistId: string | null }>(sql`
@@ -98,6 +99,38 @@ export async function fitStrayRecordings(tx: Transaction, albumId: string): Prom
   for (const [strayId, into] of decided) {
     if (!into) continue
     await mergeRecording(strayId, into, tx)
+    merged += 1
+  }
+  return merged + await joinHeldCopies(tx, tracks)
+}
+
+/**
+ * A track with no file of its own whose song another release holds plays that copy, as a
+ * streaming app would: ADÉLA's PRIMA lists "Red Bottoms" as MusicBrainz's Dolby Atmos
+ * recording, and the server has the stereo song as the recording of the "Red Bottoms"
+ * single. The copy is a recording with an MBID (`fitStrayRecordings` folds those without
+ * one into the track) and present files, sharing an ISRC and the title with the track and
+ * within fifteen seconds of its length (`track-identity.ts`), the only one that does. The
+ * track is merged into it: the held recording's MBID is the one that describes the audio,
+ * and the track's ids, likes, plays and queue entries follow the redirect. Two MusicBrainz
+ * recordings are otherwise never merged; a track with a file of its own keeps it.
+ */
+async function joinHeldCopies(tx: Transaction, tracks: readonly TrackRef[]): Promise<number> {
+  const bare = await tx.execute<{ id: string }>(sql`
+    select r.id from recordings r
+    where r.id = any(${uuidArray(tracks.map((track) => track.id))}) and r.isrcs <> '{}'
+      and not exists (select 1 from media_files f where f.recording_id = r.id and f.missing_since is null)`)
+  let merged = 0
+  for (const { id } of bare) {
+    const track = tracks.find((one) => one.id === id)!
+    const held = await tx.execute<TrackRef>(sql`
+      select s.id, s.title, s.duration_ms as "durationMs", s.isrcs, null::smallint as disc, null::smallint as position
+      from recordings s
+      where s.isrcs && ${textArray([...track.isrcs])} and s.mbid is not null and s.merged_into_id is null and s.id <> ${id}
+        and exists (select 1 from media_files f where f.recording_id = s.id and f.missing_since is null)`)
+    const copy = identifyTrack({ ...track, disc: null, position: null }, held)
+    if (!copy || !copy.isrcs.some((isrc) => track.isrcs.includes(isrc))) continue
+    await mergeRecording(id, copy.id, tx)
     merged += 1
   }
   return merged

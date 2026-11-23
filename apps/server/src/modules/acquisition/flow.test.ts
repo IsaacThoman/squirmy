@@ -770,4 +770,30 @@ describe('acquisition end to end', () => {
     expect(await health()).toMatchObject({ failingSince: null, lastError: null })
     expect((await jobsFor(ids[3]!))[0]?.status).toBe('completed')
   })
+
+  // Fetches run side by side: one that fails just before the provider is marked failing
+  // finishes after the streak's misses were cleared. It must not leave its miss behind,
+  // nor may one that recovery comes after: the outage was never about these tracks.
+  it('leaves no miss for any track whose failure was part of an outage, however the failures raced', async () => {
+    const missesOf = (ids: string[]) => db.select().from(acquisitionMisses).where(and(eq(acquisitionMisses.providerId, providerId), inArray(acquisitionMisses.entityId, ids)))
+    const album = await createAlbum({ title: 'All at Once', tracks: Array.from({ length: 10 }, (_, index) => ({ title: `Together ${index + 1}`, durationMs: 3000 })) })
+    const ids = album.tracks.map((track) => track.recordingId)
+    const screens = await observe(await signIn())
+    mock.settings.fail = true
+    await Promise.all(ids.map(async (id) => body(await acquire(fan, id), AcquireResponse, 202)))
+    for (const id of ids) await settle(id)
+    // What open screens were told last about each track is what they show.
+    await eventually(() => expect(ids.map((id) => availabilityIn(screens.changes, id).at(-1))).toEqual(ids.map(() => 'on_demand')), 5000)
+    expect((await Promise.all(ids.map(async (id) => (await jobsFor(id))[0]?.status)))).toEqual(ids.map(() => 'failed'))
+    expect(await missesOf(ids)).toEqual([])
+    expect([...(await trackAvailability(ids)).values()]).toEqual(ids.map(() => 'on_demand'))
+
+    // Recovery keeps them playable, and the first delivery ends the outage.
+    mock.settings.fail = false
+    body(await acquire(fan, ids[0]!), AcquireResponse, 202)
+    await settle(ids[0]!)
+    expect(await missesOf(ids)).toEqual([])
+    expect([...(await trackAvailability(ids.slice(1))).values()]).toEqual(ids.slice(1).map(() => 'on_demand'))
+    screens.close()
+  })
 })

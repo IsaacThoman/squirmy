@@ -31,6 +31,15 @@ export function stopNotice(outage: Pick<SessionOutage, 'kind' | 'reason'> | null
   return { message: 'Can’t load music right now', detail: outage?.reason ? `${outage.reason} Playback is paused.` : 'Playback is paused.' }
 }
 
+/**
+ * Whether a failed entry reads as unavailable ("Not available", gray). The one playback
+ * paused on in a provider outage does not: the provider failed, not the song, and playing
+ * again asks for it again.
+ */
+export function readsUnavailable(entry: Pick<QueueEntry, 'state' | 'trackId'>, outage: Pick<SessionOutage, 'kind' | 'trackId'> | null | undefined): boolean {
+  return entry.state === 'failed' && !(outage?.kind === 'outage' && outage.trackId === entry.trackId)
+}
+
 /** A song skipped for a reason other than the provider not having it, and why (undefined: the server did not say). */
 export type SkippedSong = { entry: QueueEntry; failure: EntryFailure | undefined }
 
