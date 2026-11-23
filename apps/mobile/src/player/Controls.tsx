@@ -15,7 +15,7 @@ export type PlayerButtonProps = {
   busy?: boolean;
 };
 
-export type DeviceButtonProps = { icon: string; name: string; onPress: () => void };
+export type DeviceButtonProps = { icon: string; name: string; highlighted: boolean; onPress: () => void };
 export type TrackMenuButtonProps = { track: TrackSummary; onPress: () => void };
 /** Without `onPress` (plain lyrics) the line is only text. */
 export type LyricButtonProps = { line: string; active: boolean; onPress?: () => void };
@@ -42,13 +42,14 @@ export function TrackMenuButton({ onPress }: TrackMenuButtonProps) {
   return <PlayerButton icon="ellipsis" label="Song options" onPress={onPress} />;
 }
 
-export function DeviceButton({ icon, name, onPress }: DeviceButtonProps) {
+export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonProps) {
   const colors = useColors();
   const styles = useStyles();
+  const color = highlighted ? colors.accent : colors.muted;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Playback device: ${name}`}
     style={({ pressed }) => [styles.device, pressed && styles.pressed]} onPress={onPress}>
-    <View style={styles.deviceIcon}><Icon name={icon} size={21} color={colors.accent} /></View>
-    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.deviceName}>{name}</Text>
+    <View style={styles.deviceIcon}><Icon name={icon} size={21} color={color} /></View>
+    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.deviceName, { color }]}>{name}</Text>
   </Pressable>;
 }
 
@@ -69,7 +70,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   grabber: { width: 32, height: 4, borderRadius: 2, backgroundColor: colors.grabber },
   device: { height: 56, alignItems: 'center' },
   deviceIcon: { height: 38, justifyContent: 'center' },
-  deviceName: { color: colors.accent, fontSize: 11, fontWeight: '600' },
+  deviceName: { fontSize: 11, fontWeight: '600' },
   lyricButton: { paddingBottom: 21, maxWidth: 530 },
   lyric: { color: colors.quiet, fontWeight: '700', fontSize: 32, letterSpacing: -0.7 },
   lyricActive: { color: colors.text },

@@ -145,8 +145,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
     if (choice.kind === 'destination') return void navigate(choice.destination.to)
     if (choice.kind === 'all') return void navigate(`/search?q=${encodeURIComponent(choice.query)}`)
     const { item } = choice
-    // The search page offers what was searched and chosen here too.
-    if (typed) recents.add({ type: 'query', query: typed })
+    // Results opened here also appear in Recently viewed on the search page.
     recents.add(item)
     switch (item.type) {
       case 'artist': return void navigate(`/artist/${item.artist.id}`)

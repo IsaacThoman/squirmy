@@ -7,9 +7,9 @@ import { SaveHeart } from '@/components/music/LibrarySave'
 import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { playingElsewhere, usePosition, whereItPlays, type Player } from '@/player/player-context'
+import { playingElsewhere, usePosition, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
-import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
+import { DevicesPopover } from './Devices'
 import { PlayerStatusLine } from './PlayerStatus'
 import { PlayPauseButton, SeekBar, touchTarget, TransportButtons, VolumeControl } from './Transport'
 import { useNowPlayingWheel } from './use-now-playing-wheel'
@@ -60,8 +60,8 @@ function useBarSize(element: HTMLElement | null) {
  * The desktop player, a row along the bottom of the shell: the track, the transport and the tools.
  * It lays itself out by its own width, which changes with the sidebar. Narrow (a tablet), the
  * transport goes on a row of its own under the song, so the title and credit stay readable;
- * the controls that do not fit go into "More player controls". While another device plays it
- * grows a row that says where. It keeps clear of the home indicator on a phone on its side.
+ * the controls that do not fit go into "More player controls". It keeps clear of the home
+ * indicator on a phone on its side.
  */
 export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueue, lyricsOpen, onToggleLyrics, onOpenNowPlaying }: PlayerChromeProps) {
   const { state, controls } = player
@@ -170,10 +170,6 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
           )}
         </div>
       </div>
-      {/* One strip at a time: a detached tab is never controlling another device. */}
-      {elsewhere
-        ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} onPrepare={controls.prepareHere} className="border-t" />
-        : state.detached && <OnlyOnThisDevice player={player} className="border-t" />}
     </section>
   )
 }
@@ -243,8 +239,8 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
           <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-10 rounded-[5px]" />
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium">{item.track.title}</span>
-            <span className={cn('block truncate text-xs', elsewhere || state.detached ? 'text-primary' : 'text-muted-foreground')}>
-              {elsewhere ? whereItPlays(state, elsewhere) : state.detached ? 'Only on this device' : late ? STILL_LOADING_LABEL : item.track.artistCredit}
+            <span className="block truncate text-xs text-muted-foreground">
+              {late ? STILL_LOADING_LABEL : item.track.artistCredit}
             </span>
           </span>
         </button>

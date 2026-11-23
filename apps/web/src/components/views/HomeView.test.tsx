@@ -21,46 +21,28 @@ describe('home', () => {
     expect(shown).toEqual(reversed.sections.map(section => section.title))
   })
 
-  it('leads with the album played last, even with nothing added', async () => {
-    renderHome({ sections: [
-      { kind: 'albums', id: 'recently-played', title: 'Recently played', albums: [summary(album('low-tide'))] },
-      { kind: 'tracks', id: 'most-played', title: 'Most played', tracks: [track('amber')] },
-    ] })
-    const featured = await screen.findByRole('region', { name: 'Featured' })
-    expect(within(featured).getByText('Jump back in')).toBeInTheDocument()
-    expect(within(featured).getByRole('heading', { name: 'Low Tide' })).toBeInTheDocument()
-    expect(screen.queryByText('Start listening')).toBeNull()
-  })
-
-  it('gives the featured title three balanced lines, which a narrow column needs for three words', async () => {
-    renderHome({ sections: [{ kind: 'albums', id: 'recently-played', title: 'Recently played', albums: [summary(album('low-tide'))] }] })
-    const title = within(await screen.findByRole('region', { name: 'Featured' })).getByRole('heading', { name: 'Low Tide' })
-    expect(title).toHaveClass('line-clamp-3', 'text-balance')
-    expect(title).not.toHaveClass('line-clamp-2')
-  })
-
-  it('leaves the featured album out of the rail it leads, keeping the server’s order', async () => {
+  it('shows every recently played album in its rail, in server order', async () => {
     renderHome(home)
-    const featured = await screen.findByRole('region', { name: 'Featured' })
     const played = home.sections[0]!
     if (played.kind !== 'albums') throw new Error('The fixture leads with recently played albums')
-    expect(within(featured).getByRole('heading', { name: played.albums[0]!.title })).toBeInTheDocument()
-    const rail = screen.getByRole('region', { name: played.title })
+    const rail = await screen.findByRole('region', { name: played.title })
     const cards = within(rail).getAllByRole('link').map(link => link.textContent)
-    expect(cards).toEqual(played.albums.slice(1).map(item => item.title))
-    const shown = screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent).filter(title => home.sections.some(section => section.title === title))
-    expect(shown).toEqual(home.sections.map(section => section.title))
+    expect(cards).toEqual(played.albums.map(item => item.title))
+    expect(screen.queryByRole('region', { name: 'Featured' })).toBeNull()
   })
 
-  it('leaves out a rail whose only album is the featured one', async () => {
+  it.each([
+    ['recently-played', 'Recently played'],
+    ['recently-added', 'Recently added'],
+  ])('keeps %s visible when it has only one album', async (id, title) => {
     renderHome({ sections: [
-      { kind: 'albums', id: 'recently-added', title: 'Recently added', albums: [summary(album('low-tide'))] },
+      { kind: 'albums', id, title, albums: [summary(album('low-tide'))] },
       { kind: 'tracks', id: 'most-played', title: 'Most played', tracks: [track('amber')] },
     ] })
-    const featured = await screen.findByRole('region', { name: 'Featured' })
-    expect(within(featured).getByText('Recently added')).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Recently added' })).toBeNull()
+    const rail = await screen.findByRole('region', { name: title })
+    expect(within(rail).getByRole('link', { name: 'Low Tide' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Most played' })).toBeInTheDocument()
+    expect(screen.queryByText('Start listening')).toBeNull()
   })
 
   it('points a requester at search when there is nothing yet', async () => {

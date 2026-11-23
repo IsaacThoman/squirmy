@@ -99,11 +99,9 @@ export function HomePage() {
   const scan = useScanProgress()
   // A failed refetch keeps the last answer on screen; only a first answer that failed replaces the page.
   if (home.error && !home.data) return <ErrorPage error={home.error} retrying={home.isFetching} onRetry={() => void home.refetch()} />
-  const { featured, sections } = featuring(home.data?.sections)
   return (
     <HomeView
-      featured={featured}
-      sections={sections}
+      sections={home.data?.sections}
       empty={Boolean(home.data) && home.data!.sections.every(isEmptySection)}
       canAddMusic={user.role === 'admin'}
       canFindMusic={canFetch(user)}
@@ -112,21 +110,6 @@ export function HomePage() {
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
     />
   )
-}
-
-/**
- * The album Home leads with: the one played last, else the one added last. It leaves the rail it
- * came from, which would otherwise start with it again, and the sections keep the server's order.
- */
-function featuring(sections: HomeSection[] | undefined) {
-  const source = ['recently-played', 'recently-added']
-    .map(id => sections?.find(section => section.id === id))
-    .find((section): section is Extract<HomeSection, { kind: 'albums' }> => section?.kind === 'albums' && section.albums.length > 0)
-  const album = source?.albums[0]
-  return {
-    featured: album ? { album, label: source!.id === 'recently-played' ? 'Jump back in' : 'Recently added' } as const : null,
-    sections: sections?.map(section => (section === source ? { ...section, albums: section.albums.slice(1) } : section)),
-  }
 }
 
 const isEmptySection = (section: HomeSection) => (
@@ -375,7 +358,6 @@ export function SearchPage() {
   }, [all, pages, filter, term, library.playlists])
 
   const choose = (item: SearchItem, items: readonly SearchItem[]) => {
-    if (term) recents.add({ type: 'query', query: term })
     recents.add(item)
     switch (item.type) {
       case 'artist': return void navigate(`/artist/${item.artist.id}`)
@@ -409,10 +391,6 @@ export function SearchPage() {
       genres={genres}
       onBrowseGenre={genre => void navigate(`/library?${new URLSearchParams({ filter: 'albums', genre })}`)}
       onChoose={choose}
-      onSearchRecent={q => {
-        setTyped(q)
-        show(q, filter)
-      }}
     />
   )
 }

@@ -95,7 +95,7 @@ export default function Player() {
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
-  const { current, track, actions, remote, output, session } = usePlaybackState();
+  const { current, track, actions, session } = usePlaybackState();
   const context = contextLabel(session.context);
   const loading = useLoading();
   const { setLiked } = useLibraryActions();
@@ -116,7 +116,7 @@ export default function Player() {
   const isFavorite = useLiked('track', track?.id, track?.liked);
   const heart = heartButton(isFavorite, track?.title ?? '', useLikeFailure('track', track?.id));
   const title = track?.title ?? (current ? '' : 'Not Playing');
-  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : remote ? `${track?.artistCredit ?? ''} · ${output.name}` : track?.artistCredit ?? '';
+  const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : track?.artistCredit ?? '';
   // What playback has to say (a skipped song, a pause the server caused) takes the artist's
   // lines for a while, in the room `metadataHeight` keeps for two: its quieter detail goes on the second.
   const status = usePlaybackStatus();
@@ -632,8 +632,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
             onPress={() => onToggle('lyrics')} />
         </View>
         <View style={styles.output}>
-          {/* Detached, the device slot says so: the same place "Playing on …" names a remote. */}
-          <DeviceButton icon={detached ? DETACHED_SYMBOL : output.icon} name={detached ? DETACHED_LABEL : output.name}
+          <DeviceButton highlighted={remote || detached} icon={detached ? DETACHED_SYMBOL : output.icon} name={detached ? DETACHED_LABEL : output.name}
             onPress={() => { selectionFeedback(); onDevices(); }} />
         </View>
         <View style={styles.footerSide}>
@@ -676,7 +675,6 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: colors.text },
   compactTitle: { fontSize: 25 },
   artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
-  // The same color as "Only on this device", the mini player's other status.
   status: { color: colors.accent, fontWeight: '600' },
   statusDetail: { color: colors.muted, fontWeight: '500' },
   lyricPage: { flex: 1, paddingHorizontal: 25 },

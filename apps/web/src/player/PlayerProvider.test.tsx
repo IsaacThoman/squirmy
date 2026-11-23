@@ -105,7 +105,8 @@ describe('PlayerProvider', () => {
     // A card's Play whose album does not load says so where playback is told.
     api.catalog.album.mockRejectedValue(new ApiError(503, 'unavailable', 'The server is busy.'))
     await userEvent.click(screen.getByRole('link', { name: 'Home' }))
-    const card = (await screen.findAllByRole('button', { name: /^Play / })).find(button => button.closest('[class*="group/card"]'))!
+    // Not Blue Hour, which just played: its album is already loaded.
+    const card = (await screen.findAllByRole('button', { name: /^Play / })).find(button => button.closest('[class*="group/card"]') && button.getAttribute('aria-label') !== 'Play Blue Hour')!
     await userEvent.click(card)
     const player = screen.getByRole('region', { name: 'Player' })
     expect(await within(player).findByText(/^Couldn’t play “.+”\. /)).toBeInTheDocument()

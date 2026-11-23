@@ -636,7 +636,8 @@ describe('AppShell', () => {
 
     it('adds no bar over a page that has its own header bar', async () => {
       stubViewport(true)
-      await renderShell('/library')
+      // Search keeps its field in the header on a phone; a title-only header leaves no bar.
+      await renderShell('/search')
       const main = screen.getByRole('main')
       await waitFor(() => expect(main.querySelector('[data-page-header]')).not.toBeNull())
       main.scrollTop = 300
@@ -808,6 +809,10 @@ describe('AppShell', () => {
           <button type="button" onClick={() => void navigate('/library?filter=albums')}>to library</button>
           <button type="button" onClick={() => void navigate('/search')}>to search</button>
           <button type="button" onClick={() => void navigate('/search?q=soft', { replace: true })}>type a search</button>
+          <button type="button" onClick={() => void navigate('/search?q=soft&type=artist', { replace: true })}>filter search</button>
+          <button type="button" onClick={() => void navigate('/artist/00000000-0000-4000-8100-000000000001')}>to artist</button>
+          <button type="button" onClick={() => void navigate(`/album/${album('blue-hour').id}`)}>to album</button>
+          <button type="button" onClick={() => void navigate(1)}>forward</button>
           <button type="button" onClick={() => void navigate(-1)}>back</button>
         </>
       )
@@ -845,6 +850,27 @@ describe('AppShell', () => {
       go('back')
       await waitFor(() => expect(where()).toBe('/search?q=soft'))
       await waitFor(() => expect(scroll.top).toBe(550))
+    })
+
+    it('takes a breadcrumb back to the artist, then to the filtered search at its scroll position', async () => {
+      renderWithApp(<><AppRoutes /><Where /><Nav /></>, '/search', fakeServices().services)
+      const scroll = stubScroll(await screen.findByRole('main', { hidden: true }))
+      go('filter search')
+      scroll.scrollTo(550)
+      go('to artist')
+      go('to album')
+      go('Back to artist')
+      expect(where()).toBe('/artist/00000000-0000-4000-8100-000000000001')
+      go('Back to Search')
+      expect(where()).toBe('/search?q=soft&type=artist')
+      await waitFor(() => expect(scroll.top).toBe(550))
+      go('forward')
+      expect(screen.getByRole('button', { name: 'Back to Search' })).toBeInTheDocument()
+    })
+
+    it('leaves the breadcrumb out of a directly opened album', async () => {
+      await renderShell(`/album/${album('blue-hour').id}`)
+      expect(screen.queryByRole('navigation', { name: 'Back navigation' })).toBeNull()
     })
 
     it('waits for a page to grow tall enough before giving up on its place', async () => {

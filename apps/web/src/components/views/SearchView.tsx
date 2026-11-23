@@ -1,7 +1,7 @@
-import { recentSearchKey, searchItemKey, tooShortToSearch, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core'
+import { searchItemKey, tooShortToSearch, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core'
 import type { TrackSummary } from '@squirmy/contracts'
-import { Clock3, MoreHorizontal, Play, RotateCw, Search, X } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { MoreHorizontal, Play, RotateCw, Search, X } from 'lucide-react'
+import { useEffect, useId, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Page, PageHeader } from '@/components/layout/Page'
 import { GenreTile } from '@/components/music/Cards'
@@ -66,11 +66,9 @@ type SearchViewProps = {
   onBrowseGenre: (genre: string) => void
   /** Opens an artist, album or playlist; plays a song (with the songs listed after it), or opens the album of one that does not play. */
   onChoose: (item: SearchItem, list: readonly SearchItem[]) => void
-  onSearchRecent: (query: string) => void
 }
 
-/** How many recent searches and recently viewed results the page offers. */
-const RECENT_QUERIES = 6
+/** How many recently viewed results the page offers. */
 const RECENT_ITEMS = 10
 
 /** A row's own control (the link or button that opens or plays it), which the arrow keys move between. */
@@ -84,16 +82,15 @@ const rowControls = (root: HTMLElement | null) => [...(root?.querySelectorAll<HT
  * fetch look the same; what does not play is gray. Enter in the field opens or plays the best
  * match; the arrow keys move from the field down through the rows (and back up to it), each
  * row a link or button of its own beside its heart and menu. With nothing typed it offers
- * recent searches, recently viewed results and genres, or says what to do.
+ * recently viewed results and genres, or says what to do.
  */
 export function SearchView(props: SearchViewProps) {
-  const { query, onQueryChange, filter, onFilterChange, list, recents, onRemoveRecent, onClearRecents, genres, onBrowseGenre, onChoose, onSearchRecent } = props
+  const { query, onQueryChange, filter, onFilterChange, list, recents, onRemoveRecent, onClearRecents, genres, onBrowseGenre, onChoose } = props
   const term = query.trim()
   const fieldId = useId()
   const rows = useRef<HTMLDivElement>(null)
-  const recentQueries = useMemo(() => recents.filter(entry => entry.type === 'query').slice(0, RECENT_QUERIES), [recents])
-  const recentItems = useMemo(() => recents.filter((entry): entry is Exclude<RecentSearch, { type: 'query' }> => entry.type !== 'query').slice(0, RECENT_ITEMS), [recents])
-  const hasRecents = recentQueries.length > 0 || recentItems.length > 0
+  const recentItems = useMemo(() => recents.slice(0, RECENT_ITEMS), [recents])
+  const hasRecents = recentItems.length > 0
 
   const onFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
@@ -147,10 +144,8 @@ export function SearchView(props: SearchViewProps) {
               <Results term={term} filter={filter} list={list} onChoose={onChoose} />
             </>
           ) : hasRecents && (
-            <Recents
-              queries={recentQueries}
+            <RecentlyViewed
               items={recentItems}
-              onSearch={onSearchRecent}
               onChoose={item => onChoose(item, [item])}
               onRemove={onRemoveRecent}
               onClear={onClearRecents}
@@ -409,56 +404,35 @@ function MoreResults({ loading, onEndReached }: { loading: boolean; onEndReached
   )
 }
 
-type RecentsProps = {
-  queries: Extract<RecentSearch, { type: 'query' }>[]
-  items: Exclude<RecentSearch, { type: 'query' }>[]
-  onSearch: (query: string) => void
+type RecentlyViewedProps = {
+  items: RecentSearch[]
   onChoose: (item: SearchItem) => void
   onRemove: (key: string) => void
   onClear: () => void
 }
 
-/** Recent searches and recently viewed results, each removable, with one button that clears them all. */
-function Recents({ queries, items, onSearch, onChoose, onRemove, onClear }: RecentsProps) {
+/** Recently viewed results, each removable, with one button that clears them all. */
+function RecentlyViewed({ items, onChoose, onRemove, onClear }: RecentlyViewedProps) {
   const viewer = useViewer()
-  const row = (entry: RecentSearch, body: ReactNode, onSelect: () => void, label: string, name: string) => {
-    const key = recentSearchKey(entry)
-    return (
-      <li key={key} className={cn('group/row relative h-12', searchRowClass(false, false), focusedRow)}>
-        {body}
-        <button type="button" data-search-row="" aria-label={label} onClick={onSelect} className="absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-        <IconButton label={`Remove ${name} from recent searches`} tooltip={false} size="sm" onClick={() => onRemove(key)} className={cn('relative z-10 pointer-coarse:size-11', revealed)}>
-          <X />
-        </IconButton>
-      </li>
-    )
-  }
   return (
     <section aria-labelledby="search-recent" className="max-w-4xl">
-      <SectionHeader id="search-recent" title="Recent searches" action={<Button variant="ghost" size="sm" onClick={onClear}>Clear all</Button>} />
-      {queries.length > 0 && (
-        <ol aria-labelledby="search-recent" className="-mx-2.5 flex flex-col">
-          {queries.map(entry => row(
-            entry,
-            <SearchRowBody strong={false} art={<span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"><Clock3 aria-hidden className="size-4" /></span>} title={entry.query} />,
-            () => onSearch(entry.query),
-            entry.query,
-            entry.query,
-          ))}
-        </ol>
-      )}
-      {items.length > 0 && (
-        <>
-          <h3 id="search-viewed" className="pb-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Recently viewed</h3>
-          <ol aria-labelledby="search-viewed" className="-mx-2.5 flex flex-col">
-            {items.map(entry => {
-              const { title, detail } = searchItemText(entry)
-              const dimmed = entry.type === 'track' ? !isPlayable(entry.track, viewer) : entry.type === 'album' ? albumPresentation(entry.album, viewer) === 'dimmed' : false
-              return row(entry, <SearchRowBody art={<SearchItemArt item={entry} dimmed={dimmed} className="size-9" />} title={title} detail={detail} dimmed={dimmed} />, () => onChoose(entry), `${title}, ${detail}`, title)
-            })}
-          </ol>
-        </>
-      )}
+      <SectionHeader id="search-recent" title="Recently viewed" action={<Button aria-label="Clear all recently viewed" variant="ghost" size="sm" onClick={onClear}>Clear all</Button>} />
+      <ol aria-labelledby="search-recent" className="-mx-2.5 flex flex-col">
+        {items.map(entry => {
+          const key = searchItemKey(entry)
+          const { title, detail } = searchItemText(entry)
+          const dimmed = entry.type === 'track' ? !isPlayable(entry.track, viewer) : entry.type === 'album' ? albumPresentation(entry.album, viewer) === 'dimmed' : false
+          return (
+            <li key={key} className={cn('group/row relative h-12', searchRowClass(false, false), focusedRow)}>
+              <SearchRowBody art={<SearchItemArt item={entry} dimmed={dimmed} className="size-9" />} title={title} detail={detail} dimmed={dimmed} />
+              <button type="button" data-search-row="" aria-label={`${title}, ${detail}`} onClick={() => onChoose(entry)} className="absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+              <IconButton label={`Remove ${title} from recently viewed`} tooltip={false} size="sm" onClick={() => onRemove(key)} className={cn('relative z-10 pointer-coarse:size-11', revealed)}>
+                <X />
+              </IconButton>
+            </li>
+          )
+        })}
+      </ol>
     </section>
   )
 }
