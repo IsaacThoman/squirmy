@@ -261,10 +261,16 @@ export async function upsertRelease(tx: Transaction, release: MbRelease, adoptio
         updatedAt: now,
       }
       let recordingId = await byMbid(tx, recordings, mb.mbid)
+      // The row with this MBID may have been merged into another recording of the same song
+      // (a track with no file of its own into the copy another release holds). That row keeps
+      // its own MBID and title; it only learns this recording's ISRCs.
+      const [own] = recordingId ? await tx.select({ id: recordings.id }).from(recordings).where(eq(recordings.mbid, mb.mbid)) : []
+      const redirected = Boolean(recordingId && own && own.id !== recordingId)
       if (recordingId) {
         if (local) await mergeRecording(local.id, recordingId, tx)
         const [existing] = await tx.select({ isrcs: recordings.isrcs }).from(recordings).where(eq(recordings.id, recordingId))
-        await tx.update(recordings).set({ ...values, isrcs: [...new Set([...existing!.isrcs, ...mb.isrcs])] }).where(eq(recordings.id, recordingId))
+        const isrcs = [...new Set([...existing!.isrcs, ...mb.isrcs])]
+        await tx.update(recordings).set(redirected ? { isrcs, updatedAt: now } : { ...values, isrcs }).where(eq(recordings.id, recordingId))
       } else if (local) {
         recordingId = local.id
         await tx.update(recordings).set({ ...values, isrcs: [...new Set([...local.isrcs, ...mb.isrcs])] }).where(eq(recordings.id, recordingId))
@@ -272,7 +278,7 @@ export async function upsertRelease(tx: Transaction, release: MbRelease, adoptio
         await tx.insert(recordings).values({ id: newId(), ...values, isrcs: mb.isrcs }).onConflictDoNothing()
         recordingId = (await byMbid(tx, recordings, mb.mbid))!
       }
-      await replaceCredits(tx, recordingArtists, recordingId, mb.artistCredit, artistIds)
+      if (!redirected) await replaceCredits(tx, recordingArtists, recordingId, mb.artistCredit, artistIds)
 
       const trackValues = {
         mbid: track.mbid,
