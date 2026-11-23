@@ -176,6 +176,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
       stale={search.stale}
       loading={typed.length > 0 && !search.failed && (!search.results || search.stale || search.catalogPending)}
       failed={search.failed}
+      catalogFailed={search.catalogFailed}
       onRetry={search.retry}
       destinations={destinations}
       canPlay={track => isPlayable(track, viewer)}

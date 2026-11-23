@@ -173,6 +173,32 @@ describe('SearchDialog', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
+  it('says when the catalog could not be searched, beside what the server found', async () => {
+    const onRetry = vi.fn()
+    renderDialog({ query: 'night', results: found, catalogFailed: true, onRetry })
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t search the catalog. Only music on this server is listed.')
+    expectOptions(inOrder)
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
+  it('says the catalog could not be searched rather than “No results” when the server has nothing either', () => {
+    renderDialog({ query: 'pale meridian', results: mergeSearch({ artists: [], albums: [], tracks: [], provider: null }, null, requester), catalogFailed: true, onRetry: () => {} })
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t search the catalog')
+    expect(screen.getByText('Nothing on this server matches “pale meridian”.')).toBeInTheDocument()
+    expect(screen.queryByText(/No results/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the way to all results below the scrolling results, so a short window never hides it', () => {
+    renderDialog({ query: 'a', results: many })
+    const seeAll = options().at(-1)!
+    expect(seeAll).toHaveAccessibleName('See all results for “a”')
+    const scroller = options()[0].closest('.overflow-y-auto')
+    expect(scroller).not.toBeNull()
+    expect(scroller).not.toContainElement(seeAll)
+    expect(screen.getByRole('listbox', { name: 'Results' })).toContainElement(seeAll)
+  })
+
   it('does not say it is searching once the answer is in', () => {
     renderDialog({ query: 'night', results: found })
     expect(screen.queryByRole('status', { name: 'Searching' })).not.toBeInTheDocument()
