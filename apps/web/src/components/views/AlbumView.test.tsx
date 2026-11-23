@@ -105,6 +105,52 @@ describe('album page', () => {
       expect(await screen.findByRole('button', { name: 'Save to library' })).toBeInTheDocument()
     })
 
+    // Regression: the optimistic save reached the heart through the query cache a timer later, so
+    // a check right after the click (the providers e2e script) saw it empty, and the first frame
+    // after a click showed the old heart. Only microtasks run between the click and the check:
+    // what a browser finishes before it paints.
+    it('fills the heart before any timer runs after the click', async () => {
+      const { services, api } = fakeServices()
+      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      fireEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
+      await act(() => Promise.resolve())
+      expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+      // And it stays filled once the cache has the save.
+      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
+      await waitFor(() => expect(api.userdata.like).toHaveBeenCalledWith('album', lowTide.id))
+      expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Remove from library' }))
+      await act(() => Promise.resolve())
+      expect(screen.getByRole('button', { name: 'Save to library' })).toBeInTheDocument()
+    })
+
+    // Regression: an album page re-reads itself while its songs arrive; an answer sent before the
+    // click landed after the optimistic save and emptied the heart until the next refetch.
+    it('keeps the heart filled when a read sent before the click answers after it', async () => {
+      const { services, api } = fakeServices()
+      const { queryClient } = renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      const save = await screen.findByRole('button', { name: 'Save to library' })
+      let answer: ((value: AlbumDetail) => void) | undefined
+      api.catalog.album.mockImplementationOnce(() => new Promise<AlbumDetail>(resolve => { answer = resolve }))
+      void queryClient.refetchQueries({ predicate: query => query.queryKey.includes(lowTide.id) })
+      await waitFor(() => expect(answer).toBeDefined())
+      fireEvent.click(save)
+      await act(() => Promise.resolve())
+      expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+      await act(async () => answer!({ ...lowTide, liked: false }))
+      expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+    })
+
+    it('empties a heart filled at once when the server refuses', async () => {
+      const { services, api } = fakeServices()
+      api.userdata.like.mockRejectedValueOnce(new Error('No'))
+      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      fireEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
+      await act(() => Promise.resolve())
+      expect(await screen.findByText('Couldn’t save to your library')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Save to library' })).toBeInTheDocument()
+    })
+
     it('puts the heart back when the server refuses, and replaces the toast with one that says so', async () => {
       const { services, api } = fakeServices()
       api.userdata.like.mockRejectedValueOnce(new Error('No'))
@@ -156,9 +202,26 @@ describe('album page', () => {
       await userEvent.click(await screen.findByRole('button', { name: 'Open Now Playing' }))
       const nowPlaying = await screen.findByRole('dialog', { name: 'Now Playing' })
       expect(within(nowPlaying).queryByRole('button', { name: /Add to library/ })).toBeNull()
-      await userEvent.click(within(nowPlaying).getByRole('button', { name: 'Save to library' }))
-      expect(api.userdata.like).toHaveBeenCalledWith('track', lowTide.discs[0].tracks[0].id)
-      expect(within(nowPlaying).getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+      const song = lowTide.discs[0].tracks[0]
+      await userEvent.click(within(nowPlaying).getByRole('button', { name: `Save ${song.title} to library` }))
+      expect(api.userdata.like).toHaveBeenCalledWith('track', song.id)
+      expect(within(nowPlaying).getByRole('button', { name: `Remove ${song.title} from library` })).toBeInTheDocument()
+    })
+
+    // Regression: the player bar's heart was also named "Save to library", so with a song playing
+    // the album page had two of them, and the first (the song's) was taken for the album's: the
+    // providers e2e script saved the song, and the album was never saved or fetched.
+    it('has one Save to library while a song plays, the album\'s, and it saves the album', async () => {
+      const { services, api } = fakeServices()
+      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      await userEvent.click((await screen.findAllByRole('button', { name: 'Play Low Tide' }))[0]!)
+      const player = await screen.findByRole('region', { name: 'Player' })
+      const song = lowTide.discs[0].tracks[0]
+      expect(await within(player).findByRole('button', { name: `Save ${song.title} to library` })).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: 'Save to library' })).toHaveLength(1)
+      await userEvent.click(screen.getByRole('button', { name: 'Save to library' }))
+      await waitFor(() => expect(api.userdata.like).toHaveBeenCalledWith('album', lowTide.id))
+      expect(api.userdata.like).not.toHaveBeenCalledWith('track', expect.anything())
     })
 
     it('shows the viewer’s own save on music on this server, never hiding the heart', async () => {
