@@ -29,7 +29,12 @@ export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 
 export type PlaylistChoice = { id: string; name: string }
 
 /** What is playing, so the list can mark its row. `loading`: its music is on its way (a fetch looks like buffering). */
-export type NowPlaying = { trackId: string; playing: boolean; loading: boolean; onTogglePlay: () => void }
+/**
+ * The session's current entry, for the row that shows it. `failed`: its music could not be
+ * had, so that row is unavailable rather than current, before the track's own availability
+ * reaches the list.
+ */
+export type NowPlaying = { trackId: string; playing: boolean; loading: boolean; failed?: boolean; onTogglePlay: () => void }
 
 /**
  * - `album`: track numbers, no artwork, and the artists only on songs whose credit differs from
@@ -117,8 +122,9 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const navigate = useNavigate()
   const viewer = useViewer()
   const { liked } = track
-  const unavailable = !isPlayable(track, viewer)
-  const current = nowPlaying?.trackId === track.id
+  const failed = nowPlaying?.trackId === track.id && nowPlaying.failed === true
+  const unavailable = failed || !isPlayable(track, viewer)
+  const current = nowPlaying?.trackId === track.id && !failed
   const playing = current && nowPlaying.playing
   const loading = current && nowPlaying.loading
   const play = current ? nowPlaying.onTogglePlay : onPlay

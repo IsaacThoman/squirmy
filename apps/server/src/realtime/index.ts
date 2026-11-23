@@ -1,5 +1,5 @@
 import { fastifyCookie } from '@fastify/cookie'
-import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TIMEOUT_MS, type ServerEvent } from '@squirmy/contracts'
+import { changedEntityKey, HEARTBEAT_INTERVAL_MS, HEARTBEAT_TIMEOUT_MS, type EntityChange, type ServerEvent } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { Server } from 'socket.io'
 import { devOrigins, getConfig } from '../config.js'
@@ -19,6 +19,7 @@ type Targets = RealtimeTarget | readonly RealtimeTarget[]
 type Message =
   | { kind: 'event'; target: Targets; event: ServerEvent }
   | { kind: 'invalidate'; target: Targets; keys: QueryKey[] }
+  | { kind: 'changes'; target: Targets; changes: EntityChange[] }
   | { kind: 'disconnect'; userId: string; only?: string; except?: string }
 
 const channel = 'squirmy_events'
@@ -59,6 +60,69 @@ export async function invalidate(target: Targets, keys: readonly QueryKey[]) {
     size += keySize
   }
   if (batch.length > 0) await notify({ kind: 'invalidate', target, keys: batch })
+}
+
+/**
+ * The roots of the cached reads a change makes stale. Availability and per-viewer fields
+ * show on every page and list that lists tracks or albums; an entity's own page is enough
+ * for the rest.
+ */
+export function changeKeys(changes: readonly EntityChange[]): QueryKey[] {
+  const keys = new Map<string, QueryKey>()
+  const add = (key: QueryKey) => keys.set(JSON.stringify(key), key)
+  for (const change of changes) {
+    if (change.kind === 'availability' || change.kind === 'patch') {
+      for (const root of ['home', 'library', 'album', 'artist', 'track', 'likes', 'playlists', 'history', 'wants']) add([root])
+    } else {
+      for (const id of change.ids) add(changedEntityKey(change.entity, id))
+      if (change.entity === 'playlist') add(['playlists'])
+    }
+  }
+  return [...keys.values()]
+}
+
+/** A change cut into parts that each fit in a notification with room to spare. */
+function splitChange(change: EntityChange): EntityChange[] {
+  const per = 40
+  if (change.kind === 'availability') {
+    const parts: EntityChange[] = []
+    for (let start = 0; start < Math.max(change.tracks.length, change.albums.length); start += per) {
+      parts.push({ kind: 'availability', tracks: change.tracks.slice(start, start + per), albums: change.albums.slice(start, start + per) })
+    }
+    return parts
+  }
+  if (change.kind === 'updated' || change.kind === 'deleted') {
+    const parts: EntityChange[] = []
+    for (let start = 0; start < change.ids.length; start += per * 2) parts.push({ ...change, ids: change.ids.slice(start, start + per * 2) })
+    return parts
+  }
+  return [change]
+}
+
+/**
+ * Tells the target's clients what changed about entities, so they patch or refetch only
+ * what shows them (see `EntityChange`). Drops the API's cached reads the same way
+ * `invalidate` does. Works from any process.
+ */
+export async function publishChanges(target: Targets, changes: readonly EntityChange[]) {
+  const parts = changes.flatMap(splitChange).filter((change) => change.kind !== 'availability' || change.tracks.length + change.albums.length > 0)
+    .filter((change) => (change.kind !== 'updated' && change.kind !== 'deleted') || change.ids.length > 0)
+  if (parts.length === 0) return
+  dropCachedReads(target, changeKeys(parts))
+  const base = Buffer.byteLength(JSON.stringify({ kind: 'changes', target, changes: [] }))
+  let batch: EntityChange[] = []
+  let size = base
+  for (const change of parts) {
+    const changeSize = Buffer.byteLength(JSON.stringify(change)) + 1
+    if (batch.length > 0 && size + changeSize > maxPayloadBytes) {
+      await notify({ kind: 'changes', target, changes: batch })
+      batch = []
+      size = base
+    }
+    batch.push(change)
+    size += changeSize
+  }
+  if (batch.length > 0) await notify({ kind: 'changes', target, changes: batch })
 }
 
 /**
@@ -105,6 +169,7 @@ function audience(io: RealtimeServer, target: Targets) {
 function deliver(io: RealtimeServer, message: Message) {
   // Before the clients hear of it, so their refetch cannot be answered from the cache.
   if (message.kind === 'invalidate') dropCachedReads(message.target, message.keys)
+  if (message.kind === 'changes') dropCachedReads(message.target, changeKeys(message.changes))
   if (message.kind === 'disconnect') {
     for (const socket of io.of('/').sockets.values()) {
       const { userId, authSessionId } = socket.data
@@ -117,6 +182,7 @@ function deliver(io: RealtimeServer, message: Message) {
   }
   const sockets = audience(io, message.target)
   if (message.kind === 'event') sockets.emit('event', message.event)
+  else if (message.kind === 'changes') sockets.emit('changes', { changes: message.changes })
   else sockets.emit('invalidate', { keys: message.keys })
 }
 

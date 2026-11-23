@@ -65,6 +65,18 @@ describe('search page', () => {
     expect(await screen.findByRole('button', { name: `Play ${songs[0]}` })).toBeInTheDocument()
   })
 
+  it('saves an album or an artist to the library from its row\'s menu, as the heart does', async () => {
+    const { services, api } = fakeServices()
+    renderWithApp(<AppRoutes />, '/search?q=blue%20hour', services)
+    await results()
+    const row = screen.getAllByRole('option').find(option => option.textContent?.startsWith('Blue Hour'))!
+    await userEvent.click(within(row).getByRole('button', { name: 'More options for Blue Hour' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Save to library' }))
+    await waitFor(() => expect(api.userdata.like).toHaveBeenCalled())
+    await userEvent.click(within(row).getByRole('button', { name: 'More options for Blue Hour' }))
+    expect(await screen.findByRole('menuitem', { name: 'Remove from library' })).toBeInTheDocument()
+  })
+
   it('opens the best match with Enter, or the row picked with the arrow keys', async () => {
     renderWithApp(<><AppRoutes /><Where /></>, '/search?q=mira%20vale')
     await results()
@@ -218,7 +230,7 @@ describe('search page', () => {
     await results()
     await userEvent.click(await screen.findByRole('link', { name: 'Mira Vale, Artist' }))
     await screen.findByRole('heading', { level: 1, name: 'Mira Vale' })
-    expect(JSON.parse(localStorage.getItem(recentKey)!)).toEqual([{ type: 'artist', artist: artists[0] }, { type: 'query', query: 'mira vale' }])
+    expect(JSON.parse(localStorage.getItem(recentKey)!)).toEqual([{ type: 'artist', artist: { ...artists[0], liked: false } }, { type: 'query', query: 'mira vale' }])
   })
 
   it('removes recent searches one by one or all at once, and searches one again', async () => {

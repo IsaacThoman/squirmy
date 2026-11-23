@@ -346,8 +346,9 @@ function ResultRow({ id, item, active, stale, onChoose, trackMenu, resultMenu, o
           <SearchItemArt item={item} dimmed={dimmed} className="size-10" />
           {track && !unavailable && (
             // Over a song's cover: the playing marker, the buffering spinner, or a play button on hover.
-            <div aria-hidden className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] text-white transition-colors', current ? 'bg-black/50' : 'opacity-0 group-hover/row:bg-black/50 group-hover/row:opacity-100')}>
-              {loading ? <Spinner label={null} className="size-4 text-white" />
+            // The markers are decoration, but music on its way is said, as a track row's spinner is.
+            <div aria-hidden={!loading || undefined} className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] text-white transition-colors', current ? 'bg-black/50' : 'opacity-0 group-hover/row:bg-black/50 group-hover/row:opacity-100')}>
+              {loading ? <Spinner label="Loading" className="size-4 text-white" />
                 : current ? (playing ? <Equalizer playing className="text-white" /> : <Play className="size-3.5" fill="currentColor" />)
                   : <Play className="size-3.5" fill="currentColor" />}
             </div>

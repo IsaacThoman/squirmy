@@ -439,7 +439,12 @@ export function searchFixtures(query: string) {
 /** One page of a search answer, as the server pages a filter: one kind, after `offset`. */
 export function searchPage(answer: SearchResults, { type, offset = 0, limit = 20 }: { type?: SearchKind; offset?: number; limit?: number }): SearchResults {
   const page = <T,>(kind: SearchKind, items: T[]) => (type && type !== kind ? [] : items.slice(offset, offset + limit))
-  const lists = { artists: page('artist', answer.artists), albums: page('album', answer.albums), tracks: page('track', answer.tracks) }
+  // The server says which albums and artists the viewer saved, for their rows' menus.
+  const lists = {
+    artists: page('artist', answer.artists).map(artist => ({ ...artist, liked: artist.liked ?? false })),
+    albums: page('album', answer.albums).map(album => ({ ...album, liked: album.liked ?? false })),
+    tracks: page('track', answer.tracks),
+  }
   const ids = new Set([...lists.artists, ...lists.albums, ...lists.tracks].map(item => item.id))
   return { ...answer, ...lists, top: type || offset ? null : answer.top, ranked: answer.ranked?.filter(entry => ids.has(entry.id)) }
 }

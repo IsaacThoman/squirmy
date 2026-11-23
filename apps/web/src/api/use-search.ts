@@ -66,8 +66,10 @@ export function useMergedSearch(typed: string, { catalog: withCatalog = true, pl
   const term = typed.trim()
   // What is in the field when the page opens is asked at once: answers already cached (Back to
   // the search page) then show on the first frame instead of after the debounce.
-  const library = useAnswer('library', useDebounced(term, 60, term))
-  const catalog = useAnswer('catalog', useDebounced(withCatalog ? term : '', 250, withCatalog ? term : ''))
+  // What is typed settles before it is trimmed: a space just typed means more is coming, so
+  // "blue " does not ask for "blue" on the way to "blue hour".
+  const library = useAnswer('library', useDebounced(typed, 60, typed).trim())
+  const catalog = useAnswer('catalog', useDebounced(withCatalog ? typed : '', 250, withCatalog ? typed : '').trim())
 
   const exactLibrary = library.answer?.term === term ? library.answer : null
   const exactCatalog = withCatalog && catalog.answer?.term === term ? catalog.answer : null
@@ -144,7 +146,7 @@ const listOf = (answer: SearchResults | null, kind: SearchKind) =>
 export function useSearchPages(typed: string, kind: SearchKind | null) {
   const api = useApi()
   const viewer = useViewer()
-  const term = useDebounced(typed.trim(), 250, typed.trim())
+  const term = useDebounced(typed, 250, typed).trim()
   const query = useInfiniteQuery({
     queryKey: [...queryKeys.search(), 'pages', kind, term],
     enabled: kind !== null && term.length > 0,

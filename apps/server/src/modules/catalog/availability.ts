@@ -18,7 +18,7 @@
  * provider delivered) plus what that user saved with the heart (`likes`). A file fetched for
  * playing is cache, so it makes a track `server` without putting anything in a library.
  */
-import type { AlbumAvailability, TrackAvailability } from '@squirmy/contracts'
+import { INCOMING_FOLDER, type AlbumAvailability, type TrackAvailability } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { albumCoveredWithoutTracks, onDemandRecordings } from '../acquisition/coverage.js'
@@ -32,6 +32,75 @@ export function recordingOwned(recordingId: string): SQL {
 /** SQL condition: the file (alias) is part of the collection: present and not delivered by a provider. */
 export function collectionFile(alias: string): SQL {
   return sql.raw(`(${alias}.missing_since is null and not ${alias}.cached)`)
+}
+
+/**
+ * Whether a collection file is linked to any of the albums, so their changes move every
+ * user's library. Files still in an import's incoming folder do not count: until the import
+ * marks them, a provider's delivery looks like the collection, and a finished import
+ * announces the library's lists itself.
+ */
+export async function holdsCollection(albumIds: readonly string[]): Promise<boolean> {
+  if (albumIds.length === 0) return false
+  const [row] = await db.execute<{ held: boolean }>(sql`
+    select exists (
+      select 1 from media_files f
+      where f.album_id = any(${uuidArray([...new Set(albumIds)])}) and ${collectionFile('f')} and not starts_with(f.rel_path, ${`${INCOMING_FOLDER}/`})
+    ) as held`)
+  return Boolean(row?.held)
+}
+
+/**
+ * The users who saved (hearted) any of the albums or recordings. A cached file arriving at or leaving
+ * one of these changes their library's songs (songs of a saved album show as their files
+ * arrive, and a saved song takes its place in the year order from its file), and nobody
+ * else's library.
+ */
+export async function saversOf(albumIds: readonly string[], recordingIds: readonly string[]): Promise<string[]> {
+  if (albumIds.length + recordingIds.length === 0) return []
+  const rows = await db.execute<{ userId: string }>(sql`
+    select distinct user_id as "userId" from likes
+    where (entity_type = 'album' and entity_id = any(${uuidArray([...new Set(albumIds)])}))
+      or (entity_type = 'recording' and entity_id = any(${uuidArray([...new Set(recordingIds)])}))`)
+  return rows.map((row) => row.userId)
+}
+
+export type Membership = {
+  /** Album pages' `library`: `collection` wins over a save. */
+  albums: Map<string, 'collection' | 'saved' | null>
+  /** `TrackSummary.library` (in the library when not null). */
+  recordings: Map<string, 'collection' | 'album' | 'saved' | null>
+  /** `ArtistSummary.inLibrary`: saved, or credited on an album in the library. */
+  artists: Map<string, boolean>
+}
+
+/**
+ * The user's membership of these entities as their summaries and pages say it, for telling
+ * the user's devices what a save changed without them fetching the pages again.
+ */
+export async function membership(userId: string, ids: { albums?: readonly string[]; recordings?: readonly string[]; artists?: readonly string[] }): Promise<Membership> {
+  const albums = [...new Set(ids.albums ?? [])]
+  const recordings = [...new Set(ids.recordings ?? [])]
+  const artists = [...new Set(ids.artists ?? [])]
+  const [albumRows, recordingRows, artistRows] = await Promise.all([
+    albums.length === 0 ? [] : db.execute<{ id: string; library: 'collection' | 'saved' | null }>(sql`
+      select a.id, case
+        when exists (select 1 from media_files f where f.album_id = a.id and ${collectionFile('f')}) then 'collection'
+        when ${saved('album', 'a.id', userId)} then 'saved'
+      end as library
+      from albums a where a.id = any(${uuidArray(albums)})`),
+    recordings.length === 0 ? [] : db.execute<{ id: string; library: 'collection' | 'album' | 'saved' | null }>(sql`
+      select r.id, ${recordingLibrary('r.id', userId)} as library from recordings r where r.id = any(${uuidArray(recordings)})`),
+    artists.length === 0 ? [] : db.execute<{ id: string; inLibrary: boolean }>(sql`
+      select ar.id, (${saved('artist', 'ar.id', userId)}
+        or exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${inLibraryAlbum('aa.album_id', userId)})) as "inLibrary"
+      from artists ar where ar.id = any(${uuidArray(artists)})`),
+  ])
+  return {
+    albums: new Map(albumRows.map((row) => [row.id, row.library])),
+    recordings: new Map(recordingRows.map((row) => [row.id, row.library])),
+    artists: new Map(artistRows.map((row) => [row.id, row.inLibrary])),
+  }
 }
 
 /** SQL condition: the user saved (hearted) the entity (expression). */

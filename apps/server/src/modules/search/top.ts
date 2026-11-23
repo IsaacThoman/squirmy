@@ -43,6 +43,8 @@ type SignalOptions = {
 export async function searchSignals(found: Found, options: SignalOptions = {}): Promise<RankSignals> {
   const trackIds = found.tracks.map((track) => track.id)
   const allIds = [...found.artists, ...found.albums, ...found.tracks].map((item) => item.id)
+  // Songs always say whether they are liked; albums and artists do once `withLiked` marked them.
+  const unknownLikes = [...found.artists, ...found.albums].filter((item) => item.liked === undefined).map((item) => item.id)
   const userId = options.userId ?? null
   const [stored, played, likedRows] = await Promise.all([
     trackIds.length > 0
@@ -58,8 +60,8 @@ export async function searchSignals(found: Found, options: SignalOptions = {}): 
           select ra.artist_id, count(*)::int from recent r join recording_artists ra on ra.recording_id = r.recording_id
           where ra.artist_id = any(${uuidArray(found.artists.map((artist) => artist.id))}) group by 1`)
       : [],
-    userId && allIds.length > 0
-      ? db.execute<{ id: string }>(sql`select entity_id as id from likes where user_id = ${userId} and entity_id = any(${uuidArray(allIds)})`)
+    userId && unknownLikes.length > 0
+      ? db.execute<{ id: string }>(sql`select entity_id as id from likes where user_id = ${userId} and entity_id = any(${uuidArray(unknownLikes)})`)
       : [],
   ])
 
@@ -72,8 +74,27 @@ export async function searchSignals(found: Found, options: SignalOptions = {}): 
   const plays = new Map<string, number>()
   for (const row of played) plays.set(row.id, (plays.get(row.id) ?? 0) + row.plays)
   const liked = new Set(likedRows.map((row) => row.id))
-  for (const track of found.tracks) if (track.liked) liked.add(track.id)
+  for (const item of [...found.artists, ...found.albums, ...found.tracks]) if (item.liked) liked.add(item.id)
   return { popularity, owned, plays, liked }
+}
+
+/**
+ * `found` with each album and artist saying whether the viewer saved (hearted) it, from one
+ * query: rows' menus offer Save to library or Remove from library by it, and the ranking
+ * weighs it without asking again.
+ */
+export async function withLiked(userId: string, found: Found): Promise<Found> {
+  const ids = [...found.artists, ...found.albums].map((item) => item.id)
+  const rows = ids.length > 0
+    ? await db.execute<{ id: string }>(sql`
+        select entity_id as id from likes where user_id = ${userId} and entity_type in ('album', 'artist') and entity_id = any(${uuidArray(ids)})`)
+    : []
+  const liked = new Set(rows.map((row) => row.id))
+  return {
+    artists: found.artists.map((artist) => ({ ...artist, liked: liked.has(artist.id) })),
+    albums: found.albums.map((album) => ({ ...album, liked: liked.has(album.id) })),
+    tracks: found.tracks,
+  }
 }
 
 /** Every result of `found`, best first (`SearchResults.ranked`). */

@@ -60,6 +60,11 @@ export const ArtistSummary = z.object({
    * not make an artist part of the library.
    */
   inLibrary: z.boolean(),
+  /**
+   * Whether the viewer saved (hearted) the artist, which their row's menu offers to change.
+   * Search results carry it; other answers leave it out, as their pages read `ArtistDetail.liked`.
+   */
+  liked: z.boolean().optional(),
 })
 export type ArtistSummary = z.infer<typeof ArtistSummary>
 
@@ -79,6 +84,11 @@ export const AlbumSummary = z.object({
   availability: AlbumAvailability,
   trackCount: z.number().int(),
   ownedTrackCount: z.number().int(),
+  /**
+   * Whether the viewer saved (hearted) the album, which its row's menu offers to change.
+   * Search results carry it; other answers leave it out, as their pages read `AlbumDetail.liked`.
+   */
+  liked: z.boolean().optional(),
 })
 export type AlbumSummary = z.infer<typeof AlbumSummary>
 
