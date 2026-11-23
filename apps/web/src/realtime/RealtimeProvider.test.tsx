@@ -9,8 +9,8 @@ import { BATCH_MS } from './RealtimeProvider'
 
 const demo = track('night-swimming-demo')
 const rowOf = (title: string) => screen.queryAllByRole('option').find(item => within(item).queryByText(title) !== null)
-// The order of the result rows; a row that grays out gains only its hidden label.
-const songTitles = () => screen.getAllByRole('option').map(item => item.textContent?.replace('(Not available)', ''))
+// The order of the result rows, by their ids: a row that grays out changes its text, not its place.
+const rowOrder = () => screen.getAllByRole('option').map(item => item.id)
 
 afterEach(() => vi.useRealTimers())
 
@@ -19,19 +19,20 @@ describe('realtime changes', () => {
     const { services, socket, api } = fakeServices()
     const { queryClient } = renderWithApp(<AppRoutes />, '/search?q=night swimming', services)
     await waitFor(() => expect(rowOf(demo.title)).toBeDefined(), { timeout: 3000 })
-    expect(rowOf(demo.title)!).not.toHaveAttribute('aria-disabled')
+    expect(rowOf(demo.title)!).not.toHaveAttribute('title', 'Not available')
     const searches = api.search.catalog.mock.calls.length + api.search.library.mock.calls.length
-    const before = songTitles()
+    const before = rowOrder()
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
 
     // What the server sends for every track any user's fetch ends with, many times a minute.
     const changes: EntityChange[] = [{ kind: 'availability', tracks: [{ id: demo.id, availability: 'none' }], albums: [] }]
     act(() => socket.serverEmit('changes', { changes }))
-    await waitFor(() => expect(rowOf(demo.title)!).toHaveAttribute('aria-disabled', 'true'))
+    // Unavailable as rows say it: faded, with "Not available" as their title and note.
+    await waitFor(() => expect(rowOf(demo.title)!).toHaveAttribute('title', 'Not available'))
 
     expect(api.search.catalog.mock.calls.length + api.search.library.mock.calls.length).toBe(searches)
     expect(invalidate).not.toHaveBeenCalled()
-    expect(songTitles()).toEqual(before)
+    expect(rowOrder()).toEqual(before)
   })
 
   it('refetches only the page of an entity that changed, and closes one that is gone', async () => {

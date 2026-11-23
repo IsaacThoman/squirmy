@@ -124,7 +124,11 @@ describe('TrackRow', () => {
   it('shows the current song its fetch failed for as unavailable, not as current', () => {
     const id = track('night-swimming-demo').id
     const { row } = renderRow('night-swimming-demo', { nowPlaying: { trackId: id, playing: false, loading: false, failed: true, onTogglePlay: () => {} } })
-    expect(row).toHaveAttribute('aria-disabled', 'true')
+    // Unavailable as #129 marks it: faded, the title and a hidden label say so, no play button;
+    // its heart and menu still work, so the row is not disabled.
+    expect(row).toHaveAttribute('title', 'Not available')
+    expect(within(row).getByText('(Not available)')).toHaveClass('sr-only')
+    expect(within(row).queryByRole('button', { name: `Play ${track('night-swimming-demo').title}` })).toBeNull()
     expect(row).not.toHaveAttribute('aria-current')
     expect(within(row).queryByRole('img', { name: 'Playing' })).toBeNull()
     expect(within(row).getByText(track('night-swimming-demo').title)).not.toHaveClass('text-primary')
