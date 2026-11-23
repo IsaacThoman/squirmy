@@ -927,7 +927,7 @@ export const rateLimits = pgTable('rate_limits', {
 })
 
 export type CatalogIndexKind = 'artist' | 'album' | 'recording'
-export type CatalogIndexImportState = 'running' | 'active' | 'failed' | 'cancelled' | 'replaced' | 'dropped'
+export type CatalogIndexImportState = 'running' | 'interrupted' | 'active' | 'failed' | 'cancelled' | 'replaced' | 'dropped'
 export type CatalogIndexImportPhase = 'download' | 'build' | 'swap'
 
 /**
@@ -979,6 +979,11 @@ export const catalogIndexImports = pgTable('catalog_index_imports', {
   recordings: integer('recordings'),
   error: text('error'),
   cancelRequested: boolean('cancel_requested').notNull().default(false),
+  /** What the import has committed, so one stopped by a restart carries on from there. See catalog-index/import.ts. */
+  checkpoint: jsonb('checkpoint').$type<Record<string, unknown>>(),
+  /** How many times the import carried on after a restart stopped it, and when it last did. */
+  resumes: integer('resumes').notNull().default(0),
+  resumedAt: at('resumed_at'),
   startedAt: at('started_at').notNull().defaultNow(),
   finishedAt: at('finished_at'),
 }, (t) => [index('catalog_index_imports_state').on(t.state)])

@@ -108,7 +108,11 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, unavailable, rou
           </Link>
           {menu && <MoreButton title={title} menu={menu} className="-my-1 -mr-1 size-6 [&_svg]:size-4" />}
         </div>
-        <div className={cn('w-full truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{unavailable && <UnavailableNote />}{subtitle}</div>
+        {/*
+          * Words, not a target: a press on them belongs to the card's link (its pseudo-element
+          * covers the card). Faded, the line is a layer of its own and would take the press.
+          */}
+        <div className={cn('pointer-events-none w-full truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{unavailable && <UnavailableNote />}{subtitle}</div>
       </div>
     </WithMenu>
   )
@@ -267,7 +271,8 @@ export function CollectionRow({ to, title, subtitle, art, dimmed, unavailable, p
           className="min-w-0 flex-1 outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
           <div dir="auto" className={cn('truncate text-sm font-medium', dimmed && 'text-muted-foreground')}>{title}{unavailable && unavailableName}</div>
-          <div className={cn('truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{unavailable && <UnavailableNote />}{subtitle}</div>
+          {/* Words, not a target, as on a card: a press on them belongs to the row's link. */}
+          <div className={cn('pointer-events-none truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{unavailable && <UnavailableNote />}{subtitle}</div>
         </Link>
         {menu && <MoreButton title={title} menu={menu} className="size-8 [&_svg]:size-4" />}
       </div>

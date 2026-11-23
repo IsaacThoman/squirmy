@@ -40,6 +40,8 @@ describe('AlbumCard', () => {
         expect(link).toHaveClass('text-muted-foreground')
         expect(container.querySelector('.grayscale')).not.toBeNull()
         expect(screen.getByText(/^Not available ·/)).toBeVisible()
+        // Faded, the line is a layer over the card's link: it must let a press through to the card.
+        expect(screen.getByText(/^Not available ·/).parentElement).toHaveClass('pointer-events-none')
       }
       // Never a badge: no cloud, no "5 of 7".
       expect(screen.queryByLabelText(/on demand/i)).toBeNull()

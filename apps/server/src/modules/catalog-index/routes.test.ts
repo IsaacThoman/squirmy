@@ -123,30 +123,35 @@ describe('catalog index admin routes', () => {
     }
   })
 
-  it('starts a new import after one whose process died', async () => {
+  it('resumes an import whose process died instead of starting another', async () => {
     // A killed worker leaves its row running and no lock behind.
-    const [dead] = await db.insert(catalogIndexImports).values({ id: newId(), state: 'running', phase: 'build' }).returning()
+    const [dead] = await db.insert(catalogIndexImports).values({ id: newId(), state: 'running', phase: 'build', source: dump }).returning()
     const response = await call({ method: 'POST', url: '/api/v1/admin/catalog-index/import', headers: admin, payload: { source: '/nowhere/dump.tar.zst' } })
-    expect(response.statusCode).toBe(202)
-    const [row] = await db.select().from(catalogIndexImports).where(eq(catalogIndexImports.id, dead!.id))
-    expect(row).toMatchObject({ state: 'failed', error: 'The import was interrupted', finishedAt: expect.any(Date) })
+    expect(response.statusCode).toBe(409)
+    expect((await status()).latest).toMatchObject({ id: dead!.id, state: 'interrupted', resumes: 0, resumedAt: null })
     await drainJobs()
-    expect(await status()).toMatchObject({ ready: true, latest: { state: 'failed', source: '/nowhere/dump.tar.zst' } })
+    const current = await status()
+    expect(current).toMatchObject({ ready: true, latest: null, active: { id: dead!.id, state: 'active', resumes: 1, resumedAt: expect.any(String) } })
   })
 
-  it('cancelling an import whose process died marks it interrupted', async () => {
+  it('cancelling an interrupted import ends it', async () => {
     const [dead] = await db.insert(catalogIndexImports).values({ id: newId(), state: 'running', phase: 'download' }).returning()
     const response = await call({ method: 'DELETE', url: '/api/v1/admin/catalog-index/import', headers: admin })
     expect(response.json()).toEqual({ ok: true })
     const [row] = await db.select().from(catalogIndexImports).where(eq(catalogIndexImports.id, dead!.id))
-    expect(row).toMatchObject({ state: 'failed', error: 'The import was interrupted' })
+    expect(row).toMatchObject({ state: 'cancelled', error: null, finishedAt: expect.any(Date) })
   })
 
-  it('marks imports left running by a dead process when the worker starts', async () => {
-    const [dead] = await db.insert(catalogIndexImports).values({ id: newId(), state: 'running', phase: 'download' }).returning()
+  it('queues a resume for imports left running by a dead process when the worker starts', async () => {
+    const [dead] = await db.insert(catalogIndexImports).values({ id: newId(), state: 'running', phase: 'download', source: dump, recordingsPerArtist: 1000 }).returning()
     await catalogIndexModule.start!({ role: 'worker' })
+    // The worker of this process may already be running the queued resume.
     const [row] = await db.select().from(catalogIndexImports).where(eq(catalogIndexImports.id, dead!.id))
-    expect(row).toMatchObject({ state: 'failed', error: 'The import was interrupted' })
+    expect(['interrupted', 'running', 'active']).toContain(row!.state)
+    const queued = await getSql()<{ key: string }[]>`select singleton_key as key from pgboss.job where name = 'catalog-index.import' and singleton_key like ${`catalog-index:resume:${dead!.id}:%`}`
+    expect(queued.map((job) => job.key)).toEqual([`catalog-index:resume:${dead!.id}:0`])
+    await drainJobs()
+    expect(await status()).toMatchObject({ active: { id: dead!.id, state: 'active', recordingsPerArtist: 1000, resumes: 1 } })
   })
 
   it('validates the request', async () => {

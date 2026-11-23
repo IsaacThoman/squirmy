@@ -1,5 +1,5 @@
 import { StartCatalogIndexImport, type CatalogIndexImport, type CatalogIndexStatus } from '@squirmy/contracts'
-import { Check, CircleAlert, CircleSlash, DatabaseZap, Download, Trash2, X } from 'lucide-react'
+import { Check, CircleAlert, CircleSlash, DatabaseZap, Download, RotateCw, Trash2, X } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import type { z } from 'zod'
 import { useFormSubmit } from '@/api/errors'
@@ -38,9 +38,15 @@ const phases = [
   { key: 'swap', label: 'Swap', detail: 'Putting the new index in place' },
 ] as const
 
+/** Said where an import carried on after the server restarted, so nobody wonders why it took longer. */
+function resumedNote(resumes: number) {
+  return resumes > 1 ? `Resumed after ${resumes} restarts` : 'Resumed after a restart'
+}
+
 export function SearchIndexAdmin({ status, starting, onStart, onCancel, onRemove, failure }: SearchIndexAdminProps) {
   const [confirm, setConfirm] = useState<'cancel' | 'remove' | null>(null)
-  const running = status?.latest?.state === 'running' ? status.latest : null
+  // An interrupted import is still under way: the server carries on with it once it is back.
+  const running = status?.latest?.state === 'running' || status?.latest?.state === 'interrupted' ? status.latest : null
   const problem = status?.latest && (status.latest.state === 'failed' || status.latest.state === 'cancelled') ? status.latest : null
   return (
     <div>
@@ -58,7 +64,7 @@ export function SearchIndexAdmin({ status, starting, onStart, onCancel, onRemove
                 <p className="flex items-center gap-2 text-sm font-medium">Local search index {status.ready ? <Badge tone="accent">Ready</Badge> : <Badge>Not set up</Badge>}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {status.ready
-                    ? `Dump of ${status.dumpDate ? formatDate(status.dumpDate) : 'an unknown date'}${status.importedAt ? `, imported ${formatRelative(status.importedAt)}` : ''}. MetaBrainz publishes a new one about every two weeks.`
+                    ? `Dump of ${status.dumpDate ? formatDate(status.dumpDate) : 'an unknown date'}${status.importedAt ? `, imported ${formatRelative(status.importedAt)}` : ''}${status.active?.resumes ? ` (${resumedNote(status.active.resumes).toLowerCase()})` : ''}. MetaBrainz publishes a new one about every two weeks.`
                     : 'Catalog search asks MusicBrainz and Deezer online until an index is imported.'}
                 </p>
               </div>
@@ -123,11 +129,15 @@ export function SearchIndexAdmin({ status, starting, onStart, onCancel, onRemove
 function RunningImport({ run, onCancel }: { run: CatalogIndexImport; onCancel: () => void }) {
   const current = phases.findIndex(phase => phase.key === run.phase)
   const downloading = run.phase === 'download'
+  const interrupted = run.state === 'interrupted'
   return (
     <section aria-label="Import in progress" aria-live="polite" className={cn(cardClass, 'flex flex-col gap-4 p-4')}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium">Importing</p>
+          <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+            {interrupted ? 'Waiting to resume' : 'Importing'}
+            {!interrupted && run.resumes > 0 && <Badge><RotateCw />{resumedNote(run.resumes)}</Badge>}
+          </p>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{run.source ?? 'The newest dump from MetaBrainz'} · started {formatRelative(run.startedAt)}</p>
         </div>
         <Button size="sm" variant="outline" onClick={onCancel}><X />Cancel</Button>
@@ -145,7 +155,7 @@ function RunningImport({ run, onCancel }: { run: CatalogIndexImport; onCancel: (
       <div className="flex flex-col gap-1.5">
         <ProgressBar value={downloading && run.totalBytes ? run.bytesRead / run.totalBytes : null} label="Import progress" />
         <p className="flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
-          <span>{phases[Math.max(current, 0)]!.detail}</span>
+          <span>{interrupted ? 'The server restarted. The import carries on from where it stopped in a moment.' : phases[Math.max(current, 0)]!.detail}</span>
           <span className="tabular">
             {formatBytes(run.bytesRead)}{run.totalBytes ? ` of ${formatBytes(run.totalBytes)}` : ''} · {run.rowsRead.toLocaleString()} songs read
           </span>

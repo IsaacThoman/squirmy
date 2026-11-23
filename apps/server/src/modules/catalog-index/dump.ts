@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
+import { mkdir, open, stat } from 'node:fs/promises'
+import path from 'node:path'
 import { PassThrough, pipeline, Readable } from 'node:stream'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import zlib from 'node:zlib'
@@ -34,7 +35,7 @@ export function dumpDateFromName(name: string): Date | null {
 
 export type OpenedSource = {
   stream: Readable
-  /** Compressed size when known, for progress. */
+  /** Compressed size when known, for progress. A resumed download may learn it only once it asks for the rest. */
   totalBytes: number | null
 }
 
@@ -42,19 +43,70 @@ export type OpenedSource = {
  * Opens a dump by URL (http or https) or by local path, as a compressed byte stream.
  * This is a plain fetch rather than lib/http's `request`: a multi-gigabyte download
  * must not have a timeout or go through the response cache.
+ *
+ * With `cacheFile`, a download is also written to that file as it streams, and what an
+ * earlier, interrupted run left there is read back first and only the rest is asked for
+ * (an HTTP range request). The archive is a single zstd frame, so decoding always starts
+ * at byte 0; the file spares the network, which on a slow link is most of an import.
  */
-export async function openSource(source: string, signal?: AbortSignal): Promise<OpenedSource> {
+export async function openSource(source: string, signal?: AbortSignal, options: { cacheFile?: string; totalBytes?: number | null } = {}): Promise<OpenedSource> {
   if (/^https?:\/\//i.test(source)) {
-    const response = await fetch(source, { headers: { 'user-agent': userAgent() }, signal })
-    if (!response.ok || !response.body) throw new Error(`Could not download ${source}: HTTP ${response.status}`)
-    const length = Number(response.headers.get('content-length'))
-    return {
-      stream: Readable.fromWeb(response.body as WebReadableStream<Uint8Array>, { signal }),
-      totalBytes: length > 0 ? length : null,
-    }
+    if (options.cacheFile) return openCachedDownload(source, options.cacheFile, options.totalBytes ?? null, signal)
+    const response = await fetchDump(source, 0, signal)
+    return { stream: Readable.fromWeb(response.body, { signal }), totalBytes: response.totalBytes }
   }
   const info = await stat(source)
   return { stream: createReadStream(source, { signal, highWaterMark: 1 << 20 }), totalBytes: info.size }
+}
+
+type DumpResponse = { body: WebReadableStream<Uint8Array>; totalBytes: number | null; status: number }
+
+/** GETs a dump, from byte `from` on when it is not 0. */
+async function fetchDump(source: string, from: number, signal?: AbortSignal): Promise<DumpResponse> {
+  const headers: Record<string, string> = { 'user-agent': userAgent() }
+  if (from > 0) headers.range = `bytes=${from}-`
+  const response = await fetch(source, { headers, signal })
+  if (!response.ok || !response.body) throw new Error(`Could not download ${source}: HTTP ${response.status}`)
+  const length = Number(response.headers.get('content-length'))
+  const total = Number(/\/(\d+)$/.exec(response.headers.get('content-range') ?? '')?.[1])
+  const totalBytes = total > 0 ? total : length > 0 ? length + (response.status === 206 ? from : 0) : null
+  return { body: response.body as WebReadableStream<Uint8Array>, totalBytes, status: response.status }
+}
+
+async function openCachedDownload(source: string, file: string, knownTotal: number | null, signal?: AbortSignal): Promise<OpenedSource> {
+  await mkdir(path.dirname(file), { recursive: true })
+  const have = await stat(file).then((info) => info.size, () => 0)
+  // Nothing cached: ask now, so the size is known for progress from the start. Otherwise the
+  // request waits until the cached part has been read, which can take minutes: an idle
+  // response opened now could be closed by the server in the meantime.
+  const first = have === 0 ? await fetchDump(source, 0, signal) : null
+  const opened: OpenedSource = { stream: Readable.from([]), totalBytes: first?.totalBytes ?? knownTotal }
+  async function* bytes(): AsyncGenerator<Uint8Array> {
+    if (have > 0) yield* createReadStream(file, { signal, highWaterMark: 1 << 20, end: have - 1 })
+    if (opened.totalBytes !== null && have >= opened.totalBytes) return
+    const response = first ?? await fetchDump(source, have, signal)
+    opened.totalBytes ??= response.totalBytes
+    // A server that ignores the range sends the whole file again: rewrite the copy and pass on only what is new.
+    const partial = have > 0 && response.status === 206
+    let skip = partial ? 0 : have
+    const out = await open(file, partial ? 'a' : 'w')
+    try {
+      for await (const chunk of Readable.fromWeb(response.body, { signal })) {
+        const data = chunk as Buffer
+        await out.write(data)
+        if (skip >= data.length) {
+          skip -= data.length
+          continue
+        }
+        yield skip > 0 ? data.subarray(skip) : data
+        skip = 0
+      }
+    } finally {
+      await out.close()
+    }
+  }
+  opened.stream = Readable.from(bytes(), { objectMode: false })
+  return opened
 }
 
 /**
