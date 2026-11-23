@@ -36,9 +36,11 @@ Element.prototype.setPointerCapture ??= () => {}
 // jsdom has no PointerEvent; without it pointer events lose their coordinates.
 globalThis.PointerEvent ??= class PointerEvent extends MouseEvent {
   pointerId: number
+  pointerType: string
   constructor(type: string, init: PointerEventInit = {}) {
     super(type, init)
     this.pointerId = init.pointerId ?? 0
+    this.pointerType = init.pointerType ?? ''
   }
 } as unknown as typeof globalThis.PointerEvent
 // jsdom has no media playback; these would otherwise log "not implemented".

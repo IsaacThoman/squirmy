@@ -1,6 +1,6 @@
 import { readsUnavailable, type SessionOutage } from '@squirmy/client-core'
-import { GripVertical, Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
@@ -124,6 +124,7 @@ type QueueRowProps = {
   faded?: boolean
   onPlay?: () => void
   children?: ReactNode
+  rowButton?: ComponentPropsWithRef<'button'>
 }
 
 /**
@@ -131,7 +132,7 @@ type QueueRowProps = {
  * while its music is on its way, shows the spinner. One that could not be had is gray, says
  * "Not available" and does not play.
  */
-function QueueRow({ item, current, playing = false, waiting = false, outage = null, faded, onPlay: play, children }: QueueRowProps) {
+function QueueRow({ item, current, playing = false, waiting = false, outage = null, faded, onPlay: play, children, rowButton }: QueueRowProps) {
   const { track, entry } = item
   const library = useLibrary()
   const failed = readsUnavailable(entry, outage)
@@ -156,8 +157,8 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
   )
   return (
     <div title={failed ? UNAVAILABLE_LABEL : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-colors', onPlay && 'hover:bg-accent/60')}>
-      {onPlay
-        ? <button type="button" aria-label={`Play ${track.title}`} onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">{body}</button>
+      {onPlay || rowButton
+        ? <button type="button" aria-label={onPlay ? `Play ${track.title}` : track.title} onClick={onPlay} {...rowButton} className={cn('flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', rowButton?.className)}>{body}</button>
         : <div className="flex min-w-0 flex-1 items-center gap-3 px-2">{body}</div>}
       {/*
         * Every song row has its heart, here as anywhere, and it never gives way to a narrow panel:
@@ -198,28 +199,75 @@ type SortableQueueProps = {
   onPlay: (entryId: string) => void
 }
 
-/**
- * Up next, reorderable by dragging a row's handle or, with the handle focused, the arrow keys.
- * Rows are a fixed height, so the drop position is the drag distance in rows.
- */
+const DRAG_THRESHOLD = 6
+const TOUCH_HOLD_MS = 350
+
+type QueuePointer = {
+  entryId: string
+  pointerId: number
+  button: HTMLButtonElement
+  startX: number
+  startY: number
+  y: number
+  scroller: HTMLElement | null
+  startScroll: number
+  touch: boolean
+  active: boolean
+  timer?: number
+}
+
+/** Drag the song row itself, or focus it and move it with the arrow keys. */
 export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueueProps) {
-  const [drag, setDrag] = useState<{ index: number; startY: number; offset: number } | null>(null)
+  const [drag, setDrag] = useState<{ entryId: string; offset: number } | null>(null)
   const list = useRef<HTMLUListElement>(null)
-  // Where the pointer is, and the queue's scroller with where it stood when the drag began.
-  const pointer = useRef<{ y: number; scroller: HTMLElement | null; startScroll: number } | null>(null)
+  const pointer = useRef<QueuePointer | null>(null)
+  const suppressClick = useRef(false)
   const dragging = drag !== null
   const [announcement, setAnnouncement] = useState('')
   const helpId = useId()
   const refocus = useRef<string | null>(null)
-  const handles = useRef(new Map<string, HTMLButtonElement>())
-  const target = drag ? dropIndex(drag.index, drag.offset, rowHeight, items.length) : -1
+  const buttons = useRef(new Map<string, HTMLButtonElement>())
+  const dropPositions = useRef<Map<Element, number> | null>(null)
+  const origin = drag ? items.findIndex(item => item.entry.id === drag.entryId) : -1
+  const target = drag && origin >= 0 ? dropIndex(origin, drag.offset, rowHeight, items.length) : -1
+
+  useLayoutEffect(() => {
+    if (drag || !dropPositions.current) return
+    const positions = dropPositions.current
+    dropPositions.current = null
+    // The DOM is now in queue order. Animate from where each row was actually painted before the drop.
+    const offsets = [...positions].flatMap(([row, top]) => {
+      if (!row.isConnected) return []
+      const delta = top - row.getBoundingClientRect().top
+      return Math.abs(delta) > 0.5 ? [{ row, delta }] : []
+    })
+    for (const { row, delta } of offsets) {
+      const animation = row.animate?.([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], {
+        duration: 180, easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      })
+      if (animation) animation.id = 'queue-drop'
+    }
+  }, [drag, items])
 
   // A moved row's DOM node can lose focus as it is reinserted; give it back.
   useEffect(() => {
     if (!refocus.current) return
-    handles.current.get(refocus.current)?.focus()
+    buttons.current.get(refocus.current)?.focus()
     refocus.current = null
   }, [items])
+
+  useEffect(() => {
+    const element = list.current
+    // A swipe scrolls normally until a long press has picked up a song.
+    const preventScroll = (event: TouchEvent) => {
+      if (pointer.current?.active && event.cancelable) event.preventDefault()
+    }
+    element?.addEventListener('touchmove', preventScroll, { passive: false })
+    return () => {
+      element?.removeEventListener('touchmove', preventScroll)
+      window.clearTimeout(pointer.current?.timer)
+    }
+  }, [])
 
   const move = (item: QueueItem, to: number) => {
     onMove(item.entry.id, to)
@@ -235,23 +283,58 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
     move(items[index], to)
   }
 
-  // The row follows the pointer and whatever the list scrolled under it.
-  const offsetOf = (startY: number) => {
-    const at = pointer.current
-    return at ? at.y - startY + (at.scroller?.scrollTop ?? 0) - at.startScroll : 0
+  const offsetOf = (at: QueuePointer) => at.y - at.startY + (at.scroller?.scrollTop ?? 0) - at.startScroll
+
+  const beginDrag = (at: QueuePointer) => {
+    if (pointer.current !== at || !at.button.isConnected) return
+    for (const row of list.current?.children ?? []) {
+      row.getAnimations?.().find(animation => animation.id === 'queue-drop')?.cancel()
+    }
+    at.active = true
+    at.button.setPointerCapture(at.pointerId)
+    setDrag({ entryId: at.entryId, offset: offsetOf(at) })
   }
 
-  const onPointerDown = (event: PointerEvent<HTMLButtonElement>, index: number) => {
-    if (event.button !== 0) return
-    event.currentTarget.setPointerCapture(event.pointerId)
+  const onPointerDown = (event: PointerEvent<HTMLButtonElement>, entryId: string) => {
+    if (event.button !== 0 || pointer.current || items.length < 2) return
     const scroller = scrollParent(list.current)
-    pointer.current = { y: event.clientY, scroller, startScroll: scroller?.scrollTop ?? 0 }
-    setDrag({ index, startY: event.clientY, offset: 0 })
+    const at: QueuePointer = {
+      entryId, pointerId: event.pointerId, button: event.currentTarget,
+      startX: event.clientX, startY: event.clientY, y: event.clientY,
+      scroller, startScroll: scroller?.scrollTop ?? 0, touch: event.pointerType === 'touch', active: false,
+    }
+    pointer.current = at
+    if (at.touch) at.timer = window.setTimeout(() => beginDrag(at), TOUCH_HOLD_MS)
   }
+
+  const endDrag = (event: PointerEvent, drop = false) => {
+    const at = pointer.current
+    if (!at || at.pointerId !== event.pointerId) return
+    pointer.current = null
+    window.clearTimeout(at.timer)
+    if (!at.active) return
+    suppressClick.current = true
+    if (list.current && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      dropPositions.current = new Map(Array.from(list.current.children, row => [row, row.getBoundingClientRect().top]))
+    }
+    setDrag(null)
+    if (!drop) return
+    const from = items.findIndex(item => item.entry.id === at.entryId)
+    if (from < 0) return
+    const to = dropIndex(from, offsetOf(at), rowHeight, items.length)
+    if (to !== from) move(items[from], to)
+  }
+
   const onPointerMove = (event: PointerEvent) => {
-    if (!drag || !pointer.current) return
-    pointer.current.y = event.clientY
-    setDrag({ ...drag, offset: offsetOf(drag.startY) })
+    const at = pointer.current
+    if (!at || at.pointerId !== event.pointerId) return
+    at.y = event.clientY
+    if (at.active) {
+      setDrag({ entryId: at.entryId, offset: offsetOf(at) })
+    } else if (Math.hypot(event.clientX - at.startX, event.clientY - at.startY) >= DRAG_THRESHOLD) {
+      if (at.touch) endDrag(event)
+      else beginDrag(at)
+    }
   }
 
   // Held near the top or bottom of the queue, the list scrolls, so a row can go anywhere.
@@ -267,29 +350,36 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
         const by = Math.round((Math.max(-AUTOSCROLL_EDGE, Math.min(AUTOSCROLL_EDGE, into)) / AUTOSCROLL_EDGE) * AUTOSCROLL_SPEED)
         const before = scroller.scrollTop
         if (by) scroller.scrollTop = before + by
-        if (scroller.scrollTop !== before) setDrag(current => current && { ...current, offset: offsetOf(current.startY) })
+        if (scroller.scrollTop !== before) setDrag(current => current && { ...current, offset: offsetOf(at) })
       }
       frame = requestAnimationFrame(step)
     }
     frame = requestAnimationFrame(step)
     return () => cancelAnimationFrame(frame)
   }, [dragging])
-  const onPointerUp = () => {
-    pointer.current = null
-    if (!drag) return
-    if (target !== drag.index) move(items[drag.index], target)
-    setDrag(null)
-  }
-
   return (
     <>
-      <ul ref={list} className="relative">
+      <ul ref={list} className="relative"
+        onPointerDownCapture={() => { suppressClick.current = false }}
+        onClickCapture={event => {
+          if (!suppressClick.current || event.detail === 0) return
+          suppressClick.current = false
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+        onPointerMove={onPointerMove}
+        onPointerUp={event => endDrag(event, true)}
+        onPointerCancel={event => endDrag(event)}
+        onLostPointerCapture={event => endDrag(event)}
+        onPointerLeave={event => {
+          if (!pointer.current?.active) endDrag(event)
+        }}>
         {items.map((item, index) => {
-          const held = drag?.index === index
+          const held = drag?.entryId === item.entry.id
           let shift = 0
-          if (drag && !held) {
-            if (index > drag.index && index <= target) shift = -rowHeight
-            if (index < drag.index && index >= target) shift = rowHeight
+          if (origin >= 0 && !held) {
+            if (index > origin && index <= target) shift = -rowHeight
+            if (index < origin && index >= target) shift = rowHeight
           }
           return (
             <li
@@ -297,34 +387,25 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
               style={{ transform: `translateY(${held ? drag.offset : shift}px)` }}
               className={cn(
                 'relative rounded-lg',
-                held ? 'z-10 bg-accent shadow-md' : 'transition-transform duration-150 ease-out',
+                held ? 'z-10 bg-accent shadow-md' : drag && 'motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out',
               )}
             >
-              <QueueRow item={item} onPlay={() => onPlay(item.entry.id)}>
+              <QueueRow item={item} onPlay={() => onPlay(item.entry.id)} rowButton={{
+                ref: element => {
+                  if (element) buttons.current.set(item.entry.id, element)
+                  else buttons.current.delete(item.entry.id)
+                },
+                'aria-describedby': helpId,
+                'aria-description': `Position ${index + 1} of ${items.length}`,
+                onKeyDown: event => onKeyDown(event, index),
+                onPointerDown: event => onPointerDown(event, item.entry.id),
+                onContextMenu: event => { if (pointer.current?.touch) event.preventDefault() },
+                className: cn('select-none [-webkit-touch-callout:none]', items.length > 1 && (held ? 'cursor-grabbing' : 'cursor-grab')),
+              }}>
                 {/* Without a pointer that hovers, the button is always there to tap. */}
                 <IconButton label={`Remove ${item.track.title} from queue`} tooltip={false} size="sm" onClick={() => onRemove(item.entry.id)} className="opacity-0 focus-visible:opacity-100 group-hover/queue:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100">
                   <X />
                 </IconButton>
-                <button
-                  ref={element => {
-                    if (element) handles.current.set(item.entry.id, element)
-                    else handles.current.delete(item.entry.id)
-                  }}
-                  type="button"
-                  aria-label={`Reorder ${item.track.title}, position ${index + 1} of ${items.length}`}
-                  aria-describedby={helpId}
-                  onKeyDown={event => onKeyDown(event, index)}
-                  onPointerDown={event => onPointerDown(event, index)}
-                  onPointerMove={onPointerMove}
-                  onPointerUp={onPointerUp}
-                  onPointerCancel={() => {
-                    pointer.current = null
-                    setDrag(null)
-                  }}
-                  className={cn('flex h-8 w-6 touch-none items-center justify-center rounded-md pointer-coarse:h-11 pointer-coarse:w-11 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring', held ? 'cursor-grabbing text-foreground' : 'cursor-grab')}
-                >
-                  <GripVertical aria-hidden className="size-4" />
-                </button>
               </QueueRow>
             </li>
           )

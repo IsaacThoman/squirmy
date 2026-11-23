@@ -209,9 +209,10 @@ await step('transport', async () => {
 await step('queue', async () => {
   await transport(page, 'Queue').click()
   const queue = page.getByRole('complementary', { name: 'Queue' })
-  const order = () => queue.getByRole('button', { name: /^Reorder / }).evaluateAll(handles => handles.map(handle => handle.getAttribute('aria-label').replace(/^Reorder (.*), position.*$/, '$1')))
+  const next = queue.getByRole('region', { name: 'Up next' })
+  const order = () => next.getByRole('button', { name: /^Play / }).evaluateAll(rows => rows.map(row => row.getAttribute('aria-label').slice(5)))
   check('up next lists the rest of the album', (await order()).join(' / ') === 'Soft Signal / Blue in the Dark / Underwater Light / Stay Until Morning', (await order()).join(' / '))
-  await queue.getByRole('button', { name: /^Reorder Underwater Light/ }).press('ArrowUp')
+  await next.getByRole('button', { name: 'Play Underwater Light', exact: true }).press('ArrowUp')
   const moved = await until(order, value => value[1] === 'Underwater Light')
   const server = await until(() => api(a.context, 'GET', '/me/session'), snapshot => snapshot.queue.queue.length === 4 && snapshot.queue.queue[1].trackId !== snapshot.queue.queue[2].trackId)
   check('reordering moves the entry', moved.join(' / ') === 'Soft Signal / Underwater Light / Blue in the Dark / Stay Until Morning', moved.join(' / '))

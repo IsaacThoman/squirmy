@@ -127,17 +127,10 @@ export default function Player() {
     detail.set(withTiming(artworkPage ? 0 : 1, modeMotion));
   }, [artworkPage, detail]);
 
-  const rest = () => {
-    setPage('player');
-    setSeenLyrics(false);
-    setSeenQueue(false);
-    detail.set(0);
-    trackDrag.set(0);
-  };
   useAnimatedReaction(
     () => motion.active.value,
     (now, before) => {
-      if (before && !now) scheduleOnRN(rest);
+      if (before && !now) trackDrag.set(0);
     },
   );
 
@@ -351,7 +344,7 @@ export default function Player() {
                     accessibilityElementsHidden={page !== 'lyrics'}
                     importantForAccessibility={page === 'lyrics' ? 'auto' : 'no-hide-descendants'}
                     style={[StyleSheet.absoluteFill, lyricsStyle]}>
-                    <LyricsPage key={current?.id ?? 'none'} visible={page === 'lyrics'} />
+                    <LyricsPage key={current?.id ?? 'none'} selected={page === 'lyrics'} />
                   </Animated.View>}
                   {seenQueue && <Animated.View pointerEvents={page === 'queue' ? 'auto' : 'none'}
                     accessibilityElementsHidden={page !== 'queue'}
@@ -445,9 +438,11 @@ function BubbleContent({ variant, width }: { variant: BubbleVariant; width: numb
   );
 }
 
-function LyricsPage({ visible }: { visible: boolean }) {
+function LyricsPage({ selected }: { selected: boolean }) {
   const colors = useColors();
   const styles = useStyles();
+  const shown = usePlayerShown();
+  const visible = selected && shown;
   const { track, actions } = usePlaybackState();
   const lyrics = useLyrics(track);
   const { lines, synced } = lyricLines(lyrics.data);
