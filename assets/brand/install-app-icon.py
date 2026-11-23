@@ -1,4 +1,4 @@
-"""Copy the rendered earthworm into the app, web and docs icon files.
+"""Copy the rendered googly worm into the app, web and docs icon files.
 
 Needs macOS (sips) and pngquant. Render first (see README.md), then from the
 repository root:
@@ -57,21 +57,21 @@ def write_ico(source, destination, sizes=(16, 32, 48)):
 
 
 def main():
-    icon = RENDERS / 'earthworm-icon.png'            # headshot on the dark background
-    mark = RENDERS / 'earthworm-mark.png'            # simplified head, transparent
-    small = RENDERS / 'earthworm-mark-bg.png'        # simplified head on the dark background
+    icon = RENDERS / 'worm-icon.png'            # close-up of the head on the violet floor
+    mark = RENDERS / 'worm-mark.png'            # the head alone, transparent
+    small = RENDERS / 'worm-mark-bg.png'        # the head alone on the violet floor
 
     # iOS: Icon Composer layers, at the 1024 px canvas size. A larger render
     # adds nothing to the compiled icon and makes the files several times bigger.
     layers = MOBILE / 'Squirmy.icon' / 'Assets'
     layers.mkdir(parents=True, exist_ok=True)
-    for render, layer in (('earthworm-icon-body.png', 'earthworm-body.png'),
-                          ('earthworm-icon-face.png', 'earthworm-face.png')):
+    for render, layer in (('worm-icon-body.png', 'worm-body.png'),
+                          ('worm-icon-face.png', 'worm-face.png')):
         resize(RENDERS / render, 1024, layers / layer)
 
     # Expo's default icon, and the Android adaptive icon foreground.
     resize(icon, 1024, MOBILE / 'icon.png')
-    resize(RENDERS / 'earthworm-android-foreground.png', 1024, MOBILE / 'adaptive-icon.png')
+    resize(RENDERS / 'worm-android-foreground.png', 1024, MOBILE / 'adaptive-icon.png')
     # iOS splash screen and in-app logo (sign-in screens, the account sheet).
     resize(mark, 512, MOBILE / 'splash-icon.png', optimize=True)
     resize(mark, 256, MOBILE / 'squirmy-mark.png', optimize=True)
