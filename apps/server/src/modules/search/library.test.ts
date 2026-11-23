@@ -1,5 +1,5 @@
 import { SearchResults } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
@@ -143,6 +143,23 @@ describe('GET /search/library', () => {
     expect(pages.every((one) => one.artists.length === 0 && one.albums.length === 0)).toBe(true)
     expect(pages.map((one) => one.tracks.length)).toEqual([3, 3, 1])
     expect(pages.flatMap((one) => one.tracks.map((track) => track.id))).toEqual(all.tracks.map((track) => track.id))
+  })
+
+  it('says which albums and artists the viewer saved, for their menus', async () => {
+    const before = await search('radiohead')
+    const kidA = before.albums.find((album) => album.title === 'Kid A')!
+    const radiohead = before.artists.find((artist) => artist.name === 'Radiohead')!
+    expect([kidA.liked, radiohead.liked]).toEqual([false, false])
+    await db.insert(likes).values([
+      { userId: user.id, entityType: 'album', entityId: kidA.id },
+      { userId: user.id, entityType: 'artist', entityId: radiohead.id },
+    ])
+    const after = await search('radiohead')
+    expect(after.albums.map((album) => [album.title, album.liked]).sort()).toEqual([['Kid A', true], ['OK Computer', false]])
+    expect(after.artists.find((artist) => artist.id === radiohead.id)?.liked).toBe(true)
+    // Another user's saves are their own.
+    expect((await search('radiohead', other)).albums.every((album) => album.liked === false)).toBe(true)
+    await db.delete(likes).where(and(eq(likes.userId, user.id), inArray(likes.entityId, [kidA.id, radiohead.id])))
   })
 
   it('works from the second character', async () => {
