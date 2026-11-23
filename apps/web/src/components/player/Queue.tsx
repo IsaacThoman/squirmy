@@ -125,7 +125,8 @@ function QueueRow({ item, current, playing = false, waiting = false, faded, onPl
   const onPlay = failed ? undefined : play
   const body = (
     <>
-      <div className="relative size-9 shrink-0">
+      {/* Faded rows (history, autoplay) fade their artwork only: their words stay readable. */}
+      <div className={cn('relative size-9 shrink-0 transition-opacity', faded && 'opacity-60 group-hover/queue:opacity-100 group-focus-within/queue:opacity-100')}>
         <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={failed} className="size-9 rounded-[5px]" />
         {current && (
           <div className="absolute inset-0 flex items-center justify-center rounded-[5px] bg-black/50">
@@ -134,13 +135,13 @@ function QueueRow({ item, current, playing = false, waiting = false, faded, onPl
         )}
       </div>
       <span className="min-w-0 flex-1 text-left">
-        <span title={track.title} className={cn('block truncate text-sm font-medium', current && 'text-primary', failed && 'text-muted-foreground')}>{track.title}</span>
+        <span title={track.title} className={cn('block truncate text-sm font-medium', failed && 'text-muted-foreground')}>{track.title}</span>
         <span className="block truncate text-xs text-muted-foreground">{failed ? UNAVAILABLE_LABEL : track.artistCredit}</span>
       </span>
     </>
   )
   return (
-    <div title={failed ? UNAVAILABLE_LABEL : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-[background-color,opacity]', onPlay && 'hover:bg-accent/60', faded && 'opacity-70 focus-within:opacity-100 hover:opacity-100')}>
+    <div title={failed ? UNAVAILABLE_LABEL : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-colors', onPlay && 'hover:bg-accent/60')}>
       {onPlay
         ? <button type="button" aria-label={`Play ${track.title}`} onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">{body}</button>
         : <div className="flex min-w-0 flex-1 items-center gap-3 px-2">{body}</div>}
@@ -305,7 +306,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
                     pointer.current = null
                     setDrag(null)
                   }}
-                  className={cn('flex h-8 w-6 touch-none items-center justify-center rounded-md pointer-coarse:h-11 pointer-coarse:w-9 text-muted-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring', held ? 'cursor-grabbing text-foreground' : 'cursor-grab')}
+                  className={cn('flex h-8 w-6 touch-none items-center justify-center rounded-md pointer-coarse:h-11 pointer-coarse:w-9 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring', held ? 'cursor-grabbing text-foreground' : 'cursor-grab')}
                 >
                   <GripVertical aria-hidden className="size-4" />
                 </button>

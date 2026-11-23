@@ -44,6 +44,29 @@ function tabbables(root: HTMLElement): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(TABBABLE)].filter(element => element.tabIndex >= 0 && !element.closest('[inert]'))
 }
 
+/**
+ * Keeps Tab and Shift+Tab inside `panel`, a modal part of the shell, wrapping at its ends. A
+ * menu or dialog opened from it renders in a portal and keeps focus itself.
+ */
+function keepTabIn(panel: HTMLElement, event: KeyboardEvent) {
+  const items = tabbables(panel)
+  if (!items.length) return
+  const first = items[0]
+  const last = items[items.length - 1]
+  const active = document.activeElement
+  if (active && !panel.contains(active) && active.closest('[role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]')) return
+  if (event.shiftKey && (active === first || !panel.contains(active))) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+/** Where the queue floats over the page as a modal panel; from 1280px it is docked beside it. */
+const FLOATING_QUEUE_QUERY = '(min-width: 768px) and (max-width: 1279.98px)'
+
 // ⌘B is bold in rich text, so it stays there; plain fields have no use for it.
 const isEditable = (target: EventTarget | null) => target instanceof Element && Boolean(target.closest('[contenteditable]:not([contenteditable="false"])'))
 
@@ -210,21 +233,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
       const panel = drawer()
       if (event.defaultPrevented || !panel) return
       if (event.key === 'Escape') return setDrawerOpen(false)
-      if (event.key !== 'Tab') return
-      const items = tabbables(panel)
-      if (!items.length) return
-      const first = items[0]
-      const last = items[items.length - 1]
-      const active = document.activeElement
-      // A menu or dialog opened from the drawer renders in a portal and traps focus itself.
-      if (active && !panel.contains(active) && active.closest('[role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]')) return
-      if (event.shiftKey && (active === first || !panel.contains(active))) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && (active === last || !panel.contains(active))) {
-        event.preventDefault()
-        first.focus()
-      }
+      if (event.key === 'Tab') keepTabIn(panel, event)
     }
     document.addEventListener('keydown', onKeyDown)
     return () => {
@@ -264,7 +273,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
         * The page is drawn edge to edge (viewport-fit=cover); the shell keeps everything clear of
         * a phone's notch and rounded corners. The player pads itself for the home indicator.
         */}
-      <div ref={frame} className="relative flex h-dvh overflow-hidden pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]">
+      <div ref={frame} data-shell-frame="" className="relative flex h-dvh overflow-hidden pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]">
         {mobile && (
           <button
             type="button"
@@ -324,7 +333,8 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
               id="main-content"
               ref={setScroller}
               tabIndex={-1}
-              className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain outline-none [--gutter:1rem] md:[--gutter:1.5rem]"
+              // Its own layer: a sticky page header stays under the floating queue's backdrop.
+              className="relative isolate min-w-0 flex-1 overflow-y-auto overscroll-contain outline-none [--gutter:1rem] md:[--gutter:1.5rem]"
             >
               <ScrollContainerContext value={scroller}>
                 {/* A page that fails shows a message in its place; the next page starts afresh. */}
@@ -392,11 +402,24 @@ function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlayin
 /**
  * The queue beside the page: docked from 1280px, floating over the page's edge below that,
  * where it animates out as it animated in.
+ *
+ * Floating, it is modal: the rest of the shell dims and is inert, focus moves into the queue and
+ * Tab stays there, and Escape or a press on the dimmed shell closes it. Docked, the page stays
+ * live beside it. Either way, closing it gives focus back to the player's Queue button when focus
+ * was in the queue.
  */
 function QueueDock({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [present, setPresent] = useState(open)
   if (open && !present) setPresent(true)
   const panel = useRef<HTMLElement>(null)
+  const [floating, setFloating] = useState(() => window.matchMedia(FLOATING_QUEUE_QUERY).matches)
+  useEffect(() => {
+    const query = window.matchMedia(FLOATING_QUEUE_QUERY)
+    const update = () => setFloating(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  const modal = open && floating
   useEffect(() => {
     const element = panel.current
     if (open || !element) return
@@ -406,17 +429,50 @@ function QueueDock({ open, onClose }: { open: boolean; onClose: () => void }) {
     const frame = requestAnimationFrame(() => setPresent(false))
     return () => cancelAnimationFrame(frame)
   }, [open])
-  // Floating over the page (768 to 1279px), the queue is modal: the page dims and stops taking
-  // presses, and a press on it or Escape closes the queue. Docked from 1280px the page stays live.
+
+  // Closing gives focus back to the Queue button when it was in the queue (or was dropped as the queue went inert).
   useEffect(() => {
+    const element = panel.current
     if (!open) return
-    const floating = window.matchMedia('(min-width: 768px) and (max-width: 1279.98px)')
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && floating.matches && !event.defaultPrevented) onClose()
+    return () => {
+      requestAnimationFrame(() => {
+        const active = document.activeElement
+        if (active && active !== document.body && !element?.contains(active)) return
+        document.querySelector<HTMLElement>('[data-queue-toggle]')?.focus()
+      })
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
+  }, [open])
+
+  useEffect(() => {
+    if (!modal) return
+    const element = panel.current
+    const shell = element?.closest<HTMLElement>('[data-shell-frame]')
+    if (!element || !shell) return
+    // Everything in the shell but the queue and its backdrop is out of reach while it floats.
+    const made: HTMLElement[] = []
+    for (let node: HTMLElement | null = element; node && node !== shell; node = node.parentElement) {
+      for (const sibling of node.parentElement?.children ?? []) {
+        if (sibling === node || !(sibling instanceof HTMLElement) || sibling.hasAttribute('data-queue-backdrop') || sibling.hasAttribute('inert')) continue
+        sibling.setAttribute('inert', '')
+        made.push(sibling)
+      }
+    }
+    const focusFirst = requestAnimationFrame(() => {
+      if (!element.contains(document.activeElement)) tabbables(element)[0]?.focus()
+    })
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      if (event.key === 'Escape') onClose()
+      else if (event.key === 'Tab') keepTabIn(element, event)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      cancelAnimationFrame(focusFirst)
+      document.removeEventListener('keydown', onKeyDown)
+      for (const sibling of made) sibling.removeAttribute('inert')
+    }
+  }, [modal, onClose])
+
   if (!present) return null
   return (
     <>
@@ -425,17 +481,23 @@ function QueueDock({ open, onClose }: { open: boolean; onClose: () => void }) {
       // A pointer target only, as the drawer's: Escape and the queue's own Close button close it from the keyboard.
       aria-hidden
       tabIndex={-1}
+      data-queue-backdrop=""
       onClick={onClose}
-      className={cn('absolute inset-0 z-10 hidden bg-black/30 transition-opacity duration-200 md:block xl:hidden', open ? 'opacity-100' : 'pointer-events-none opacity-0')}
+      className={cn('fixed inset-0 z-30 hidden bg-black/30 transition-opacity duration-200 md:block xl:hidden', open ? 'opacity-100' : 'pointer-events-none opacity-0')}
     />
     <aside
       ref={panel}
       aria-label="Queue"
+      // Floating, it is a modal dialog; docked, a part of the page.
+      role={floating ? 'dialog' : undefined}
+      aria-modal={floating && open ? true : undefined}
+      // Space and the arrows still reach the player from here, as from Now Playing.
+      data-player-keys=""
       aria-hidden={!open || undefined}
       inert={!open}
       data-state={open ? 'open' : 'closed'}
       onAnimationEnd={event => { if (!open && event.target === event.currentTarget) setPresent(false) }}
-      className="absolute inset-y-2 right-2 z-20 hidden w-[22rem] animate-enter overflow-hidden rounded-lg border bg-background shadow-lg data-[state=closed]:animate-exit md:block xl:static xl:z-auto xl:w-[21rem] xl:animate-none xl:rounded-none xl:border-y-0 xl:border-r-0 xl:shadow-none xl:data-[state=closed]:animate-none"
+      className="absolute inset-y-2 right-2 z-40 hidden w-[22rem] animate-enter overflow-hidden rounded-lg border bg-background shadow-lg data-[state=closed]:animate-exit md:block xl:static xl:z-auto xl:w-[21rem] xl:animate-none xl:rounded-none xl:border-y-0 xl:border-r-0 xl:shadow-none xl:data-[state=closed]:animate-none"
     >
       <ShellQueue onClose={onClose} />
     </aside>
