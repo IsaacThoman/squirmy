@@ -43,8 +43,9 @@ export function BackBreadcrumb() {
   if (!detail || !label) return null
 
   return (
-    <nav aria-label="Back navigation" className="flex min-h-10 items-center px-(--gutter) pt-1 max-md:pl-12">
-      <button type="button" onClick={() => void navigate(-1)} className="-ml-1 inline-flex min-h-8 items-center gap-1 rounded-md pr-1.5 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+    // The collection header already has enough top padding for the breadcrumb.
+    <nav aria-label="Back navigation" className="absolute left-(--gutter) top-1.5 z-10 max-md:left-13">
+      <button type="button" onClick={() => void navigate(-1)} className="-ml-1 inline-flex min-h-8 items-center gap-1 rounded-md pr-1.5 text-sm text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
         <ChevronLeft aria-hidden className="size-4" />Back to {label}
       </button>
     </nav>
