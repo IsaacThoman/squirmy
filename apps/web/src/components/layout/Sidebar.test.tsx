@@ -1,3 +1,4 @@
+import { ApiError } from '@squirmy/client-core'
 import type { PlaybackContext, PlaylistSummary, User } from '@squirmy/contracts'
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -49,10 +50,10 @@ function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, toggl
   const library = {
     wantlistEnabled,
     isWanted: () => false,
-    setSaved: vi.fn<LibraryActions['setSaved']>(),
-    setWanted: vi.fn<LibraryActions['setWanted']>(),
+    setSaved: vi.fn<LibraryActions['setSaved']>(async () => {}),
+    setWanted: vi.fn<LibraryActions['setWanted']>(async () => {}),
     playlists: playlistSummaries,
-    addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(),
+    addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(async () => true),
     newPlaylist: vi.fn<LibraryActions['newPlaylist']>(),
   } satisfies LibraryActions
   const on = { onToggle: vi.fn(), onNavigate: vi.fn(), onOpenSettings: vi.fn(), onPlayPlaylist: vi.fn(), onPlayLiked: vi.fn(), onLogout: vi.fn() }
@@ -262,7 +263,7 @@ describe('Sidebar', () => {
   })
 
   describe('dragging songs', () => {
-    it('adds the songs dropped on a playlist of your own', () => {
+    it('adds the songs dropped on a playlist of your own, and says on the row that they went in', async () => {
       const { library } = renderSidebar()
       const { transfer, tracks } = dragTracks('amber', 'riverside')
       const link = playlistLink('After Dark')
@@ -273,6 +274,19 @@ describe('Sidebar', () => {
       expect(library.addToPlaylist).toHaveBeenCalledTimes(1)
       expect(library.addToPlaylist).toHaveBeenCalledWith(afterDark, tracks)
       expect(where()).toBe('/')
+      expect(await within(link).findByText('Added')).toBeInTheDocument()
+      expect(screen.getAllByRole('status').map(status => status.textContent)).toContain('Added to After Dark')
+    })
+
+    it('says on the row when the server refused the songs dropped on it', async () => {
+      const { library } = renderSidebar()
+      library.addToPlaylist.mockRejectedValueOnce(new ApiError(503, 'unavailable', 'The server is busy.'))
+      const { transfer } = dragTracks('amber')
+      const link = playlistLink('After Dark')
+      fireEvent.dragOver(link, { dataTransfer: transfer })
+      fireEvent.drop(link, { dataTransfer: transfer })
+      expect(await within(link).findByText('Couldn’t add')).toBeInTheDocument()
+      expect(screen.getAllByRole('status').map(status => status.textContent)).toContain('Couldn’t add to After Dark. The server is busy.')
     })
 
     it('does not take songs on someone else’s playlist', () => {
@@ -284,17 +298,16 @@ describe('Sidebar', () => {
       expect(library.addToPlaylist).not.toHaveBeenCalled()
     })
 
-    it('saves the songs dropped on Liked Songs that are not saved yet, with one toast', async () => {
+    it('saves the songs dropped on Liked Songs that are not saved yet, and says on the row once they are', async () => {
       const { library } = renderSidebar()
       const { transfer } = dragTracks('amber', 'riverside', 'open-window')
       const link = playlistLink('Liked Songs 24 songs')
       expect(fireEvent.dragOver(link, { dataTransfer: transfer })).toBe(false)
       fireEvent.drop(link, { dataTransfer: transfer })
-      const saved = (slug: string) => [{ type: 'track', id: track(slug).id, title: track(slug).title }, true, { quiet: true }]
+      const saved = (slug: string) => [{ type: 'track', id: track(slug).id, title: track(slug).title }, true]
       expect(library.setSaved.mock.calls).toEqual([saved('riverside'), saved('open-window')])
       expect(library.addToPlaylist).not.toHaveBeenCalled()
-      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
-      expect(screen.getByText('2 songs')).toBeInTheDocument()
+      expect(await within(link).findByText('Saved')).toBeInTheDocument()
     })
 
     it('ignores a drag of anything else', () => {

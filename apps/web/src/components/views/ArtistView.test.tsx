@@ -151,15 +151,16 @@ describe('see all', () => {
 })
 
 describe('the heart', () => {
-  it('says so when the artist is saved, naming them', async () => {
+  it('says beside the heart when the server refused to save the artist, and names them to screen readers', async () => {
     const fake = fakeServices()
     fake.api.catalog.artist.mockResolvedValue({ ...artistDetail(id)!, liked: false })
+    fake.api.userdata.like.mockRejectedValueOnce(new Error('No'))
     renderWithApp(<AppRoutes />, `/artist/${id}`, fake.services)
     await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
     expect(fake.api.userdata.like).toHaveBeenCalledWith('artist', id)
-    const toast = (await screen.findByText('Saved to your library')).closest('[data-toast]')!
-    expect(within(toast as HTMLElement).getByText('Mira Vale')).toBeInTheDocument()
-    expect(within(toast as HTMLElement).getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Couldn’t save. Try again.')
+    expect(screen.getByRole('button', { name: 'Save to library' })).toBeInTheDocument()
+    expect(screen.getAllByRole('status').map(status => status.textContent)).toContain('Couldn’t save “Mira Vale” to your library. Try again.')
   })
 
 })

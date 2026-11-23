@@ -49,7 +49,8 @@ type SharedProps = {
   nowPlaying?: NowPlaying | null
   isWanted?: (track: TrackSummary) => boolean
   onPlay: (index: number) => void
-  onAction?: (action: TrackAction, track: TrackSummary, index: number) => void
+  /** Resolves (or rejects) for the actions that answer later: the menu entry waits for those. */
+  onAction?: (action: TrackAction, track: TrackSummary, index: number) => void | Promise<unknown>
   /** Playlists the track menu offers to add to. */
   playlists?: PlaylistChoice[]
   /** Makes the rows reorderable by dragging and from the menu (a playlist the user owns). */
@@ -302,7 +303,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @2xl:block">{formatRelative(addedAt)}</div>}
 
           <div className={actionsColumn}>
-            {onAction && <SaveHeart liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(rowAction, !liked && revealed)} />}
+            {onAction && <SaveHeart id={track.id} liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(rowAction, !liked && revealed)} />}
             <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @xs:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
             <DropdownMenu
               entries={menu}

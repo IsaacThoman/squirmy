@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from 'class-variance-authority'
-import type { ComponentProps } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 import { Tooltip } from './tooltip'
 
@@ -44,11 +44,25 @@ export type IconButtonProps = Omit<ComponentProps<'button'>, 'aria-label'> & Var
   tooltip?: boolean
   /** Toggle buttons: the on state is drawn in the theme's action color. */
   pressed?: boolean
+  /**
+   * For a control whose change the server may refuse (the heart): while set, the refusal shows
+   * beside it as its tooltip, held open in the error color. Pass null rather than leave it out,
+   * so the tooltip is there from the start and the button is not rebuilt (and its focus lost)
+   * when a failure comes.
+   */
+  failure?: string | null
 }
 
-export function IconButton({ label, tooltip = true, pressed, variant, size, shape, className, children, type = 'button', ...props }: IconButtonProps) {
+export function IconButton({ label, tooltip = true, pressed, failure, variant, size, shape, className, children, type = 'button', ...props }: IconButtonProps) {
+  const [hovered, setHovered] = useState(false)
+  const watched = failure !== undefined
   return (
-    <Tooltip label={tooltip ? label : null}>
+    <Tooltip
+      label={failure ?? (tooltip || watched ? label : null)}
+      open={watched ? Boolean(failure) || (tooltip && hovered) : undefined}
+      onOpenChange={watched ? setHovered : undefined}
+      tone={failure ? 'error' : undefined}
+    >
       <button
         type={type}
         aria-label={label}

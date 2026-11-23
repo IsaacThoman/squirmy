@@ -1,19 +1,18 @@
 import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
-import { Bookmark, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { Bookmark, Check, CircleAlert, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
+import { errorMessage } from '@/api/errors'
 import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
 import { Equalizer } from '@/components/music/Equalizer'
-import { Kbd } from '@/components/ui/feedback'
+import { Kbd, Spinner } from '@/components/ui/feedback'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { Tooltip } from '@/components/ui/tooltip'
 import { canUploadMusic } from '@/lib/catalog'
 import { draggedTracks } from '@/lib/drag'
-import { plural } from '@/lib/format'
 import { modKey } from '@/lib/platform'
-import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
-import { useLibrary } from '@/player/library-context'
+import { FAILURE_MS, useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
 import { LogoMark } from './Logo'
 
@@ -64,12 +63,10 @@ const SidebarView = memo(function SidebarView({
   const navigate = useNavigate()
   const name = user.displayName ?? user.username
   const runningIn = (type: PlayingCollection['type'], id: string | null) => (playing?.type === type && playing.id === id ? playing.running : null)
-  // Songs dropped on Liked Songs are saved to the library, with one toast for them all.
-  const likeTracks = useCallback((tracks: TrackSummary[]) => {
+  // Songs dropped on Liked Songs are saved to the library; the row says when they all are.
+  const likeTracks = useCallback(async (tracks: TrackSummary[]) => {
     const saving = tracks.filter(track => !track.liked)
-    if (!saving.length) return
-    saving.forEach(track => library.setSaved({ type: 'track', id: track.id, title: track.title }, true, { quiet: true }))
-    toast({ title: 'Saved to your library', description: saving.length === 1 ? saving[0].title : plural(saving.length, 'song') })
+    await Promise.all(saving.map(track => library.setSaved({ type: 'track', id: track.id, title: track.title }, true)))
   }, [library])
   const addToPlaylist = useCallback((playlist: PlaylistSummary, tracks: TrackSummary[]) => library.addToPlaylist(playlist, tracks), [library])
   const likedEntries = useMemo<MenuEntry[]>(() => [{ label: 'Play', icon: <Play />, onSelect: onPlayLiked }], [onPlayLiked])
@@ -270,7 +267,7 @@ type PlaylistItemProps = {
   labelClass: string
   onNavigate: () => void
   onPlay: (playlist: PlaylistSummary) => void
-  onDropTracks: (playlist: PlaylistSummary, tracks: TrackSummary[]) => void
+  onDropTracks: (playlist: PlaylistSummary, tracks: TrackSummary[]) => Promise<unknown>
 }
 
 /** Memoized with stable props, so a long list of playlists renders again only where something changed. */
@@ -304,11 +301,34 @@ type PlaylistRowProps = {
   /** How the name and the count fade as the sidebar folds, as the navigation's labels do. */
   labelClass: string
   onNavigate: () => void
-  onDropTracks?: (tracks: TrackSummary[]) => void
+  /** Resolves once the songs are in, or rejects: the row says which in place of its count. */
+  onDropTracks?: (tracks: TrackSummary[]) => Promise<unknown>
 }
+
+/** How long a row says songs dropped on it went in. A failure stays as long as the heart's does. */
+const DROPPED_MS = 2500
+
+/** What songs dropped on a row came to: still going in, in, or refused and why. */
+type Dropped = { state: 'pending' | 'done' } | { state: 'failed'; message: string }
 
 function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labelClass, onNavigate, onDropTracks }: PlaylistRowProps) {
   const [over, setOver] = useState(false)
+  const [dropped, setDropped] = useState<Dropped | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const drop = (tracks: TrackSummary[]) => {
+    clearTimeout(timer.current)
+    setDropped({ state: 'pending' })
+    const settle = (next: Dropped, ms: number) => {
+      setDropped(next)
+      timer.current = setTimeout(() => setDropped(null), ms)
+    }
+    onDropTracks!(tracks).then(
+      () => settle({ state: 'done' }, DROPPED_MS),
+      (error: unknown) => settle({ state: 'failed', message: errorMessage(error) }, FAILURE_MS),
+    )
+  }
+  const said = dropped?.state === 'done' ? (to === '/liked' ? 'Saved' : 'Added') : dropped?.state === 'failed' ? (to === '/liked' ? 'Couldn’t save' : 'Couldn’t add') : null
   const accepts = (event: DragEvent) => Boolean(onDropTracks && draggedTracks(event))
   const link = (
     <NavLink
@@ -329,7 +349,7 @@ function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labe
         setOver(false)
         if (!onDropTracks || !drag) return
         event.preventDefault()
-        onDropTracks(drag.tracks)
+        drop(drag.tracks)
       }}
       className={cn(
         'flex items-center gap-2 overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
@@ -341,15 +361,29 @@ function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labe
     >
       <span className="flex shrink-0">{art}</span>
       <span dir="auto" className={cn('min-w-0 flex-1 truncate whitespace-nowrap', labelClass)}>{title}</span>
-      {playing !== null
-        ? <Equalizer playing={playing} className={cn('h-3 shrink-0', labelClass)} />
-        : detail && <span className={cn('shrink-0 whitespace-nowrap text-xs text-muted-foreground', labelClass)}>{detail}</span>}
+      {dropped
+        ? (
+            <span aria-hidden className={cn('flex shrink-0 items-center gap-1 whitespace-nowrap text-xs', dropped.state === 'failed' ? 'text-destructive' : 'text-muted-foreground', labelClass)}>
+              {dropped.state === 'pending' ? <Spinner label={null} className="size-3" /> : dropped.state === 'done' ? <Check className="size-3 text-primary" /> : <CircleAlert className="size-3" />}
+              {said}
+            </span>
+          )
+        : playing !== null
+          ? <Equalizer playing={playing} className={cn('h-3 shrink-0', labelClass)} />
+          : detail && <span className={cn('shrink-0 whitespace-nowrap text-xs text-muted-foreground', labelClass)}>{detail}</span>}
     </NavLink>
   )
   // Folded, the tooltip names the cover. Its trigger is the link and the menu's is the box around it: each takes its props from an element of its own.
   return (
     <ContextMenu entries={entries}>
-      <div><Tooltip label={collapsed ? title : null} side="right">{link}</Tooltip></div>
+      <div>
+        <Tooltip label={collapsed ? title : null} side="right">{link}</Tooltip>
+        {/* Read out apart from the link, whose name stays the playlist's. */}
+        <span role="status" className="sr-only">
+          {dropped?.state === 'done' && `${to === '/liked' ? 'Saved to' : 'Added to'} ${title}`}
+          {dropped?.state === 'failed' && `${to === '/liked' ? 'Couldn’t save to' : 'Couldn’t add to'} ${title}. ${dropped.message}`}
+        </span>
+      </div>
     </ContextMenu>
   )
 }

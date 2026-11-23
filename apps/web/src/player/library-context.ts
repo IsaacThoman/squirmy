@@ -1,9 +1,9 @@
 import type { AlbumSummary, LikeEntityType, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useSyncExternalStore } from 'react'
 
 export type WantTarget = { type: 'album'; album: AlbumSummary } | { type: 'track'; track: TrackSummary }
 
-/** What the heart saves to the library: a track, an album or an artist. The title is for the toast. */
+/** What the heart saves to the library: a track, an album or an artist. The title names it to screen readers when a save fails. */
 export type LibraryTarget = { type: LikeEntityType; id: string; title: string }
 
 /**
@@ -16,15 +16,22 @@ export type LibraryActions = {
   /** Tracks carry no `wanted` flag, so their state comes from the user's wantlist. */
   isWanted: (id: string, fromServer?: boolean) => boolean
   /**
-   * The heart, the one way into the library: saves or removes a track, album or artist and
-   * says so in a toast with Undo (`quiet` leaves the toast to the caller). It shows at once and
-   * never waits on the music: for a requester the server fetches what is missing behind it.
+   * The heart, the one way into the library: saves or removes a track, album or artist. It
+   * shows at once and never waits on the music: for a requester the server fetches what is
+   * missing behind it. One the server refuses goes back, and the heart says so (`LibraryFailures`).
+   * Resolves once the server has it; a caller that waits (a menu entry) can say a failure itself.
    */
-  setSaved: (target: LibraryTarget, saved: boolean, options?: { quiet?: boolean }) => void
-  setWanted: (target: WantTarget, wanted: boolean) => void
+  setSaved: (target: LibraryTarget, saved: boolean) => Promise<void>
+  /** As `setSaved`, for the Wantlist: shows at once, goes back and says so where it was made when refused. */
+  setWanted: (target: WantTarget, wanted: boolean) => Promise<void>
   /** The user's own playlists, newest change first: the ones tracks can be added to. */
   playlists: PlaylistSummary[]
-  addToPlaylist: (playlist: Pick<PlaylistSummary, 'id' | 'name'>, tracks: TrackSummary[]) => void
+  /**
+   * Adds the songs, asking first about those the playlist has already. Resolves true once they
+   * are added, false when the question was asked instead (the dialog it opens takes it from
+   * there), and rejects when the server refused, for the place that asked to say so.
+   */
+  addToPlaylist: (playlist: Pick<PlaylistSummary, 'id' | 'name'>, tracks: TrackSummary[]) => Promise<boolean>
   /** Opens the new playlist dialog; the playlist starts with `tracks` when given. */
   newPlaylist: (tracks?: TrackSummary[]) => void
 }
@@ -35,4 +42,60 @@ export function useLibrary() {
   const library = useContext(LibraryContext)
   if (!library) throw new Error('useLibrary needs a library provider')
   return library
+}
+
+/** How long a refused change says so beside the control that made it. */
+export const FAILURE_MS = 5000
+
+/** What failed, for the control that shows it: the heart (`save`) or the Wantlist (`want`) of one item. */
+export type FailureKey = `${'save' | 'want'}:${string}`
+
+/**
+ * The library changes the server refused, for a few seconds each, so the control that made one
+ * (a heart, a Wantlist button) says so beside itself rather than anywhere else. `latest` is the
+ * last one with the item's name, for the one live region that tells screen readers.
+ */
+export class LibraryFailures {
+  private readonly failures = new Map<FailureKey, string>()
+  private readonly timers = new Map<FailureKey, ReturnType<typeof setTimeout>>()
+  private readonly listeners = new Set<() => void>()
+  private announced: string | null = null
+
+  get = (key: FailureKey): string | null => this.failures.get(key) ?? null
+  latest = (): string | null => this.announced
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  /** `message` shows beside the control; `announcement` (with the item's name) is read out. */
+  fail(key: FailureKey, message: string, announcement: string): void {
+    clearTimeout(this.timers.get(key))
+    this.failures.set(key, message)
+    this.announced = announcement
+    this.timers.set(key, setTimeout(() => this.clear(key), FAILURE_MS))
+    this.emit()
+  }
+
+  clear(key: FailureKey): void {
+    clearTimeout(this.timers.get(key))
+    this.timers.delete(key)
+    if (!this.failures.delete(key)) return
+    if (!this.failures.size) this.announced = null
+    this.emit()
+  }
+
+  private emit(): void {
+    for (const listener of [...this.listeners]) listener()
+  }
+}
+
+/** Fixtures and components rendered alone get one that never fails. */
+export const LibraryFailuresContext = createContext(new LibraryFailures())
+
+/** The refused change of `key`, while it says so; null otherwise, or without a key. */
+export function useLibraryFailure(key: FailureKey | undefined): string | null {
+  const failures = useContext(LibraryFailuresContext)
+  return useSyncExternalStore(failures.subscribe, () => (key ? failures.get(key) : null))
 }

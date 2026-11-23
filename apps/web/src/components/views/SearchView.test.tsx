@@ -74,6 +74,9 @@ describe('search page', () => {
     await userEvent.click(within(row).getByRole('button', { name: 'More options for Blue Hour' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Save to library' }))
     await waitFor(() => expect(api.userdata.like).toHaveBeenCalled())
+    // No heart on an album's row: the entry says it worked, then the menu closes.
+    expect(await screen.findByRole('menuitem', { name: 'Saved to library' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
     await userEvent.click(within(row).getByRole('button', { name: 'More options for Blue Hour' }))
     expect(await screen.findByRole('menuitem', { name: 'Remove from library' })).toBeInTheDocument()
   })

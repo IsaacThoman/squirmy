@@ -117,7 +117,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                 <PlayerStatusLine status={state.status} />
               </div>
               {/* The heart is named after the song: the page beside it (an album, an artist) has a heart of its own. */}
-              {heartFits && <SaveHeart liked={liked} onToggle={onToggleLike} title={item.track.title} size="sm" className={cn('ml-1 shrink-0', touchTarget)} />}
+              {heartFits && <SaveHeart id={item.track.id} liked={liked} onToggle={onToggleLike} title={item.track.title} size="sm" className={cn('ml-1 shrink-0', touchTarget)} />}
             </>
           ) : (
             <>

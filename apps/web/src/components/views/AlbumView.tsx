@@ -19,7 +19,6 @@ import { IconButton } from '@/components/ui/icon-button'
 import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { albumNote, albumPresentation, albumTypeLabel, awaitsTrackList, isPlayable, relatedAlbums } from '@/lib/catalog'
 import { formatReleaseDate, formatTotalDuration, plural } from '@/lib/format'
-import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls } from '@/player/player-context'
@@ -92,15 +91,10 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- only the arrival plays; later changes to the list do not
   }, [queued, arrived])
 
-  const want = () => {
-    library.setWanted({ type: 'album', album }, !wanted)
-    toast({ title: wanted ? 'Removed from Wantlist' : 'Added to Wantlist', description: album.title })
-  }
+  // The header's buttons show the change; the menu's entries wait for the server and say it worked.
+  const want = () => library.setWanted({ type: 'album', album }, !wanted)
   const toggleSaved = () => library.setSaved({ type: 'album', id: album.id, title: album.title }, !album.liked)
-  const enqueue = (placement: 'next' | 'last') => {
-    controls.enqueue(playable, placement)
-    toast({ title: placement === 'next' ? 'Playing next' : 'Added to queue', description: album.title })
-  }
+  const enqueue = (placement: 'next' | 'last') => controls.enqueue(playable, placement)
   const note = albumNote(album, viewer)
 
   return (
@@ -119,6 +113,7 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
         ]}
         actions={(
           <PlayActions
+            id={album.id}
             title={album.title}
             onPlay={playable.length || waiting ? () => play(false) : undefined}
             onShuffle={playable.length > 1 || waiting ? () => play(true) : undefined}

@@ -1,10 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, home, summary } from '@/fixtures/catalog'
 import { users } from '@/fixtures/server'
-import { dismissToast, toastStore } from '@/lib/toast'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 import { AlbumCard } from './Cards'
@@ -14,10 +13,6 @@ const blueHour = album('blue-hour')
 const member = users[1]!
 
 const entries = () => screen.getAllByRole('menuitem').map(item => item.textContent)
-
-afterEach(() => {
-  for (const item of toastStore.getSnapshot()) dismissToast(item.id)
-})
 
 describe('album menu', () => {
   it('is the album page’s on its cards, with Play, which the page has as a button', async () => {

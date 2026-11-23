@@ -67,6 +67,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
         line={canFetch(viewer) || playing === total ? plural(total, 'release') : `${playing} of ${plural(total, 'release')} available`}
         actions={(
           <PlayActions
+            id={artist.id}
             title={artist.name}
             onPlay={playable ? () => controls.playTracks(artist.topTracks, 0, context) : undefined}
             onShuffle={playable ? () => controls.playTracks(artist.topTracks, 0, context, { shuffle: true }) : undefined}

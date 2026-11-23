@@ -369,7 +369,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
         {/* A finger gets 44 px for the heart and the menu, with no gap between them. */}
         <div className="relative z-10 flex shrink-0 items-center gap-1 pointer-coarse:gap-0">
           {track && onLike && (
-            <SaveHeart liked={track.liked} onToggle={onLike} title={title} tooltip={false} size="sm" className={cn('pointer-coarse:size-11', !track.liked && revealed)} />
+            <SaveHeart id={track.id} liked={track.liked} onToggle={onLike} title={title} tooltip={false} size="sm" className={cn('pointer-coarse:size-11', !track.liked && revealed)} />
           )}
           {track && <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @md:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>}
           <DropdownMenu

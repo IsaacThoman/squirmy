@@ -5,8 +5,10 @@ import { Link } from 'react-router'
 import { usePrefetch, type PrefetchHandlers } from '@/api/prefetch'
 import { IconButton } from '@/components/ui/icon-button'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
+import { Tooltip } from '@/components/ui/tooltip'
 import { albumPresentation, canFetch, releaseSubtitle, UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
+import { useLibraryFailure } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { useAlbumMenu } from '@/player/use-album-menu'
 import { LikedCover, PlaylistCover } from './CollectionArt'
@@ -18,8 +20,8 @@ type CardProps = {
   subtitle: ReactNode
   art: ReactNode
   onPlay?: () => void
-  /** For music that does not play: a bookmark that adds it to the Wantlist, shown while wanted. */
-  want?: { wanted: boolean; onChange: (wanted: boolean) => void }
+  /** For music that does not play: a bookmark that adds it (`id`) to the Wantlist, shown while wanted. */
+  want?: { id: string; wanted: boolean; onChange: (wanted: boolean) => void }
   dimmed?: boolean
   /** Nothing on it plays for this user: said in words, not only by the gray. */
   unavailable?: boolean
@@ -89,17 +91,7 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, unavailable, rou
           {art}
           <div aria-hidden className={cn('pointer-events-none absolute inset-0 transition-colors duration-150 group-hover/card:bg-black/10', round ? 'rounded-full' : 'rounded-cover')} />
           {onPlay && <PlayButton title={title} onPlay={onPlay} />}
-          {want && !onPlay && (
-            <button
-              type="button"
-              aria-label={want.wanted ? `Remove ${title} from Wantlist` : `Add ${title} to Wantlist`}
-              aria-pressed={want.wanted}
-              onClick={() => want.onChange(!want.wanted)}
-              className={cn(overArt, 'border bg-popover shadow-md hover:bg-accent', want.wanted ? 'text-primary' : cn(revealed, hoverOnly, 'text-popover-foreground'))}
-            >
-              {want.wanted ? <BookmarkCheck className="size-4" /> : <BookmarkPlus className="size-4" />}
-            </button>
-          )}
+          {want && !onPlay && <WantButton title={title} want={want} />}
         </div>
         <div className="mt-2 flex w-full min-w-0 items-center gap-1">
           <Link
@@ -119,6 +111,29 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, unavailable, rou
         <div className={cn('w-full truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{unavailable && <UnavailableNote />}{subtitle}</div>
       </div>
     </WithMenu>
+  )
+}
+
+/**
+ * The card's Wantlist bookmark. A change the server refuses goes back, and says so beside the
+ * bookmark for a few seconds, which stays in sight meanwhile.
+ */
+function WantButton({ title, want }: { title: string; want: NonNullable<CardProps['want']> }) {
+  const failure = useLibraryFailure(`want:${want.id}`)
+  const label = want.wanted ? `Remove ${title} from Wantlist` : `Add ${title} to Wantlist`
+  // Always in a tooltip, open only for a failure: the button stays the same element, and keeps focus, when one comes.
+  return (
+    <Tooltip label={failure ?? label} open={Boolean(failure)} tone="error">
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={want.wanted}
+        onClick={() => want.onChange(!want.wanted)}
+        className={cn(overArt, 'border bg-popover shadow-md hover:bg-accent', want.wanted || failure ? 'text-primary' : cn(revealed, hoverOnly, 'text-popover-foreground'), failure && 'opacity-100')}
+      >
+        {want.wanted ? <BookmarkCheck className="size-4" /> : <BookmarkPlus className="size-4" />}
+      </button>
+    </Tooltip>
   )
 }
 
@@ -154,7 +169,7 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
         : subtitle === 'artist-year' ? [album.artistCredit, album.year].filter(Boolean).join(' · ') : album.artistCredit}
       art={<Cover artwork={album.artwork} dimmed={dimmed} />}
       onPlay={dimmed ? undefined : onPlay}
-      want={dimmed && onWant ? { wanted, onChange: onWant } : undefined}
+      want={dimmed && onWant ? { id: album.id, wanted, onChange: onWant } : undefined}
       dimmed={dimmed}
       unavailable={dimmed}
       menu={menu}

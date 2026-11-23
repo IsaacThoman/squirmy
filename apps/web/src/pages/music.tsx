@@ -42,8 +42,7 @@ import { usePageTitle } from '@/lib/document-title'
 import { plural } from '@/lib/format'
 import { useRecentSearches } from '@/lib/recent-searches'
 import { useUrlDraft } from '@/lib/use-url-draft'
-import { toast } from '@/lib/toast'
-import { useLibrary } from '@/player/library-context'
+import { FAILURE_MS, useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
 import { usePlayCollections } from '@/player/use-play-collections'
@@ -227,7 +226,6 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
       queryClient.setQueryData<PlaylistDetail>(key, detail => detail && { ...detail, ...summary })
       return queryClient.invalidateQueries({ queryKey: queryKeys.playlists(), exact: true })
     },
-    meta: { inline: true },
   })
   const deleted = useRef(false)
   const remove = useMutation({
@@ -236,7 +234,6 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
     onError: () => onDeleting(false),
     onSuccess: () => {
       deleted.current = true
-      toast({ title: 'Playlist deleted', description: playlist.name })
       void navigate('/library?filter=playlists', { replace: true })
       return queryClient.invalidateQueries({ queryKey: queryKeys.playlists(), exact: true })
     },
@@ -246,15 +243,25 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
     if (deleted.current) queryClient.removeQueries({ queryKey: queryKeys.playlist(playlist.id), exact: true })
   }, [queryClient, playlist.id])
   // Moves and removals show at once; the server's answer, or a refetch after a failure, replaces them.
+  // A failure is said above the songs for a few seconds, as they go back to where they were.
+  const [failure, setFailure] = useState<string>()
+  const failureTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(failureTimer.current), [])
+  const refused = (message: string) => {
+    clearTimeout(failureTimer.current)
+    setFailure(message)
+    failureTimer.current = setTimeout(() => setFailure(undefined), FAILURE_MS)
+    return refetch()
+  }
   const move = useMutation({
     mutationFn: ({ itemId, toIndex }: { itemId: string; toIndex: number }) => api.userdata.movePlaylistItem(playlist.id, { itemId, toIndex }),
     onSuccess: save,
-    onError: refetch,
+    onError: () => refused('Couldn’t move the song. Try again.'),
   })
   const drop = useMutation({
-    mutationFn: (itemId: string) => api.userdata.removePlaylistItem(playlist.id, itemId),
+    mutationFn: ({ itemId }: { itemId: string; title: string }) => api.userdata.removePlaylistItem(playlist.id, itemId),
     onSuccess: save,
-    onError: refetch,
+    onError: (_error, { title }) => refused(`Couldn’t remove “${title}”. Try again.`),
   })
 
   return (
@@ -263,7 +270,7 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
         playlist={playlist}
         owned={playlist.ownerId === user.id}
         onEdit={() => setDialog('edit')}
-        onTogglePublic={() => update.mutate({ isPublic: !playlist.isPublic })}
+        onTogglePublic={() => update.mutateAsync({ isPublic: !playlist.isPublic })}
         onDelete={() => setDialog('delete')}
         onMove={(from, to) => {
           if (to < 0 || to >= playlist.items.length || from === to) return
@@ -273,9 +280,9 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
         onRemove={index => {
           const { itemId, track } = playlist.items[index]
           change(detail => ({ ...detail, items: detail.items.filter(item => item.itemId !== itemId) }))
-          drop.mutate(itemId)
-          toast({ title: 'Removed from playlist', description: track.title })
+          drop.mutate({ itemId, title: track.title })
         }}
+        failure={failure}
       />
       <PlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={playlist} onSubmit={request => update.mutateAsync(request)} />
       <ConfirmDialog

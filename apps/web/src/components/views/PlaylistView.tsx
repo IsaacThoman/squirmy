@@ -8,6 +8,7 @@ import { TrackList, VirtualTrackList } from '@/components/music/TrackList'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
+import { FormError } from '@/components/ui/input'
 import { DropdownMenu } from '@/components/ui/menu'
 import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
@@ -21,13 +22,16 @@ type PlaylistViewProps = {
   /** The owner's controls: edit, delete, reorder, remove. */
   owned: boolean
   onEdit: () => void
-  onTogglePublic: () => void
+  /** Its menu entry waits for the server, and says on itself when it refused. */
+  onTogglePublic: () => Promise<unknown>
   onDelete: () => void
   onMove: (from: number, to: number) => void
   onRemove: (index: number) => void
+  /** A move or removal the server refused, said above the songs it went back among. */
+  failure?: string
 }
 
-export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove }: PlaylistViewProps) {
+export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove, failure }: PlaylistViewProps) {
   const tracks = playlist.items.map(item => item.track)
   // A finger cannot drag a song onto the sidebar (on a phone it is a drawer over the songs), so touch screens are told the menu's way.
   const touch = useMediaQuery('(pointer: coarse)')
@@ -45,6 +49,7 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
       context={{ type: 'playlist', id: playlist.id, title: playlist.name }}
       onMove={owned ? onMove : undefined}
       onRemove={owned ? onRemove : undefined}
+      failure={failure}
       menu={owned && (
         <DropdownMenu
           align="start"
@@ -122,9 +127,10 @@ type TrackCollectionProps = {
   virtual?: { onEndReached: () => void }
   menu?: ReactNode
   empty: ReactNode
+  failure?: string
 }
 
-function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, count, durationMs, context, onPlay, onMove, onRemove, virtual, menu, empty }: TrackCollectionProps) {
+function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, count, durationMs, context, onPlay, onMove, onRemove, virtual, menu, empty, failure }: TrackCollectionProps) {
   const controls = usePlayerControls()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
   const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove })
@@ -152,6 +158,7 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
         )}
       />
       <div className="px-(--gutter) pb-10">
+        {failure && <div className="mb-3"><FormError message={failure} /></div>}
         {!tracks.length
           ? empty
           : virtual

@@ -1,7 +1,7 @@
 import type { TrackSummary } from '@squirmy/contracts'
-import { ArrowDown, ArrowUp, BookmarkCheck, BookmarkPlus, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Plus, Radio, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Plus, Radio, Trash2 } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
-import { librarySaveEntry } from './library-save-entry'
+import { librarySaveEntry, wantEntry } from './library-save-entry'
 import type { PlaylistChoice, TrackAction } from './TrackList'
 
 export type TrackMenuOptions = {
@@ -9,7 +9,8 @@ export type TrackMenuOptions = {
   /** Undefined while the server has the wantlist off. */
   wanted?: boolean
   playlists?: PlaylistChoice[]
-  act: (action: TrackAction) => void
+  /** Resolves (or rejects) for the actions that answer later, which their entries wait for. */
+  act: (action: TrackAction) => void | Promise<unknown>
   navigate: (to: string) => void
   extraMenu?: MenuEntry[]
   /** The row's place in a list the user may reorder. */
@@ -26,8 +27,9 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
   return [
     // On a touch screen the menu opens with the song's whole title and credit, which its row cuts short.
     { kind: 'header', label: track.title, detail: track.artistCredit },
-    { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), disabled: unavailable },
-    { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), disabled: unavailable },
+    // The queue may be out of sight: the entry says it worked.
+    { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable },
+    { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable },
     ...(playlists ? [{
       kind: 'submenu' as const,
       label: 'Add to playlist',
@@ -35,14 +37,14 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
       items: [
         { label: 'New playlist…', icon: <Plus />, onSelect: () => act('add-to:new') },
         ...(playlists.length ? [{ kind: 'separator' as const }] : []),
-        ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => act(`add-to:${playlist.id}`) })),
+        ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => act(`add-to:${playlist.id}`), done: `Added to ${playlist.name}` })),
       ],
     }] : []),
     { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
     { kind: 'separator' },
     librarySaveEntry(track, () => act('like')),
     // Undefined `wanted` means the server has the wantlist off. It is for music that does not play.
-    ...(!unavailable || wanted === undefined ? [] : [{ label: wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: () => act('want') }]),
+    ...(!unavailable || wanted === undefined ? [] : [wantEntry(wanted, () => act('want'))]),
     { kind: 'separator' },
     ...(track.album && !onAlbumPage ? [{ label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(`/album/${track.album!.id}`) }] : []),
     ...track.artists.map(artist => ({ label: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),

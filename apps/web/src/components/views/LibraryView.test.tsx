@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { albumDetail, libraryAlbums, libraryArtists, libraryTracks, playlistSummaries, searchFixtures } from '@/fixtures/catalog'
 import { currentUser } from '@/fixtures/server'
-import { dismissToast, toastStore } from '@/lib/toast'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 
@@ -40,7 +39,6 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.restoreAllMocks()
-  for (const item of toastStore.getSnapshot()) dismissToast(item.id)
 })
 
 /**
@@ -372,14 +370,16 @@ describe('Library', () => {
       const grid = await main().findByRole('list', { name: 'Albums' })
       await userEvent.click(within(grid).getByRole('button', { name: 'More options for Glass City' }))
       await userEvent.click(await screen.findByRole('menuitem', { name: 'Add to queue' }))
-      expect(await screen.findByText('Added to queue')).toBeInTheDocument()
+      // The entry says it worked, the queue being out of sight, then the menu closes.
+      expect(await screen.findByRole('menuitem', { name: 'Added to queue' })).toBeInTheDocument()
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
       const glassCity = albumDetail(libraryAlbums[2]!.id)!
       await waitFor(() => expect(fake.socket.session.queue.map(entry => entry.trackId)).toEqual(glassCity.discs.flatMap(disc => disc.tracks).map(track => track.id)))
 
       await userEvent.click(within(grid).getByRole('button', { name: 'More options for Glass City' }))
       await userEvent.click(await screen.findByRole('menuitem', { name: 'Save to library' }))
       expect(fake.api.userdata.like).toHaveBeenCalledWith('album', glassCity.id)
-      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
+      expect(await screen.findByRole('menuitem', { name: 'Saved to library' })).toBeInTheDocument()
     })
   })
 
