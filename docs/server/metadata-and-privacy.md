@@ -74,6 +74,8 @@ To set it up:
 3. Under **Size**, keep **Every recording**, or choose **Fewer songs for the biggest artists** and a number to save space. Artists and albums stay complete either way.
 4. Choose **Start import**. Progress shows on the page; the import runs in the background at low priority.
 
+A restart of the server (a deploy, an upgrade) does not lose the import: the page says **Waiting to resume**, and once the server is back the import carries on from where it stopped and says **Resumed after a restart**. Only **Cancel** stops it for good.
+
 Search keeps using Deezer until the index is ready, then uses the index first. To refresh it, choose **Import again**; search keeps answering from the current index until the new one is complete. **Remove** empties it. MetaBrainz publishes a new dump about every two weeks, and the data is CC0.
 
 The index only answers search. Artist images, top songs and covers for music you do not own still come from the services above. The design and measurements are in [Local search index](../local-search-index.md).

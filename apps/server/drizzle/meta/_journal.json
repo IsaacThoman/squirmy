@@ -169,6 +169,13 @@
       "when": 1795395333400,
       "tag": "0023_deezer_soundtracks",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795413453979,
+      "tag": "0024_catalog_index_resume",
+      "breakpoints": true
     }
   ]
 }

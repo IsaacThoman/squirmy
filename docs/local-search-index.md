@@ -110,10 +110,11 @@ Names are stored as `name_key` (the `matchKey` of the name) rather than relying 
 | Download | 0.9 GB | 2.4 GB |
 | Final disk (table and indexes) | 2.1 GB | about 7 GB |
 | Peak extra disk during an import | 5.8 GB | about 20 GB, on top of the index already in place |
+| Downloaded dump kept while importing | 0.9 GB | 2.4 GB, in the data folder, deleted when the import ends |
 | Import time, laptop with NVMe | 1 min 50 s | 7 to 10 minutes plus download time |
 | Importer process memory | 250 MB peak resident | the same: everything is streamed, nothing grows with the dump |
 
-Rows cost about 136 bytes each in the table, plus 36 bytes in the prefix index; the head indexes are about 80 MB in total whatever the dump size. The peak comes from the unlogged staging tables holding the raw rows while the new table is sorted and written; the staging tables are dropped before the indexes are built, and the old index is only dropped at the swap.
+Rows cost about 136 bytes each in the table, plus 36 bytes in the prefix index; the head indexes are about 80 MB in total whatever the dump size. The peak comes from the unlogged staging tables holding the raw rows while the new table is sorted and written; the staging tables are dropped before the indexes are built, and the old index is only dropped at the swap. A downloaded dump is also written to `<data folder>/catalog-index/<import id>.tar.zst` as it streams, so an import a restart stops does not download it again (see [Restarts](#restarts)); a dump read from a path on the server is not copied.
 
 Expect a modest server (a few cores, SATA disk) to take three to five times longer: plan on 30 to 60 minutes. The import runs as a background job at low priority. Postgres does most of the work: in the 10 M run the Node process used 33 s of CPU out of 114 s, so decompression and parsing keep up with a download of about 25 MB/s. It raises `maintenance_work_mem` to 256 MB for its own connection while building indexes.
 
@@ -127,9 +128,9 @@ Everything is behind admin routes under `/api/v1`:
 
 | Route | What it does |
 |---|---|
-| `GET /admin/catalog-index` | `CatalogIndexStatus`: ready, dump date, row counts, size on disk, the active import and the newest other import with its phase and progress |
+| `GET /admin/catalog-index` | `CatalogIndexStatus`: ready, dump date, row counts, size on disk, the active import and the newest other import with its phase, progress and how often it was resumed (`resumes`, `resumedAt`) |
 | `POST /admin/catalog-index/import` | Queues the `catalog-index.import` job and answers 202. Body (all optional): `source`, a dump URL or a path on the server (default: the newest dump); `recordingsPerArtist` |
-| `DELETE /admin/catalog-index/import` | Cancels the running import; the index in use stays. 409 when none is running |
+| `DELETE /admin/catalog-index/import` | Cancels the running or interrupted import; the index in use stays. 409 when there is none |
 | `DELETE /admin/catalog-index` | Cancels a running import and empties the index |
 
 ```sh
@@ -138,8 +139,19 @@ curl -X POST https://music.example.com/api/v1/admin/catalog-index/import \
 ```
 
 - **Refreshing.** Run the import again. Search keeps answering from the current index until the new one is complete; the swap is a rename in a single short transaction.
-- **Failures.** A failed or cancelled import leaves the current index untouched and drops its staging tables. The status shows the error. Imports are not resumable: a new one starts from the beginning.
+- **Failures.** A failed or cancelled import leaves the current index untouched and drops its staging tables and its downloaded dump. The status shows the error. A new import starts from the beginning. Only an admin's cancel ends an import as `cancelled`; a restart does not (below).
 - **Offline or slow links.** Download the `.tar.zst` yourself (check it against the `.sha256` file next to it) and pass its path as `source`.
-- **One at a time.** A second import while one runs is refused with 409.
+- **One at a time.** A second import while one runs, or while one waits to resume, is refused with 409.
 - **zstd.** Node 22.15 and newer decompress zstd natively. On older Node the importer pipes through the `zstd` program and says so if it is missing.
-- **Crashes.** A worker that dies mid-import leaves its run marked running and staging tables behind. Because no process holds the import lock any more, the run is marked failed ("The import was interrupted") when a worker starts, when an admin starts or cancels an import, and the next import drops the staging tables.
+
+### Restarts
+
+A deploy, an upgrade or a crash does not lose an import: it carries on from its last checkpoint when a worker is running again, and nobody has to start it again.
+
+- **Checkpoints.** Loading commits every million CSV rows, and each step of the build (one SQL statement: a derived table, an insert, an index) commits on its own. Each commit records the checkpoint in the same transaction (`catalog_index_imports.checkpoint`), so the two always agree. A restart loses at most the chunk or the statement in progress.
+- **Shutting down.** On SIGTERM the import cancels its statement, rolls back the open chunk, keeps its staging tables and downloaded dump, marks itself `interrupted` and queues the job that resumes it, all within a second or two. The server then stops within 20 seconds; give the container at least 30 to stop (`stop_grace_period: 30s` in `compose.yaml`; Coolify waits 30 seconds by default). A rolling deploy's new container takes the job up once the old one has stopped.
+- **Resuming.** The resumed run reads the downloaded part of the dump back from disk and asks MetaBrainz only for the rest (an HTTP range request; a server that ignores ranges sends the whole file again, and the import skips what it has). The archive is a single zstd stream, so it is decompressed and parsed from the start each time, but rows already loaded are skipped rather than loaded again; a build that was under way carries on from the statement it stopped at without reading the dump at all. Admin → Search index says **Waiting to resume** in the meantime, and **Resumed after a restart** (or after *n* restarts) on the import while it runs and on the index once it is in place.
+- **Crashes.** A worker killed without warning (out of memory, SIGKILL, power loss) cannot record anything. Its import is still marked running, but no process holds the import lock, so it is marked `interrupted` and resumed from its last checkpoint when a worker starts, when an admin starts or cancels an import, and within a minute otherwise (`catalog-index.recover`).
+- **Postgres restarts.** The staging tables are unlogged, so Postgres empties them when it recovers from a crash. A checkpoint records when Postgres started; when that has changed, the import starts again from the beginning (keeping the downloaded dump). It does the same, once, if a table its checkpoint counts on is missing.
+- **Giving up.** An import resumed six times in a row from the same checkpoint (one that runs the server out of memory at the same statement, say) is marked failed and its staging tables are dropped.
+- **Cancelling.** Cancelling an interrupted import ends it at once and drops what it left behind.
