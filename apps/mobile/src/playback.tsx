@@ -317,11 +317,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         if (status !== 'active') save();
       });
       // In the background the socket stays open only while this phone plays (`BackgroundPresence`).
+      // A phone still loading a song it was told to play, or stuck on one, counts as playing:
+      // closed, its socket would let the server give up on it and pause everyone's session
+      // while it could still start the song.
       const followPlaying = () => {
         const { isActiveDevice, session } = client.getSnapshot();
-        setPlayingHere(isActiveDevice && session.playing);
+        setPlayingHere(isActiveDevice && (session.playing || engine.isTryingToPlay()));
       };
       const stopFollowing = client.subscribe(followPlaying);
+      const stopFollowingEngine = engine.subscribe(followPlaying);
 
       client.start();
       followPlaying();
@@ -332,6 +336,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         clearTimeout(saveTimer);
         appState.remove();
         stopFollowing();
+        stopFollowingEngine();
         setPlayingHere(false);
         stopSaving();
         stopPreparing();

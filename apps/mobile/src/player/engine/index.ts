@@ -40,6 +40,7 @@ export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInte
     ...options,
     log: message => console.info(`[engine] ${message}`),
     describeOutput: currentOutput,
+    holdRunning: hold => void NowPlaying?.holdBackgroundTime?.(hold).catch(() => undefined),
     // Never AirPlay's external playback mode, in which iOS hands a player's URL to the
     // receiver to fetch and play itself: it cannot fetch the silence's local file. Decoded
     // here, the sound still goes to AirPlay through the audio route.

@@ -396,6 +396,35 @@ describe('ExpoAudioEngine', () => {
     expect(players[1].calls.filter(call => call === 'play')).toHaveLength(0);
   });
 
+  it('holds background running time while it should sound and does not yet, and gives it back', () => {
+    const holds: boolean[] = [];
+    const held = new ExpoAudioEngine({
+      createPlayer: url => {
+        const player = new FakePlayer(url);
+        players.push(player);
+        return player;
+      },
+      createSilence: () => new FakeSilence(),
+      holdRunning: hold => holds.push(hold),
+    });
+    held.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    expect(holds).toEqual([true]);
+    expect(held.isTryingToPlay()).toBe(true);
+    players.at(-1)!.load();
+    expect(holds).toEqual([true, false]);
+    expect(held.isTryingToPlay()).toBe(false);
+    vi.advanceTimersByTime(5000);
+    players.at(-1)!.frozen = true;
+    vi.advanceTimersByTime(2000);
+    expect(held.getStatus().state).toBe('buffering');
+    expect(holds).toEqual([true, false, true]);
+    held.pause();
+    expect(holds).toEqual([true, false, true, false]);
+    held.load({ entryId: 'b', url: 'https://x/b', startMs: 0, autoplay: true, gain: 1 });
+    held.stop();
+    expect(holds).toEqual([true, false, true, false, true, false]);
+  });
+
   it('logs each start with the player\'s state and the output, and what the native player reports', () => {
     const lines: string[] = [];
     const logged = new ExpoAudioEngine({
@@ -417,10 +446,12 @@ describe('ExpoAudioEngine', () => {
     expect(lines).toEqual([
       'a idle → loading at 0 ms',
       'silence on',
+      'holding background time',
       'a player new → paused',
       'silence off',
       'a play() at 0 ms, player paused, on AirPlay “Kitchen”',
       'a loading → playing at 0 ms',
+      'background time given back',
       'a player paused → waiting (evaluatingBufferingRate)',
       'a player waiting (evaluatingBufferingRate) → playing',
     ]);
