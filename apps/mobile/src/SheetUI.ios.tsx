@@ -4,7 +4,8 @@ import { useWindowDimensions, View } from 'react-native';
 import { SystemVolumeSlider } from '../modules/now-playing';
 import {
   accessibilityAddTraits, accessibilityLabel, background, clipShape, disabled as disabledModifier, font, foregroundStyle,
-  frame, lineLimit, menuIndicator, multilineTextAlignment, onGeometryChange, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
+  frame, lineLimit, menuIndicator, minimumScaleFactor, multilineTextAlignment, onGeometryChange, onSubmit as onSubmitModifier, opacity, padding,
+  submitLabel, tint, truncationMode,
 } from '@expo/ui/swift-ui/modifiers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from './BrandMark';
@@ -165,14 +166,17 @@ export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
   </HStack>;
 }
 
-export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
+/** A server address as sign-in shows it: one line, shrunk to fit, then shortened in the middle. */
+const addressLines = [lineLimit(1), minimumScaleFactor(0.5), truncationMode('middle')];
+
+export function SheetInfo({ icon, title, subtitle, address }: SheetInfoProps) {
   const colors = useColors();
   const lines = useSummaryLines();
   return <HStack spacing={12} modifiers={[padding({ vertical: 4 })]}>
     <HStack modifiers={[frame({ width: 27 })]}><Symbol name={icon} size={22} color={colors.accent} /></HStack>
     <VStack alignment="leading" spacing={2}>
       <Text modifiers={[font({ textStyle: 'headline' }), ...lines]}>{title}</Text>
-      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), ...lines]}>{subtitle}</Text>
+      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), ...(address ? addressLines : lines)]}>{subtitle}</Text>
     </VStack>
     <Spacer minLength={0} />
   </HStack>;
@@ -197,9 +201,10 @@ export function SheetSystemVolume({ label }: { label: string }) {
   if (!SystemVolumeSlider) return null;
   return <VStack alignment="leading" spacing={6} modifiers={[padding({ top: 6 })]}>
     <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.muted)]}>{label}</Text>
+    {/* 44 pt to touch, as in Now Playing; the track inside stays 6 pt. */}
     <RNHostView matchContents>
-      <View style={{ width: width - 44, height: 34 }}>
-        <SystemVolumeSlider tint={colors.accent} trackTint={colors.stroke} style={{ flex: 1 }} />
+      <View style={{ width: width - 44, height: 44 }}>
+        <SystemVolumeSlider tint={colors.accent} trackTint={colors.sliderTrack} style={{ flex: 1 }} />
       </View>
     </RNHostView>
   </VStack>;

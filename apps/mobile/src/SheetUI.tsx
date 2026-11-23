@@ -13,7 +13,8 @@ export type SheetRowProps = {
   title: string; subtitle?: string; icon: string; color?: string;
   selected?: boolean; destructive?: boolean; onPress: () => void;
 };
-export type SheetInfoProps = { icon: string; title: string; subtitle: string };
+/** `address`: the subtitle is a server address, kept on one line and shortened in the middle, never wrapped (wrapped, iOS hyphenates a host name). */
+export type SheetInfoProps = { icon: string; title: string; subtitle: string; address?: boolean };
 /** `mark` puts the mascot above the text, for the app's own version. */
 export type SheetNoteProps = { mark?: boolean; children: string };
 export type TrackSummaryProps = { track: Track | undefined; subtitle?: string };
