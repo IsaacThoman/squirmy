@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { useSignedInApi, type Api } from '../account/AccountProvider';
 import { albumExpanding, albumPlaceholder, findAlbumSummary } from './albums';
 import { artistPending, artistPlaceholder, findArtistSummary, pendingArtistPollMs } from './artists';
-import { inLibraryOnly } from '../library/librarySearch';
+import { inLibraryOnly, type AlbumMembership } from '../library/librarySearch';
 import { useTrackStore } from './library';
 
 const pageSize = 60;
@@ -52,6 +52,28 @@ export function useHome() {
 
 export function useLibraryAlbums(sort: LibrarySort, enabled = true) {
   return usePagedQuery([...queryKeys.libraryAlbums(), sort], (api, cursor) => api.catalog.albums({ sort, cursor, limit: pageSize }), enabled);
+}
+
+/** Library albums read in pages of the server's largest size, up to this many, for `useLibraryAlbumIds`. */
+const membershipPageSize = 200;
+const membershipLimit = 2000;
+
+/**
+ * The ids of the albums in the library, which the library search keeps its album matches
+ * to (`libraryAlbumMatches`). Up to `membershipLimit` are read; `complete` says whether that
+ * was all of them. Kept under the album list's key, so what invalidates the list reads it again.
+ */
+export function useLibraryAlbumIds(enabled: boolean) {
+  return useApiQuery([...queryKeys.libraryAlbums(), 'ids'], async (api): Promise<AlbumMembership> => {
+    const ids: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await api.catalog.albums({ sort: 'recent', cursor, limit: membershipPageSize });
+      ids.push(...page.items.map(album => album.id));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor && ids.length < membershipLimit);
+    return { ids, complete: !cursor };
+  }, { enabled });
 }
 
 export function useLibraryArtists(sort: LibrarySort, enabled = true) {
