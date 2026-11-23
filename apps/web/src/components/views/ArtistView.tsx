@@ -18,7 +18,7 @@ import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
-import { usePlayerControls } from '@/player/player-context'
+import { usePlayerControls, useRadioStarting } from '@/player/player-context'
 import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
 
 /**
@@ -48,6 +48,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
   const library = useLibrary()
   const viewer = useViewer()
   const controls = usePlayerControls()
+  const radioStarting = useRadioStarting({ type: 'artist', id: artist.id })
   const context = { type: 'artist' as const, id: artist.id, title: artist.name }
   const actions = useTrackActions(artist.topTracks, context)
   const wants = useAlbumWants()
@@ -73,7 +74,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
           >
             {/* The server says whether a radio starts for this viewer; an older one does not, and then the library decides. */}
             {(artist.radio ?? (artist.inLibrary || canFetch(viewer))) && (
-              <IconButton label={`Start ${artist.name} radio`} size="lg" onClick={() => controls.startRadio({ type: 'artist', id: artist.id })}><Radio /></IconButton>
+              <IconButton label={`Start ${artist.name} radio`} size="lg" aria-busy={radioStarting || undefined} onClick={() => controls.startRadio({ type: 'artist', id: artist.id })}>{radioStarting ? <Spinner label={null} className="text-current" /> : <Radio />}</IconButton>
             )}
           </PlayActions>
         )}
