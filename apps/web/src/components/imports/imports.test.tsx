@@ -3,6 +3,11 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderWithApp } from '@/test/render'
+import type { Import } from '@squirmy/contracts'
+import { ApiError } from '@squirmy/client-core'
+import { upload as receivedImport } from '@/test/fake-services'
+import { ImportDetail } from './ImportDetail'
+import { ImportsList } from './ImportsList'
 import { UploadPanel } from './UploadPanel'
 
 const options: ImportOptions = { unavailable: null, maxFileBytes: 4 * 1024 ** 3, maxBytes: 64 * 1024 ** 3 }
@@ -60,5 +65,31 @@ describe('upload panel', () => {
     renderWithApp(<UploadPanel options={options} isAdmin upload={{ ...upload, phase: 'sending' }} reading={false} {...handlers} onRemove={onRemove} />)
     expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Add files' })).toBeNull()
+  })
+})
+
+describe('upload notes', () => {
+  it('says on the drop zone what a choice came to', () => {
+    renderWithApp(<UploadPanel options={options} isAdmin upload={null} reading={false} {...handlers} note={{ tone: 'error', text: 'Nothing to upload. No files were found in what you chose.' }} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Nothing to upload. No files were found in what you chose.')
+  })
+})
+
+describe('cancelling an import', () => {
+  const receiving: Import = { ...receivedImport, status: 'receiving', completedAt: null }
+
+  it('says on the row that the import was cancelled', async () => {
+    const onCancel = vi.fn(async () => ({ ok: true }))
+    renderWithApp(<ImportsList imports={[receiving]} ownerOf={() => null} onCancel={onCancel} />)
+    await userEvent.click(screen.getByRole('button', { name: /More options for/ }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Cancel import' }))
+    expect(onCancel).toHaveBeenCalledWith(receiving)
+    expect(await screen.findByText('Import cancelled. The files it received are gone.')).toBeInTheDocument()
+  })
+
+  it('says on the import why it could not be cancelled', async () => {
+    renderWithApp(<ImportDetail item={receiving} albums={undefined} isAdmin onCancel={vi.fn(async () => { throw new ApiError(409, 'conflict', 'The import already finished') })} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(await screen.findByText('The import already finished')).toBeInTheDocument()
   })
 })

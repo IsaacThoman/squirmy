@@ -6,7 +6,7 @@ import { CircleAlert, CircleCheck, CircleSlash, HardDrive, History, MoreHorizont
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { z } from 'zod'
-import { useFormSubmit } from '@/api/errors'
+import { errorMessage, useFormSubmit } from '@/api/errors'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog, Dialog, DialogContent } from '@/components/ui/dialog'
 import { Badge, EmptyState, ProgressBar, Skeleton, Spinner } from '@/components/ui/feedback'
@@ -20,7 +20,8 @@ import { formatBytes, formatClock, formatRelative, inGigabytes, inMegabytes, plu
 import { cn } from '@/lib/utils'
 import { AdminHeader, DialogForm, Stat } from './AdminLayout'
 import { DraftField, type SavePatch } from './DraftField'
-import { cardClass, Panel } from './Panel'
+import { useNote } from './note'
+import { cardClass, InlineNote, Panel, SettingRow } from './Panel'
 
 type ProvidersAdminProps = {
   /** Undefined while loading. */
@@ -35,13 +36,14 @@ type ProvidersAdminProps = {
   moreJobs?: MoreJobs
   jobStatus: AcquisitionJobStatus | null
   onJobStatusChange: (status: AcquisitionJobStatus | null) => void
-  onCreate: (request: z.input<typeof CreateAcquisitionProviderRequest>) => Promise<unknown>
+  /** Resolves to the provider added, as it first answered. */
+  onCreate: (request: z.input<typeof CreateAcquisitionProviderRequest>) => Promise<AcquisitionProvider>
   onUpdate: (providerId: string, patch: UpdateAcquisitionProviderRequest) => Promise<unknown>
   onDelete: (providerId: string) => Promise<unknown>
   /** Asks the provider for its capabilities; resolves to the provider as it answered. */
   onTest: (providerId: string) => Promise<AcquisitionProvider>
   /** Asks the provider again for every track it could not supply ("Retry unavailable tracks"). */
-  onClearMisses: (providerId: string) => Promise<unknown>
+  onClearMisses: (providerId: string) => Promise<{ cleared: number; provider: AcquisitionProvider }>
   onSavePolicy: SavePatch<UpdateAcquisitionPolicy>
   /** Said in place of each part whose first read failed; the parts that loaded stay usable. */
   failures?: Partial<Record<'providers' | 'policy' | 'usage' | 'jobs', ReactNode>>
@@ -57,6 +59,12 @@ const coverageLabels = { assume_available: 'Offers everything', must_resolve: 'C
 export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, moreJobs, jobStatus, onJobStatusChange, onCreate, onUpdate, onDelete, onTest, onClearMisses, onSavePolicy, failures }: ProvidersAdminProps) {
   const [dialog, setDialog] = useState<ProviderDialog | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
+  // A provider added shows in the list; the note says whether it answered.
+  const { note, setNote } = useNote()
+  const add = async (request: z.input<typeof CreateAcquisitionProviderRequest>) => {
+    const provider = await onCreate(request)
+    setNote({ tone: 'info', text: provider.lastError ? `Added ${provider.name}. It did not answer yet: ${provider.lastError}` : `Added ${provider.name}. Missing music can now play on demand.` })
+  }
   return (
     <div>
       <AdminHeader
@@ -67,7 +75,8 @@ export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, m
       </AdminHeader>
 
       <div className="flex flex-col gap-7">
-        <section aria-label="Providers">
+        <section aria-label="Providers" className="flex flex-col gap-3">
+          <InlineNote note={note} />
           {!providers && (failures?.providers ?? <Skeleton className="h-24 rounded-xl" />)}
           {providers?.length === 0 && (
             <EmptyState
@@ -84,7 +93,7 @@ export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, m
                 <ProviderRow
                   key={provider.id}
                   provider={provider}
-                  onToggle={enabled => void onUpdate(provider.id, { enabled }).catch(() => {})}
+                  onToggle={enabled => onUpdate(provider.id, { enabled })}
                   onTest={() => onTest(provider.id)}
                   onClearMisses={() => onClearMisses(provider.id)}
                   onEdit={() => setDialog({ kind: 'edit', provider })}
@@ -100,7 +109,7 @@ export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, m
         <JobsList jobs={jobs} more={moreJobs} status={jobStatus} onStatusChange={onJobStatusChange} failure={failures?.jobs} />
       </div>
 
-      <ProviderFormDialog open={dialog?.kind === 'add'} onOpenChange={close} onAdd={onCreate} />
+      <ProviderFormDialog open={dialog?.kind === 'add'} onOpenChange={close} onAdd={add} />
       {dialog?.kind === 'edit' && <ProviderFormDialog open provider={dialog.provider} onOpenChange={close} onSave={patch => onUpdate(dialog.provider.id, patch)} />}
       <ConfirmDialog
         open={dialog?.kind === 'delete'}
@@ -118,9 +127,9 @@ type TestResult = { ok: true; provider: AcquisitionProvider } | { ok: false; mes
 
 type ProviderRowProps = {
   provider: AcquisitionProvider
-  onToggle: (enabled: boolean) => void
+  onToggle: (enabled: boolean) => Promise<unknown>
   onTest: () => Promise<AcquisitionProvider>
-  onClearMisses: () => Promise<unknown>
+  onClearMisses: () => Promise<{ cleared: number; provider: AcquisitionProvider }>
   onEdit: () => void
   onDelete: () => void
 }
@@ -128,16 +137,15 @@ type ProviderRowProps = {
 function ProviderRow({ provider, onToggle, onTest, onClearMisses, onEdit, onDelete }: ProviderRowProps) {
   const [testing, setTesting] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  // The switch and its badge show a provider turned on or off; the note says why one was refused,
+  // and how many tracks a retry made playable again (they leave the count below).
+  const { note, run } = useNote()
   const retry = async () => {
     setRetrying(true)
-    try {
-      await onClearMisses()
-    } catch {
-      // The page reports the failure.
-    } finally {
-      setRetrying(false)
-    }
+    await run(onClearMisses, ({ cleared, provider }) => `Retrying ${cleared === 1 ? '1 track' : `${cleared} tracks`}. They play on demand again, and ${provider.name} is asked for them the next time they are played.`)
+    setRetrying(false)
   }
+  const toggle = (enabled: boolean) => void run(() => onToggle(enabled))
   const unavailable = provider.unavailableTracks
   const [result, setResult] = useState<TestResult | null>(null)
   const test = async () => {
@@ -145,8 +153,8 @@ function ProviderRow({ provider, onToggle, onTest, onClearMisses, onEdit, onDele
     try {
       const tested = await onTest()
       setResult(tested.lastError ? { ok: false, message: tested.lastError } : { ok: true, provider: tested })
-    } catch {
-      setResult(null)
+    } catch (error) {
+      setResult({ ok: false, message: errorMessage(error) })
     } finally {
       setTesting(false)
     }
@@ -171,9 +179,10 @@ function ProviderRow({ provider, onToggle, onTest, onClearMisses, onEdit, onDele
               : provider.lastOkAt ? `Answered ${formatRelative(provider.lastOkAt)}` : 'Has not answered yet'}
             {provider.lastError && provider.lastOkAt && <span className="text-muted-foreground"> · last answered {formatRelative(provider.lastOkAt)}</span>}
           </p>}
+          <InlineNote note={note} className="mt-1" />
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Switch aria-label={`Enable ${provider.name}`} checked={provider.enabled} onCheckedChange={onToggle} className="mr-2" />
+          <Switch aria-label={`Enable ${provider.name}`} checked={provider.enabled} onCheckedChange={toggle} className="mr-2" />
           <Button size="sm" variant="outline" className="max-sm:hidden" pending={testing} onClick={() => void test()}>{!testing && <RefreshCw />}Test connection</Button>
           <DropdownMenu
             entries={[
@@ -344,9 +353,9 @@ function PolicySettings({ policy, managedRoots, onSave, failure }: { policy: Acq
       title="Policy"
       description={<span className="block max-w-2xl">Admins, and members allowed to fetch missing music in Users, may start a fetch. Offers that come with a price are ignored in this version: a song only a priced offer could supply stays unavailable.</span>}
     >
-      <Row label="Prefer lossless" description="When a provider offers several versions. Off picks the smaller lossy files.">
-        <Switch aria-label="Prefer lossless" checked={policy.preferLossless} onCheckedChange={preferLossless => void onSave({ preferLossless }).catch(() => {})} />
-      </Row>
+      <SettingRow label="Prefer lossless" description="When a provider offers several versions. Off picks the smaller lossy files.">
+        {save => <Switch aria-label="Prefer lossless" checked={policy.preferLossless} onCheckedChange={preferLossless => void save(() => onSave({ preferLossless }))} />}
+      </SettingRow>
       <Row htmlFor="policy-file" label="Largest file" description="A delivery with a bigger file fails.">
         <DraftField id="policy-file" field="maxFileBytes" value={policy.maxFileBytes} {...draft} type="number" inputMode="decimal" step="any" className="w-24 text-right" unit="MB" {...inMegabytes} />
       </Row>
@@ -359,19 +368,21 @@ function PolicySettings({ policy, managedRoots, onSave, failure }: { policy: Acq
           format={seconds => String(Math.round((Number(seconds) / MINUTE) * 10) / 10)} parse={text => (text.trim() ? Math.round(Number(text) * MINUTE) : Number.NaN)}
         />
       </Row>
-      <Row label="Keep in" description={<>The managed folder whose <span className="font-mono">_Fetched</span> folder holds the cache. Imports use the one in <Link to="/admin/settings" className="text-primary underline-offset-4 hover:underline">Server settings</Link>.</>}>
-        <Select
-          label="Keep in"
-          className="w-64 max-w-full"
-          value={policy.targetRootId ?? SAME_AS_IMPORTS}
-          options={[
-            { value: SAME_AS_IMPORTS, label: 'Same as imports' },
-            ...roots.map(root => ({ value: root.id, label: root.name })),
-            ...(policy.targetRootId && managedRoots && !roots.some(root => root.id === policy.targetRootId) ? [{ value: policy.targetRootId, label: 'A folder that is no longer managed' }] : []),
-          ]}
-          onValueChange={value => void onSave({ targetRootId: value === SAME_AS_IMPORTS ? null : value }).catch(() => {})}
-        />
-      </Row>
+      <SettingRow label="Keep in" description={<>The managed folder whose <span className="font-mono">_Fetched</span> folder holds the cache. Imports use the one in <Link to="/admin/settings" className="text-primary underline-offset-4 hover:underline">Server settings</Link>.</>}>
+        {save => (
+          <Select
+            label="Keep in"
+            className="w-64 max-w-full"
+            value={policy.targetRootId ?? SAME_AS_IMPORTS}
+            options={[
+              { value: SAME_AS_IMPORTS, label: 'Same as imports' },
+              ...roots.map(root => ({ value: root.id, label: root.name })),
+              ...(policy.targetRootId && managedRoots && !roots.some(root => root.id === policy.targetRootId) ? [{ value: policy.targetRootId, label: 'A folder that is no longer managed' }] : []),
+            ]}
+            onValueChange={value => void save(() => onSave({ targetRootId: value === SAME_AS_IMPORTS ? null : value }))}
+          />
+        )}
+      </SettingRow>
       <Row
         htmlFor="policy-delivery"
         label="Delivery address"

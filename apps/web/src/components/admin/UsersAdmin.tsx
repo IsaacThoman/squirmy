@@ -15,7 +15,8 @@ import { Switch } from '@/components/ui/switch'
 import { formatDate, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AdminHeader, DialogForm } from './AdminLayout'
-import { cardClass, DataTable, OptionGroup, OptionRow, Panel, Td, Th, Tr } from './Panel'
+import { useNote } from './note'
+import { cardClass, DataTable, InlineNote, OptionGroup, OptionRow, Panel, Td, Th, Tr } from './Panel'
 
 type UsersAdminProps = {
   /** Undefined while loading. */
@@ -40,6 +41,19 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
   const [dialog, setDialog] = useState<UserDialog | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   const name = (user: User) => user.displayName ?? user.username
+  // One user's row says what does not show in it: a new password set, or why enabling failed.
+  // A disabled or enabled account shows as its badge.
+  const { note, setNote, run } = useNote()
+  const [noted, setNoted] = useState<string | null>(null)
+  const enable = (user: User) => {
+    setNoted(user.id)
+    void run(() => onUpdateUser(user.id, { disabled: false }))
+  }
+  const resetPassword = async (user: User, password: string) => {
+    await onUpdateUser(user.id, { password })
+    setNoted(user.id)
+    setNote({ tone: 'info', text: 'Password changed. They were signed out everywhere.' })
+  }
   return (
     <div>
       <AdminHeader title="Users & invites" description="Everyone shares one library. Likes, playlists, history and playback are each person’s own.">
@@ -83,6 +97,7 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
                             {user.disabled && <Badge tone="danger">Disabled</Badge>}
                           </span>
                           <span className="block truncate text-xs text-muted-foreground" title={`@${user.username}`}>@{user.username}<span className="sm:hidden"> · joined {formatDate(user.createdAt)}</span></span>
+                          {noted === user.id && <InlineNote note={note} className="mt-1" />}
                           {/* Where the role and joined columns do not fit, they are under the name. */}
                           <span className="mt-1.5 flex flex-wrap gap-1 sm:hidden">{access}</span>
                         </span>
@@ -97,7 +112,7 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
                           { label: 'Reset password…', icon: <KeyRound />, onSelect: () => setDialog({ kind: 'password', user }) },
                           { kind: 'separator' },
                           user.disabled
-                            ? { label: 'Enable account', icon: <UserCheck />, onSelect: () => void onUpdateUser(user.id, { disabled: false }).catch(() => {}) }
+                            ? { label: 'Enable account', icon: <UserCheck />, onSelect: () => enable(user) }
                             : { label: 'Disable account…', icon: <UserX />, danger: true, onSelect: () => setDialog({ kind: 'disable', user }) },
                           { label: 'Delete account…', icon: <Trash2 />, danger: true, disabled: user.id === currentUserId, onSelect: () => setDialog({ kind: 'delete', user }) },
                         ]}
@@ -162,7 +177,7 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
       <CreateUserDialog open={dialog?.kind === 'create'} onOpenChange={close} onCreate={onCreateUser} />
       <InviteDialog open={dialog?.kind === 'invite'} onOpenChange={close} onCreate={onCreateInvite} inviteLink={inviteLink} />
       {dialog?.kind === 'edit' && <EditUserDialog user={dialog.user} isSelf={dialog.user.id === currentUserId} onOpenChange={close} onSave={patch => onUpdateUser(dialog.user.id, patch)} />}
-      {dialog?.kind === 'password' && <ResetPasswordDialog user={dialog.user} onOpenChange={close} onReset={password => onUpdateUser(dialog.user.id, { password })} />}
+      {dialog?.kind === 'password' && <ResetPasswordDialog user={dialog.user} onOpenChange={close} onReset={password => resetPassword(dialog.user, password)} />}
       <ConfirmDialog
         open={dialog?.kind === 'disable'}
         onOpenChange={close}

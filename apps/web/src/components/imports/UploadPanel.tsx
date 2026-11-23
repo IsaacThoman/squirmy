@@ -3,6 +3,8 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, FileArchive, FileAudio, FolderUp, Pause, Play, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import type { Note } from '@/components/admin/note'
+import { InlineNote } from '@/components/admin/Panel'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { EmptyState, ProgressBar, Skeleton, Spinner } from '@/components/ui/feedback'
@@ -45,10 +47,12 @@ type UploadPanelProps = {
   onClear: () => void
   /** Takes one chosen file out before anything was sent. */
   onRemove: (path: string) => void
+  /** What the last choice or cancel came to, when nothing else on the panel shows it ("Nothing to upload"). */
+  note?: Note | null
 }
 
 /** Choosing music to upload and sending it, with progress for each file and for all of them. */
-export function UploadPanel({ options, isAdmin, upload, reading, onDrop, onPick, onStart, onPause, onCancel, onClear, onRemove }: UploadPanelProps) {
+export function UploadPanel({ options, isAdmin, upload, reading, onDrop, onPick, onStart, onPause, onCancel, onClear, onRemove, note = null }: UploadPanelProps) {
   if (!options) return <Skeleton className="h-64 rounded-xl" />
   if (options.unavailable) {
     const text = unavailableText[options.unavailable]
@@ -58,8 +62,8 @@ export function UploadPanel({ options, isAdmin, upload, reading, onDrop, onPick,
       </div>
     )
   }
-  if (!upload) return <DropZone options={options} reading={reading} onDrop={onDrop} onPick={onPick} />
-  return <UploadQueue options={options} upload={upload} reading={reading} onStart={onStart} onPause={onPause} onCancel={onCancel} onClear={onClear} onRemove={onRemove} onDrop={onDrop} onPick={onPick} />
+  if (!upload) return <DropZone options={options} reading={reading} onDrop={onDrop} onPick={onPick} note={note} />
+  return <UploadQueue options={options} upload={upload} reading={reading} onStart={onStart} onPause={onPause} onCancel={onCancel} onClear={onClear} onRemove={onRemove} onDrop={onDrop} onPick={onPick} note={note} />
 }
 
 /** The browser's file and folder choosers, opened from buttons. A chosen folder keeps its paths. */
@@ -82,7 +86,7 @@ function usePickers(onPick: (files: FileList) => void) {
   }
 }
 
-function DropZone({ options, reading, onDrop, onPick }: { options: ImportOptions; reading: boolean; onDrop: (transfer: DataTransfer) => void; onPick: (files: FileList) => void }) {
+function DropZone({ options, reading, onDrop, onPick, note }: { options: ImportOptions; reading: boolean; onDrop: (transfer: DataTransfer) => void; onPick: (files: FileList) => void; note: Note | null }) {
   const [over, setOver] = useState(false)
   const { chooseFiles, chooseFolder, inputs } = usePickers(onPick)
   return (
@@ -112,6 +116,7 @@ function DropZone({ options, reading, onDrop, onPick }: { options: ImportOptions
         <Button variant="outline" onClick={chooseFiles} disabled={reading}><FileAudio />Choose files</Button>
       </div>
       <p className="mt-4 text-xs text-muted-foreground">Up to {formatBytes(options.maxFileBytes)} per file and {formatBytes(options.maxBytes)} per upload.</p>
+      <InlineNote note={note} className="mt-3 text-sm" />
       {inputs}
     </div>
   )
@@ -121,9 +126,9 @@ function Problem({ children }: { children: ReactNode }) {
   return <p role="alert" className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{children}</p>
 }
 
-type UploadQueueProps = Omit<UploadPanelProps, 'options' | 'upload' | 'isAdmin'> & { options: ImportOptions; upload: UploadSnapshot }
+type UploadQueueProps = Omit<UploadPanelProps, 'options' | 'upload' | 'isAdmin' | 'note'> & { options: ImportOptions; upload: UploadSnapshot; note: Note | null }
 
-function UploadQueue({ options, upload, reading, onStart, onPause, onCancel, onClear, onRemove, onDrop, onPick }: UploadQueueProps) {
+function UploadQueue({ options, upload, reading, onStart, onPause, onCancel, onClear, onRemove, onDrop, onPick, note }: UploadQueueProps) {
   const { phase, files, totalBytes, sentBytes } = upload
   const { chooseFiles, chooseFolder, inputs } = usePickers(onPick)
   const rejected = files.filter(file => file.status === 'rejected').length
@@ -161,6 +166,7 @@ function UploadQueue({ options, upload, reading, onStart, onPause, onCancel, onC
 
         {tooBig && phase === 'ready' && <Problem>That is more than one upload may hold ({formatBytes(options.maxBytes)}). Upload fewer albums at a time.</Problem>}
         {upload.error && <Problem>{upload.error}</Problem>}
+        <InlineNote note={note} className="mt-3 text-sm" />
 
         {sending && (
           <div className="mt-4 flex flex-col gap-2">

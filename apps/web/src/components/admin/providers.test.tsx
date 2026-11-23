@@ -67,6 +67,25 @@ describe('providers admin', () => {
     await userEvent.type(within(dialog).getByLabelText('Shared secret'), ' and longer')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add provider' }))
     expect(props.onCreate).toHaveBeenCalledWith({ name: 'Shelf', baseUrl: 'http://shelf.lan:4801', secret: 'short and longer', priority: 0, enabled: true })
+    expect(await screen.findByText('Added Shelf. Missing music can now play on demand.')).toBeInTheDocument()
+  })
+
+  it('says a provider added did not answer yet, with why', async () => {
+    renderProviders({ providers: [], onCreate: vi.fn(async () => ({ ...provider, lastError: 'connect ECONNREFUSED' })) })
+    await userEvent.click(screen.getAllByRole('button', { name: 'Add provider' })[0]!)
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.type(within(dialog).getByLabelText('Name'), 'Shelf')
+    await userEvent.type(within(dialog).getByLabelText('Address'), 'http://shelf.lan:4801')
+    await userEvent.type(within(dialog).getByLabelText('Shared secret'), 'long enough secret')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add provider' }))
+    expect(await screen.findByText('Added Shelf. It did not answer yet: connect ECONNREFUSED')).toBeInTheDocument()
+  })
+
+  it('says on the provider\'s row why it could not be turned off', async () => {
+    renderProviders({ onUpdate: vi.fn(async () => { throw new ApiError(409, 'conflict', 'The provider is busy') }) })
+    const card = screen.getByRole('listitem', { name: 'Shelf' })
+    await userEvent.click(within(card).getByRole('switch', { name: 'Enable Shelf' }))
+    expect(await within(card).findByText('The provider is busy')).toBeInTheDocument()
   })
 
   it('edits without touching the secret unless a new one is typed', async () => {
@@ -88,10 +107,13 @@ describe('providers admin', () => {
     expect(within(card).getByText('Shelf service')).toBeInTheDocument()
     expect(within(card).getByText('single songs, whole albums')).toBeInTheDocument()
     await userEvent.click(within(card).getByRole('button', { name: 'Test connection' }))
-    expect(await within(card).findByRole('status')).toHaveTextContent('Connected. It calls itself “Shelf service”.')
+    expect(await within(card).findByText('Connected. It calls itself “Shelf service”.')).toBeInTheDocument()
     onTest.mockResolvedValueOnce({ ...provider, lastError: 'connect ECONNREFUSED' })
     await userEvent.click(within(card).getByRole('button', { name: 'Test connection' }))
     expect(await within(card).findByText('Could not connect: connect ECONNREFUSED')).toBeInTheDocument()
+    onTest.mockRejectedValueOnce(new ApiError(0, 'network', 'offline'))
+    await userEvent.click(within(card).getByRole('button', { name: 'Test connection' }))
+    expect(await within(card).findByText('Could not connect: Can’t reach the server. Check your connection and try again.')).toBeInTheDocument()
   })
 
   it('offers to retry the tracks a provider could not supply, with how many', async () => {
@@ -101,6 +123,7 @@ describe('providers admin', () => {
     expect(within(card).getByText('Shelf service 2.4.1')).toBeInTheDocument()
     await userEvent.click(within(card).getByRole('button', { name: 'Retry unavailable tracks (146)' }))
     expect(props.onClearMisses).toHaveBeenCalledWith(provider.id)
+    expect(await within(card).findByText(/Retrying 0 tracks\. They play on demand again, and Shelf is asked for them/)).toBeInTheDocument()
   })
 
   it('shows no retry while nothing is unavailable', () => {
@@ -135,7 +158,7 @@ describe('providers admin', () => {
     expect(screen.getByText('Invalid URL')).toBeInTheDocument()
     await userEvent.clear(field)
     await userEvent.type(field, 'http://squirmy:4747{Enter}')
-    expect(props.onSavePolicy).toHaveBeenCalledWith({ deliveryBaseUrl: 'http://squirmy:4747' }, { inline: true })
+    expect(props.onSavePolicy).toHaveBeenCalledWith({ deliveryBaseUrl: 'http://squirmy:4747' })
   })
 })
 
@@ -148,6 +171,14 @@ describe('wantlist setting', () => {
     await userEvent.click(toggle)
     expect(onSave).toHaveBeenCalledWith({ wantlistEnabled: true })
   })
+
+  it('says under the setting why the server refused a switch', async () => {
+    const onSave = vi.fn(async () => { throw new ApiError(500, 'internal_error', 'The settings could not be saved') })
+    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" />)
+    await userEvent.click(screen.getByRole('switch', { name: 'Wantlist' }))
+    expect(await screen.findByText('The settings could not be saved')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Wantlist' })).not.toBeChecked()
+  })
 })
 
 describe('import settings', () => {
@@ -155,7 +186,7 @@ describe('import settings', () => {
     const onSave = vi.fn(async () => { throw new ApiError(400, 'inbox_not_found', 'The inbox folder does not exist') })
     renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" />)
     await userEvent.type(screen.getByLabelText('Inbox folder'), '/srv/nowhere{Enter}')
-    expect(onSave).toHaveBeenCalledWith({ inboxPath: '/srv/nowhere' }, { inline: true })
+    expect(onSave).toHaveBeenCalledWith({ inboxPath: '/srv/nowhere' })
     expect(await screen.findByText('The inbox folder does not exist')).toBeInTheDocument()
     expect(screen.getByLabelText('Inbox folder')).toHaveValue('/srv/nowhere')
   })

@@ -1,6 +1,6 @@
 import type { MatchReview, MatchReviewDetail, MatchReviewStatus, ResolveReviewRequest } from '@squirmy/contracts'
 import { ArrowLeft, Check, ChevronRight, FolderOpen, ListChecks, Search } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge, EmptyState, Skeleton } from '@/components/ui/feedback'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -8,7 +8,8 @@ import { formatRelative, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AdminHeader } from './AdminLayout'
 import { CandidateComparison, CandidatePicker, ScoreMeter } from './MatchCompare'
-import { cardClass } from './Panel'
+import { useNote } from './note'
+import { cardClass, InlineNote } from './Panel'
 
 type ReviewAdminProps = {
   status: MatchReviewStatus
@@ -21,6 +22,8 @@ type ReviewAdminProps = {
   /** The selected review in full; undefined while it loads. */
   detail: MatchReviewDetail | undefined
   onResolve: (review: MatchReview, request: ResolveReviewRequest) => Promise<unknown>
+  /** Said in place of the list, or of the album, when its first read failed. */
+  failures?: Partial<Record<'reviews' | 'detail', ReactNode>>
   /** Opens Fix match for the review's album, to search MusicBrainz by hand. */
   onSearch: (albumId: string) => void
 }
@@ -37,13 +40,23 @@ function taggedAs(summary: MatchReview['summary']): string {
   return `${summary.artist ? `${summary.artist} – ` : ''}${album}${summary.year ? ` (${summary.year})` : ''}`
 }
 
-export function ReviewAdmin({ status, onStatusChange, reviews, rootNames, selectedId, onSelect, detail, onResolve, onSearch }: ReviewAdminProps) {
+/** What a decision did, said once the next album has taken its place. */
+function resolvedText(review: MatchReview, request: ResolveReviewRequest): string {
+  const album = review.summary.album ? `“${review.summary.album}”` : 'the album'
+  if ('releaseMbid' in request) return `Release applied to ${album}.`
+  return request.action === 'keep_local' ? `Kept ${album} as tagged.` : `Review of ${album} dismissed.`
+}
+
+export function ReviewAdmin({ status, onStatusChange, reviews, rootNames, selectedId, onSelect, detail, onResolve, onSearch, failures }: ReviewAdminProps) {
+  // The decided album leaves the list and the next one opens; the note says what was done, or why it was not.
+  const { note, run } = useNote()
   const selected = reviews?.find(review => review.id === selectedId) ?? (detail?.id === selectedId ? detail : undefined)
   // With nothing listed and nothing open there is no second pane, so the list takes the page.
   const alone = reviews?.length === 0 && !selectedId
   return (
     <div className="@container">
       <AdminHeader title="Review queue" description="Albums the matcher was not sure about. Compare the files with each candidate; whatever you choose is locked, and rescans never change it." />
+      <InlineNote note={note} className="-mt-2 mb-4" />
       {/* Side by side when there is room; otherwise the list, then the album picked from it. */}
       <div className="flex flex-col gap-6 @4xl:flex-row @4xl:items-start">
         <div className={cn('flex min-w-0 flex-col gap-3', alone ? 'flex-1' : '@4xl:sticky @4xl:top-18 @4xl:w-80 @4xl:shrink-0', selectedId && '@max-4xl:hidden')}>
@@ -52,7 +65,8 @@ export function ReviewAdmin({ status, onStatusChange, reviews, rootNames, select
               {statusTabs.map(tab => <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>)}
             </TabsList>
           </Tabs>
-          {!reviews && (
+          {!reviews && failures?.reviews}
+          {!reviews && !failures?.reviews && (
             <div className={cn(cardClass, 'flex flex-col gap-0.5 p-1')}>
               {[0, 1, 2].map(index => (
                 <div key={index} className="flex flex-col gap-2 px-3 py-2.5"><Skeleton className="h-4 w-48 max-w-full" /><Skeleton className="h-3 w-32" /></div>
@@ -100,9 +114,9 @@ export function ReviewAdmin({ status, onStatusChange, reviews, rootNames, select
           {!selectedId && reviews && reviews.length > 0 && (
             <EmptyState className={cardClass} icon={<ListChecks />} title="Pick an album" description="Its files and the releases MusicBrainz offered appear here side by side." />
           )}
-          {selectedId && !detail && <Skeleton className="h-96 rounded-xl" />}
+          {selectedId && !detail && (failures?.detail ?? <Skeleton className="h-96 rounded-xl" />)}
           {selectedId && detail && selected && (
-            <ReviewDetail key={detail.id} review={detail} rootName={rootNames[detail.rootId]} onResolve={request => onResolve(selected, request)} onSearch={onSearch} />
+            <ReviewDetail key={detail.id} review={detail} rootName={rootNames[detail.rootId]} onResolve={request => run(() => onResolve(selected, request), () => resolvedText(selected, request))} onSearch={onSearch} />
           )}
         </div>
       </div>
@@ -119,13 +133,9 @@ function ReviewDetail({ review, rootName, onResolve, onSearch }: { review: Match
   const open = review.status === 'open'
   const resolve = async (kind: Exclude<Pending, null>, request: ResolveReviewRequest) => {
     setPending(kind)
-    try {
-      await onResolve(request)
-    } catch {
-      // The failure is a toast; the review stays so it can be tried again.
-    } finally {
-      setPending(null)
-    }
+    // A failure is said above the queue, and the review stays so it can be tried again.
+    await onResolve(request)
+    setPending(null)
   }
   return (
     <article aria-label={`Review of ${taggedAs(review.summary)}`} className="flex flex-col gap-5">

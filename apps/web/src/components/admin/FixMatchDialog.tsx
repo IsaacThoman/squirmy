@@ -1,6 +1,6 @@
 import { queryKeys, type AlbumDetail, type MatchActionResult, type MatchCandidate, type MatchFile } from '@squirmy/contracts'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ExternalLink, RotateCcw, Search, Tags } from 'lucide-react'
+import { Check, CircleCheck, ExternalLink, RotateCcw, Search, Tags } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
 import { errorMessage } from '@/api/errors'
 import { useApi } from '@/api/services'
@@ -10,7 +10,6 @@ import { Dialog, DialogFrame, DialogTitle } from '@/components/ui/dialog'
 import { Badge, Skeleton, Spinner } from '@/components/ui/feedback'
 import { FormError } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
-import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { CandidateComparison, CandidatePicker } from './MatchCompare'
 import { cardClass } from './Panel'
@@ -18,11 +17,17 @@ import { cardClass } from './Panel'
 export type FixMatchProps = {
   albumId: string
   onOpenChange: (open: boolean) => void
-  /** After a rematch or unmatch; the files may now be on another album (`result.albumId`). */
+  /** As the dialog closes after a rematch or unmatch; the files may now be on another album (`result.albumId`). */
   onDone?: (result: MatchActionResult) => void
 }
 
 type Action = { kind: 'release'; candidate: MatchCandidate } | { kind: 'auto' | 'unmatch' }
+
+/** What a choice did, in the words the dialog says once it is made. */
+function doneText(action: Action): string {
+  if (action.kind === 'release') return `Matched to ${action.candidate.title}. The files are locked to this release.`
+  return action.kind === 'auto' ? 'Matching again. The matcher looks at the album again in the background.' : 'Playing from its tags. The files are locked to their tags.'
+}
 
 /** Fix match for one album: loads what it needs, searches MusicBrainz and applies the choice. */
 export default function FixMatchDialog({ albumId, onOpenChange, onDone }: FixMatchProps) {
@@ -36,41 +41,40 @@ export default function FixMatchDialog({ albumId, onOpenChange, onDone }: FixMat
     queryFn: () => api.matching.candidates(albumId, { query }),
     staleTime: 5 * 60_000,
     retry: false,
-    meta: { silent: true },
   })
   const act = useMutation({
     mutationFn: (action: Action) => action.kind === 'release'
       ? api.matching.rematch(albumId, { releaseMbid: action.candidate.releaseMbid })
       : action.kind === 'auto' ? api.matching.rematch(albumId) : api.matching.unmatch(albumId),
-    onSuccess: (result, action) => {
-      toast({
-        title: action.kind === 'release' ? `Matched to ${action.candidate.title}` : action.kind === 'auto' ? 'Matching again' : 'Playing from its tags',
-        description: action.kind === 'release' ? 'The files are locked to this release.' : action.kind === 'auto' ? 'The matcher looks at the album again in the background.' : 'The files are locked to their tags.',
-      })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.adminReviews() })
-      onOpenChange(false)
-      onDone?.(result)
-    },
-    meta: { inline: true },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.adminReviews() }),
   })
+  // The dialog stays to say what was done; what follows (another album's page) waits for it to close.
+  const close = (open: boolean) => {
+    onOpenChange(open)
+    if (!open && act.data) onDone?.(act.data)
+  }
   return (
     <FixMatchView
       album={album.data}
+      albumError={album.isError ? errorMessage(album.error) : undefined}
       files={candidates.data?.files}
       candidates={candidates.data?.items}
       searching={candidates.isFetching}
       searchError={candidates.isError ? errorMessage(candidates.error) : undefined}
       actionError={act.isError ? errorMessage(act.error) : undefined}
       pending={act.isPending ? act.variables?.kind ?? null : null}
+      done={act.isSuccess && act.variables ? doneText(act.variables) : undefined}
       onSearch={next => setQuery(next.trim() || undefined)}
       onAction={action => act.mutate(action)}
-      onOpenChange={onOpenChange}
+      onOpenChange={close}
     />
   )
 }
 
 type FixMatchViewProps = {
   album: AlbumDetail | undefined
+  /** Why the album did not load, said where it would be. */
+  albumError?: string
   /** Undefined until the first search answers. */
   files: MatchFile[] | undefined
   candidates: MatchCandidate[] | undefined
@@ -78,6 +82,8 @@ type FixMatchViewProps = {
   searchError: string | undefined
   actionError: string | undefined
   pending: Action['kind'] | null
+  /** What the choice made did; the dialog then offers only Done. */
+  done?: string
   onSearch: (query: string) => void
   onAction: (action: Action) => void
   onOpenChange: (open: boolean) => void
@@ -93,7 +99,7 @@ function identification(album: AlbumDetail, files: MatchFile[] | undefined): str
   return locked ? 'Kept as its tags describe it' : 'Playing from its tags'
 }
 
-export function FixMatchView({ album, files, candidates, searching, searchError, actionError, pending, onSearch, onAction, onOpenChange }: FixMatchViewProps) {
+export function FixMatchView({ album, albumError, files, candidates, searching, searchError, actionError, pending, done, onSearch, onAction, onOpenChange }: FixMatchViewProps) {
   const [text, setText] = useState<string | null>(null)
   const [chosen, setChosen] = useState<string | null>(null)
   const descriptionId = useId()
@@ -103,7 +109,7 @@ export function FixMatchView({ album, files, candidates, searching, searchError,
     setChosen(null)
     onSearch(text ?? '')
   }
-  const busy = pending !== null
+  const busy = pending !== null || done !== undefined
   return (
     <Dialog open onOpenChange={onOpenChange}>
       {/* Its head and its actions stay put; what is between them scrolls. */}
@@ -132,7 +138,7 @@ export function FixMatchView({ album, files, candidates, searching, searchError,
                 </div>
                 {files && <Badge className="tabular max-sm:hidden">{files.length} files</Badge>}
               </>
-            ) : <Skeleton className="h-12 flex-1" />}
+            ) : albumError ? <p className="py-1 text-sm text-destructive">{albumError}</p> : <Skeleton className="h-12 flex-1" />}
           </div>
 
           <form onSubmit={search} className="flex gap-2">
@@ -166,13 +172,20 @@ export function FixMatchView({ album, files, candidates, searching, searchError,
         </div>
 
         <div className="flex flex-col-reverse gap-2 border-t px-4 py-3 sm:flex-row sm:items-center sm:px-6">
-          <div className="flex flex-wrap gap-2 max-sm:justify-between sm:flex-1">
-            <Button size="sm" variant="ghost" disabled={busy} pending={pending === 'auto'} onClick={() => onAction({ kind: 'auto' })}>{pending !== 'auto' && <RotateCcw />}Match automatically</Button>
-            <Button size="sm" variant="ghost" disabled={busy} pending={pending === 'unmatch'} onClick={() => onAction({ kind: 'unmatch' })}>{pending !== 'unmatch' && <Tags />}Use the tags</Button>
+          <div role="status" className="contents">
+            {done && <p className="flex min-w-0 items-start gap-2 text-sm sm:flex-1"><CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />{done}</p>}
           </div>
-          <Button variant="primary" disabled={!candidate || busy} pending={pending === 'release'} onClick={() => candidate && onAction({ kind: 'release', candidate })}>
-            {pending !== 'release' && <Check />}Use this release
-          </Button>
+          {done ? <Button variant="primary" onClick={() => onOpenChange(false)}>Done</Button> : (
+            <>
+              <div className="flex flex-wrap gap-2 max-sm:justify-between sm:flex-1">
+                <Button size="sm" variant="ghost" disabled={busy} pending={pending === 'auto'} onClick={() => onAction({ kind: 'auto' })}>{pending !== 'auto' && <RotateCcw />}Match automatically</Button>
+                <Button size="sm" variant="ghost" disabled={busy} pending={pending === 'unmatch'} onClick={() => onAction({ kind: 'unmatch' })}>{pending !== 'unmatch' && <Tags />}Use the tags</Button>
+              </div>
+              <Button variant="primary" disabled={!candidate || busy} pending={pending === 'release'} onClick={() => candidate && onAction({ kind: 'release', candidate })}>
+                {pending !== 'release' && <Check />}Use this release
+              </Button>
+            </>
+          )}
         </div>
       </DialogFrame>
     </Dialog>
