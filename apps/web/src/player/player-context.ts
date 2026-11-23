@@ -78,6 +78,7 @@ export type PlayerControls = {
   /** `toIndex` counts the entries shown in the queue. */
   moveEntry: (entryId: string, toIndex: number) => void
   clearQueue: () => void
+  /** Clears the history at once; the queue asks first. */
   clearHistory: () => void
   transfer: (deviceId: string) => void
   /** Gets this tab ready to take over what another device plays, so a transfer here starts sooner. For a pointer on "Play here". */
@@ -88,7 +89,16 @@ export type PlayerControls = {
   attach: (options?: { bringQueue?: boolean }) => Promise<SessionMoveResult>
   /** Renames this browser in every device list; null goes back to the name from the user agent. */
   renameDevice: (name: string | null) => void
+  /**
+   * Says something on the player's status line, under the song: a playback command that failed
+   * (an album that did not load to play, a device that could not be moved to), or what one
+   * changed out of sight. It goes away by itself, an error a little later.
+   */
+  tell: (line: StatusMessage) => void
 }
+
+/** A line for `tell`: `info` for what happened, `error` for what the listener asked for and did not happen. */
+export type StatusMessage = { message: string; detail?: string; tone: 'info' | 'error' }
 
 export type Player = { state: PlayerState; controls: PlayerControls }
 

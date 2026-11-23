@@ -13,7 +13,6 @@ import { isPlayable } from '@/lib/catalog'
 import { playableCodecs } from '@/lib/codecs'
 import { browserName, claimTabDevice, saveBrowserName } from '@/lib/device'
 import { useDocumentTitle } from '@/lib/document-title'
-import { toast } from '@/lib/toast'
 import { useRealtime } from '@/realtime/realtime-context'
 import { useEngine } from './engine/engine-context'
 import { AUDIO_BLOCKED_MESSAGE } from './engine/errors'
@@ -26,8 +25,6 @@ import { STATUS_ERROR_MS, STATUS_EVENT_MS, StatusLine, type PlayerStatus } from 
 
 /** The most tracks one `playTracks` or `enqueue` may carry. */
 const MAX_SEEDS = 5000
-/** How long Clear history can be undone before the session forgets the history. */
-const HISTORY_UNDO_MS = 5000
 
 
 /** The entry the listener started by name (a song clicked in a list or the queue), while it is current. */
@@ -66,10 +63,12 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
   const client = new SessionClient({
     transport: createSocketTransport(socket),
     device,
-    onDetachedEnded: reason => toast({
-      title: 'Playing with your other devices again',
-      description: reason === 'expired' ? 'This tab was away for over a week, so its own queue was cleared.' : 'Its own queue had already been cleared.',
-    }),
+    onDetachedEnded: reason => status.show({
+      message: 'Playing with your other devices again',
+      detail: reason === 'expired' ? 'This tab was away for over a week, so its own queue was cleared.' : 'Its own queue had already been cleared.',
+      tone: 'info',
+      key: NOTICE_STATUS,
+    }, STATUS_ERROR_MS),
     player: {
       engine,
       baseUrl: '',
@@ -131,10 +130,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [client, engine])
   const audible = useSyncExternalStore(subscribeAudible, () => listening.audible())
   const [, summariesArrived] = useReducer((count: number) => count + 1, 0)
-  // History cleared but still undoable: hidden here, and only forgotten once the time is up.
-  const [clearedHistory, setClearedHistory] = useState<ReadonlySet<string> | null>(null)
-  const historyClear = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  useEffect(() => () => clearTimeout(historyClear.current), [])
 
   useEffect(() => {
     client.start()
@@ -167,7 +162,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     queryKey: [...queryKeys.track(current?.trackId ?? ''), current?.albumId ?? null],
     queryFn: () => api.catalog.track(current!.trackId, { albumId: current!.albumId ?? undefined }),
     enabled: Boolean(current),
-    meta: { silent: true },
   })
   const track = current && (fresh.data?.id === current.trackId ? fresh.data : stored)
   const lyrics = useQuery({
@@ -175,7 +169,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     queryFn: () => api.catalog.lyrics(track!.id),
     enabled: Boolean(track?.hasLyrics),
     staleTime: Infinity,
-    meta: { silent: true },
   })
 
 
@@ -195,8 +188,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       key: RADIO_STATUS,
     }, STATUS_ERROR_MS),
     onSettled: () => { radioBusy.current = false },
-    // Said on the player's status line, not as a notice of its own.
-    meta: { inline: true },
   })
   const radioPending = radio.isPending ? radio.variables ?? null : null
   const radioBusy = useRef(false)
@@ -278,24 +269,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
       clearQueue: () => dispatch({ type: 'clearQueue' }),
       clearHistory: () => {
-        const { history } = latest().queue
-        if (!history.length) return
-        clearTimeout(historyClear.current)
-        setClearedHistory(new Set(history.map(entry => entry.id)))
-        historyClear.current = setTimeout(() => {
-          dispatch({ type: 'clearHistory' })
-          setClearedHistory(null)
-        }, HISTORY_UNDO_MS)
-        toast({
-          title: 'History cleared',
-          action: {
-            label: 'Undo',
-            onClick: () => {
-              clearTimeout(historyClear.current)
-              setClearedHistory(null)
-            },
-          },
-        })
+        if (!latest().queue.history.length) return
+        dispatch({ type: 'clearHistory' })
+        status.show({ message: 'History cleared', tone: 'info', key: ACTION_STATUS }, STATUS_EVENT_MS)
       },
       transfer: deviceId => dispatch({ type: 'transfer', deviceId }),
       prepareHere: () => client.prepareTakeover(),
@@ -305,8 +281,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         saveBrowserName(name)
         client.rename(browserName())
       },
+      tell: ({ tone, ...line }) => status.show({ ...line, tone, key: ACTION_STATUS }, tone === 'error' ? STATUS_ERROR_MS : STATUS_EVENT_MS),
     }
-  }, [client, engine, listening, clock, store, tab, startRadio, viewer, picked])
+  }, [client, engine, listening, clock, store, tab, startRadio, viewer, picked, status])
 
   usePlaybackNotices(client, store, status)
   useFreshSummaries(client, store, socket!)
@@ -330,7 +307,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     autoplay: session.autoplay,
     context: session.context,
     queue: hydrate(store, queue.queue),
-    history: hydrate(store, clearedHistory ? queue.history.filter(entry => !clearedHistory.has(entry.id)) : queue.history),
+    history: hydrate(store, queue.history),
     autoplayQueue: hydrate(store, queue.autoplayQueue),
     devices: [...snapshot.devices],
     thisDeviceId,
@@ -358,10 +335,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   )
 }
 
-/** Status keys: a line about one song, a stop (kept until playback resumes), a radio starting. */
+/**
+ * Status keys: a line about one song, a stop (kept until playback resumes), a radio starting,
+ * and what a command from elsewhere in the app said (`tell`).
+ */
 const NOTICE_STATUS = 'notice'
 const STOP_STATUS = 'stop'
 const RADIO_STATUS = 'radio'
+const ACTION_STATUS = 'action'
 /**
  * How long a skipped song's notice waits. When the provider is down the server fails the
  * current and next songs in one moment and then stops, and the stop's one notice says it

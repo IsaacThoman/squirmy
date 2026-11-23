@@ -1,11 +1,10 @@
 import type { SessionMoveResult } from '@squirmy/client-core'
-import { act, screen, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
 import { devices, thisDeviceId } from '@/fixtures/server'
 import { formatIdle } from '@/lib/format'
-import { dismissToast, toastStore } from '@/lib/toast'
 import type { Player, PlayerControls, PlayerState } from '@/player/player-context'
 import { renderWithApp } from '@/test/render'
 import { DeviceList } from './Devices'
@@ -19,6 +18,7 @@ function player(state: Partial<PlayerState>, moves: { detach?: SessionMoveResult
     attach: vi.fn(async () => moves.attach ?? { ok: true }),
     transfer: vi.fn(),
     setVolume: vi.fn(),
+    tell: vi.fn<PlayerControls['tell']>(),
   }
   const value: PlayerState = {
     current: { track: song, entry: { id: 'e1', trackId: song.id, albumId: null, durationMs: song.durationMs, state: 'ready' } },
@@ -30,8 +30,9 @@ function player(state: Partial<PlayerState>, moves: { detach?: SessionMoveResult
   return { player: { state: value, controls: controls as unknown as PlayerControls } satisfies Player, controls }
 }
 
-const toasts = () => toastStore.getSnapshot().map(item => [item.title, item.description].filter(Boolean).join(' / '))
-afterEach(() => act(() => { for (const item of toastStore.getSnapshot()) dismissToast(item.id) }))
+/** What the picker said on the player's status line, as `message / detail`. */
+const told = (controls: { tell: ReturnType<typeof vi.fn<PlayerControls['tell']>> }) =>
+  controls.tell.mock.calls.map(([line]) => `${[line.message, line.detail].filter(Boolean).join(' / ')} (${line.tone})`)
 
 describe('devices picker', () => {
   it('says the music is paused on the device that holds a paused session, never that it is listened to', () => {
@@ -81,7 +82,7 @@ describe('devices picker', () => {
     renderWithApp(<DeviceList player={value} />)
     await userEvent.click(screen.getByRole('button', { name: /Play separately on this tab/ }))
     expect(controls.detach).toHaveBeenCalled()
-    expect(toasts()).toEqual(['Playing only on this device / Your other devices are paused where they were.'])
+    expect(told(controls)).toEqual(['Playing only on this device / Your other devices are paused where they were. (info)'])
   })
 
   it('says how long a quiet device has been idle, so two of the same name can be told apart', () => {
@@ -126,9 +127,10 @@ describe('devices picker', () => {
     ['timeout', 'Couldn’t play separately. Try again.'],
     ['cannot_play', 'Couldn’t play separately.'],
   ])('says why it could not detach (%s), and changes nothing', async (error, message) => {
-    renderWithApp(<DeviceList player={player({}, { detach: { ok: false, error } }).player} />)
+    const { player: value, controls } = player({}, { detach: { ok: false, error } })
+    renderWithApp(<DeviceList player={value} />)
     await userEvent.click(screen.getByRole('button', { name: /Play separately on this tab/ }))
-    expect(toasts()).toEqual([message])
+    expect(told(controls)).toEqual([`${message} (error)`])
   })
 
   describe('while this tab plays separately', () => {
@@ -139,7 +141,7 @@ describe('devices picker', () => {
       expect(screen.queryByText('Play on another device')).toBeNull()
       await userEvent.click(screen.getByRole('button', { name: 'Rejoin your other devices' }))
       expect(controls.attach).toHaveBeenCalledWith(undefined)
-      expect(toasts()).toEqual(['Rejoined your other devices / Stopped “Amber”.'])
+      expect(told(controls)).toEqual(['Rejoined your other devices / Stopped “Amber”. (info)'])
     })
 
     it('brings its queue along', async () => {
@@ -155,9 +157,10 @@ describe('devices picker', () => {
     })
 
     it('says “Couldn’t rejoin” when it cannot', async () => {
-      renderWithApp(<DeviceList player={player({ detached: true }, { attach: { ok: false, error: 'disconnected' } }).player} />)
+      const { player: value, controls } = player({ detached: true }, { attach: { ok: false, error: 'disconnected' } })
+      renderWithApp(<DeviceList player={value} />)
       await userEvent.click(screen.getByRole('button', { name: 'Rejoin your other devices' }))
-      expect(toasts()).toEqual(['Couldn’t rejoin. Try again.'])
+      expect(told(controls)).toEqual(['Couldn’t rejoin. Try again. (error)'])
     })
 
     it('marks the player bar “Only on this device”, which opens the picker', async () => {
@@ -166,5 +169,21 @@ describe('devices picker', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Only on this device' }))
       expect(await screen.findByRole('button', { name: 'Rejoin your other devices' })).toBeInTheDocument()
     })
+  })
+})
+
+describe('the status line, where the picker says what happened', () => {
+  it('shows a device error under the song in the player bar, and nothing floats over the page', async () => {
+    const { player: value } = player({}, { detach: { ok: false, error: 'offline' } })
+    let status: Player['state']['status'] = null
+    // The bar reads the status the provider keeps; this stands in for it.
+    value.controls.tell = line => { status = { ...line, key: 'action' } }
+    const view = renderWithApp(<DeviceList player={value} />)
+    await userEvent.click(screen.getByRole('button', { name: /Play separately on this tab/ }))
+    view.unmount()
+    renderWithApp(<PlayerBar player={{ ...value, state: { ...value.state, status } }} liked={false} onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} />)
+    const line = screen.getAllByRole('status').find(region => region.textContent?.includes('Can’t do that while offline.'))
+    expect(line).toBeDefined()
+    expect(line!.querySelector('[data-tone="error"]')).not.toBeNull()
   })
 })

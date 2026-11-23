@@ -6,7 +6,6 @@ import { useState, type ReactNode } from 'react'
 import { useApi } from '@/api/services'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatIdle } from '@/lib/format'
-import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { labelDevice, whereItPlays, type Player } from '@/player/player-context'
 import { VolumeControl } from './Transport'
@@ -124,8 +123,10 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
             onClick={async () => {
               const playing = player.state.playing && player.state.activeDeviceId === thisDeviceId
               const result = await player.controls.detach()
-              if (!result.ok) return toast({ title: moveError(result, 'Couldn’t play separately.') })
-              toast(playing ? { title: 'Playing only on this device', description: 'Your other devices are paused where they were.' } : { title: 'Playing only on this device' })
+              // Said on the player's status line, which stays in sight as the picker closes.
+              if (!result.ok) return player.controls.tell({ message: moveError(result, 'Couldn’t play separately.'), tone: 'error' })
+              // The player then says "Only on this device"; what it did to the other devices is said here.
+              if (playing) player.controls.tell({ message: 'Playing only on this device', detail: 'Your other devices are paused where they were.', tone: 'info' })
               onTransferred?.()
             }}
           />
@@ -143,9 +144,9 @@ function DetachedList({ player, separate, onDone }: { player: Player; separate: 
   const rejoin = async (bringQueue: boolean) => {
     const stopped = !bringQueue && playing ? current?.track.title : undefined
     const result = await player.controls.attach(bringQueue ? { bringQueue: true } : undefined)
-    if (!result.ok) return toast({ title: moveError(result, 'Couldn’t rejoin.') })
+    if (!result.ok) return player.controls.tell({ message: moveError(result, 'Couldn’t rejoin.'), tone: 'error' })
     // Rejoining drops this tab's queue, so say what stopped; it cannot be had back.
-    if (stopped) toast({ title: 'Rejoined your other devices', description: `Stopped “${stopped}”.` })
+    if (stopped) player.controls.tell({ message: 'Rejoined your other devices', detail: `Stopped “${stopped}”.`, tone: 'info' })
     onDone?.()
   }
   return (
@@ -210,7 +211,6 @@ function SeparateTrack({ state }: { state: NonNullable<DeviceInfo['detached']> }
     queryKey: [...queryKeys.track(trackId ?? ''), albumId],
     queryFn: () => api.catalog.track(trackId!, { albumId: albumId ?? undefined }),
     enabled: Boolean(trackId),
-    meta: { silent: true },
   }).data
   if (!trackId) return <>Nothing playing</>
   // Until (or unless) the song is known, what it is doing still says something.

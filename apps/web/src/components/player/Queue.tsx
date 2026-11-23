@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEve
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
+import { ConfirmDialog } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -27,6 +28,7 @@ export function QueueContent({ player, modes = true }: { player: Player; modes?:
   const { state, controls } = player
   // The queue can be on screen twice, as the panel and as a pane of Now Playing.
   const id = useId()
+  const [clearingHistory, setClearingHistory] = useState(false)
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -73,12 +75,21 @@ export function QueueContent({ player, modes = true }: { player: Player; modes?:
 
       {state.history.length > 0 && (
         <section aria-labelledby={`${id}-history`}>
-          <QueueHeading id={`${id}-history`} action={<ClearButton label="Clear history" onClick={controls.clearHistory} />}>
+          <QueueHeading id={`${id}-history`} action={<ClearButton label="Clear history" onClick={() => setClearingHistory(true)} />}>
             History
           </QueueHeading>
           <ul>{[...state.history].reverse().map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} faded /></li>)}</ul>
         </section>
       )}
+      {/* Nothing brings a cleared history back, so it is asked first. */}
+      <ConfirmDialog
+        open={clearingHistory}
+        onOpenChange={setClearingHistory}
+        title="Clear history?"
+        description="The songs you played leave the history on all your devices. This can’t be undone."
+        confirmLabel="Clear history"
+        onConfirm={async () => controls.clearHistory()}
+      />
     </div>
   )
 }
@@ -150,6 +161,7 @@ function QueueRow({ item, current, playing = false, waiting = false, faded, onPl
         * the title is what truncates. Unsaved, it waits for the row's hover where a pointer hovers.
         */}
       <SaveHeart
+        id={track.id}
         liked={track.liked}
         onToggle={() => library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)}
         title={track.title}

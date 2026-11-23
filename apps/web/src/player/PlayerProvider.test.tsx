@@ -1,5 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ApiError } from '@squirmy/client-core'
 import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, allTracks } from '@/fixtures/catalog'
@@ -68,12 +69,11 @@ describe('PlayerProvider', () => {
     await userEvent.click(await within(player).findByRole('button', { name: `Remove ${first.title} from library` }))
     expect(api.userdata.unlike).toHaveBeenCalledWith('track', first.id)
     expect(await within(player).findByRole('button', { name: `Save ${first.title} to library` })).toBeInTheDocument()
-    expect(await screen.findByText('Removed from your library')).toBeInTheDocument()
     // The album page shows the same track, from its own cached answer.
     expect(within(screen.getByRole('list', { name: 'Blue Hour tracks' })).getByRole('button', { name: `Save ${first.title} to library` })).toBeInTheDocument()
   })
 
-  it('clears the history with a moment to undo it', async () => {
+  it('asks before clearing the history, then clears it at once and says so on the status line', async () => {
     const { services, socket } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
@@ -82,19 +82,33 @@ describe('PlayerProvider', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
     const panel = await screen.findByRole('complementary', { name: 'Queue' })
 
+    // Cancel keeps it.
     await userEvent.click(within(panel).getByRole('button', { name: 'Clear history' }))
-    expect(within(panel).queryByRole('heading', { name: 'History' })).toBeNull()
+    const ask = await screen.findByRole('dialog', { name: 'Clear history?' })
+    await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Clear history?' })).toBeNull())
     expect(socket.session.history).toHaveLength(1)
-    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
-    expect(await within(panel).findByRole('heading', { name: 'History' })).toBeInTheDocument()
 
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    try {
-      await userEvent.click(within(panel).getByRole('button', { name: 'Clear history' }))
-      await vi.advanceTimersByTimeAsync(5000)
-      await waitFor(() => expect(socket.session.history).toEqual([]))
-    } finally {
-      vi.useRealTimers()
-    }
+    await userEvent.click(within(panel).getByRole('button', { name: 'Clear history' }))
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Clear history?' })).getByRole('button', { name: 'Clear history' }))
+    await waitFor(() => expect(socket.session.history).toEqual([]))
+    expect(within(panel).queryByRole('heading', { name: 'History' })).toBeNull()
+    const player = screen.getByRole('region', { name: 'Player' })
+    expect(within(player).getByText('History cleared')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+  })
+
+  it('says what a command from elsewhere told it on the status line, under the song', async () => {
+    const { services, api } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    // A card's Play whose album does not load says so where playback is told.
+    api.catalog.album.mockRejectedValue(new ApiError(503, 'unavailable', 'The server is busy.'))
+    await userEvent.click(screen.getByRole('link', { name: 'Home' }))
+    const card = (await screen.findAllByRole('button', { name: /^Play / })).find(button => button.closest('[class*="group/card"]'))!
+    await userEvent.click(card)
+    const player = screen.getByRole('region', { name: 'Player' })
+    expect(await within(player).findByText(/^Couldn’t play “.+”\. /)).toBeInTheDocument()
+    expect(within(player).getByText(/The server is busy\./)).toBeInTheDocument()
   })
 })
