@@ -75,7 +75,7 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     playable && current === null && { id: 'play', title: 'Play now', icon: 'play.fill' },
     playable && current === 'paused' && { id: 'resume', title: 'Play', icon: 'play.fill' },
     playable && current === null && { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward' },
-    playable && { id: 'last', title: 'Play last', icon: 'text.line.last.and.arrowtriangle.forward' },
+    playable && { id: 'last', title: 'Add to queue', icon: 'text.line.last.and.arrowtriangle.forward' },
     library.saved
       ? { id: 'unlike', title: library.label, icon: 'heart.slash' }
       : { id: 'like', title: library.label, icon: 'heart' },
