@@ -20,6 +20,8 @@ type Secret = 'listenBrainz' | 'acoustId' | 'fanart' | 'lastFm'
 type ServerSettingsProps = {
   /** Undefined while loading. */
   settings: ServerSettings | undefined
+  /** Said in place of the form when the settings did not load. */
+  failure?: ReactNode
   /** The managed library folders imports can go to. */
   managedRoots: LibraryRoot[] | undefined
   onSave: Save
@@ -30,9 +32,9 @@ type ServerSettingsProps = {
 const ONLY_ROOT = 'only'
 
 /** Every operator setting. Each change is saved as soon as it is made; text fields save when they lose focus. */
-export function ServerSettingsAdmin({ settings, managedRoots, onSave, status }: ServerSettingsProps) {
+export function ServerSettingsAdmin({ settings, failure, managedRoots, onSave, status }: ServerSettingsProps) {
   const [editing, setEditing] = useState<Secret | null>(null)
-  if (!settings) return <SettingsSkeleton />
+  if (!settings) return failure ? <div><AdminHeader title="Server settings" description="Changes apply right away." />{failure}</div> : <SettingsSkeleton />
   const toggle = (key: Toggle, label: string, description?: string) => (
     <Row label={label} description={description}>
       <Switch aria-label={label} checked={settings[key]} onCheckedChange={value => void onSave({ [key]: value }).catch(() => {})} />

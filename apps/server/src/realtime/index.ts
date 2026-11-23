@@ -1,5 +1,5 @@
 import { fastifyCookie } from '@fastify/cookie'
-import type { ServerEvent } from '@squirmy/contracts'
+import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TIMEOUT_MS, type ServerEvent } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { Server } from 'socket.io'
 import { devOrigins, getConfig } from '../config.js'
@@ -120,11 +120,14 @@ function deliver(io: RealtimeServer, message: Message) {
   else sockets.emit('invalidate', { keys: message.keys })
 }
 
+/** socket.io's heartbeat, which presence rides on; tests shorten it. */
+export type Heartbeat = { intervalMs: number; timeoutMs: number }
+
 /**
  * Attaches socket.io to the app's HTTP server and starts forwarding NOTIFY messages to
  * rooms. Call before the app listens; closing the app closes both.
  */
-export async function startRealtime(app: FastifyInstance): Promise<Realtime> {
+export async function startRealtime(app: FastifyInstance, heartbeat: Heartbeat = { intervalMs: HEARTBEAT_INTERVAL_MS, timeoutMs: HEARTBEAT_TIMEOUT_MS }): Promise<Realtime> {
   const config = getConfig()
   const handlers: ((socket: RealtimeSocket) => void | Promise<void>)[] = []
   const io: RealtimeServer = new Server(app.server, {
@@ -137,6 +140,13 @@ export async function startRealtime(app: FastifyInstance): Promise<Realtime> {
     // Socket.io's default, stated: the largest session command (5000 queue seeds) is
     // about 750 KB of JSON.
     maxHttpBufferSize: 1_000_000,
+    // The device list holds a device only while one of its sockets is open (see "Presence"
+    // in the session contract), so a socket that stops answering has to close soon, not
+    // after socket.io's default 45 seconds: two missed pings close it. A ping is a few
+    // bytes, and the client answers it from its message handler, which browsers do not
+    // throttle in hidden tabs the way they throttle timers.
+    pingInterval: heartbeat.intervalMs,
+    pingTimeout: heartbeat.timeoutMs,
   })
 
   io.use(async (socket, next) => {

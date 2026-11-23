@@ -3,7 +3,8 @@ import type { ComponentType } from 'react';
 import type { ViewProps } from 'react-native';
 
 export type RemoteCommand =
-  | { command: 'play' | 'pause' | 'togglePlayPause' | 'next' | 'previous' }
+  /** `favorite` is the star (the like command), which stands for the heart. */
+  | { command: 'play' | 'pause' | 'togglePlayPause' | 'next' | 'previous' | 'favorite' }
   | { command: 'seek'; positionMs: number };
 
 export type NowPlayingItem = {
@@ -23,6 +24,11 @@ export type AudioRouteChange = { reason: 'oldDeviceUnavailable' | 'other' };
 type NowPlayingModule = {
   setItem(item: NowPlayingItem): Promise<void>;
   setPlayback(playing: boolean, positionMs: number): Promise<void>;
+  /**
+   * The star beside the transport controls: shown while `available`, filled while `active`.
+   * `label` is what VoiceOver and the long-press menu call it. Leaves the elapsed time alone.
+   */
+  setFavorite(available: boolean, active: boolean, label: string): Promise<void>;
   clear(): Promise<void>;
   addListener(event: 'onRemoteCommand', listener: (command: RemoteCommand) => void): EventSubscription;
   addListener(event: 'onInterruption', listener: (interruption: AudioInterruption) => void): EventSubscription;

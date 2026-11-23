@@ -1,7 +1,7 @@
 import type { PlaybackContext, PlaylistSummary, User } from '@squirmy/contracts'
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps, ReactNode } from 'react'
+import { useState, type ComponentProps, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { playlistSummaries, track } from '@/fixtures/catalog'
@@ -30,9 +30,22 @@ function PlayingFrom({ context, children }: { context?: PlaybackContext; childre
   return <PlayerContext value={context ? { ...player, state: { ...player.state, context, playing: true } } : player}>{children}</PlayerContext>
 }
 
-type Options = Partial<ComponentProps<typeof Sidebar>> & { user?: User; route?: string; playingFrom?: PlaybackContext; wantlistEnabled?: boolean }
+type Options = Partial<ComponentProps<typeof Sidebar>> & {
+  user?: User
+  route?: string
+  playingFrom?: PlaybackContext
+  wantlistEnabled?: boolean
+  /** Folds and opens for real, as the shell does, rather than only reporting the toggle. */
+  toggles?: boolean
+}
 
-function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, ...props }: Options = {}) {
+/** The sidebar holding its own folded state, as the shell keeps it. */
+function Toggling(props: ComponentProps<typeof Sidebar>) {
+  const [collapsed, setCollapsed] = useState(props.collapsed)
+  return <Sidebar {...props} collapsed={collapsed} onToggle={() => { props.onToggle(); setCollapsed(value => !value) }} />
+}
+
+function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, toggles = false, ...props }: Options = {}) {
   const library = {
     wantlistEnabled,
     isWanted: () => false,
@@ -46,7 +59,10 @@ function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, ...pr
   renderWithApp(
     <LibraryContext value={library}>
       <PlayingFrom context={playingFrom}>
-        <Sidebar user={currentUser} playlists={playlists} likedCount="24 songs" collapsed={false} mobile={false} mobileOpen={false} {...on} {...props} />
+        {(() => {
+          const all = { user: currentUser, playlists, likedCount: '24 songs', collapsed: false, mobile: false, mobileOpen: false, ...on, ...props }
+          return toggles ? <Toggling {...all} /> : <Sidebar {...all} />
+        })()}
       </PlayingFrom>
       <Where />
     </LibraryContext>,
@@ -325,6 +341,15 @@ describe('Sidebar', () => {
       expect(screen.queryByRole('link', { name: 'Squirmy home' })).not.toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: 'Open sidebar' }))
       expect(onToggle).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the keyboard on the toggle as it folds and opens, though each state has its own button', async () => {
+      renderSidebar({ toggles: true })
+      screen.getByRole('button', { name: 'Close sidebar' }).focus()
+      await userEvent.keyboard('{Enter}')
+      expect(screen.getByRole('button', { name: 'Open sidebar' })).toHaveFocus()
+      await userEvent.keyboard('{Enter}')
+      expect(screen.getByRole('button', { name: 'Close sidebar' })).toHaveFocus()
     })
 
     it('folds from Close sidebar while open', async () => {

@@ -33,21 +33,39 @@ export function Badge({ tone = 'neutral', className, ...props }: ComponentProps<
   return <span className={cn('inline-flex w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-medium [&_svg]:size-3', badgeTones[tone], className)} {...props} />
 }
 
-/** The small "E" beside explicit tracks. */
+/**
+ * The small "E" beside explicit tracks. It is the page's color on a muted fill, the same pair as
+ * muted text on the page reversed, so it reads at 4.5:1 in every theme; a screen reader hears
+ * "Explicit" rather than a letter.
+ */
 export function ExplicitBadge({ className }: { className?: string }) {
   return (
-    <abbr title="Explicit" className={cn('inline-flex size-3.5 shrink-0 items-center justify-center rounded-[3px] bg-muted-foreground/25 text-[9px] font-semibold text-muted-foreground no-underline', className)}>
-      E
-    </abbr>
+    <span title="Explicit" className={cn('inline-flex size-3.5 shrink-0 items-center justify-center rounded-[3px] bg-muted-foreground text-[9px] font-semibold text-background', className)}>
+      <span aria-hidden>E</span><span className="sr-only">Explicit</span>
+    </span>
   )
 }
 
-export function EmptyState({ icon, title, description, action, className }: { icon: ReactNode; title: string; description?: string; action?: ReactNode; className?: string }) {
+type EmptyStateProps = {
+  icon: ReactNode
+  title: string
+  description?: string
+  action?: ReactNode
+  className?: string
+  /**
+   * The title's heading level. Inside a page it is a section's (3); a state that is the whole page
+   * ("Nothing here", a page that did not load) is the page's title, so it is a level 1 heading.
+   */
+  headingLevel?: 1 | 2 | 3
+}
+
+export function EmptyState({ icon, title, description, action, className, headingLevel = 3 }: EmptyStateProps) {
+  const Heading = `h${headingLevel}` as const
   return (
     <div className={cn('flex flex-col items-center px-6 py-14 text-center', className)}>
       <div className="mb-4 flex size-11 items-center justify-center rounded-xl border bg-card text-muted-foreground shadow-xs [&_svg]:size-5">{icon}</div>
       {/* Titles can echo what was typed: a long unbroken word wraps instead of widening the page. */}
-      <h3 className="max-w-full text-base font-semibold [overflow-wrap:anywhere]">{title}</h3>
+      <Heading className="max-w-full text-base font-semibold [overflow-wrap:anywhere]">{title}</Heading>
       {description && <p className="mt-1 max-w-sm text-sm text-muted-foreground [overflow-wrap:anywhere]">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>

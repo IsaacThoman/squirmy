@@ -472,6 +472,82 @@ describe('SessionClient sync', () => {
   })
 })
 
+describe('SessionClient away', () => {
+  /** The server's list as it is now, to every socket, as the real one sends it when a device comes or goes. */
+  function relist(server: FakeServer) {
+    for (const transport of server.transports) transport.push('devices', server.devices())
+  }
+
+  /** A phone that only controls, and a web player playing the shared session. */
+  async function remoteAndPlayer() {
+    const phone = setup({ canPlay: false })
+    await phone.settle()
+    const web = setup({ server: phone.server, id: WEB })
+    await web.settle()
+    relist(phone.server)
+    web.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await web.settle()
+    await phone.settle()
+    return { phone, web, server: phone.server }
+  }
+
+  it('names the active device while the live list leaves it out, and forgets it once the session lets go', async () => {
+    const { phone, web, server } = await remoteAndPlayer()
+    expect(phone.client.getSnapshot()).toMatchObject({ away: null, session: { activeDeviceId: WEB } })
+
+    web.transport.disconnect()
+    relist(server)
+    await phone.settle()
+    expect(phone.client.getSnapshot().devices.map(device => device.id)).toEqual([PHONE])
+    expect(phone.client.getSnapshot().away).toEqual({ id: WEB, device: expect.objectContaining({ id: WEB, name: WEB }) })
+    // Kept while nothing about it changes, so screens reading it do not re-render.
+    const away = phone.client.getSnapshot().away
+    relist(server)
+    await phone.settle()
+    expect(phone.client.getSnapshot().away).toBe(away)
+
+    // The grace period ran out.
+    server.apply({ type: 'deviceLost', deviceId: WEB })
+    await phone.settle()
+    expect(phone.client.getSnapshot()).toMatchObject({ away: null, session: { activeDeviceId: null, playing: false } })
+  })
+
+  it('stops calling the device away when it comes back', async () => {
+    const { phone, web, server } = await remoteAndPlayer()
+    web.transport.disconnect()
+    relist(server)
+    await phone.settle()
+    expect(phone.client.getSnapshot().away?.id).toBe(WEB)
+
+    web.transport.connect()
+    await web.settle()
+    relist(server)
+    await phone.settle()
+    expect(phone.client.getSnapshot()).toMatchObject({ away: null, session: { activeDeviceId: WEB } })
+  })
+
+  it('has no name for a device it never saw listed, and says nothing while offline', async () => {
+    const { phone, web, server } = await remoteAndPlayer()
+    web.transport.disconnect()
+    const late = setup({ server, id: 'tablet-0001', canPlay: false })
+    await late.settle()
+    expect(late.client.getSnapshot().away).toEqual({ id: WEB, device: null })
+
+    phone.transport.disconnect()
+    expect(phone.client.getSnapshot()).toMatchObject({ connection: 'offline', away: null })
+  })
+
+  it('never calls this device away', async () => {
+    const { client, settle, server } = setup()
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: seeds(1), seed: 1 })
+    await settle()
+    for (const transport of server.transports) transport.push('devices', [])
+    await settle()
+    expect(client.getSnapshot()).toMatchObject({ isActiveDevice: true, away: null })
+  })
+})
+
 describe('SessionClient outage', () => {
   const REASON = 'The server can’t fetch music on demand right now.'
 

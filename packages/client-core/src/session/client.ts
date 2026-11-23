@@ -52,7 +52,23 @@ export type SessionClientSnapshot = {
    * event first), and null again once the session plays or moves on.
    */
   outage: SessionOutage | null
+  /**
+   * The shared session's active device while it is away: the session names it, the server's
+   * list of live devices does not, and the server is waiting for it to come back (see
+   * "Presence" in the session contract). Null while this client is not online, and when the
+   * active device is listed or is this one.
+   */
+  away: AwayDevice | null
 }
+
+/**
+ * An active device that went away. `device` is how it was last listed, so it can be named;
+ * null when this client never saw it listed (it opened while the device was away).
+ */
+export type AwayDevice = { id: string; device: DeviceInfo | null }
+
+/** How many devices `SessionClient` remembers after they leave the list, to name one that is away. */
+const REMEMBERED_DEVICES = 32
 
 /**
  * What a `playback.unavailable` said: the track playback stopped on, why (`kind`, see the
@@ -240,6 +256,8 @@ export class SessionClient {
   private restored: { commands: Set<Pending>; version: number; savedAt: number } | null = null
   private local: Session = createInitialSession()
   private devices: DeviceInfo[] = []
+  /** Every device listed lately, the latest last, as last listed: an away device is named from here. */
+  private readonly seen = new Map<string, DeviceInfo>()
   private connection: ConnectionStatus = 'offline'
   /** Why tracks failed, from `playback.failed`, oldest first. */
   private readonly failures = new Map<string, EntryFailure>()
@@ -300,7 +318,7 @@ export class SessionClient {
     const { state, queue } = splitSession(this.local)
     this.snapshot = {
       session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive(),
-      detached: this.detached, canDetach: this.canDetach(), outage: null,
+      detached: this.detached, canDetach: this.canDetach(), outage: null, away: null,
     }
   }
 
@@ -325,7 +343,7 @@ export class SessionClient {
         if (this.connection === 'online') this.onMoved(update)
       }),
       transport.on('devices', devices => {
-        this.devices = devices
+        this.setDevices(devices)
         this.publish()
       }),
       transport.on('event', event => {
@@ -595,7 +613,7 @@ export class SessionClient {
     const { snapshot } = reply
     this.server = { version: snapshot.version, session: joinSession(snapshot.state, snapshot.queue) }
     this.heldQueue = null
-    this.devices = reply.devices
+    this.setDevices(reply.devices)
     this.detached = snapshot.scope?.type === 'device'
     this.serverDetaches = reply.capabilities?.includes('detach') ?? false
   }
@@ -795,15 +813,40 @@ export class SessionClient {
     const isActiveDevice = this.isActive()
     const canDetach = this.canDetach()
     const outage = this.outage()
+    const away = this.away(previous.away)
     if (
       session === previous.session && queueHalf === previous.queue && this.devices === previous.devices
       && this.connection === previous.connection && isActiveDevice === previous.isActiveDevice
       && this.detached === previous.detached && canDetach === previous.canDetach && outage === previous.outage
+      && away === previous.away
     ) return
     this.snapshot = {
-      session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach, outage,
+      session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach, outage, away,
     }
     for (const listener of [...this.listeners]) listener()
+  }
+
+  private setDevices(devices: DeviceInfo[]): void {
+    this.devices = devices
+    for (const device of devices) {
+      this.seen.delete(device.id)
+      this.seen.set(device.id, device)
+    }
+    for (const id of this.seen.keys()) {
+      if (this.seen.size <= REMEMBERED_DEVICES) break
+      this.seen.delete(id)
+    }
+  }
+
+  /**
+   * The active device, when the session names one the live list leaves out. Only an online
+   * client's list is current, so only it can tell. `previous` is kept while it says the same.
+   */
+  private away(previous: AwayDevice | null): AwayDevice | null {
+    const id = this.local.activeDeviceId
+    if (this.connection !== 'online' || id === null || id === this.device.id || this.devices.some(device => device.id === id)) return null
+    const device = this.seen.get(id) ?? null
+    return previous?.id === id && previous.device === device ? previous : { id, device }
   }
 
   /**

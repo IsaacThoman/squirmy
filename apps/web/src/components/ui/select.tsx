@@ -28,8 +28,10 @@ export function Select<T extends string>({ value, onValueChange, options, label,
         aria-describedby={props['aria-describedby']}
         data-slot="select-trigger"
         className={cn(
-          'inline-flex w-fit items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50',
+          'inline-flex w-fit items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/15 dark:hover:bg-input/25',
           size === 'sm' ? 'h-8' : 'h-9',
+          // A finger needs 44 px; a mouse keeps the compact control.
+          'pointer-coarse:h-11',
           className,
         )}
       >

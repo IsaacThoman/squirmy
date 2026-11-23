@@ -23,7 +23,7 @@ function player(state: Partial<PlayerState>, moves: { detach?: SessionMoveResult
   const value: PlayerState = {
     current: { track: song, entry: { id: 'e1', trackId: song.id, albumId: null, durationMs: song.durationMs, state: 'ready' } },
     playing: true, waiting: false, blocked: false, volume: 1, volumes: {}, shuffle: false, repeat: 'off', autoplay: false, context: null,
-    queue: [], history: [], autoplayQueue: [], devices, thisDeviceId, activeDeviceId: thisDeviceId, lyrics: null,
+    queue: [], history: [], autoplayQueue: [], devices, thisDeviceId, activeDeviceId: thisDeviceId, away: null, lyrics: null,
     detached: false, canDetach: true,
     ...state,
   }
@@ -34,6 +34,22 @@ const toasts = () => toastStore.getSnapshot().map(item => [item.title, item.desc
 afterEach(() => act(() => { for (const item of toastStore.getSnapshot()) dismissToast(item.id) }))
 
 describe('devices picker', () => {
+  it('waits for a playing device that went away instead of offering it, and names it from when it was listed', async () => {
+    const desk = { id: 'desk', name: 'Desk Mac', kind: 'desktop' as const, canPlay: true, isActive: true }
+    const { player: value, controls } = player({ activeDeviceId: desk.id, away: { id: desk.id, device: desk } })
+    renderWithApp(<DeviceList player={value} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Reconnecting to Desk Mac…')
+    expect(screen.queryByRole('button', { name: /Desk Mac/ })).toBeNull()
+    // This tab can still take over.
+    await userEvent.click(screen.getByRole('button', { name: /This browser/ }))
+    expect(controls.transfer).toHaveBeenCalledWith(thisDeviceId)
+  })
+
+  it('says it waits for the playing device when this tab never saw it listed', () => {
+    renderWithApp(<DeviceList player={player({ activeDeviceId: 'gone', away: { id: 'gone', device: null } }).player} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Reconnecting to the playing device…')
+  })
+
   it('lists a detached device apart, with what it plays, and never as a place to move playback to', async () => {
     renderWithApp(<DeviceList player={player({}).player} />)
     expect(screen.queryByRole('button', { name: /Kitchen/ })).toBeNull()

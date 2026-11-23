@@ -2,7 +2,7 @@ import {
   type AnySessionCommand, bringSession, forkSession, positionAt, queueChanged, reduceSession, type Session, splitSession,
 } from '@squirmy/client-core'
 import {
-  COMMAND_TRACK_LIMIT, CommandEnvelope, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach,
+  COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach,
   type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
   type SessionMoveAck, type SessionSnapshot,
 } from '@squirmy/contracts'
@@ -61,7 +61,7 @@ const realTimers: SessionTimers = {
   set: (callback, ms) => setTimeout(callback, ms),
   clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 }
-const settings: { deviceGraceMs: number; now: () => number; timers: SessionTimers } = { deviceGraceMs: 20_000, now: () => Date.now(), timers: realTimers }
+const settings: { deviceGraceMs: number; now: () => number; timers: SessionTimers } = { deviceGraceMs: DEVICE_GRACE_MS, now: () => Date.now(), timers: realTimers }
 const graceTimers = new Map<string, unknown>()
 /**
  * Active devices that went away while playing, by the grace timer's key: when, and where
