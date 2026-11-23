@@ -32,6 +32,8 @@ export type TrackActionOptions = {
 export type TrackActionState = {
   /** The heart: saved to the user's library, counting what the user just did here. */
   liked: boolean;
+  /** The heart's change the server just refused (`useLikeFailure`): the library entry says so, and tries again. */
+  likeFailure?: boolean;
   playable: boolean;
   offline: boolean;
   /** Whether the track is the current entry, and if so whether it plays. */
@@ -43,9 +45,14 @@ export type TrackActionState = {
   wantlist: boolean;
   /** On the wantlist already, so the menu offers to take it off. */
   wanted?: boolean;
+  /** The wantlist change the server just refused (`useWantFailure`): the wantlist entry says so, and tries again. */
+  wantFailure?: boolean;
   /** Who is signed in: a radio starts from what the server plays for them, never from a download alone. */
   viewer?: Viewer | null;
 };
+
+/** A menu entry whose last try the server refused: it says so, and choosing it tries again. */
+const failed = (what: string) => ({ title: `${what}. Try again`, icon: 'exclamationmark.circle' });
 
 /** A key for an action in a list: a track has one "Go to" action per artist. */
 export function trackActionKey(action: Pick<TrackAction, 'id' | 'page'>): string {
@@ -60,7 +67,7 @@ export function trackActionKey(action: Pick<TrackAction, 'id' | 'page'>): string
  * actions; `useTrackActionRunner` carries one out when it is chosen.
  */
 export function trackActions(track: TrackSummary, state: TrackActionState, { playlist, album }: TrackActionOptions = {}): TrackAction[] {
-  const { liked, playable, offline, current, download, onItsOwn, wantlist, wanted, viewer } = state;
+  const { liked, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer } = state;
   const online = !offline;
   const library = librarySave({ liked });
   const downloadAction: TrackAction | false = download?.state === 'failed' && onItsOwn
@@ -75,10 +82,11 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     playable && current === null && { id: 'play', title: 'Play now', icon: 'play.fill' },
     playable && current === 'paused' && { id: 'resume', title: 'Play', icon: 'play.fill' },
     playable && current === null && { id: 'next', title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward' },
-    playable && { id: 'last', title: 'Play last', icon: 'text.line.last.and.arrowtriangle.forward' },
+    playable && { id: 'last', title: 'Add to queue', icon: 'text.line.last.and.arrowtriangle.forward' },
+    // A refused change was set back, so the entry that would make it again says it failed.
     library.saved
-      ? { id: 'unlike', title: library.label, icon: 'heart.slash' }
-      : { id: 'like', title: library.label, icon: 'heart' },
+      ? { id: 'unlike', ...likeFailure === undefined ? { title: library.label, icon: 'heart.slash' } : failed('Couldn’t remove from library') }
+      : { id: 'like', ...likeFailure === undefined ? { title: library.label, icon: 'heart' } : failed('Couldn’t save to library') },
     downloadAction,
     playable && online && { id: 'playlist', title: 'Add to playlist', icon: 'text.badge.plus', sheet: true,
       href: { pathname: '/add-to-playlist', params: { trackId: track.id, albumId: track.album?.id ?? '' } } },
@@ -88,8 +96,8 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     // Only what does not play for this user: for someone who may fetch music nothing is wanted.
     // Added or removed alike, as on web.
     wantlist && !playable && track.availability !== 'server' && online && (wanted
-      ? { id: 'unwant', title: 'Remove from wantlist', icon: 'star.slash' }
-      : { id: 'want', title: 'Add to wantlist', icon: 'star' }),
+      ? { id: 'unwant', ...wantFailure === undefined ? { title: 'Remove from wantlist', icon: 'star.slash' } : failed('Couldn’t remove from wantlist') }
+      : { id: 'want', ...wantFailure === undefined ? { title: 'Add to wantlist', icon: 'star' } : failed('Couldn’t add to wantlist') }),
     Boolean(track.album) && track.album!.id !== album && { id: 'album', title: 'Go to album', icon: 'square.stack', page: { page: 'album', id: track.album!.id } },
     // Each credited artist leads to its own page: on an artist's page a featured artist is often not the first.
     ...track.artists.map((artist): TrackAction => ({

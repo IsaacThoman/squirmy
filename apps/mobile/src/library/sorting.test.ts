@@ -9,9 +9,16 @@ describe('library sorting', () => {
     expect(sortsFor('Playlists')).toEqual([]);
   });
 
-  it('falls back to recently added where the chosen order does not apply', () => {
-    expect(sortFor('Albums', 'Year')).toBe('Year');
-    expect(sortFor('Songs', 'Year')).toBe('Recently added');
-    expect(sortFor('Songs', 'Title')).toBe('Title');
+  it('keeps the order chosen under each filter apart', () => {
+    const chosen = { Songs: 'Title', Albums: 'Year' } as const;
+    expect(sortFor('Songs', chosen)).toBe('Title');
+    expect(sortFor('Albums', chosen)).toBe('Year');
+    expect(sortFor('All', chosen)).toBe('Recently added');
+  });
+
+  it('falls back to recently added where nothing, or an order that does not apply, was chosen', () => {
+    expect(sortFor('Songs', {})).toBe('Recently added');
+    expect(sortFor('Songs', { Songs: 'Year' })).toBe('Recently added');
+    expect(sortFor('Artists', { Artists: 'Title' })).toBe('Recently added');
   });
 });

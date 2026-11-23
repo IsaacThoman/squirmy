@@ -4,11 +4,11 @@ import {
   type UserSettings,
 } from '@squirmy/contracts';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSignedInApi, type Api } from '../account/AccountProvider';
-import { albumExpanding, albumPlaceholder, findAlbumSummary } from './albums';
+import { albumPlaceholder, awaitsTrackList, findAlbumSummary, trackListPoll } from './albums';
 import { artistPending, artistPlaceholder, findArtistSummary, pendingArtistPollMs } from './artists';
-import { inLibraryOnly } from '../library/librarySearch';
+import { inLibraryOnly, type AlbumMembership } from '../library/librarySearch';
 import { useTrackStore } from './library';
 
 const pageSize = 60;
@@ -54,6 +54,28 @@ export function useLibraryAlbums(sort: LibrarySort, enabled = true) {
   return usePagedQuery([...queryKeys.libraryAlbums(), sort], (api, cursor) => api.catalog.albums({ sort, cursor, limit: pageSize }), enabled);
 }
 
+/** Library albums read in pages of the server's largest size, up to this many, for `useLibraryAlbumIds`. */
+const membershipPageSize = 200;
+const membershipLimit = 2000;
+
+/**
+ * The ids of the albums in the library, which the library search keeps its album matches
+ * to (`libraryAlbumMatches`). Up to `membershipLimit` are read; `complete` says whether that
+ * was all of them. Kept under the album list's key, so what invalidates the list reads it again.
+ */
+export function useLibraryAlbumIds(enabled: boolean) {
+  return useApiQuery([...queryKeys.libraryAlbums(), 'ids'], async (api): Promise<AlbumMembership> => {
+    const ids: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await api.catalog.albums({ sort: 'recent', cursor, limit: membershipPageSize });
+      ids.push(...page.items.map(album => album.id));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor && ids.length < membershipLimit);
+    return { ids, complete: !cursor };
+  }, { enabled });
+}
+
 export function useLibraryArtists(sort: LibrarySort, enabled = true) {
   return usePagedQuery([...queryKeys.libraryArtists(), sort], (api, cursor) => api.catalog.artists({ sort, cursor, limit: pageSize }), enabled);
 }
@@ -89,15 +111,27 @@ export function useAlbum(id: string) {
     const summary = findAlbumSummary(queryClient.getQueryCache().getAll().map(query => query.state.data), id);
     return summary && albumPlaceholder(summary);
   });
-  return useQuery({
+  // When this page began waiting for the album's songs; `checkAgain` starts a new wait.
+  const waitingSince = useRef<number | null>(null);
+  const query = useQuery({
     queryKey: queryKeys.album(id),
     queryFn: async () => prime(await api!.catalog.album(id), album => album.discs.flatMap(disc => disc.tracks)),
     enabled: Boolean(api),
     placeholderData: placeholder,
     // An album the server has only heard of (from search or an artist's discography) comes
-    // back without tracks while the server looks them up; the next answer has them.
-    refetchInterval: query => albumExpanding(query.state.data, query.state.dataUpdateCount) ? 2000 : false,
+    // back without tracks while the server looks them up; a later answer has them.
+    refetchInterval: ({ state }) => {
+      const awaiting = awaitsTrackList(state.data);
+      if (awaiting) waitingSince.current ??= Date.now();
+      return trackListPoll(Date.now() - (waitingSince.current ?? Date.now()), awaiting);
+    },
   });
+  const { refetch } = query;
+  const checkAgain = useCallback(() => {
+    waitingSince.current = Date.now();
+    return refetch();
+  }, [refetch]);
+  return { query, checkAgain };
 }
 
 export function useArtist(id: string) {

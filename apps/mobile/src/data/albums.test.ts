@@ -1,15 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { albumExpanding, albumPlaceholder, findAlbumSummary } from './albums';
+import { albumPlaceholder, awaitsTrackList, findAlbumSummary, trackListPoll, trackListPollMs, trackListWaitMs } from './albums';
 
-describe('albumExpanding', () => {
-  it('waits for an album that came back without tracks', () => {
-    expect(albumExpanding({ trackCount: 0, discs: [] }, 1)).toBe(true);
+describe('awaitsTrackList', () => {
+  it('waits for an album the server is still filling in', () => {
+    expect(awaitsTrackList({ discs: [], detailPending: true })).toBe(true);
+    expect(awaitsTrackList({ discs: [{ disc: 1, title: null, tracks: [] }], detailPending: true })).toBe(true);
   });
 
-  it('stops waiting once the tracks are there, or after a few answers', () => {
-    expect(albumExpanding({ trackCount: 12, discs: [{}] }, 2)).toBe(false);
-    expect(albumExpanding({ trackCount: 0, discs: [] }, 6)).toBe(false);
-    expect(albumExpanding(undefined, 0)).toBe(false);
+  it('does not wait once the songs are there, or for an album the server says is complete', () => {
+    expect(awaitsTrackList({ discs: [{ disc: 1, title: null, tracks: [{} as never] }], detailPending: true })).toBe(false);
+    expect(awaitsTrackList({ discs: [] })).toBe(false);
+    expect(awaitsTrackList(undefined)).toBe(false);
+  });
+});
+
+describe('trackListPoll', () => {
+  it('asks again while the songs are awaited, for as long as the wait lasts', () => {
+    expect(trackListPoll(0, true)).toBe(trackListPollMs);
+    expect(trackListPoll(trackListWaitMs - 1, true)).toBe(trackListPollMs);
+    expect(trackListPoll(trackListWaitMs, true)).toBe(false);
+    expect(trackListPoll(0, false)).toBe(false);
   });
 });
 

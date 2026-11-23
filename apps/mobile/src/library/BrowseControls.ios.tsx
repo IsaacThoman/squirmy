@@ -6,14 +6,15 @@ import {
 import {
   accessibilityLabel, autocorrectionDisabled, background, buttonBorderShape, buttonStyle, clipShape, controlSize, dynamicTypeSize, fixedSize,
   font, foregroundStyle, frame, lineLimit, menuIndicator, offset, padding, pickerStyle, shadow, truncationMode,
-  opacity, progressViewStyle, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
+  progressViewStyle, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { isAccessibilitySize } from '../fontScale';
 import { IconButton, Symbol, hitShape, plainButton } from '../native/Controls';
 import type {
   BrowseButtonProps, CollectionButtonProps, CollectionGridRowProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
-  LinkedButtonProps, SearchFieldProps,
+  LinkedButtonProps, RowAction, SearchFieldProps,
 } from './BrowseControls';
 import { unavailableOpacity, useColors } from '../theme';
 import { ZoomLink, ZoomSource } from './ZoomLink';
@@ -72,6 +73,23 @@ export function BrowseButton({ label, icon, title, glass, onPress }: BrowseButto
 }
 
 export function LibraryFilters<T extends string>({ options, value, onChange }: FilterProps<T>) {
+  const colors = useColors();
+  const { fontScale } = useWindowDimensions();
+  // A segmented control keeps its labels at one size whatever the reader chose, and five
+  // larger ones would not fit across. At accessibility sizes the filter is a menu instead,
+  // its label as large as the text around it.
+  if (isAccessibilitySize(fontScale)) {
+    return <Host matchContents style={styles.filterMenu}>
+      <Menu modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(`Show, ${value}`)]}
+        label={<HStack spacing={8} modifiers={[frame({ minHeight: 44 }), hitShape]}>
+          <Text modifiers={[font({ textStyle: 'headline' }), foregroundStyle(colors.accent)]}>{value}</Text>
+          <Symbol name="chevron.up.chevron.down" size={15} color={colors.accent} />
+        </HStack>}>
+        {options.map(option => <Button key={option} label={option} systemImage={option === value ? 'checkmark' : undefined}
+          onPress={() => onChange(option)} />)}
+      </Menu>
+    </Host>;
+  }
   // The large segmented control is 44 tall, the smallest target Apple recommends; the regular one is 32.
   return <Host style={styles.filters}>
     <Picker label="Collections" selection={value} onSelectionChange={onChange} modifiers={[pickerStyle('segmented'), controlSize('large')]}>
@@ -95,12 +113,20 @@ export function LibrarySort<T extends string>({ options, value, onChange }: Filt
   </Host>;
 }
 
-/** A React Native cover inside SwiftUI. With `zoom`, the linked page grows out of it. */
-function HostedCover({ cover, size, zoom }: { cover: React.ReactElement; size: number; zoom?: boolean }) {
-  const frame = { width: size, height: size };
+/**
+ * A React Native cover inside SwiftUI. With `zoom`, the linked page grows out of it. A `dim`
+ * cover fades, as a gray song's does; the text beside it takes `fadedTitle` and `fadedCredit`
+ * instead, which stay readable (3:1).
+ */
+function HostedCover({ cover, size, zoom, dim }: { cover: React.ReactElement; size: number; zoom?: boolean; dim?: boolean }) {
+  const frame = { width: size, height: size, opacity: dim ? unavailableOpacity : 1 };
   return <RNHostView matchContents>
     {zoom ? <ZoomSource style={frame}>{cover}</ZoomSource> : <View style={frame}>{cover}</View>}
   </RNHostView>;
+}
+
+function menuItems(actions: readonly RowAction[]) {
+  return actions.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as ButtonSymbol} onPress={action.onPress} />);
 }
 
 export function CollectionTile(props: CollectionButtonProps) {
@@ -121,19 +147,26 @@ function CollectionTileButton({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><TileButton {...props} /></ZoomLink>;
 }
 
-function TileButton({ title, subtitle, cover, size, dim, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+function TileButton({ title, subtitle, cover, size, dim, onPress, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
-  return <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
-    <VStack alignment="leading" spacing={6} modifiers={[frame({ width: size, alignment: 'leading' }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
-      <HostedCover cover={cover} size={size} zoom />
+  const large = isAccessibilitySize(useWindowDimensions().fontScale);
+  const button = <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
+    <VStack alignment="leading" spacing={6} modifiers={[frame({ width: size, alignment: 'leading' }), hitShape]}>
+      <HostedCover cover={cover} size={size} zoom dim={dim} />
       <VStack alignment="leading" spacing={2}>
-        {/* Two lines, cut in the middle: editions of one release differ at the end of the title
-            ("… (Acoustic Version)"), which a cut at the end would hide. */}
-        <Text modifiers={[labelFont, lineLimit(2), truncationMode('middle')]}>{title}</Text>
-        <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
+        {/* Up to four lines (five at accessibility sizes), cut in the middle: editions of one
+            release differ at the end of the title ("… (Acoustic Version)"), which a cut at the
+            end would hide, and in a narrow grid tile the qualifier alone can take two lines. */}
+        <Text modifiers={[labelFont, ...(dim ? [foregroundStyle(colors.fadedTitle)] : []), lineLimit(large ? 5 : 4), truncationMode('middle')]}>{title}</Text>
+        <Text modifiers={[footnote, foregroundStyle(dim ? colors.fadedCredit : colors.muted), lineLimit(large ? 2 : 1)]}>{subtitle}</Text>
       </VStack>
     </VStack>
   </Button>;
+  // A long press shows what can be done with it, as on a song row, rather than opening it.
+  return actions?.length ? <ContextMenu>
+    <ContextMenu.Trigger>{button}</ContextMenu.Trigger>
+    <ContextMenu.Items>{menuItems(actions)}</ContextMenu.Items>
+  </ContextMenu> : button;
 }
 
 export function CollectionRow({ href, ...props }: CollectionButtonProps) {
@@ -144,15 +177,14 @@ export function CollectionRow({ href, ...props }: CollectionButtonProps) {
 
 function RowButton({ title, subtitle, cover, size, dim, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
-  const menu = actions?.length ? actions.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as ButtonSymbol}
-    onPress={action.onPress} />) : null;
+  const menu = actions?.length ? menuItems(actions) : null;
   const button = <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={() => { onSelect?.(); onPress?.(); }}>
-    <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
-      <HostedCover cover={cover} size={size} zoom />
+    <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape]}>
+      <HostedCover cover={cover} size={size} zoom dim={dim} />
       <VStack alignment="leading" spacing={3}>
         {/* Cut in the middle, as on tiles: editions differ at the end of a title. */}
-        <Text modifiers={[labelFont, lineLimit(2), truncationMode('middle')]}>{title}</Text>
-        <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
+        <Text modifiers={[labelFont, ...(dim ? [foregroundStyle(colors.fadedTitle)] : []), lineLimit(2), truncationMode('middle')]}>{title}</Text>
+        <Text modifiers={[footnote, foregroundStyle(dim ? colors.fadedCredit : colors.muted), lineLimit(1)]}>{subtitle}</Text>
       </VStack>
       <Spacer minLength={4} />
       {!menu && <Symbol name="chevron.right" size={12} color={colors.muted} />}
@@ -222,22 +254,48 @@ function CardPlayButton({ title, size, symbolSize, busy, onPress }: { title: str
   </Button>;
 }
 
-export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActionsProps) {
-  return <Host style={StyleSheet.absoluteFill}>
-    <ZStack alignment="bottomTrailing">
-      <Button modifiers={[plainButton, accessibilityLabel(`Open ${title}`)]} onPress={onOpen}>
-        {/* The card keeps its height, so its text stops growing where the title and credit still fit. */}
-        <VStack alignment="leading" spacing={4} modifiers={[
-          dynamicTypeSize({ max: 'accessibility2' }), padding({ bottom: 20, leading: 20, trailing: 75 }),
-          frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'bottomLeading' }), hitShape,
-        ]}>
-          <Text modifiers={[font({ textStyle: 'largeTitle', weight: 'bold' }), foregroundStyle('#F5F2FF'), lineLimit(2)]}>{title}</Text>
-          {/* Two lines, so a large text size keeps every credited artist ("Khruangbin & Leon Bridges"). */}
-          <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle('#F0E6FA'), lineLimit(2)]}>{artist}</Text>
-        </VStack>
-      </Button>
-      <VStack modifiers={[padding({ bottom: 17, trailing: 17 })]}>
-        <CardPlayButton title={title} size={34} symbolSize={20} busy={busy} onPress={onPlay} />
+/** Where the hero's text ends: the gradient's darkest stop, so a card grown taller for large text stays one piece. */
+const heroShade = '#100D16';
+/** The play button with its glass, and so the height of the credit's row beside it. */
+const heroPlaySize = 48;
+const heroInset = 20;
+
+/**
+ * The featured album: one button that opens it (its page zooms out of the card) and a play
+ * button, each its own element for VoiceOver, as tiles are. Both are SwiftUI's, inside the
+ * host, with the artwork hosted in the button as a tile's cover is.
+ */
+function HeroButton({ title, artist, art, width, height, onPress }: LinkedButtonProps<Omit<HeroActionsProps, 'onPlay' | 'busy'>>) {
+  return <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${artist}`)]} onPress={onPress}>
+    <ZStack alignment="top" modifiers={[frame({ minWidth: width, maxWidth: width, minHeight: height, alignment: 'top' }), background(heroShade), hitShape]}>
+      <RNHostView matchContents>
+        <ZoomSource style={{ width, height }}>{art}</ZoomSource>
+      </RNHostView>
+      {/* The title takes the card's whole width, above the play button, and up to three lines,
+          so a large text size still names the album; it stops growing at AX2, where that still
+          fits. Past the artwork's height the card grows, on the gradient's last color. */}
+      <VStack alignment="leading" spacing={4} modifiers={[
+        dynamicTypeSize({ max: 'accessibility2' }), padding({ top: heroInset, bottom: heroInset, leading: heroInset, trailing: heroInset }),
+        frame({ minWidth: width, maxWidth: width, minHeight: height, alignment: 'bottomLeading' }),
+      ]}>
+        <Text modifiers={[font({ textStyle: 'largeTitle', weight: 'bold' }), foregroundStyle('#F5F2FF'), lineLimit(3),
+          fixedSize({ horizontal: false, vertical: true })]}>{title}</Text>
+        {/* Two lines, so a large text size keeps every credited artist ("Khruangbin & Leon Bridges").
+            The row is as tall as the play button laid over its end, so the title never runs under it. */}
+        <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle('#F0E6FA'), lineLimit(2),
+          fixedSize({ horizontal: false, vertical: true }), padding({ trailing: heroPlaySize + 8 }),
+          frame({ maxWidth: Infinity, minHeight: heroPlaySize, alignment: 'leading' })]}>{artist}</Text>
+      </VStack>
+    </ZStack>
+  </Button>;
+}
+
+export function HeroActions({ href, onPlay, busy, ...card }: HeroActionsProps) {
+  return <Host ignoreSafeArea="container" matchContents={{ vertical: true }} style={{ width: card.width }}>
+    <ZStack alignment="bottomTrailing" modifiers={[clipShape('roundedRectangle', 26)]}>
+      <ZoomLink href={href}><HeroButton {...card} /></ZoomLink>
+      <VStack modifiers={[frame({ height: heroPlaySize }), padding({ bottom: heroInset, trailing: 17 })]}>
+        <CardPlayButton title={card.title} size={34} symbolSize={20} busy={busy} onPress={onPlay} />
       </VStack>
     </ZStack>
   </Host>;
@@ -246,5 +304,6 @@ export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActions
 const styles = StyleSheet.create({
   search: { height: 46 },
   filters: { height: 48 },
+  filterMenu: { alignSelf: 'flex-start' },
   gridRow: { flexDirection: 'row', columnGap: 12, marginBottom: 19 },
 });

@@ -42,6 +42,16 @@ describe('trackActions', () => {
     expect(library(true)).toEqual([{ id: 'unlike', title: 'Remove from library', icon: 'heart.slash' }]);
   });
 
+  it('says on the library and wantlist entries that the server refused the last change, and tries it again', () => {
+    const entry = (parts: Partial<TrackActionState>, gray = false) => trackActions(track(gray ? { availability: 'none' } : {}), state(parts))
+      .filter(action => ['like', 'unlike', 'want', 'unwant'].includes(action.id));
+    // A refused save was set back, so the entry saves again.
+    expect(entry({ likeFailure: true })).toEqual([{ id: 'like', title: 'Couldn’t save to library. Try again', icon: 'exclamationmark.circle' }]);
+    expect(entry({ liked: true, likeFailure: false })).toEqual([{ id: 'unlike', title: 'Couldn’t remove from library. Try again', icon: 'exclamationmark.circle' }]);
+    expect(entry({ playable: false, wantFailure: true }, true)[1]).toEqual({ id: 'want', title: 'Couldn’t add to wantlist. Try again', icon: 'exclamationmark.circle' });
+    expect(entry({ playable: false, wanted: true, wantFailure: false }, true)[1]).toEqual({ id: 'unwant', title: 'Couldn’t remove from wantlist. Try again', icon: 'exclamationmark.circle' });
+  });
+
   it('lets a gray track only be saved, wanted and opened', () => {
     expect(ids(track({ availability: 'none' }), state({ playable: false }))).toEqual(['like', 'want', 'album', 'artist']);
   });
