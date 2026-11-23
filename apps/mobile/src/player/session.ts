@@ -191,3 +191,40 @@ export function nextDownloaded(
   const candidates = session.autoplay ? [...session.queue, ...session.autoplayQueue] : session.queue;
   return candidates.find(entry => entry.state === 'ready' && isDownloaded(entry.trackId)) ?? null;
 }
+
+/** Where a row of Up next (or of the autoplay suggestions) sits, for what its menu offers. */
+export type QueuePosition = { index: number; total: number; autoplay: boolean };
+
+/** What a queued row's menu action does to the entry itself; null for an action that is not about its place. */
+export type QueuedEntryCommand = 'playEntry' | 'promote' | 'moveToEnd' | null;
+
+/**
+ * A queued row's menu moves the entry, as its swipe does, instead of queueing the song a second
+ * time: Play now plays the entry where it is, Play next moves it to the front of Up next, and
+ * Add to queue (Move to end) to its end. An autoplay suggestion is copied into the queue and
+ * leaves the suggestions, as its swipe does.
+ */
+export function queuedEntryCommand(actionId: string): QueuedEntryCommand {
+  switch (actionId) {
+    case 'play': return 'playEntry';
+    case 'next': return 'promote';
+    case 'last': return 'moveToEnd';
+    default: return null;
+  }
+}
+
+/**
+ * A queued row's menu: an Up next entry, already in the queue, offers Move to end in place of
+ * Add to queue, and leaves out a move that would keep it where it is (Play next on the first
+ * row, Move to end on the last). Autoplay suggestions keep the usual titles: they join the queue.
+ */
+export function queuedEntryActions<T extends { id: string; title: string }>(
+  actions: readonly T[], { index, total, autoplay }: QueuePosition,
+): T[] {
+  if (autoplay) return [...actions];
+  return actions.flatMap(action => {
+    if (action.id === 'next') return index > 0 ? [action] : [];
+    if (action.id === 'last') return index + 1 < total ? [{ ...action, title: 'Move to end' }] : [];
+    return [action];
+  });
+}

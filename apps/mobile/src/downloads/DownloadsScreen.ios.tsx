@@ -31,14 +31,16 @@ export function DownloadsScreen() {
     router.navigate(item.href);
   };
   const empty = summary && !summary.collections.length;
+  const value = foregroundStyle(colors.muted);
 
   return <Host style={styles.page}>
     <VStack spacing={0}>
     <SheetFormHeader title="Downloads" onClose={() => closeSheet(router)} />
     <Form modifiers={[scrollContentBackground('hidden'), tint(colors.accent)]}>
       <Section footer={empty ? <Text>Tap the download button on an album, a playlist or Liked Songs, or choose Download in a song’s menu, to keep it on this {screen.device} and play it without a connection.</Text> : undefined}>
-        <LabeledContent label="Downloaded"><Text>{empty ? 'Nothing yet' : screen.used}</Text></LabeledContent>
-        <LabeledContent label={`Available on ${screen.device}`}><Text>{screen.free}</Text></LabeledContent>
+        {/* The system's secondary color for a value is about 3:1 on these rows; the app's muted text is over 4.5:1. */}
+        <LabeledContent label="Downloaded"><Text modifiers={[value]}>{empty ? 'Nothing yet' : screen.used}</Text></LabeledContent>
+        <LabeledContent label={`Available on ${screen.device}`}><Text modifiers={[value]}>{screen.free}</Text></LabeledContent>
         {screen.status && <HStack>
           <Text modifiers={[foregroundStyle(screen.status.retry ? colors.danger : colors.muted)]}>{screen.status.text}</Text>
           <Spacer />

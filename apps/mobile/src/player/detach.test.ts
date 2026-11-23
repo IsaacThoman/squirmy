@@ -1,6 +1,6 @@
 import type { DeviceInfo, QueueEntry } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { detachedHeader, detachedNotice, hasQueueToBring, moveFailure, rejoinedNotice, separateRows } from './detach';
+import { detachedHeader, hasQueueToBring, moveFailure, separateRows } from './detach';
 
 const entry: QueueEntry = { id: 'e1', trackId: 't1', albumId: null, durationMs: 1, state: 'ready' };
 
@@ -12,19 +12,6 @@ describe('moveFailure', () => {
     expect(moveFailure('detach', 'cannot_play')).toBe('Couldn’t play separately.');
     expect(moveFailure('attach', 'disconnected')).toBe('Couldn’t rejoin. Try again.');
     expect(moveFailure('attach', 'offline')).toBe('Can’t do that while offline.');
-  });
-});
-
-describe('notices', () => {
-  it('says the other devices paused only when this phone was playing', () => {
-    expect(detachedNotice(true)).toBe('Playing only on this device. Your other devices are paused where they were.');
-    expect(detachedNotice(false)).toBe('Playing only on this device.');
-  });
-
-  it('names the song a rejoin stopped, and says nothing when nothing played', () => {
-    expect(rejoinedNotice('Roygbiv', true)).toBe('Rejoined your other devices. Stopped “Roygbiv”.');
-    expect(rejoinedNotice(undefined, true)).toBe('Rejoined your other devices.');
-    expect(rejoinedNotice('Roygbiv', false)).toBeNull();
   });
 });
 

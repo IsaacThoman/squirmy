@@ -27,17 +27,6 @@ export function detachedHeader(track: { title: string; artistCredit: string } | 
   return { title: DETACHED_LABEL, subtitle: `${playing ? '' : 'Paused · '}${track.title} · ${track.artistCredit}` };
 }
 
-/** The notice after detaching: other devices pause only when this phone was the one playing. */
-export function detachedNotice(wasPlayingHere: boolean): string {
-  return wasPlayingHere ? 'Playing only on this device. Your other devices are paused where they were.' : 'Playing only on this device.';
-}
-
-/** The notice after rejoining, naming the song that stopped when this phone was playing; null when there is nothing to say. */
-export function rejoinedNotice(stopped: string | undefined, wasPlaying: boolean): string | null {
-  if (!wasPlaying) return null;
-  return stopped ? `Rejoined your other devices. Stopped “${stopped}”.` : 'Rejoined your other devices.';
-}
-
 /** "Bring this queue with me" needs something to bring; the server refuses an empty one (`nothing_to_bring`). */
 export function hasQueueToBring(session: Pick<SessionState, 'current'>, queue: Pick<SessionQueue, 'queue'>): boolean {
   return session.current !== null || queue.queue.length > 0;

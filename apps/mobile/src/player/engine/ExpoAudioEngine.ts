@@ -98,7 +98,9 @@ export class ExpoAudioEngine implements PlayerEngine {
   }
 
   load(request: EngineLoad): void {
-    this.release(this.current);
+    // Stopped now, but released only after `setState` has started the silence (`syncSilence`).
+    const previous = this.current;
+    previous?.player.pause();
     this.current = null;
     this.interruptedEntryId = null;
     let slot: Slot;
@@ -116,7 +118,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.seekTarget = null;
     this.seekSerial += 1;
     this.setState('loading', true);
-    this.syncSilence();
+    this.release(previous);
     this.update();
   }
 
@@ -190,7 +192,6 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.seekTarget = null;
     this.interruptedEntryId = null;
     this.setState('idle', true);
-    this.syncSilence();
   }
 
   /** iOS paused the audio for a call, Siri or another app. */
@@ -320,8 +321,21 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.options.onInterrupted?.(slot.entryId);
   }
 
+  /**
+   * Loops silence while the engine should be making sound and nothing else does: while it
+   * holds the session with nothing loaded, and while an entry it was told to play is still
+   * loading. iOS suspends a backgrounded app that plays nothing, and a song chosen on another
+   * device is not the preload, so it starts from nothing: the old player stops at once and
+   * the new one plays only once its stream has loaded, which over a network takes a moment.
+   * `expo-audio` also deactivates the audio session as soon as no player that keeps it
+   * active is playing (a player counts only from its first `play()`). Suspended in between, the app
+   * could neither start the new song nor answer the server's heartbeat, so the server would
+   * give up on the phone and pause everyone's session. The silence starts before the old
+   * player is released, so the session never goes idle.
+   */
   private syncSilence(): void {
-    const wanted = this.holding && !this.current;
+    const loading = this.current !== null && this.wantsPlay && this.state === 'loading';
+    const wanted = loading || (this.holding && !this.current);
     if (wanted && !this.silence && this.options.createSilence) {
       this.silence = this.options.createSilence();
       this.silence.loop = true;
@@ -380,6 +394,7 @@ export class ExpoAudioEngine implements PlayerEngine {
       this.wantsPlay = false;
       this.state = 'ended';
     }
+    this.syncSilence();
     this.emit({ type: 'ended', entryId: slot.entryId });
     this.emit({ type: 'status', status: this.getStatus() });
     this.schedulePoll();
@@ -390,16 +405,18 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.wantsPlay = false;
     slot.player.pause();
     this.state = 'error';
+    this.syncSilence();
     this.emit({ type: 'error', entryId: slot.entryId, message: playbackErrorMessage(message) });
     this.emit({ type: 'status', status: this.getStatus() });
     this.schedulePoll();
   }
 
   private setState(state: EngineState, always = false): void {
-    if (state !== this.state || always) {
-      this.state = state;
-      this.emit({ type: 'status', status: this.getStatus() });
-    }
+    const changed = state !== this.state || always;
+    this.state = state;
+    // Also when the state stays: a pause while loading keeps `loading` but needs no silence.
+    this.syncSilence();
+    if (changed) this.emit({ type: 'status', status: this.getStatus() });
     this.schedulePoll();
   }
 

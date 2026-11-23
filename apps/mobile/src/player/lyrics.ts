@@ -41,3 +41,12 @@ export function activeLine(lines: readonly LyricLine[], positionMs: number): num
   }
   return active;
 }
+
+/**
+ * Whether a line, by its center, is in the part of the lyrics a reader sees: scrolled to
+ * `offset` with `viewport` points showing. A reader who scrolls back to the sung line has
+ * returned to it, and the page follows the song again.
+ */
+export function lineInView(center: number | undefined, offset: number, viewport: number): boolean {
+  return center !== undefined && viewport > 0 && center >= offset && center <= offset + viewport;
+}

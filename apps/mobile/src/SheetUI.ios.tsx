@@ -1,10 +1,11 @@
-import { Button, Divider, Host, HStack, Menu, RNHostView, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
+import { Button, Divider, Host, HStack, Menu, ProgressView, RNHostView, ScrollView, Slider, Spacer, Text, TextField, VStack, useNativeState } from '@expo/ui/swift-ui';
 import { useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { SystemVolumeSlider } from '../modules/now-playing';
 import {
   accessibilityAddTraits, accessibilityLabel, background, clipShape, disabled as disabledModifier, font, foregroundStyle,
-  frame, lineLimit, menuIndicator, multilineTextAlignment, onGeometryChange, onSubmit as onSubmitModifier, opacity, padding, submitLabel, tint,
+  frame, lineLimit, menuIndicator, minimumScaleFactor, multilineTextAlignment, onGeometryChange, onSubmit as onSubmitModifier, opacity, padding,
+  submitLabel, tint, truncationMode,
 } from '@expo/ui/swift-ui/modifiers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from './BrandMark';
@@ -72,7 +73,7 @@ export function SheetScroll({ height, children }: SheetScrollProps) {
   </ScrollView>;
 }
 
-export function SheetRow({ title, subtitle, icon, selected, destructive, onPress }: SheetRowProps) {
+export function SheetRow({ title, subtitle, icon, selected, destructive, busy, onPress }: SheetRowProps) {
   const colors = useColors();
   const iconColor = destructive ? colors.danger : selected ? colors.accent : colors.muted;
   return <>
@@ -89,18 +90,18 @@ export function SheetRow({ title, subtitle, icon, selected, destructive, onPress
           {subtitle && <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>{subtitle}</Text>}
         </VStack>
         <Spacer minLength={4} />
-        {selected && <Symbol name="checkmark" size={15} color={colors.accent} />}
+        {busy ? <ProgressView /> : selected && <Symbol name="checkmark" size={15} color={colors.accent} />}
       </HStack>
     </Button>
     <Divider modifiers={[padding({ leading: 39 })]} />
   </>;
 }
 
-/** Small print at the foot of a sheet, such as the app's version. */
-export function SheetNote({ mark, children }: SheetNoteProps) {
+/** Small print at the foot of a sheet, such as the app's version, or what the sheet tried and couldn't do (`error`). */
+export function SheetNote({ mark, error, children }: SheetNoteProps) {
   const colors = useColors();
-  const note = <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted), frame({ maxWidth: Infinity }),
-    multilineTextAlignment('center')]}>{children}</Text>;
+  const note = <Text modifiers={[font(error ? { textStyle: 'footnote', weight: 'semibold' } : { textStyle: 'caption' }),
+    foregroundStyle(error ? colors.danger : colors.muted), frame({ maxWidth: Infinity }), multilineTextAlignment('center')]}>{children}</Text>;
   if (!mark) return note;
   return <VStack spacing={6} modifiers={[frame({ maxWidth: Infinity })]}>
     <RNHostView matchContents>
@@ -165,14 +166,17 @@ export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
   </HStack>;
 }
 
-export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
+/** A server address as sign-in shows it: one line, shrunk to fit, then shortened in the middle. */
+const addressLines = [lineLimit(1), minimumScaleFactor(0.5), truncationMode('middle')];
+
+export function SheetInfo({ icon, title, subtitle, address }: SheetInfoProps) {
   const colors = useColors();
   const lines = useSummaryLines();
   return <HStack spacing={12} modifiers={[padding({ vertical: 4 })]}>
     <HStack modifiers={[frame({ width: 27 })]}><Symbol name={icon} size={22} color={colors.accent} /></HStack>
     <VStack alignment="leading" spacing={2}>
       <Text modifiers={[font({ textStyle: 'headline' }), ...lines]}>{title}</Text>
-      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), ...lines]}>{subtitle}</Text>
+      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), ...(address ? addressLines : lines)]}>{subtitle}</Text>
     </VStack>
     <Spacer minLength={0} />
   </HStack>;
@@ -197,9 +201,10 @@ export function SheetSystemVolume({ label }: { label: string }) {
   if (!SystemVolumeSlider) return null;
   return <VStack alignment="leading" spacing={6} modifiers={[padding({ top: 6 })]}>
     <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.muted)]}>{label}</Text>
+    {/* 44 pt to touch, as in Now Playing; the track inside stays 6 pt. */}
     <RNHostView matchContents>
-      <View style={{ width: width - 44, height: 34 }}>
-        <SystemVolumeSlider tint={colors.accent} trackTint={colors.stroke} style={{ flex: 1 }} />
+      <View style={{ width: width - 44, height: 44 }}>
+        <SystemVolumeSlider tint={colors.accent} trackTint={colors.sliderTrack} style={{ flex: 1 }} />
       </View>
     </RNHostView>
   </VStack>;

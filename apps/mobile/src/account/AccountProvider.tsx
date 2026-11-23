@@ -8,7 +8,7 @@ import { AppState, Platform } from 'react-native';
 import { removeAccountItems } from '../data/accountStorage';
 import { cacheBuster, cacheMaxAgeMs, detailMaxAgeMs, removeCache, restoreCache, restorePages, saveCache } from '../data/cache';
 import { HttpReach } from '../data/reachability';
-import { useNotice } from '../Notice';
+import { announce } from '../inlineFeedback';
 import { removeStreamingCache } from '../streamingCache/database';
 import { reduceAuth, type AuthEvent, type AuthState } from './auth';
 import { clientName, fetchWithTimeout, serverFrom, type Server } from './server';
@@ -17,7 +17,8 @@ import { clientDevice, keychain, loadAccount, saveAccount } from './storage';
 export type Api = ReturnType<typeof createApiClient>;
 
 const requestTimeoutMs = 15_000;
-const unsavedNotice = `This ${Platform.OS === 'ios' ? 'iPhone' : 'phone'} couldn’t save your sign-in. You’ll need to sign in again next time.`;
+/** Said on the account sheet (and sign-in) while the keychain refuses to keep the session. */
+export const unsavedSignIn = `This ${Platform.OS === 'ios' ? 'iPhone' : 'phone'} couldn’t save your sign-in. You’ll need to sign in again next time.`;
 
 // The app in the background counts as unfocused, so interval refetches pause there.
 focusManager.setEventListener(setFocused => {
@@ -75,6 +76,8 @@ type AccountContextValue = {
   api: Api | null;
   /** What came of the requests `api` sent, so an answered request counts as the server being there. */
   reach: HttpReach;
+  /** The keychain refused to keep the session: the next launch will need a sign-in. */
+  unsaved: boolean;
   connect: (server: Server) => void;
   signIn: (username: string, password: string) => Promise<void>;
   register: (inviteCode: string, username: string, password: string) => Promise<void>;
@@ -95,16 +98,16 @@ export function AccountProvider({ children }: PropsWithChildren) {
     void restore(queryClient).then(dispatch);
   }, [queryClient]);
 
-  // A keychain that refuses keeps the session for this launch only. Say so once, when signed in.
-  const notify = useNotice();
+  // A keychain that refuses keeps the session for this launch only. The account sheet says so
+  // (and sign-in, if it happens there); VoiceOver hears it once, when it happens.
   const [unsaved, setUnsaved] = useState(keychain.refused);
   const told = useRef(false);
   useEffect(() => keychain.onRefused(() => setUnsaved(true)), []);
   useEffect(() => {
-    if (!unsaved || state.status !== 'signedIn' || told.current) return;
+    if (!unsaved || (state.status !== 'signedIn' && state.status !== 'signIn') || told.current) return;
     told.current = true;
-    notify(unsavedNotice);
-  }, [notify, state.status, unsaved]);
+    announce(unsavedSignIn);
+  }, [state.status, unsaved]);
 
   const buster = state.status === 'signedIn' ? cacheBuster(state.server.url, state.user.id) : null;
   useEffect(() => buster ? saveCache(queryClient, buster) : undefined, [buster, queryClient]);
@@ -166,6 +169,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
       state,
       api,
       reach,
+      unsaved,
       connect: next => dispatch({ type: 'connected', server: next }),
       signIn: async (username, password) => {
         const response = await api!.auth.login({ username: username.trim(), password, device: await clientDevice() });
@@ -183,7 +187,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
       signOut: () => leave({ type: 'signedOut' }),
       switchServer: () => leave({ type: 'switchServer' }),
     };
-  }, [api, buster, queryClient, reach, state, token]);
+  }, [api, buster, queryClient, reach, state, token, unsaved]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

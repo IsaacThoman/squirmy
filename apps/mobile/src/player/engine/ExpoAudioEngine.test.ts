@@ -41,6 +41,7 @@ class FakePlayer implements NativePlayer {
 
   play() {
     this.calls.push('play');
+    timeline.push(`play ${this.url}`);
     if (this.isLoaded) this.playing = true;
   }
   pause() {
@@ -56,6 +57,7 @@ class FakePlayer implements NativePlayer {
   }
   remove() {
     this.calls.push('remove');
+    timeline.push(`remove ${this.url}`);
   }
   release() {
     this.released = true;
@@ -92,15 +94,22 @@ let events: EngineEvent[];
 let interrupted: string[];
 let resumed: string[];
 let silences: FakeSilence[];
+/** What the players and the silence did, in order across all of them. */
+let timeline: string[];
 let engine: ExpoAudioEngine;
 
 class FakeSilence {
   loop = false;
   playing = false;
   released = false;
-  play() { this.playing = true; }
+  play() {
+    this.playing = true;
+    timeline.push('silence play');
+  }
   pause() { this.playing = false; }
-  remove() {}
+  remove() {
+    timeline.push('silence remove');
+  }
   release() { this.released = true; }
 }
 
@@ -111,6 +120,7 @@ beforeEach(() => {
   interrupted = [];
   resumed = [];
   silences = [];
+  timeline = [];
   engine = new ExpoAudioEngine({
     createSilence: () => {
       const silence = new FakeSilence();
@@ -269,7 +279,13 @@ describe('ExpoAudioEngine', () => {
     engine.holdAudioSession(true);
     expect(silences).toHaveLength(1);
     expect(silences[0]).toMatchObject({ loop: true, playing: true });
+    // The fetched entry loads: the same silence carries on until it plays.
     engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    expect(silences).toHaveLength(1);
+    expect(silences[0].playing).toBe(true);
+    players[0].load();
+    vi.advanceTimersByTime(2000);
+    expect(engine.getStatus().state).toBe('playing');
     expect(silences[0].released).toBe(true);
     // The session client stops the engine when the next entry is still being fetched.
     engine.stop();
@@ -279,6 +295,65 @@ describe('ExpoAudioEngine', () => {
     expect(silences[1].released).toBe(true);
     engine.stop();
     expect(silences).toHaveLength(2);
+  });
+
+  it('keeps the audio going across a song chosen elsewhere: silence starts before the old player goes, and stops once the new one plays', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].load();
+    vi.advanceTimersByTime(2000);
+    expect(engine.getStatus().state).toBe('playing');
+    // The first song had its silence too, until it played.
+    expect(silences).toHaveLength(1);
+    expect(silences[0].released).toBe(true);
+    timeline = [];
+
+    engine.load({ entryId: 'b', url: 'https://x/b', startMs: 0, autoplay: true, gain: 1 });
+    expect(players[0].playing).toBe(false);
+    expect(players[0].released).toBe(true);
+    expect(timeline).toEqual(['silence play', 'remove https://x/a']);
+    expect(engine.getStatus()).toMatchObject({ entryId: 'b', state: 'loading' });
+
+    // Songs picked one after another while loading keep the one silence.
+    engine.load({ entryId: 'c', url: 'https://x/c', startMs: 0, autoplay: true, gain: 1 });
+    expect(silences).toHaveLength(2);
+    expect(silences[1].playing).toBe(true);
+
+    // The silence goes only once the new player plays, which keeps the session from then on.
+    players[2].load();
+    expect(engine.getStatus()).toMatchObject({ entryId: 'c', state: 'playing' });
+    expect(silences[1].released).toBe(true);
+    expect(timeline).toEqual(['silence play', 'remove https://x/a', 'remove https://x/b', 'play https://x/c', 'silence remove']);
+  });
+
+  it('plays no silence for a load that is not to play, and stops it for a pause or a failure while loading', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: false, gain: 1 });
+    expect(silences).toHaveLength(0);
+
+    engine.load({ entryId: 'b', url: 'https://x/b', startMs: 0, autoplay: true, gain: 1 });
+    expect(silences[0].playing).toBe(true);
+    engine.pause();
+    expect(silences[0].released).toBe(true);
+
+    engine.load({ entryId: 'c', url: 'https://x/c', startMs: 0, autoplay: true, gain: 1 });
+    expect(silences[1].playing).toBe(true);
+    players[2].fail('The operation couldn’t be completed. (NSURLErrorDomain error -1004.)');
+    expect(engine.getStatus().state).toBe('error');
+    expect(silences[1].released).toBe(true);
+  });
+
+  it('plays silence while a preload that has not loaded takes over at the end of a song', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].load();
+    engine.preload({ entryId: 'b', url: 'https://x/b', gain: 1 });
+    vi.advanceTimersByTime(2000);
+    players[0].end();
+    expect(engine.getStatus()).toMatchObject({ entryId: 'b', state: 'loading' });
+    expect(silences).toHaveLength(2);
+    expect(silences[1].playing).toBe(true);
+    players[1].load();
+    vi.advanceTimersByTime(2000);
+    expect(engine.getStatus().state).toBe('playing');
+    expect(silences[1].released).toBe(true);
   });
 
   it('reports buffering while the player waits for data', () => {
