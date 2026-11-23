@@ -3,7 +3,7 @@ import { sessionRoutes } from './routes.js'
 import { stopSessions } from './service.js'
 import { registerSessionSockets } from './socket.js'
 
-export { getSnapshot, markRecordingFailed, markRecordingReady, recordExternalPlay, replaceQueue } from './service.js'
+export { getSnapshot, markRecordingFailed, markRecordingReady, markRecordingRestored, recordExternalPlay, replaceQueue } from './service.js'
 export { onPlayStart } from './plays.js'
 
 /**
