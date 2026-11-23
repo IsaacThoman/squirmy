@@ -1080,8 +1080,13 @@ export class SessionClient {
   }
 
   private engineIsPlaying(): boolean {
-    const state = this.player?.engine.getStatus().state
-    return state === 'playing' || state === 'buffering'
+    const status = this.player?.engine.getStatus()
+    if (!status) return false
+    if (status.state === 'playing' || status.state === 'buffering') return true
+    // A song another device just switched to is still loading here (a stream takes a moment
+    // to start), but it is the one this device is playing: when the connection drops in
+    // that moment and the server gives up on the device, it takes the session back all the same.
+    return status.state === 'loading' && this.local.playing && status.entryId === this.local.current?.id
   }
 
   private onEngineEvent(event: EngineEvent): void {
