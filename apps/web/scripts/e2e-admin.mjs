@@ -72,7 +72,7 @@ async function prepare() {
   // A small canonical dump built the way the server's tests build theirs.
   await mkdir(path.dirname(dump), { recursive: true })
   const script = path.join(path.dirname(dump), 'build-dump.mts')
-  const fixtures = path.join(server, 'src', 'modules', 'catalog-index', 'fixtures.ts')
+  const fixtures = path.join(server, 'src', 'test', 'catalog-index-dump.ts')
   await writeFile(script, `import { writeFileSync } from 'node:fs'\nimport { buildDump, testCatalog } from ${JSON.stringify(fixtures)}\nwriteFileSync(${JSON.stringify(dump)}, buildDump(testCatalog()))\n`)
   run('npx', ['tsx', script], { cwd: server })
 }

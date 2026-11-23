@@ -237,8 +237,8 @@ await step('heart a song', async () => {
   if (!song) throw new Error('no song the library lacks')
   await page.goto(`${base}/search?q=${encodeURIComponent(query)}`)
   const name = new RegExp(`^Save ${loosely(song.title).source.slice(1, -1)} to library$`, 'i')
-  // The ranked list's rows are listbox options.
-  const row = main().getByRole('option').filter({ has: page.getByRole('button', { name }) }).first()
+  // The ranked list's rows are list items.
+  const row = main().getByRole('list', { name: /^Results for / }).getByRole('listitem').filter({ has: page.getByRole('button', { name }) }).first()
   await row.waitFor({ timeout: 30_000 })
   await row.hover()
   const liked = answered('PUT', 'track')

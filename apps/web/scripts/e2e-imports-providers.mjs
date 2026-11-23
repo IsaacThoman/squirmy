@@ -223,7 +223,8 @@ await step('upload a folder', async () => {
   const done = await finished(created.id)
   await uploadSection().getByText('Done', { exact: true }).waitFor({ timeout: 30_000 })
   check('the page follows the import to its end', done.status === 'completed', `${done.counts.filesReceived} received, ${done.counts.albumsFiled} filed`)
-  check('a paused file the server already had is not sent twice', done.counts.filesRejected === 1, `${done.counts.filesRejected} refused`)
+  // The text file is refused before anything is sent, so the server is sent the 14 songs once each.
+  check('a paused file the server already had is not sent twice', done.counts.filesReceived === 14 && done.counts.filesRejected === 0, `${done.counts.filesReceived} received, ${done.counts.filesRejected} refused`)
   const refused = uploadSection().getByText('Not a music file')
   check('the refused text file says why', await refused.isVisible())
   const album = uploadSection().getByRole('link', { name: /Discovery/ })
@@ -352,7 +353,7 @@ async function missingTrack(q) {
   return found
 }
 /** The search page's row for a song, in its one list of results: not an album or single of the same name. */
-const resultRow = (on, title) => on.getByRole('listbox', { name: /^Results for / }).getByRole('option').filter({ hasText: title }).filter({ hasText: 'Song · ' }).first()
+const resultRow = (on, title) => on.getByRole('list', { name: /^Results for / }).getByRole('listitem').filter({ hasText: title }).filter({ hasText: 'Song · ' }).first()
 /**
  * Searches songs in the app (the Songs filter, `type=track`: the mixed list shows only the best
  * few) and plays a track from the results; returns its row.
@@ -364,6 +365,27 @@ async function playFromSearch(q, track) {
   await row.hover()
   await row.getByRole('button', { name: `Play ${track.title}` }).click()
   return row
+}
+/**
+ * A catalog album none of whose songs are on the server yet, with its tracks, for playing a
+ * list whole: a song picked by name that cannot be had stays put, a list moves past it.
+ */
+async function missingAlbum(q) {
+  const results = await until(() => catalog(q), value => value?.albums?.length > 0, 20_000, 1000)
+  for (const candidate of results.albums.filter(album => album.availability === 'none' || album.availability === 'on_demand')) {
+    const detail = await until(() => get(`/albums/${candidate.id}`), value => value.discs?.length > 0, 30_000, 1000)
+    const tracks = detail.discs?.flatMap(disc => disc.tracks) ?? []
+    if (tracks.length >= 2 && tracks.every(track => track.availability === 'on_demand' && !asked.has(track.id))) {
+      for (const track of tracks) asked.add(track.id)
+      return { ...detail, tracks }
+    }
+  }
+  throw new Error(`no on-demand album for ${q}`)
+}
+/** Plays an album from its header's Play, as a list played whole. */
+async function playAlbum(album) {
+  await page.goto(`${base}/album/${album.id}`)
+  await button(`Play ${album.title}`).click()
 }
 const jobsFor = async trackId => (await get('/admin/acquisition/jobs?limit=50')).items.filter(job => job.trackId === trackId)
 
@@ -456,15 +478,20 @@ await step('add an album to the library', async () => {
 })
 
 /**
+ * The player's status line, under the artist: one line, the notice and what follows it
+ * ("… . Playback is paused.").
+ */
+const statusLine = pattern => playerBar().getByRole('status').getByText(new RegExp(`^(${pattern})(\\. |$)`)).first()
+/**
  * How a run of songs the provider cannot supply ends (#119): paused on the fifth in a row
  * with one notice, or stopped when nothing after it plays.
  */
-const runStopNotice = () => page.getByText(/^(Several songs in a row aren’t available|None of the remaining songs are available)$/).first()
+const runStopNotice = () => statusLine('Several songs in a row aren’t available|None of the remaining songs are available')
 /**
  * A skipped song's notice (one, which counts the run as it grows, #119), or the stop notice that
  * takes its place once the run ends.
  */
-const runNotice = () => page.getByText(/^(Skipped (“.+”|\d+ songs) — not available|Several songs in a row aren’t available|None of the remaining songs are available)$/).first()
+const runNotice = () => statusLine('Skipped (“.+”|\\d+ songs) — not available|Several songs in a row aren’t available|None of the remaining songs are available')
 /** Playback is paused or stopped: the player bar offers Play. */
 const paused = async () => (await button('Play', playerBar()).count()) > 0 && !(await button('Pause', playerBar()).count())
 
@@ -472,13 +499,15 @@ const paused = async () => (await button('Play', playerBar()).count()) > 0 && !(
  * A provider that fails every job is down, not short of a song (#119): playback pauses on the
  * first one with one notice that says so, and nothing is said per song.
  */
-const outageNotice = () => page.getByText('Can’t load music right now', { exact: true }).first()
+const outageNotice = () => statusLine('Can’t load music right now')
 
 await step('a provider that fails', async () => {
   mock.settings.fail = true
-  const track = await missingTrack('Aphex Twin')
+  // A whole album: a song picked by name would stay put and say it could not play.
+  const album = await missingAlbum('Aphex Twin')
+  const [track] = album.tracks
   try {
-    await playFromSearch('Aphex Twin', track)
+    await playAlbum(album)
     await outageNotice().waitFor({ timeout: minutes(3) })
     check('a provider that fails pauses playback with one notice', await paused(), track.title)
     check('and says nothing per song', !(await page.getByText(/^Couldn’t play “/).count()) && !(await page.getByText(/^Skipped /).count()))
@@ -498,9 +527,10 @@ await step('a provider that fails', async () => {
 
 await step('a provider that delivers the wrong file', async () => {
   mock.settings.wrongFile = true
-  const track = await missingTrack('Autechre')
+  const album = await missingAlbum('Autechre')
+  const [track] = album.tracks
   try {
-    await playFromSearch('Autechre', track)
+    await playAlbum(album)
     // A delivery that is not the song asked for is a song the provider cannot supply: skipped, the same way.
     await runNotice().waitFor({ timeout: minutes(4) })
     check('a wrong delivery is skipped with the same notice', true, await runNotice().textContent())

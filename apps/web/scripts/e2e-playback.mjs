@@ -231,9 +231,10 @@ await step('search', async () => {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Search' }).click()
   await page.getByRole('heading', { name: 'Search', level: 1 }).waitFor()
   page.on('request', listen)
-  await page.getByRole('combobox', { name: 'Search' }).pressSequentially('blue hour', { delay: 40 })
-  const results = page.getByRole('listbox', { name: 'Results for blue hour' })
-  await results.getByRole('option').filter({ hasText: 'Blue Hour' }).first().waitFor()
+  await page.getByRole('searchbox', { name: 'Search' }).pressSequentially('blue hour', { delay: 40 })
+  // The ranked list is a plain list: each row's link or button is a control of its own.
+  const results = page.getByRole('list', { name: 'Results for blue hour' })
+  await results.getByRole('listitem').filter({ hasText: 'Blue Hour' }).first().waitFor()
   await sleep(500)
   page.off('request', listen)
   check('library results come from the server', true)
@@ -247,7 +248,7 @@ await step('search', async () => {
       && catalog.length === 1 && catalog[0] === 'catalog:blue hour' && library.length + catalog.length === asked.length,
     asked.join(', '))
   // One ranked list, every kind mixed, each row saying what it is: no sections, none named for the library.
-  const rows = await results.getByRole('option').allTextContents()
+  const rows = await results.getByRole('listitem').allTextContents()
   check('one list, the album named first, each row saying what it is', /^Blue Hour(Album|EP|Single) · Mira Vale/.test(rows[0] ?? '') && rows.every(row => / · |Artist|Playlist/.test(row)), rows.slice(0, 4).join(' / '))
   const headings = await page.getByRole('main').getByRole('heading', { level: 2 }).allTextContents()
   check('no sections', headings.length === 0, headings.join(' / '))
@@ -306,7 +307,7 @@ await step('quick search', async () => {
   await arrowTo(/^See all results for/)
   await field.press('Enter')
   await page.waitForURL(url => url.pathname === '/search' && url.searchParams.get('q') === 'mira')
-  check('the last option opens the search page for the query', await page.getByRole('combobox', { name: 'Search' }).inputValue() === 'mira')
+  check('the last option opens the search page for the query', await page.getByRole('searchbox', { name: 'Search' }).inputValue() === 'mira')
   await transport(page, 'Pause').click()
 })
 
@@ -361,8 +362,10 @@ await step('lyrics', async () => {
   if (started !== 'Night Swimming') await tracks.getByText('Night Swimming', { exact: true }).dblclick()
   await page.getByRole('link', { name: 'Night Swimming', exact: true }).waitFor()
   await page.getByRole('button', { name: 'Lyrics', exact: true }).click()
-  await page.getByRole('button', { name: 'Blue on the water' }).click()
-  const active = () => page.getByRole('dialog').locator('button[aria-current="true"]').textContent()
+  // The lines are one list for Tab, each an option; the one sung now is selected.
+  const lines = page.getByRole('listbox', { name: 'Lyrics' })
+  await lines.getByRole('option', { name: 'Blue on the water' }).click()
+  const active = () => lines.locator('[role="option"][aria-selected="true"]').textContent()
   const line = await until(active, text => text === 'Blue on the water')
   check('clicking a line seeks to it', line === 'Blue on the water', line)
   const later = await until(active, text => text === 'No one around us', 6000)

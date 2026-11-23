@@ -297,6 +297,8 @@ await step('app passwords', async () => {
   await settings(page).getByRole('button', { name: 'Create', exact: true }).click()
   const create = page.getByRole('dialog', { name: 'New app password' })
   await create.getByLabel('Name', { exact: true }).fill('Car stereo')
+  // A new app password asks for the account's own password first.
+  await create.getByLabel('Your password').fill(admin.newPassword)
   await create.getByRole('button', { name: 'Create' }).click()
   const secret = page.getByRole('textbox', { name: 'App password' })
   await secret.waitFor()
@@ -347,7 +349,7 @@ await step('the sidebar folds and keeps its width', async () => {
   await page.keyboard.press('ControlOrMeta+b')
   await settle(page)
   check('Ctrl/Cmd+B folds it to a rail', await sidebarWidth(page) === 52 && await sidebar(page).getByRole('button', { name: 'Open sidebar' }).isVisible(), `${await sidebarWidth(page)}px`)
-  check('the rail keeps its links', await sidebar(page).getByRole('link', { name: 'Albums' }).isVisible())
+  check('the rail keeps its links', await sidebar(page).getByRole('link', { name: 'Library' }).isVisible())
   const foldedLoad = [...new Set(await reloadWatchingSidebar(page))]
   check('folded survives a reload, with no animation on load', foldedLoad.length === 1 && foldedLoad[0] === 52, foldedLoad.join(' → '))
   await page.keyboard.press('ControlOrMeta+b')
