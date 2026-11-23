@@ -39,6 +39,11 @@ services:
       # resized art are rebuilt, and most of assets/ too; secret.key is not: back it up, with
       # assets/ (docs/server/backup.md).
       - squirmy_data:/data
+    # SIGTERM, then up to 30 seconds before a SIGKILL (Docker's default is 10). The server
+    # stops within 20, after long jobs such as a search index import have recorded where they
+    # got to; they carry on when it starts again.
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
     expose:
       - "4747"
     ports:
