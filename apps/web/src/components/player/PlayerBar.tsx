@@ -63,7 +63,8 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                     : <ArtistLinks credit={item.track} />}
                 </p>
               </div>
-              <SaveHeart liked={liked} onToggle={onToggleLike} size="sm" className={cn('ml-1 hidden @[44rem]:inline-flex', touchTarget)} />
+              {/* Named after the song: the page beside it (an album, an artist) has a heart of its own. */}
+              <SaveHeart liked={liked} onToggle={onToggleLike} title={item.track.title} size="sm" className={cn('ml-1 hidden @[44rem]:inline-flex', touchTarget)} />
             </>
           ) : (
             <>

@@ -129,7 +129,8 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
                   </p>
                 )}
               </div>
-              {item && <SaveHeart liked={liked} onToggle={onToggleLike} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
+              {/* Named after the song, as in the player bar: never the page's own heart. */}
+              {item && <SaveHeart liked={liked} onToggle={onToggleLike} title={item.track.title} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
             </div>
             <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
             <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between short-landscape:flex-col!">

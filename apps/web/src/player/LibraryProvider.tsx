@@ -17,6 +17,20 @@ function patchCache(client: QueryClient, id: string, patch: Record<string, unkno
   client.setQueriesData({}, data => patchEntity(data, id, patch))
 }
 
+/**
+ * Patches the entity optimistically, first dropping reads of it already on their way: an album
+ * page re-reads itself while its songs arrive, and an answer sent before the save would land
+ * after the patch and put the old heart back until the refetch after the save. They are
+ * cancelled without reverting, so what they held stays and the patch lands on it; the
+ * invalidation after the save reads them again.
+ */
+function patchOptimistically(client: QueryClient, id: string, patch: Record<string, unknown>) {
+  void client.cancelQueries({
+    predicate: query => query.state.fetchStatus === 'fetching' && patchEntity(query.state.data, id, patch) !== query.state.data,
+  }, { revert: false })
+  patchCache(client, id, patch)
+}
+
 const wantedId = (target: WantTarget) => (target.type === 'album' ? target.album.id : target.track.id)
 const playlistTracks = (tracks: TrackSummary[]) => tracks.slice(0, 1000).map(track => ({ trackId: track.id, albumId: track.album?.id ?? null }))
 /** A promise and the function that settles it. */
@@ -69,7 +83,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       removal?.resolve({ savedAt: answer.savedAt ?? undefined })
     },
     onMutate: ({ target, saved, undoing, quiet, removal }) => {
-      patchCache(queryClient, target.id, saved ? { liked: true, inLibrary: true } : { liked: false })
+      patchOptimistically(queryClient, target.id, saved ? { liked: true, inLibrary: true } : { liked: false })
       // Undo puts it back as it was, quietly: the toast that offered it already said what happened.
       if (undoing || quiet) return {}
       // Undo of a removal waits for the removal's answer, which says when the save was made, so the
