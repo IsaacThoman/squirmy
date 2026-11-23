@@ -24,7 +24,7 @@ import { libraryAlbumMatches } from './library/librarySearch';
 import { searchFilterLabels } from './library/search';
 import { useRecentSearches, useSearchList } from './library/useSearchList';
 import { useNotice } from './Notice';
-import { sortFor, sortOptions, sortsFor, type SortName } from './library/sorting';
+import { sortFor, sortOptions, sortsFor, type SortChoices } from './library/sorting';
 import type { Page } from './library/links';
 import { useStartGuard } from './library/pending';
 import { underStatusBar, useRefreshControl } from './library/refresh';
@@ -208,11 +208,12 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const [filter, setFilter] = useState<LibraryFilter>('All');
   const list = useRef<FlatList<LibraryRow>>(null);
   useTabRetap(() => list.current?.scrollToOffset({ offset: 0, animated: true }));
-  const [sortName, setSortName] = useState<SortName>('Recently added');
+  const [sortChoices, setSortChoices] = useState<SortChoices>({});
   const [grid, setGrid] = useState(true);
   const [showFilter, setShowFilter] = useState(false);
   const [query, setQuery] = useState('');
   const sorts = sortsFor(filter);
+  const sortName = sortFor(filter, sortChoices);
   const sort = sortOptions[sortName];
   const columns = gridColumns(width, fontScale);
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
@@ -352,7 +353,8 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
           {/* Matches from the server come best first, whatever the sort. */}
           {filter === 'Playlists'
             ? !offline && <BrowseButton label="New playlist" title="New playlist" icon="plus" onPress={newPlaylist} />
-            : !searching && sorts.length > 0 ? <LibrarySort options={sorts} value={sortFor(filter, sortName)} onChange={setSortName} /> : <View />}
+            : !searching && sorts.length > 0 ? <LibrarySort options={sorts} value={sortName}
+              onChange={name => setSortChoices(chosen => ({ ...chosen, [filter]: name }))} /> : <View />}
           {filter !== 'Songs' && <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
             onPress={() => { tapFeedback(); setGrid(!grid); }} />}
           {filter === 'Songs' && playSongs.busy && <ActivityIndicator accessibilityLabel="Loading songs" />}
