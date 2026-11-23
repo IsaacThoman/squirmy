@@ -1,5 +1,5 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Button, ContextMenu, Host, HStack, List, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
+import { Button, Host, HStack, List, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, background, dynamicTypeSize, environment, font, foregroundStyle, frame,
   lineLimit, listRowBackground, listRowInsets, listRowSeparatorTint, listStyle, onGeometryChange, opacity, padding, scrollContentBackground,
@@ -13,7 +13,7 @@ import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { useLiked, useLikeFailure, useTrack, useWanted, useWantFailure } from '../data/library';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner, type TrackAction } from '../library/trackActions';
-import { Symbol, TrackActionButtons, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
+import { Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
 import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
 import { selectionFeedback } from './design';
@@ -283,8 +283,9 @@ type QueueTrackProps = {
 
 /**
  * A queue row: the song and its menu, which holds Save to library with the rest. A tap plays
- * it. History rows, outside edit mode, also open the menu on a press and hold, as song lists do.
- * A failed entry is gray and will be skipped, as is one that is not on the phone while offline.
+ * it. History rows have the same menu button rather than a press and hold's, so every row of the
+ * page works alike. A failed entry is gray and will be skipped, as is one that is not on the phone
+ * while offline.
  */
 const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeight, onHeight }: QueueTrackProps) {
   const colors = useColors();
@@ -327,7 +328,6 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeig
     if (position) handlers.runQueued(entry, track, action, position);
     else handlers.run(track, action);
   };
-  const button = <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, label]}>{body}</Button>;
   // A queued song whose summary has not loaded can still be moved or taken out of the queue.
   const placement = position && <>
     {position.index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => handlers.move(entry, position.index - 1)} />}
@@ -335,10 +335,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeig
     <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={() => handlers.remove(entry)} />
   </>;
   return <HStack spacing={0} modifiers={[frame({ minHeight }), onGeometryChange(({ height }) => onHeight(entry.id, height))]}>
-    {track && !position ? <ContextMenu>
-      <ContextMenu.Trigger>{button}</ContextMenu.Trigger>
-      <ContextMenu.Items><TrackActionButtons actions={actions} onRun={run} /></ContextMenu.Items>
-    </ContextMenu> : button}
+    <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, label]}>{body}</Button>
     {(track || position) && <TrackActionsMenu actions={actions} label={`More options for ${title || 'this song'}`} color={colors.muted} onRun={run}>
       {placement}
     </TrackActionsMenu>}
