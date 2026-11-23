@@ -1,6 +1,6 @@
 import { readsUnavailable, type SessionOutage } from '@squirmy/client-core'
 import { Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
@@ -227,8 +227,27 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
   const helpId = useId()
   const refocus = useRef<string | null>(null)
   const buttons = useRef(new Map<string, HTMLButtonElement>())
+  const dropPositions = useRef<Map<Element, number> | null>(null)
   const origin = drag ? items.findIndex(item => item.entry.id === drag.entryId) : -1
   const target = drag && origin >= 0 ? dropIndex(origin, drag.offset, rowHeight, items.length) : -1
+
+  useLayoutEffect(() => {
+    if (drag || !dropPositions.current) return
+    const positions = dropPositions.current
+    dropPositions.current = null
+    // The DOM is now in queue order. Animate from where each row was actually painted before the drop.
+    const offsets = [...positions].flatMap(([row, top]) => {
+      if (!row.isConnected) return []
+      const delta = top - row.getBoundingClientRect().top
+      return Math.abs(delta) > 0.5 ? [{ row, delta }] : []
+    })
+    for (const { row, delta } of offsets) {
+      const animation = row.animate?.([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], {
+        duration: 180, easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      })
+      if (animation) animation.id = 'queue-drop'
+    }
+  }, [drag, items])
 
   // A moved row's DOM node can lose focus as it is reinserted; give it back.
   useEffect(() => {
@@ -268,6 +287,9 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
 
   const beginDrag = (at: QueuePointer) => {
     if (pointer.current !== at || !at.button.isConnected) return
+    for (const row of list.current?.children ?? []) {
+      row.getAnimations?.().find(animation => animation.id === 'queue-drop')?.cancel()
+    }
     at.active = true
     at.button.setPointerCapture(at.pointerId)
     setDrag({ entryId: at.entryId, offset: offsetOf(at) })
@@ -292,6 +314,9 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
     window.clearTimeout(at.timer)
     if (!at.active) return
     suppressClick.current = true
+    if (list.current && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      dropPositions.current = new Map(Array.from(list.current.children, row => [row, row.getBoundingClientRect().top]))
+    }
     setDrag(null)
     if (!drop) return
     const from = items.findIndex(item => item.entry.id === at.entryId)
@@ -362,7 +387,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
               style={{ transform: `translateY(${held ? drag.offset : shift}px)` }}
               className={cn(
                 'relative rounded-lg',
-                held ? 'z-10 bg-accent shadow-md' : 'transition-transform duration-150 ease-out',
+                held ? 'z-10 bg-accent shadow-md' : drag && 'motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out',
               )}
             >
               <QueueRow item={item} onPlay={() => onPlay(item.entry.id)} rowButton={{
