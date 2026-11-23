@@ -1,26 +1,20 @@
 import type { AlbumSummary, HomeSection, PlaylistSummary } from '@squirmy/contracts'
-import { FolderPlus, Play, Search } from 'lucide-react'
+import { FolderPlus, Search } from 'lucide-react'
 import { Link } from 'react-router'
 import { Page, PageHeader } from '@/components/layout/Page'
 import { AlbumCard, ArtistCard, PlaylistCard } from '@/components/music/Cards'
-import { Cover } from '@/components/music/Cover'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { SectionHeader } from '@/components/music/SectionHeader'
 import { TrackList } from '@/components/music/TrackList'
 import { RailSkeleton } from '@/components/music/Skeletons'
 import { Button } from '@/components/ui/button'
-import { ProgressBar, Skeleton } from '@/components/ui/feedback'
+import { ProgressBar } from '@/components/ui/feedback'
 import { plural } from '@/lib/format'
-import { useArtUrl } from '@/lib/artwork'
 import { useTrackActions } from '@/player/use-track-actions'
 
 export type ScanProgress = { processed: number; total: number }
 
-/** The album Home leads with, and what it is: the one last played, or the one last added. */
-export type Featured = { album: AlbumSummary; label: 'Jump back in' | 'Recently added' }
-
 type HomeViewProps = {
-  featured: Featured | null
   /** Undefined while loading. */
   sections: HomeSection[] | undefined
   /** Nothing played, added or liked yet: no section has anything in it. */
@@ -35,25 +29,22 @@ type HomeViewProps = {
   onPlayPlaylist: (playlist: PlaylistSummary) => void
 }
 
-/** Home: the sections the server sends, in its order (what was played first), under the album last played. */
-export function HomeView({ featured, sections, empty, canAddMusic, canFindMusic = false, scan, onPlayAlbum, onPlayPlaylist }: HomeViewProps) {
+/** Home sections, in the order the server sends them. */
+export function HomeView({ sections, empty, canAddMusic, canFindMusic = false, scan, onPlayAlbum, onPlayPlaylist }: HomeViewProps) {
   return (
     <>
       <PageHeader title="Listen now" />
       <Page className="flex flex-col gap-8">
         {!sections && (
           <div role="status" aria-label="Loading" className="flex flex-col gap-8">
-            <Skeleton className="h-36 rounded-xl sm:h-48 md:h-56" />
             <RailSkeleton />
             <RailSkeleton />
           </div>
         )}
         {sections && empty && <EmptyLibrary canAddMusic={canAddMusic} canFindMusic={canFindMusic} scan={scan} />}
-        {featured && <Hero album={featured.album} label={featured.label} onPlay={() => onPlayAlbum(featured.album)} />}
         {sections?.map(section => {
           switch (section.kind) {
             case 'albums':
-              // The featured album was its rail's only one.
               if (!section.albums.length) return null
               return (
                 // Only what was added is in the library; played albums have no page of their own.
@@ -122,34 +113,6 @@ function EmptyLibrary({ canAddMusic, canFindMusic, scan }: { canAddMusic: boolea
         </div>
       )}
       {scanning && <ProgressBar value={Math.min(1, scan.processed / scan.total)} label="Scanning your music" className="mt-5 w-full max-w-xs" />}
-    </section>
-  )
-}
-
-/** The featured album: its cover over a blur of itself. The text is over artwork, so its colors do not follow the theme. */
-function Hero({ album, label, onPlay }: { album: AlbumSummary; label: string; onPlay: () => void }) {
-  const artUrl = useArtUrl()
-  return (
-    <section aria-label="Featured" className="relative isolate overflow-hidden rounded-xl bg-neutral-800 text-white" style={{ backgroundColor: album.artwork?.color ?? undefined }}>
-      {album.artwork && <img aria-hidden src={artUrl(album.artwork, 300)} alt="" className="absolute inset-0 -z-10 size-full scale-125 object-cover opacity-70 blur-2xl saturate-150" />}
-      <div aria-hidden className="absolute inset-0 -z-10 rounded-xl bg-linear-to-r from-black/75 via-black/50 to-black/20 ring-1 ring-inset ring-white/10" />
-      <div className="flex items-center gap-4 p-4 sm:gap-6 sm:p-6">
-        <Link to={`/album/${album.id}`} aria-label={`Open ${album.title}`} className="w-24 shrink-0 rounded-cover shadow-cover outline-none focus-visible:ring-2 focus-visible:ring-white sm:w-36 md:w-44">
-          <Cover artwork={album.artwork} size={600} />
-        </Link>
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-white/70">{label}</p>
-          <h2 className="mt-1.5 line-clamp-2 text-balance text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">{album.title}</h2>
-          <p className="mt-1.5 truncate text-sm text-white/75 sm:text-base">{album.artistCredit}{album.year && ` · ${album.year}`}</p>
-          <div className="mt-4 flex gap-2 sm:mt-5">
-            <Button variant="primary" onClick={onPlay} className="bg-white text-black hover:bg-white/90 focus-visible:ring-white"><Play fill="currentColor" />Play</Button>
-            {/* A dark glass, not a light one: white on a light glass falls under 4.5:1 over pale artwork. */}
-            <Button asChild variant="ghost" className="bg-black/35 text-white ring-1 ring-inset ring-white/20 backdrop-blur-md hover:bg-black/50 hover:text-white focus-visible:ring-white max-sm:hidden dark:hover:bg-black/50">
-              <Link to={`/album/${album.id}`}>Open album</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
     </section>
   )
 }

@@ -15,10 +15,9 @@ import {
 import { useLibraryActions, useLikeFailures } from './data/library';
 import { useAvailability, useViewer } from './downloads/DownloadsProvider';
 import {
-  BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField,
+  BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, LibraryFilters, LibrarySort, SearchField,
   type RowAction, type SearchHandle,
 } from './library/BrowseControls';
-import { homeLayout } from './library/home';
 import { libraryRows, type LibraryRow } from './library/libraryRows';
 import { libraryAlbumMatches } from './library/librarySearch';
 import { searchFilterLabels } from './library/search';
@@ -40,7 +39,7 @@ import { SongList, useSongListItems } from './library/SongList';
 import { usePlayAll } from './library/usePlayAll';
 import type { SongRowItem } from './library/rows';
 import { usePlaybackActions } from './playback';
-import { createThemedStyles, unavailableOpacity, useColors } from './theme';
+import { createThemedStyles, useColors } from './theme';
 import { Cover } from './ui';
 
 
@@ -54,19 +53,6 @@ export type BrowseProps = {
   onOpenDownloads?: () => void;
   bottomInset?: number;
 };
-
-/** The featured album. Its page zooms out of the whole card. */
-function HeroCard({ album, size, href }: { album: AlbumSummary; size: number; href: Href }) {
-  const albumPlayer = useAlbumPlayer();
-  const styles = useStyles();
-  const height = Math.min(350, size * 0.85);
-  return <HeroActions title={album.title} artist={album.artistCredit} href={href} width={size} height={height}
-    art={<View style={[styles.heroArt, { width: size, height, backgroundColor: album.artwork?.color ?? '#322940' }]}>
-      <Cover artwork={album.artwork} size={size} radius={0} style={styles.heroCover} />
-      <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
-    </View>}
-    onPlay={() => { tapFeedback(); albumPlayer.play(album.id); }} busy={albumPlayer.pending(album.id)} />;
-}
 
 function sectionSize(section: HomeSection) {
   switch (section.kind) {
@@ -116,17 +102,11 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { state } = useAccount();
   const home = useHome();
-  const collectionDim = useCollectionDim();
   const wantlist = useWantlistEnabled();
   // A Home saved before the wantlist was switched off, or from an older server, may still have it.
-  const listed = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
-  const viewer = useViewer();
-  // The first thing on Home: something that plays, never a gray card of an album this viewer can't play.
-  const { hero, sections } = homeLayout(listed, album => albumPresentation(album, viewer) === 'normal');
-  const heroSize = width - gutter * 2;
+  const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
   const refreshControl = useRefreshControl(home.refetch, top);
   const statusBar = underStatusBar(top);
@@ -146,9 +126,6 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
       {!home.data && <QueryState query={home} what="your music" />}
       {home.data && !sections.length && <EmptyState icon="music.note.house" title="No music yet"
         description={`Add music to a library folder on ${serverName}. It shows up here as soon as it has been scanned.`} />}
-      {hero && <View style={[styles.hero, collectionDim(albumCollection(hero, link)).dim && styles.unavailable]}>
-        <HeroCard album={hero} size={heroSize} href={link('album', hero.id)} />
-      </View>}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </ScrollView>
     <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
@@ -561,12 +538,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   flex: { flex: 1 },
   homeHeader: { marginBottom: 19 },
   homeOffline: { marginLeft: gutter, marginTop: -9, marginBottom: 19, alignSelf: 'flex-start' },
-  unavailable: { opacity: unavailableOpacity },
   pageTitle: { color: colors.text, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
-  hero: { marginHorizontal: gutter },
-  heroArt: { overflow: 'hidden' },
-  heroCover: { position: 'absolute', top: 0, left: 0 },
   homeSection: { marginTop: 26 },
   statusFade: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
   librarySearch: { paddingHorizontal: gutter, paddingTop: 11 },
