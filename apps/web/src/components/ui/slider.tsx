@@ -30,7 +30,8 @@ export function Slider({ label, value, max, step = 1, onValueChange, onValueComm
       onValueCommit={([next]) => onValueCommit?.(next)}
       className={cn('group relative flex h-4 w-full touch-none select-none items-center data-disabled:opacity-40 pointer-coarse:h-6', className)}
     >
-      <SliderPrimitive.Track className="relative h-1 grow overflow-hidden rounded-full bg-foreground/15">
+      {/* The track is the input color, 3:1 off the page and the player: at rest, with the thumb hidden, it is all that shows where the slider is. */}
+      <SliderPrimitive.Track className="relative h-1 grow overflow-hidden rounded-full bg-input">
         <SliderPrimitive.Range className="absolute h-full rounded-full bg-foreground/70 transition-colors duration-150 group-hover:bg-primary group-has-focus-visible:bg-primary" />
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb

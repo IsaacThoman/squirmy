@@ -1,6 +1,6 @@
 import type { DeviceInfo } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
-import { browserTab, deviceLabel, idleHint, listedDevices, playingOnText } from './devices.js'
+import { browserTab, deviceLabel, idleHint, listedDevices, playingOnText, reconnectingText } from './devices.js'
 
 const now = 1_800_000_000_000
 const mac = '0b6f3c1e-8f2a-4c1d-9e7b-2a5d6c7e8f90'
@@ -18,11 +18,13 @@ describe('browserTab', () => {
 })
 
 describe('listedDevices', () => {
-  it('shows a browser once, as its playing tab, else the one seen last', () => {
+  it('shows a browser once, as its playing tab, else its first', () => {
     const devices = [web(mac), web(`${mac}-2`, { isActive: true }), web(`${mac}-3`), phone]
     expect(listedDevices(devices, 'phone').map(device => device.id)).toEqual([`${mac}-2`, 'phone'])
-    const quiet = [web(mac, { lastSeenAt: now - 60_000 }), web(`${mac}-2`), phone]
+    // Heartbeats keep every live tab's last-seen time moving; the row must not follow it.
+    const quiet = [web(`${mac}-3`, { lastSeenAt: now }), web(`${mac}-2`, { lastSeenAt: now - 4_000 }), phone]
     expect(listedDevices(quiet, 'phone').map(device => device.id)).toEqual([`${mac}-2`, 'phone'])
+    expect(listedDevices([web(`${mac}-2`, { lastSeenAt: now - 4_000 }), web(`${mac}-3`, { lastSeenAt: now }), phone], 'phone').map(device => device.id)).toEqual([`${mac}-2`, 'phone'])
   })
 
   it('keeps this tab apart from the other tabs of its browser, folded into one', () => {
@@ -72,5 +74,13 @@ describe('idleHint and playingOnText', () => {
     expect(playingOnText({ name: 'Another tab', relation: 'tab' })).toBe('Playing in another tab')
     expect(playingOnText({ name: 'Kitchen', relation: 'other' }, false)).toBe('Paused on Kitchen')
     expect(playingOnText({ name: 'Another tab', relation: 'tab' }, false)).toBe('Paused in another tab')
+  })
+})
+
+describe('reconnectingText', () => {
+  it('names the device the session waits for', () => {
+    expect(reconnectingText({ name: 'Chrome on macOS', relation: 'other' })).toBe('Reconnecting to Chrome on macOS…')
+    expect(reconnectingText({ name: 'Another tab', relation: 'tab' })).toBe('Reconnecting to another tab…')
+    expect(reconnectingText(null)).toBe('Reconnecting to the playing device…')
   })
 })

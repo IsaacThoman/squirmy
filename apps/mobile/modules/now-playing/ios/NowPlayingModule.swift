@@ -11,10 +11,17 @@ struct NowPlayingItem: Record {
   @Field var durationMs: Double = 0
 }
 
+/** The heart on the lock screen: whether the current track can be saved, and whether it is. */
+struct Favorite {
+  var available = false
+  var active = false
+  var label = ""
+}
+
 /**
  * Shows what is playing on the lock screen and in Control Center, and forwards their
  * buttons to JavaScript as `onRemoteCommand` events instead of acting on a player, so the
- * app can turn them into session commands. Also forwards what the audio session reports:
+ * app can turn them into session commands (and the star into the heart). Also forwards what the audio session reports:
  * `onInterruption` (a call or Siri began, or ended and may resume) and `onRouteChange`
  * (headphones unplugged), which the player could only guess at from its own state.
  */
@@ -23,6 +30,7 @@ public class NowPlayingModule: Module {
   private var artworkUrl: URL?
   private var artwork: MPMediaItemArtwork?
   private var observers: [NSObjectProtocol] = []
+  private var favorite = Favorite()
 
   public func definition() -> ModuleDefinition {
     Name("SquirmyNowPlaying")
@@ -74,6 +82,13 @@ public class NowPlayingModule: Module {
       MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }.runOnQueue(.main)
 
+    // Only the command's state: rewriting the now playing info here would set the elapsed
+    // time back to what it was when the track was last shown.
+    AsyncFunction("setFavorite") { (available: Bool, active: Bool, label: String) in
+      self.favorite = Favorite(available: available, active: active, label: label)
+      self.applyFavorite()
+    }.runOnQueue(.main)
+
     AsyncFunction("clear") {
       self.clear()
     }.runOnQueue(.main)
@@ -119,6 +134,8 @@ public class NowPlayingModule: Module {
       command.isEnabled = false
     }
     targets.removeAll()
+    favorite = Favorite()
+    applyFavorite()
     artworkUrl = nil
     artwork = nil
     MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -137,9 +154,26 @@ public class NowPlayingModule: Module {
     forward(center.changePlaybackPositionCommand, as: "seek") { event in
       (event as? MPChangePlaybackPositionCommandEvent).map { ["positionMs": $0.positionTime * 1000] }
     }
+    // The like command is the one iOS draws as a star beside the transport controls, filled
+    // while active, as Apple Music's favorite. Squirmy's single heart is the library save, so
+    // the star is that heart; the app works out which way a tap goes from what it shows.
+    forward(center.likeCommand, as: "favorite")
+    applyFavorite()
     // Next and previous take the place of the skip buttons.
     center.skipForwardCommand.isEnabled = false
     center.skipBackwardCommand.isEnabled = false
+    // Squirmy has no dislike or bookmark; left enabled, iOS could offer them in their place.
+    center.dislikeCommand.isEnabled = false
+    center.bookmarkCommand.isEnabled = false
+  }
+
+  /** Hidden for a track that can't be saved, and while nothing is shown. */
+  private func applyFavorite() {
+    let like = MPRemoteCommandCenter.shared().likeCommand
+    like.isEnabled = favorite.available && !targets.isEmpty
+    like.isActive = favorite.active
+    like.localizedTitle = favorite.label
+    like.localizedShortTitle = favorite.label
   }
 
   private func forward(

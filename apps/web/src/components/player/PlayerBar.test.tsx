@@ -15,7 +15,7 @@ function player(state: 'preparing' | 'ready', entryId = 'entry-1', current = son
   const value: PlayerState = {
     current: { track: current, entry: { id: entryId, trackId: current.id, albumId: current.album?.id ?? null, durationMs: current.durationMs, state } },
     playing: true, waiting: state === 'preparing', blocked: false, volume: 1, volumes: {}, shuffle: false, repeat: 'off', autoplay: false, context: null,
-    queue: [], history: [], autoplayQueue: [], devices, thisDeviceId, activeDeviceId: thisDeviceId, lyrics: null, detached: false, canDetach: false,
+    queue: [], history: [], autoplayQueue: [], devices, thisDeviceId, activeDeviceId: thisDeviceId, away: null, lyrics: null, detached: false, canDetach: false,
     ...overrides,
   }
   // One mock per control, so a test can ask what was called.
@@ -125,5 +125,41 @@ describe('PlayerBar while another device holds the session', () => {
     const region = screen.getByRole('region', { name: 'Player' })
     expect(within(region).getByText(/^Paused (on|in) /)).toBeInTheDocument()
     expect(within(region).queryByText(/^Playing (on|in) /)).toBeNull()
+  })
+})
+
+describe('PlayerBar while the playing device is away', () => {
+  const desk = { id: 'desk', name: 'Desk Mac', kind: 'desktop' as const, canPlay: true, isActive: true }
+  const away = (overrides: Partial<PlayerState> = {}) => player('ready', 'entry-away', song, { activeDeviceId: desk.id, away: { id: desk.id, device: desk }, ...overrides })
+
+  it('says it is reconnecting to that device rather than playing on it, and still offers to play here', () => {
+    const value = away()
+    renderWithApp(bar(value))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(within(region).getByText('Reconnecting to Desk Mac…')).toBeInTheDocument()
+    expect(within(region).queryByText(/^(Playing|Paused) (on|in) /)).toBeNull()
+    // Pointing at Play here still gets the music ready, as for any other device.
+    const playHere = within(region).getByRole('button', { name: 'Play here' })
+    act(() => playHere.focus())
+    expect(value.controls.prepareHere).toHaveBeenCalled()
+  })
+
+  it('says reconnecting, not paused, while the session waits for it paused', () => {
+    renderWithApp(bar(away({ playing: false })))
+    expect(screen.getByText('Reconnecting to Desk Mac…')).toBeInTheDocument()
+    expect(screen.queryByText(/^Paused (on|in) /)).toBeNull()
+  })
+
+  it('says so on a phone too', () => {
+    renderWithApp(<MiniPlayer player={away()} onOpenNowPlaying={() => {}} />)
+    expect(screen.getByText('Reconnecting to Desk Mac…')).toBeInTheDocument()
+  })
+
+  it('goes back to "Playing on" or "Paused on" once the device is listed again', () => {
+    const { unmount } = renderWithApp(bar(away({ away: null, devices: [...devices, desk] })))
+    expect(screen.getByText('Playing on Desk Mac')).toBeInTheDocument()
+    unmount()
+    renderWithApp(bar(away({ away: null, devices: [...devices, desk], playing: false })))
+    expect(screen.getByText('Paused on Desk Mac')).toBeInTheDocument()
   })
 })

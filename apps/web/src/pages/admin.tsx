@@ -22,6 +22,7 @@ import { ReviewAdmin } from '@/components/admin/ReviewAdmin'
 import { SearchIndexAdmin } from '@/components/admin/SearchIndexAdmin'
 import { ServerSettingsAdmin } from '@/components/admin/ServerSettingsAdmin'
 import { UsersAdmin } from '@/components/admin/UsersAdmin'
+import { loadFailure } from '@/components/ui/load-failure'
 import { plural } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { useServerEvent } from '@/realtime/realtime-context'
@@ -43,6 +44,11 @@ const usageKey = [...acquisitionKey, 'usage'] as const
 const JOBS_REFRESH_MS = 3000
 // Organize jobs and index imports report progress only in the database, so their screens poll while one runs.
 const RUNNING_REFRESH_MS = 1500
+/**
+ * The reads a screen says it failed itself, in place of the part they leave empty, with a retry:
+ * a toast would vanish and leave the skeleton waiting for nothing.
+ */
+const silent = { silent: true }
 
 function useOpenReviewCount(): number | undefined {
   const api = useApi()
@@ -55,6 +61,7 @@ function useOpenReviewCount(): number | undefined {
 
 function useRoots() {
   const api = useApi()
+  // Not silent: several screens read the folders only for a choice or a name, and say nothing else when they fail.
   return useQuery({ queryKey: queryKeys.adminRoots(), queryFn: () => api.library.roots(), select: page => page.items })
 }
 
@@ -108,7 +115,7 @@ export function AdminLibraryPage() {
   const roots = useRoots()
   const templateInfo = useTemplateInfo()
   const [params, setParams] = useSearchParams()
-  const stats = useQuery({ queryKey: statsKey, queryFn: () => api.library.stats() })
+  const stats = useQuery({ queryKey: statsKey, queryFn: () => api.library.stats(), meta: silent })
   const cache = useQuery({ queryKey: usageKey, queryFn: () => api.admin.acquisitionUsage() })
   const openReviews = useOpenReviewCount()
   const [progress, setProgress] = useState<Record<string, ScanProgress>>({})
@@ -172,6 +179,7 @@ export function AdminLibraryPage() {
         onUpdate={(id, patch) => (Object.keys(patch).length === 1 && patch.enabled !== undefined ? toggle : edit).mutateAsync({ id, patch })}
         onRemove={id => remove.mutateAsync(id)}
         onFixMatch={fixMatch.find}
+        failures={{ roots: loadFailure(roots, 'The folders did not load'), stats: loadFailure(stats, 'The library’s numbers did not load') }}
       />
       {fixMatch.dialogs}
     </>
@@ -344,8 +352,8 @@ export function AdminUsersPage() {
   const api = useApi()
   const queryClient = useQueryClient()
   const me = useCurrentUser()
-  const users = useQuery({ queryKey: queryKeys.adminUsers(), queryFn: () => api.admin.users() })
-  const invites = useQuery({ queryKey: invitesKey, queryFn: () => api.admin.invites() })
+  const users = useQuery({ queryKey: queryKeys.adminUsers(), queryFn: () => api.admin.users(), meta: silent })
+  const invites = useQuery({ queryKey: invitesKey, queryFn: () => api.admin.invites(), meta: silent })
   const refresh = (queryKey: readonly unknown[]) => () => queryClient.invalidateQueries({ queryKey })
   const createUser = useMutation({ mutationFn: api.admin.createUser, onSuccess: refresh(queryKeys.adminUsers()), meta: { inline: true } })
   const userUpdate = {
@@ -375,6 +383,7 @@ export function AdminUsersPage() {
       onDeleteUser={id => deleteUser.mutateAsync(id)}
       onCreateInvite={request => createInvite.mutateAsync(request)}
       onRevokeInvite={id => revokeInvite.mutateAsync(id)}
+      failures={{ users: loadFailure(users, 'The users did not load'), invites: loadFailure(invites, 'The invites did not load') }}
     />
   )
 }
@@ -385,14 +394,15 @@ export function AdminProvidersPage() {
   const roots = useRoots()
   const [params, setParams] = useSearchParams()
   const jobStatus = AcquisitionJobStatus.safeParse(params.get('status')).data ?? null
-  const providers = useQuery({ queryKey: providersKey, queryFn: () => api.acquisition.providers(), select: page => page.items })
-  const policy = useQuery({ queryKey: policyKey, queryFn: () => api.acquisition.policy() })
-  const usage = useQuery({ queryKey: usageKey, queryFn: () => api.admin.acquisitionUsage() })
+  const providers = useQuery({ queryKey: providersKey, queryFn: () => api.acquisition.providers(), select: page => page.items, meta: silent })
+  const policy = useQuery({ queryKey: policyKey, queryFn: () => api.acquisition.policy(), meta: silent })
+  const usage = useQuery({ queryKey: usageKey, queryFn: () => api.admin.acquisitionUsage(), meta: silent })
   const jobs = useQuery({
     queryKey: [...acquisitionJobsKey, jobStatus],
     queryFn: () => api.acquisition.jobs({ status: jobStatus ?? undefined, limit: 100 }),
     select: page => page.items,
     placeholderData: keepPreviousData,
+    meta: silent,
   })
   // A job that ends can change a provider's health too, and a delivery fills the cache.
   useServerEvent('acquisition.updated', () => {
@@ -465,6 +475,12 @@ export function AdminProvidersPage() {
       onTest={id => test.mutateAsync(id)}
       onClearMisses={id => clearMisses.mutateAsync(id)}
       onSavePolicy={(patch, how) => (how?.inline ? savePolicyField : savePolicy).mutateAsync(patch)}
+      failures={{
+        providers: loadFailure(providers, 'The providers did not load'),
+        policy: loadFailure(policy, 'The policy did not load'),
+        usage: loadFailure(usage, 'The cache’s size did not load'),
+        jobs: loadFailure(jobs, 'The requests did not load'),
+      }}
     />
   )
 }
@@ -472,7 +488,7 @@ export function AdminProvidersPage() {
 export function AdminSettingsPage() {
   const api = useApi()
   const queryClient = useQueryClient()
-  const settings = useQuery({ queryKey: settingsKey, queryFn: () => api.admin.settings() })
+  const settings = useQuery({ queryKey: settingsKey, queryFn: () => api.admin.settings(), meta: silent })
   const roots = useRoots()
   const settingsUpdate = {
     mutationFn: (patch: UpdateServerSettings) => api.admin.updateSettings(patch),
@@ -488,6 +504,7 @@ export function AdminSettingsPage() {
   return (
     <ServerSettingsAdmin
       settings={settings.data}
+      failure={loadFailure(settings, 'The server settings did not load')}
       managedRoots={managedOnly(roots.data)}
       onSave={(patch, how) => (how?.inline ? saveField : save).mutateAsync(patch)}
       status={save.isPending || saveField.isPending ? 'saving' : save.isSuccess || saveField.isSuccess ? 'saved' : 'idle'}
@@ -497,6 +514,6 @@ export function AdminSettingsPage() {
 
 export function AdminJobsPage() {
   const api = useApi()
-  const jobs = useQuery({ queryKey: queryKeys.adminJobs(), queryFn: () => api.admin.jobs(), refetchInterval: JOBS_REFRESH_MS })
-  return <JobsAdmin jobs={jobs.data} updatedAt={jobs.dataUpdatedAt} onRefresh={() => void jobs.refetch()} />
+  const jobs = useQuery({ queryKey: queryKeys.adminJobs(), queryFn: () => api.admin.jobs(), refetchInterval: JOBS_REFRESH_MS, meta: silent })
+  return <JobsAdmin jobs={jobs.data} updatedAt={jobs.dataUpdatedAt} onRefresh={() => void jobs.refetch()} failure={loadFailure(jobs, 'The queues did not load')} />
 }

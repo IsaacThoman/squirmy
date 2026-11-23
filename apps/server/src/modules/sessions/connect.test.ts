@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net'
 import { FakeEngine, SessionClient } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
-import type { PlaybackDescriptor, QueueEntry, SessionCommand } from '@squirmy/contracts'
+import { HEARTBEAT_TIMEOUT_MS, type PlaybackDescriptor, type QueueEntry, type SessionCommand } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { io as connect } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -243,6 +243,17 @@ describe('sessions end to end', () => {
     expect(b.client.getSnapshot().session).toMatchObject({ activeDeviceId: 'device-b-e2e3', playing: true, repeat: 'one', positionMs: 20_000 })
     expect(b.client.getPositionMs()).toBe(25_000)
     expect(engineState(b)).toMatchObject({ state: 'playing', positionMs: 25_000 })
+  })
+
+  it('drops a device from the list as soon as its socket closes, long before the heartbeat would', async () => {
+    const a = await device('device-a-e2e6')
+    const b = await device('device-b-e2e6')
+    await eventually(() => expect(a.client.getSnapshot().devices.map((item) => item.id).sort()).toEqual(['device-a-e2e6', 'device-b-e2e6']))
+    const closed = performance.now()
+    b.socket.disconnect()
+    await eventually(() => expect(a.client.getSnapshot().devices.map((item) => item.id)).toEqual(['device-a-e2e6']), 1000)
+    // The real heartbeat would take at least its timeout to notice.
+    expect(performance.now() - closed).toBeLessThan(HEARTBEAT_TIMEOUT_MS / 10)
   })
 
   it('pauses after the grace period, and the device reclaims the session when it returns still playing', async () => {

@@ -260,7 +260,11 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
       >
         Skip to main content
       </a>
-      <div ref={frame} className="relative flex h-dvh overflow-hidden">
+      {/*
+        * The page is drawn edge to edge (viewport-fit=cover); the shell keeps everything clear of
+        * a phone's notch and rounded corners. The player pads itself for the home indicator.
+        */}
+      <div ref={frame} className="relative flex h-dvh overflow-hidden pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]">
         {mobile && (
           <button
             type="button"

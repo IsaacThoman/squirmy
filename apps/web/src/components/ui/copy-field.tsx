@@ -22,7 +22,8 @@ export function CopyField({ value, label }: { value: string; label: string }) {
     }
   }
   return (
-    <div className="flex items-center gap-2 rounded-md border border-input bg-muted/40 p-1 pl-3">
+    // The field draws no outline of its own (the box is the field), so the box shows the keyboard's focus.
+    <div className="flex items-center gap-2 rounded-md border border-input bg-muted/40 p-1 pl-3 transition-[box-shadow,border-color] has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring">
       <input ref={field} readOnly aria-label={label} value={value} onFocus={event => event.target.select()} className="min-w-0 flex-1 truncate bg-transparent font-mono text-sm outline-none" />
       <Button size="sm" variant="primary" onClick={() => void copy()}>
         {copied ? <Check /> : <Copy />}{copied ? 'Copied' : 'Copy'}

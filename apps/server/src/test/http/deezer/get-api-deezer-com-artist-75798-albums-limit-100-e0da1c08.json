@@ -1,0 +1,168 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/75798/albums?limit=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 273425942,
+          "title": "30",
+          "link": "https://www.deezer.com/album/273425942",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/bfaa6999939ce7236b339f875a132f62/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2021-11-19",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 192713912,
+          "title": "25",
+          "link": "https://www.deezer.com/album/192713912",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/eaeadce7932a97533fe495881d2fcd7a/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2015-11-20",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 192713382,
+          "title": "21",
+          "link": "https://www.deezer.com/album/192713382",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dc1ce848d830ecc93521be5a78350364/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2011-02-22",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 65728092,
+          "title": "19",
+          "link": "https://www.deezer.com/album/65728092",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c396bb2d73c016d7a1ffdaca77b5c255/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2008-06-16",
+          "record_type": "album",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 65728142,
+          "title": "Cold Shoulder",
+          "link": "https://www.deezer.com/album/65728142",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c30f0fff8263c1b3393c5e4a9f021d19/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2008-07-12",
+          "record_type": "ep",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 265655342,
+          "title": "Easy On Me",
+          "link": "https://www.deezer.com/album/265655342",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/a87ee7c212c7b0f9ae687c378f260324/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2021-10-14",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 65728102,
+          "title": "Hometown Glory",
+          "link": "https://www.deezer.com/album/65728102",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c4610b70b593f71327748111fcc7d28b/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2018-07-01",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 192714712,
+          "title": "Water Under the Bridge",
+          "link": "https://www.deezer.com/album/192714712",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/8f8a86402b2435fc4d8d8e713a8f879d/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2016-11-04",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 192714622,
+          "title": "Send My Love (To Your New Lover)",
+          "link": "https://www.deezer.com/album/192714622",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/27d8774586a91a01b744b08c74e3ba06/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2016-05-16",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 192714222,
+          "title": "When We Were Young",
+          "link": "https://www.deezer.com/album/192714222",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/fb5bd296c9ec8189bc6cf76d3394d47c/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2016-02-05",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 192713772,
+          "title": "Hello",
+          "link": "https://www.deezer.com/album/192713772",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/55a45989edf6f4ed46793986d5a0b190/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2015-10-23",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 8307448,
+          "title": "Skyfall",
+          "link": "https://www.deezer.com/album/8307448",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/81e6d7baa7f47b804704922412e7a014/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2012-10-04",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 192867842,
+          "title": "Rolling in the Deep",
+          "link": "https://www.deezer.com/album/192867842",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d66197eb2ff199a77b8c6b9387fa1143/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2011-01-17",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 65728112,
+          "title": "Make You Feel My Love",
+          "link": "https://www.deezer.com/album/65728112",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/1785c5d4ecda5cda57193d4aaf19a768/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2008-10-27",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 65728132,
+          "title": "Chasing Pavements",
+          "link": "https://www.deezer.com/album/65728132",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/18fa57ece3d3fc7a4eab358df494b0f7/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2008-01-21",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        }
+      ],
+      "total": 15
+    }
+  }
+}

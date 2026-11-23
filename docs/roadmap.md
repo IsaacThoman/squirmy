@@ -30,6 +30,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Server-held session with command log and versions
 - [x] Device list, transfer, remote control
 - [x] Reconnect rule and device-lost handling
+- [x] Device presence: only devices that are open and answering the heartbeat are listed
 - [x] Live invalidations on web and mobile
 
 ## 4. Identify and reorganize

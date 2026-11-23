@@ -51,6 +51,18 @@ function fitsHint(hit: MbArtistSummary, hint: string): boolean {
 }
 
 /**
+ * Whether a MusicBrainz artist contradicts the Deezer page it is linked to by name: the
+ * page carries a namesake hint ("Nirvana (UK)") that the artist neither spells nor fits by
+ * country or disambiguation, as `confidentArtist` decides. False for a page without a hint.
+ */
+export function contradictsHint(artist: MbArtistSummary, deezerName: string): boolean {
+  const hinted = nameHint(deezerName)
+  if (!hinted) return false
+  if (artist.name.toLowerCase() === deezerName.trim().toLowerCase()) return false
+  return !(matchKey(artist.name) === matchKey(hinted.base) && fitsHint(artist, hinted.hint))
+}
+
+/**
  * The one artist a name search confidently names: the only hit scoring at least 90 with
  * exactly that name. A name with a namesake hint ("Nirvana (UK)") takes a hit of exactly
  * that spelling, else the only hit named like the part before it that fits the hint.

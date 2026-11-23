@@ -1,16 +1,16 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albums, externalIds, likes } from '../../database/schema.js'
+import { albums, externalIds, likes, recordings } from '../../database/schema.js'
 import { startJobs, stopJobs } from '../../jobs/index.js'
 import { useTestDatabase } from '../../test/database.js'
-import { createUser } from '../../test/factories.js'
+import { createAlbum, createArtist, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
 import { albumRow, albumStub, artistStub } from '../../test/enrichment-stubs.js'
 import { albumDetail } from '../catalog/pages.js'
 import { mergeAlbum } from '../matching/merge.js'
 import { hydrateAlbum } from './album.js'
-import { splitMergedEditions } from './editions.js'
+import { mergeDuplicateEditions, splitMergedEditions } from './editions.js'
 import { setDetailBudget } from './runner.js'
 
 /** Deezer's albums of SZA's SOS, as the test instance had them on 2026-11-22. */
@@ -89,5 +89,29 @@ describe('store editions of one release group', () => {
     expect(await trackCount(old)).toBeGreaterThan(30)
     // Idempotent.
     expect(await splitMergedEditions()).toBe(0)
+  })
+})
+
+describe('duplicate store editions', () => {
+  useTestDatabase()
+
+  it('merges edition rows that are one edition, and keeps the explicit and the clean apart', async () => {
+    const sza = await createArtist({ name: 'SZA' })
+    const sos = await createAlbum({ artist: sza, title: 'SOS', mbid: crypto.randomUUID(), tracks: [{ title: 'Kill Bill' }] })
+    // Three Deezer copies of "SOS Deluxe: LANA": two with the same songs, one clean.
+    const edition = async (isrcs: string[]) => {
+      const row = await createAlbum({ artist: sza, title: 'SOS Deluxe: LANA', tracks: isrcs.map((_, index) => ({ title: `Track ${index + 1}` })) })
+      for (const [index, track] of row.tracks.entries()) await db.update(recordings).set({ isrcs: [isrcs[index]!] }).where(eq(recordings.id, track.recordingId))
+      await db.update(albums).set({ editionOfId: sos.albumId }).where(eq(albums.id, row.albumId))
+      return row.albumId
+    }
+    const first = await edition(['USRC12400001', 'USRC12400002'])
+    const copy = await edition(['USRC12400001', 'USRC12400002'])
+    const clean = await edition(['USRC12400091', 'USRC12400092'])
+
+    expect(await mergeDuplicateEditions()).toBe(1)
+    const row = async (id: string) => (await db.select({ mergedIntoId: albums.mergedIntoId }).from(albums).where(eq(albums.id, id)))[0]!.mergedIntoId
+    expect([await row(first), await row(copy), await row(clean)]).toEqual([null, first, null])
+    expect(await mergeDuplicateEditions()).toBe(0)
   })
 })

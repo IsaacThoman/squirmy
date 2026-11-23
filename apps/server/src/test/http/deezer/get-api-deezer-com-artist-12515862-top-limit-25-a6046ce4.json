@@ -1,0 +1,48 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/12515862/top?limit=25"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 2319210035,
+          "title": "Artificial Intelligence",
+          "link": "https://www.deezer.com/track/2319210035",
+          "duration": 471,
+          "rank": 47598,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 12515862,
+              "name": "Genesis",
+              "link": "https://www.deezer.com/artist/12515862",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/d41d8cd98f00b204e9800998ecf8427e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 12515862,
+            "name": "Genesis",
+            "type": "artist"
+          },
+          "album": {
+            "id": 450718545,
+            "title": "Artificial Intelligence",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/58ddffc6b3626bb8e5402727cd9700be/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        }
+      ],
+      "total": 1
+    }
+  }
+}
