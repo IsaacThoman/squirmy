@@ -9,7 +9,8 @@ import {
   opacity, progressViewStyle, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { isAccessibilitySize } from '../fontScale';
 import { IconButton, Symbol, hitShape, plainButton } from '../native/Controls';
 import type {
   BrowseButtonProps, CollectionButtonProps, CollectionGridRowProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
@@ -72,6 +73,23 @@ export function BrowseButton({ label, icon, title, glass, onPress }: BrowseButto
 }
 
 export function LibraryFilters<T extends string>({ options, value, onChange }: FilterProps<T>) {
+  const colors = useColors();
+  const { fontScale } = useWindowDimensions();
+  // A segmented control keeps its labels at one size whatever the reader chose, and five
+  // larger ones would not fit across. At accessibility sizes the filter is a menu instead,
+  // its label as large as the text around it.
+  if (isAccessibilitySize(fontScale)) {
+    return <Host matchContents style={styles.filterMenu}>
+      <Menu modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(`Show, ${value}`)]}
+        label={<HStack spacing={8} modifiers={[frame({ minHeight: 44 }), hitShape]}>
+          <Text modifiers={[font({ textStyle: 'headline' }), foregroundStyle(colors.accent)]}>{value}</Text>
+          <Symbol name="chevron.up.chevron.down" size={15} color={colors.accent} />
+        </HStack>}>
+        {options.map(option => <Button key={option} label={option} systemImage={option === value ? 'checkmark' : undefined}
+          onPress={() => onChange(option)} />)}
+      </Menu>
+    </Host>;
+  }
   // The large segmented control is 44 tall, the smallest target Apple recommends; the regular one is 32.
   return <Host style={styles.filters}>
     <Picker label="Collections" selection={value} onSelectionChange={onChange} modifiers={[pickerStyle('segmented'), controlSize('large')]}>
@@ -272,5 +290,6 @@ export function HeroActions({ href, onPlay, busy, ...card }: HeroActionsProps) {
 const styles = StyleSheet.create({
   search: { height: 46 },
   filters: { height: 48 },
+  filterMenu: { alignSelf: 'flex-start' },
   gridRow: { flexDirection: 'row', columnGap: 12, marginBottom: 19 },
 });

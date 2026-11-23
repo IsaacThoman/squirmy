@@ -1,6 +1,6 @@
 import { Button, Host, HStack, Image, ProgressView, Text } from '@expo/ui/swift-ui';
 import {
-  accessibilityHidden, accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, dynamicTypeSize, font,
+  accessibilityHidden, accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, controlSize, dynamicTypeSize, font,
   foregroundStyle, frame, lineLimit, padding, progressViewStyle, shapes, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -17,13 +17,16 @@ export function AlbumNavButton({ icon, label, onPress, selected, busy }: AlbumNa
   // The glass adds its own padding around the content: 30 inside makes the button 44 across,
   // the smallest target Apple recommends (26 made it 40).
   const size = frame(glass ? { width: 30, height: 30 } : { width: 44, height: 44 });
+  // The host is 44 square whatever the text size. Left to grow with it, the spinner and the
+  // glass around it drew 57 across at the largest size, over the buttons beside it.
+  const fixedSize = dynamicTypeSize({ max: 'large' });
   return (
     <Host style={{ width: 44, height: 44 }}>
       <Button onPress={onPress} modifiers={glass
-        ? [buttonStyle('glass'), buttonBorderShape('circle'), accessibilityLabel(label)]
-        : [buttonStyle('plain'), background(colors.surface), clipShape('circle'), accessibilityLabel(label)]}>
+        ? [buttonStyle('glass'), buttonBorderShape('circle'), fixedSize, accessibilityLabel(label)]
+        : [buttonStyle('plain'), background(colors.surface), clipShape('circle'), fixedSize, accessibilityLabel(label)]}>
         {busy
-          ? <ProgressView modifiers={[progressViewStyle('circular'), tint(colors.text), size, hitShape]} />
+          ? <ProgressView modifiers={[progressViewStyle('circular'), controlSize('regular'), tint(colors.text), size, hitShape]} />
           // The button carries the label; left alone, the image would announce its symbol's name.
           : <Image systemName={icon as SymbolName} size={20} color={selected ? colors.accent : colors.text} modifiers={[size, hitShape, accessibilityHidden(true)]} />}
       </Button>

@@ -28,7 +28,7 @@ import { sortFor, sortOptions, sortsFor, type SortChoices } from './library/sort
 import type { Page } from './library/links';
 import { useStartGuard } from './library/pending';
 import { underStatusBar, useRefreshControl } from './library/refresh';
-import { displayFontScale } from './fontScale';
+import { displayFontScale, isAccessibilitySize } from './fontScale';
 import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, largeTextScale, likedCollection, matches, OfflineBadge,
   playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
@@ -417,6 +417,8 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const genres = useGenres();
   // One genre a row at accessibility text sizes, so its name fits on the tile.
   const genreColumns = fontScale >= largeTextScale ? 1 : 2;
+  // At accessibility sizes the history's Clear button goes under its heading, so each word of it keeps a whole line.
+  const stackHeading = isAccessibilitySize(fontScale);
   const genreWidth = Math.floor((width - gutter * 2 - 12 * (genreColumns - 1)) / genreColumns);
   const { offline } = useRealtime();
   const actions = usePlaybackActions();
@@ -512,16 +514,19 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
         <Pressable accessibilityRole="button" accessibilityLabel={`Search for ${row.query}`} style={({ pressed }) => [styles.recentQuery, pressed && styles.pressed]}
           onPress={() => { tapFeedback(); searchInput.current?.setText(row.query); setQuery(row.query); }}>
           <View style={styles.recentIcon}><Icon name="clock" size={17} color={colors.muted} /></View>
-          <Text numberOfLines={1} style={[styles.recentText, styles.flex]}>{row.query}</Text>
+          {/* The query is what runs: it wraps rather than being cut, so a large text size still names it. */}
+          <Text numberOfLines={3} style={[styles.recentText, styles.flex]}>{row.query}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${row.query} from recent searches`} hitSlop={8}
           onPress={() => { tapFeedback(); recents.remove(`query:${row.query.toLocaleLowerCase()}`); }} style={styles.recentRemove}>
           <Icon name="xmark" size={14} color={colors.muted} />
         </Pressable>
       </View>;
-      case 'heading': return <View style={styles.recentHeading}>
-        <Text accessibilityRole="header" style={[styles.recentTitle, styles.flex]}>{row.title}</Text>
-        {row.clear && <BrowseButton label="Clear recent searches" title="Clear" onPress={() => { tapFeedback(); recents.clear(); }} />}
+      case 'heading': return <View style={[styles.recentHeading, stackHeading && styles.recentHeadingStacked]}>
+        <Text accessibilityRole="header" style={[styles.recentTitle, !stackHeading && styles.flex]}>{row.title}</Text>
+        {/* It empties the whole history, the results viewed too, as the web app's Clear all does, and says so. */}
+        {row.clear && <BrowseButton label="Clear recent searches and recently viewed" title="Clear all"
+          onPress={() => { tapFeedback(); recents.clear(); }} />}
       </View>;
     }
   };
@@ -612,6 +617,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   trackList: { marginHorizontal: gutter - 4 },
   pressed: { opacity: 0.68 },
   recentHeading: { flexDirection: 'row', alignItems: 'center', minHeight: 44, marginTop: 6 },
+  recentHeadingStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   recentTitle: { color: colors.text, fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
   recentRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
   recentQuery: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
