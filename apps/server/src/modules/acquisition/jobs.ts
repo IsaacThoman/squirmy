@@ -108,9 +108,9 @@ async function announce(job: JobRow) {
 }
 
 /** Updates a job that is in one of `from`, announcing a status change. Null when it was not. */
-async function transition(jobId: string, from: AcquisitionJobStatus[], set: Partial<JobRow>): Promise<JobRow | null> {
+async function transition(jobId: string, from: AcquisitionJobStatus[], set: Partial<JobRow>, also?: SQL): Promise<JobRow | null> {
   const [row] = await db.update(acquisitionJobs).set({ ...set, updatedAt: new Date() })
-    .where(and(eq(acquisitionJobs.id, jobId), inArray(acquisitionJobs.status, from))).returning()
+    .where(and(eq(acquisitionJobs.id, jobId), inArray(acquisitionJobs.status, from), also)).returning()
   if (row && set.status) await announce(row)
   return row ?? null
 }
@@ -484,10 +484,11 @@ export async function startJob(jobId: string, attempt = 0) {
     else await finishJob(jobId, { status: 'rejected', error, missed: job.recordingIds })
     return
   }
-  if (response.providerJobId) {
-    await db.update(acquisitionJobs).set({ providerJobId: response.providerJobId.slice(0, 500) }).where(eq(acquisitionJobs.id, jobId))
-  }
-  await transition(jobId, ['resolving'], { status: 'queued' })
+  // Only while the job still holds the slot this start claimed: a provider can take a job
+  // and hand it back as busy (`busyAfterAccepting`, which gives the slot up) before this
+  // answer is recorded, and the job must then stay waiting for its next start.
+  await transition(jobId, ['resolving'], { status: 'queued', ...(response.providerJobId ? { providerJobId: response.providerJobId.slice(0, 500) } : {}) },
+    eq(acquisitionJobs.uploadTokenHash, hashToken(token)))
 }
 
 /** Jobs that chose this provider and wait for a slot at it: no claim, or a claim gone stale. */
@@ -570,7 +571,9 @@ async function retryWhenFree(jobId: string, attempt: number, retryAfterSeconds: 
  */
 async function busyAfterAccepting(job: JobRow, error: string) {
   if (!job.importId) {
-    const waiting = await transition(job.id, ['queued'], { status: 'resolving', providerJobId: null, uploadTokenHash: null, error: error.slice(0, 1000) })
+    // Still `resolving` when the provider fails it before the server has recorded that it
+    // took the job (a fast provider rate limited at once).
+    const waiting = await transition(job.id, ['resolving', 'queued'], { status: 'resolving', providerJobId: null, uploadTokenHash: null, error: error.slice(0, 1000) })
     if (waiting) {
       const ageSeconds = Math.ceil((Date.now() - job.createdAt.getTime()) / 1000)
       const wait = Math.min(timing.busyWaitMaxSeconds, Math.max(timing.slotWaitSeconds, ageSeconds))
