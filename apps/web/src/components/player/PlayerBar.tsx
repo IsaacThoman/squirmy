@@ -1,4 +1,4 @@
-import { Ellipsis, ListMusic, Maximize2, MessageSquareQuote, MonitorSpeaker, Music2 } from 'lucide-react'
+import { Ellipsis, Heart, ListMusic, Maximize2, MessageSquareQuote, MonitorSpeaker, Music2 } from 'lucide-react'
 import { useLayoutEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
@@ -72,8 +72,10 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
   const stacked = width < ONE_ROW_FITS && !short
   const volumeFits = width >= VOLUME_FITS
   const nowPlayingFits = width >= NOW_PLAYING_FITS
-  // On one squeezed row (a phone on its side) lyrics step aside too; Now Playing has them.
+  // On one squeezed row (a phone on its side) lyrics and the heart step aside too, so the title
+  // keeps some room: they are behind More, and Now Playing has them.
   const lyricsFit = stacked || width >= ONE_ROW_FITS
+  const heartFits = lyricsFit
   return (
     // A landmark, so screen readers can jump to the player and tests can find it by name.
     <section ref={setSection} aria-label="Player" className={cn(barClass, 'pb-[env(safe-area-inset-bottom)]')}>
@@ -112,9 +114,8 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                 </p>
                 <PlayerStatusLine status={state.status} />
               </div>
-              {/* The heart stays at every width; the title is what gives way. It is named after the
-                  song: the page beside it (an album, an artist) has a heart of its own. */}
-              <SaveHeart liked={liked} onToggle={onToggleLike} title={item.track.title} size="sm" className={cn('ml-1 shrink-0', touchTarget)} />
+              {/* The heart is named after the song: the page beside it (an album, an artist) has a heart of its own. */}
+              {heartFits && <SaveHeart liked={liked} onToggle={onToggleLike} title={item.track.title} size="sm" className={cn('ml-1 shrink-0', touchTarget)} />}
             </>
           ) : (
             <>
@@ -130,7 +131,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
         </div>
 
         <div className={cn('flex min-w-0 flex-col items-center gap-0.5', stacked && 'col-span-2 row-start-2')}>
-          <TransportButtons player={player} disabled={!item} modeClassName={stacked || short ? undefined : 'hidden @[36rem]:inline-flex'} />
+          <TransportButtons player={player} disabled={!item} modeClassName={stacked ? undefined : 'hidden @[36rem]:inline-flex'} />
           <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
         </div>
 
@@ -156,6 +157,11 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                   <MessageSquareQuote aria-hidden className="size-4 text-muted-foreground" />{lyricsOpen ? 'Hide lyrics' : 'Lyrics'}
                 </button>
               )}
+              {!heartFits && item && (
+                <button type="button" aria-pressed={liked} onClick={onToggleLike} className={moreRowClass}>
+                  <Heart aria-hidden className={cn('size-4', liked ? 'fill-current text-primary' : 'text-muted-foreground')} />{liked ? 'Remove from library' : 'Save to library'}
+                </button>
+              )}
             </MoreControls>
           )}
         </div>
@@ -177,7 +183,17 @@ function MoreControls({ children }: { children: ReactNode }) {
       <PopoverTrigger asChild>
         <IconButton label="More player controls" size="sm" className={touchTarget}><Ellipsis /></IconButton>
       </PopoverTrigger>
-      <PopoverContent side="top" align="end" aria-label="More player controls" className="w-64 p-1">
+      <PopoverContent
+        side="top"
+        align="end"
+        aria-label="More player controls"
+        className="w-64 p-1"
+        // Focus goes to the popover, not to its first button, as in Devices: that would raise the mute button's tooltip.
+        onOpenAutoFocus={event => {
+          event.preventDefault()
+          if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus()
+        }}
+      >
         {children}
       </PopoverContent>
     </Popover>

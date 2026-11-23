@@ -87,6 +87,27 @@ describe('PlayerBar at the widths a desktop and a tablet give it', () => {
   })
 })
 
+describe('PlayerBar on a phone on its side', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('keeps one row, with the lyrics and the heart behind More so the title keeps some room', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(486)
+    vi.stubGlobal('matchMedia', (media: string) => ({ media, matches: media.includes('orientation: landscape'), addEventListener: () => {}, removeEventListener: () => {} }))
+    const value = player('ready', 'entry-landscape')
+    renderWithApp(bar(value))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(region.querySelector('[data-layout]')).toHaveAttribute('data-layout', 'row')
+    expect(within(region).queryByRole('button', { name: `Save ${song.title} to library` })).toBeNull()
+    await userEvent.click(within(region).getByRole('button', { name: 'More player controls' }))
+    const more = await screen.findByRole('dialog', { name: 'More player controls' })
+    expect(within(more).getByRole('button', { name: 'Lyrics' })).toBeInTheDocument()
+    await userEvent.click(within(more).getByRole('button', { name: 'Save to library' }))
+  })
+})
+
 describe('MiniPlayer with nothing loaded', () => {
   it('still offers the devices, so where the first song plays can be chosen', () => {
     renderWithApp(<MiniPlayer player={player('ready', 'entry-none', song, { current: null })} onOpenNowPlaying={() => {}} />)
