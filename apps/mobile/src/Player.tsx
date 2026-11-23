@@ -25,7 +25,7 @@ import {
 import { useLoading, usePlaybackState, usePosition } from './playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
-import { activeLine, lyricLines } from './player/lyrics';
+import { activeLine, lineInView, lyricLines } from './player/lyrics';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
@@ -278,7 +278,8 @@ export default function Player() {
         {/* Two lines, as Apple Music gives a long title; `metadataHeight` keeps room for both. */}
         <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={displayFontScale}
           style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{title}</Text>
-        <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>
+        {/* Two lines too: a featured artist ("feat. Pharrell Williams & Nile Rodgers") is part of the credit. */}
+        <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>
       </View>
       {track && <PlayerButton
         icon={isFavorite ? 'heart.fill' : 'heart'}
@@ -448,13 +449,28 @@ function LyricsPage({ visible }: { visible: boolean }) {
   // paused the active line never changes, so without this the page would open on the first
   // lines with the current one somewhere below.
   const [placed, setPlaced] = useState(false);
+  // Scrolling by hand stops the page following the song, so a reader can look ahead or back;
+  // "Back to current line" resumes it, as on Apple Music, and so does scrolling back to the sung
+  // line, tapping a line or leaving the page. No timer pulls a reader back while they read.
+  const [following, setFollowing] = useState(true);
+  const momentum = useRef(false);
+  const follows = following || !synced;
+
+  useEffect(() => {
+    if (!visible) setFollowing(true);
+  }, [visible]);
 
   useEffect(() => {
     const center = lineCenters.current[active];
-    if (visible && viewport && center !== undefined) {
+    if (visible && follows && viewport && center !== undefined) {
       scroll.current?.scrollTo({ y: Math.max(0, center - viewport * 0.33), animated: active > 0 });
     }
-  }, [active, visible, viewport, placed]);
+  }, [active, visible, viewport, placed, follows]);
+
+  const browse = () => setFollowing(false);
+  const settle = (offset: number) => {
+    if (lineInView(lineCenters.current[active], offset, viewport)) setFollowing(true);
+  };
 
   // Loading, none and failed look different: a failed request is not a song without lyrics.
   // A request waiting for the connection (paused) has failed for now, too.
@@ -474,6 +490,18 @@ function LyricsPage({ visible }: { visible: boolean }) {
           onLayout={(event) => setViewport(event.nativeEvent.layout.height)}
           contentContainerStyle={{ paddingTop: 22, paddingBottom: viewport * 0.6 }}
           showsVerticalScrollIndicator={false}
+          onScrollBeginDrag={browse}
+          onMomentumScrollBegin={() => { momentum.current = true; }}
+          // A drag that ends without a fling has come to rest; one with a fling rests when its momentum ends.
+          onScrollEndDrag={({ nativeEvent }) => {
+            momentum.current = false;
+            if (!nativeEvent.velocity?.y) settle(nativeEvent.contentOffset.y);
+          }}
+          onMomentumScrollEnd={({ nativeEvent }) => {
+            if (!momentum.current) return;
+            momentum.current = false;
+            settle(nativeEvent.contentOffset.y);
+          }}
         >
           {lines.map((line, index) => (
             <View key={index} onLayout={(event) => {
@@ -482,11 +510,19 @@ function LyricsPage({ visible }: { visible: boolean }) {
               if (index === active) setPlaced(true);
             }}>
               <LyricButton line={line.text} active={!synced || index === active}
-                onPress={line.startMs === null ? undefined : () => { selectionFeedback(); actions.seek(line.startMs!); }} />
+                onPress={line.startMs === null ? undefined : () => { selectionFeedback(); setFollowing(true); actions.seek(line.startMs!); }} />
             </View>
           ))}
         </ScrollView>
-      ) : empty ? (
+      ) : null}
+      {lines.length > 0 && !follows && (
+        <Pressable accessibilityRole="button" onPress={() => { selectionFeedback(); setFollowing(true); }}
+          style={({ pressed }) => [styles.backToLine, pressed && styles.pressed]}>
+          <Icon name="arrow.up.arrow.down" size={14} color={colors.accent} />
+          <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.backToLineText}>Back to current line</Text>
+        </Pressable>
+      )}
+      {lines.length ? null : empty ? (
         <View style={styles.noLyrics}>
           <Icon name={empty.icon} size={29} color={colors.quiet} />
           <Text style={styles.noLyricsTitle}>{empty.title}</Text>
@@ -567,7 +603,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
         <View style={styles.volumeSlider}>
           {/* This phone's volume is the system's, which the side buttons move too; another device's is the session's. */}
           {!remote && SystemVolumeSlider
-            ? <SystemVolumeSlider tint={colors.accent} trackTint={colors.stroke} style={styles.systemVolume} />
+            ? <SystemVolumeSlider tint={colors.accent} trackTint={colors.sliderTrack} style={styles.systemVolume} />
             : <TransportSlider label={`Volume, ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />}
         </View>
         <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
@@ -635,6 +671,10 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   noLyricsDetail: { color: colors.quiet, fontSize: 14, textAlign: 'center', marginTop: -6 },
   retry: { minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
   retryText: { color: colors.accent, fontSize: 16, fontWeight: '700' },
+  // Floats over the lyrics' bottom edge, clear of the lines' own touches, 44 pt tall.
+  backToLine: { position: 'absolute', bottom: 12, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44,
+    paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.floating, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
+  backToLineText: { color: colors.accent, fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.65 },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: 25, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },

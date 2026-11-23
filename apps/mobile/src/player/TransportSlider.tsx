@@ -27,9 +27,13 @@ export default function TransportSlider({
   const update = onPreview ?? onChange;
   // As on Apple Music: the track thickens while a finger drags it.
   const [dragging, setDragging] = useState(false);
+  // Only a sideways drag scrubs: one that moves up or down first is someone scrolling or
+  // reaching past the bar, and with no thumb to grab it would jump to wherever the finger was.
   const drag = usePanGesture({
     runOnJS: true,
     maxPointers: 1,
+    activeOffsetX: [-8, 8],
+    failOffsetY: [-12, 12],
     onActivate: ({ x }) => {
       setDragging(true);
       update(positionAt(x));
@@ -41,8 +45,10 @@ export default function TransportSlider({
       onPreview?.(null);
     },
   });
+  // A touch that wanders off is not a tap either, so a vertical drag that the pan let go of does not seek when it lifts.
   const tap = useTapGesture({
     runOnJS: true,
+    maxDistance: 10,
     onDeactivate: ({ x, canceled }) => {
       if (!canceled) onChange(positionAt(x));
     },
@@ -76,7 +82,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   // A 44pt touch target around a thin track, without taking 44pt of the layout.
   touch: { height: 44, marginVertical: -8, justifyContent: 'center' },
   // No thumb: a thin track at rest, the same 6pt as the system volume slider beside it, and 10pt while dragged.
-  track: { height: 6, borderRadius: 3, backgroundColor: colors.stroke, overflow: 'hidden' },
+  track: { height: 6, borderRadius: 3, backgroundColor: colors.sliderTrack, overflow: 'hidden' },
   trackDragging: { height: 10, borderRadius: 5 },
   fill: { height: '100%', borderRadius: 5, backgroundColor: colors.accent },
 }));
