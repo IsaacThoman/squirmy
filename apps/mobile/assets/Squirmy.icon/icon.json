@@ -7,9 +7,7 @@
     },
     {
       "appearance" : "dark",
-      "value" : {
-        "solid" : "srgb:0.11373,0.09804,0.16078,1.00000"
-      }
+      "value" : "automatic"
     }
   ],
   "groups" : [
@@ -18,7 +16,16 @@
         {
           "blend-mode" : "normal",
           "fill" : "automatic",
-          "glass" : true,
+          "glass-specializations" : [
+            {
+              "value" : true
+            },
+            {
+              "appearance" : "dark",
+              "value" : true
+            }
+          ],
+          "hidden" : false,
           "image-name" : "worm-face.png",
           "name" : "worm-face",
           "position" : {
@@ -30,6 +37,12 @@
           }
         },
         {
+          "glass-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : true
+            }
+          ],
           "hidden" : false,
           "image-name" : "worm-body.png",
           "name" : "worm-body",
