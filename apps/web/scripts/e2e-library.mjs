@@ -7,7 +7,7 @@
 // did), list rows keep their play buttons, a search under All lists the songs it matched, a
 // removal offers no Undo and a save made again leads, a failed playlist list or library search
 // says so and recovers, a search keeps to the genre chosen, a refused save goes back and says so
-// beside its heart, and Home's hero leaves its rail. The failures are made in the browser (the
+// beside its heart, and Home's rails list every album the server sends. The failures are made in the browser (the
 // server is never broken). The mock provider is
 // registered so saving behaves as it does for someone the server fetches music for; it answers
 // slowly, so nothing it delivers lands while the checks run.
@@ -307,7 +307,7 @@ await step('album cards have the album page’s menu', async () => {
   await page.keyboard.press('Escape')
 
   await page.goto(`${base}/`)
-  await page.getByRole('region', { name: 'Featured' }).waitFor()
+  await main().getByRole('heading', { level: 2 }).first().waitFor()
   const more = main().getByRole('button', { name: /^More options for / }).first()
   check('Home’s album rails have it too', await shows(more))
 })
@@ -454,20 +454,17 @@ await step('a refused save goes back and says so beside its heart', async () => 
   await api('DELETE', `/me/likes/album/${album.id}`)
 })
 
-await step('Home’s hero leaves the rail it leads', async () => {
+await step('Home’s rails list every album the server sends', async () => {
   await page.goto(`${base}/`)
-  const featured = page.getByRole('region', { name: 'Featured' })
-  await featured.waitFor()
   const home = await get('/home')
-  // The page may draw what it kept from an earlier visit first: the steps before saved and
-  // removed albums, so it waits for the server's lead before it is compared.
-  const leads = home.sections.filter(section => ['recently-played', 'recently-added'].includes(section.id)).map(section => section.albums[0]?.title)
-  const title = await until(() => featured.getByRole('heading', { level: 2 }).textContent(), text => leads.includes(text), 10_000)
-  const label = await featured.locator('p').first().textContent()
-  const source = home.sections.find(section => section.id === (/jump back/i.test(label) ? 'recently-played' : 'recently-added'))
+  check('there is no featured album', await page.getByRole('region', { name: 'Featured' }).count() === 0)
+  const source = home.sections.find(section => ['recently-played', 'recently-added'].includes(section.id) && section.albums.length > 0)
   const rail = page.getByRole('region', { name: source.title, exact: true })
-  const inRail = (await rail.count()) ? await rail.getByRole('link', { name: title, exact: true }).count() : 0
-  check('the featured album is not repeated in its rail', source.albums[0]?.title === title && inRail === 0, `${label}: ${title}`)
+  // The page may draw what it kept from an earlier visit first: the steps before saved and
+  // removed albums, so it waits for the server's albums before they are compared.
+  const albums = source.albums.map(item => item.title)
+  const shown = await until(() => rail.getByRole('link').allTextContents(), titles => JSON.stringify(titles) === JSON.stringify(albums), 10_000)
+  check(`${source.title} keeps all its albums, the first one too`, JSON.stringify(shown) === JSON.stringify(albums), shown.join(' | '))
   const order = await main().getByRole('heading', { level: 2 }).allTextContents()
   const sent = home.sections.map(section => section.title).filter(name => order.includes(name))
   check('the sections keep the server’s order', JSON.stringify(order.filter(name => sent.includes(name))) === JSON.stringify(sent), sent.join(' | '))

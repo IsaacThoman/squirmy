@@ -9,6 +9,7 @@ import { SettingsDialogContext, type SettingsOpenOptions, type SettingsSection }
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
+import { BackBreadcrumb } from './BackBreadcrumb'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ScrollContainerContext } from './scroll-context'
 import { useScrollMemory } from './scroll-memory'
@@ -181,7 +182,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
 
   useLayoutEffect(() => { applySidebarWidth(sidebarWidth) }, [sidebarWidth])
 
-  // The shell's notices float above the player, whatever height it has now ("Playing on…" adds a strip).
+  // The shell's notices float above the player, whatever height it has now (a stacked transport or the status line adds to it).
   useLayoutEffect(() => {
     const element = bottom.current
     if (!element) return
@@ -348,9 +349,10 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
               tabIndex={-1}
               // Its own layer: a sticky page header stays under the floating queue's backdrop.
               // The scroll padding keeps what takes focus clear of a sticky header or the bar above.
-              className="relative isolate min-w-0 flex-1 scroll-pt-14 overflow-y-auto outline-none [--gutter:1rem] md:[--gutter:1.5rem]"
+              className="relative isolate min-w-0 flex-1 scroll-pt-14 overflow-y-auto outline-none [--gutter:1rem] has-[>[data-back-breadcrumb]]:[--breadcrumb-space:0.75rem] md:[--gutter:1.5rem]"
             >
               <ScrollContainerContext value={scroller}>
+                <BackBreadcrumb />
                 {/* A page that fails shows a message in its place; the next page starts afresh. */}
                 <ErrorBoundary resetKey={pathname}>
                   <Outlet />

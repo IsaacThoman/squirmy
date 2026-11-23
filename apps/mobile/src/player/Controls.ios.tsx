@@ -33,15 +33,16 @@ export function TrackMenuButton({ track }: TrackMenuButtonProps) {
   return <Host style={styles.icon}><TrackMenu track={track} label="Song options" color={colors.text} /></Host>;
 }
 
-export function DeviceButton({ icon, name, onPress }: DeviceButtonProps) {
+export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonProps) {
   const colors = useColors();
+  const color = highlighted ? colors.accent : colors.muted;
   return <Host style={styles.device}>
     <Button onPress={onPress} modifiers={[plainButton, accessibilityLabel(`Playback device: ${name}`)]}>
       {/* The footer is a fixed 56 pt tall, so the label stops growing before it overflows it. */}
       <VStack spacing={5} modifiers={[frame({ maxWidth: Infinity, minHeight: 44 }), hitShape, dynamicTypeSize({ max: 'xxxLarge' })]}>
-        <Symbol name={icon} size={21} color={colors.accent} />
+        <Symbol name={icon} size={21} color={color} />
         {/* Shrinks a little rather than cut "Only on this device" short at the largest sizes. */}
-        <Text modifiers={[foregroundStyle(colors.accent), font({ textStyle: 'caption2', weight: 'semibold' }), lineLimit(1),
+        <Text modifiers={[foregroundStyle(color), font({ textStyle: 'caption2', weight: 'semibold' }), lineLimit(1),
           minimumScaleFactor(0.8)]}>{name}</Text>
       </VStack>
     </Button>

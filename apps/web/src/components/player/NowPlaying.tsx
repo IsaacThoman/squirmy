@@ -12,7 +12,7 @@ import { useArtUrl } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
 import { playingElsewhere, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
-import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
+import { DevicesPopover } from './Devices'
 import { LyricsPane } from './Lyrics'
 import { PlayerStatusLine } from './PlayerStatus'
 import { QueueContent } from './Queue'
@@ -101,10 +101,6 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             <div className="absolute inset-0" style={{ backgroundImage: wash }} />
           </div>
 
-          {elsewhere
-            ? <PlayingElsewhere player={player} device={elsewhere} onPlayHere={() => controls.transfer(state.thisDeviceId)} onPrepare={controls.prepareHere} className="relative" />
-            : state.detached && <OnlyOnThisDevice player={player} className="relative" />}
-
           <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-5">
             <DialogPrimitive.Close asChild>
               <IconButton label="Close Now Playing" tooltip={false} className="text-foreground max-md:size-11 pointer-coarse:size-11"><ChevronDown /></IconButton>
@@ -120,7 +116,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             <DevicesPopover
               side="bottom"
               player={player}
-              trigger={<IconButton label="Devices" className={cn('max-md:size-11 pointer-coarse:size-11', elsewhere ? 'text-primary hover:text-primary' : 'text-foreground')}><MonitorSpeaker /></IconButton>}
+              trigger={<IconButton label="Devices" className={cn('max-md:size-11 pointer-coarse:size-11', elsewhere || state.detached ? 'text-primary hover:text-primary' : 'text-foreground')}><MonitorSpeaker /></IconButton>}
             />
           </div>
 

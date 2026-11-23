@@ -203,47 +203,38 @@ describe('VolumeControl', () => {
 })
 
 describe('PlayerBar while another device holds the session', () => {
-  it('says it is paused there when it is', () => {
-    const other = devices.find(device => device.id !== thisDeviceId && device.canPlay)!
-    renderWithApp(bar(player('ready', 'entry-elsewhere', song, { playing: false, activeDeviceId: other.id })))
-    const region = screen.getByRole('region', { name: 'Player' })
-    expect(within(region).getByText(/^Paused (on|in) /)).toBeInTheDocument()
-    expect(within(region).queryByText(/^Playing (on|in) /)).toBeNull()
-  })
-})
-
-describe('PlayerBar while the playing device is away', () => {
   const desk = { id: 'desk', name: 'Desk Mac', kind: 'desktop' as const, canPlay: true, isActive: true }
-  const away = (overrides: Partial<PlayerState> = {}) => player('ready', 'entry-away', song, { activeDeviceId: desk.id, away: { id: desk.id, device: desk }, ...overrides })
 
-  it('says it is reconnecting to that device rather than playing on it, and still offers to play here', () => {
-    const value = away()
+  it.each([true, false])('uses the colored device button for remote playback (playing=%s)', playing => {
+    renderWithApp(bar(player('ready', 'entry-remote', song, { playing, activeDeviceId: desk.id, devices: [...devices, desk] })))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(within(region).getByRole('button', { name: 'Devices' })).toHaveClass('text-primary')
+    expect(within(region).queryByText(/^(Playing|Paused) (on|in) /)).toBeNull()
+    expect(within(region).queryByRole('button', { name: 'Play here' })).toBeNull()
+  })
+
+  it('shows reconnecting status and keeps transfer available in the device picker', () => {
+    const value = player('ready', 'entry-away', song, { activeDeviceId: desk.id, away: { id: desk.id, device: desk } })
     renderWithApp(bar(value))
     const region = screen.getByRole('region', { name: 'Player' })
-    expect(within(region).getByText('Reconnecting to Desk Mac…')).toBeInTheDocument()
-    expect(within(region).queryByText(/^(Playing|Paused) (on|in) /)).toBeNull()
-    // Pointing at Play here still gets the music ready, as for any other device.
-    const playHere = within(region).getByRole('button', { name: 'Play here' })
-    act(() => playHere.focus())
+    const trigger = within(region).getByRole('button', { name: 'Devices' })
+    expect(trigger).toHaveClass('text-primary')
+    expect(within(region).queryByText('Reconnecting to Desk Mac…')).toBeNull()
+    act(() => trigger.click())
+    const picker = screen.getByRole('dialog', { name: 'Playback devices' })
+    expect(within(picker).getByText('Reconnecting to Desk Mac…')).toBeInTheDocument()
+    const thisTab = within(picker).getByRole('button', { name: /Play in this tab/ })
+    act(() => thisTab.focus())
     expect(value.controls.prepareHere).toHaveBeenCalled()
+    act(() => thisTab.click())
+    expect(value.controls.transfer).toHaveBeenCalledWith(thisDeviceId)
   })
 
-  it('says reconnecting, not paused, while the session waits for it paused', () => {
-    renderWithApp(bar(away({ playing: false })))
-    expect(screen.getByText('Reconnecting to Desk Mac…')).toBeInTheDocument()
-    expect(screen.queryByText(/^Paused (on|in) /)).toBeNull()
-  })
-
-  it('says so on a phone too', () => {
-    renderWithApp(<MiniPlayer player={away()} onOpenNowPlaying={() => {}} />)
-    expect(screen.getByText('Reconnecting to Desk Mac…')).toBeInTheDocument()
-  })
-
-  it('goes back to "Playing on" or "Paused on" once the device is listed again', () => {
-    const { unmount } = renderWithApp(bar(away({ away: null, devices: [...devices, desk] })))
-    expect(screen.getByText('Playing on Desk Mac')).toBeInTheDocument()
-    unmount()
-    renderWithApp(bar(away({ away: null, devices: [...devices, desk], playing: false })))
-    expect(screen.getByText('Paused on Desk Mac')).toBeInTheDocument()
+  it('keeps the artist visible on the mini player while a remote device reconnects', () => {
+    const value = player('ready', 'entry-away', song, { activeDeviceId: desk.id, away: { id: desk.id, device: desk } })
+    renderWithApp(<MiniPlayer player={value} onOpenNowPlaying={() => {}} />)
+    expect(screen.getByText(song.artistCredit)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Devices' })).toHaveClass('text-primary')
+    expect(screen.queryByText('Reconnecting to Desk Mac…')).toBeNull()
   })
 })

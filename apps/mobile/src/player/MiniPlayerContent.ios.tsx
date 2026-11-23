@@ -8,7 +8,6 @@ import { IconButton, hitShape, plainButton } from '../native/Controls';
 import { useCurrentDurationMs, useLoading, usePlaybackState, usePositionEvery } from '../playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './loading';
-import { whereItPlays } from './session';
 import { Cover } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
@@ -22,9 +21,8 @@ const progressIntervalMs = 1000;
  * The bubble has a fixed height (the system's tab bar accessory). Two lines fit it up to xLarge
  * (font scale 1.118); from xxLarge on (1.235) the subtitle would run into the progress bar, so
  * the bubble shows the title alone, which may then grow as far as the first accessibility size
- * and still clear it. Played separately, the bubble keeps both lines at every size, held at
- * xLarge: "Only on this device" is what says the phone is not playing for the other devices.
- * So does a playback status (a skipped song, a pause the server caused): the app has no toasts.
+ * and still clear it. A playback status (a skipped song, a pause the server caused) keeps both
+ * lines at every size, held at xLarge: the app has no toasts.
  */
 const twoLineFontScale = 1.15;
 const twoLineLimit = dynamicTypeSize({ max: 'xLarge' });
@@ -37,12 +35,10 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   const status = usePlaybackStatus();
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
-  // A detached phone says so where "Playing on …" would be, so pressing play here is never a surprise.
-  // The marker outlasts a slow load: the play button's spinner already says it is loading.
   // What playback has to say comes first, for its few seconds or for as long as the pause it explains.
-  const subtitle = status ? status.message : detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? whereItPlays(output, session.playing ? 'Playing' : 'Paused') : track?.artistCredit ?? '';
+  const subtitle = status ? status.message : loading === 'slow' ? STILL_LOADING_LABEL : track?.artistCredit ?? '';
   const { fontScale } = useWindowDimensions();
-  const twoLines = !compact && (detached || status !== null || fontScale < twoLineFontScale);
+  const twoLines = !compact && (status !== null || fontScale < twoLineFontScale);
   const deviceLabel = detached ? `${DETACHED_LABEL}. Playback devices` : `Playback device, ${output.name}`;
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
@@ -54,7 +50,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
     </RNHostView>
   );
   const titleText = <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>;
-  const subtitleText = <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(detached || status ? colors.accent : colors.muted), lineLimit(1)]}>{subtitle}</Text>;
+  const subtitleText = <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(status ? colors.accent : colors.muted), lineLimit(1)]}>{subtitle}</Text>;
   // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
   // visible rather than hidden so the controls still take touches as the player settles back in.
   const visibility = useAnimatedStyle(() => ({
@@ -67,11 +63,8 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
       <Host ignoreSafeArea="container" style={styles.container}>
         <ZStack alignment="bottom">
           <HStack spacing={0} modifiers={[padding({ horizontal: compact ? 10 : 12 }), frame({ maxHeight: Infinity })]}>
-            {/* The text opens Now Playing, the whole bubble's height. "Only on this device" is no button of its
-                own: stacked under the title, each would get half the bubble (about 22 pt) to touch. The crossed-out
-                link beside it, 44 pt square, opens the device picker, where Rejoin is. */}
             <Button onPress={onOpen} modifiers={[plainButton,
-              accessibilityLabel(`Open Now Playing, ${[title, status?.message ?? (detached && DETACHED_LABEL)].filter(Boolean).join(', ')}`)]}>
+              accessibilityLabel(`Open Now Playing, ${[title, status?.message].filter(Boolean).join(', ')}`)]}>
               <HStack spacing={9} modifiers={[frame({ minHeight: 44 }), hitShape]}>
                 {cover}
                 {/* The compact bubble, inline with the shrunken tab bar, is shorter still and keeps the smaller limit. */}
@@ -83,7 +76,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
               </HStack>
             </Button>
             {!compact && <IconButton symbol={detached ? DETACHED_SYMBOL : 'laptopcomputer.and.iphone'} label={deviceLabel}
-              size={20} color={colors.accent} onPress={onDevices} />}
+              size={20} color={remote || detached ? colors.accent : colors.muted} onPress={onDevices} />}
             <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={playPauseLabel(session.playing, loading)}
               busy={loading !== 'none'} size={22} onPress={preview ? undefined : actions.playPause} />
           </HStack>

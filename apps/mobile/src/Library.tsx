@@ -1,9 +1,9 @@
-import { albumPresentation, librarySave, searchContext, searchFilters, searchItemKey, searchQueue, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core';
+import { albumPresentation, librarySave, searchContext, searchFilters, searchItemKey, searchQueue, type SearchFilter, type SearchItem } from '@squirmy/client-core';
 import { queryKeys, type AlbumSummary, type HomeSection, type TrackSummary } from '@squirmy/contracts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAccount, useSignedInApi, useWantlistEnabled } from './account/AccountProvider';
@@ -15,10 +15,9 @@ import {
 import { useLibraryActions, useLikeFailures } from './data/library';
 import { useAvailability, useViewer } from './downloads/DownloadsProvider';
 import {
-  BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField,
+  BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, LibraryFilters, LibrarySort, SearchField,
   type RowAction, type SearchHandle,
 } from './library/BrowseControls';
-import { homeLayout } from './library/home';
 import { libraryRows, type LibraryRow } from './library/libraryRows';
 import { libraryAlbumMatches } from './library/librarySearch';
 import { searchFilterLabels } from './library/search';
@@ -40,8 +39,8 @@ import { SongList, useSongListItems } from './library/SongList';
 import { usePlayAll } from './library/usePlayAll';
 import type { SongRowItem } from './library/rows';
 import { usePlaybackActions } from './playback';
-import { createThemedStyles, unavailableOpacity, useColors } from './theme';
-import { Cover, Icon } from './ui';
+import { createThemedStyles, useColors } from './theme';
+import { Cover } from './ui';
 
 
 export type BrowseProps = {
@@ -54,19 +53,6 @@ export type BrowseProps = {
   onOpenDownloads?: () => void;
   bottomInset?: number;
 };
-
-/** The featured album. Its page zooms out of the whole card. */
-function HeroCard({ album, size, href }: { album: AlbumSummary; size: number; href: Href }) {
-  const albumPlayer = useAlbumPlayer();
-  const styles = useStyles();
-  const height = Math.min(350, size * 0.85);
-  return <HeroActions title={album.title} artist={album.artistCredit} href={href} width={size} height={height}
-    art={<View style={[styles.heroArt, { width: size, height, backgroundColor: album.artwork?.color ?? '#322940' }]}>
-      <Cover artwork={album.artwork} size={size} radius={0} style={styles.heroCover} />
-      <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
-    </View>}
-    onPlay={() => { tapFeedback(); albumPlayer.play(album.id); }} busy={albumPlayer.pending(album.id)} />;
-}
 
 function sectionSize(section: HomeSection) {
   switch (section.kind) {
@@ -116,17 +102,11 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { state } = useAccount();
   const home = useHome();
-  const collectionDim = useCollectionDim();
   const wantlist = useWantlistEnabled();
   // A Home saved before the wantlist was switched off, or from an older server, may still have it.
-  const listed = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
-  const viewer = useViewer();
-  // The first thing on Home: something that plays, never a gray card of an album this viewer can't play.
-  const { hero, sections } = homeLayout(listed, album => albumPresentation(album, viewer) === 'normal');
-  const heroSize = width - gutter * 2;
+  const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
   const refreshControl = useRefreshControl(home.refetch, top);
   const statusBar = underStatusBar(top);
@@ -146,9 +126,6 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
       {!home.data && <QueryState query={home} what="your music" />}
       {home.data && !sections.length && <EmptyState icon="music.note.house" title="No music yet"
         description={`Add music to a library folder on ${serverName}. It shows up here as soon as it has been scanned.`} />}
-      {hero && <View style={[styles.hero, collectionDim(albumCollection(hero, link)).dim && styles.unavailable]}>
-        <HeroCard album={hero} size={heroSize} href={link('album', hero.id)} />
-      </View>}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </ScrollView>
     <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
@@ -360,14 +337,11 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
 type SearchRow =
   | { kind: 'song'; key: string; song: SongRowItem }
   | { kind: 'row'; key: string; item: Exclude<SearchItem, { type: 'track' }> }
-  | { kind: 'query'; key: string; query: string }
-  | { kind: 'heading'; key: string; title: string; clear?: boolean };
+  | { kind: 'heading'; key: string };
 
 const searchRowKey = (row: SearchRow) => row.key;
 const searchFilterOptions = searchFilters.map(filter => searchFilterLabels[filter]);
 const filterOf = (label: string) => searchFilters.find(filter => searchFilterLabels[filter] === label) ?? 'all';
-/** How many recent searches and recently viewed results the tab offers. */
-const recentQueries = 6;
 /** A song row's cover size (`TrackCover`), which other results match. */
 const resultCover = 42;
 const recentItems = 10;
@@ -385,8 +359,7 @@ function resultCollection(item: Exclude<SearchItem, { type: 'track' }>, link: Br
  * Search: one list of results for what is typed, every kind mixed as the server ranks them,
  * with filters that narrow it to one kind and page further. A song plays with the songs
  * found after it; an artist, album or playlist opens, and a long press or its ellipsis
- * offers what can be done with it. Before anything is typed: recent searches, what was
- * opened from them, and genres.
+ * offers what can be done with it. Before anything is typed: recently viewed results and genres.
  */
 export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: BrowseProps) {
   const colors = useColors();
@@ -420,20 +393,15 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   // The server answers nothing under two characters; keep what was searched before until a search can find something.
   const term = query.trim();
   const active = [...term].length >= 2;
-  const queries = useMemo(() => recents.list.flatMap(entry => (entry.type === 'query' ? [entry.query] : [])).slice(0, recentQueries), [recents.list]);
-  const viewed = useMemo(() => recents.list.filter((entry): entry is SearchItem & RecentSearch => entry.type !== 'query').slice(0, recentItems), [recents.list]);
+  const viewed = useMemo(() => recents.list.slice(0, recentItems), [recents.list]);
   const shown: readonly SearchItem[] = active ? list.items ?? [] : viewed;
 
-  const remember = (item: SearchItem) => {
-    if (active) recents.add({ type: 'query', query: term });
-    recents.add(item);
-  };
   const tracks = useMemo(() => shown.flatMap(item => (item.type === 'track' ? [item.track] : [])), [shown]);
   const songItems = useSongListItems({
     tracks, kind: 'Song', onTrackMenu: track => onTrackMenu(track),
     onPlay: index => {
       const track = tracks[index]!;
-      remember({ type: 'track', track });
+      recents.add({ type: 'track', track });
       // The song, then the songs found after it, so playing on continues through the results.
       const queue = active ? searchQueue(shown, track, canPlay) : { tracks: [track], start: 0 };
       actions.playTracks(queue.tracks, { start: queue.start, context: searchContext(active ? term : '') });
@@ -487,14 +455,9 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     const results = shown.map((item): SearchRow => (item.type === 'track'
       ? { kind: 'song', key: searchItemKey(item), song: songs.get(item.track.id)! }
       : { kind: 'row', key: searchItemKey(item), item }));
-    if (active) return results;
-    return [
-      ...(queries.length || viewed.length ? [{ kind: 'heading' as const, key: 'h:recent', title: 'Recent searches', clear: true }] : []),
-      ...queries.map((recent): SearchRow => ({ kind: 'query', key: `q:${recent}`, query: recent })),
-      ...(viewed.length ? [{ kind: 'heading' as const, key: 'h:viewed', title: 'Recently viewed' }] : []),
-      ...results,
-    ];
-  }, [active, queries, shown, songItems.data, viewed]);
+    if (active || !results.length) return results;
+    return [{ kind: 'heading', key: 'h:viewed' }, ...results];
+  }, [active, shown, songItems.data]);
 
   const collectionDim = useCollectionDim();
   const renderSong = songItems.renderItem;
@@ -506,25 +469,11 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
         // The size of a song row's cover, so titles line up down the mixed list.
         return <CollectionRow title={item.title} subtitle={item.subtitle} size={resultCover} dim={item.dim} href={item.href}
           cover={<CollectionCover item={item} size={resultCover} radius={item.round ? resultCover / 2 : 8} />}
-          onSelect={() => { tapFeedback(); remember(row.item); }} actions={menuFor(row.item)} />;
+          onSelect={() => { tapFeedback(); recents.add(row.item); }} actions={menuFor(row.item)} />;
       }
-      case 'query': return <View style={styles.recentRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Search for ${row.query}`} style={({ pressed }) => [styles.recentQuery, pressed && styles.pressed]}
-          onPress={() => { tapFeedback(); searchInput.current?.setText(row.query); setQuery(row.query); }}>
-          <View style={styles.recentIcon}><Icon name="clock" size={17} color={colors.muted} /></View>
-          {/* The query is what runs: it wraps rather than being cut, so a large text size still names it. */}
-          <Text numberOfLines={3} style={[styles.recentText, styles.flex]}>{row.query}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${row.query} from recent searches`} hitSlop={8}
-          onPress={() => { tapFeedback(); recents.remove(`query:${row.query.toLocaleLowerCase()}`); }} style={styles.recentRemove}>
-          <Icon name="xmark" size={14} color={colors.muted} />
-        </Pressable>
-      </View>;
       case 'heading': return <View style={[styles.recentHeading, stackHeading && styles.recentHeadingStacked]}>
-        <Text accessibilityRole="header" style={[styles.recentTitle, !stackHeading && styles.flex]}>{row.title}</Text>
-        {/* It empties the whole history, the results viewed too, as the web app's Clear all does, and says so. */}
-        {row.clear && <BrowseButton label="Clear recent searches and recently viewed" title="Clear all"
-          onPress={() => { tapFeedback(); recents.clear(); }} />}
+        <Text accessibilityRole="header" style={[styles.recentTitle, !stackHeading && styles.flex]}>Recently viewed</Text>
+        <BrowseButton label="Clear all recently viewed" title="Clear all" onPress={() => { tapFeedback(); recents.clear(); }} />
       </View>;
     }
   };
@@ -547,7 +496,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
             : list.catalogFailed && <Text style={styles.matchNote}>Only music on your server is listed: the catalog couldn’t be searched.</Text>}
   </> : undefined;
   const footer = active ? (list.pending && list.items?.length ? <ActivityIndicator style={styles.more} color={colors.muted} /> : undefined)
-    // Without genres or recent searches, the page still says what it is for rather than stand empty.
+    // Without genres or recently viewed results, the page still says what it is for rather than stand empty.
     : genreNames.length === 0 ? rows.length ? undefined : genres.data
       ? <EmptyState icon="magnifyingglass" title="Search your music" description="Find songs, albums, artists and playlists by name." />
       : <QueryState query={genres} what="genres" />
@@ -589,12 +538,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   flex: { flex: 1 },
   homeHeader: { marginBottom: 19 },
   homeOffline: { marginLeft: gutter, marginTop: -9, marginBottom: 19, alignSelf: 'flex-start' },
-  unavailable: { opacity: unavailableOpacity },
   pageTitle: { color: colors.text, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
-  hero: { marginHorizontal: gutter },
-  heroArt: { overflow: 'hidden' },
-  heroCover: { position: 'absolute', top: 0, left: 0 },
   homeSection: { marginTop: 26 },
   statusFade: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
   librarySearch: { paddingHorizontal: gutter, paddingTop: 11 },
@@ -613,13 +558,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   genres: { paddingHorizontal: gutter },
   stale: { opacity: 0.6 },
   trackList: { marginHorizontal: gutter - 4 },
-  pressed: { opacity: 0.68 },
   recentHeading: { flexDirection: 'row', alignItems: 'center', minHeight: 44, marginTop: 6 },
   recentHeadingStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   recentTitle: { color: colors.text, fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
-  recentRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
-  recentQuery: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
-  recentIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  recentText: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  recentRemove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 }));

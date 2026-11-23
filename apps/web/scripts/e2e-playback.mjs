@@ -63,6 +63,17 @@ async function until(read, test, timeoutMs = 5000, everyMs = 100) {
   return value
 }
 
+/** The device the Devices picker says the session is on ("Listening on …" or "Paused on …"), read with the picker opened and closed again. */
+async function listeningOn(page) {
+  await page.getByRole('button', { name: 'Devices' }).first().click()
+  const picker = page.getByRole('dialog', { name: 'Playback devices' })
+  const label = picker.getByText(/^(Listening|Paused) on$/)
+  const name = await label.locator('xpath=following-sibling::p[1]').textContent({ timeout: 3000 }).catch(() => null)
+  await page.keyboard.press('Escape')
+  await picker.waitFor({ state: 'detached', timeout: 2000 }).catch(() => {})
+  return name
+}
+
 /**
  * Records every audio element the page creates and what it does, so the checks can tell
  * whether this page is really making sound, where it is, and how long a track change took.
@@ -406,11 +417,12 @@ await step('a second device', async () => {
   if (!closed) await a.page.keyboard.press('Escape')
   await settings.waitFor({ state: 'detached', timeout: 5000 }).catch(() => { throw new Error('Escape did not close Settings') })
   await b.page.goto(`${base}/`)
-  await b.page.getByText('Playing on E2E Speaker').filter({ visible: true }).waitFor({ timeout: 8000 }).catch(async () => {
+  const where = await until(() => listeningOn(b.page), name => name === 'E2E Speaker', 8000, 500)
+  if (where !== 'E2E Speaker') {
     const session = await api(a.context, 'GET', '/me/session')
-    throw new Error(`the second device does not say “Playing on E2E Speaker” (session ${session.state.playing ? 'playing' : 'paused'}, first device ${(await sounding(a.page)) ? 'sounding' : 'silent'})`)
-  })
-  check('it shows where the music plays, by the renamed device', true)
+    throw new Error(`the second device's Devices picker does not say “Listening on E2E Speaker” (it says ${where}; session ${session.state.playing ? 'playing' : 'paused'}, first device ${(await sounding(a.page)) ? 'sounding' : 'silent'})`)
+  }
+  check('its Devices picker shows where the music plays, by the renamed device', true)
   const playing = await nowPlayingTitle(a.page)
   const shown = await until(() => nowPlayingTitle(b.page), title => title === playing)
   check('it shows the same track', shown === playing, shown)
@@ -435,12 +447,14 @@ await step('remote control', async () => {
 
 await step('play here', async () => {
   await sleep(1500)
-  // A pointer on the button gets the music ready, as a user's does on the way to pressing it.
-  await b.page.getByRole('button', { name: 'Play here' }).first().hover()
+  // A pointer on the row gets the music ready, as a user's does on the way to pressing it.
+  await b.page.getByRole('button', { name: 'Devices' }).first().click()
+  const playHere = b.page.getByRole('dialog', { name: 'Playback devices' }).getByRole('button', { name: /Play in this tab/ })
+  await playHere.hover()
   await sleep(400)
   const before = (await sounding(a.page))?.ms ?? 0
   const pressed = Date.now()
-  await b.page.getByRole('button', { name: 'Play here' }).first().click()
+  await playHere.click()
   const silent = await until(() => sounding(a.page), value => value === null, 2000)
   check('the first device stops', silent === null)
   const here = await until(() => sounding(b.page), value => value !== null, 4000, 20)
@@ -448,8 +462,8 @@ await step('play here', async () => {
   check('the second starts where the first was', here !== null && Math.abs(here.ms - before) < 2500, `${before} ms there, ${here?.ms} ms here`)
   check('within a second of the press', here !== null && gap < 1000, `${gap} ms`)
   check('and is advancing', await advancing(b.page))
-  await a.page.getByText('Playing on Chrome on macOS').filter({ visible: true }).waitFor({ timeout: 3000 })
-  check('the first now shows the second playing', true)
+  const there = await until(() => listeningOn(a.page), name => name === 'Chrome on macOS', 3000, 300)
+  check('the first now shows the second playing', there === 'Chrome on macOS', there)
 })
 
 await step('the active device goes away', async () => {
