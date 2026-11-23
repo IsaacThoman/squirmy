@@ -24,7 +24,7 @@
       ["expo-secure-store", { "faceIDPermission": false }]
     ],
     "ios": {
-      "bundleIdentifier": "com.isaacthoman.music",
+      "bundleIdentifier": "com.isaacthoman.squirmy",
       "icon": "./assets/Squirmy.icon",
       "supportsTablet": true,
       "infoPlist": {

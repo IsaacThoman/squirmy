@@ -577,7 +577,7 @@ apps/mobile/
 
 After semantic-release publishes a version on `main`, CI builds the tagged iOS app on macOS and uploads it to App Store Connect. The app uses the release version and a UTC Unix timestamp as its build number. If the upload job fails, rerun that job from the release's CI run.
 
-Register the Squirmy iOS app in App Store Connect with bundle ID `com.isaacthoman.music`. In the repository's `testflight` GitHub Actions environment, allow deployments from `main` and set the `APPLE_TEAM_ID` variable to the Apple Developer team ID. Add these environment secrets:
+Register the Squirmy iOS app in App Store Connect with bundle ID `com.isaacthoman.squirmy`. In the repository's `testflight` GitHub Actions environment, allow deployments from `main` and set the `APPLE_TEAM_ID` variable to the Apple Developer team ID. Add these environment secrets:
 
 - `APP_STORE_CONNECT_API_KEY_ID` and `APP_STORE_CONNECT_API_ISSUER_ID` for a team API key with access to automatic signing and TestFlight uploads.
 - `APP_STORE_CONNECT_API_PRIVATE_KEY` with the complete contents of that key's `.p8` file.

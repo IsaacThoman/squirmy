@@ -35,7 +35,7 @@ Then pick one:
   npx expo run:ios --device --configuration Release
   ```
 
-  The native project is generated into `apps/mobile/ios/` (it is not committed). Signing needs your own Apple developer team, and the bundle identifier in `app.json` (`com.isaacthoman.music`) belongs to the maintainer, so set your own team and a bundle identifier of your own under **Signing & Capabilities** in Xcode (open `ios/Squirmy.xcworkspace`) if the build asks for one. This route has not been written up from a fresh machine yet; expect to know your way around Xcode signing.
+  Expo generates the native project in `apps/mobile/ios/`. To sign with your own Apple developer team, open `ios/Squirmy.xcworkspace` and set your team and your own bundle identifier under **Signing & Capabilities**. The default bundle identifier in `app.json` is `com.isaacthoman.squirmy`.
 
 For working on the app itself, the [README](https://github.com/IsaacThoman/squirmy#mobile-app) describes the **Squirmy Dev** development build, which installs next to the regular app and loads code from Metro.
 
