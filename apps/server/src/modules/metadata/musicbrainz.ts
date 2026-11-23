@@ -267,14 +267,16 @@ export function normalizeDate(raw: string | null | undefined): MbDate {
  * Squirmy's album type from MusicBrainz release-group types. Secondary types win over
  * the primary one in the order soundtrack, live, compilation; remix albums and DJ mixes
  * are compilations of other recordings; spoken word, audiobooks and the like are "other".
- * A single or EP stays one whatever its secondary types: a song from a film or a live
- * single is listed with the artist's singles, as stores list it. Mixtapes keep their
+ * A single, EP or "Other" release stays one whatever its secondary types: a song from a
+ * film or a live single is listed with the artist's singles, as stores list it, and a
+ * film's soundtrack typed Other (Radiohead's Meeting People Is Easy, a video) is no album
+ * of the artist's. Mixtapes keep their
  * primary type, so clients that predate the artist page's Mixtapes section still parse
  * them; the page tells them apart by `secondaryTypes` (catalog/pages.ts).
  */
 export function albumType(primary: string | null | undefined, secondary: string[] = []): AlbumType {
   const short = primary?.toLowerCase()
-  if (short === 'single' || short === 'ep') return short
+  if (short === 'single' || short === 'ep' || short === 'other') return short
   const types = new Set(secondary.map((type) => type.toLowerCase()))
   if (types.has('soundtrack')) return 'soundtrack'
   if (types.has('live')) return 'live'
