@@ -4,7 +4,7 @@ import {
 import {
   COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach,
   type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
-  type SessionMoveAck, type SessionSnapshot,
+  type PlaybackStall, type SessionMoveAck, type SessionSnapshot,
 } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
@@ -876,6 +876,7 @@ export function applyReport(userId: string, deviceId: string | null, raw: unknow
   const parsed = EngineReport.safeParse(raw)
   if (!parsed.success || !deviceId) return Promise.resolve()
   const engine = parsed.data
+  if (engine.stall) logStall(deviceId, engine.stall)
   return serial(userId, () => {
     const record = loadedOwn(userId, deviceId) ?? loadedRecord(userId)
     const session = record?.session
@@ -888,6 +889,18 @@ export function applyReport(userId: string, deviceId: string | null, raw: unknow
     if (stalled === session.stalled && Math.abs(engine.positionMs - positionAt(session, at)) <= DRIFT_THRESHOLD_MS) return
     applyServer(record, { type: 'syncPosition', entryId: engine.entryId, positionMs: engine.positionMs, stalled }, at)
   }).catch(report)
+}
+
+/**
+ * One line per stall a client's watchdog handled, so a song that would not start can be
+ * explained from the server's log: which track, how long, and whether reloading it helped.
+ */
+function logStall(deviceId: string, stall: PlaybackStall): void {
+  const level = getConfig().LOG_LEVEL
+  if (level === 'silent' || level === 'fatal' || level === 'error') return
+  const tries = `${stall.attempts} ${stall.attempts === 1 ? 'reload' : 'reloads'}`
+  const what = stall.outcome === 'recovered' ? `played after ${tries}` : `skipped after ${tries}`
+  console.warn(`[sessions] playback stall: track ${stall.trackId} on device ${deviceId} was ${stall.state} for ${Math.round(stall.stuckMs)} ms, ${what}`)
 }
 
 // Service functions for other modules

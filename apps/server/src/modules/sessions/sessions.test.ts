@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify'
 import { io as connect, type Socket } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
+import { resetConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { albums, devices, mediaFiles, playbackSessions, plays, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
@@ -1037,6 +1038,29 @@ describe('sessions', () => {
     a.socket.emit('session:report', { entryId: 'rep.0', status: 'playing', positionMs: 9_000, at: clock.now() })
     expect(await b.state(3)).toMatchObject({ positionMs: 9_000, anchorAt: clock.now(), stalled: false })
     expect(b.states().map((update) => update.version)).toEqual([1, 2, 3])
+  })
+
+  it('logs a stall a client reports, with the track, timings and outcome only', async () => {
+    const a = await device('device-a-0030')
+    await a.send(playAlbum(), 'stl')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const level = process.env.LOG_LEVEL
+    process.env.LOG_LEVEL = 'info'
+    resetConfig()
+    try {
+      const stall = { trackId: 'track-1', state: 'loading', outcome: 'recovered', attempts: 1, stuckMs: 7012.4 }
+      a.socket.emit('session:report', { entryId: 'stl.0', status: 'playing', positionMs: 0, at: Date.now(), stall })
+      a.socket.emit('session:report', { entryId: 'stl.0', status: 'error', positionMs: 0, at: Date.now(), stall: { ...stall, outcome: 'gave_up', attempts: 3, stuckMs: 42_000 } })
+      await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(2))
+      expect(warn.mock.calls.map(([line]) => line)).toEqual([
+        '[sessions] playback stall: track track-1 on device device-a-0030 was loading for 7012 ms, played after 1 reload',
+        '[sessions] playback stall: track track-1 on device device-a-0030 was loading for 42000 ms, skipped after 3 reloads',
+      ])
+    } finally {
+      process.env.LOG_LEVEL = level
+      resetConfig()
+      warn.mockRestore()
+    }
   })
 
   it('replaces the queue for Subsonic and records external plays', async () => {
