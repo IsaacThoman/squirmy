@@ -1,0 +1,205 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group/b7234418-f054-495d-9aa7-efcba9454b32?inc=artist-credits+genres+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "secondary-type-ids": [],
+      "disambiguation": "",
+      "title": "PRIMA",
+      "primary-type": "Album",
+      "id": "b7234418-f054-495d-9aa7-efcba9454b32",
+      "relations": [
+        {
+          "source-credit": "",
+          "end": null,
+          "attribute-ids": {},
+          "target-type": "url",
+          "ended": false,
+          "attributes": [],
+          "begin": null,
+          "type-id": "99e550f3-5ab4-3110-b5b9-fe01d970b126",
+          "attribute-values": {},
+          "type": "discogs",
+          "direction": "forward",
+          "url": {
+            "id": "79bdac20-f65e-467d-ba00-a317d5a0812b",
+            "resource": "https://www.discogs.com/master/4334901"
+          },
+          "target-credit": ""
+        },
+        {
+          "attribute-values": {},
+          "type": "lyrics",
+          "type-id": "156344d3-da8b-40c6-8b10-7b1c22727124",
+          "direction": "forward",
+          "url": {
+            "id": "cef80914-01d2-49b0-bd4d-8727c65d4806",
+            "resource": "https://genius.com/albums/Adela/Prima"
+          },
+          "target-credit": "",
+          "source-credit": "",
+          "end": null,
+          "ended": false,
+          "target-type": "url",
+          "attribute-ids": {},
+          "begin": null,
+          "attributes": []
+        },
+        {
+          "end": null,
+          "source-credit": "",
+          "attributes": [],
+          "begin": null,
+          "attribute-ids": {},
+          "ended": false,
+          "target-type": "url",
+          "direction": "forward",
+          "url": {
+            "resource": "https://genius.com/albums/Adela/Prima-bonus-track",
+            "id": "49251b45-a526-43ee-a0f0-374ebf30193a"
+          },
+          "type-id": "156344d3-da8b-40c6-8b10-7b1c22727124",
+          "type": "lyrics",
+          "attribute-values": {},
+          "target-credit": ""
+        },
+        {
+          "type-id": "38320e40-9f4a-3ae7-8cb2-3f3c9c5d856d",
+          "attribute-values": {},
+          "type": "other databases",
+          "url": {
+            "resource": "https://rateyourmusic.com/release/album/adela/prima/",
+            "id": "e7dac3d5-f887-42a5-8582-5464080726c6"
+          },
+          "direction": "forward",
+          "target-credit": "",
+          "source-credit": "",
+          "end": null,
+          "attribute-ids": {},
+          "ended": false,
+          "target-type": "url",
+          "attributes": [],
+          "begin": null
+        },
+        {
+          "target-credit": "",
+          "attribute-values": {},
+          "type": "other databases",
+          "type-id": "38320e40-9f4a-3ae7-8cb2-3f3c9c5d856d",
+          "url": {
+            "id": "1910fc55-b023-42ff-9bfc-dfdd844ca362",
+            "resource": "https://www.offiziellecharts.de/charts/album-details-570275"
+          },
+          "direction": "forward",
+          "ended": false,
+          "target-type": "url",
+          "attribute-ids": {},
+          "begin": null,
+          "attributes": [],
+          "source-credit": "",
+          "end": null
+        },
+        {
+          "ended": false,
+          "target-type": "url",
+          "attribute-ids": {},
+          "begin": null,
+          "attributes": [],
+          "source-credit": "",
+          "end": null,
+          "target-credit": "",
+          "attribute-values": {},
+          "type": "wikidata",
+          "type-id": "b988d08c-5d86-4a57-9557-c83b399e3580",
+          "url": {
+            "resource": "https://www.wikidata.org/wiki/Q141275299",
+            "id": "68259059-4c31-4fef-b1f5-2ee56d5dc304"
+          },
+          "direction": "forward"
+        }
+      ],
+      "genres": [
+        {
+          "count": 1,
+          "disambiguation": "",
+          "name": "dance-pop",
+          "id": "b739a895-85ed-4ad3-8717-4e9ef5387dd8"
+        },
+        {
+          "name": "electronic",
+          "disambiguation": "",
+          "id": "89255676-1f14-4dd8-bbad-fca839d6aff4",
+          "count": 1
+        },
+        {
+          "count": 1,
+          "id": "3f3388b4-e36a-4bf8-a0be-66b10d92aaa4",
+          "disambiguation": "",
+          "name": "electropop"
+        },
+        {
+          "disambiguation": "",
+          "name": "new jack swing",
+          "id": "dd497eac-e915-49a9-b1e4-482792acf397",
+          "count": 1
+        },
+        {
+          "count": 1,
+          "name": "pop",
+          "disambiguation": "",
+          "id": "911c7bbb-172d-4df8-9478-dbff4296e791"
+        }
+      ],
+      "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "name": "ADÉLA",
+          "artist": {
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+            "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+            "type": "Person",
+            "sort-name": "ADÉLA",
+            "genres": [
+              {
+                "count": 2,
+                "id": "b739a895-85ed-4ad3-8717-4e9ef5387dd8",
+                "disambiguation": "",
+                "name": "dance-pop"
+              },
+              {
+                "count": 2,
+                "disambiguation": "",
+                "name": "electronic",
+                "id": "89255676-1f14-4dd8-bbad-fca839d6aff4"
+              },
+              {
+                "name": "pop",
+                "disambiguation": "",
+                "id": "911c7bbb-172d-4df8-9478-dbff4296e791",
+                "count": 4
+              },
+              {
+                "count": 1,
+                "id": "455f264b-db00-4716-991d-fbd32dc24523",
+                "disambiguation": "",
+                "name": "singer-songwriter"
+              }
+            ],
+            "country": "SK",
+            "disambiguation": "Slovak singer-songwriter",
+            "name": "ADÉLA"
+          }
+        }
+      ],
+      "secondary-types": [],
+      "first-release-date": "2026-09-04"
+    }
+  }
+}

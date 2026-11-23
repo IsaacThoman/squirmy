@@ -1,6 +1,6 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { findTrack, patchEntity, withLikedTrack } from './likePatch';
+import { findTrack, patchEntity, remembersToDrop, withLikedTrack } from './likePatch';
 
 const track = (id: string, liked = false) => ({
   id, mbid: null, title: id, artistCredit: 'Artist', artists: [], durationMs: 1000, album: null, disc: null, position: null,
@@ -46,5 +46,23 @@ describe('withLikedTrack', () => {
     expect(next.pages.map(page => page.items.map(item => item.id))).toEqual([['a'], []]);
     expect(next.pages[0]).toBe(data.pages[0]);
     expect(withLikedTrack(data, 'z', null)).toBe(data);
+  });
+});
+
+describe('remembersToDrop', () => {
+  const idle = () => false;
+
+  it('lets another device\'s heart win over what this device remembered', () => {
+    // Kid A was saved here, then removed on the web: the patch from the server replaces the remembered heart.
+    expect(remembersToDrop([{ entity: 'album', id: 'kid-a', fields: { liked: false, library: null } }], idle)).toEqual(['album:kid-a']);
+    // An album's save patches its songs' membership, not their hearts.
+    expect(remembersToDrop([{ entity: 'track', id: 't', fields: { inLibrary: true, library: 'album' } }], idle)).toEqual([]);
+  });
+
+  it('keeps what a change still on its way from here says', () => {
+    expect(remembersToDrop([
+      { entity: 'track', id: 't', fields: { liked: false } },
+      { entity: 'artist', id: 'r', fields: { liked: true } },
+    ], key => key === 'track:t')).toEqual(['artist:r']);
   });
 });

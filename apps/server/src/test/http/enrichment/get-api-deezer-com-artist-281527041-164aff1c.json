@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/281527041"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 281527041,
+      "name": "Nirvana (UK)",
+      "link": "https://www.deezer.com/artist/281527041",
+      "share": "https://www.deezer.com/artist/281527041?utm_source=deezer&utm_content=artist-281527041&utm_term=0_1795387302&utm_medium=web",
+      "picture": "https://api.deezer.com/artist/281527041/image",
+      "picture_small": "https://cdn-images.dzcdn.net/images/artist/ad67af8b0dca71d5e69f1afd8e045c4e/56x56-000000-80-0-0.jpg",
+      "picture_medium": "https://cdn-images.dzcdn.net/images/artist/ad67af8b0dca71d5e69f1afd8e045c4e/250x250-000000-80-0-0.jpg",
+      "picture_big": "https://cdn-images.dzcdn.net/images/artist/ad67af8b0dca71d5e69f1afd8e045c4e/500x500-000000-80-0-0.jpg",
+      "picture_xl": "https://cdn-images.dzcdn.net/images/artist/ad67af8b0dca71d5e69f1afd8e045c4e/1000x1000-000000-80-0-0.jpg",
+      "nb_album": 5,
+      "nb_fan": 292,
+      "radio": true,
+      "tracklist": "https://api.deezer.com/artist/281527041/top?limit=50",
+      "type": "artist"
+    }
+  }
+}

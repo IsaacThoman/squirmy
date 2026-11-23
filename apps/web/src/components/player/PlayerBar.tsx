@@ -1,4 +1,3 @@
-import { playingOnText } from '@squirmy/client-core'
 import { ListMusic, Maximize2, MessageSquareQuote, MonitorSpeaker, Music2 } from 'lucide-react'
 import { Link } from 'react-router'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
@@ -6,7 +5,7 @@ import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
-import { labelDevice, playingElsewhere, usePosition, type Player } from '@/player/player-context'
+import { playingElsewhere, usePosition, whereItPlays, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
 import { PlayPauseButton, SeekBar, touchTarget, TransportButtons, VolumeControl } from './Transport'
@@ -63,8 +62,9 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                     : <ArtistLinks credit={item.track} />}
                 </p>
               </div>
-              {/* Named after the song: the page beside it (an album, an artist) has a heart of its own. */}
-              <SaveHeart liked={liked} onToggle={onToggleLike} title={item.track.title} size="sm" className={cn('ml-1 hidden @[44rem]:inline-flex', touchTarget)} />
+              {/* The heart stays at every width; the title is what gives way. It is named after the
+                  song: the page beside it (an album, an artist) has a heart of its own. */}
+              <SaveHeart liked={liked} onToggle={onToggleLike} title={item.track.title} size="sm" className={cn('ml-1 shrink-0', touchTarget)} />
             </>
           ) : (
             <>
@@ -115,7 +115,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium">{item.track.title}</span>
             <span className={cn('block truncate text-xs', elsewhere || state.detached ? 'text-primary' : 'text-muted-foreground')}>
-              {elsewhere ? playingOnText(labelDevice(state, elsewhere)) : state.detached ? 'Only on this device' : late ? STILL_LOADING_LABEL : item.track.artistCredit}
+              {elsewhere ? whereItPlays(state, elsewhere) : state.detached ? 'Only on this device' : late ? STILL_LOADING_LABEL : item.track.artistCredit}
             </span>
           </span>
         </button>

@@ -336,16 +336,19 @@ function ResultRow({ id, item, active, stale, onChoose, trackMenu, resultMenu, o
         id={id}
         role="option"
         aria-selected={active}
-        aria-disabled={unavailable || undefined}
+        // Not disabled: a song that does not play still opens its album, and its heart and menu work.
+        // Its button's name says "Not available".
         title={unavailable ? UNAVAILABLE_LABEL : undefined}
-        className={cn('group/row relative h-14', searchRowClass(active, stale))}
+        // Its own size container: the duration shows when the row, not the window, has room for it.
+        className={cn('group/row @container relative h-14', searchRowClass(active, stale))}
       >
         <div className="relative size-10 shrink-0">
           <SearchItemArt item={item} dimmed={dimmed} className="size-10" />
           {track && !unavailable && (
             // Over a song's cover: the playing marker, the buffering spinner, or a play button on hover.
-            <div aria-hidden className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] text-white transition-colors', current ? 'bg-black/50' : 'opacity-0 group-hover/row:bg-black/50 group-hover/row:opacity-100')}>
-              {loading ? <Spinner label={null} className="size-4 text-white" />
+            // The markers are decoration, but music on its way is said, as a track row's spinner is.
+            <div aria-hidden={!loading || undefined} className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] text-white transition-colors', current ? 'bg-black/50' : 'opacity-0 group-hover/row:bg-black/50 group-hover/row:opacity-100')}>
+              {loading ? <Spinner label="Loading" className="size-4 text-white" />
                 : current ? (playing ? <Equalizer playing className="text-white" /> : <Play className="size-3.5" fill="currentColor" />)
                   : <Play className="size-3.5" fill="currentColor" />}
             </div>
@@ -353,14 +356,15 @@ function ResultRow({ id, item, active, stale, onChoose, trackMenu, resultMenu, o
         </div>
         <SearchRowBody art={null} title={title} detail={detail} dimmed={dimmed} current={current} explicit={track?.explicit ?? false} note={unavailable ? UNAVAILABLE_LABEL : undefined} />
         {primary}
-        <div className="relative z-10 flex shrink-0 items-center gap-1">
+        {/* A finger gets 44 px for the heart and the menu, with no gap between them. */}
+        <div className="relative z-10 flex shrink-0 items-center gap-1 pointer-coarse:gap-0">
           {track && onLike && (
-            <SaveHeart liked={track.liked} onToggle={onLike} title={title} tooltip={false} size="sm" className={cn(!track.liked && revealed)} />
+            <SaveHeart liked={track.liked} onToggle={onLike} title={title} tooltip={false} size="sm" className={cn('pointer-coarse:size-11', !track.liked && revealed)} />
           )}
-          {track && <span className={cn('hidden w-10 text-right text-xs tabular text-muted-foreground sm:block', unavailable && 'opacity-60')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>}
+          {track && <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @md:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>}
           <DropdownMenu
             entries={menu}
-            trigger={<IconButton label={`More options for ${title}`} tooltip={false} size="sm" className={revealed}><MoreHorizontal /></IconButton>}
+            trigger={<IconButton label={`More options for ${title}`} tooltip={false} size="sm" className={cn('pointer-coarse:size-11', revealed)}><MoreHorizontal /></IconButton>}
           />
         </div>
       </li>

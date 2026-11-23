@@ -133,3 +133,19 @@ export function releaseKey(title: string): string {
     current = stripped
   }
 }
+
+/** Titles an artist is known by: release keys (`releaseKey`) and song keys (`editionFreeKey`). */
+export type ArtistTitles = { albums: Set<string>; tracks: Set<string> }
+
+/**
+ * Whether two artist rows of one name are one artist by what they are known for: a release
+ * in common, or two songs. Deezer keeps second pages for some artists; namesakes share
+ * neither (enrichment/artist-copies.ts, materialize.ts). An album titled like the artist
+ * (`nameKey`) proves nothing: two bands called Genesis may each have a "Genesis".
+ */
+export function sameArtist(a: ArtistTitles, b: ArtistTitles, nameKey = ''): boolean {
+  let songs = 0
+  for (const album of a.albums) if (album !== nameKey && b.albums.has(album)) return true
+  for (const track of a.tracks) if (b.tracks.has(track) && ++songs >= 2) return true
+  return false
+}

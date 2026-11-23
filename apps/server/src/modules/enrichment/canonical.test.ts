@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { MbReleaseSummary } from '../metadata/musicbrainz.js'
 import { chooseCanonicalRelease } from './canonical.js'
 
-type Edition = [mbid: string, status: string | null, tracks: number, date: string | null, format: string]
+type Edition = [mbid: string, status: string | null, tracks: number, date: string | null, format: string, disambiguation?: string]
 
 function editions(rows: Edition[]): MbReleaseSummary[] {
-  return rows.map(([mbid, status, trackCount, date, format]) => ({
-    mbid, title: 'Album', status, country: null, barcode: null, disambiguation: '', artistCredit: [], artistName: 'Artist',
+  return rows.map(([mbid, status, trackCount, date, format, disambiguation = '']) => ({
+    mbid, title: 'Album', status, country: null, barcode: null, disambiguation, artistCredit: [], artistName: 'Artist',
     date, year: date ? Number(date.slice(0, 4)) : null,
     media: format.split('+').map((one) => ({ format: one, trackCount: trackCount / format.split('+').length })),
     trackCount, labels: [], releaseGroup: null,
@@ -50,6 +50,15 @@ describe('chooseCanonicalRelease', () => {
       ['b-same', 'official', 8, '2020-05-05', 'CD'],
       ['a-same', 'official', 8, '2020-05-05', 'CD'],
     ], 'a-same'],
+    // ADÉLA's PRIMA: the Atmos release's MBID sorts first, and its songs are other recordings.
+    ['the album’s own mix over a Dolby Atmos release and a clean one', [
+      ['0257-atmos', 'official', 11, '2026-09-04', 'Digital Media', 'Dolby Atmos mix'],
+      ['0506-clean', 'official', 11, '2026-09-04', 'Digital Media', 'clean'],
+      ['8d7b-explicit', 'official', 11, '2026-09-04', 'Digital Media', 'explicit'],
+    ], '8d7b-explicit'],
+    ['an instrumental release only when nothing else qualifies', [
+      ['a-instrumentals', 'official', 10, '2019-01-01', 'Digital Media', 'instrumentals'],
+    ], 'a-instrumentals'],
     ['no status counts as better than promotional', [
       ['promo', 'promotion', 7, '2000-01-01', 'CD'],
       ['unknown', null, 7, '2001-01-01', 'CD'],

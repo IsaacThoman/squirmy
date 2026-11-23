@@ -12,11 +12,13 @@ import { remoteImage } from '../artwork/index.js'
 import { canonicalRelease } from '../catalog/availability.js'
 import { uuidArray } from '../catalog/sql.js'
 import { lockUpserts } from '../matching/apply.js'
-import { guessAlbumType, releaseKey } from '../search/keys.js'
+import { editionFreeKey, guessAlbumType, releaseKey, textArray } from '../search/keys.js'
 import { resolveMerged } from '../matching/merge.js'
 import { deezer } from '../metadata/index.js'
 import type { DeezerAlbum, DeezerArtist, DeezerTrack } from '../metadata/deezer.js'
+import { fitStrayRecordings } from './fit.js'
 import { linkExternalId } from './rows.js'
+import { identifyTrack, type TrackRef } from './track-identity.js'
 
 type DeezerArtistRef = { id: number; name: string }
 
@@ -127,7 +129,8 @@ async function deezerRecordingRow(tx: Transaction, track: DeezerTrack, artistRow
 /**
  * Gives an album without a MusicBrainz match a track list from Deezer: one provider-only
  * release (reused on later runs) with a provider-only recording per track, carrying
- * Deezer's ISRCs. It becomes the canonical release unless the album has another one.
+ * Deezer's ISRCs. It becomes the canonical release unless the album has another one, and
+ * the album's other rows of the same songs are folded into one (`fit.ts`).
  * The album stays at `detail_level` 1, so a later run tries the MusicBrainz bridge again.
  */
 export async function buildFromDeezer(albumId: string, album: DeezerAlbum): Promise<void> {
@@ -205,6 +208,9 @@ export async function buildFromDeezer(albumId: string, album: DeezerAlbum): Prom
       fetchedAt: now,
       updatedAt: now,
     }).where(eq(albums.id, albumId))
+    // A track list built from a delivery's tags may already list these songs under rows of
+    // its own (tags without ISRCs): one row per song.
+    await fitStrayRecordings(tx, albumId)
   })
 }
 
@@ -243,30 +249,61 @@ export async function creditDeezerTracks(album: DeezerAlbum): Promise<number> {
 }
 
 /**
- * Records the Deezer ids of an album and of the recordings on its canonical release,
- * matched by ISRC, else by position and title, and Deezer's explicit flag on recordings
- * that have none, when matched by ISRC or the album is Deezer's explicit version. A search stub that already carries one of
- * those ids is merged into the catalog row.
+ * Records the Deezer ids of an album and of the recordings on its canonical release, and
+ * what Deezer's track list says about each recording it matches (`track-identity.ts`: by
+ * ISRC, else by title, else by place and length):
+ *
+ * - the Deezer track id;
+ * - Deezer's ISRC, when the recording carries other codes and the track is not a clean
+ *   edit (Deezer says it is not, or the album is the explicit version). It is the store's
+ *   code for the song as this album has it, so a delivered file carrying it is the track
+ *   that was asked for, and the song's single, which carries the same code, is the same
+ *   row (the canonical release may be a pressing with codes of its own, or the label's);
+ * - Deezer's explicit flag, on recordings that have none, when matched by ISRC or the album
+ *   is Deezer's explicit version: a clean edit at that place is another recording.
+ *
+ * A search stub that already carries one of those ids is merged into the catalog row, and
+ * once an ISRC was learned the rows that stood in for the tracks are folded in (`fit.ts`).
  */
 export async function linkDeezerAlbum(albumId: string, album: DeezerAlbum): Promise<void> {
   await linkExternalId('deezer', 'album', String(album.id), albumId)
-  const tracks = await db.execute<{ id: string; disc: number; position: number; titleKey: string; isrcs: string[] }>(sql`
-    select r.id, rt.disc, rt.position, r.title_key as "titleKey", r.isrcs
+  const tracks = await db.execute<TrackRef>(sql`
+    select r.id, r.title, r.duration_ms as "durationMs", r.isrcs, rt.disc, rt.position
     from albums a join release_tracks rt on rt.release_id = ${canonicalRelease('a')} join recordings r on r.id = rt.recording_id
     where a.id = ${albumId}`)
+  const incoming: TrackRef[] = album.tracks.map((track, index) => ({
+    id: `deezer:${track.id}`,
+    title: track.title,
+    isrcs: track.isrc ? [track.isrc.toUpperCase()] : [],
+    durationMs: track.durationMs || null,
+    disc: track.discNumber ?? 1,
+    position: track.trackNumber ?? index + 1,
+  }))
+  const titles = new Set(incoming.map((track) => editionFreeKey(track.title)))
+  let learned = false
   for (const [index, track] of album.tracks.entries()) {
-    const isrc = track.isrc?.toUpperCase()
-    const byIsrc = isrc ? tracks.find((row) => row.isrcs.includes(isrc)) : undefined
-    const match = byIsrc
-      ?? tracks.find((row) => row.disc === (track.discNumber ?? 1) && row.position === (track.trackNumber ?? index + 1) && row.titleKey === matchKey(track.title))
+    const ref = incoming[index]!
+    const match = identifyTrack(ref, tracks, { isrcAlone: true, titles })
     if (!match) continue
+    const byIsrc = ref.isrcs.some((isrc) => match.isrcs.some((known) => known.toUpperCase() === isrc))
     await linkExternalId('deezer', 'recording', String(track.id), match.id)
-    // MusicBrainz has no explicit flag. Deezer's holds for the same sound: the same ISRC,
-    // or the same place on the album's explicit version; a clean edit at that place is
-    // another recording.
     if (byIsrc || album.explicit) {
       await db.update(recordings).set({ explicit: track.explicit }).where(and(eq(recordings.id, match.id), isNull(recordings.explicit)))
     }
+    // Only against codes of its own: a recording MusicBrainz knows no code for is found by
+    // place and title as it always was.
+    if (!byIsrc && ref.isrcs.length > 0 && match.isrcs.length > 0 && (album.explicit || track.edited === false)) {
+      const added = await db.execute<{ id: string }>(sql`
+        update recordings set isrcs = isrcs || ${textArray(ref.isrcs)}, updated_at = now()
+        where id = ${match.id} and not (isrcs @> ${textArray(ref.isrcs)}) returning id`)
+      if (added.length > 0) learned = true
+    }
+  }
+  if (learned) {
+    await db.transaction(async (tx) => {
+      await lockUpserts(tx)
+      await fitStrayRecordings(tx, albumId)
+    })
   }
 }
 

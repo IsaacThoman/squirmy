@@ -19,6 +19,7 @@ import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { remoteImage } from '../artwork/index.js'
 import { lockUpserts } from '../matching/apply.js'
+import { mergeAlbum } from '../matching/merge.js'
 import { deezer } from '../metadata/index.js'
 import { labelFreeKey } from '../search/keys.js'
 import type { DeezerAlbum } from '../metadata/deezer.js'
@@ -111,4 +112,73 @@ async function splitOff(group: Group, deezerId: string, edition: DeezerAlbum) {
     return id
   })
   await changed([queryKeys.album(editionId), queryKeys.album(group.id)])
+}
+
+type EditionRow = { id: string; title: string; editionOfId: string; releaseId: string | null; hasMbRelease: boolean; detailLevel: number; deezerId: string | null }
+
+/**
+ * What an edition row's songs are: its track count and ISRCs in track order, from its
+ * track list, else from its Deezer album. Null when a track has no ISRC: then two rows
+ * cannot be told to be the same edition.
+ */
+async function fingerprint(row: EditionRow): Promise<string | null> {
+  if (row.releaseId) {
+    const tracks = await db.execute<{ isrc: string | null }>(sql`
+      select (select min(isrc) from unnest(r.isrcs) as isrc) as isrc
+      from release_tracks rt join recordings r on r.id = rt.recording_id
+      where rt.release_id = ${row.releaseId} order by rt.disc, rt.position`)
+    if (tracks.length > 0) return tracks.every((track) => track.isrc) ? tracks.map((track) => track.isrc).join(',') : null
+  }
+  if (!row.deezerId) return null
+  let album: DeezerAlbum | null = null
+  await attempt('edition fingerprint', async () => { album = await deezer.getAlbum(Number(row.deezerId)) })
+  const tracks = (album as DeezerAlbum | null)?.tracks ?? []
+  return tracks.length > 0 && tracks.every((track) => track.isrc) ? tracks.map((track) => track.isrc!.toUpperCase()).join(',') : null
+}
+
+/**
+ * Merges edition rows of one release group that are one edition: the same name, the same
+ * track count and the same ISRCs in order (two Deezer copies of one album). Rows that differ
+ * in a song (the explicit and the clean version, a re-sequenced pressing) stay apart; search
+ * shows one card per name either way. The row with a MusicBrainz track list, then the more
+ * complete, then the older, stands for them. Returns how many rows were merged away.
+ */
+export async function mergeDuplicateEditions(): Promise<number> {
+  const rows = await db.execute<EditionRow>(sql`
+    select a.id, a.title, a.edition_of_id as "editionOfId", a.canonical_release_id as "releaseId",
+      exists (select 1 from releases rl where rl.id = a.canonical_release_id and rl.mbid is not null) as "hasMbRelease",
+      a.detail_level as "detailLevel",
+      (select min(e.external_id) from external_ids e where e.provider = 'deezer' and e.entity_type = 'album' and e.entity_id = a.id) as "deezerId"
+    from albums a
+    where a.edition_of_id is not null and a.merged_into_id is null
+      and exists (select 1 from albums b where b.edition_of_id = a.edition_of_id and b.id <> a.id and b.merged_into_id is null)
+    order by a.id`)
+  const groups = new Map<string, EditionRow[]>()
+  for (const row of rows) {
+    const key = `${row.editionOfId}|${labelFreeKey(row.title)}`
+    groups.set(key, [...(groups.get(key) ?? []), row])
+  }
+  const rank = (row: EditionRow) => [row.hasMbRelease ? 0 : 1, -row.detailLevel] as const
+  let merged = 0
+  for (const group of groups.values()) {
+    if (group.length < 2) continue
+    const sorted = [...group].sort((a, b) => rank(a)[0] - rank(b)[0] || rank(a)[1] - rank(b)[1] || (a.id < b.id ? -1 : 1))
+    const kept: { row: EditionRow; songs: string }[] = []
+    for (const row of sorted) {
+      const songs = await fingerprint(row)
+      if (!songs) continue
+      const same = kept.find((one) => one.songs === songs)
+      if (!same) {
+        kept.push({ row, songs })
+        continue
+      }
+      await db.transaction(async (tx) => {
+        await lockUpserts(tx)
+        await mergeAlbum(row.id, same.row.id, tx)
+      })
+      await changed([queryKeys.album(row.id), queryKeys.album(same.row.id)])
+      merged++
+    }
+  }
+  return merged
 }

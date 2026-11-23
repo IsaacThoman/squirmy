@@ -14,3 +14,8 @@ export function loadFailure(error: unknown): { connection: boolean; description:
   }
   return { connection: true, description: 'Check your connection to the server.', retry: true };
 }
+
+/** The server says the thing is not there (deleted, or never was). */
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}

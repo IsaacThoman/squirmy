@@ -15,6 +15,17 @@ const statusRank = (status: string | null) => {
 /** A clean or edited pressing is chosen only when no other pressing qualifies (an explicit album page shows the explicit songs). */
 const censored = (release: MbReleaseSummary) => /\b(clean|edited|censored)\b/i.test(`${release.disambiguation} ${release.title}`)
 
+/**
+ * A release of another mix of the album (Dolby Atmos, spatial or surround audio, an
+ * instrumental or a cappella version, a sped-up or slowed one) is chosen only when nothing
+ * else qualifies. MusicBrainz lists its songs as recordings of their own with ISRCs of their
+ * own, so stores' copies and delivered files, which are the stereo mix, matched none of its
+ * tracks: ADÉLA's PRIMA showed the Atmos release with the stereo songs listed again below it.
+ */
+const otherMix = (release: MbReleaseSummary) =>
+  /\b(dolby|atmos|spatial|surround|binaural|360|quadraphonic|5\.1|7\.1|instrumentals?|a ?cappella|acapella|karaoke|sped up|slowed)\b/i
+    .test(`${release.disambiguation} ${release.title}`)
+
 /** What identifies the edition a store album is, as far as it is known. */
 export type EditionHint = {
   /** The MusicBrainz release the store links to. */
@@ -34,9 +45,10 @@ const digits = (barcode: string | null | undefined) => barcode?.trim().replace(/
  * 1. Only releases of the best status present (official over unknown, promotion, bootleg).
  * 2. Of those, the most common track count, so a deluxe edition or a bonus-track pressing
  *    does not stand for the album (a tie goes to the count with the earliest release).
- * 3. Of those, uncensored before clean or edited pressings, CD or digital releases over
- *    vinyl and cassettes, whose sides split discs oddly; then the earliest date (the
- *    original edition); then the MBID, so the choice is stable.
+ * 3. Of those, the album's own mix before another (Dolby Atmos, instrumental), uncensored
+ *    before clean or edited pressings, CD or digital releases over vinyl and cassettes,
+ *    whose sides split discs oddly; then the earliest date (the original edition); then
+ *    the MBID, so the choice is stable.
  *
  * With a hint (a store album identified as part of the group: "SOS Deluxe: LANA", the
  * 3am edition of "Midnights") the edition it names: the release it links to, else the
@@ -52,6 +64,7 @@ export function chooseCanonicalRelease(releases: readonly MbReleaseSummary[], hi
   const candidates = releases.filter((release) => statusRank(release.status) === best)
 
   const key = (release: MbReleaseSummary) => [
+    otherMix(release) ? 1 : 0,
     censored(release) ? 1 : 0,
     release.media.length > 0 && release.media.every((medium) => preferredFormat.test(medium.format ?? '')) ? 0 : 1,
     dateOrder(release.date),

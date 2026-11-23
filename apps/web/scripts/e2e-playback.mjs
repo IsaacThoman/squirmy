@@ -231,15 +231,18 @@ await step('search', async () => {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Search' }).click()
   await page.getByRole('heading', { name: 'Search', level: 1 }).waitFor()
   page.on('request', listen)
-  await page.getByRole('searchbox', { name: 'Search' }).pressSequentially('blue hour', { delay: 40 })
-  const results = page.getByRole('main')
-  await results.getByRole('link', { name: 'Blue Hour', exact: true }).first().waitFor()
+  await page.getByRole('combobox', { name: 'Search' }).pressSequentially('blue hour', { delay: 40 })
+  const results = page.getByRole('listbox', { name: 'Results for blue hour' })
+  await results.getByRole('option').filter({ hasText: 'Blue Hour' }).first().waitFor()
   await sleep(500)
   page.off('request', listen)
   check('library results come from the server', true)
   check('typing sends only the settled query, to both searches', asked.length === 2 && asked.includes('library:blue hour') && asked.includes('catalog:blue hour'), asked.join(', '))
-  const order = await results.getByRole('heading', { level: 2 }).allTextContents()
-  check('one set of results, the top result first and no section named for the library', order[0] === 'Top result' && !order.some(name => /library|discover/i.test(name)), order.join(' / '))
+  // One ranked list, every kind mixed, each row saying what it is: no sections, none named for the library.
+  const rows = await results.getByRole('option').allTextContents()
+  check('one list, the album named first, each row saying what it is', /^Blue Hour(Album|EP|Single) · Mira Vale/.test(rows[0] ?? '') && rows.every(row => / · |Artist|Playlist/.test(row)), rows.slice(0, 4).join(' / '))
+  const headings = await page.getByRole('main').getByRole('heading', { level: 2 }).allTextContents()
+  check('no sections', headings.length === 0, headings.join(' / '))
 })
 
 await step('quick search', async () => {
@@ -295,7 +298,7 @@ await step('quick search', async () => {
   await arrowTo(/^See all results for/)
   await field.press('Enter')
   await page.waitForURL(url => url.pathname === '/search' && url.searchParams.get('q') === 'mira')
-  check('the last option opens the search page for the query', await page.getByRole('searchbox', { name: 'Search' }).inputValue() === 'mira')
+  check('the last option opens the search page for the query', await page.getByRole('combobox', { name: 'Search' }).inputValue() === 'mira')
   await transport(page, 'Pause').click()
 })
 

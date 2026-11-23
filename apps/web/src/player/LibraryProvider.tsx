@@ -1,7 +1,8 @@
-import { queryKeys, type CreatePlaylistRequest, type Page, type PlaylistSummary, type TrackSummary, type WantItem } from '@squirmy/contracts'
+import { queryKeys, type CreatePlaylistRequest, type EntityFields, type Page, type PlaylistSummary, type TrackSummary, type WantItem } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
+import { applyChanges } from '@/realtime/apply-changes'
 import { patchEntity } from '@/api/patch'
 import { playlistQuery, usePlaylists, useWants } from '@/api/queries'
 import { useApi } from '@/api/services'
@@ -18,17 +19,16 @@ function patchCache(client: QueryClient, id: string, patch: Record<string, unkno
 }
 
 /**
- * Patches the entity optimistically, first dropping reads of it already on their way: an album
+ * Drops reads of the entity already on their way, before it is patched optimistically: an album
  * page re-reads itself while its songs arrive, and an answer sent before the save would land
- * after the patch and put the old heart back until the refetch after the save. They are
- * cancelled without reverting, so what they held stays and the patch lands on it; the
- * invalidation after the save reads them again.
+ * after the patch and put the old heart back until the next refetch. They are cancelled without
+ * reverting, so what they held stays and the patch lands on it; the save's changes and
+ * invalidations bring the server's answer after.
  */
-function patchOptimistically(client: QueryClient, id: string, patch: Record<string, unknown>) {
+function dropReadsOf(client: QueryClient, id: string, fields: Record<string, unknown>) {
   void client.cancelQueries({
-    predicate: query => query.state.fetchStatus === 'fetching' && patchEntity(query.state.data, id, patch) !== query.state.data,
+    predicate: query => query.state.fetchStatus === 'fetching' && patchEntity(query.state.data, id, fields) !== query.state.data,
   }, { revert: false })
-  patchCache(client, id, patch)
 }
 
 const wantedId = (target: WantTarget) => (target.type === 'album' ? target.album.id : target.track.id)
@@ -70,9 +70,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const allPlaylists = usePlaylists().data
   const [draft, setDraft] = useState<{ tracks: TrackSummary[] } | null>(null)
   const [repeatedAdd, setRepeatedAdd] = useState<RepeatedAdd | null>(null)
+  const heart = (target: LibraryTarget, fields: EntityFields) =>
+    applyChanges(queryClient, [{ kind: 'patch', entity: target.type, id: target.id, fields }])
 
   // The heart. A saved track or artist is in the library at once; after a removal only the server
-  // knows whether it still is (on the collection, on a saved album), so the lists ask it.
+  // knows whether it still is (on the collection, on a saved album). It shows here as the same
+  // `patch` change the server then sends every device of the user, with the values it holds, and
+  // the lists that gain or lose it (the library's, Liked Songs, Home) follow the server's
+  // invalidation, so nothing is fetched twice and no page or search is fetched at all.
   const save = useMutation({
     mutationFn: async ({ target, saved, savedAt, removal }: SaveVariables) => {
       if (saved) {
@@ -83,7 +88,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       removal?.resolve({ savedAt: answer.savedAt ?? undefined })
     },
     onMutate: ({ target, saved, undoing, quiet, removal }) => {
-      patchOptimistically(queryClient, target.id, saved ? { liked: true, inLibrary: true } : { liked: false })
+      const fields = saved ? { liked: true, inLibrary: true } : { liked: false }
+      dropReadsOf(queryClient, target.id, fields)
+      heart(target, fields)
       // Undo puts it back as it was, quietly: the toast that offered it already said what happened.
       if (undoing || quiet) return {}
       // Undo of a removal waits for the removal's answer, which says when the save was made, so the
@@ -103,7 +110,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     // The success toast said it happened; it goes, and a notice that it did not takes its place.
     onError: (_error, variables, context) => {
       const { target, saved } = variables
-      patchCache(queryClient, target.id, { liked: !saved })
+      heart(target, { liked: !saved })
       variables.removal?.resolve(null)
       if (context?.toastId !== undefined) dismissToast(context.toastId)
       toast({
@@ -112,12 +119,6 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         action: { label: 'Try again', onClick: () => save.mutate({ ...variables, removal: removalOf(saved) }) },
       })
     },
-    // The library's lists, Liked Songs and Home's "Recently added" gain or lose it.
-    onSettled: () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.library() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.likes() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.home() }),
-    ]),
     // The notice above says what failed, with Try again; the cache's own toast would repeat it.
     meta: { inline: true },
   })

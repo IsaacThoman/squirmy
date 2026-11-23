@@ -1,15 +1,15 @@
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
-import { albums, artists, externalIds } from '../../database/schema.js'
+import { albums, artists, externalIds, likes } from '../../database/schema.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { createAsset } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
 import { albumRow, albumStub, artistRow, artistStub } from '../../test/enrichment-stubs.js'
-import { createArtist } from '../../test/factories.js'
+import { createAlbum, createArtist, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
 import { resolveOne } from '../catalog/redirects.js'
-import { bridgeNamesakes, resetNamesakes } from './namesakes.js'
+import { bridgeNamesakes, resetNamesakes, unlinkContradictedBridges } from './namesakes.js'
 
 /**
  * The live duplicates of 2026-11-22: Deezer's second "Boards of Canada" (412310471, 2 fans)
@@ -71,5 +71,55 @@ describe('bridging Deezer-only namesakes', () => {
     const before = http.requests.length
     await sweep()
     expect(http.requests).toHaveLength(before)
+  })
+})
+
+/** "Nirvana (UK)" on the test instance: Deezer's page of the 1970s band, bridged by name to MusicBrainz's "Nirvana UK", a tribute band. */
+describe('unlinking bridges MusicBrainz contradicts', () => {
+  useTestDatabase()
+  useHttpFixtures('enrichment', 'musicbrainz', 'deezer')
+  const tribute = '8f32371e-4bac-4090-ba13-2c1cd1aeab0d'
+
+  beforeEach(() => updateServerSettings({ musicBrainzEnabled: true, deezerEnabled: true }))
+
+  it('gives the tribute band its MBID back and lets the Deezer page be bridged again', async () => {
+    const [row] = await db.insert(artists).values({
+      id: crypto.randomUUID(), name: 'Nirvana UK', sortName: 'Nirvana UK', nameKey: 'nirvana uk', mbid: tribute, disambiguation: 'tribute band', detailLevel: 2,
+    }).returning()
+    await db.insert(externalIds).values({ provider: 'deezer', entityType: 'artist', externalId: '281527041', entityId: row!.id })
+    const user = await createUser()
+    await db.insert(likes).values({ userId: user.id, entityType: 'artist', entityId: row!.id })
+    // The real band's album, from Deezer, and nothing MusicBrainz credits to the tribute band.
+    const local = await createAlbum({ artist: row!, title: 'Local Anaesthetic', year: 1971 })
+
+    expect(await unlinkContradictedBridges()).toBe(1)
+    expect(await artistRow(row!.id)).toMatchObject({ name: 'Nirvana (UK)', mbid: null, disambiguation: null, detailLevel: 0, fetchedAt: null })
+    const [own] = await db.select().from(artists).where(eq(artists.mbid, tribute))
+    expect(own).toMatchObject({ name: 'Nirvana UK', disambiguation: 'tribute band' })
+    expect(own!.id).not.toBe(row!.id)
+    // The Deezer page, its album and the like stay with the row.
+    expect(await db.select({ entityId: externalIds.entityId }).from(externalIds).where(eq(externalIds.externalId, '281527041'))).toEqual([{ entityId: row!.id }])
+    expect((await db.select({ id: albums.primaryArtistId }).from(albums).where(eq(albums.id, local.albumId)))[0]!.id).toBe(row!.id)
+    expect(await db.select({ entityId: likes.entityId }).from(likes).where(eq(likes.userId, user.id))).toEqual([{ entityId: row!.id }])
+    expect(await unlinkContradictedBridges()).toBe(0)
+  })
+
+  it('gives a row unlinked earlier the name of its Deezer page back, so it is not bridged by the wrong name again', async () => {
+    // As the test instance had it after an earlier unlink: no MBID, the tribute band's name.
+    const [link] = await db.select({ id: externalIds.entityId }).from(externalIds).where(eq(externalIds.externalId, '281527041'))
+    const [row] = await db.update(artists).set({ name: 'Nirvana UK', sortName: 'Nirvana UK', nameKey: 'nirvana uk' }).where(eq(artists.id, link!.id)).returning()
+    expect(await unlinkContradictedBridges()).toBe(1)
+    expect(await artistRow(row!.id)).toMatchObject({ name: 'Nirvana (UK)', mbid: null })
+    expect(await unlinkContradictedBridges()).toBe(0)
+  })
+
+  it('leaves a link MusicBrainz confirms alone', async () => {
+    // Nirvana (US) links Deezer 415 itself; its name and disambiguation do not make it a candidate either.
+    const [row] = await db.insert(artists).values({
+      id: crypto.randomUUID(), name: 'Nirvana', sortName: 'Nirvana', nameKey: 'nirvana', mbid: '5b11f4ce-a62d-471e-81fc-a69a8278c7da', disambiguation: '1980s–1990s US grunge band', detailLevel: 2,
+    }).returning()
+    await db.insert(externalIds).values({ provider: 'deezer', entityType: 'artist', externalId: '415', entityId: row!.id })
+    expect(await unlinkContradictedBridges()).toBe(0)
+    expect((await artistRow(row!.id)).mbid).toBe('5b11f4ce-a62d-471e-81fc-a69a8278c7da')
   })
 })

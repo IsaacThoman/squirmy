@@ -14,6 +14,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useAccount, useSignedInApi, useWantlistEnabled, type Api } from '../account/AccountProvider';
 import { albumExpanding } from '../data/albums';
 import { fallbackTint } from '../data/color';
+import { isNotFound } from '../data/errors';
 import { useLibraryActions, useLiked, usePlaylistActions, useWanted } from '../data/library';
 import { appearsOnKey, isArtistSectionKey, releaseGroups } from '../data/artists';
 import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, usePlaylist } from '../data/queries';
@@ -426,7 +427,9 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const { state } = useAccount();
   const playlist = usePlaylist(id);
   const kept = useDownloadedPlaylist(id);
-  const data = playlist.data ?? kept;
+  // Deleted on another device: the server's 404 wins over the copy loaded before it and over
+  // a downloaded one, so the page says it is gone and offers nothing to edit.
+  const data = isNotFound(playlist.error) ? undefined : playlist.data ?? kept;
   const actions = usePlaybackActions();
   const { canPlay } = useAvailability();
   const { offline } = useRealtime();

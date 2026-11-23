@@ -2,7 +2,6 @@
  * The extras music the user owns gets in the background, on top of album detail: a real
  * stored cover, a description, Deezer ids for search to match against, and lyrics.
  */
-import { queryKeys } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { albums, assets } from '../../database/schema.js'
@@ -14,7 +13,7 @@ import { coverart, deezer, fetchImage, musicbrainz, wikidata } from '../metadata
 import type { DeezerAlbum } from '../metadata/deezer.js'
 import { linkDeezerAlbum } from './deezer-rows.js'
 import { albumDetailRun } from './detail.js'
-import { albumOwned, attempt, changed, currentId, externalIdOf, linkExternalId } from './rows.js'
+import { albumChanged, albumOwned, attempt, currentId, externalIdOf, linkExternalId } from './rows.js'
 
 /** Covers at least this many pixels on their short side are kept. */
 const goodCoverPx = 500
@@ -50,7 +49,7 @@ export async function enrichAlbum(id: string): Promise<void> {
   ]
   await queueLyrics(albumId)
   if (steps.every(Boolean)) await db.update(albums).set({ enrichedAt: new Date() }).where(eq(albums.id, albumId))
-  await changed([queryKeys.album(albumId), queryKeys.home(), queryKeys.library()])
+  await albumChanged(albumId)
 }
 
 /**

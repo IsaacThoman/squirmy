@@ -43,6 +43,14 @@ describe('SortableQueue', () => {
     expect(onMove).toHaveBeenCalledWith('e0', 2)
   })
 
+  it('has the heart on every song, saved or not', () => {
+    const mixed = items.map((item, index) => ({ ...item, track: { ...item.track, liked: index === 0 } }))
+    renderWithApp(<SortableQueue items={mixed} onMove={vi.fn()} onRemove={vi.fn()} onPlay={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Remove Soft Signal from library' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save Amber to library' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save Passing Glass to library' })).toBeInTheDocument()
+  })
+
   it('removes and plays entries', async () => {
     const { onRemove, onPlay } = renderQueue()
     await userEvent.click(screen.getByRole('button', { name: 'Remove Amber from queue' }))

@@ -1,4 +1,4 @@
-import { listedDevices, playingOnText, type SessionMoveResult } from '@squirmy/client-core'
+import { listedDevices, reconnectingText, type SessionMoveResult } from '@squirmy/client-core'
 import { queryKeys, type DeviceInfo } from '@squirmy/contracts'
 import { useQuery } from '@tanstack/react-query'
 import { AppWindow, Laptop, ListPlus, MonitorSpeaker, Smartphone, Speaker, Split, Unlink2, Users } from 'lucide-react'
@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { formatIdle } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
-import { labelDevice, type Player } from '@/player/player-context'
+import { labelDevice, whereItPlays, type Player } from '@/player/player-context'
 import { VolumeControl } from './Transport'
 
 export function DeviceIcon({ kind, className }: { kind: DeviceInfo['kind']; className?: string }) {
@@ -55,6 +55,9 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
   const shared = devices.filter(device => !device.detached)
   const active = shared.find(device => device.id === activeDeviceId)
   const others = shared.filter(device => device.id !== activeDeviceId)
+  // The device that plays went away: it is not offered anywhere, only waited for, until the
+  // session lets it go or it comes back.
+  const away = player.state.away?.id === activeDeviceId ? player.state.away : null
   const onTransfer = (deviceId: string) => {
     player.controls.transfer(deviceId)
     onTransferred?.()
@@ -65,11 +68,13 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
       <div className="px-2 pb-1.5 pt-2">
         <div className="flex items-center gap-3">
           <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-md', active ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground')}>
-            {active ? <DeviceIcon kind={active.kind} className="size-4" /> : <MonitorSpeaker aria-hidden className="size-4" />}
+            {active ? <DeviceIcon kind={active.kind} className="size-4" /> : away?.device ? <DeviceIcon kind={away.device.kind} className="size-4" /> : <MonitorSpeaker aria-hidden className="size-4" />}
           </div>
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">Listening on</p>
-            <p className={cn('truncate text-sm font-medium', active && 'text-primary')}>{active ? name(active) : 'Nothing right now'}</p>
+            {away
+              ? <p className="truncate text-sm font-medium" role="status">{reconnectingText(away.device ? labelDevice(player.state, away.device) : null)}</p>
+              : <p className={cn('truncate text-sm font-medium', active && 'text-primary')}>{active ? name(active) : 'Nothing right now'}</p>}
           </div>
         </div>
         {active && (
@@ -257,7 +262,7 @@ export function PlayingElsewhere({ player, device, onPlayHere, onPrepare, classN
     // The words are in the text color: the action color on its own tint is under 4.5:1 in several light themes.
     <div className={cn('flex h-8 items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-foreground', className)}>
       <DeviceIcon kind={device.kind} className="size-3.5 shrink-0 text-primary" />
-      <span className="truncate">{playingOnText(labelDevice(player.state, device), player.state.playing)}</span>
+      <span className="truncate">{whereItPlays(player.state, device)}</span>
       {/* Pointing at it is reason enough to get the music ready: it is usually pressed next. Its
           hit area reaches past the 32px strip to a 44px target for a finger. */}
       <button type="button" onClick={onPlayHere} onPointerEnter={onPrepare} onPointerDown={onPrepare} onFocus={onPrepare} className="relative ml-1.5 h-6 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-2.5 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">

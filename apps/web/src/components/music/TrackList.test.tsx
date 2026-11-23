@@ -1,5 +1,5 @@
 import type { TrackSummary } from '@squirmy/contracts'
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
@@ -22,6 +22,14 @@ function renderRow(slug: string, { viewer = requester, ...props }: RowOptions = 
     </OnDemandContext>,
   )
   return { onPlay, onAction, row: screen.getByRole('listitem') }
+}
+
+/** A press from a mouse or a finger. jsdom's events carry no `pointerType`, so it is set by hand. */
+function press(element: Element, pointerType: 'mouse' | 'touch') {
+  const down = new MouseEvent('pointerdown', { bubbles: true })
+  Object.defineProperty(down, 'pointerType', { value: pointerType })
+  fireEvent(element, down)
+  fireEvent.click(element)
 }
 
 const menuItems = async (title: string) => {
@@ -76,10 +84,11 @@ describe('TrackRow', () => {
     ['music the server fetches, to a member who may not fetch it', 'night-swimming-demo', 'Night Swimming (Demo)', member],
   ])('grays out %s and says only “Not available”', async (_case, slug, title, viewer) => {
     const { onPlay, row } = renderRow(slug, { viewer })
-    expect(row).toHaveAttribute('aria-disabled', 'true')
+    // Only playing is unavailable: marking the row disabled would tell a screen reader its working heart and menu are too.
+    expect(row).not.toHaveAttribute('aria-disabled')
     expect(row).toHaveAttribute('title', 'Not available')
     expect(within(row).getByText('(Not available)')).toHaveClass('sr-only')
-    expect(within(row).getByText(title)).toHaveClass('text-muted-foreground')
+    expect(within(row).getByText(title)).toHaveClass('text-faded-foreground')
     expect(within(row).queryByRole('button', { name: `Play ${title}` })).toBeNull()
     // Not the whole row: its heart and More options still work.
     expect(within(row).getByRole('button', { name: `More options for ${title}` })).toBeEnabled()
@@ -104,9 +113,25 @@ describe('TrackRow', () => {
     const onTogglePlay = vi.fn()
     const { row } = renderRow('night-swimming', { nowPlaying: { trackId: track('night-swimming').id, playing: true, loading: false, onTogglePlay } })
     expect(row).toHaveAttribute('aria-current', 'true')
+    // A fill as well as the title's color, which is close to the text's in some themes.
+    expect(row).toHaveClass('bg-accent/40')
+    expect(within(row).getByText('Night Swimming')).toHaveClass('text-primary')
     expect(within(row).getByRole('img', { name: 'Playing' })).toBeInTheDocument()
     await userEvent.click(within(row).getByRole('button', { name: 'Pause Night Swimming' }))
     expect(onTogglePlay).toHaveBeenCalled()
+  })
+
+  it('shows the current song its fetch failed for as unavailable, not as current', () => {
+    const id = track('night-swimming-demo').id
+    const { row } = renderRow('night-swimming-demo', { nowPlaying: { trackId: id, playing: false, loading: false, failed: true, onTogglePlay: () => {} } })
+    // Unavailable as #129 marks it: faded, the title and a hidden label say so, no play button;
+    // its heart and menu still work, so the row is not disabled.
+    expect(row).toHaveAttribute('title', 'Not available')
+    expect(within(row).getByText('(Not available)')).toHaveClass('sr-only')
+    expect(within(row).queryByRole('button', { name: `Play ${track('night-swimming-demo').title}` })).toBeNull()
+    expect(row).not.toHaveAttribute('aria-current')
+    expect(within(row).queryByRole('img', { name: 'Playing' })).toBeNull()
+    expect(within(row).getByText(track('night-swimming-demo').title)).not.toHaveClass('text-primary')
   })
 
   describe('menu', () => {
@@ -157,9 +182,40 @@ describe('TrackRow', () => {
     })
   })
 
+  it('plays from a tap anywhere on the row on a touch screen, but not from a mouse click or a tap on a link', async () => {
+    const { onPlay, row } = renderRow('soft-signal')
+    const title = within(row).getByText('Soft Signal')
+    press(title, 'mouse')
+    expect(onPlay).not.toHaveBeenCalled()
+    press(title, 'touch')
+    expect(onPlay).toHaveBeenCalledTimes(1)
+    press(within(row).getByRole('link', { name: 'Mira Vale' }), 'touch')
+    expect(onPlay).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not play an unavailable song from a tap', () => {
+    const { onPlay, row } = renderRow('soft-signal-live')
+    press(row, 'touch')
+    expect(onPlay).not.toHaveBeenCalled()
+  })
+
+  it('keeps its artist and album links, which are cut short in narrow rows, out of the Tab order and offers them in its menu', async () => {
+    renderWithApp(
+      <OnDemandContext value={{ viewer: requester }}>
+        <ul><TrackRow track={track('soft-signal')} index={0} variant="compact" onPlay={vi.fn()} onAction={vi.fn()} /></ul>
+      </OnDemandContext>,
+    )
+    const row = screen.getByRole('listitem')
+    for (const link of within(row).getAllByRole('link')) expect(link).toHaveAttribute('tabindex', '-1')
+    expect(within(row).getByRole('link', { name: 'Mira Vale' }).parentElement).toHaveAttribute('title', track('soft-signal').artistCredit)
+    const items = await menuItems('Soft Signal')
+    expect(items).toContain('Go to album')
+    expect(items).toContain('Go to artist')
+  })
+
   it('shows the explicit badge and saves from the heart', async () => {
     const { onAction } = renderRow('after-the-rain')
-    expect(screen.getByTitle('Explicit')).toBeInTheDocument()
+    expect(screen.getByTitle('Explicit')).toHaveTextContent('Explicit')
     await userEvent.click(screen.getByRole('button', { name: 'Save After the Rain to library' }))
     expect(onAction).toHaveBeenCalledWith('like', track('after-the-rain'), 0)
   })

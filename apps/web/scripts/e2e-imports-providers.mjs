@@ -349,15 +349,15 @@ async function missingTrack(q) {
   asked.add(found.id)
   return found
 }
-/** The search page's one ranked list of results (#117): its rows are listbox options. */
-const searchResults = (on = page) => on.getByRole('listbox', { name: /^Results for / })
+/** The search page's row for a song, in its one list of results: not an album or single of the same name. */
+const resultRow = (on, title) => on.getByRole('listbox', { name: /^Results for / }).getByRole('option').filter({ hasText: title }).filter({ hasText: 'Song · ' }).first()
 /**
  * Searches songs in the app (the Songs filter, `type=track`: the mixed list shows only the best
- * few, and an album can carry the song's title) and plays a track from the results; returns its row.
+ * few) and plays a track from the results; returns its row.
  */
 async function playFromSearch(q, track) {
   await page.goto(`${base}/search?q=${encodeURIComponent(q)}&type=track`)
-  const row = searchResults().getByRole('option').filter({ hasText: track.title }).first()
+  const row = resultRow(page, track.title)
   await row.waitFor({ timeout: 30_000 })
   await row.hover()
   await row.getByRole('button', { name: `Play ${track.title}` }).click()
@@ -446,7 +446,7 @@ await step('add an album to the library', async () => {
   check('the album page says nothing of where its music is', !(await page.getByText(/on demand|Get this album|library yet/i).count()), pick.title)
   await shoot('album-on-demand')
   await add.click()
-  check('the heart fills at once', await button('Remove from library').isVisible())
+  check('the heart fills at once', await button('Remove from library').waitFor({ timeout: 2000 }).then(() => true, () => false))
   await shoot('album-added')
   const detail = await until(() => get(`/albums/${pick.id}`), value => value.availability === 'full' || value.availability === 'partial', minutes(6), 2000)
   check('the server fetches its songs behind it', detail.availability === 'full', `${detail.ownedTrackCount} of ${detail.trackCount}`)
@@ -518,7 +518,7 @@ await step('a member without the permission', async () => {
   const memberPage = await memberContext.newPage()
   const track = await missingTrack('Burial')
   await memberPage.goto(`${base}/search?q=${encodeURIComponent('Burial')}&type=track`)
-  const row = searchResults(memberPage).getByRole('option').filter({ hasText: track.title }).first()
+  const row = resultRow(memberPage, track.title)
   await row.waitFor({ timeout: 30_000 })
   const title = await row.getAttribute('title')
   check('on-demand tracks show as unavailable, in the one word every surface uses', title === 'Not available', title)

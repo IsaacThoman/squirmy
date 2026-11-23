@@ -1,4 +1,5 @@
 import type { TrackSummariesRequest, TrackSummariesResponse, TrackSummary } from '@squirmy/contracts'
+import { patchEntities, type EntityPatches } from './changes.js'
 import { setTimer } from './timers.js'
 
 /** The one API call the store needs; `api.catalog.trackSummaries` fits. */
@@ -89,6 +90,22 @@ export class TrackStore {
   prime(tracks: readonly TrackSummary[]): void {
     for (const track of tracks) this.cache.set(keyOf(track.id, track.album?.id ?? null), track)
     if (tracks.length) this.notify()
+  }
+
+  /**
+   * Sets new values on every cached summary of the tracks named (under whatever album each
+   * is kept), for changes the server announces: availability, hearts, library membership.
+   * Notifies once, and only when something changed.
+   */
+  patch(patches: EntityPatches): void {
+    let changed = false
+    for (const [key, summary] of this.cache) {
+      const next = patchEntities(summary, patches)
+      if (next === summary) continue
+      this.cache.set(key, next)
+      changed = true
+    }
+    if (changed) this.notify()
   }
 
   /** Calls `listener` whenever summaries arrive. Returns a function that unsubscribes. */

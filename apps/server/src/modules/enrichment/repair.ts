@@ -3,20 +3,29 @@
  * now. Idempotent, so it runs at worker start and daily.
  *
  * 1. Store editions merged into their release group's row are split off again (`editions.ts`).
- * 2. Every artist's duplicate album rows are merged (`reconcileAllArtists`), and artist rows
+ *    Edition rows of one group that are one edition (the same name, track count and ISRCs)
+ *    are merged (`mergeDuplicateEditions`).
+ * 2. Artists bridged by name to the wrong MusicBrainz artist (a Deezer namesake hint it
+ *    does not fit, a tribute act) are unlinked to be bridged again (`unlinkContradictedBridges`).
+ *    Deezer-only artist rows that are a second Deezer page of another row of their name are
+ *    merged into it (`foldArtistCopies`); namesakes stay apart.
+ * 3. Every artist's duplicate album rows are merged (`reconcileAllArtists`), and artist rows
  *    built from a delivery's tags that only merged rows still credit are folded into the
  *    catalog artist of their name, or removed (`foldTagBuiltArtists`).
- * 3. Names and titles stored with HTML entities ("Will Taylor &amp; Strings Attached") are
+ * 4. Names and titles stored with HTML entities ("Will Taylor &amp; Strings Attached") are
  *    decoded, and their keys recomputed.
- * 4. Albums with a date but no year get the year.
- * 5. Recordings MusicBrainz's track list replaced without Deezer's explicit flag get it,
+ * 5. Albums with a date but no year get the year.
+ * 6. Recordings MusicBrainz's track list replaced without Deezer's explicit flag get it,
  *    from the album's Deezer track list, a bounded number of albums per run.
- * 6. Popular tracks stored from Deezer without their album (so without artwork) get it by
+ * 7. Popular tracks stored from Deezer without their album (so without artwork) get it by
  *    running the artist's top tracks again, a bounded number of artists per run.
- * 7. Artists fetched before their popular tracks were stored as a ranked list get one the
+ * 8. Artists fetched before their popular tracks were stored as a ranked list get one the
  *    same way, so the page lists their hits rather than the tracks played here.
- * 8. Artist pictures chosen before pages were told apart from namesakes, or kept through
+ * 9. Artist pictures chosen before pages were told apart from namesakes, or kept through
  *    a merge, are chosen again from the MusicBrainz profile, a bounded number per run.
+ * 9. Albums that list a song twice (the canonical track and a row of another of the album's
+ *    track lists) have the two rows merged, and read their Deezer track list again
+ *    (`album-tracks.ts`), a bounded number per run.
  */
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
@@ -24,9 +33,12 @@ import { getServerSettings } from '../../lib/settings.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { deezer } from '../metadata/index.js'
 import { decodeEntities } from '../metadata/deezer.js'
+import { repairAlbumTracks } from './album-tracks.js'
 import { refreshTopTracks, repickArtistImage } from './artist.js'
+import { foldArtistCopies } from './artist-copies.js'
 import { linkDeezerAlbum } from './deezer-rows.js'
-import { splitMergedEditions } from './editions.js'
+import { mergeDuplicateEditions, splitMergedEditions } from './editions.js'
+import { unlinkContradictedBridges } from './namesakes.js'
 import { foldTagBuiltArtists, reconcileAllArtists, reconcileArtistAlbums } from './reconcile.js'
 import { attempt } from './rows.js'
 
@@ -39,19 +51,29 @@ const explicitBatch = 200
 const imageBatch = 100
 
 export type RepairReport = {
-  editions: number; merged: number; tagArtists: number; decoded: number; years: number; explicitAlbums: number; topTrackArtists: number; rankedArtists: number; imageArtists: number
+  editions: number; duplicateEditions: number; unlinked: number; artistCopies: number; merged: number; tagArtists: number; decoded: number; years: number; explicitAlbums: number
+  topTrackArtists: number; rankedArtists: number; imageArtists: number
+  /** Albums that listed a song twice, and the rows merged on them. */
+  twinAlbums: number; twinsMerged: number
 }
 
 export async function repairReleases(): Promise<RepairReport> {
   const settings = await getServerSettings()
   const deezerEnabled = settings.deezerEnabled
   const editions = deezerEnabled ? await splitMergedEditions() : 0
+  const duplicateEditions = await mergeDuplicateEditions()
+  // Wrong bridges first, so the second-page merges below do not build on them.
+  const unlinked = settings.musicBrainzEnabled && deezerEnabled ? await unlinkContradictedBridges() : 0
+  // Second Deezer pages first: the albums they bring then fold into the artist's below.
+  const artistCopies = await foldArtistCopies()
   const merged = await reconcileAllArtists()
   const tagArtists = await foldTagBuiltArtists()
   const decoded = await decodeStoredEntities()
   const years = await backfillYears()
+  const twins = await repairAlbumTracks({ deezerEnabled })
+  const twinCounts = { twinAlbums: twins.albums, twinsMerged: twins.merged }
   const imageArtists = settings.musicBrainzEnabled ? await repairImages() : 0
-  if (!deezerEnabled) return { editions, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0, rankedArtists: 0, imageArtists }
+  if (!deezerEnabled) return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0, rankedArtists: 0, imageArtists, ...twinCounts }
   const explicitAlbums = await backfillExplicit()
   // Popular Deezer tracks on no release and without an album: the artist page showed them with no artwork.
   const artists = await db.execute<{ id: string }>(sql`
@@ -74,7 +96,7 @@ export async function repairReleases(): Promise<RepairReport> {
       and exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'artist' and e.entity_id = a.id)
     order by md5(a.id::text || current_date::text) limit ${topTrackBatch}`)
   for (const artist of unranked) await refreshTopTracks(artist.id)
-  return { editions, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length, rankedArtists: unranked.length, imageArtists }
+  return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length, rankedArtists: unranked.length, imageArtists, ...twinCounts }
 }
 
 const encoded = `'&(#x?[0-9a-f]+|amp|quot|lt|gt|apos|nbsp);'`

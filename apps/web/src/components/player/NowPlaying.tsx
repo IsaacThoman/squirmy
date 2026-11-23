@@ -62,7 +62,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             event.preventDefault()
             target.focus()
           }}
-          className="fixed inset-0 z-40 flex animate-slide-in flex-col overflow-clip bg-background pt-[env(safe-area-inset-top)] text-foreground outline-none data-[state=closed]:animate-exit"
+          className="fixed inset-0 z-40 flex animate-slide-in flex-col overflow-clip bg-background pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] text-foreground outline-none data-[state=closed]:animate-exit"
         >
           <div aria-hidden className="absolute inset-0">
             {artwork && (
