@@ -52,6 +52,13 @@ describe('pages', () => {
     expect(await screen.findByRole('heading', { level: 1, name: heading }, wait)).toBeInTheDocument()
   }, LAZY_DEV_PAGE_MS + 2000)
 
+  it.each([['/', 'Listen now'], ['/imports', 'Add music']])('%s has a page heading without a header bar', async (route, title) => {
+    renderWithApp(<AppRoutes />, route)
+    const heading = await screen.findByRole('heading', { level: 1, name: title })
+    expect(heading).toHaveClass('sr-only')
+    expect(heading.closest('header')).not.toHaveClass('sticky')
+  })
+
   it('/wantlist goes home while the server has the wantlist off', async () => {
     renderWithApp(<AppRoutes />, '/wantlist', fakeServices({ status: { wantlistEnabled: false } }).services)
     expect(await screen.findByRole('heading', { level: 1, name: 'Listen now' })).toBeInTheDocument()
