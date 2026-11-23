@@ -1,32 +1,58 @@
 import { X } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
-import { useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from './button'
 import { holdsEscape, registerDialog } from './dialog-stack'
 import { FormError } from './input'
 
 /**
- * Gives focus back to what had it before a dialog opened. Radix returns focus to the dialog's
- * Trigger, and many dialogs have none (Quick Search from ⌘K, Settings from ⌘, or a menu, Now
- * Playing): focus then falls to the page's body and the next Tab starts again from the top. A
- * frame later, once Radix has done what it does, focus that is still nowhere goes back. Runs on
- * closing and on unmounting both, since some hosts remove a dialog as it closes.
+ * What takes focus back when a dialog closes: what had it as the dialog opened. A menu's item
+ * leaves with its menu, so for one the button that opened the menu stands in (for a submenu's
+ * item, the outermost menu's button).
  */
-function useReturnFocus(open: boolean | undefined) {
-  useEffect(() => {
-    if (!open) return
-    const before = document.activeElement
-    const opener = before instanceof HTMLElement && before !== document.body ? before : null
-    return () => {
-      if (!opener) return
-      requestAnimationFrame(() => {
-        const now = document.activeElement
-        const lost = now === null || now === document.body
-        if (lost && opener.isConnected && !opener.matches(':disabled')) opener.focus({ preventScroll: true })
-      })
-    }
-  }, [open])
+function openerOf(element: Element | null): HTMLElement | null {
+  let opener = element instanceof HTMLElement && element !== document.body ? element : null
+  for (let menu = opener?.closest('[role="menu"]'); opener && menu; menu = opener?.closest('[role="menu"]')) {
+    const trigger = document.getElementById(menu.getAttribute('aria-labelledby') ?? '')
+    opener = trigger instanceof HTMLElement && trigger !== opener ? trigger : null
+  }
+  return opener
+}
+
+/**
+ * What had focus as the dialog opened, read while it renders open: by the time its effects run,
+ * focus has often moved in already (a field's `autoFocus` takes it as the dialog mounts), so
+ * neither an effect nor Radix's `onOpenAutoFocus` sees the opener every time.
+ */
+function useOpener(open: boolean | undefined) {
+  const [opener, setOpener] = useState(() => (open ? openerOf(document.activeElement) : null))
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setOpener(openerOf(document.activeElement))
+  }
+  return opener
+}
+
+const OpenerContext = createContext<HTMLElement | null>(null)
+
+/**
+ * Gives focus back to what opened the dialog. Radix gives it to the dialog's Trigger, and many
+ * dialogs have none (Quick Search from ⌘K, Settings from ⌘, or a menu): focus would fall to the
+ * page's body and the next Tab start again from the top. Radix asks where focus goes once the
+ * content is gone, after its closing animation, and also when the host unmounts the dialog as it
+ * closes; a timer of our own runs too early for the first (focus is still inside, on its way out).
+ */
+function useCloseAutoFocus(onCloseAutoFocus?: (event: Event) => void) {
+  const opener = useContext(OpenerContext)
+  return (event: Event) => {
+    onCloseAutoFocus?.(event)
+    // Without an opener that can take focus, Radix gives it to the Trigger, if there is one.
+    if (event.defaultPrevented || !opener?.isConnected || opener.matches(':disabled')) return
+    event.preventDefault()
+    opener.focus({ preventScroll: true })
+  }
 }
 
 /** Radix's dialog root, registered while open so a toast's Escape still reaches it. */
@@ -38,8 +64,8 @@ export function Dialog({ open, onOpenChange, ...props }: ComponentProps<typeof D
     // Known to the toaster, which hands this dialog the Escape a toast hears first.
     return registerDialog(() => latest.current?.(false))
   }, [open])
-  useReturnFocus(open)
-  return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />
+  const opener = useOpener(open)
+  return <OpenerContext value={opener}><DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} /></OpenerContext>
 }
 
 export const DialogTrigger = DialogPrimitive.Trigger
@@ -105,8 +131,9 @@ type DialogContentProps = ComponentProps<typeof DialogPrimitive.Content> & {
 }
 
 /** A titled dialog. For a custom layout (the settings and search dialogs), use `DialogFrame`. */
-export function DialogContent({ title, description, className, children, onEscapeKeyDown, ...props }: DialogContentProps) {
+export function DialogContent({ title, description, className, children, onEscapeKeyDown, onCloseAutoFocus, ...props }: DialogContentProps) {
   useFocusedFieldInView()
+  const closeAutoFocus = useCloseAutoFocus(onCloseAutoFocus)
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className={dialogOverlayClass} />
@@ -114,6 +141,7 @@ export function DialogContent({ title, description, className, children, onEscap
         // Without a description nothing describes it, rather than the title read twice.
         {...(description ? {} : { 'aria-describedby': undefined })}
         onEscapeKeyDown={keepEscapeForSearch(onEscapeKeyDown)}
+        onCloseAutoFocus={closeAutoFocus}
         className={cn(dialogSurfaceClass, 'flex flex-col gap-4 overflow-y-auto p-6 sm:max-w-md', className)}
         {...props}
       >
@@ -129,12 +157,13 @@ export function DialogContent({ title, description, className, children, onEscap
 }
 
 /** The dialog surface alone: the caller lays it out and must render a `DialogTitle`. */
-export function DialogFrame({ className, children, showClose = true, onEscapeKeyDown, ...props }: ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean }) {
+export function DialogFrame({ className, children, showClose = true, onEscapeKeyDown, onCloseAutoFocus, ...props }: ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean }) {
   useFocusedFieldInView()
+  const closeAutoFocus = useCloseAutoFocus(onCloseAutoFocus)
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className={dialogOverlayClass} />
-      <DialogPrimitive.Content aria-describedby={undefined} onEscapeKeyDown={keepEscapeForSearch(onEscapeKeyDown)} className={cn(dialogSurfaceClass, className)} {...props}>
+      <DialogPrimitive.Content aria-describedby={undefined} onEscapeKeyDown={keepEscapeForSearch(onEscapeKeyDown)} onCloseAutoFocus={closeAutoFocus} className={cn(dialogSurfaceClass, className)} {...props}>
         {children}
         {showClose && <DialogPrimitive.Close aria-label="Close" className={dialogCloseClass}><X /></DialogPrimitive.Close>}
       </DialogPrimitive.Content>
