@@ -35,6 +35,12 @@ async function freePort(): Promise<number> {
   return port
 }
 
+// CI must run these, not skip them: GitHub's runners have the programs, and a green run
+// should mean the restart cases passed. Elsewhere they need a local Postgres install.
+it.runIf(bin === null && process.env.CI)('finds the Postgres server programs in CI', () => {
+  expect(bin, 'pg_ctl is neither on the PATH nor under /usr/lib/postgresql').not.toBeNull()
+})
+
 /**
  * These restart a Postgres server, so they run on one of their own: the shared test
  * server is used by every other test file at the same time.
