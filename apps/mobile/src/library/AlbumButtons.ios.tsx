@@ -7,6 +7,7 @@ import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { ComponentProps } from 'react';
 import type { AlbumNavProps, AlbumPlaybackProps } from './AlbumButtons';
 import { useColors } from '../theme';
+import { useBrowseBackLabel } from './links';
 
 type SymbolName = ComponentProps<typeof Image>['systemName'];
 const hitShape = contentShape(shapes.rectangle());
@@ -29,6 +30,29 @@ export function AlbumNavButton({ icon, label, onPress, selected, busy, failed }:
           ? <ProgressView modifiers={[progressViewStyle('circular'), controlSize('regular'), tint(colors.text), size, hitShape]} />
           // The button carries the label; left alone, the image would announce its symbol's name.
           : <Image systemName={icon as SymbolName} size={20} color={failed ? colors.danger : selected ? colors.accent : colors.text} modifiers={[size, hitShape, accessibilityHidden(true)]} />}
+      </Button>
+    </Host>
+  );
+}
+
+/** Back, naming the page it returns to ("‹ Library") when there is one; a plain chevron otherwise. */
+export function BrowseBackButton({ onPress }: { onPress: () => void }) {
+  const source = useBrowseBackLabel();
+  const colors = useColors();
+  const glass = isLiquidGlassAvailable();
+  if (!source) return <AlbumNavButton icon="chevron.left" label="Go back" onPress={onPress} />;
+  // 44 tall like the round buttons beside it, and as wide as its label up to 112. The glass pads
+  // its content by 7 on each side, so the plain button pads itself to match.
+  const fixedSize = dynamicTypeSize({ max: 'large' });
+  return (
+    <Host matchContents={{ horizontal: true }} style={{ height: 44 }}>
+      <Button onPress={onPress} modifiers={glass
+        ? [buttonStyle('glass'), buttonBorderShape('capsule'), fixedSize, accessibilityLabel(`Back to ${source}`)]
+        : [buttonStyle('plain'), background(colors.surface), clipShape('capsule'), fixedSize, accessibilityLabel(`Back to ${source}`)]}>
+        <HStack spacing={4} modifiers={[padding({ horizontal: glass ? 3 : 10 }), frame({ height: glass ? 30 : 44 }), frame({ maxWidth: glass ? 98 : 112 }), hitShape]}>
+          <Image systemName="chevron.left" size={16} color={colors.text} modifiers={[accessibilityHidden(true)]} />
+          <Text modifiers={[foregroundStyle(colors.text), font({ textStyle: 'subheadline', weight: 'semibold' }), lineLimit(1)]}>{source}</Text>
+        </HStack>
       </Button>
     </Host>
   );

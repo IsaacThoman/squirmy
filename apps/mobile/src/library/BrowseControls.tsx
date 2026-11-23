@@ -133,7 +133,7 @@ function RowButton({ title, subtitle, cover, dim, onPress, onSelect, actions }: 
   </Pressable>;
 }
 
-export function GenreCard({ title, color, width, cover, onPress }: GenreCardProps) {
+function GenreCard({ title, color, width, cover, onPress }: GenreCardProps) {
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={`Browse ${title}`} onPress={onPress}
     style={({ pressed }) => [styles.genre, { width, backgroundColor: color }, pressed && styles.pressed]}>
