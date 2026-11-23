@@ -35,6 +35,9 @@ async function shutdown(signal: string, code = 0) {
   if (stopping) return
   stopping = true
   console.info(`[squirmy] stopping (${signal})`)
+  // Inside the 30 second stop grace period compose.yaml sets and Coolify uses by default,
+  // so this, not a SIGKILL, ends a shutdown that hangs. Module stops run first: a search
+  // index import checkpoints within its first seconds (catalog-index/index.ts).
   const deadline = setTimeout(() => process.exit(1), 20_000)
   deadline.unref()
   await stopAll()

@@ -9,8 +9,12 @@ import { Id, IsoDateTime } from './common.js'
 export const CatalogIndexKind = z.enum(['artist', 'album', 'recording'])
 export type CatalogIndexKind = z.infer<typeof CatalogIndexKind>
 
-/** `active` is the import whose index is in use; at most one import is `running`. */
-export const CatalogIndexImportState = z.enum(['running', 'active', 'failed', 'cancelled', 'replaced', 'dropped'])
+/**
+ * `active` is the import whose index is in use; at most one import is `running` or
+ * `interrupted`. `interrupted`: a restart of the server stopped it, and a worker carries
+ * on from its last checkpoint shortly. Only an admin's cancel ends an import `cancelled`.
+ */
+export const CatalogIndexImportState = z.enum(['running', 'interrupted', 'active', 'failed', 'cancelled', 'replaced', 'dropped'])
 export type CatalogIndexImportState = z.infer<typeof CatalogIndexImportState>
 
 /** `download`: streaming the dump into staging tables. `build`: deriving rows and indexes. `swap`: replacing the index. */
@@ -32,6 +36,10 @@ export const CatalogIndexImport = z.object({
   /** Recording rows read from the dump so far. */
   rowsRead: z.number().int(),
   error: z.string().nullable(),
+  /** How many times a restart stopped the import and it carried on from its last checkpoint. */
+  resumes: z.number().int(),
+  /** When it last carried on after a restart. */
+  resumedAt: IsoDateTime.nullable(),
   startedAt: IsoDateTime,
   finishedAt: IsoDateTime.nullable(),
 })
@@ -48,7 +56,7 @@ export const CatalogIndexStatus = z.object({
   sizeBytes: z.number().int(),
   /** The import in use, if any. */
   active: CatalogIndexImport.nullable(),
-  /** The newest import when it is not the active one: running, failed or cancelled. */
+  /** The newest import when it is not the active one: running, interrupted, failed or cancelled. */
   latest: CatalogIndexImport.nullable(),
 })
 export type CatalogIndexStatus = z.infer<typeof CatalogIndexStatus>
