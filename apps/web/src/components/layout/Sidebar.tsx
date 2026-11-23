@@ -88,7 +88,7 @@ const SidebarView = memo(function SidebarView({
         onClick={onNavigate}
         aria-label={label}
         className={cn(
-          'relative flex h-8 items-center overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
+          'relative flex h-8 pointer-coarse:h-11 items-center overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
           // The selected fill is close to the hover fill and to the sidebar itself, so the page you
           // are on also gets a bar and an icon in the action color, which stand 3:1 off it.
           'before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary before:opacity-0 aria-[current=page]:before:opacity-100 aria-[current=page]:[&_svg]:text-primary',
@@ -144,12 +144,12 @@ const SidebarView = memo(function SidebarView({
       <div className="flex items-center gap-1 p-2">
         <Tooltip label={collapsed ? 'Open sidebar' : null} side="right">
           {collapsed ? (
-            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Open sidebar" className="group/logo flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
+            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Open sidebar" className="group/logo touch-target relative flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
               <LogoMark size={30} className="group-hover/logo:hidden" />
               <PanelLeftOpen aria-hidden className="hidden size-4 group-hover/logo:block" />
             </button>
           ) : (
-            <Link to="/" onClick={onNavigate} aria-label="Squirmy home" className="flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
+            <Link to="/" onClick={onNavigate} aria-label="Squirmy home" className="touch-target relative flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
               <LogoMark size={30} />
             </Link>
           )}
@@ -178,7 +178,7 @@ const SidebarView = memo(function SidebarView({
         <div aria-hidden={collapsed} inert={collapsed} className={cn('transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]', collapsed && 'h-0 overflow-hidden', contentTransition)}>
           <div className="px-2 pb-4 pt-4">
             <div className="flex items-center px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              <Link to="/library?filter=playlists" onClick={onNavigate} className="rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline">Playlists</Link>
+              <Link to="/library?filter=playlists" onClick={onNavigate} className="rounded-sm underline-offset-2 outline-none pointer-coarse:flex pointer-coarse:h-11 pointer-coarse:items-center hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline">Playlists</Link>
               {/* In the drawer the tooltip would only take the first Escape. */}
               <Tooltip label={mobile ? null : 'New playlist'} side="right">
                 <button type="button" onClick={() => library.newPlaylist()} aria-label="New playlist" className="relative -my-0.5 ml-auto flex size-6 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
@@ -208,7 +208,7 @@ const SidebarView = memo(function SidebarView({
       </div>
 
       {/* As tall as the player bar beside it, so their top edges run as one line. */}
-      <div className={cn('border-t border-sidebar-border p-2', !mobile && 'flex h-18 shrink-0 items-center')}>
+      <div className={cn('border-t border-sidebar-border p-2', !mobile && 'flex h-18 pointer-coarse:h-[5.75rem] shrink-0 items-center')}>
         <DropdownMenu
           side="top"
           align="start"
@@ -306,7 +306,7 @@ function PlaylistRow({ to, title, detail, art, playing, entries, onNavigate, onD
           onDropTracks(drag.tracks)
         }}
         className={cn(
-          'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
+          'flex items-center gap-2 rounded-lg px-2 py-1.5 pointer-coarse:min-h-11 text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
           over && 'bg-sidebar-accent ring-2 ring-primary',
         )}
       >

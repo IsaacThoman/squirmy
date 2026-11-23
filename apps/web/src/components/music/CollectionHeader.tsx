@@ -38,12 +38,14 @@ export function CollectionHeader({ kind, title, art, byline, meta, description, 
           <span className={cn('text-[11px] font-medium uppercase tracking-wider', secondary)}>{kind}</span>
           {/* A very long title steps down a size, so it does not run to four lines. */}
           <h1 dir="auto" className={cn('text-balance font-semibold tracking-tight', title.length > 40 ? 'text-2xl md:text-3xl lg:text-4xl' : 'text-3xl md:text-4xl lg:text-5xl')}>{title}</h1>
-          {byline && <div className="text-base font-medium">{byline}</div>}
+          {/* Each link in the byline (an album's artists) is pressed as 44 px on a touch screen; the lines around it are words. */}
+          {byline && <div className="text-base font-medium [&_a]:relative [&_a]:touch-target">{byline}</div>}
           {meta?.some(Boolean) && <p className={cn('text-sm', secondary)}>{meta.filter(Boolean).join(' · ')}</p>}
           {description && <p className={cn('max-w-2xl text-pretty text-sm', secondary)}>{description}</p>}
         </div>
       </div>
-      {actions && <div className="mt-6 flex items-center justify-center gap-1 md:justify-start">{actions}</div>}
+      {/* On a touch screen the 44 px targets of the 40 px buttons keep a gap between them. */}
+      {actions && <div className="mt-6 flex items-center justify-center gap-1 pointer-coarse:gap-2 md:justify-start">{actions}</div>}
     </header>
   )
 }

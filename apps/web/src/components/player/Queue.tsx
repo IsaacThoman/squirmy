@@ -17,7 +17,7 @@ import { touchTarget } from './Transport'
 const rowHeight = 48
 
 const labelClass = 'text-[11px] font-medium uppercase tracking-wider text-muted-foreground'
-const toggleClass = 'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary/30 aria-pressed:bg-primary/10 aria-pressed:text-foreground aria-pressed:[&_svg]:text-primary [&_svg]:size-3.5'
+const toggleClass = 'inline-flex h-7 pointer-coarse:h-11 items-center gap-1.5 rounded-md border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary/30 aria-pressed:bg-primary/10 aria-pressed:text-foreground aria-pressed:[&_svg]:text-primary [&_svg]:size-3.5'
 
 /**
  * The whole queue: what is playing, up next, autoplay and history. `modes` shows shuffle and repeat
@@ -85,7 +85,7 @@ export function QueueContent({ player, modes = true }: { player: Player; modes?:
 
 function QueueHeading({ id, children, detail, action }: { id: string; children: ReactNode; detail?: string; action?: ReactNode }) {
   return (
-    <div className="flex h-7 items-center gap-2 px-2">
+    <div className="flex h-7 pointer-coarse:h-11 items-center gap-2 px-2">
       <h3 id={id} className={labelClass}>{children}</h3>
       {detail && <span className="text-xs tabular text-muted-foreground">{detail}</span>}
       {action && <span className="ml-auto flex">{action}</span>}
@@ -95,7 +95,7 @@ function QueueHeading({ id, children, detail, action }: { id: string; children: 
 
 function ClearButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button type="button" aria-label={label} onClick={onClick} className="-mr-1.5 h-6 rounded-md px-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+    <button type="button" aria-label={label} onClick={onClick} className="-mr-1.5 h-6 rounded-md px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
       Clear
     </button>
   )
@@ -305,7 +305,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
                     pointer.current = null
                     setDrag(null)
                   }}
-                  className={cn('flex h-8 w-6 touch-none items-center justify-center rounded-md pointer-coarse:h-11 pointer-coarse:w-9 text-muted-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring', held ? 'cursor-grabbing text-foreground' : 'cursor-grab')}
+                  className={cn('flex h-8 w-6 touch-none items-center justify-center rounded-md pointer-coarse:h-11 pointer-coarse:w-11 text-muted-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring', held ? 'cursor-grabbing text-foreground' : 'cursor-grab')}
                 >
                   <GripVertical aria-hidden className="size-4" />
                 </button>
