@@ -1,7 +1,7 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button, Host, HStack, List, Spacer, SwipeActions, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, buttonStyle, disabled, dynamicTypeSize, environment, font, foregroundStyle, frame, labelStyle,
+  accessibilityAddTraits, accessibilityLabel, buttonStyle, dynamicTypeSize, environment, font, foregroundStyle, frame, labelStyle,
   lineLimit, listRowBackground, listRowInsets, listRowSeparatorTint, listStyle, onGeometryChange, opacity, padding, scrollContentBackground,
   scrollDisabled, tint,
 } from '@expo/ui/swift-ui/modifiers';
@@ -189,7 +189,7 @@ export default function QueuePage(_props: QueueProps) {
 
 /** A heading or note between the lists, at least `height` tall and taller when its text needs it. */
 function QueueBand({ height, children }: { height: number; children: React.ReactNode }) {
-  return <Host alignment="leading" matchContents={{ vertical: true }} style={[styles.band, { minHeight: height }]}
+  return <Host alignment="leading" ignoreSafeArea="container" matchContents={{ vertical: true }} style={[styles.band, { minHeight: height }]}
     modifiers={[headingTextLimit, frame({ maxWidth: Infinity, minHeight: height, alignment: 'leading' })]}>{children}</Host>;
 }
 
@@ -296,8 +296,8 @@ type QueueTrackProps = {
   position?: QueuePosition;
   /**
    * Reordering: the row is only something to drag, so it leaves out its heart and menu and does
-   * not play when touched. The system's reorder handle is narrow (27 pt) and cannot be widened;
-   * with nothing else to press beside it, a touch that misses it does nothing.
+   * not play when touched. The system's reorder handle is narrow (27 pt) and cannot be widened,
+   * but with no button on the row a press and hold anywhere on it drags it too.
    */
   editing?: boolean;
   /** The least height of a row, which it grows from with its text. */
@@ -332,19 +332,21 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, editing
   const heart = heartButton(favorite, title);
   // A failed or gray song fades its cover, and its text takes colors that stay readable (3:1);
   // the heart and menu keep their full color, since they still work.
+  const label = accessibilityLabel([pending?.title ?? title, detail].filter(Boolean).join(', '));
+  const body = <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape, ...(editing ? [label] : [])]}>
+    <ZStack modifiers={failed ? [opacity(unavailableOpacity)] : []}><TrackCover track={track} size={38} /></ZStack>
+    <VStack alignment="leading" spacing={3} modifiers={[padding({ vertical: 6 })]}>
+      <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), ...lines,
+        ...(pending ? [foregroundStyle(colors.muted)] : failed ? [foregroundStyle(colors.fadedTitle)] : [])]}>{pending?.title ?? title}</Text>
+      {detail ? <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(failed ? colors.fadedCredit : colors.muted), ...lines]}>{detail}</Text> : null}
+    </VStack>
+    <Spacer minLength={4} />
+  </HStack>;
   return <HStack spacing={0} modifiers={[frame({ minHeight }), onGeometryChange(({ height }) => onHeight(entry.id, height))]}>
-    <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }}
-      modifiers={[plainButton, disabled(editing), accessibilityLabel([pending?.title ?? title, detail].filter(Boolean).join(', '))]}>
-      <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape]}>
-        <ZStack modifiers={failed ? [opacity(unavailableOpacity)] : []}><TrackCover track={track} size={38} /></ZStack>
-        <VStack alignment="leading" spacing={3} modifiers={[padding({ vertical: 6 })]}>
-          <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), ...lines,
-            ...(pending ? [foregroundStyle(colors.muted)] : failed ? [foregroundStyle(colors.fadedTitle)] : [])]}>{pending?.title ?? title}</Text>
-          {detail ? <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(failed ? colors.fadedCredit : colors.muted), ...lines]}>{detail}</Text> : null}
-        </VStack>
-        <Spacer minLength={4} />
-      </HStack>
-    </Button>
+    {/* While reordering the row is no button, so a press anywhere on it picks it up to drag, not only the handle. */}
+    {editing ? body : <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, label]}>
+      {body}
+    </Button>}
     {track && !editing && <IconButton symbol={heart.icon} size={17} label={heart.label}
       color={favorite ? colors.accent : colors.muted} selected={heart.selected}
       onPress={() => handlers.run(track, { id: favorite ? 'unlike' : 'like', title, icon: 'heart' })} />}

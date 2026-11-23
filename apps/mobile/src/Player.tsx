@@ -673,7 +673,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   retryText: { color: colors.accent, fontSize: 16, fontWeight: '700' },
   // Floats over the lyrics' bottom edge, clear of the lines' own touches, 44 pt tall.
   backToLine: { position: 'absolute', bottom: 12, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44,
-    paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.floating, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
+    paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.sheet, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
   backToLineText: { color: colors.accent, fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.65 },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: 25, paddingTop: 8, paddingBottom: 6 },
