@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { IconButton } from '@/components/ui/icon-button'
+import { scrollBehavior } from '@/lib/motion'
 import { SectionHeader } from './SectionHeader'
 
 type RailProps = {
@@ -35,7 +36,7 @@ export function Rail({ title, href, quiet, children }: RailProps) {
 
   const page = (direction: 1 | -1) => {
     const element = scroller.current
-    element?.scrollBy({ left: direction * element.clientWidth * 0.85, behavior: 'smooth' })
+    element?.scrollBy({ left: direction * element.clientWidth * 0.85, behavior: scrollBehavior() })
   }
 
   return (

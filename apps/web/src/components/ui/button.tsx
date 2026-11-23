@@ -12,7 +12,7 @@ const buttonVariants = cva(
         // Filled buttons hold their focus ring off by a gap: in some themes the ring is the fill's own color.
         primary: 'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
-        outline: 'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50',
+        outline: 'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/15 dark:hover:bg-input/25',
         ghost: 'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
         danger: 'bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         link: 'text-primary underline-offset-4 hover:underline',

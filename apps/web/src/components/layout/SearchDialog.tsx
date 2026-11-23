@@ -101,7 +101,8 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogFrame showClose={false} className="top-[18%] flex max-h-[min(34rem,calc(82dvh-1rem))] translate-y-0 flex-col overflow-hidden sm:max-w-xl">
         <DialogTitle className="sr-only">Search</DialogTitle>
-        <div className="flex items-center gap-2.5 border-b px-4">
+        {/* The field has no box of its own, so focus shows as a line in the focus color under it. */}
+        <div className="flex items-center gap-2.5 border-b px-4 has-[input:focus-visible]:shadow-[inset_0_-2px_0_var(--ring)]">
           {loading ? <Spinner className="size-4" label="Searching" /> : <Search aria-hidden className="size-4 text-muted-foreground" />}
           <input
             autoFocus

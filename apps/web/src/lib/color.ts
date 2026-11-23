@@ -85,6 +85,15 @@ export function mixHex(from: string, to: string, amount: number): string {
   return rgbToHex(oklabToRgb(a.map((value, index) => value + (b[index] - value) * amount) as Lab))
 }
 
+/**
+ * The color with its OKLab lightness held between `min` and `max`, hue and chroma kept (as far as
+ * sRGB can show them).
+ */
+export function clampLightness(hex: string, min: number, max: number): string {
+  const [l, a, b] = rgbToOklab(hexToRgb(hex))
+  return rgbToHex(oklabToRgb([Math.min(max, Math.max(min, l)), a, b]))
+}
+
 /** OKLab lightness, 0 (black) to 1 (white). */
 export function lightness(hex: string): number {
   return rgbToOklab(hexToRgb(hex))[0]

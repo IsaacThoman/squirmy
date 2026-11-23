@@ -37,10 +37,11 @@ export function ImportsList({ imports, ownerOf, onCancel }: ImportsListProps) {
       {imports.map(item => {
         const failed = item.status === 'failed' && !isCancelled(item)
         return (
+          // The fill alone is too faint to find the keyboard on; the link's own ring marks focus.
           <li key={item.id} className="group relative flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent/60 has-[a:focus-visible]:bg-accent/60">
             <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg border', failed ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'bg-muted/50 text-muted-foreground')}><ImportKindIcon kind={item.kind} className="size-4" /></div>
             <div className="min-w-0 flex-1">
-              <Link to={`/imports/${item.id}`} className="block truncate text-sm font-medium outline-none after:absolute after:inset-0">{item.label ?? `${kindLabels[item.kind]} import`}</Link>
+              <Link to={`/imports/${item.id}`} className="block truncate text-sm font-medium outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring">{item.label ?? `${kindLabels[item.kind]} import`}</Link>
               <p className="truncate text-xs text-muted-foreground">
                 {[kindLabels[item.kind], ownerOf(item), formatRelative(item.createdAt), failed ? item.error : importSummary(item)].filter(Boolean).join(' · ')}
               </p>

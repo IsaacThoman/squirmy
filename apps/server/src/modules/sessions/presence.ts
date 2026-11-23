@@ -1,12 +1,15 @@
 import type { ClientDevice, DeviceInfo } from '@squirmy/contracts'
 
 /**
- * Which of a user's devices are connected right now, and through which sockets. A device
- * can have several sockets (two tabs of the web app); it is listed until the last closes.
+ * Which of a user's devices are live right now, and through which sockets. A device can
+ * have several sockets (two tabs of the web app); it is listed until the last closes. A
+ * socket stays open only while it answers the heartbeat (see "Presence" in the session
+ * contract), so an open socket is a live device.
  */
 
 /**
- * `lastSeenAt`: when the device last said anything (its hello, a command, a report).
+ * `lastSeenAt`: when the device last said anything (its hello, a command, a report, an
+ * answer to the heartbeat), so a listed device was always seen moments ago.
  * `listedSeenAt`: the value the user's devices were last sent, so a device that keeps
  * reporting is sent again only every `SEEN_STEP_MS`.
  */

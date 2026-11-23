@@ -1,15 +1,16 @@
 import { planChanges, RealtimeBatch, type ChangePlan } from '@squirmy/client-core';
 import type { SquirmySocket } from '@squirmy/client-core/socket';
-import { queryKeys, type EntityChange } from '@squirmy/contracts';
+import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TIMEOUT_MS, queryKeys, type EntityChange } from '@squirmy/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Network from 'expo-network';
-import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { AppState } from 'react-native';
 import { io } from 'socket.io-client';
 import { useAccount } from '../account/AccountProvider';
 import { socketAddress } from '../account/address';
 import { applyChanges } from './changes';
 import { Echoes } from './echoes';
+import { BackgroundPresence } from './presence';
 import { offlineAt, type SocketLink } from './reachability';
 import { refreshAfterReconnect } from './reconnect';
 
@@ -36,15 +37,20 @@ type Realtime = {
    * the cached data stale: the caller has already updated it.
    */
   expectEcho: (key: readonly unknown[]) => void;
+  /**
+   * Whether this phone plays the session now. In the background the socket stays open only
+   * while it does (see `BackgroundPresence`).
+   */
+  setPlayingHere: (playing: boolean) => void;
 };
 
 /** Retry delay after the server refused the handshake, which socket.io does not retry itself. */
 const refusedRetryMs = 5000;
-/** The server pings every 25 seconds; a socket silent for longer was suspended with the app. */
-const staleAfterMs = 30_000;
+/** The server pings every few seconds; a socket that heard none for longer than it waits for an answer was suspended with the app. */
+const staleAfterMs = HEARTBEAT_INTERVAL_MS + HEARTBEAT_TIMEOUT_MS;
 
 const RealtimeContext = createContext<Realtime>({
-  socket: null, offline: false, onInvalidate: () => () => undefined, onChanges: () => () => undefined, expectEcho: () => undefined,
+  socket: null, offline: false, onInvalidate: () => () => undefined, onChanges: () => () => undefined, expectEcho: () => undefined, setPlayingHere: () => undefined,
 });
 
 /** How long invalidations are collected, so a burst refetches each query once. */
@@ -57,7 +63,9 @@ const batchMs = 100;
  * screen, since messages may have been missed meanwhile. The connection is renewed when the app returns from being suspended and when
  * the network changes, since iOS drops sockets silently in both cases. While it stays
  * down the app is offline, unless the server answers requests meanwhile (`offlineAt`):
- * a cold start's first connection can take seconds while requests already succeed.
+ * a cold start's first connection can take seconds while requests already succeed. In the
+ * background with nothing playing here it is closed on purpose (`BackgroundPresence`),
+ * which is not offline.
  */
 export function RealtimeProvider({ children }: PropsWithChildren) {
   const { state, reach } = useAccount();
@@ -69,6 +77,12 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   const [listeners] = useState(() => new Set<InvalidateListener>());
   const [changeListeners] = useState(() => new Set<ChangesListener>());
   const [echoes] = useState(() => new Echoes());
+  const playingHere = useRef(false);
+  const presence = useRef<BackgroundPresence | null>(null);
+  const [setPlayingHere] = useState(() => (playing: boolean) => {
+    playingHere.current = playing;
+    presence.current?.setPlaying(playing);
+  });
 
   useEffect(() => {
     if (!serverUrl || !token) return;
@@ -103,6 +117,9 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       next.disconnect();
       next.connect();
     };
+    const parking = new BackgroundPresence(next, AppState.currentState !== 'background');
+    parking.setPlaying(playingHere.current);
+    presence.current = parking;
 
     next.on('connect', () => {
       heard();
@@ -114,6 +131,8 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       updateOffline();
     });
     next.on('disconnect', reason => {
+      // Closed on purpose in the background: nobody is looking, and it opens on return.
+      if (parking.parked) return;
       link = { ...link, connected: false, downSince: Date.now() };
       updateOffline();
       if (reason === 'io server disconnect') {
@@ -122,10 +141,12 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       }
     });
     next.on('connect_error', () => {
-      if (next.active) return;
+      if (next.active || parking.parked) return;
       recheckSession();
       clearTimeout(retry);
-      retry = setTimeout(() => next.connect(), refusedRetryMs);
+      retry = setTimeout(() => {
+        if (!parking.parked) next.connect();
+      }, refusedRetryMs);
     });
     next.on('invalidate', ({ keys }) => {
       const own = echoes.isOwn(keys);
@@ -142,7 +163,12 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     next.io.on('ping', heard);
 
     const app = AppState.addEventListener('change', status => {
+      if (status === 'background') return parking.setForeground(false);
       if (status !== 'active') return;
+      const wasParked = parking.parked;
+      // Opens a socket it closed; one closed otherwise is opened, or renewed, here.
+      parking.setForeground(true);
+      if (wasParked) return;
       if (!next.connected) next.connect();
       else if (Date.now() - lastHeard > staleAfterMs) renew();
     });
@@ -150,7 +176,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     const network = Network.addNetworkStateListener(({ type, isConnected }) => {
       const changed = networkType !== undefined && type !== networkType;
       networkType = type;
-      if (!isConnected) return;
+      if (!isConnected || parking.parked) return;
       if (!next.connected) next.connect();
       else if (changed) renew();
     });
@@ -165,6 +191,8 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       setOffline(false);
       answers();
       batch.clear();
+      parking.dispose();
+      presence.current = null;
       app.remove();
       network.remove();
       next.removeAllListeners();
@@ -186,7 +214,8 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       return () => changeListeners.delete(listener);
     },
     expectEcho: echoes.expect,
-  }), [changeListeners, echoes, listeners, offline, socket]);
+    setPlayingHere,
+  }), [changeListeners, echoes, listeners, offline, setPlayingHere, socket]);
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
 }

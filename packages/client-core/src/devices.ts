@@ -39,9 +39,13 @@ function plainName(device: DeviceInfo): string {
   return tab && tab > 1 ? device.name.replace(new RegExp(` \\(${tab}\\)$`), '') : device.name
 }
 
-/** Which of a browser's tabs stands for it in a list: the playing one, else the most recently seen, else the first. */
-function rank(device: DeviceInfo): [number, number, number] {
-  return [device.isActive ? 1 : 0, device.lastSeenAt ?? 0, -(browserTab(device)?.tab ?? 1)]
+/**
+ * Which of a browser's tabs stands for it in a list: the playing one, else the first. Not
+ * the one seen last: every listed tab answers the server's heartbeat, which keeps their
+ * `lastSeenAt` within moments of each other, so going by it would swap the row between lists.
+ */
+function rank(device: DeviceInfo): [number, number] {
+  return [device.isActive ? 1 : 0, -(browserTab(device)?.tab ?? 1)]
 }
 
 function before(a: DeviceInfo, b: DeviceInfo): boolean {
@@ -52,7 +56,7 @@ function before(a: DeviceInfo, b: DeviceInfo): boolean {
 
 /**
  * The devices a picker lists, in the order given: one row per browser rather than per tab
- * (the playing tab, else the one seen last). The viewer's own tab is kept, and its
+ * (the playing tab, else the first). The viewer's own tab is kept, and its
  * browser's other tabs are kept apart from it as one "Another tab" row. Detached devices
  * play something of their own each, so they are never folded together.
  */
@@ -128,4 +132,14 @@ export function deviceLabel(device: DeviceInfo, devices: readonly DeviceInfo[], 
 export function playingOnText(label: Pick<DeviceLabel, 'name' | 'relation'>, playing = true): string {
   const verb = playing ? 'Playing' : 'Paused'
   return label.relation === 'tab' ? `${verb} in another tab` : `${verb} on ${label.name}`
+}
+
+/**
+ * What a player says while the session waits for its active device to come back (the
+ * client's `away`): "Reconnecting to Chrome on macOS…", "Reconnecting to another tab…", or,
+ * for a device this client never saw listed, "Reconnecting to the playing device…".
+ */
+export function reconnectingText(label: Pick<DeviceLabel, 'name' | 'relation'> | null): string {
+  if (!label) return 'Reconnecting to the playing device…'
+  return label.relation === 'tab' ? 'Reconnecting to another tab…' : `Reconnecting to ${label.name}…`
 }

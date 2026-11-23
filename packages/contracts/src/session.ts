@@ -282,8 +282,35 @@ export const EngineReport = z.object({
 export type EngineReport = z.infer<typeof EngineReport>
 
 /**
- * One of the user's connected devices. Every client of the user gets the same list,
- * whichever session it is in.
+ * Presence.
+ *
+ * A device is listed (in `devices`, hello answers and `GET /me/devices`) only while it is
+ * live: at least one of its sockets is open and answering the server's heartbeat. The
+ * heartbeat is socket.io's own ping: the server pings every `HEARTBEAT_INTERVAL_MS` and
+ * closes a socket that has not answered within `HEARTBEAT_TIMEOUT_MS`, so a device that
+ * went silent (asleep, suspended, off the network) leaves the list within the sum of the
+ * two. Clients answer it from the socket's message handler, not from a timer, so a hidden
+ * browser tab keeps answering; a page the browser freezes, or an app the OS suspends,
+ * does not, and is not listed. A socket that closes cleanly (a tab closed, an app sent to
+ * the background with nothing playing) leaves the list at once. Older clients answer the
+ * same ping: socket.io takes its timings from the server's handshake.
+ *
+ * The shared session's `activeDeviceId` can name a device the list leaves out: it went
+ * away, and the server gives it `DEVICE_GRACE_MS` to come back with the session's clock
+ * stopped (`stalled`). Clients show that as reconnecting to it, never as a device to pick.
+ * When it does not return, the server applies `deviceLost`; when it does, it is listed again.
+ */
+
+/** How often the server pings each socket. */
+export const HEARTBEAT_INTERVAL_MS = 5_000
+/** How long the server waits for the answer to a ping before closing the socket: two pings' worth. */
+export const HEARTBEAT_TIMEOUT_MS = 10_000
+/** How long the session waits for an active device that went away before `deviceLost`. */
+export const DEVICE_GRACE_MS = 20_000
+
+/**
+ * One of the user's live devices (see "Presence"). Every client of the user gets the same
+ * list, whichever session it is in.
  */
 export const DeviceInfo = z.object({
   id: z.string(),
@@ -303,9 +330,11 @@ export const DeviceInfo = z.object({
    */
   isCurrent: z.boolean().optional(),
   /**
-   * When the device last said anything over its socket (its hello, a command, a report),
-   * epoch milliseconds. Sent again as it moves on, at most once a minute per device, so
-   * clients can tell apart devices with the same name. Absent from older servers.
+   * When the device last said anything over its socket (its hello, a command, a report, an
+   * answer to the heartbeat), epoch milliseconds. Sent again as it moves on, at most once a
+   * minute per device. A listed device is live, so this is never much more than a minute
+   * old; older servers counted only what the device sent of its own, and clients still say
+   * how long such a device was quiet. Absent from older servers.
    */
   lastSeenAt: z.number().int().optional(),
   /**

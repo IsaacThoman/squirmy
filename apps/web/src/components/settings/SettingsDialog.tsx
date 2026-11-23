@@ -3,7 +3,7 @@ import {
   type AppPassword, type NormalizationMode, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
 import { AlertTriangle, AudioLines, Info, KeyRound, LogOut, Palette, Pencil, Plus, Radio, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useFormSubmit } from '@/api/errors'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
@@ -82,12 +82,14 @@ export type SettingsDialogProps = {
   onLogout: () => void
   /** Admins get a link to the admin panel under the sections. */
   onOpenAdmin?: () => void
+  /** Said in place of a section's controls when its first read failed. */
+  failures?: Partial<Record<'settings' | 'scrobbling' | 'appPasswords', ReactNode>>
 }
 
 /** The user's settings in a dialog: sections down the left, the chosen one on the right. */
 export function SettingsDialog({
   open, onOpenChange, section, onSectionChange, user, serverName, version, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange,
-  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout, onOpenAdmin,
+  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout, onOpenAdmin, failures,
 }: SettingsDialogProps) {
   const [dialog, setDialog] = useState<'app-password' | 'password' | 'rename' | 'listenbrainz' | null>(null)
   const [revoking, setRevoking] = useState<AppPassword | null>(null)
@@ -95,10 +97,6 @@ export function SettingsDialog({
   const close = (next: boolean) => { if (!next) setDialog(null) }
   const nav = useRef<HTMLElement>(null)
   const currentSection = () => nav.current?.querySelector<HTMLElement>('[aria-current="page"]') ?? null
-  // On a phone the sections are a row that scrolls sideways; the current one is kept in view.
-  useEffect(() => {
-    if (open) currentSection()?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [open, section])
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogFrame
@@ -109,13 +107,16 @@ export function SettingsDialog({
           event.preventDefault()
           button.focus()
         }}
-        className="flex h-[min(680px,calc(100dvh-2rem))] flex-col overflow-hidden sm:h-[600px] sm:max-h-[85vh] lg:max-w-3xl"
+        className="flex h-[min(680px,calc(100dvh-var(--dialog-inset-y)*2))] flex-col overflow-hidden sm:h-[600px] sm:max-h-[85vh] lg:max-w-3xl"
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:flex-row">
           <div className="flex w-full shrink-0 flex-col border-b bg-muted/30 p-2 sm:w-52 sm:border-b-0 sm:border-r sm:p-3">
             <DialogTitle className="px-2 pb-1.5 pr-8 text-sm font-semibold sm:pb-2 sm:pr-2">Settings</DialogTitle>
-            {/* The row's padding leaves room for the focus ring, which the scrolling would clip. */}
-            <nav ref={nav} aria-label="Settings sections" className="scrollbar-none -m-0.5 flex gap-1 overflow-x-auto p-0.5 sm:m-0 sm:block sm:space-y-0.5 sm:overflow-visible sm:p-0">
+            {/*
+              On a phone the sections are a grid of small tiles, every one in sight: a row that
+              scrolled sideways hid half of them with nothing to say they were there.
+            */}
+            <nav ref={nav} aria-label="Settings sections" className="grid grid-cols-3 gap-1 sm:block sm:space-y-0.5">
               {sections.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
@@ -123,11 +124,11 @@ export function SettingsDialog({
                   aria-current={section === id ? 'page' : undefined}
                   onClick={() => onSectionChange(id)}
                   className={cn(
-                    'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:w-full sm:gap-2.5',
+                    'flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:w-full sm:flex-row sm:justify-start sm:gap-2.5 sm:px-2.5 sm:py-2 sm:text-sm sm:pointer-coarse:min-h-11',
                     section === id ? 'bg-accent font-medium' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
                   )}
                 >
-                  <Icon aria-hidden className="size-4" />{label}
+                  <Icon aria-hidden className="size-4 shrink-0" /><span className="max-w-full truncate">{label}</span>
                 </button>
               ))}
             </nav>
@@ -155,7 +156,7 @@ export function SettingsDialog({
                       <Select id="quality-cellular" label="Cellular quality" value={settings.qualityCellular} options={qualityOptions} onValueChange={qualityCellular => onSettingsChange({ qualityCellular })} className="w-40" />
                     </Row>
                   </>
-                ) : <LoadingRows rows={3} />}
+                ) : failures?.settings ?? <LoadingRows rows={3} />}
                 <Separator />
                 <Row htmlFor="device-name" label="This browser’s name" description="How your other devices list it when you move playback.">
                   <DeviceNameField key={deviceName} name={deviceName} placeholder={defaultDeviceName} onChange={onDeviceNameChange} />
@@ -195,7 +196,7 @@ export function SettingsDialog({
                       onDisconnect={() => setDisconnecting(service)}
                     />
                   ))
-                  : <LoadingRows rows={2} />}
+                  : failures?.scrobbling ?? <LoadingRows rows={2} />}
               </Panel>
             )}
 
@@ -205,7 +206,7 @@ export function SettingsDialog({
                 description="For Subsonic apps, which need a password of their own. Revoke one to sign that app out."
                 action={<Button size="sm" variant="outline" onClick={() => setDialog('app-password')}><Plus />Create</Button>}
               >
-                {!appPasswords && <LoadingRows rows={1} />}
+                {!appPasswords && (failures?.appPasswords ?? <LoadingRows rows={1} />)}
                 {appPasswords?.length === 0 && <Row label="No app passwords" description="Create one to connect a Subsonic client." />}
                 {appPasswords?.map(password => (
                   <Row

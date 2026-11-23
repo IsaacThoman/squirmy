@@ -10,7 +10,7 @@ const iconButtonVariants = cva(
       variant: {
         ghost: 'text-muted-foreground hover:bg-accent hover:text-foreground aria-pressed:text-primary',
         solid: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        outline: 'border bg-background text-foreground shadow-xs hover:bg-accent dark:border-input dark:bg-input/30 dark:hover:bg-input/50',
+        outline: 'border bg-background text-foreground shadow-xs hover:bg-accent dark:border-input dark:bg-input/15 dark:hover:bg-input/25',
         /** Over artwork, whatever the theme. */
         glass: 'bg-black/35 text-white backdrop-blur-md hover:bg-black/50',
         // Filled: the focus ring stands off by a gap, since in some themes it is the fill's own color.
