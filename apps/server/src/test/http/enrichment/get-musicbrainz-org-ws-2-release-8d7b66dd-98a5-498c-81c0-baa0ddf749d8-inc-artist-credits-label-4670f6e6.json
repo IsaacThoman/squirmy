@@ -1,0 +1,776 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/8d7b66dd-98a5-498c-81c0-baa0ddf749d8?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-events": [
+        {
+          "date": "2026-09-04",
+          "area": {
+            "disambiguation": "",
+            "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+            "sort-name": "[Worldwide]",
+            "iso-3166-1-codes": [
+              "XW"
+            ],
+            "name": "[Worldwide]",
+            "type": null,
+            "type-id": null
+          }
+        }
+      ],
+      "barcode": "00881061182917",
+      "date": "2026-09-04",
+      "disambiguation": "explicit",
+      "packaging": "None",
+      "relations": [
+        {
+          "url": {
+            "resource": "https://soundcloud.com/adelajergova/sets/prima-456415862",
+            "id": "8ffdb93e-9fea-4c5a-96ae-8b5b66523c26"
+          },
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "attribute-ids": {},
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "target-credit": "",
+          "attributes": [],
+          "target-type": "url",
+          "begin": null,
+          "direction": "forward",
+          "type": "free streaming",
+          "attribute-values": {}
+        },
+        {
+          "source-credit": "",
+          "ended": false,
+          "end": null,
+          "url": {
+            "resource": "https://www.deezer.com/album/1064827231",
+            "id": "978a898e-b13a-4e13-8df4-0a858460aaa4"
+          },
+          "begin": null,
+          "direction": "forward",
+          "target-type": "url",
+          "attribute-values": {},
+          "type": "free streaming",
+          "target-credit": "",
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "attribute-ids": {},
+          "attributes": []
+        },
+        {
+          "end": null,
+          "ended": false,
+          "source-credit": "",
+          "url": {
+            "id": "7f7ded88-0b10-4aa3-b570-1ffe3f17124f",
+            "resource": "https://mora.jp/package/43000006/00881061182917/"
+          },
+          "type": "purchase for download",
+          "attribute-values": {},
+          "target-type": "url",
+          "direction": "forward",
+          "begin": null,
+          "attributes": [],
+          "type-id": "98e08c20-8402-4163-8970-53504bb6a1e4",
+          "attribute-ids": {},
+          "target-credit": ""
+        },
+        {
+          "target-type": "url",
+          "direction": "forward",
+          "begin": null,
+          "type": "purchase for download",
+          "attribute-values": {},
+          "attribute-ids": {},
+          "type-id": "98e08c20-8402-4163-8970-53504bb6a1e4",
+          "target-credit": "",
+          "attributes": [],
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "resource": "https://mora.jp/package/43000006/00881061182917_L/",
+            "id": "a0bb41d5-0016-4ca1-898f-41b0f14e765b"
+          }
+        },
+        {
+          "ended": false,
+          "source-credit": "",
+          "end": null,
+          "url": {
+            "id": "731cf5bf-4965-4034-93a7-27d67d9359df",
+            "resource": "https://www.beatport.com/release/-/7422114"
+          },
+          "target-type": "url",
+          "direction": "forward",
+          "begin": null,
+          "type": "purchase for download",
+          "attribute-values": {},
+          "type-id": "98e08c20-8402-4163-8970-53504bb6a1e4",
+          "attribute-ids": {},
+          "target-credit": "",
+          "attributes": []
+        },
+        {
+          "url": {
+            "resource": "https://www.qobuz.com/us-en/album/prima-adela/dyd1lls3bv10l",
+            "id": "cdc84d30-af35-4887-9a1b-47d8245166b3"
+          },
+          "end": null,
+          "source-credit": "",
+          "ended": false,
+          "attributes": [],
+          "target-credit": "",
+          "attribute-ids": {},
+          "type-id": "98e08c20-8402-4163-8970-53504bb6a1e4",
+          "attribute-values": {},
+          "type": "purchase for download",
+          "begin": null,
+          "direction": "forward",
+          "target-type": "url"
+        },
+        {
+          "type-id": "320adf26-96fa-4183-9045-1f5f32f833cb",
+          "attribute-ids": {},
+          "target-credit": "",
+          "attributes": [],
+          "target-type": "url",
+          "begin": null,
+          "direction": "forward",
+          "type": "streaming",
+          "attribute-values": {},
+          "url": {
+            "resource": "https://www.qobuz.com/us-en/album/prima-adela/dyd1lls3bv10l",
+            "id": "cdc84d30-af35-4887-9a1b-47d8245166b3"
+          },
+          "ended": false,
+          "source-credit": "",
+          "end": null
+        }
+      ],
+      "artist-credit": [
+        {
+          "name": "ADÉLA",
+          "artist": {
+            "disambiguation": "Slovak singer-songwriter",
+            "sort-name": "ADÉLA",
+            "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+            "type": "Person",
+            "name": "ADÉLA",
+            "country": "SK",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+          },
+          "joinphrase": ""
+        }
+      ],
+      "country": "XW",
+      "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+      },
+      "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+      "media": [
+        {
+          "track-count": 11,
+          "track-offset": 0,
+          "tracks": [
+            {
+              "position": 1,
+              "length": 157000,
+              "id": "f116b514-d87e-4fb2-9d0c-8997d9186335",
+              "title": "KGB",
+              "number": "1",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "SK",
+                    "type": "Person",
+                    "name": "ADÉLA",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "sort-name": "ADÉLA",
+                    "disambiguation": "Slovak singer-songwriter"
+                  },
+                  "name": "ADÉLA"
+                }
+              ],
+              "recording": {
+                "id": "9b4c8e83-cf7d-4f8f-bfa4-ac1916efb634",
+                "length": 158000,
+                "title": "KGB",
+                "video": false,
+                "disambiguation": "explicit",
+                "artist-credit": [
+                  {
+                    "name": "ADÉLA",
+                    "artist": {
+                      "disambiguation": "Slovak singer-songwriter",
+                      "sort-name": "ADÉLA",
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                      "type": "Person",
+                      "name": "ADÉLA",
+                      "country": "SK",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "USUM72601922"
+                ],
+                "first-release-date": "2026-04-17"
+              }
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "ADÉLA",
+                  "artist": {
+                    "type": "Person",
+                    "name": "ADÉLA",
+                    "country": "SK",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "Slovak singer-songwriter",
+                    "sort-name": "ADÉLA",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "isrcs": [
+                  "USUM72606032"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "ADÉLA",
+                    "artist": {
+                      "type": "Person",
+                      "name": "ADÉLA",
+                      "country": "SK",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "Slovak singer-songwriter",
+                      "sort-name": "ADÉLA",
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "first-release-date": "2026-09-04",
+                "id": "e57859ec-f484-42f4-978a-65e262a60c68",
+                "length": 181000,
+                "video": false,
+                "disambiguation": "digital version, explicit",
+                "title": "Nicole Kidman"
+              },
+              "number": "2",
+              "title": "Nicole Kidman",
+              "id": "7e2212c1-47b5-4f32-ba06-20f801b34aa2",
+              "length": 181000,
+              "position": 2
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type": "Person",
+                    "name": "ADÉLA",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "SK",
+                    "disambiguation": "Slovak singer-songwriter",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "sort-name": "ADÉLA"
+                  },
+                  "joinphrase": "",
+                  "name": "ADÉLA"
+                }
+              ],
+              "recording": {
+                "first-release-date": "2026-09-04",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "SK",
+                      "name": "ADÉLA",
+                      "type": "Person",
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                      "sort-name": "ADÉLA",
+                      "disambiguation": "Slovak singer-songwriter"
+                    },
+                    "joinphrase": "",
+                    "name": "ADÉLA"
+                  }
+                ],
+                "isrcs": [
+                  "USUM72606033"
+                ],
+                "title": "I’m the Man",
+                "disambiguation": "explicit",
+                "video": false,
+                "length": 150000,
+                "id": "57c734ad-1be3-4ea5-ae47-478a111e169d"
+              },
+              "number": "3",
+              "title": "I’m the Man",
+              "length": 150000,
+              "id": "9afcb7fe-908f-4fd3-bcaf-be49898526f1",
+              "position": 3
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "Slovak singer-songwriter",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "sort-name": "ADÉLA",
+                    "name": "ADÉLA",
+                    "type": "Person",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "SK"
+                  },
+                  "joinphrase": "",
+                  "name": "ADÉLA"
+                }
+              ],
+              "recording": {
+                "id": "10013cf2-19a3-4a7b-bf39-72a350c03289",
+                "length": 145000,
+                "title": "Boys",
+                "video": false,
+                "disambiguation": "digital version, explicit",
+                "artist-credit": [
+                  {
+                    "name": "ADÉLA",
+                    "joinphrase": "",
+                    "artist": {
+                      "disambiguation": "Slovak singer-songwriter",
+                      "sort-name": "ADÉLA",
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                      "type": "Person",
+                      "name": "ADÉLA",
+                      "country": "SK",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "USUM72606034"
+                ],
+                "first-release-date": "2026-09-04"
+              },
+              "number": "4",
+              "id": "595c76bd-80ad-41c2-97b4-e353cac4cbfa",
+              "length": 145000,
+              "position": 4,
+              "title": "Boys"
+            },
+            {
+              "position": 5,
+              "id": "8e7d94bd-5e6e-4303-89de-5e7dd17aefac",
+              "length": 187000,
+              "title": "Red Bottoms",
+              "number": "5",
+              "artist-credit": [
+                {
+                  "name": "ADÉLA",
+                  "artist": {
+                    "sort-name": "ADÉLA",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "disambiguation": "Slovak singer-songwriter",
+                    "country": "SK",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "name": "ADÉLA"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "isrcs": [
+                  "USUM72604713"
+                ],
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "ADÉLA",
+                      "type": "Person",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "SK",
+                      "disambiguation": "Slovak singer-songwriter",
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                      "sort-name": "ADÉLA"
+                    },
+                    "name": "ADÉLA"
+                  }
+                ],
+                "first-release-date": "2026-06-12",
+                "id": "eabbb286-caa7-4665-85f7-92745600a461",
+                "length": 187000,
+                "video": false,
+                "disambiguation": "explicit",
+                "title": "Red Bottoms"
+              }
+            },
+            {
+              "recording": {
+                "video": false,
+                "disambiguation": "",
+                "title": "Hitachi",
+                "id": "bef20283-14dd-4a53-bf05-05247403c813",
+                "length": 216000,
+                "first-release-date": "2026-09-04",
+                "isrcs": [
+                  "USUM72606035"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "ADÉLA",
+                    "artist": {
+                      "country": "SK",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "ADÉLA",
+                      "type": "Person",
+                      "sort-name": "ADÉLA",
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                      "disambiguation": "Slovak singer-songwriter"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "sort-name": "ADÉLA",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "disambiguation": "Slovak singer-songwriter",
+                    "country": "SK",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "ADÉLA",
+                    "type": "Person"
+                  },
+                  "name": "ADÉLA"
+                }
+              ],
+              "number": "6",
+              "id": "b270848f-b861-40dc-a497-26c3cd70b175",
+              "length": 216000,
+              "position": 6,
+              "title": "Hitachi"
+            },
+            {
+              "position": 7,
+              "length": 183000,
+              "id": "f2b53d0c-d587-4b93-adf7-d574787cb117",
+              "title": "Fantasize",
+              "number": "7",
+              "recording": {
+                "id": "c9c1f7c3-2ae0-4987-b299-039b2a03a9ca",
+                "length": 183000,
+                "title": "Fantasize",
+                "video": false,
+                "disambiguation": "digital version",
+                "artist-credit": [
+                  {
+                    "name": "ADÉLA",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                      "sort-name": "ADÉLA",
+                      "disambiguation": "Slovak singer-songwriter",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "SK",
+                      "type": "Person",
+                      "name": "ADÉLA"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "USUM72606036"
+                ],
+                "first-release-date": "2026-09-04"
+              },
+              "artist-credit": [
+                {
+                  "name": "ADÉLA",
+                  "artist": {
+                    "country": "SK",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "type": "Person",
+                    "name": "ADÉLA",
+                    "sort-name": "ADÉLA",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "disambiguation": "Slovak singer-songwriter"
+                  },
+                  "joinphrase": ""
+                }
+              ]
+            },
+            {
+              "number": "8",
+              "recording": {
+                "first-release-date": "2026-09-04",
+                "artist-credit": [
+                  {
+                    "name": "ADÉLA",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                      "sort-name": "ADÉLA",
+                      "disambiguation": "Slovak singer-songwriter",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "SK",
+                      "type": "Person",
+                      "name": "ADÉLA"
+                    }
+                  }
+                ],
+                "isrcs": [
+                  "USUM72606037"
+                ],
+                "title": "Starving Artist",
+                "video": false,
+                "disambiguation": "",
+                "id": "a563543a-2b7c-43b9-b591-d545b6425957",
+                "length": 181000
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "SK",
+                    "type": "Person",
+                    "name": "ADÉLA",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "sort-name": "ADÉLA",
+                    "disambiguation": "Slovak singer-songwriter"
+                  },
+                  "name": "ADÉLA"
+                }
+              ],
+              "position": 8,
+              "id": "262d2402-0163-4a9f-b7a0-d9086a638fb5",
+              "length": 180000,
+              "title": "Starving Artist"
+            },
+            {
+              "position": 9,
+              "length": 110000,
+              "id": "89a1153e-a829-4d23-9f74-961a91e33b8c",
+              "title": "Marijuana",
+              "number": "9",
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "SK",
+                    "name": "ADÉLA",
+                    "type": "Person",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "sort-name": "ADÉLA",
+                    "disambiguation": "Slovak singer-songwriter"
+                  },
+                  "name": "ADÉLA"
+                }
+              ],
+              "recording": {
+                "title": "Marijuana",
+                "video": false,
+                "disambiguation": "digital version, explicit",
+                "id": "7d4a7d5d-5d9f-4415-a7be-4c244fa1accf",
+                "length": 110000,
+                "first-release-date": "2026-09-04",
+                "artist-credit": [
+                  {
+                    "name": "ADÉLA",
+                    "artist": {
+                      "disambiguation": "Slovak singer-songwriter",
+                      "sort-name": "ADÉLA",
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                      "name": "ADÉLA",
+                      "type": "Person",
+                      "country": "SK",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "isrcs": [
+                  "USUM72606038"
+                ]
+              }
+            },
+            {
+              "position": 10,
+              "length": 180000,
+              "id": "139e9ce7-8ac3-4e53-99e1-0bca9de18fb6",
+              "title": "Therapy",
+              "number": "10",
+              "recording": {
+                "id": "4c7f04f5-1a1e-49bb-84cd-da7f06e93817",
+                "length": 179000,
+                "title": "Therapy",
+                "video": false,
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Person",
+                      "name": "ADÉLA",
+                      "country": "SK",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "Slovak singer-songwriter",
+                      "sort-name": "ADÉLA",
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646"
+                    },
+                    "name": "ADÉLA"
+                  }
+                ],
+                "isrcs": [
+                  "USUM72606039"
+                ],
+                "first-release-date": "2026-09-04"
+              },
+              "artist-credit": [
+                {
+                  "name": "ADÉLA",
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "SK",
+                    "type": "Person",
+                    "name": "ADÉLA",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "sort-name": "ADÉLA",
+                    "disambiguation": "Slovak singer-songwriter"
+                  }
+                }
+              ]
+            },
+            {
+              "title": "Ain’t in LA",
+              "position": 11,
+              "length": 187000,
+              "id": "584d8d10-bb44-43f4-ac90-8f03bbbe0acc",
+              "number": "11",
+              "artist-credit": [
+                {
+                  "name": "ADÉLA",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "country": "SK",
+                    "type": "Person",
+                    "name": "ADÉLA",
+                    "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                    "sort-name": "ADÉLA",
+                    "disambiguation": "Slovak singer-songwriter"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "recording": {
+                "first-release-date": "2026-07-23",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+                      "sort-name": "ADÉLA",
+                      "disambiguation": "Slovak singer-songwriter",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "country": "SK",
+                      "name": "ADÉLA",
+                      "type": "Person"
+                    },
+                    "name": "ADÉLA"
+                  }
+                ],
+                "isrcs": [
+                  "USUM72605978"
+                ],
+                "title": "Ain’t in LA",
+                "video": false,
+                "disambiguation": "explicit",
+                "id": "d14a2392-c6cc-439c-a576-0a1ad3095660",
+                "length": 186000
+              }
+            }
+          ],
+          "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+          "format": "Digital Media",
+          "title": "",
+          "id": "06a0cb5e-f444-41e6-8ae8-f29126a91b6d",
+          "position": 1
+        }
+      ],
+      "id": "8d7b66dd-98a5-498c-81c0-baa0ddf749d8",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "status": "Official",
+      "title": "PRIMA",
+      "asin": null,
+      "release-group": {
+        "title": "PRIMA",
+        "disambiguation": "",
+        "primary-type": "Album",
+        "id": "b7234418-f054-495d-9aa7-efcba9454b32",
+        "secondary-type-ids": [],
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "first-release-date": "2026-09-04",
+        "artist-credit": [
+          {
+            "artist": {
+              "sort-name": "ADÉLA",
+              "id": "f40856e6-079f-4a0a-916e-9e6a5e04f646",
+              "disambiguation": "Slovak singer-songwriter",
+              "country": "SK",
+              "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+              "type": "Person",
+              "name": "ADÉLA"
+            },
+            "joinphrase": "",
+            "name": "ADÉLA"
+          }
+        ],
+        "secondary-types": []
+      },
+      "label-info": [
+        {
+          "catalog-number": "00881061182917",
+          "label": {
+            "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+            "label-code": 148,
+            "name": "Capitol Records",
+            "type": "Imprint",
+            "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+            "sort-name": "Capitol Records",
+            "disambiguation": "imprint of Capitol Records, Inc."
+          }
+        }
+      ],
+      "quality": "normal",
+      "cover-art-archive": {
+        "count": 1,
+        "front": true,
+        "artwork": true,
+        "back": false,
+        "darkened": false
+      }
+    }
+  }
+}

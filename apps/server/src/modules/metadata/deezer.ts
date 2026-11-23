@@ -36,6 +36,11 @@ export type DeezerTrack = {
   title: string
   durationMs: number
   explicit: boolean
+  /**
+   * Deezer marks this track as an edited (clean) version of an explicit one, a recording of
+   * its own. Unknown when Deezer did not say.
+   */
+  edited?: boolean
   /** Deezer's popularity score; higher is more played. */
   rank: number | null
   isrc: string | null
@@ -82,6 +87,8 @@ type RawTrack = {
   link?: string
   duration: number
   explicit_lyrics?: boolean
+  /** 0 not explicit, 1 explicit, 2 unknown, 3 edited, 4 partially explicit, 6 no advice. */
+  explicit_content_lyrics?: number
   rank?: number
   isrc?: string
   track_position?: number
@@ -238,6 +245,7 @@ function track(raw: RawTrack, album?: RawAlbum): DeezerTrack {
     title: text(raw.title),
     durationMs: raw.duration * 1000,
     explicit: raw.explicit_lyrics ?? false,
+    ...(raw.explicit_content_lyrics === undefined ? {} : { edited: raw.explicit_content_lyrics === 3 }),
     rank: raw.rank ?? null,
     isrc: raw.isrc ?? null,
     artist: { id: raw.artist.id, name: text(raw.artist.name) },

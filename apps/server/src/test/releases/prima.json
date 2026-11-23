@@ -1,0 +1,15 @@
+{
+ "recorded": "2026-11-22 on the test instance: ADÉLA's PRIMA, the files a provider delivered for it (their tags as probed) and the five-track list ingest built from them beside the Dolby Atmos release MusicBrainz enrichment had chosen",
+ "deezerAlbumId": 1064827231,
+ "deezerArtistId": 306607671,
+ "releaseGroupMbid": "b7234418-f054-495d-9aa7-efcba9454b32",
+ "atmosReleaseMbid": "0257eb91-3ab9-42e9-9b02-4a43ca077adc",
+ "deliveries": [
+  { "durationMs": 157363, "tags": { "disc": 1, "album": "PRIMA", "isrcs": ["USUM72601922"], "title": "KGB", "track": 1, "artist": "ADÉLA", "albumArtist": "ADÉLA", "compilation": false } },
+  { "durationMs": 150498, "tags": { "date": "2026-09-04", "disc": 1, "year": 2026, "album": "PRIMA", "isrcs": ["USUM72606033"], "title": "I'm The Man", "track": 3, "artist": "ADÉLA", "barcode": "00881061182924", "discTotal": 1, "trackTotal": 11, "albumArtist": "Adéla", "compilation": false, "releaseType": "album" } },
+  { "durationMs": 144739, "tags": { "date": "2026-09-04", "disc": 1, "year": 2026, "album": "PRIMA", "isrcs": ["USUM72606034"], "title": "Boys", "track": 4, "artist": "ADÉLA", "barcode": "00881061182924", "discTotal": 1, "trackTotal": 11, "albumArtist": "Adéla", "compilation": false, "releaseType": "album" } },
+  { "durationMs": 110349, "tags": { "date": "2026-09-04", "disc": 1, "year": 2026, "album": "PRIMA", "isrcs": ["USUM72606038"], "title": "Marijuana", "track": 9, "artist": "ADÉLA", "barcode": "00881061182924", "discTotal": 1, "trackTotal": 11, "albumArtist": "Adéla", "compilation": false, "releaseType": "album" } },
+  { "durationMs": 184974, "tags": { "date": "2026", "disc": 1, "year": 2026, "album": "PRIMA", "isrcs": ["USUM72605978"], "title": "Ain't In LA", "track": 11, "artist": "ADÉLA", "albumArtist": "ADÉLA", "compilation": false } }
+ ],
+ "redBottomsSingle": { "durationMs": 186988, "tags": { "disc": 1, "album": "Red Bottoms", "isrcs": ["USUM72604713"], "title": "Red Bottoms", "track": 1, "artist": "ADÉLA", "albumArtist": "ADÉLA", "compilation": false } }
+}

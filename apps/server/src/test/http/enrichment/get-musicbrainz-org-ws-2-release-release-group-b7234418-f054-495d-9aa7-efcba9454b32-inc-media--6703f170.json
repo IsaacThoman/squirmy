@@ -1,0 +1,2401 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?release-group=b7234418-f054-495d-9aa7-efcba9454b32&inc=media+labels&limit=100&offset=0&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "release-count": 36,
+      "releases": [
+        {
+          "title": "PRIMA",
+          "id": "0257eb91-3ab9-42e9-9b02-4a43ca077adc",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "name": "[Worldwide]",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "sort-name": "[Worldwide]",
+                "type-id": null
+              }
+            }
+          ],
+          "packaging": "None",
+          "asin": null,
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "date": "2026-09-04",
+          "status": "Official",
+          "quality": "normal",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "label-info": [
+            {
+              "label": {
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "type": "Imprint",
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc."
+              },
+              "catalog-number": "00881061182931"
+            }
+          ],
+          "country": "XW",
+          "media": [
+            {
+              "title": "",
+              "track-count": 11,
+              "id": "b6ba24f9-aff0-4ade-bcdd-275436df3846",
+              "format": "Digital Media",
+              "position": 1,
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794"
+            }
+          ],
+          "cover-art-archive": {
+            "artwork": true,
+            "front": true,
+            "count": 1,
+            "darkened": false,
+            "back": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "barcode": "00881061182931",
+          "disambiguation": "Dolby Atmos mix"
+        },
+        {
+          "label-info": [
+            {
+              "catalog-number": "00881061182948",
+              "label": {
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type": "Imprint",
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc."
+              }
+            }
+          ],
+          "media": [
+            {
+              "title": "",
+              "track-count": 11,
+              "id": "1ef1aea2-c97f-419f-88ab-bf6a9a8eea47",
+              "position": 1,
+              "format": "Digital Media",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794"
+            }
+          ],
+          "country": "XW",
+          "cover-art-archive": {
+            "count": 1,
+            "darkened": false,
+            "back": false,
+            "artwork": true,
+            "front": true
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "barcode": "00881061182948",
+          "disambiguation": "clean",
+          "id": "0506bce3-35c5-4367-8b05-4591c36605a5",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "type": null,
+                "sort-name": "[Worldwide]",
+                "type-id": null,
+                "name": "[Worldwide]",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "packaging": "None",
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "asin": null,
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "status": "Official",
+          "quality": "normal",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          }
+        },
+        {
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "status": "Official",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "date": "2026-09-04",
+          "title": "PRIMA",
+          "id": "098e6092-ee35-40a8-ad3e-64dc49e085d4",
+          "packaging": "Jewel Case",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "name": "United States",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "sort-name": "United States",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "disambiguation": "signed",
+          "barcode": "881061148609",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "darkened": false,
+            "count": 6,
+            "back": true,
+            "artwork": true,
+            "front": true
+          },
+          "country": "US",
+          "media": [
+            {
+              "track-count": 11,
+              "title": "",
+              "id": "5d1ae0ad-c096-4c97-b7b3-ea625cc37bee",
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "format": "CD"
+            }
+          ],
+          "label-info": [
+            {
+              "label": {
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "sort-name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "type": "Imprint",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              },
+              "catalog-number": "00881061148609"
+            }
+          ]
+        },
+        {
+          "media": [
+            {
+              "format": "CD",
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "title": "",
+              "track-count": 11,
+              "id": "e8447442-16e9-4ef6-951a-74393df6e9ed"
+            }
+          ],
+          "country": "US",
+          "label-info": [
+            {
+              "catalog-number": "00881061436898",
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "type": "Imprint"
+              }
+            }
+          ],
+          "barcode": "881061436898",
+          "disambiguation": "The Baddest Bitches are in the USA",
+          "cover-art-archive": {
+            "back": true,
+            "darkened": false,
+            "count": 5,
+            "front": true,
+            "artwork": true
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "date": "2026-09-04",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "packaging": "Jewel Case",
+          "id": "18253a87-8b8a-4a89-89f9-2f0d08e69915",
+          "release-events": [
+            {
+              "area": {
+                "sort-name": "United States",
+                "type-id": null,
+                "name": "United States",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type": null,
+                "disambiguation": ""
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "title": "PRIMA",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "status": "Official"
+        },
+        {
+          "title": "PRIMA",
+          "id": "253b558e-b52f-438d-b79e-d08e7fc633eb",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type-id": null,
+                "sort-name": "United States",
+                "name": "United States",
+                "id": "489ce91b-6658-3307-9877-795b68554c98"
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "packaging": "Cardboard/Paper Sleeve",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "asin": null,
+          "date": "2026-09-04",
+          "status": "Official",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "label-info": [
+            {
+              "catalog-number": "00881061081241",
+              "label": {
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type": "Imprint",
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc."
+              }
+            }
+          ],
+          "country": "US",
+          "media": [
+            {
+              "title": "",
+              "track-count": 11,
+              "id": "45b4129a-f53a-4288-9540-8e7d3fc1bd50",
+              "position": 1,
+              "format": "12\" Vinyl",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+            }
+          ],
+          "cover-art-archive": {
+            "count": 8,
+            "darkened": false,
+            "back": true,
+            "front": true,
+            "artwork": true
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "barcode": "881061081241",
+          "disambiguation": "Target exclusive"
+        },
+        {
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "status": "Official",
+          "date": "2026-09-04",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "asin": null,
+          "packaging": "None",
+          "id": "264d60e5-36d0-4b3a-9529-dd57a2ac5c39",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "type-id": null,
+                "sort-name": "[Worldwide]",
+                "name": "[Worldwide]",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "title": "PRIMA",
+          "disambiguation": "clean",
+          "barcode": "00881061182955",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "front": true,
+            "artwork": true,
+            "back": false,
+            "darkened": false,
+            "count": 1
+          },
+          "media": [
+            {
+              "id": "a9f63bc1-19d5-487b-89d6-e918a1242d5c",
+              "track-count": 11,
+              "title": "",
+              "position": 1,
+              "format": "Digital Media",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794"
+            }
+          ],
+          "country": "XW",
+          "label-info": [
+            {
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "type": "Imprint",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records"
+              },
+              "catalog-number": "00881061182955"
+            }
+          ]
+        },
+        {
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "title": "PRIMA",
+          "packaging": "Cardboard/Paper Sleeve",
+          "id": "3098dfff-48b0-4b8f-a97d-a82e27b8af76",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "name": "United Kingdom",
+                "sort-name": "United Kingdom",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "asin": null,
+          "date": "2026-09-04",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "darkened": false,
+            "count": 7,
+            "back": true,
+            "front": true,
+            "artwork": true
+          },
+          "disambiguation": "Blood Records exclusive",
+          "barcode": "881061273622",
+          "label-info": [
+            {
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type": "Imprint"
+              },
+              "catalog-number": "00881061273622"
+            }
+          ],
+          "country": "GB",
+          "media": [
+            {
+              "position": 1,
+              "format": "12\" Vinyl",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "id": "f914d2c5-e53c-4ed7-b1a1-f4d37093d0e0",
+              "track-count": 11,
+              "title": ""
+            }
+          ]
+        },
+        {
+          "cover-art-archive": {
+            "count": 0,
+            "darkened": false,
+            "back": false,
+            "artwork": false,
+            "front": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "",
+          "barcode": "881061081234",
+          "label-info": [
+            {
+              "catalog-number": "00881061081234",
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "type": "Imprint",
+                "sort-name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records"
+              }
+            }
+          ],
+          "media": [
+            {
+              "id": "b668b258-9384-4bd0-9c53-b59c9df26faf",
+              "title": "",
+              "track-count": 11,
+              "position": 1,
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "format": "12\" Vinyl"
+            }
+          ],
+          "country": "XE",
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "id": "3ac07b82-acdc-484b-9801-104c96681a98",
+          "release-events": [
+            {
+              "area": {
+                "type-id": null,
+                "sort-name": "Europe",
+                "name": "Europe",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "disambiguation": ""
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "packaging": "Cardboard/Paper Sleeve",
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "asin": "B0H8FCRT1Q"
+        },
+        {
+          "disambiguation": "white",
+          "barcode": "881061402756",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "artwork": false,
+            "front": false,
+            "back": false,
+            "darkened": false,
+            "count": 0
+          },
+          "country": "GB",
+          "media": [
+            {
+              "format": "12\" Vinyl",
+              "position": 1,
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "title": "",
+              "track-count": 11,
+              "id": "01dc320e-c19d-448b-9067-588056b1e2e3"
+            }
+          ],
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type": "Imprint",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              }
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "status": "Official",
+          "packaging-id": null,
+          "asin": null,
+          "date": "2026-09-04",
+          "title": "PRIMA",
+          "packaging": null,
+          "id": "44e0b70d-2c9a-4403-b9a6-e370511285d8",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "name": "United Kingdom",
+                "sort-name": "United Kingdom",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ],
+                "type": null,
+                "disambiguation": ""
+              }
+            }
+          ]
+        },
+        {
+          "cover-art-archive": {
+            "darkened": false,
+            "count": 0,
+            "back": false,
+            "artwork": false,
+            "front": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "barcode": "881061473459",
+          "disambiguation": "The Baddest Bitches are in Slovakia",
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "type": "Imprint",
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc."
+              }
+            }
+          ],
+          "media": [
+            {
+              "position": 1,
+              "format": "CD",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "id": "830328df-a43a-4378-9b82-3f5f58c2bc4c",
+              "track-count": 11,
+              "title": ""
+            }
+          ],
+          "country": "SK",
+          "status": "Official",
+          "quality": "normal",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "packaging": "Jewel Case",
+          "id": "4543ec13-c6cc-481d-a5f4-9d01821175a2",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "type-id": null,
+                "sort-name": "Slovakia",
+                "name": "Slovakia",
+                "id": "eb52ca74-dd11-37a1-a3fa-154430bf2df2",
+                "iso-3166-1-codes": [
+                  "SK"
+                ],
+                "type": null
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "asin": null,
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a"
+        },
+        {
+          "status": "Official",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "packaging": "Jewel Case",
+          "id": "468fceb5-8752-4782-8033-64a8686a54a1",
+          "release-events": [
+            {
+              "area": {
+                "name": "Sweden",
+                "id": "23d10872-f5ae-3f0c-bf55-332788a16ecb",
+                "sort-name": "Sweden",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "SE"
+                ],
+                "type": null,
+                "disambiguation": ""
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "back": false,
+            "count": 0,
+            "darkened": false,
+            "artwork": false,
+            "front": false
+          },
+          "disambiguation": "The Baddest Bitches are in Sweden",
+          "barcode": "881061473367",
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "type": "Imprint",
+                "sort-name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73"
+              }
+            }
+          ],
+          "media": [
+            {
+              "position": 1,
+              "format": "CD",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "id": "91661430-aed4-4a59-bc9c-d7e448123c5f",
+              "track-count": 11,
+              "title": ""
+            }
+          ],
+          "country": "SE"
+        },
+        {
+          "barcode": "881061304487",
+          "disambiguation": "electric blue",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "count": 0,
+            "darkened": false,
+            "back": false,
+            "front": false,
+            "artwork": false
+          },
+          "country": "XE",
+          "media": [
+            {
+              "title": "",
+              "track-count": 11,
+              "id": "e4348760-5c8f-4534-9c0e-8325cf904e87",
+              "position": 1,
+              "format": "12\" Vinyl",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+            }
+          ],
+          "label-info": [
+            {
+              "catalog-number": "00881061304487",
+              "label": {
+                "sort-name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type": "Imprint",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              }
+            }
+          ],
+          "quality": "normal",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "status": "Official",
+          "asin": null,
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "date": "2026-09-04",
+          "title": "PRIMA",
+          "id": "4ac41f32-05e4-4bfe-919f-994864b3d972",
+          "packaging": "Cardboard/Paper Sleeve",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "type-id": null,
+                "sort-name": "Europe",
+                "name": "Europe",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "cover-art-archive": {
+            "front": false,
+            "artwork": false,
+            "count": 0,
+            "darkened": false,
+            "back": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "The Baddest Bitches are in Norway",
+          "barcode": "881061473381",
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "type": "Imprint",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              }
+            }
+          ],
+          "country": "NO",
+          "media": [
+            {
+              "id": "e8f1e537-62f3-4274-a710-f0f98dcad419",
+              "track-count": 11,
+              "title": "",
+              "position": 1,
+              "format": "CD",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+            }
+          ],
+          "status": "Official",
+          "quality": "normal",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "title": "PRIMA",
+          "id": "537dfe54-2cee-434d-8425-9ca010c205ab",
+          "packaging": "Jewel Case",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "iso-3166-1-codes": [
+                  "NO"
+                ],
+                "type": null,
+                "type-id": null,
+                "sort-name": "Norway",
+                "name": "Norway",
+                "id": "6743d351-6f37-3049-9724-5041161fff4d"
+              }
+            }
+          ],
+          "asin": null,
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "date": "2026-09-04"
+        },
+        {
+          "id": "69b4a249-fa88-4783-af27-d140cb2f1e38",
+          "packaging": "Slipcase",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "sort-name": "United Kingdom",
+                "type-id": null,
+                "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+                "name": "United Kingdom",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "GB"
+                ]
+              }
+            }
+          ],
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "packaging-id": "36201b8a-ebda-4f35-9383-72e22bdb68a1",
+          "asin": null,
+          "status": "Official",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "label-info": [
+            {
+              "catalog-number": "00881061473237",
+              "label": {
+                "type": "Imprint",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc."
+              }
+            }
+          ],
+          "media": [
+            {
+              "track-count": 11,
+              "title": "",
+              "id": "f2c13582-056d-4624-94a9-5e6e0be1bbb8",
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "format": "CD"
+            }
+          ],
+          "country": "GB",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "back": true,
+            "darkened": false,
+            "count": 3,
+            "artwork": true,
+            "front": true
+          },
+          "disambiguation": "The Baddest Bitches are in the UK",
+          "barcode": "881061473237"
+        },
+        {
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "artwork": false,
+            "front": false,
+            "back": false,
+            "count": 0,
+            "darkened": false
+          },
+          "barcode": "881061388524",
+          "disambiguation": "alt cover",
+          "label-info": [
+            {
+              "label": {
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type": "Imprint"
+              },
+              "catalog-number": "00881061388524"
+            }
+          ],
+          "country": "XE",
+          "media": [
+            {
+              "title": "",
+              "track-count": 11,
+              "id": "53f94050-b2e3-446f-8045-5dda43a8347e",
+              "position": 1,
+              "format": "CD",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+            }
+          ],
+          "status": "Official",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "title": "PRIMA",
+          "release-events": [
+            {
+              "area": {
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type": null,
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "sort-name": "Europe",
+                "type-id": null,
+                "disambiguation": ""
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "id": "6dcb7979-76a4-447a-b520-35caa3a828b0",
+          "packaging": "Cardboard/Paper Sleeve",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "asin": null,
+          "date": "2026-09-04"
+        },
+        {
+          "date": "2026-09-04",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "name": "France",
+                "id": "08310658-51eb-3801-80de-5a0739207115",
+                "type-id": null,
+                "sort-name": "France",
+                "iso-3166-1-codes": [
+                  "FR"
+                ],
+                "type": null,
+                "disambiguation": ""
+              }
+            }
+          ],
+          "id": "7673777a-3de7-46de-b787-7d0626c51a50",
+          "packaging": "Jewel Case",
+          "title": "PRIMA",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "status": "Official",
+          "media": [
+            {
+              "id": "234d5656-2d14-4017-a0b2-f54d853d00a4",
+              "track-count": 11,
+              "title": "",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "position": 1,
+              "format": "CD"
+            }
+          ],
+          "country": "FR",
+          "label-info": [
+            {
+              "label": {
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type": "Imprint"
+              },
+              "catalog-number": null
+            }
+          ],
+          "disambiguation": "The Baddest Bitches are in France",
+          "barcode": null,
+          "cover-art-archive": {
+            "back": false,
+            "darkened": false,
+            "count": 0,
+            "front": false,
+            "artwork": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "label-info": [
+            {
+              "catalog-number": "00881061081265",
+              "label": {
+                "type": "Imprint",
+                "sort-name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              }
+            }
+          ],
+          "media": [
+            {
+              "title": "",
+              "track-count": 11,
+              "id": "e2625548-214f-4456-8090-e7e4ed7fce80",
+              "format": "CD",
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+            }
+          ],
+          "country": "XE",
+          "cover-art-archive": {
+            "back": false,
+            "count": 0,
+            "darkened": false,
+            "artwork": false,
+            "front": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "barcode": "881061081265",
+          "disambiguation": "",
+          "id": "8a62dad1-3467-4b23-84b7-6ab71df534ec",
+          "packaging": "Jewel Case",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type": null,
+                "type-id": null,
+                "sort-name": "Europe",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe"
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": "B0H8FH9P36",
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal"
+        },
+        {
+          "barcode": "00881061182917",
+          "disambiguation": "explicit",
+          "cover-art-archive": {
+            "front": true,
+            "artwork": true,
+            "back": false,
+            "darkened": false,
+            "count": 1
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "country": "XW",
+          "media": [
+            {
+              "position": 1,
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "format": "Digital Media",
+              "id": "06a0cb5e-f444-41e6-8ae8-f29126a91b6d",
+              "track-count": 11,
+              "title": ""
+            }
+          ],
+          "label-info": [
+            {
+              "catalog-number": "00881061182917",
+              "label": {
+                "type": "Imprint",
+                "sort-name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              }
+            }
+          ],
+          "quality": "normal",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status": "Official",
+          "asin": null,
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "date": "2026-09-04",
+          "title": "PRIMA",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "type": null,
+                "type-id": null,
+                "sort-name": "[Worldwide]",
+                "name": "[Worldwide]",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f"
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "id": "8d7b66dd-98a5-498c-81c0-baa0ddf749d8",
+          "packaging": "None"
+        },
+        {
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "status": "Official",
+          "date": "2026-09-04",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "asin": null,
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "type-id": null,
+                "disambiguation": ""
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "id": "a421c788-293f-4f55-941a-32acc7ba2621",
+          "packaging": "None",
+          "title": "PRIMA",
+          "disambiguation": "explicit",
+          "barcode": "00881061314172",
+          "cover-art-archive": {
+            "darkened": false,
+            "count": 1,
+            "back": false,
+            "artwork": true,
+            "front": true
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "media": [
+            {
+              "format": "Digital Media",
+              "position": 1,
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "title": "",
+              "track-count": 11,
+              "id": "c861b118-77af-444e-86b8-6ab3bd084ef3"
+            }
+          ],
+          "country": "XW",
+          "label-info": [
+            {
+              "catalog-number": "00881061314172",
+              "label": {
+                "type": "Imprint",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              }
+            }
+          ]
+        },
+        {
+          "date": "2026-09-04",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "packaging": "Jewel Case",
+          "id": "a6047c0d-2f06-46f1-9369-a035050055d7",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "type-id": null,
+                "sort-name": "Canada",
+                "id": "71bbafaa-e825-3e15-8ca9-017dcad1748b",
+                "name": "Canada",
+                "iso-3166-1-codes": [
+                  "CA"
+                ],
+                "type": null
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "title": "PRIMA",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "status": "Official",
+          "media": [
+            {
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "format": "CD",
+              "id": "ad6b526a-88e2-4ef9-8bb4-25ba958b8f05",
+              "title": "",
+              "track-count": 11
+            }
+          ],
+          "country": "CA",
+          "label-info": [
+            {
+              "label": {
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "type": "Imprint",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records"
+              },
+              "catalog-number": null
+            }
+          ],
+          "disambiguation": "The Baddest Bitches are in Canada",
+          "barcode": "881061473275",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "back": false,
+            "darkened": false,
+            "count": 0,
+            "front": false,
+            "artwork": false
+          }
+        },
+        {
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "type": "Imprint",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              }
+            }
+          ],
+          "media": [
+            {
+              "id": "d238cf9c-5774-4057-9128-d09f0a70ff9e",
+              "title": "",
+              "track-count": 11,
+              "position": 1,
+              "format": "CD",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+            }
+          ],
+          "country": "FI",
+          "cover-art-archive": {
+            "front": false,
+            "artwork": false,
+            "count": 0,
+            "darkened": false,
+            "back": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "The Baddest Bitches are in Finland",
+          "barcode": "881061473374",
+          "id": "b10ffbd2-42de-4e00-8909-b2227faf5d90",
+          "packaging": "Jewel Case",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "iso-3166-1-codes": [
+                  "FI"
+                ],
+                "type": null,
+                "sort-name": "Finland",
+                "type-id": null,
+                "name": "Finland",
+                "id": "6a264f94-6ff1-30b1-9a81-41f7bfabd616",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal"
+        },
+        {
+          "cover-art-archive": {
+            "count": 0,
+            "darkened": false,
+            "back": false,
+            "artwork": false,
+            "front": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "The Baddest Bitches are in Denmark",
+          "barcode": "881061473350",
+          "label-info": [
+            {
+              "label": {
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "type": "Imprint",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records"
+              },
+              "catalog-number": null
+            }
+          ],
+          "country": "DK",
+          "media": [
+            {
+              "format": "CD",
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "track-count": 11,
+              "title": "",
+              "id": "e4e8e296-03bb-407d-acc1-dd0be7c9835b"
+            }
+          ],
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "title": "PRIMA",
+          "id": "b3739050-36d1-48c7-916f-3a1488405494",
+          "packaging": "Jewel Case",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "DK"
+                ],
+                "id": "4757b525-2a60-324a-b060-578765d2c993",
+                "name": "Denmark",
+                "sort-name": "Denmark",
+                "type-id": null
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "date": "2026-09-04"
+        },
+        {
+          "media": [
+            {
+              "position": 1,
+              "format": "Digital Media",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "id": "5b554049-2d2c-41e5-8a51-8c5236b89b31",
+              "title": "",
+              "track-count": 12
+            }
+          ],
+          "country": "XW",
+          "label-info": [
+            {
+              "catalog-number": "00881061458241",
+              "label": {
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "type": "Imprint"
+              }
+            }
+          ],
+          "disambiguation": "bonus track “Kiss Here”",
+          "barcode": "00881061458241",
+          "cover-art-archive": {
+            "artwork": true,
+            "front": true,
+            "darkened": false,
+            "count": 1,
+            "back": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "date": "2026-09-04",
+          "asin": null,
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "name": "[Worldwide]",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "type-id": null,
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "id": "b3cf05e3-0730-42b9-85b7-a157b2077b59",
+          "packaging": "None",
+          "title": "PRIMA",
+          "quality": "normal",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status": "Official"
+        },
+        {
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "date": "2026-10-02",
+          "title": "PRIMA",
+          "id": "b86e3349-03a5-4884-9107-18493200986a",
+          "packaging": "Jewel Case",
+          "release-events": [
+            {
+              "date": "2026-10-02",
+              "area": {
+                "disambiguation": "",
+                "iso-3166-2-codes": [
+                  "CN-71"
+                ],
+                "type": null,
+                "iso-3166-1-codes": [
+                  "TW"
+                ],
+                "name": "Taiwan",
+                "id": "41637cec-9a4f-389c-86d2-fc6abf3357b5",
+                "type-id": null,
+                "sort-name": "Taiwan"
+              }
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "status": "Official",
+          "country": "TW",
+          "media": [
+            {
+              "format": "CD",
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "id": "d46b88fe-b59c-4786-8192-351358bf8c4e",
+              "track-count": 11,
+              "title": ""
+            }
+          ],
+          "label-info": [
+            {
+              "catalog-number": "00881061081265",
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type": "Imprint"
+              }
+            },
+            {
+              "catalog-number": "6108126",
+              "label": {
+                "label-code": null,
+                "disambiguation": "Taiwan imprint",
+                "type": "Imprint",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "環球音樂",
+                "id": "0d264610-1a80-436a-a8db-e9b87432d6a1",
+                "name": "環球音樂"
+              }
+            }
+          ],
+          "disambiguation": "",
+          "barcode": "881061081265",
+          "cover-art-archive": {
+            "back": true,
+            "darkened": false,
+            "count": 3,
+            "front": true,
+            "artwork": true
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "disambiguation": "marble",
+          "barcode": "881061273615",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "darkened": false,
+            "count": 0,
+            "back": false,
+            "artwork": false,
+            "front": false
+          },
+          "country": "CA",
+          "media": [
+            {
+              "track-count": 11,
+              "title": "",
+              "id": "71085802-dc85-462d-b34b-d25f19ec5695",
+              "position": 1,
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "format": "12\" Vinyl"
+            }
+          ],
+          "label-info": [
+            {
+              "catalog-number": "00881061273615",
+              "label": {
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "type": "Imprint",
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc."
+              }
+            }
+          ],
+          "quality": "normal",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "status": "Official",
+          "asin": null,
+          "packaging-id": null,
+          "date": "2026-09-04",
+          "title": "PRIMA",
+          "id": "ceeea2b5-11d9-4daf-b59d-4d0d5f061c57",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "iso-3166-1-codes": [
+                  "CA"
+                ],
+                "type": null,
+                "sort-name": "Canada",
+                "type-id": null,
+                "name": "Canada",
+                "id": "71bbafaa-e825-3e15-8ca9-017dcad1748b"
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "packaging": null
+        },
+        {
+          "packaging-id": null,
+          "asin": null,
+          "date": "2026-09-04",
+          "title": "PRIMA",
+          "id": "d178b346-f9a9-4df7-88e7-53b3a7320879",
+          "packaging": null,
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type": null,
+                "type-id": null,
+                "sort-name": "United States",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "disambiguation": ""
+              }
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "status": "Official",
+          "country": "US",
+          "media": [
+            {
+              "id": "793c8dff-4a63-40ad-919c-2bf1612f3771",
+              "track-count": 11,
+              "title": "",
+              "format": "12\" Vinyl",
+              "position": 1,
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+            }
+          ],
+          "label-info": [
+            {
+              "label": {
+                "type": "Imprint",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc."
+              },
+              "catalog-number": null
+            }
+          ],
+          "barcode": null,
+          "disambiguation": "Urban Outfitters exclusive",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "artwork": false,
+            "front": false,
+            "count": 0,
+            "darkened": false,
+            "back": false
+          }
+        },
+        {
+          "cover-art-archive": {
+            "count": 8,
+            "darkened": false,
+            "back": true,
+            "artwork": true,
+            "front": true
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "barcode": "881061148562",
+          "disambiguation": "Hot Topic exclusive",
+          "label-info": [
+            {
+              "catalog-number": "00881061148562",
+              "label": {
+                "type": "Imprint",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              }
+            }
+          ],
+          "country": "US",
+          "media": [
+            {
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "position": 1,
+              "format": "12\" Vinyl",
+              "id": "62e0fda2-b418-4ce5-a728-f273a36e083d",
+              "track-count": 11,
+              "title": ""
+            }
+          ],
+          "status": "Official",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "title": "PRIMA",
+          "packaging": "Cardboard/Paper Sleeve",
+          "id": "d1f055e2-c960-44cb-af02-7bcb7493dfee",
+          "release-events": [
+            {
+              "area": {
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type": null,
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "sort-name": "United States",
+                "type-id": null,
+                "disambiguation": ""
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f",
+          "asin": null,
+          "date": "2026-09-04"
+        },
+        {
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "date": "2026-09-04",
+          "title": "PRIMA",
+          "id": "d2435b11-0478-4c91-a788-46418ab500ec",
+          "packaging": "Jewel Case",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "type-id": null,
+                "sort-name": "Netherlands",
+                "id": "ef1b7cc0-cd26-36f4-8ea0-04d9623786c7",
+                "name": "Netherlands",
+                "iso-3166-1-codes": [
+                  "NL"
+                ],
+                "type": null
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "status": "Official",
+          "country": "NL",
+          "media": [
+            {
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "position": 1,
+              "format": "CD",
+              "track-count": 11,
+              "title": "",
+              "id": "b7c9d6f2-db65-4827-b9f2-07e1a3c9ed7c"
+            }
+          ],
+          "label-info": [
+            {
+              "label": {
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "type": "Imprint",
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc."
+              },
+              "catalog-number": null
+            }
+          ],
+          "disambiguation": "The Baddest Bitches are in the Netherlands",
+          "barcode": null,
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "back": false,
+            "count": 0,
+            "darkened": false,
+            "front": false,
+            "artwork": false
+          }
+        },
+        {
+          "cover-art-archive": {
+            "back": false,
+            "count": 1,
+            "darkened": false,
+            "front": true,
+            "artwork": true
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "bonus track “Nasty Dirty Gross”",
+          "barcode": "00881061505532",
+          "label-info": [
+            {
+              "label": {
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "sort-name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "type": "Imprint",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              },
+              "catalog-number": "00881061505532"
+            }
+          ],
+          "country": "AU",
+          "media": [
+            {
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "position": 1,
+              "format": "Digital Media",
+              "title": "",
+              "track-count": 12,
+              "id": "84e6efed-e6cc-4bdb-a047-06be88c6c40a"
+            }
+          ],
+          "status": "Official",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "title": "PRIMA",
+          "release-events": [
+            {
+              "area": {
+                "name": "Australia",
+                "id": "106e0bec-b638-3b37-b731-f53d507dc00e",
+                "type-id": null,
+                "sort-name": "Australia",
+                "iso-3166-1-codes": [
+                  "AU"
+                ],
+                "type": null,
+                "disambiguation": ""
+              },
+              "date": "2026-09-04"
+            },
+            {
+              "date": "2026-09-04",
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type-id": null,
+                "sort-name": "Europe",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "disambiguation": ""
+              }
+            },
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "sort-name": "United States",
+                "type-id": null,
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              }
+            }
+          ],
+          "id": "d267530c-c643-4c3b-bd2c-7f26151bedb4",
+          "packaging": "None",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "asin": null,
+          "date": "2026-09-04"
+        },
+        {
+          "label-info": [
+            {
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "type": "Imprint"
+              },
+              "catalog-number": null
+            }
+          ],
+          "media": [
+            {
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "position": 1,
+              "format": "CD",
+              "track-count": 11,
+              "title": "",
+              "id": "b30936b3-4ec4-40e2-a64a-523d165ec6b1"
+            }
+          ],
+          "country": "DE",
+          "cover-art-archive": {
+            "artwork": false,
+            "front": false,
+            "count": 0,
+            "darkened": false,
+            "back": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "The Baddest Bitches are in Germany",
+          "barcode": null,
+          "id": "e38ea9ee-e659-4f07-af1f-8d87358fe6a7",
+          "release-events": [
+            {
+              "area": {
+                "iso-3166-1-codes": [
+                  "DE"
+                ],
+                "type": null,
+                "sort-name": "Germany",
+                "type-id": null,
+                "id": "85752fda-13c4-31a3-bee5-0e5cb1f51dad",
+                "name": "Germany",
+                "disambiguation": ""
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "packaging": "Jewel Case",
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "asin": null,
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "status": "Official",
+          "quality": "normal",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          }
+        },
+        {
+          "cover-art-archive": {
+            "count": 0,
+            "darkened": false,
+            "back": false,
+            "front": false,
+            "artwork": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "The Baddest Bitches are in Brasil",
+          "barcode": "881061473398",
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "sort-name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type": "Imprint"
+              }
+            }
+          ],
+          "media": [
+            {
+              "id": "bcdfcd4f-3ea8-47fc-8398-6aa1a8dc1a94",
+              "title": "",
+              "track-count": 11,
+              "format": "CD",
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+            }
+          ],
+          "country": "BR",
+          "status": "Official",
+          "quality": "normal",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging": "Jewel Case",
+          "id": "f32e0307-0f44-4753-a935-813d41f42d84",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "type-id": null,
+                "sort-name": "Brazil",
+                "id": "f45b47f8-5796-386e-b172-6c31b009a5d8",
+                "name": "Brazil",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "BR"
+                ]
+              }
+            }
+          ],
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "asin": null,
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a"
+        },
+        {
+          "label-info": [
+            {
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "type": "Imprint",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records"
+              },
+              "catalog-number": "00881061182924"
+            }
+          ],
+          "media": [
+            {
+              "position": 1,
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "format": "Digital Media",
+              "id": "91fb6af3-318d-40cb-8a62-ae456617d544",
+              "track-count": 11,
+              "title": ""
+            }
+          ],
+          "country": "XW",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "darkened": false,
+            "count": 1,
+            "back": false,
+            "artwork": true,
+            "front": true
+          },
+          "disambiguation": "explicit",
+          "barcode": "00881061182924",
+          "id": "f363a357-72e8-42d4-bdeb-77b717d73d53",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "type": null,
+                "name": "[Worldwide]",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "type-id": null,
+                "sort-name": "[Worldwide]"
+              }
+            }
+          ],
+          "packaging": "None",
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "asin": null,
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal"
+        },
+        {
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "label-code": 148,
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "type": "Imprint",
+                "name": "Capitol Records",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records"
+              }
+            }
+          ],
+          "country": "CZ",
+          "media": [
+            {
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "format": "CD",
+              "track-count": 11,
+              "title": "",
+              "id": "af2d0083-4141-4219-bc5b-4e75ec27ac99"
+            }
+          ],
+          "cover-art-archive": {
+            "count": 0,
+            "darkened": false,
+            "back": false,
+            "artwork": false,
+            "front": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "The Baddest Bitches are in the Czech Republic",
+          "barcode": "881061473428",
+          "title": "PRIMA",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "iso-3166-1-codes": [
+                  "CZ"
+                ],
+                "type": null,
+                "name": "Czechia",
+                "id": "51d34c28-61bf-3d21-849f-7492672a9d44",
+                "type-id": null,
+                "sort-name": "Czechia"
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "id": "fbfeb5c0-b796-44c7-940d-6fab526a92be",
+          "packaging": "Jewel Case",
+          "asin": null,
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "date": "2026-09-04",
+          "status": "Official",
+          "quality": "normal",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          }
+        },
+        {
+          "disambiguation": "The Baddest Bitches are in Poland",
+          "barcode": "881061473312",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "artwork": false,
+            "front": false,
+            "count": 0,
+            "darkened": false,
+            "back": false
+          },
+          "media": [
+            {
+              "title": "",
+              "track-count": 11,
+              "id": "778aef38-4903-4bf1-a324-18529416a1e5",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "position": 1,
+              "format": "CD"
+            }
+          ],
+          "country": "PL",
+          "label-info": [
+            {
+              "label": {
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "type": "Imprint",
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148
+              },
+              "catalog-number": null
+            }
+          ],
+          "quality": "normal",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status": "Official",
+          "date": "2026-09-04",
+          "asin": null,
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "PL"
+                ],
+                "id": "dd7f80c8-f017-3d01-8608-2a8c9c32b954",
+                "name": "Poland",
+                "sort-name": "Poland",
+                "type-id": null,
+                "disambiguation": ""
+              },
+              "date": "2026-09-04"
+            }
+          ],
+          "id": "fc3621ec-f67a-4b6d-b436-9c4e2d6889a7",
+          "packaging": "Jewel Case",
+          "title": "PRIMA"
+        },
+        {
+          "cover-art-archive": {
+            "back": false,
+            "count": 0,
+            "darkened": false,
+            "front": false,
+            "artwork": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "disambiguation": "",
+          "barcode": "881061354314",
+          "label-info": [
+            {
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "Capitol Records",
+                "type": "Imprint"
+              },
+              "catalog-number": "00881061354314"
+            }
+          ],
+          "media": [
+            {
+              "position": 1,
+              "format-id": "f5e6e254-8f39-331c-936b-9c69d686dc47",
+              "format": "Cassette",
+              "id": "63dddce9-dc93-4d57-b3e9-0494a56d03f4",
+              "title": "",
+              "track-count": 11
+            }
+          ],
+          "country": "XE",
+          "status": "Official",
+          "quality": "normal",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "id": "fdb209f0-6202-4d99-9379-0c4c1481e5aa",
+          "packaging": "Cassette Case",
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "type-id": null,
+                "sort-name": "Europe",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "name": "Europe",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XE"
+                ]
+              }
+            }
+          ],
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "asin": null,
+          "packaging-id": "c70b737a-0114-39a9-88f7-82843e54f906"
+        },
+        {
+          "release-events": [
+            {
+              "date": "2026-09-04",
+              "area": {
+                "disambiguation": "",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "BE"
+                ],
+                "id": "5b8a5ee5-0bb3-34cf-9a75-c27c44e341fc",
+                "name": "Belgium",
+                "sort-name": "Belgium",
+                "type-id": null
+              }
+            }
+          ],
+          "id": "ff9a7240-f0b0-47d0-afdf-1efa4954fd77",
+          "packaging": "Jewel Case",
+          "title": "PRIMA",
+          "date": "2026-09-04",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "asin": null,
+          "status": "Official",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "label-info": [
+            {
+              "label": {
+                "disambiguation": "imprint of Capitol Records, Inc.",
+                "label-code": 148,
+                "type": "Imprint",
+                "sort-name": "Capitol Records",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "abea2d3e-eabf-4480-ab24-9382dd642c73",
+                "name": "Capitol Records"
+              },
+              "catalog-number": null
+            }
+          ],
+          "media": [
+            {
+              "id": "a9f803aa-48b0-4edd-b743-bd4448e2d9b7",
+              "title": "",
+              "track-count": 11,
+              "position": 1,
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "format": "CD"
+            }
+          ],
+          "country": "BE",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "artwork": false,
+            "front": false,
+            "back": false,
+            "darkened": false,
+            "count": 0
+          },
+          "disambiguation": "The Baddest Bitches are in Belgium",
+          "barcode": null
+        }
+      ],
+      "release-offset": 0
+    }
+  }
+}
