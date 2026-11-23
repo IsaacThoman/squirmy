@@ -47,7 +47,7 @@ describe('album menu', () => {
   // (#117), which add Go to album; this only checks one is there for an album result.
   it('leaves search’s album rows a menu of their own', async () => {
     renderWithApp(<AppRoutes />, '/search?q=blue')
-    const results = await screen.findByRole('listbox', { name: /^Results for/ })
+    const results = await screen.findByRole('list', { name: /^Results for/ })
     await userEvent.click(await within(results).findByRole('button', { name: 'More options for Blue Hour' }))
     expect(await screen.findByRole('menuitem', { name: 'Add to playlist' })).toBeInTheDocument()
   })

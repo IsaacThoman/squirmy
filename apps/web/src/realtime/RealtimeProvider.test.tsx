@@ -8,9 +8,10 @@ import { renderWithApp } from '@/test/render'
 import { BATCH_MS } from './RealtimeProvider'
 
 const demo = track('night-swimming-demo')
-const rowOf = (title: string) => screen.queryAllByRole('option').find(item => within(item).queryByText(title) !== null)
-// The order of the result rows, by their ids: a row that grays out changes its text, not its place.
-const rowOrder = () => screen.getAllByRole('option').map(item => item.id)
+const resultRows = () => { const list = screen.queryByRole('list', { name: /^Results for/ }); return list ? within(list).getAllByRole('listitem') : [] }
+const rowOf = (title: string) => resultRows().find(item => within(item).queryByText(title) !== null)
+// The order of the result rows, by their title and detail lines: a row that grays out changes its note, not its place.
+const rowOrder = () => resultRows().map(item => [...item.querySelectorAll('span[dir=auto]')].map(span => span.textContent).join(' — '))
 
 afterEach(() => vi.useRealTimers())
 

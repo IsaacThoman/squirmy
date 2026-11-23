@@ -183,7 +183,7 @@ describe('SearchDialog', () => {
   })
 
   it('says the catalog could not be searched rather than “No results” when the server has nothing either', () => {
-    renderDialog({ query: 'pale meridian', results: mergeSearch({ artists: [], albums: [], tracks: [], provider: null }, null, requester), catalogFailed: true, onRetry: () => {} })
+    renderDialog({ query: 'pale meridian', results: merged({ artists: [], albums: [], tracks: [], provider: null }), catalogFailed: true, onRetry: () => {} })
     expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t search the catalog')
     expect(screen.getByText('Nothing on this server matches “pale meridian”.')).toBeInTheDocument()
     expect(screen.queryByText(/No results/)).not.toBeInTheDocument()
