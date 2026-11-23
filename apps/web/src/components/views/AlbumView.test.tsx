@@ -347,7 +347,8 @@ describe('album page', () => {
     const versions = await screen.findByRole('region', { name: 'Other versions' })
     expect(within(versions).getByRole('link', { name: 'Blue Hour (Deluxe Edition)' })).toHaveAttribute('href', `/album/${deluxe.id}`)
     const more = screen.getByRole('region', { name: `More by ${mira.name}` })
-    const titles = within(more).getAllByRole('link').map(link => link.textContent).filter(title => title && title !== 'See all')
+    // The title attribute is the album's own: an unavailable one's link also says so to screen readers.
+    const titles = within(more).getAllByRole('link').filter(link => link.textContent !== 'See all').map(link => link.getAttribute('title'))
     // Albums and EPs before live albums and singles; never the album itself or a version of it.
     expect(titles).toEqual(['Paper Moons', 'Live at the Glasshouse', 'Low Tide'])
     expect(within(more).getByRole('link', { name: 'See all' })).toHaveAttribute('href', `/artist/${mira.id}`)

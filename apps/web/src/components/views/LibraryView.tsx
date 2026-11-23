@@ -17,9 +17,11 @@ import { Button } from '@/components/ui/button'
 import { EmptyState, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { SearchField } from '@/components/ui/search-field'
+import { LoadError } from '@/components/ui/query-state'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { pillClass } from '@/components/ui/tabs'
 import { canFetch } from '@/lib/catalog'
+import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
 import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
@@ -35,7 +37,10 @@ export type LibraryItem =
   | { kind: 'artist'; artist: ArtistSummary }
 
 /** A request that failed, and how to ask again. */
-export type Failure = { error: unknown; onRetry: () => void }
+export type Failure = { error: unknown; onRetry: () => void; retrying?: boolean }
+
+/** Below this width the page header has room for the title alone, so the chips wrap above the list instead. */
+const NARROW_QUERY = '(width < 768px)'
 
 const itemKey = (item: LibraryItem) => (item.kind === 'liked' ? 'liked' : item.kind === 'playlist' ? item.playlist.id : item.kind === 'album' ? item.album.id : item.artist.id)
 
@@ -62,6 +67,11 @@ export type LibraryViewProps = {
   songMatches?: TrackSummary[]
   /** The playlists did not load: Liked Songs and the albums still show, with a way to ask again. */
   playlistsFailure?: Failure
+  /**
+   * The filter's own list (albums, artists or songs) did not load. Under All, Liked Songs and the
+   * playlists still show above the message; the chips and the toolbar stay either way.
+   */
+  listFailure?: Failure
   /** The search of the whole library failed. It says so in place of the matches, even when the list itself loaded. */
   searchFailure?: Failure
   /** "60+ albums" for one kind; nothing for All or while searching. */
@@ -103,18 +113,31 @@ export function LibraryView(props: LibraryViewProps) {
   const shown = songs ? props.tracks : props.items
   const searching = query.trim().length > 0
   const songMatches = songs ? [] : props.songMatches ?? []
-  const { playlistsFailure, searchFailure } = props
+  const { playlistsFailure, searchFailure, listFailure } = props
+  // Under All only the albums follow the sort: Liked Songs and the playlists always lead.
+  const sortsAlbumsOnly = filter === 'all'
+  const narrow = useMediaQuery(NARROW_QUERY)
+  const chips = LIBRARY_FILTERS.map(name => (
+    <Link key={name} to={filterHref(name)} aria-current={name === filter ? 'page' : undefined} className={pillClass}>{filterLabels[name]}</Link>
+  ))
+  // The list failed. Under All, what did load (Liked Songs, the playlists) still shows above the message.
+  const listFailed = Boolean(listFailure) && !searching && !searchFailure
+  const failedList = listFailed && (
+    <LoadError
+      title={`Your ${filter === 'all' ? 'albums' : filterLabels[filter].toLowerCase()} didn’t load`}
+      error={listFailure!.error}
+      onRetry={listFailure!.onRetry}
+      retrying={listFailure!.retrying}
+      className={filter === 'all' && shown?.length ? 'mt-6' : undefined}
+    />
+  )
 
   return (
     <>
-      <PageHeader
-        title="Library"
-        nav={LIBRARY_FILTERS.map(name => (
-          <Link key={name} to={filterHref(name)} aria-current={name === filter ? 'page' : undefined} className={pillClass}>{filterLabels[name]}</Link>
-        ))}
-        navLabel="Library filters"
-      />
+      <PageHeader title="Library" nav={narrow ? undefined : chips} navLabel="Library filters" />
       <Page>
+        {/* A phone's header has room for the title alone. Here every chip shows, wrapping if it must, rather than hiding past a sideways swipe. */}
+        {narrow && <nav aria-label="Library filters" className="-mx-1 -mt-2 mb-3 flex flex-wrap gap-1 px-1 py-1">{chips}</nav>}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <SearchField value={query} onValueChange={onQueryChange} placeholder="Find in your library" className="w-full sm:w-64" />
           {genre && (
@@ -130,8 +153,8 @@ export function LibraryView(props: LibraryViewProps) {
               // Matches from the server come best first, whatever the sort.
               : sorts.length > 0 && !searchesServer(query) && (
                 <Select
-                  label="Sort by"
-                  prefix="Sort:"
+                  label={sortsAlbumsOnly ? 'Sort albums by' : 'Sort by'}
+                  prefix={sortsAlbumsOnly ? 'Sort albums:' : 'Sort:'}
                   value={sort}
                   onValueChange={onSortChange}
                   options={sorts.map((value): SelectOption<LibrarySort> => ({ value, label: sortLabels[value] }))}
@@ -150,6 +173,9 @@ export function LibraryView(props: LibraryViewProps) {
 
         {searchFailure
           ? <EmptyState icon={<CloudOff />} title="Couldn’t search your library" description={errorMessage(searchFailure.error)} action={<Button variant="primary" onClick={searchFailure.onRetry}>Try again</Button>} />
+          // Nothing else to show: the message takes the list's place.
+          : listFailed && !shown?.length
+            ? failedList
           : shown === undefined
             ? (songs || layout === 'list' ? <TrackRowsSkeleton rows={12} art /> : <GridSkeleton round={filter === 'artists'} />)
             : shown.length === 0 && songMatches.length === 0
@@ -159,6 +185,7 @@ export function LibraryView(props: LibraryViewProps) {
                 : (
                   <>
                     {shown.length > 0 && <Collections {...props} items={props.items!} />}
+                    {failedList}
                     {songMatches.length > 0 && <SongMatches tracks={songMatches} />}
                   </>
                 )}

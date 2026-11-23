@@ -60,6 +60,22 @@ describe('Library', () => {
     expect(screen.queryByRole('combobox', { name: 'Genre' })).toBeNull()
   })
 
+  it('shows every chip on a phone, wrapping under the header rather than scrolling out of sight', async () => {
+    vi.stubGlobal('matchMedia', (media: string) => ({
+      media, matches: media === '(width < 768px)', addEventListener() {}, removeEventListener() {},
+    }))
+    try {
+      await renderLibrary('/library?filter=all')
+      await main().findByRole('list', { name: 'Library' })
+      const nav = screen.getByRole('navigation', { name: 'Library filters' })
+      expect(nav.closest('header')).toBeNull()
+      expect(nav).toHaveClass('flex-wrap')
+      expect(filters().getAllByRole('link').map(link => link.textContent)).toEqual(['All', 'Playlists', 'Albums', 'Artists', 'Songs'])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('lists Liked Songs first, then the playlists, then the albums under All', async () => {
     await renderLibrary('/library?filter=all')
     const list = await main().findByRole('list', { name: 'Library' })
@@ -86,6 +102,22 @@ describe('Library', () => {
       await waitFor(() => expect(where().searchParams.get('filter')).toBe('albums'))
       expect(where().searchParams.get('sort')).toBe('title')
       expect(await screen.findByText('Dream Pop')).toBeInTheDocument()
+    })
+
+    it('keeps the genre between Albums and Songs, and lists the songs in it', async () => {
+      const { api } = await renderLibrary('/library?filter=albums&genre=Dream%20Pop')
+      await main().findByRole('list', { name: 'Albums' })
+      expect(filters().getByRole('link', { name: 'Songs' })).toHaveAttribute('href', '/library?filter=songs&genre=Dream+Pop')
+      expect(filters().getByRole('link', { name: 'All' })).toHaveAttribute('href', '/library?filter=all&genre=Dream+Pop')
+      // Playlists and artists take no genre: a chip there would change nothing.
+      expect(filters().getByRole('link', { name: 'Playlists' })).toHaveAttribute('href', '/library?filter=playlists')
+      expect(filters().getByRole('link', { name: 'Artists' })).toHaveAttribute('href', '/library?filter=artists')
+
+      await userEvent.click(filters().getByRole('link', { name: 'Songs' }))
+      await main().findByRole('list', { name: 'Songs' })
+      expect(where().searchParams.get('genre')).toBe('Dream Pop')
+      expect(api.catalog.tracks).toHaveBeenLastCalledWith(expect.objectContaining({ genre: 'Dream Pop' }))
+      expect(screen.getByRole('button', { name: 'Show every genre' })).toBeInTheDocument()
     })
 
     it('keeps Liked Songs on its own page', async () => {
@@ -186,6 +218,13 @@ describe('Library', () => {
       expect(api.catalog.albums).toHaveBeenCalledTimes(1)
       expect(api.catalog.albums).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'title' }))
       expect(screen.getByRole('combobox', { name: 'Sort by' })).toHaveTextContent('Title')
+    })
+
+    it('says under All that the order is the albums’, which follow Liked Songs and the playlists', async () => {
+      await renderLibrary('/library?filter=all&sort=title')
+      await main().findByRole('list', { name: 'Library' })
+      expect(screen.queryByRole('combobox', { name: 'Sort by' })).toBeNull()
+      expect(screen.getByRole('combobox', { name: 'Sort albums by' })).toHaveTextContent('Sort albums:Title')
     })
 
     it('falls back to Recently added where the order chosen does not apply', async () => {
@@ -357,6 +396,38 @@ describe('Library', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
       await waitFor(() => expect(titles(main().getByRole('list', { name: 'Playlists' }))).toEqual(['Liked Songs', ...playlistSummaries.map(playlist => playlist.name)]))
       expect(screen.queryByText('Your playlists didn’t load.')).toBeNull()
+    })
+
+    it('keeps the chips, Liked Songs and the playlists under All when the albums fail, and asks again', async () => {
+      const fake = fakeServices()
+      fake.api.userdata.playlists.mockResolvedValue(ownPlaylists)
+      fake.api.catalog.albums.mockRejectedValue(refused('Albums are resting'))
+      await renderLibrary('/library?filter=all', fake)
+      const failed = await screen.findByRole('alert')
+      expect(failed).toHaveTextContent('Your albums didn’t load')
+      expect(failed).toHaveTextContent('Albums are resting')
+      expect(filters().getAllByRole('link')).toHaveLength(5)
+      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Library' }))).toEqual(['Liked Songs', ...playlistSummaries.map(playlist => playlist.name)]))
+      expect(screen.queryByRole('heading', { name: 'This page did not load' })).toBeNull()
+
+      fake.api.catalog.albums.mockResolvedValue({ items: libraryAlbums, nextCursor: null })
+      await userEvent.click(within(failed).getByRole('button', { name: 'Try again' }))
+      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Library' }))).toEqual(['Liked Songs', ...playlistSummaries.map(playlist => playlist.name), ...libraryAlbums.map(album => album.title)]))
+      expect(screen.queryByText('Your albums didn’t load')).toBeNull()
+    })
+
+    it.each([
+      ['albums', 'albums'],
+      ['songs', 'songs'],
+      ['artists', 'artists'],
+    ] as const)('keeps the chips and the toolbar when the %s fail', async (filter, what) => {
+      const fake = fakeServices()
+      const call = { albums: fake.api.catalog.albums, songs: fake.api.catalog.tracks, artists: fake.api.catalog.artists }[filter]
+      call.mockRejectedValue(refused('Resting'))
+      await renderLibrary(`/library?filter=${filter}`, fake)
+      expect(await screen.findByRole('alert')).toHaveTextContent(`Your ${what} didn’t load`)
+      expect(chosenFilter()).toEqual([filter[0]!.toUpperCase() + filter.slice(1)])
+      expect(search()).toBeInTheDocument()
     })
 
     it('still lists Liked Songs and the albums under All without the playlists', async () => {

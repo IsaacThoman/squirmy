@@ -408,11 +408,20 @@ export function SearchPage() {
   )
 }
 
-/** Where a filter chip goes: the filter, with the chosen sort kept for when it applies again. */
+/** The filters a genre narrows: the albums (alone or under All) and the songs on them. */
+const GENRE_FILTERS: readonly LibraryFilterName[] = ['all', 'albums', 'songs']
+
+/**
+ * Where a filter chip goes: the filter, with the chosen sort kept for when it applies again, and
+ * the genre kept between the filters it narrows until it is cleared. Playlists and artists take
+ * no genre, so they leave it behind rather than show a chip that changes nothing.
+ */
 function libraryHref(filter: LibraryFilterName, params: URLSearchParams) {
   const next = new URLSearchParams({ filter })
   const sort = params.get('sort')
   if (isLibrarySort(sort) && sort !== 'recent') next.set('sort', sort)
+  const genre = params.get('genre')
+  if (genre && GENRE_FILTERS.includes(filter)) next.set('genre', genre)
   return `/library?${next}`
 }
 
@@ -489,6 +498,9 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   const searchFailed = searching && !found.pending && found.data === undefined && Boolean(found.error)
   const matched = searching ? found.data : undefined
   const listed = filter === 'artists' ? artists : filter === 'songs' ? songs : showsAlbums ? albums : null
+  // The list's first answer failed. The page stays: the chips, and under All the playlists, are still usable.
+  const listFailed = Boolean(listed?.error && !listed.data)
+  const albumsFailed = showsAlbums && listFailed
 
   const items = useMemo((): LibraryItem[] | undefined => {
     if (filter === 'songs') return undefined
@@ -500,7 +512,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
           .filter(item => matches(query, item.kind === 'liked' ? 'Liked Songs' : item.playlist.name, item.kind === 'liked' ? '' : item.playlist.ownerName)),
       )
     }
-    if (showsAlbums) {
+    if (showsAlbums && !(albumsFailed && !searching)) {
       const list = searching ? matched?.albums : albums.data && itemsOf(albums.data).filter(album => matches(query, album.title, album.artistCredit))
       if (!list) return undefined
       collections.push(...list.map(album => ({ kind: 'album', album }) as const))
@@ -511,7 +523,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       collections.push(...list.map(artist => ({ kind: 'artist', artist }) as const))
     }
     return collections
-  }, [filter, showsPlaylists, showsAlbums, playlists, playlistsFailed, query, searching, matched, albums.data, artists.data])
+  }, [filter, showsPlaylists, showsAlbums, albumsFailed, playlists, playlistsFailed, query, searching, matched, albums.data, artists.data])
 
   const tracks = useMemo(() => {
     if (filter !== 'songs') return undefined
@@ -525,8 +537,6 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   const onEndReached = useCallback(() => {
     if (!searching && hasNextPage && !isFetchingNextPage) void fetchNextPage?.()
   }, [searching, hasNextPage, isFetchingNextPage, fetchNextPage])
-
-  if (listed?.error && !listed.data) return <ErrorPage error={listed.error} onRetry={() => void listed.refetch()} />
 
   const matchedCount = !matched ? 0 : filter === 'songs' ? matched.tracks.length : filter === 'artists' ? matched.artists.length : matched.albums.length
   const count = filter === 'albums' ? listCount(albums, 'album')
@@ -568,7 +578,8 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       // All lists collections; a search also finds songs, which follow them rather than going unsaid.
       songMatches={filter === 'all' ? matched?.tracks : undefined}
       playlistsFailure={playlistsFailed ? { error: playlistList.error, onRetry: () => void playlistList.refetch() } : undefined}
-      searchFailure={searchFailed ? { error: found.error, onRetry: () => void found.refetch() } : undefined}
+      listFailure={listFailed ? { error: listed!.error, retrying: listed!.isFetching, onRetry: () => void listed!.refetch() } : undefined}
+      searchFailure={searchFailed ?{ error: found.error, onRetry: () => void found.refetch() } : undefined}
       count={count}
       likedCount={liked.data ? listCount(liked, 'song') : undefined}
       libraryEmpty={Boolean(albums.data && !itemsOf(albums.data).length && !genre)}

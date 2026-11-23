@@ -1,6 +1,6 @@
 import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
 import { Bookmark, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from 'react'
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
 import { Equalizer } from '@/components/music/Equalizer'
@@ -114,6 +114,14 @@ const SidebarView = memo(function SidebarView({
     refocus.current = document.activeElement === event.currentTarget
     onToggle()
   }
+  // The shell's ⌘B (Ctrl+B) toggles too. Pressed on the toggle, the key reaches it first, so its
+  // replacement takes focus then as well. The shell folds it before the next frame, or not at all.
+  const onToggleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
+    if (event.key.toLowerCase() !== 'b' && event.code !== 'KeyB') return
+    refocus.current = true
+    requestAnimationFrame(() => { refocus.current = false })
+  }
   useLayoutEffect(() => {
     if (!refocus.current) return
     refocus.current = false
@@ -144,7 +152,7 @@ const SidebarView = memo(function SidebarView({
       <div className="flex items-center gap-1 p-2">
         <Tooltip label={collapsed ? 'Open sidebar' : null} side="right">
           {collapsed ? (
-            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Open sidebar" className="group/logo flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
+            <button ref={toggleRef} type="button" onClick={toggle} onKeyDown={onToggleKeyDown} aria-label="Open sidebar" className="group/logo flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
               <LogoMark size={30} className="group-hover/logo:hidden" />
               <PanelLeftOpen aria-hidden className="hidden size-4 group-hover/logo:block" />
             </button>
@@ -157,7 +165,7 @@ const SidebarView = memo(function SidebarView({
         <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold', textTransition)}>Squirmy</span>
         {!collapsed && (
           <Tooltip label={mobile ? null : 'Close sidebar'} side="right">
-            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Close sidebar" className="relative flex size-8 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+            <button ref={toggleRef} type="button" onClick={toggle} onKeyDown={onToggleKeyDown} aria-label="Close sidebar" className="relative flex size-8 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
               <PanelLeftClose aria-hidden className="size-4" />
             </button>
           </Tooltip>
@@ -165,7 +173,8 @@ const SidebarView = memo(function SidebarView({
       </div>
 
       {/* The navigation and the playlists share one scroll position; the header and the account stay put. */}
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      {/* Folded, a scrollbar would take a third of the rail; the wheel, a swipe and Tab still scroll it. */}
+      <div className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden', collapsed && 'scrollbar-none')}>
         <nav aria-label="Main" className="space-y-0.5 px-2">
           {navItem('/', 'Home', House, { end: true })}
           {navItem('/search', 'Search', Search, { hint: mobile ? undefined : <Kbd>{modKey}K</Kbd> })}
@@ -174,9 +183,14 @@ const SidebarView = memo(function SidebarView({
           {canUploadMusic(user) && navItem('/imports', 'Add music', Upload)}
         </nav>
 
-        {/* Stays mounted while folded, so it fades on the same timeline as the labels. */}
-        <div aria-hidden={collapsed} inert={collapsed} className={cn('transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]', collapsed && 'h-0 overflow-hidden', contentTransition)}>
-          <div className="px-2 pb-4 pt-4">
+        {/*
+          * Folded, Liked Songs and the playlists stay as a column of covers under a rule, each named
+          * by a tooltip and to screen readers, so they are still one click away.
+          */}
+        <div className={cn('px-2', collapsed ? 'pb-2 pt-2' : 'pb-4 pt-4')}>
+          {collapsed && <div aria-hidden className="mx-1.5 mb-2 border-t border-sidebar-border" />}
+          {/* Stays mounted while folded, so it fades on the same timeline as the labels. */}
+          <div aria-hidden={collapsed} inert={collapsed} className={cn('transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]', collapsed && 'h-0 overflow-hidden', contentTransition)}>
             <div className="flex items-center px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               <Link to="/library?filter=playlists" onClick={onNavigate} className="rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline">Playlists</Link>
               {/* In the drawer the tooltip would only take the first Escape. */}
@@ -186,24 +200,26 @@ const SidebarView = memo(function SidebarView({
                 </button>
               </Tooltip>
             </div>
-            <ul role="list" aria-label="Playlists" className="space-y-0.5">
-              <li>
-                <LikedRow detail={likedCount} playing={runningIn('liked', null)} entries={likedEntries} onNavigate={onNavigate} onDropTracks={likeTracks} />
-              </li>
-              {playlists.map(playlist => (
-                <li key={playlist.id}>
-                  <PlaylistItem
-                    playlist={playlist}
-                    playing={runningIn('playlist', playlist.id)}
-                    owned={playlist.ownerId === user.id}
-                    onNavigate={onNavigate}
-                    onPlay={onPlayPlaylist}
-                    onDropTracks={addToPlaylist}
-                  />
-                </li>
-              ))}
-            </ul>
           </div>
+          <ul role="list" aria-label="Playlists" className="space-y-0.5">
+            <li>
+              <LikedRow detail={likedCount} playing={runningIn('liked', null)} entries={likedEntries} collapsed={collapsed} labelClass={textTransition} onNavigate={onNavigate} onDropTracks={likeTracks} />
+            </li>
+            {playlists.map(playlist => (
+              <li key={playlist.id}>
+                <PlaylistItem
+                  playlist={playlist}
+                  playing={runningIn('playlist', playlist.id)}
+                  owned={playlist.ownerId === user.id}
+                  collapsed={collapsed}
+                  labelClass={textTransition}
+                  onNavigate={onNavigate}
+                  onPlay={onPlayPlaylist}
+                  onDropTracks={addToPlaylist}
+                />
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
@@ -239,8 +255,10 @@ function initial(name: string): string {
   return (first ?? '?').toUpperCase()
 }
 
-const LikedRow = memo(function LikedRow({ detail, playing, entries, onNavigate, onDropTracks }: Pick<PlaylistRowProps, 'detail' | 'playing' | 'entries' | 'onNavigate' | 'onDropTracks'>) {
-  return <PlaylistRow to="/liked" title="Liked Songs" detail={detail} art={<LikedCover className="size-6 rounded-[5px]" />} playing={playing} entries={entries} onNavigate={onNavigate} onDropTracks={onDropTracks} />
+type LikedRowProps = Pick<PlaylistRowProps, 'detail' | 'playing' | 'entries' | 'collapsed' | 'labelClass' | 'onNavigate' | 'onDropTracks'>
+
+const LikedRow = memo(function LikedRow({ detail, playing, entries, collapsed, labelClass, onNavigate, onDropTracks }: LikedRowProps) {
+  return <PlaylistRow to="/liked" title="Liked Songs" detail={detail} art={<LikedCover className="size-6 rounded-[5px]" />} playing={playing} entries={entries} collapsed={collapsed} labelClass={labelClass} onNavigate={onNavigate} onDropTracks={onDropTracks} />
 })
 
 type PlaylistItemProps = {
@@ -248,13 +266,15 @@ type PlaylistItemProps = {
   playing: boolean | null
   /** Songs can be dropped only on the user's own playlists. */
   owned: boolean
+  collapsed: boolean
+  labelClass: string
   onNavigate: () => void
   onPlay: (playlist: PlaylistSummary) => void
   onDropTracks: (playlist: PlaylistSummary, tracks: TrackSummary[]) => void
 }
 
 /** Memoized with stable props, so a long list of playlists renders again only where something changed. */
-const PlaylistItem = memo(function PlaylistItem({ playlist, playing, owned, onNavigate, onPlay, onDropTracks }: PlaylistItemProps) {
+const PlaylistItem = memo(function PlaylistItem({ playlist, playing, owned, collapsed, labelClass, onNavigate, onPlay, onDropTracks }: PlaylistItemProps) {
   const entries = useMemo<MenuEntry[]>(() => [{ label: 'Play', icon: <Play />, onSelect: () => onPlay(playlist), disabled: playlist.trackCount === 0 }], [playlist, onPlay])
   return (
     <PlaylistRow
@@ -263,6 +283,8 @@ const PlaylistItem = memo(function PlaylistItem({ playlist, playing, owned, onNa
       art={<PlaylistCover artworks={playlist.artworks} className="size-6 rounded-[5px]" />}
       playing={playing}
       entries={entries}
+      collapsed={collapsed}
+      labelClass={labelClass}
       onNavigate={onNavigate}
       onDropTracks={owned ? tracks => onDropTracks(playlist, tracks) : undefined}
     />
@@ -277,45 +299,56 @@ type PlaylistRowProps = {
   /** Whether it is the collection playing now, and if so whether playback is running. */
   playing: boolean | null
   entries: MenuEntry[]
+  /** Folded to a rail: the cover alone, named by a tooltip. */
+  collapsed: boolean
+  /** How the name and the count fade as the sidebar folds, as the navigation's labels do. */
+  labelClass: string
   onNavigate: () => void
   onDropTracks?: (tracks: TrackSummary[]) => void
 }
 
-function PlaylistRow({ to, title, detail, art, playing, entries, onNavigate, onDropTracks }: PlaylistRowProps) {
+function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labelClass, onNavigate, onDropTracks }: PlaylistRowProps) {
   const [over, setOver] = useState(false)
   const accepts = (event: DragEvent) => Boolean(onDropTracks && draggedTracks(event))
+  const link = (
+    <NavLink
+      to={to}
+      // Open, a name cut short shows whole on hover; folded, the tooltip says it.
+      title={collapsed ? undefined : title}
+      onClick={onNavigate}
+      onDragOver={event => {
+        if (!accepts(event)) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setOver(true)
+      }}
+      // Moving onto the row's own cover or title is not leaving it.
+      onDragLeave={event => { if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) setOver(false) }}
+      onDrop={event => {
+        const drag = draggedTracks(event)
+        setOver(false)
+        if (!onDropTracks || !drag) return
+        event.preventDefault()
+        onDropTracks(drag.tracks)
+      }}
+      className={cn(
+        'flex items-center gap-2 overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
+        // Folded: a square under the navigation's icons, the cover centred in it.
+        collapsed ? 'mx-0.5 w-8 p-1' : 'px-2 py-1.5',
+        over && 'bg-sidebar-accent ring-2 ring-primary',
+      )}
+    >
+      <span className="flex shrink-0">{art}</span>
+      <span dir="auto" className={cn('min-w-0 flex-1 truncate whitespace-nowrap', labelClass)}>{title}</span>
+      {playing !== null
+        ? <Equalizer playing={playing} className={cn('h-3 shrink-0', labelClass)} />
+        : detail && <span className={cn('shrink-0 whitespace-nowrap text-xs text-muted-foreground', labelClass)}>{detail}</span>}
+    </NavLink>
+  )
+  // Folded, the tooltip names the cover. Its trigger is the link and the menu's is the box around it: each takes its props from an element of its own.
   return (
     <ContextMenu entries={entries}>
-      <NavLink
-        to={to}
-        title={title}
-        onClick={onNavigate}
-        onDragOver={event => {
-          if (!accepts(event)) return
-          event.preventDefault()
-          event.dataTransfer.dropEffect = 'copy'
-          setOver(true)
-        }}
-        // Moving onto the row's own cover or title is not leaving it.
-        onDragLeave={event => { if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) setOver(false) }}
-        onDrop={event => {
-          const drag = draggedTracks(event)
-          setOver(false)
-          if (!onDropTracks || !drag) return
-          event.preventDefault()
-          onDropTracks(drag.tracks)
-        }}
-        className={cn(
-          'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
-          over && 'bg-sidebar-accent ring-2 ring-primary',
-        )}
-      >
-        {art}
-        <span dir="auto" className="min-w-0 flex-1 truncate">{title}</span>
-        {playing !== null
-          ? <Equalizer playing={playing} className="h-3 shrink-0" />
-          : detail && <span className="shrink-0 text-xs text-muted-foreground">{detail}</span>}
-      </NavLink>
+      <div><Tooltip label={collapsed ? title : null} side="right">{link}</Tooltip></div>
     </ContextMenu>
   )
 }

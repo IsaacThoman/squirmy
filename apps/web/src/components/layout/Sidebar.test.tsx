@@ -328,11 +328,29 @@ describe('Sidebar', () => {
       expect(screen.getByRole('button', { name: 'Account, Alex Rivera' })).toBeInTheDocument()
     })
 
-    it('hides the playlists from assistive technology and from the keyboard', () => {
+    it('keeps Liked Songs and every playlist as a cover, named and in reach of the keyboard', async () => {
       renderSidebar({ collapsed: true })
-      expect(screen.queryByRole('list', { name: 'Playlists' })).not.toBeInTheDocument()
+      const links = playlistLinks()
+      expect(links.map(link => link.textContent)).toEqual(['Liked Songs24 songs', ...playlists.map(playlist => playlist.name)])
+      for (const link of links) expect(link.closest('[inert]')).toBeNull()
+      // Named by a tooltip, not the browser's own title, which would show beside it.
+      expect(playlistLink('Road Trip')).not.toHaveAttribute('title')
+      playlistLink('Road Trip').focus()
+      expect(await screen.findByRole('tooltip')).toHaveTextContent('Road Trip')
+    })
+
+    it('leaves out the playlists’ heading and New playlist', () => {
+      renderSidebar({ collapsed: true })
       expect(screen.queryByRole('button', { name: 'New playlist' })).not.toBeInTheDocument()
-      expect(screen.getByRole('list', { name: 'Playlists', hidden: true }).closest('[inert]')).not.toBeNull()
+      expect(screen.queryByRole('link', { name: 'Playlists' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'New playlist', hidden: true }).closest('[inert]')).not.toBeNull()
+    })
+
+    it('opens a playlist from its cover', async () => {
+      const { onNavigate } = renderSidebar({ collapsed: true })
+      await userEvent.click(playlistLink('Road Trip'))
+      expect(where()).toBe(`/playlist/${roadTrip.id}`)
+      expect(onNavigate).toHaveBeenCalled()
     })
 
     it('opens again from the logo', async () => {

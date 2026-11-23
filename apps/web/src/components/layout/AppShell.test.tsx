@@ -313,14 +313,25 @@ describe('AppShell', () => {
       await press('b', modifier)
       expect(folded()).toBe(true)
       expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeInTheDocument()
-      expect(screen.queryByRole('list', { name: 'Playlists' })).not.toBeInTheDocument()
+      // Folded, the playlists stay as covers; only their heading and New playlist go.
+      expect(screen.getByRole('list', { name: 'Playlists' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'New playlist' })).not.toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Library' })).toBeInTheDocument()
       expect(localStorage.getItem(COLLAPSED_KEY)).toBe('1')
 
       await press('b', modifier)
       expect(folded()).toBe(false)
-      expect(screen.getByRole('list', { name: 'Playlists' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'New playlist' })).toBeInTheDocument()
       expect(localStorage.getItem(COLLAPSED_KEY)).toBe('0')
+    })
+
+    it('keeps the keyboard on the toggle when the shortcut folds and opens it', async () => {
+      await renderShell()
+      screen.getByRole('button', { name: 'Close sidebar' }).focus()
+      await press('b', 'Meta')
+      expect(screen.getByRole('button', { name: 'Open sidebar' })).toHaveFocus()
+      await press('b', 'Meta')
+      expect(screen.getByRole('button', { name: 'Close sidebar' })).toHaveFocus()
     })
 
     it('folds and opens from its own buttons, and remembers which', async () => {
@@ -552,7 +563,7 @@ describe('AppShell', () => {
       await userEvent.click(opener())
       await userEvent.click(within(sidebar()).getByRole('link', { name: 'Library' }))
       // The Library opens on the filter last chosen in this browser: All the first time.
-      expect(where()).toBe('/library?filter=all')
+      await waitFor(() => expect(where()).toBe('/library?filter=all'))
       expect(drawerOpen()).toBe(false)
     })
 
