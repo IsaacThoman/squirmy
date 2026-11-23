@@ -54,6 +54,12 @@ export type ExpoAudioEngineOptions = {
   now?: () => number;
   /** How often to look for stalls while playing, which no native event reports. */
   pollIntervalMs?: number;
+  /**
+   * Called with true while the engine should be making sound and is not yet (loading, or
+   * buffering mid-song), and false once it is or no longer should: the app asks iOS for
+   * background running time meanwhile, so a stall in the background can still be recovered.
+   */
+  holdRunning?: (hold: boolean) => void;
   /** State changes, the silence and nudges, for the app's console: a stall can be explained afterwards. */
   log?: (message: string) => void;
 };
@@ -107,6 +113,7 @@ export class ExpoAudioEngine implements PlayerEngine {
   /** The entry an interruption paused, to resume when it ends. */
   private interruptedEntryId: string | null = null;
   private holding = false;
+  private running = false;
   private silence: LoopingPlayer | null = null;
   private readonly listeners = new Set<(event: EngineEvent) => void>();
   private readonly now: () => number;
@@ -241,6 +248,11 @@ export class ExpoAudioEngine implements PlayerEngine {
   holdAudioSession(hold: boolean): void {
     this.holding = hold;
     this.syncSilence();
+  }
+
+  /** It was told to play an entry that makes no sound yet: loading, or buffering mid-song. */
+  isTryingToPlay(): boolean {
+    return this.running;
   }
 
   getStatus(): EngineStatus {
@@ -391,6 +403,14 @@ export class ExpoAudioEngine implements PlayerEngine {
     }
   }
 
+  private syncRunning(): void {
+    const waiting = this.current !== null && this.wantsPlay && (this.state === 'loading' || this.state === 'buffering');
+    if (waiting === this.running) return;
+    this.running = waiting;
+    this.log(waiting ? 'holding background time' : 'background time given back');
+    this.options.holdRunning?.(waiting);
+  }
+
   private becomeReady(slot: Slot): void {
     if (slot !== this.current) return;
     slot.ready = true;
@@ -443,6 +463,7 @@ export class ExpoAudioEngine implements PlayerEngine {
       this.state = 'ended';
     }
     this.syncSilence();
+    this.syncRunning();
     this.emit({ type: 'ended', entryId: slot.entryId });
     this.emit({ type: 'status', status: this.getStatus() });
     this.schedulePoll();
@@ -455,6 +476,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.log(`${slot.entryId} failed: ${message}`);
     this.state = 'error';
     this.syncSilence();
+    this.syncRunning();
     this.emit({ type: 'error', entryId: slot.entryId, message: playbackErrorMessage(message) });
     this.emit({ type: 'status', status: this.getStatus() });
     this.schedulePoll();
@@ -470,6 +492,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.state = state;
     // Also when the state stays: a pause while loading keeps `loading` but needs no silence.
     this.syncSilence();
+    this.syncRunning();
     if (changed) this.emit({ type: 'status', status: this.getStatus() });
     this.schedulePoll();
   }

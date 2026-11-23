@@ -36,6 +36,11 @@ type NowPlayingModule = {
    */
   setFavorite(available: boolean, active: boolean, label: string): Promise<void>;
   clear(): Promise<void>;
+  /**
+   * Asks iOS for background running time (about 30 s) while `hold`, or gives it back.
+   * Missing in an app built before it was added.
+   */
+  holdBackgroundTime?: (hold: boolean) => Promise<void>;
   /** Where the sound goes now. Missing in an app built before it was added. */
   currentOutputs?: () => AudioOutput[];
   addListener(event: 'onRemoteCommand', listener: (command: RemoteCommand) => void): EventSubscription;

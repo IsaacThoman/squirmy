@@ -434,6 +434,34 @@ describe('ExpoAudioEngine', () => {
     expect(engine.getStatus().state).toBe('idle');
   });
 
+  it('holds background running time while it should sound and does not yet, and gives it back', () => {
+    const holds: boolean[] = [];
+    const held = new ExpoAudioEngine({
+      createPlayer: url => {
+        const player = new FakePlayer(url);
+        players.push(player);
+        return player;
+      },
+      createSilence: () => new FakeSilence(),
+      holdRunning: hold => holds.push(hold),
+    });
+    held.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    expect(holds).toEqual([true]);
+    players.at(-1)!.load();
+    expect(holds).toEqual([true, false]);
+    vi.advanceTimersByTime(5000);
+    players.at(-1)!.refusePlay = true;
+    players.at(-1)!.playing = false;
+    vi.advanceTimersByTime(1000);
+    expect(held.getStatus().state).toBe('buffering');
+    expect(holds).toEqual([true, false, true]);
+    held.pause();
+    expect(holds).toEqual([true, false, true, false]);
+    held.load({ entryId: 'b', url: 'https://x/b', startMs: 0, autoplay: true, gain: 1 });
+    held.stop();
+    expect(holds).toEqual([true, false, true, false, true, false]);
+  });
+
   it('logs state changes and the silence', () => {
     const lines: string[] = [];
     const logged = new ExpoAudioEngine({
@@ -447,7 +475,7 @@ describe('ExpoAudioEngine', () => {
     });
     logged.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
     players.at(-1)!.load();
-    expect(lines).toEqual(['a idle → loading at 0 ms', 'silence on', 'silence off', 'a loading → playing at 0 ms']);
+    expect(lines).toEqual(['a idle → loading at 0 ms', 'silence on', 'holding background time', 'silence off', 'a loading → playing at 0 ms', 'background time given back']);
     players.at(-1)!.emit({ didJustFinish: false, timeControlStatus: 'waitingToPlayAtSpecifiedRate', reasonForWaitingToPlay: 'evaluatingBufferingRate' });
     players.at(-1)!.emit({ didJustFinish: false, timeControlStatus: 'waitingToPlayAtSpecifiedRate', reasonForWaitingToPlay: 'evaluatingBufferingRate' });
     players.at(-1)!.emit({ didJustFinish: false, timeControlStatus: 'playing' });

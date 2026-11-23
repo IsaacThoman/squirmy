@@ -31,6 +31,7 @@ public class NowPlayingModule: Module {
   private var artwork: MPMediaItemArtwork?
   private var observers: [NSObjectProtocol] = []
   private var favorite = Favorite()
+  private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
 
   public func definition() -> ModuleDefinition {
     Name("SquirmyNowPlaying")
@@ -89,6 +90,22 @@ public class NowPlayingModule: Module {
       self.applyFavorite()
     }.runOnQueue(.main)
 
+    // Background running time while a song that should play makes no sound yet: iOS suspends a
+    // backgrounded app that plays nothing, and suspended it could neither start the song nor
+    // reload it when it is stuck. About 30 seconds, which covers the session's first reloads.
+    AsyncFunction("holdBackgroundTime") { (hold: Bool) in
+      if hold {
+        guard self.backgroundTask == .invalid else {
+          return
+        }
+        self.backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Squirmy loading") { [weak self] in
+          self?.endBackgroundTime()
+        }
+      } else {
+        self.endBackgroundTime()
+      }
+    }.runOnQueue(.main)
+
     // Where the sound goes now, for the log: a stall can depend on the output (AirPlay).
     Function("currentOutputs") { () -> [[String: String]] in
       Self.outputs()
@@ -101,7 +118,10 @@ public class NowPlayingModule: Module {
     OnDestroy {
       self.observers.forEach { NotificationCenter.default.removeObserver($0) }
       self.observers.removeAll()
-      DispatchQueue.main.async { self.clear() }
+      DispatchQueue.main.async {
+        self.clear()
+        self.endBackgroundTime()
+      }
     }
   }
 
@@ -134,6 +154,14 @@ public class NowPlayingModule: Module {
       "reason": reason == .oldDeviceUnavailable ? "oldDeviceUnavailable" : "other",
       "outputs": Self.outputs(),
     ])
+  }
+
+  private func endBackgroundTime() {
+    guard backgroundTask != .invalid else {
+      return
+    }
+    UIApplication.shared.endBackgroundTask(backgroundTask)
+    backgroundTask = .invalid
   }
 
   private static func outputs() -> [[String: String]] {

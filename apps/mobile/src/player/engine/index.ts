@@ -39,6 +39,7 @@ export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInte
   return new ExpoAudioEngine({
     ...options,
     log: message => console.info(`[engine] ${message}`),
+    holdRunning: hold => void NowPlaying?.holdBackgroundTime?.(hold).catch(() => undefined),
     // Never AirPlay's external playback mode, in which iOS hands a player's URL to the receiver
     // to fetch and play itself: a receiver cannot fetch the silence's local file, and with it
     // and the song both handed over, the song waited forever (the spinner over AirPlay until
