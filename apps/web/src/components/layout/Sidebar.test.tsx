@@ -343,13 +343,29 @@ describe('Sidebar', () => {
       expect(onToggle).toHaveBeenCalledTimes(1)
     })
 
+    it('keeps the navigation links mounted so their labels can fade across a toggle', async () => {
+      renderSidebar({ toggles: true })
+      const search = mainNav().getByRole('link', { name: 'Search' })
+      await userEvent.click(screen.getByRole('button', { name: 'Close sidebar' }))
+      expect(mainNav().getByRole('link', { name: 'Search' })).toBe(search)
+      await userEvent.click(screen.getByRole('button', { name: 'Open sidebar' }))
+      expect(mainNav().getByRole('link', { name: 'Search' })).toBe(search)
+    })
+
     it('keeps the keyboard on the toggle as it folds and opens, though each state has its own button', async () => {
       renderSidebar({ toggles: true })
       screen.getByRole('button', { name: 'Close sidebar' }).focus()
       await userEvent.keyboard('{Enter}')
       expect(screen.getByRole('button', { name: 'Open sidebar' })).toHaveFocus()
-      await userEvent.keyboard('{Enter}')
-      expect(screen.getByRole('button', { name: 'Close sidebar' })).toHaveFocus()
+      const focus = vi.spyOn(HTMLButtonElement.prototype, 'focus')
+      try {
+        await userEvent.keyboard('{Enter}')
+        const close = screen.getByRole('button', { name: 'Close sidebar' })
+        expect(close).toHaveFocus()
+        expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+      } finally {
+        focus.mockRestore()
+      }
     })
 
     it('folds from Close sidebar while open', async () => {

@@ -62,6 +62,8 @@ const SidebarView = memo(function SidebarView({
 }: SidebarProps & { playing: PlayingCollection | null }) {
   const library = useLibrary()
   const navigate = useNavigate()
+  const [navTooltip, setNavTooltip] = useState<string | null>(null)
+  if (!collapsed && navTooltip !== null) setNavTooltip(null)
   const name = user.displayName ?? user.username
   const runningIn = (type: PlayingCollection['type'], id: string | null) => (playing?.type === type && playing.id === id ? playing.running : null)
   // Songs dropped on Liked Songs are saved to the library, with one toast for them all.
@@ -78,10 +80,20 @@ const SidebarView = memo(function SidebarView({
   const contentTransition = !transitions
     ? collapsed ? 'pointer-events-none opacity-0 duration-0' : 'opacity-100 duration-0'
     : collapsed ? 'pointer-events-none opacity-0 duration-100' : 'opacity-100 delay-100 duration-150'
-  const textTransition = cn('transition-[opacity,transform] ease-[cubic-bezier(0.4,0,0.2,1)]', contentTransition, collapsed ? '-translate-x-1' : 'translate-x-0')
+  const textTransition = cn('transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]', contentTransition)
+  // Keep the logo on the navigation's centerline while the sidebar width animates.
+  const logoControl = 'flex size-9 shrink-0 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring'
 
   const navItem = (to: string, label: string, Icon: LucideIcon, options: { end?: boolean; hint?: ReactNode } = {}) => (
-    <Tooltip key={to} label={collapsed ? label : null} side="right">
+    <Tooltip
+      key={to}
+      label={mobile ? null : label}
+      open={collapsed && navTooltip === to}
+      onOpenChange={open => {
+        if (collapsed) setNavTooltip(current => open ? to : current === to ? null : current)
+      }}
+      side="right"
+    >
       <NavLink
         to={to}
         end={options.end}
@@ -92,11 +104,10 @@ const SidebarView = memo(function SidebarView({
           // The selected fill is close to the hover fill and to the sidebar itself, so the page you
           // are on also gets a bar and an icon in the action color, which stand 3:1 off it.
           'before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary before:opacity-0 aria-[current=page]:before:opacity-100 aria-[current=page]:[&_svg]:text-primary',
-          // Square on the rail, centred under the logo.
-          collapsed ? 'mx-0.5 w-8' : 'w-full',
         )}
       >
-        <span className={cn('flex h-8 shrink-0 items-center justify-center', collapsed ? 'w-8' : 'w-9')}><Icon aria-hidden className="size-4" /></span>
+        {/* The link grows with the sidebar, and the icon stays on the logo's centerline. */}
+        <span className="flex h-8 w-9 shrink-0 items-center justify-center"><Icon aria-hidden className="size-4" /></span>
         <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap pr-2', textTransition)}>{label}</span>
         {options.hint && <span className={cn('pr-2', textTransition)}>{options.hint}</span>}
       </NavLink>
@@ -117,7 +128,8 @@ const SidebarView = memo(function SidebarView({
   useLayoutEffect(() => {
     if (!refocus.current) return
     refocus.current = false
-    toggleRef.current?.focus()
+    // The close button can be outside the visible rail until the width transition catches up.
+    toggleRef.current?.focus({ preventScroll: true })
   }, [collapsed])
 
   const accountEntries: MenuEntry[] = [
@@ -144,12 +156,12 @@ const SidebarView = memo(function SidebarView({
       <div className="flex items-center gap-1 p-2">
         <Tooltip label={collapsed ? 'Open sidebar' : null} side="right">
           {collapsed ? (
-            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Open sidebar" className="group/logo flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
+            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Open sidebar" className={cn(logoControl, 'group/logo')}>
               <LogoMark size={30} className="group-hover/logo:hidden" />
               <PanelLeftOpen aria-hidden className="hidden size-4 group-hover/logo:block" />
             </button>
           ) : (
-            <Link to="/" onClick={onNavigate} aria-label="Squirmy home" className="flex size-9 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
+            <Link to="/" onClick={onNavigate} aria-label="Squirmy home" className={logoControl}>
               <LogoMark size={30} />
             </Link>
           )}
@@ -157,7 +169,7 @@ const SidebarView = memo(function SidebarView({
         <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold', textTransition)}>Squirmy</span>
         {!collapsed && (
           <Tooltip label={mobile ? null : 'Close sidebar'} side="right">
-            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Close sidebar" className="relative flex size-8 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+            <button ref={toggleRef} type="button" onClick={toggle} aria-label="Close sidebar" className={cn('relative flex size-8 shrink-0 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring', !mobile && transitions && 'transition-opacity delay-100 duration-150 starting:opacity-0 motion-reduce:transition-none')}>
               <PanelLeftClose aria-hidden className="size-4" />
             </button>
           </Tooltip>
